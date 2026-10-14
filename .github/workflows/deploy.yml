@@ -1,0 +1,107 @@
+# Feibeitsblatt – Deployment auf Cloudflare (Worker + D1 in der EU + statische Seite).
+# Benötigte Repository-Secrets: CLOUDFLARE_API_TOKEN (Vorlage „Edit Cloudflare Workers“ + „Konto → D1 → Bearbeiten“),
+# CLOUDFLARE_ACCOUNT_ID (optional, sonst das erste Konto des Tokens). Ohne Token wird nur ein Hinweis ausgegeben.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Secrets prüfen
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        run: |
+          if [ "$HAS_TOKEN" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deployment übersprungen::Das Secret CLOUDFLARE_API_TOKEN ist nicht gesetzt. Anleitung siehe README (Abschnitt Einrichtung)."
+          fi
+
+  deploy:
+    name: Auf Cloudflare veröffentlichen
+    needs: check
+    if: needs.check.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten installieren (wrangler 4.145.0 aus package-lock.json)
+        run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      - name: Unit-Tests
+        run: npm test
+
+      - name: Seite bauen (dist/)
+        run: npm run build
+
+      - name: Konto-ID ermitteln
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            ACC=$(curl -fsS "https://api.cloudflare.com/client/v4/accounts" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id // empty')
+            if [ -z "$ACC" ]; then
+              echo "::error::Konto-ID nicht ermittelbar. Bitte das Secret CLOUDFLARE_ACCOUNT_ID setzen."
+              exit 1
+            fi
+            echo "CLOUDFLARE_ACCOUNT_ID=$ACC" >> "$GITHUB_ENV"
+          fi
+
+      - name: workers.dev-Subdomain sicherstellen (neue Konten haben keine)
+        run: |
+          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
+          SUB=$(curl -sS "$API" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result.subdomain // empty')
+          if [ -z "$SUB" ]; then
+            WANT="feibeitsblatt-$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-' | cut -c1-40)"
+            curl -fsS -X PUT "$API" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" --data "{\"subdomain\":\"$WANT\"}" > /dev/null
+            SUB="$WANT"
+          fi
+          echo "WORKERS_SUBDOMAIN=$SUB" >> "$GITHUB_ENV"
+
+      - name: D1-Datenbank in der EU sicherstellen
+        run: |
+          npx wrangler d1 info feibeitsblatt-db >/dev/null 2>&1 || npx wrangler d1 create feibeitsblatt-db --jurisdiction eu
+
+      - name: Worker veröffentlichen
+        run: npx wrangler deploy
+
+      - name: SETTINGS_SECRET einmalig erzeugen (verschlüsselt den KI-Schlüssel)
+        run: |
+          # Nie überschreiben: ein neues Secret macht den gespeicherten KI-Schlüssel unlesbar
+          if ! LIST=$(npx wrangler secret list --format json 2>/dev/null); then
+            echo "::warning::Secret-Liste nicht abrufbar – SETTINGS_SECRET bleibt unverändert."
+          elif echo "$LIST" | grep -q '"SETTINGS_SECRET"'; then
+            echo "SETTINGS_SECRET ist bereits gesetzt."
+          else
+            openssl rand -base64 32 | tr -d '\n' | npx wrangler secret put SETTINGS_SECRET
+          fi
+
+      - name: Adresse ausgeben
+        run: echo "::notice title=Feibeitsblatt ist online::https://feibeitsblatt.${WORKERS_SUBDOMAIN}.workers.dev"

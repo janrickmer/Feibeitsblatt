@@ -1,0 +1,418 @@
+// smoke.mjs – API-Durchlauf gegen einen echten `wrangler dev --local` (lokale D1) und die Mock-KI.
+//
+//   node test/smoke.mjs        (SMOKE_PORT=8811, SMOKE_MOCK_PORT=8812, SMOKE_STATE=.wrangler/smoke-state)
+//
+// Startet selbst: Build (dist/), Mock-KI und wrangler dev mit frischem Zustand; beendet beides am Ende.
+// Die Krypto-Helfer (exakt SPEC §2) sind exportiert und auch für andere Tests nutzbar.
+import { spawn } from "node:child_process";
+import { readFile, rm, readdir, mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import assert from "node:assert/strict";
+
+const subtle = globalThis.crypto.subtle;
+const te = new TextEncoder(), td = new TextDecoder();
+export const b64 = (u8) => Buffer.from(u8 instanceof ArrayBuffer ? new Uint8Array(u8) : u8).toString("base64");
+export const unb64 = (s) => new Uint8Array(Buffer.from(s, "base64"));
+
+/* ---------- Krypto wie im Browser (SPEC §2) ---------- */
+export async function deriveTeacherKeys(password, kdf) {
+  const base = await subtle.importKey("raw", te.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const master = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: unb64(kdf.salt), iterations: kdf.iterations }, base, 256);
+  const hk = await subtle.importKey("raw", master, "HKDF", false, ["deriveBits", "deriveKey"]);
+  const encKey = await subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode("feibeitsblatt/enc/v1") },
+    hk, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  const authRaw = await subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode("feibeitsblatt/auth/v1") }, hk, 256);
+  return { encKey, authKey: b64(authRaw) };
+}
+export async function sealPrivateKey(encKey, pkcs8) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  return { iv: b64(iv), ct: b64(await subtle.encrypt({ name: "AES-GCM", iv }, encKey, pkcs8)) };
+}
+export async function openPrivateKey(encKey, encPrivateKey) {
+  const pkcs8 = await subtle.decrypt({ name: "AES-GCM", iv: unb64(encPrivateKey.iv) }, encKey, unb64(encPrivateKey.ct));
+  return subtle.importKey("pkcs8", pkcs8, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]);
+}
+export async function createTeacher(password, iterations = 600000) {
+  const kdf = { salt: b64(crypto.getRandomValues(new Uint8Array(16))), iterations };
+  const { encKey, authKey } = await deriveTeacherKeys(password, kdf);
+  const pair = await subtle.generateKey({ name: "RSA-OAEP", modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["encrypt", "decrypt"]);
+  const publicKey = b64(await subtle.exportKey("spki", pair.publicKey));
+  const pkcs8 = new Uint8Array(await subtle.exportKey("pkcs8", pair.privateKey));
+  return { kdf, authKey, encKey, publicKey, pkcs8, privateKey: pair.privateKey, encPrivateKey: await sealPrivateKey(encKey, pkcs8) };
+}
+export async function makeEnvelope(publicKeyB64, payload) {
+  const pub = await subtle.importKey("spki", unb64(publicKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
+  const k = await subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await subtle.encrypt({ name: "AES-GCM", iv }, k, te.encode(JSON.stringify(payload)));
+  const ek = await subtle.encrypt({ name: "RSA-OAEP" }, pub, await subtle.exportKey("raw", k));
+  return { v: 1, ek: b64(ek), iv: b64(iv), ct: b64(ct) };
+}
+export async function openEnvelope(privateKey, env) {
+  const raw = await subtle.decrypt({ name: "RSA-OAEP" }, privateKey, unb64(env.ek));
+  const k = await subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+  return JSON.parse(td.decode(await subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, k, unb64(env.ct))));
+}
+
+/* ---------- Durchlauf ---------- */
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const UNKNOWN_CODE_MSG = "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code.";
+
+async function filesUnder(dir) {
+  const out = [];
+  for (const e of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...(await filesUnder(p))); else out.push(p);
+  }
+  return out;
+}
+
+async function main() {
+  const PORT = Number(process.env.SMOKE_PORT || 8811), MOCK_PORT = Number(process.env.SMOKE_MOCK_PORT || 8812);
+  const STATE = process.env.SMOKE_STATE || join(ROOT, ".wrangler", "smoke-state");
+  const BASE = "http://127.0.0.1:" + PORT;
+  const SECRET = b64(crypto.getRandomValues(new Uint8Array(32)));
+  let wrangler = null, mock = null, log = "";
+  let step = "Start";
+  const ok = (name) => console.log("  ✓ " + name);
+
+  const cleanup = async () => {
+    if (wrangler && wrangler.exitCode == null) {
+      try { process.kill(-wrangler.pid, "SIGTERM"); } catch {}
+      for (let i = 0; i < 50 && wrangler.exitCode == null; i++) await sleep(100);
+      try { process.kill(-wrangler.pid, "SIGKILL"); } catch {}
+      for (let i = 0; i < 50; i++) {   // warten, bis der Port wirklich frei ist
+        try { await fetch("http://127.0.0.1:" + (process.env.SMOKE_PORT || 8811) + "/api/health", { signal: AbortSignal.timeout(300) }); } catch { break; }
+        await sleep(100);
+      }
+    }
+    if (mock) await mock.close();
+  };
+  process.on("SIGINT", () => cleanup().then(() => process.exit(130)));
+
+  try {
+    step = "Build";
+    await new Promise((resolve, reject) => {
+      const b = spawn(process.execPath, [join(ROOT, "scripts", "build.mjs")], { stdio: "inherit" });
+      b.on("exit", (code) => (code === 0 ? resolve() : reject(new Error("Build fehlgeschlagen"))));
+    });
+    await rm(STATE, { recursive: true, force: true });
+    await mkdir(STATE, { recursive: true });
+
+    step = "Mock-KI";
+    const { startMockAI, expectedResults } = await import(pathToFileURL(join(ROOT, "test", "mock-ai.mjs")).href);
+    mock = await startMockAI({ port: MOCK_PORT });
+
+    step = "wrangler dev";
+    wrangler = spawn(join(ROOT, "node_modules", ".bin", "wrangler"),
+      ["dev", "--local", "--ip", "127.0.0.1", "--port", String(PORT), "--persist-to", STATE, "--show-interactive-dev-session=false",
+        "--var", "SETTINGS_SECRET:" + SECRET],
+      { cwd: ROOT, detached: true, env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" }, stdio: ["ignore", "pipe", "pipe"] });
+    wrangler.stdout.on("data", (d) => { log += d; });
+    wrangler.stderr.on("data", (d) => { log += d; });
+    const t0 = Date.now();
+    for (;;) {
+      if (wrangler.exitCode != null) throw new Error("wrangler dev beendet:\n" + log.slice(-3000));
+      try { const r = await fetch(BASE + "/api/health"); if (r.ok) break; } catch {}
+      if (Date.now() - t0 > 120000) throw new Error("wrangler dev nicht bereit:\n" + log.slice(-3000));
+      await sleep(300);
+    }
+    ok("wrangler dev bereit nach " + Math.round((Date.now() - t0) / 1000) + " s");
+
+    const api = async (method, path, body, { auth, headers = {}, rawBody } = {}) => {
+      const h = { ...headers };
+      if (body !== undefined || rawBody !== undefined) h["content-type"] = "application/json";
+      if (auth) h.authorization = "Bearer " + auth;
+      const init = { method, headers: h, body: rawBody !== undefined ? rawBody : body !== undefined ? JSON.stringify(body) : undefined };
+      if (rawBody instanceof ReadableStream) init.duplex = "half";
+      const r = await fetch(BASE + path, init);
+      const text = await r.text();
+      let json = null; try { json = JSON.parse(text); } catch {}
+      return { status: r.status, headers: r.headers, text, json };
+    };
+    const expectErr = (res, status, code, msg) => {
+      assert.equal(res.status, status, step + ": HTTP " + res.status + " " + res.text.slice(0, 300));
+      assert.equal(res.json && res.json.ok, false);
+      assert.equal(res.json.code, code);
+      assert.equal(typeof res.json.error, "string");
+      if (msg) assert.equal(res.json.error, msg);
+    };
+    let doorFails = 0, authFails = 0, misses = 0, feedbackCount = 0, submitCount = 0;
+
+    step = "Allgemein";
+    let r = await api("GET", "/api/gibtsnicht");
+    expectErr(r, 404, "not_found");
+    assert.equal(r.headers.get("content-type"), "application/json; charset=utf-8");
+    assert.equal(r.headers.get("cache-control"), "no-store");
+    assert.equal(r.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(r.headers.get("access-control-allow-origin"), "*");
+    ok("unbekannte Route → 404 JSON mit Sicherheits-/CORS-Headern");
+    r = await api("OPTIONS", "/api/submit", undefined, { headers: { origin: "https://example.org", "access-control-request-method": "POST", "access-control-request-headers": "content-type, authorization" } });
+    assert.equal(r.status, 204);
+    assert.equal(r.headers.get("access-control-allow-origin"), "*");
+    assert.match(r.headers.get("access-control-allow-headers"), /Authorization/);
+    assert.match(r.headers.get("access-control-allow-methods"), /DELETE/);
+    ok("OPTIONS → 204 mit CORS-Headern");
+    r = await fetch(BASE + "/");
+    const html = await r.text();
+    assert.equal(r.status, 200);
+    assert.equal(html, await readFile(join(ROOT, "dist", "index.html"), "utf8"));
+    assert.match(r.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
+    assert.equal(r.headers.get("x-frame-options"), "DENY");
+    assert.equal((await fetch(BASE + "/_headers")).status, 404, "_headers darf nicht ausgeliefert werden");
+    ok("GET / liefert dist/index.html mit Sicherheits-Headern aus _headers (die selbst nicht abrufbar ist)");
+    expectErr(await api("POST", "/api/teacher/door", undefined, { rawBody: "{kaputt" }), 400, "bad_json");
+    expectErr(await api("GET", "/api/feedback"), 405, "method_not_allowed");
+    ok("ungültiges JSON → 400 bad_json, falsche Methode → 405");
+    r = await api("POST", "/api/submit", undefined, { rawBody: JSON.stringify({ code: "ABC234", pad: "x".repeat(1100 * 1024) }) });
+    expectErr(r, 413, "too_large");
+    const big = new Uint8Array(1100 * 1024).fill(32);
+    const stream = new ReadableStream({ start(c) { for (let i = 0; i < big.length; i += 65536) c.enqueue(big.subarray(i, i + 65536)); c.close(); } });
+    expectErr(await api("POST", "/api/feedback", undefined, { rawBody: stream }), 413, "too_large");
+    ok("Body > 1 MB → 413 (mit und ohne Content-Length)");
+
+    step = "Tür";
+    r = await api("POST", "/api/teacher/door", { doorCode: "0000" }); doorFails++;
+    expectErr(r, 403, "wrong_code", UNKNOWN_CODE_MSG);
+    r = await api("POST", "/api/teacher/door", { doorCode: "1104" });
+    assert.deepEqual(r.json, { ok: true, setup: false, kdf: null });
+    ok("Türcode falsch → 403 (Meldung wie unbekannter Code), richtig → setup:false");
+
+    step = "Einrichtung";
+    const PASSWORD = "Korrektes Pferd Batterie 1104";
+    const T = await createTeacher(PASSWORD);
+    expectErr(await api("GET", "/api/teacher/ai", undefined, { auth: T.authKey }), 409, "not_setup");
+    const setupBody = { doorCode: "1104", authKey: T.authKey, kdf: T.kdf, publicKey: T.publicKey, encPrivateKey: T.encPrivateKey };
+    r = await api("POST", "/api/teacher/setup", { ...setupBody, doorCode: "9999" }); doorFails++;
+    expectErr(r, 403, "wrong_code");
+    expectErr(await api("POST", "/api/teacher/setup", { ...setupBody, publicKey: "QUJD" }), 400, "bad_request");
+    expectErr(await api("POST", "/api/teacher/setup", { ...setupBody, kdf: { salt: T.kdf.salt, iterations: 1000 } }), 400, "bad_request");
+    r = await api("POST", "/api/teacher/setup", setupBody);
+    assert.deepEqual(r.json, { ok: true }, r.text);
+    expectErr(await api("POST", "/api/teacher/setup", setupBody), 409, "already_setup");
+    r = await api("POST", "/api/teacher/door", { doorCode: " 1104 " });
+    assert.deepEqual(r.json, { ok: true, setup: true, kdf: T.kdf });
+    ok("Passwort festlegen (PBKDF2 600 000 → HKDF, RSA-OAEP 3072), zweites Setup → 409");
+
+    step = "Anmeldung";
+    const again = await deriveTeacherKeys(PASSWORD, r.json.kdf);
+    assert.equal(again.authKey, T.authKey);
+    r = await api("POST", "/api/teacher/login", undefined, { auth: again.authKey });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.publicKey, T.publicKey);
+    assert.deepEqual(r.json.kdf, T.kdf);
+    let privateKey = await openPrivateKey(again.encKey, r.json.encPrivateKey);
+    const wrong = await deriveTeacherKeys("falsches Passwort", T.kdf);
+    r = await api("POST", "/api/teacher/login", undefined, { auth: wrong.authKey }); authFails++;
+    expectErr(r, 401, "unauthorized", "Passwort falsch.");
+    expectErr(await api("GET", "/api/teacher/sheets"), 401, "unauthorized");
+    ok("Anmeldung: privater Schlüssel entschlüsselbar; falsches Passwort → 401");
+
+    step = "KI-Einstellungen";
+    let auth = T.authKey;
+    r = await api("GET", "/api/teacher/ai", undefined, { auth });
+    assert.equal(r.json.provider, "groq"); assert.equal(r.json.hasKey, false); assert.equal(r.json.keyHint, "");
+    expectErr(await api("PUT", "/api/teacher/ai", { provider: "custom", model: "", baseUrl: "http://example.com/v1", apiKey: "test" }, { auth }), 400, "bad_request");
+    expectErr(await api("PUT", "/api/teacher/ai", { provider: "unbekannt", model: "" }, { auth }), 400, "bad_request");
+    expectErr(await api("POST", "/api/teacher/ai/test", undefined, { auth }), 400, "ai_not_configured");
+    r = await api("PUT", "/api/teacher/ai", { provider: "custom", model: "", baseUrl: mock.url, apiKey: "test" }, { auth });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.hasKey, true); assert.equal(r.json.keyHint, "…test"); assert.equal(r.json.warning, undefined);
+    assert.deepEqual(r.json.fallbacks, ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "qwen/qwen3-32b"]);   // whisper aussortiert
+    assert.equal(r.text.includes('"test"'), false, "API-Schlüssel darf die API nie verlassen");
+    r = await api("GET", "/api/teacher/ai", undefined, { auth });
+    assert.equal(r.json.provider, "custom"); assert.equal(r.json.baseUrl, mock.url); assert.equal(r.json.hasKey, true); assert.equal(r.json.keyHint, "…test");
+    r = await api("PUT", "/api/teacher/ai", { provider: "custom", model: "", baseUrl: mock.url }, { auth });   // ohne apiKey: alter bleibt
+    assert.equal(r.json.hasKey, true);
+    mock.reset();
+    r = await api("POST", "/api/teacher/ai/test", undefined, { auth });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.sample, "Verbindung steht."); assert.equal(r.json.model, "openai/gpt-oss-120b"); assert.equal(r.json.provider, "custom");
+    assert.equal(mock.state.requests.length, 1);
+    ok("KI: Vorgabe groq ohne Schlüssel; custom + Mock speichern (keyHint …test, Ausweich-Liste), Test → sample");
+
+    step = "Feibeitsblatt anlegen";
+    const tasks = [
+      { text: "Erkläre, wie Pflanzen Energie gewinnen.", solution: "- Photosynthese findet in den Chloroplasten statt\n- Licht wird als Energiequelle benötigt\n- Sauerstoff entsteht als Nebenprodukt" },
+      { text: "Was hat dir heute am besten gefallen?", solution: "" },
+      { text: "Warum trocknet eine Pfütze?", solution: "Wasser verdunstet durch Wärme" },
+    ];
+    expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: [] }, { auth }), 400, "bad_request");
+    expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: Array.from({ length: 31 }, () => ({ text: "a" })) }, { auth }), 400, "bad_request");
+    expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: [{ text: "   ", solution: "a" }] }, { auth }), 400, "bad_request");
+    expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: [{ text: "a".repeat(4001) }] }, { auth }), 400, "bad_request");
+    r = await api("POST", "/api/teacher/sheets", { title: "", tasks: [{ text: "Nur eine Aufgabe" }] }, { auth });
+    assert.match(r.json.title, /^Feibeitsblatt vom \d{2}\.\d{2}\.\d{4}$/);
+    const otherCode = r.json.code;
+    r = await api("POST", "/api/teacher/sheets", { title: "  Smoke-Test: Pflanzen  ", tasks }, { auth });
+    assert.equal(r.status, 200, r.text);
+    const code = r.json.code;
+    assert.match(code, /^[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{6}$/); assert.match(code, /[A-Z]/); assert.match(code, /[0-9]/);
+    assert.equal(r.json.title, "Smoke-Test: Pflanzen");
+    r = await api("GET", "/api/teacher/sheets", undefined, { auth });
+    assert.equal(r.json.sheets.length, 2);
+    assert.equal(r.json.sheets.find((s) => s.code === code).taskCount, 3);
+    assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 0);
+    r = await api("GET", "/api/teacher/sheets/" + code.toLowerCase(), undefined, { auth });
+    assert.deepEqual(r.json.sheet.tasks, tasks);
+    ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Musterlösungen");
+
+    step = "Öffentlicher Abruf";
+    const display = code.slice(0, 3) + "-" + code.slice(3);
+    r = await api("GET", "/api/sheet/" + encodeURIComponent(" " + display.toLowerCase() + " "));
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ text: t.text })));
+    assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
+    assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
+    for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Musterlösung im öffentlichen JSON!");
+    assert.equal(/solution|musterl/i.test(r.text), false);
+    r = await api("GET", "/api/sheet/ZZZZZ9"); misses++;
+    expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);
+    r = await api("GET", "/api/sheet/1104"); misses++;
+    expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);
+    ok("GET /api/sheet: nur Aufgabentexte (keine Musterlösung), Schlüssel, Anbieter; unbekannt → 404");
+
+    step = "KI-Feedback";
+    const answers = ["Die Photosynthese braucht LICHT. Zebrafink-Marker", "Die Pause.", ""];
+    mock.reset();
+    r = await api("POST", "/api/feedback", { code: display, answers }); feedbackCount++;
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, expectedResults(tasks, answers));
+    assert.deepEqual(r.json.results, [
+      { covered: ["Photosynthese findet in den Chloroplasten statt", "Licht wird als Energiequelle benötigt"], missing: ["Sauerstoff entsteht als Nebenprodukt"] },
+      { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es keine Musterlösung." },
+      { covered: [], missing: ["Wasser verdunstet durch Wärme"] },
+    ]);
+    assert.equal(mock.state.requests.length, 1, "eine KI-Anfrage je Blatt");
+    const sent = mock.state.requests[0].messages.map((m) => m.content).join("\n");
+    assert.match(sent, /### Aufgabe 1\n/); assert.match(sent, /### Aufgabe 3\n/); assert.doesNotMatch(sent, /### Aufgabe 2\n/);
+    assert.equal(sent.includes(tasks[1].text), false, "Aufgabe ohne Musterlösung geht nicht an die KI");
+    assert.deepEqual(mock.state.requests[0].response_format, { type: "json_object" });
+    expectErr(await api("POST", "/api/feedback", { code, answers: ["a"] }), 400, "bad_answers"); feedbackCount++;
+    expectErr(await api("POST", "/api/feedback", { code, answers: ["a".repeat(8001), "", ""] }), 400, "too_long"); feedbackCount++;
+    expectErr(await api("POST", "/api/feedback", { code, answers: [1, "", ""] }), 400, "bad_answers"); feedbackCount++;
+    expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found"); feedbackCount++;
+    r = await api("POST", "/api/feedback", { code: otherCode, answers: ["egal"] }); feedbackCount++;
+    assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es keine Musterlösung." }] });
+    ok("Feedback: eine KI-Anfrage, grün/rot wie erwartet, Aufgabe ohne Musterlösung mit Hinweis; Längenprüfungen");
+
+    mock.setMode("fenced");
+    r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
+    assert.deepEqual(r.json.results, expectedResults(tasks, answers));
+    mock.setMode("badjson");
+    r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
+    expectErr(r, 502, "ai_error");
+    assert.equal(r.json.aiCode, "BAD_JSON");
+    mock.setMode("429");
+    r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
+    expectErr(r, 502, "ai_error", "Das KI-Kontingent für heute ist aufgebraucht. Bitte frag deine Lehrkraft.");
+    mock.setMode("ok");
+    r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
+    assert.equal(r.status, 200, "erschöpfte Modelle bleiben als letzte Wahl nutzbar: " + r.text);
+    ok("Feedback robust: Code-Zaun/<think> ok; kein JSON / Tageslimit → 502 ai_error mit Schülertext");
+
+    step = "Abgabe";
+    const sheetPub = (await api("GET", "/api/sheet/" + code)).json.sheet;
+    const payload = { v: 1, sheetCode: code, sheetTitle: sheetPub.title, person: { vorname: "Xav", nachname: "Qu", geburtsdatum: "2011-05-04", klasse: "8b" },
+      answers: [{ first: answers[0], final: answers[0] + " Ergänzt-Marker" }, { first: "", final: "Die Pause." }, { first: "", final: "Wärme" }],
+      feedback: r.json.results, feedbackAt: new Date().toISOString(), submittedAt: new Date().toISOString() };
+    const envelope = await makeEnvelope(sheetPub.publicKey, payload);
+    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, v: 2 } }), 400, "bad_envelope"); submitCount++;
+    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, iv: "kein base64!" } }), 400, "bad_envelope"); submitCount++;
+    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, ct: "A".repeat(420 * 1024) } }), 413, "too_large"); submitCount++;
+    expectErr(await api("POST", "/api/submit", { code: "AAAAA2", envelope }), 404, "not_found"); submitCount++;
+    r = await api("POST", "/api/submit", { code: display, envelope }); submitCount++;
+    assert.equal(r.status, 200, r.text);
+    assert.equal(typeof r.json.id, "number"); assert.ok(Math.abs(r.json.receivedAt - Date.now()) < 60000);
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.equal(r.json.submissions.length, 1);
+    assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[0].envelope), payload);
+    r = await api("GET", "/api/teacher/sheets", undefined, { auth });
+    assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 1);
+    ok("Abgabe: Umschlag-Prüfungen; gespeicherter Umschlag mit dem privaten Schlüssel entschlüsselt = payload");
+
+    step = "Datenbank ohne Klartext";
+    await sleep(500);
+    let scanned = 0;
+    const control = { "Sauerstoff entsteht als Nebenprodukt": 0, '"apiKeyEnc"': 0, '"ek":"': 0 };   // Gegenprobe: Scan sieht die DB
+    for (const f of await filesUnder(STATE)) {
+      const buf = await readFile(f).catch(() => null); if (!buf) continue;
+      scanned++;
+      for (const needle of ["Zebrafink-Marker", "Ergänzt-Marker", '"geburtsdatum"', '"apiKey":"test"', '"apiKey":']) {
+        assert.equal(buf.includes(Buffer.from(needle)), false, needle + " im Klartext in " + f);
+      }
+      for (const needle of Object.keys(control)) if (buf.includes(Buffer.from(needle))) control[needle]++;
+    }
+    assert.ok(scanned > 0, "keine D1-Dateien gefunden");
+    for (const [needle, n] of Object.entries(control)) assert.ok(n > 0, "Gegenprobe fehlt: " + needle);
+    ok("D1-Dateien (" + scanned + ") enthalten weder Antworten, Personendaten noch den API-Schlüssel im Klartext");
+
+    step = "Passwort ändern";
+    const kdf2 = { salt: b64(crypto.getRandomValues(new Uint8Array(16))), iterations: 600000 };
+    const T2 = await deriveTeacherKeys("Neues Passwort 2026!", kdf2);
+    r = await api("POST", "/api/teacher/password", { newAuthKey: T2.authKey, kdf: kdf2, encPrivateKey: await sealPrivateKey(T2.encKey, T.pkcs8) }, { auth });
+    assert.deepEqual(r.json, { ok: true }, r.text);
+    expectErr(await api("POST", "/api/teacher/login", undefined, { auth }), 401, "unauthorized"); authFails++;
+    auth = T2.authKey;
+    r = await api("POST", "/api/teacher/login", undefined, { auth });
+    assert.equal(r.json.publicKey, T.publicKey);
+    privateKey = await openPrivateKey(T2.encKey, r.json.encPrivateKey);
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[0].envelope), payload);
+    ok("Passwort ändern: altes ungültig, neues gültig, Abgaben weiter lesbar");
+
+    step = "Löschen";
+    r = await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(r.json, { ok: true, deleted: 1 });
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(r.json, { ok: true, submissions: [] });
+    r = await api("POST", "/api/submit", { code, envelope }); submitCount++;
+    assert.equal(r.status, 200);
+    r = await api("DELETE", "/api/teacher/sheets/" + code, undefined, { auth });
+    assert.equal(r.json.ok, true); assert.equal(r.json.deletedSubmissions, 1);
+    expectErr(await api("GET", "/api/teacher/sheets/" + code, undefined, { auth }), 404, "not_found");
+    expectErr(await api("DELETE", "/api/teacher/sheets/" + code, undefined, { auth }), 404, "not_found");
+    r = await api("GET", "/api/sheet/" + code); misses++;
+    expectErr(r, 404, "not_found");
+    ok("Abgaben löschen ({deleted:n}), Blatt samt Abgaben löschen, danach 404");
+
+    step = "KI-Schlüssel abgelehnt";
+    r = await api("PUT", "/api/teacher/ai", { provider: "custom", model: "", baseUrl: mock.url, apiKey: "bad" }, { auth });
+    assert.equal(r.status, 200); assert.match(r.json.warning, /abgelehnt/);
+    r = await api("POST", "/api/teacher/ai/test", undefined, { auth });
+    expectErr(r, 502, "ai_error"); assert.match(r.json.error, /abgelehnt \(HTTP 401/);
+    ok("abgelehnter Schlüssel: Speichern mit Warnung, Test → 502 mit ausführlicher Meldung für die Lehrkraft");
+
+    step = "Sperren";
+    for (; doorFails < 10; doorFails++) expectErr(await api("POST", "/api/teacher/door", { doorCode: "1234" }), 403, "wrong_code");
+    r = await api("POST", "/api/teacher/door", { doorCode: "1234" });
+    expectErr(r, 429, "rate_limited"); assert.ok(r.json.retryAfter > 3000); assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
+    expectErr(await api("POST", "/api/teacher/door", { doorCode: "1104" }), 429, "rate_limited");
+    ok("Türcode: nach 10 Fehlversuchen 429 (auch für den richtigen Code), Retry-After gesetzt");
+    for (; authFails < 10; authFails++) expectErr(await api("POST", "/api/teacher/login", undefined, { auth: wrong.authKey }), 401, "unauthorized");
+    expectErr(await api("POST", "/api/teacher/login", undefined, { auth: wrong.authKey }), 429, "rate_limited");
+    expectErr(await api("POST", "/api/teacher/login", undefined, { auth }), 429, "rate_limited");
+    ok("Passwort: nach 10 Fehlversuchen 429");
+    for (; misses < 30; misses++) expectErr(await api("GET", "/api/sheet/QQQQQ" + "23456789"[misses % 8]), 404, "not_found");
+    expectErr(await api("GET", "/api/sheet/QQQQQ2"), 429, "rate_limited");
+    expectErr(await api("GET", "/api/sheet/" + otherCode), 429, "rate_limited");
+    ok("unbekannte Codes: nach 30 Fehlgriffen 429 (auch für gültige Codes)");
+    for (; feedbackCount < 120; feedbackCount++) expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found");
+    expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 429, "rate_limited");
+    for (; submitCount < 120; submitCount++) expectErr(await api("POST", "/api/submit", { code: "AAAAA2", envelope }), 404, "not_found");
+    expectErr(await api("POST", "/api/submit", { code: "AAAAA2", envelope }), 429, "rate_limited");
+    ok("Feedback und Abgabe: jede Anfrage zählt, die 121. → 429");
+
+    console.log("\nSmoke-Test bestanden.");
+  } catch (e) {
+    console.error("\n✗ Schritt „" + step + "“ fehlgeschlagen:\n", e);
+    if (log) console.error("\n--- wrangler (Ende) ---\n" + log.slice(-2500));
+    process.exitCode = 1;
+  } finally {
+    await cleanup();
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

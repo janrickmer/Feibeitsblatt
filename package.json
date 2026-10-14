@@ -1,0 +1,20 @@
+{
+  "name": "feibeitsblatt",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Feibeitsblatt – Schreibeditor mit Aufgabencodes, KI-Feedback und verschlüsselter Abgabe (Cloudflare Worker + D1)",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && wrangler dev --local",
+    "test": "node --test \"test/unit/*.test.mjs\"",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "wrangler": "4.145.0"
+  }
+}

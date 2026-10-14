@@ -1,0 +1,15 @@
+// Feibeitsblatt – Cloudflare-Worker-Konfiguration (wrangler 4.145.0, siehe package.json)
+// Die Datenbank wird per Name gefunden (kein database_id nötig); im Deployment legt der Workflow sie in der EU an.
+// Tabellen legt der Worker beim ersten Request selbst an (CREATE TABLE IF NOT EXISTS) – keine Migrationen.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "feibeitsblatt",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-09-25",
+  "workers_dev": true,
+  // Statische Seite aus ./dist (npm run build); /api/* geht immer zuerst an den Worker
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+  "d1_databases": [{ "binding": "DB", "database_name": "feibeitsblatt-db" }]
+  // Optional (Dashboard oder `wrangler secret put`): SETTINGS_SECRET (verschlüsselt den KI-Schlüssel),
+  // TEACHER_DOOR_CODE (Vorgabe "1104").
+}

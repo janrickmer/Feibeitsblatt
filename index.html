@@ -1,0 +1,2109 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Feibeitsblatt</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236b4f2c'/%3E%3Ctext x='32' y='45' font-family='Georgia,serif' font-size='40' font-weight='bold' text-anchor='middle' fill='%23fffdf8'%3EF%3C/text%3E%3C/svg%3E">
+<script>
+  /* Adresse des Servers (Cloudflare Worker). "" = gleiche Herkunft: Der Worker liefert diese Seite selbst aus.
+     Nur wenn die Seite woanders liegt (z. B. GitHub Pages), hier die Worker-Adresse eintragen,
+     z. B. "https://feibeitsblatt.beispiel.workers.dev" (ohne Schrägstrich am Ende). */
+  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || "";
+</script>
+<style>
+  /* ---------- Grundlagen (Tokens wie im Feiditor) ---------- */
+  :root{
+    --paper:#f7f4ec; --paper2:#fffdf8; --ink:#221f1a; --muted:#6f675a;
+    --line:#ddd5c4; --accent:#6b4f2c; --accent2:#8a6a3c; --shadow:rgba(40,30,15,.10);
+    --red:#b3261e; --green:#1f6b2a; --soft:#efe9dd;
+    --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+    --sans:"Avenir Next",Avenir,"Segoe UI","Helvetica Neue",system-ui,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{min-height:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+    display:flex; flex-direction:column; min-height:100vh; min-height:100dvh;
+  }
+  /* Bildschirme füllen die Höhe; die Fußzeile steht darunter (auf der Schreibfläche fest am unteren Rand) */
+  .screen{display:none}
+  .screen.active{display:block; flex:1 0 auto}
+  a{color:var(--accent)}
+  button{font-family:inherit}
+  .hidden{display:none !important}
+  .sr-only{position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0}
+
+  /* ---------- Karten (Start, Angaben, Lehrkraft-Zugang, Abgegeben) ---------- */
+  .start-wrap{max-width:680px; margin:0 auto; padding:48px 20px 40px}
+  .card{
+    width:100%; max-width:440px; margin:0 auto; background:var(--paper2);
+    border:1px solid var(--line); border-radius:14px; padding:40px 36px;
+    box-shadow:0 18px 50px -28px var(--shadow);
+  }
+  .brand{font-family:var(--serif); font-size:13px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin:0 0 6px}
+  .card h1{font-family:var(--serif); font-weight:600; font-size:30px; margin:0 0 4px; letter-spacing:.01em; line-height:1.25}
+  .card p.sub{color:var(--muted); margin:0 0 26px; font-size:14.5px}
+  .sheetline{font-family:var(--serif); font-size:15px; color:var(--ink); margin:0 0 10px; overflow-wrap:anywhere}
+  .sheetline small{display:block; font-family:var(--sans); font-size:12px; letter-spacing:.06em; color:var(--muted)}
+  label{display:block; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 6px}
+  .field{margin-bottom:18px}
+  .fhint{font-size:12.5px; color:var(--muted); margin:5px 0 0; line-height:1.45}
+  input[type=text],input[type=password],input[type=date],input[type=url],select{
+    width:100%; font-family:var(--serif); font-size:18px; color:var(--ink);
+    background:var(--paper); border:1px solid var(--line); border-radius:9px;
+    padding:11px 13px; outline:none; transition:border-color .15s, box-shadow .15s;
+  }
+  input[type=password]{letter-spacing:.12em}
+  input[type=date]{min-height:47px; -webkit-appearance:none; appearance:none}
+  input::placeholder{color:#b9b0a0; letter-spacing:normal}
+  select{font-family:var(--sans); font-size:16px}
+  input:focus,select:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
+  input.invalid{border-color:var(--red); box-shadow:0 0 0 3px rgba(179,38,30,.14)}
+  .code-input{font-family:var(--mono) !important; letter-spacing:.14em; text-transform:uppercase}
+  .code-input::placeholder{text-transform:none}
+
+  .btn{
+    font-family:var(--sans); font-size:15px; font-weight:600; letter-spacing:.01em; line-height:1.3;
+    color:var(--paper2); background:var(--ink); border:1px solid var(--ink);
+    border-radius:9px; padding:12px 18px; cursor:pointer; transition:transform .06s, background .15s;
+  }
+  .btn:hover{background:#332e25}
+  .btn:active{transform:translateY(1px)}
+  .btn.block{width:100%; margin-top:6px}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.ghost:hover{background:var(--paper)}
+  .btn.small{font-size:13px; padding:8px 12px; border-radius:8px}
+  .btn.danger{background:var(--red); border-color:var(--red); color:#fff}
+  .btn.danger:hover{background:#8f1e17}
+  .btn:disabled{opacity:.55; cursor:default; transform:none}
+  .btn:disabled:hover{background:var(--ink)}
+  .btn.ghost:disabled:hover{background:transparent}
+  .btn.danger:disabled:hover{background:var(--red)}
+  .err{color:var(--red); font-size:13.5px; min-height:18px; margin:2px 0 0}
+  .err:empty{min-height:0}
+  .card .err{min-height:18px}
+  .backlink{
+    display:inline-block; margin:18px 0 0; padding:0; border:0; background:none; cursor:pointer;
+    color:var(--muted); font-family:var(--sans); font-size:13px; text-decoration:none;
+  }
+  .backlink:hover{color:var(--accent)}
+  .panel .backlink{margin:0 0 18px}
+  .linkbtn{
+    background:none; border:0; padding:0; cursor:pointer; font-family:var(--sans); font-size:12.5px;
+    color:var(--muted); text-decoration:underline; text-underline-offset:2px;
+  }
+  .linkbtn:hover{color:var(--red)}
+  .linkbtn:disabled{opacity:.55; cursor:default}
+  .status{font-size:13.5px; margin:10px 0 0; min-height:18px; color:var(--muted)}
+  .status:empty{min-height:0; margin:0}
+  .status.ok{color:var(--green)}
+  .status.bad{color:var(--red)}
+  .spinner{display:inline-block; width:12px; height:12px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; margin-right:7px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .kbd{font-family:var(--mono); font-size:12.5px; background:var(--soft); border:1px solid var(--line); border-radius:5px; padding:1px 5px}
+  .warnbox{
+    margin:0 0 18px; padding:12px 16px; background:#fdecea; border:1.5px solid #f5b8b1; border-radius:8px;
+    color:#a72020; font-size:13.5px; font-weight:600; line-height:1.5;
+  }
+  .donetime{font-family:var(--serif); font-size:17px; margin:0 0 24px}
+
+  /* ---------- Schreibfläche (Topbar, Papier, Aufgaben) ---------- */
+  #screen-editor{display:none; flex-direction:column; height:100vh; height:100dvh}
+  #screen-editor.active{display:flex; flex:0 0 auto}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:6px 16px; flex-wrap:wrap;
+    padding:13px 22px; border-bottom:1px solid var(--line); background:var(--paper2);
+  }
+  .who{font-family:var(--serif); font-size:16px; overflow-wrap:anywhere}
+  .who .lbl{font-family:var(--sans); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin-right:8px}
+  .topbar .right{display:flex; flex-direction:column; align-items:flex-end; text-align:right; min-width:0}
+  .stitle{font-family:var(--serif); font-size:15px; font-weight:600; overflow-wrap:anywhere}
+  .count{font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .count.bad{color:var(--red)}
+  .paperwrap{flex:1; overflow:auto; display:flex; flex-direction:column; align-items:center; padding:34px 20px 96px; -webkit-overflow-scrolling:touch}
+  .taskhint{
+    width:100%; max-width:760px; margin:0 0 14px; color:var(--red); font-family:var(--sans);
+    font-size:14.5px; font-weight:700; line-height:1.45; text-align:center;
+  }
+  .sheet{
+    position:relative; width:100%; max-width:760px; background:var(--paper2); border:1px solid var(--line);
+    border-radius:6px; box-shadow:0 24px 60px -40px var(--shadow); padding:56px 60px 64px;
+    font-family:var(--serif); font-size:18.5px; line-height:1.78; color:var(--ink); flex-shrink:0;
+  }
+  .sheet-head{margin:0 0 1.78em}
+  .sheet-title{font-family:var(--serif); font-weight:700; font-size:1.45em; line-height:1.3; margin:0; overflow-wrap:anywhere}
+  .sheet-meta{font-family:var(--sans); font-size:13px; color:var(--muted); margin:6px 0 0; line-height:1.5}
+  /* Jede Aufgabe ist ein Block; zwischen Antwortblock und nächster Aufgabenstellung genau eine Leerzeile (1 Zeilenhöhe). */
+  .task{display:flow-root; margin:0}
+  .task + .task{margin-top:1.78em}
+  .task-q{font-weight:700; padding:2px 0 0; margin:0 0 6px}
+  .task-label{
+    display:block; font-family:var(--sans); font-size:12px; font-weight:700; line-height:1.5;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 2px;
+  }
+  .task-text{white-space:pre-wrap; overflow-wrap:anywhere}
+  textarea.answer{
+    display:block; width:100%; min-height:calc(3 * 1.78em + 22px); resize:none; overflow:hidden; margin:0;
+    font-family:var(--serif); font-size:18.5px; line-height:1.78; font-weight:400; color:var(--ink);
+    background:var(--paper); border:1px solid var(--line); border-radius:9px; padding:10px 13px;
+    outline:none; transition:border-color .15s, box-shadow .15s; overflow-wrap:break-word;
+  }
+  textarea.answer:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
+  textarea.answer::placeholder{color:#b9b0a0}
+  textarea.answer[readonly]{background:var(--soft)}
+  /* Unsichtbarer Zwilling zum Messen der Texthöhe (mitwachsende Felder) */
+  textarea.measure{position:absolute !important; top:0; left:0; visibility:hidden !important; height:0 !important; min-height:0 !important; pointer-events:none; transition:none}
+  .paste-err{font-family:var(--sans); color:var(--red); font-size:13.5px; font-weight:600; line-height:1.45; margin:6px 0 0}
+  .paste-err:empty{display:none}
+  .checkrow{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin:8px 0 0; font-family:var(--sans); line-height:1.4}
+  .ltstat{font-size:13px; color:var(--muted)}
+  .ltstat.bad{color:var(--red)}
+  .ltstat:empty{display:none}
+  /* Ausgabe der Rechtschreibprüfung – klein unter dem Feld */
+  .lt-out{margin:10px 0 0; padding:10px 14px 9px; background:var(--paper); border:1px solid var(--line); border-left:3px solid var(--accent2); border-radius:8px}
+  .lt-head{font-family:var(--sans); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 4px; line-height:1.4}
+  .lt-text{font-family:var(--serif); font-size:14.5px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; margin:0}
+  .lt-text mark{background:#f3e0ae; color:inherit; border-radius:3px; padding:0 1px; box-shadow:0 0 0 1px #e6cd88}
+  .lt-text .lt-q{text-decoration:underline wavy var(--red); text-decoration-thickness:1px; text-underline-offset:3px}
+  .lt-legend,.lt-note{font-family:var(--sans); font-size:12px; color:var(--muted); line-height:1.5; margin:6px 0 0}
+  .lt-note a{color:var(--muted); text-decoration:underline; text-underline-offset:2px}
+  .lt-note a:hover{color:var(--accent)}
+  .lt-stale{font-family:var(--sans); font-size:12px; font-weight:600; color:var(--accent); margin:6px 0 0; line-height:1.45}
+  .lt-out.stale .lt-text,.lt-out.stale .lt-legend{opacity:.45}
+  /* KI-Feedback je Aufgabe */
+  .fbbox{margin:10px 0 0; padding:10px 14px 11px; background:var(--paper2); border:1px solid var(--line); border-radius:8px; font-family:var(--sans); font-size:14.5px; line-height:1.5}
+  .fb-head{font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 4px}
+  .fb-sub{font-weight:700; margin:6px 0 2px}
+  .fb-list{margin:0; padding-left:20px}
+  .fb-list li{margin:1px 0}
+  .fb-ok{color:var(--green)}
+  .fb-miss{color:var(--red)}
+  .fb-note{color:var(--muted); font-size:13px; margin:4px 0 0}
+  /* Abschluss am Ende des Blattes */
+  .finish{margin:1.78em 0 0; padding:1.4em 0 0; border-top:1px solid var(--line); font-family:var(--sans); font-size:14.5px; line-height:1.5}
+  .finish .task-label{margin-bottom:6px}
+  .fin-text{margin:0 0 14px; color:var(--ink)}
+  .privacy{font-size:12px; color:var(--muted); line-height:1.5; margin:10px 0 0; max-width:640px}
+  .privacy b{font-weight:600}
+  .privacy a{color:var(--muted)}
+  .moodle-hint{
+    margin:16px 0 0; padding:14px 20px; background:#fdecea; border:1.5px solid #f5b8b1; border-radius:8px;
+    color:#a72020; font-family:var(--sans); font-size:14.5px; font-weight:600; text-align:center; line-height:1.5;
+  }
+  .submitrow{margin:22px 0 0; padding:18px 0 0; border-top:1px dashed var(--line)}
+  .submitrow .fhint{margin-top:8px}
+  .footfade{
+    position:fixed; left:0; right:0; bottom:0; height:44px; pointer-events:none; z-index:5;
+    background:linear-gradient(to top, var(--paper) 55%, rgba(247,244,236,0));
+  }
+  .copyright{
+    flex:0 0 auto; text-align:center; padding:6px 16px 13px;
+    font-size:11px; letter-spacing:.05em; color:var(--muted); pointer-events:none;
+  }
+  body.writing .copyright{position:fixed; left:0; right:0; bottom:13px; padding:0; z-index:6}
+
+  /* ---------- Lehrkräfte-Bereich ---------- */
+  #screen-teacher{display:none; place-items:start center; padding:40px 20px 20px}
+  #screen-teacher.active{display:grid}
+  .panel{width:100%; max-width:1100px; min-width:0}
+  .panel h1{font-family:var(--serif); font-weight:600; font-size:26px; margin:0 0 4px; line-height:1.3}
+  .panel h2{font-family:var(--serif); font-weight:600; font-size:21px; margin:34px 0 10px; line-height:1.3}
+  .panel h3{font-family:var(--serif); font-weight:600; font-size:18px; margin:26px 0 8px}
+  .panel .sub{color:var(--muted); margin:0 0 22px; font-size:14.5px}
+  .toolrow{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+  .toolrow .spacer{flex:1 1 auto}
+  .row{display:flex; gap:10px 12px; flex-wrap:wrap; align-items:center; margin-top:14px}
+  .pbox{background:var(--paper2); border:1px solid var(--line); border-radius:12px; padding:22px 24px; margin-top:18px}
+  .note{font-size:13px; color:var(--muted); margin:10px 0 0; line-height:1.55}
+  .note b{color:var(--ink); font-weight:600}
+  .aiinfo{font-size:13px; color:var(--muted); margin:14px 0 0}
+  .aiwarn{margin:18px 0 0; text-align:left}
+  .batchsum{font-size:13px; color:var(--muted); margin:0; font-variant-numeric:tabular-nums}
+  .tablewrap{position:relative; border:1px solid var(--line); border-radius:10px; overflow:auto; background:var(--paper2)}
+  table.batch{width:100%; border-collapse:collapse; font-size:15px}
+  table.batch th{
+    font-family:var(--sans); font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+    font-weight:600; text-align:left; padding:10px 14px; border-bottom:1px solid var(--line); background:var(--paper);
+  }
+  table.batch td{padding:10px 14px; border-bottom:1px solid var(--line); font-family:var(--serif); font-variant-numeric:tabular-nums; vertical-align:top}
+  table.batch > tbody > tr:last-child > td{border-bottom:0}
+  table.batch tr.clickable{cursor:pointer}
+  table.batch tr.clickable:hover > td, table.batch tr.selected > td{background:var(--soft)}
+  table.batch tr.clickable:focus-visible{outline:2px solid var(--accent2); outline-offset:-2px}
+  table.batch td.num, table.batch th.num{text-align:right; white-space:nowrap}
+  table.batch td.code{font-family:var(--mono); font-size:14px; letter-spacing:.06em; white-space:nowrap}
+  table.batch td.nowrap{white-space:nowrap}
+  table.batch tr.errrow td{color:var(--muted); font-style:italic; font-family:var(--sans); font-size:13.5px}
+  table.batch th.arrowcol, table.batch td.arrowcol{width:44px; padding-left:8px; padding-right:4px; text-align:center}
+  .arrow{display:inline-block; color:var(--muted); font-family:var(--sans); font-size:13px; transition:transform .15s}
+  tr.open .arrow{transform:rotate(90deg)}
+  tr.open > td{background:var(--soft)}
+  tr.details > td{background:var(--paper); font-family:var(--sans); font-size:14px; padding:14px 18px 20px}
+  .batchhint{font-size:12.5px; color:var(--muted); margin:8px 0 0}
+  .selbox h2{margin-top:0}
+  .selmeta{font-size:13px; color:var(--muted); margin:0 0 14px}
+  .codebox{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap}
+  .codebox .lbl{flex:1 0 100%; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+  .bigcode{
+    font-family:var(--mono); font-size:34px; font-weight:700; letter-spacing:.12em; color:var(--ink);
+    background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:6px 16px; line-height:1.3;
+  }
+  details.tasksdet{margin:18px 0 0; border:1px solid var(--line); border-radius:10px; background:var(--paper)}
+  details.tasksdet > summary{cursor:pointer; padding:10px 14px; font-weight:600; font-size:14px}
+  details.tasksdet[open] > summary{border-bottom:1px solid var(--line)}
+  .solist{margin:0; padding:6px 14px 12px}
+  .solist .si{padding:10px 0; border-bottom:1px solid var(--line)}
+  .solist .si:last-child{border-bottom:0}
+  .solist .si p{margin:2px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font-family:var(--serif); font-size:15.5px}
+  .solist .si .sol{color:var(--muted)}
+  .subhead{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:26px 0 10px}
+  .subhead h3{margin:0}
+  .detbox{max-width:100%; contain:inline-size}
+  .dmeta{font-size:13px; color:var(--muted); margin:0 0 10px}
+  .dtask{margin:16px 0 0}
+  .dtask:first-of-type{margin-top:4px}
+  .dtask-text{font-family:var(--serif); font-weight:700; font-size:15.5px; margin:0 0 6px; white-space:pre-wrap; overflow-wrap:anywhere}
+  table.cmp{width:100%; border-collapse:collapse; table-layout:fixed; background:var(--paper2); border:1px solid var(--line)}
+  table.cmp th{font-family:var(--sans); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600; text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--paper); width:50%}
+  table.cmp th + th, table.cmp td + td{border-left:1px solid var(--line)}
+  table.cmp td{vertical-align:top; padding:10px 12px; font-family:var(--serif); font-size:15.5px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere}
+  .same{display:block; font-family:var(--sans); font-size:12px; color:var(--muted); font-style:italic; margin-top:4px; white-space:normal}
+  .empty{color:var(--muted); font-style:italic; font-family:var(--sans); font-size:13px}
+  .dfb{font-size:13px; line-height:1.5; margin:6px 0 0}
+  .dfb p{margin:2px 0 0}
+  .dfb .fb-ok{color:var(--green)}
+  .dfb .fb-miss{color:var(--red)}
+  .dfb ul{margin:0; padding-left:18px}
+  .dangerzone{margin-top:34px; padding-top:20px; border-top:1px solid var(--line); display:flex; flex-direction:column; align-items:flex-start; gap:12px}
+  /* Neues Feibeitsblatt: Tabelle mit Aufgabenstellung | Musterlösung */
+  table.builder td{padding:10px 12px}
+  table.builder th:first-child, table.builder td.c1{width:44%}
+  table.builder th.act, table.builder td.act{width:52px; padding-left:4px; padding-right:10px}
+  table.builder .rowlbl{display:block; font-family:var(--sans); font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 4px}
+  textarea.grow{
+    display:block; width:100%; min-height:calc(3 * 1.5em + 18px); resize:none; overflow:hidden; margin:0;
+    font-family:var(--serif); font-size:16px; line-height:1.5; color:var(--ink);
+    background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:8px 10px; outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  textarea.grow:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
+  textarea.grow::placeholder{color:#b9b0a0}
+  textarea.grow.invalid{border-color:var(--red); box-shadow:0 0 0 3px rgba(179,38,30,.14)}
+  .acts{display:flex; flex-direction:column; gap:6px; align-items:center; padding-top:22px}
+  .iconbtn{
+    width:32px; height:32px; padding:0; border:1px solid var(--line); border-radius:8px; background:var(--paper2);
+    color:var(--ink); font:600 15px/1 var(--sans); cursor:pointer;
+  }
+  .iconbtn:hover{background:var(--soft)}
+  .iconbtn.x{color:var(--red)}
+  .iconbtn.x:hover{background:#fdecea}
+  .iconbtn:disabled{opacity:.35; cursor:default; background:var(--paper2)}
+  .resultbox{margin-top:24px}
+  .resultbox p{margin:0 0 10px}
+  /* KI-Einstellungen */
+  .provinfo{margin:0 0 16px}
+  .provinfo p{margin:0 0 6px}
+  .provinfo p:last-child{margin-bottom:0}
+  #ai-model,#ai-key,#ai-base{font-family:var(--mono); font-size:16px; letter-spacing:.02em}
+  .field .row{margin-top:0}
+  .row input[type=text].narrow{flex:1 1 260px; width:auto}
+
+  /* ---------- Bestätigungsdialog ---------- */
+  .modal{position:fixed; inset:0; background:rgba(34,31,26,.45); display:none; z-index:30; overflow:auto; padding:30px 16px}
+  .modal.open{display:grid; place-items:center}
+  .modal .box{width:100%; max-width:480px; background:var(--paper2); border:1px solid var(--line); border-radius:14px; padding:26px 28px 24px; box-shadow:0 30px 80px -30px rgba(0,0,0,.45)}
+  .modal h2{font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 8px; line-height:1.3}
+  .modal p{margin:0 0 20px; font-size:14.5px; line-height:1.55; white-space:pre-line}
+  .modal .row{justify-content:flex-end; margin-top:0}
+
+  /* ---------- Fokus, Bewegung, kleine Bildschirme ---------- */
+  .btn:focus-visible,.linkbtn:focus-visible,.backlink:focus-visible,.iconbtn:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent2); outline-offset:2px}
+  @media (prefers-reduced-motion: reduce){ .btn,.spinner,.arrow,textarea,input{transition:none; animation:none} }
+  @media (max-width:640px){
+    .start-wrap{padding:28px 16px 32px}
+    .card{padding:30px 22px}
+    .card h1{font-size:27px}
+    .topbar{padding:10px 16px}
+    .topbar .right{align-items:flex-start; text-align:left}
+    .paperwrap{padding:16px 10px 90px}
+    .sheet{padding:28px 18px 40px}
+    #screen-teacher{padding:24px 12px 16px}
+    .pbox{padding:18px 16px}
+    .bigcode{font-size:28px}
+    table.batch td, table.batch th{padding:9px 10px}
+    tr.details > td{padding:12px 10px 16px}
+    /* Vergleichstabelle und Blatt-Baukasten untereinander statt nebeneinander */
+    table.cmp, table.cmp tbody, table.cmp tr, table.cmp td{display:block; width:100%}
+    table.cmp thead{display:none}
+    table.cmp td + td{border-left:0; border-top:1px solid var(--line)}
+    table.cmp td::before{content:attr(data-label); display:block; font-family:var(--sans); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:2px; white-space:normal}
+    table.builder thead{display:none}
+    table.builder, table.builder tbody{display:block; width:100%}
+    table.builder tr{display:grid; grid-template-columns:1fr auto; border-bottom:1px solid var(--line)}
+    table.builder tbody tr:last-child{border-bottom:0}
+    table.builder td{display:block; border-bottom:0 !important}
+    table.builder td.c1{grid-column:1; grid-row:1}
+    table.builder td.c2{grid-column:1; grid-row:2; padding-top:0}
+    table.builder td.act{grid-column:2; grid-row:1 / span 2; width:auto}
+    table.batch.sheets .hide-s{display:none}
+    table.batch.subs th{font-size:10.5px; letter-spacing:.03em; padding:8px 6px}
+    table.batch.subs td{padding:9px 6px; font-size:14.5px}
+    table.batch.subs th.arrowcol, table.batch.subs td.arrowcol{width:26px; padding-left:4px; padding-right:0}
+    .toolrow .btn.small{padding:7px 10px}
+  }
+</style>
+</head>
+<body>
+<noscript><p style="margin:20px; color:#b3261e; font-weight:600">Diese Seite benötigt JavaScript. Bitte aktiviere JavaScript im Browser.</p></noscript>
+
+<!-- ============ START: Code eingeben ============ -->
+<section id="screen-start" class="screen active" aria-labelledby="start-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <h1 id="start-h">Bevor du beginnst</h1>
+      <p class="sub">Gib den Code ein, den du von deiner Lehrkraft bekommen hast.</p>
+      <div class="field">
+        <label for="code-input">Code</label>
+        <input type="text" id="code-input" class="code-input" maxlength="16" placeholder="z. B. K7Q-M4X" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go">
+      </div>
+      <p class="err" id="start-err" aria-live="polite"></p>
+      <button type="button" class="btn block" id="start-btn">Weiter</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ANGABEN ============ -->
+<section id="screen-person" class="screen" aria-labelledby="person-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <p class="sheetline" id="p-sheet"></p>
+      <h1 id="person-h">Deine Angaben</h1>
+      <p class="sub">Bitte trage deine Angaben ein. Danach öffnet sich der Schreibbereich.</p>
+      <div class="field">
+        <label for="p-vorname">Vorname – die ersten drei Buchstaben</label>
+        <input type="text" id="p-vorname" maxlength="3" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="p-vorname-hint">
+        <p class="fhint" id="p-vorname-hint">Bei kürzerem Vornamen den ganzen Vornamen.</p>
+      </div>
+      <div class="field">
+        <label for="p-nachname">Nachname – die ersten zwei Buchstaben</label>
+        <input type="text" id="p-nachname" maxlength="2" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+      </div>
+      <div class="field">
+        <label for="p-geb">Geburtsdatum</label>
+        <input type="date" id="p-geb" min="1950-01-02" autocomplete="off" enterkeyhint="next">
+      </div>
+      <div class="field">
+        <label for="p-klasse">Klasse</label>
+        <input type="text" id="p-klasse" maxlength="10" placeholder="z. B. 8b" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+      </div>
+      <p class="err" id="p-err" aria-live="polite"></p>
+      <button type="button" class="btn block" id="p-btn">Schreibbereich öffnen</button>
+      <button type="button" class="backlink" id="p-back">← anderen Code eingeben</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SCHREIBFLÄCHE ============ -->
+<section id="screen-editor" class="screen" aria-label="Schreibbereich">
+  <div class="topbar">
+    <div class="who"><span class="lbl">Verfasser:in</span><span id="who-name"></span></div>
+    <div class="right">
+      <div class="stitle" id="ed-title"></div>
+      <div class="count" id="save-state" aria-live="polite"></div>
+    </div>
+  </div>
+  <div class="paperwrap" id="paperwrap">
+    <p class="taskhint hidden" id="ed-hint" role="status"></p>
+    <div class="sheet" id="sheet">
+      <header class="sheet-head">
+        <h1 class="sheet-title" id="sheet-title"></h1>
+        <p class="sheet-meta" id="sheet-meta"></p>
+      </header>
+      <div id="tasks"></div>
+      <section class="finish" aria-labelledby="fin-h">
+        <h2 class="task-label" id="fin-h">Abschluss</h2>
+        <p class="fin-text">Wenn du alle Aufgaben bearbeitet hast, bitte die KI um ein Feedback. Danach überarbeitest du deine Antworten und gibst ab.</p>
+        <button type="button" class="btn" id="fb-btn">KI um ein Feedback bitten</button>
+        <p class="privacy" id="privacy"></p>
+        <p class="status" id="fb-status" aria-live="polite"></p>
+        <div class="moodle-hint hidden" id="revise-hint" role="status"></div>
+        <div class="submitrow">
+          <button type="button" class="btn" id="submit-btn" disabled aria-describedby="submit-hint">Abgeben</button>
+          <p class="fhint" id="submit-hint"></p>
+          <p class="status" id="submit-status" aria-live="polite"></p>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div class="footfade" aria-hidden="true"></div>
+</section>
+
+<!-- ============ ABGEGEBEN ============ -->
+<section id="screen-done" class="screen" aria-labelledby="done-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <h1 id="done-h">Abgegeben</h1>
+      <p class="sub">Deine Lösung ist bei deiner Lehrkraft angekommen.</p>
+      <p class="donetime" id="done-time"></p>
+      <button type="button" class="btn block" id="done-btn">Neues Feibeitsblatt öffnen</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LEHRKRAFT: Passwort festlegen ============ -->
+<section id="screen-tsetup" class="screen" aria-labelledby="tsetup-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <h1 id="tsetup-h">Passwort festlegen</h1>
+      <p class="sub">Sie richten den Lehrkräfte-Zugang zum ersten Mal ein. Mit diesem Passwort melden Sie sich künftig an; es entschlüsselt außerdem die Abgaben Ihrer Schüler:innen.</p>
+      <p class="warnbox">Wichtig: Ein vergessenes Passwort kann nicht wiederhergestellt werden – auch nicht vom Betreiber der Seite. Ohne das Passwort sind alle Abgaben unlesbar. Bitte bewahren Sie es sicher auf.</p>
+      <div class="field">
+        <label for="ts-pw1">Passwort (mindestens 10 Zeichen)</label>
+        <input type="password" id="ts-pw1" autocomplete="new-password" enterkeyhint="next">
+      </div>
+      <div class="field">
+        <label for="ts-pw2">Passwort wiederholen</label>
+        <input type="password" id="ts-pw2" autocomplete="new-password" enterkeyhint="go">
+      </div>
+      <p class="err" id="ts-err" aria-live="polite"></p>
+      <button type="button" class="btn block" id="ts-btn">Passwort festlegen</button>
+      <button type="button" class="backlink" id="ts-back">← zurück zur Startseite</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LEHRKRAFT: Anmelden ============ -->
+<section id="screen-tlogin" class="screen" aria-labelledby="tlogin-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <h1 id="tlogin-h">Anmelden</h1>
+      <p class="sub">Lehrkräfte-Zugang. Bitte geben Sie Ihr Passwort ein.</p>
+      <div class="field">
+        <label for="tl-pw">Passwort</label>
+        <input type="password" id="tl-pw" autocomplete="current-password" enterkeyhint="go">
+      </div>
+      <p class="err" id="tl-err" aria-live="polite"></p>
+      <button type="button" class="btn block" id="tl-btn">Anmelden</button>
+      <button type="button" class="backlink" id="tl-back">← zurück zur Startseite</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LEHRKRAFT: Übersicht und Unterseiten ============ -->
+<section id="screen-teacher" class="screen">
+  <div class="panel">
+
+    <!-- Übersicht -->
+    <div id="tv-overview">
+      <p class="brand">Feibeitsblatt</p>
+      <h1>Lehrkräfte-Übersicht</h1>
+      <p class="sub">Hier erstellen Sie Feibeitsblätter und sehen die Abgaben Ihrer Schüler:innen.</p>
+      <div class="toolrow">
+        <button type="button" class="btn" id="t-new">Neues Feibeitsblatt erstellen</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost small" id="t-ai">KI-Einstellungen</button>
+        <button type="button" class="btn ghost small" id="t-pw">Passwort ändern</button>
+        <button type="button" class="btn ghost small" id="t-logout">Abmelden</button>
+      </div>
+      <p class="aiinfo hidden" id="t-aiinfo"></p>
+      <div class="moodle-hint aiwarn hidden" id="t-aiwarn"></div>
+
+      <h2>Ihre Feibeitsblätter</h2>
+      <div class="tablewrap">
+        <table class="batch sheets" id="t-sheets">
+          <thead><tr><th>Titel</th><th>Code</th><th class="hide-s">Erstellt</th><th class="num hide-s">Aufgaben</th><th class="num">Abgaben</th></tr></thead>
+          <tbody id="t-sheets-body"></tbody>
+        </table>
+      </div>
+      <p class="status" id="t-list-status" aria-live="polite"></p>
+      <p class="batchhint" id="t-list-hint">Klicken Sie auf ein Feibeitsblatt, um den Code und die Abgaben zu sehen.</p>
+
+      <div class="pbox selbox hidden" id="t-sel">
+        <h2 id="t-sel-title"></h2>
+        <p class="selmeta" id="t-sel-meta"></p>
+        <div class="codebox">
+          <span class="lbl">Code für die Schüler:innen</span>
+          <span class="bigcode" id="t-sel-code"></span>
+          <button type="button" class="btn ghost small" id="t-sel-copy">Kopieren</button>
+        </div>
+        <details class="tasksdet" id="t-sel-det">
+          <summary>Aufgaben und Musterlösungen</summary>
+          <div class="solist" id="t-sel-tasks"></div>
+        </details>
+        <div class="row">
+          <button type="button" class="btn ghost small" id="t-refresh">Aktualisieren</button>
+          <button type="button" class="btn ghost small" id="t-template">Als Vorlage für ein neues Feibeitsblatt verwenden</button>
+        </div>
+
+        <div class="subhead">
+          <h3>Abgaben</h3>
+          <button type="button" class="btn ghost small" id="t-expand-all">Alle aufklappen</button>
+        </div>
+        <p class="batchsum" id="t-subs-sum"></p>
+        <p class="status" id="t-subs-status" aria-live="polite"></p>
+        <div class="tablewrap" style="margin-top:10px">
+          <table class="batch subs" id="t-subs">
+            <thead><tr>
+              <th class="arrowcol"><span class="sr-only">Aufklappen</span></th>
+              <th>Kürzel Nachname</th><th>Kürzel Vorname</th><th>Geburtstag</th><th>Klasse</th>
+            </tr></thead>
+            <tbody id="t-subs-body"></tbody>
+          </table>
+        </div>
+        <p class="batchhint">Klicken Sie auf eine Zeile, um die Lösungen zu sehen: links die erste Eingabe vor dem KI-Feedback, rechts die überarbeitete Eingabe.</p>
+
+        <div class="dangerzone">
+          <button type="button" class="btn danger" id="t-del-subs">Alle Abgaben dieses Feibeitsblattes löschen</button>
+          <button type="button" class="linkbtn" id="t-del-sheet">Feibeitsblatt selbst löschen (Code wird ungültig)</button>
+          <p class="status" id="t-del-status" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Neues Feibeitsblatt -->
+    <div id="tv-builder" class="hidden">
+      <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
+      <h1>Neues Feibeitsblatt</h1>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Die Musterlösung sehen die Schüler:innen nie; sie dient nur dem KI-Feedback.</p>
+      <div id="b-form">
+        <div class="field" style="max-width:640px">
+          <label for="b-title">Titel</label>
+          <input type="text" id="b-title" maxlength="200" placeholder="z. B. Das Gewissen – Klasse 8b" autocomplete="off">
+          <p class="fhint">Leer lassen: „Feibeitsblatt vom <span id="b-today"></span>“.</p>
+        </div>
+        <p class="note" style="margin:0 0 14px"><b>Tipp:</b> Schreiben Sie die Musterlösung in Stichpunkten – ein inhaltlicher Kernpunkt je Zeile. Die KI meldet den Schüler:innen dann zu jedem Punkt zurück, ob er angesprochen wurde oder noch fehlt.</p>
+        <div class="tablewrap">
+          <table class="batch builder">
+            <thead><tr>
+              <th>Aufgabenstellung</th>
+              <th>Musterlösung (nur für das KI-Feedback, für Schüler:innen unsichtbar)</th>
+              <th class="act"><span class="sr-only">Zeile verschieben oder entfernen</span></th>
+            </tr></thead>
+            <tbody id="b-rows"></tbody>
+          </table>
+        </div>
+        <div class="row">
+          <button type="button" class="btn ghost small" id="b-add">+ Aufgabe hinzufügen</button>
+        </div>
+        <p class="err" id="b-err" aria-live="polite"></p>
+        <div class="row">
+          <button type="button" class="btn" id="b-gen">Code generieren</button>
+        </div>
+      </div>
+      <div class="pbox resultbox hidden" id="b-result">
+        <p>Das Feibeitsblatt „<span id="b-res-title"></span>“ ist gespeichert. Geben Sie Ihren Schüler:innen diesen Code:</p>
+        <div class="codebox">
+          <span class="bigcode" id="b-res-code"></span>
+          <button type="button" class="btn ghost small" id="b-res-copy">Kopieren</button>
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="b-res-back">Zur Übersicht</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KI-Einstellungen -->
+    <div id="tv-ai" class="hidden">
+      <button type="button" class="backlink" id="ai-back">← zurück zur Übersicht</button>
+      <h1>KI-Einstellungen</h1>
+      <p class="sub">Für das KI-Feedback an die Schüler:innen nutzt der Server Ihren eigenen API-Schlüssel. Der Schlüssel wird nur auf dem Server gespeichert und nie an die Browser der Schüler:innen übertragen.</p>
+      <div class="pbox" style="max-width:760px">
+        <div class="field">
+          <label for="ai-prov">Anbieter</label>
+          <select id="ai-prov">
+            <option value="groq">Groq (Vorgabe)</option>
+            <option value="openrouter">OpenRouter – kostenlose Modelle</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="cerebras">Cerebras</option>
+            <option value="custom">Anderer OpenAI-kompatibler Dienst</option>
+          </select>
+        </div>
+        <div class="provinfo note" data-prov="groq">
+          <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Tageslimits je Modell (z. B. etwa 200 000 Token pro Tag bei gpt-oss-120b). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; ist das Tageskontingent eines Modells erschöpft, weicht der Server automatisch auf das nächste Modell aus. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
+          <p><b>Datenschutz:</b> Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden.</p>
+        </div>
+        <div class="provinfo note hidden" data-prov="openrouter">
+          <p><b>OpenRouter</b> bündelt viele Sprachmodelle hinter einer gemeinsamen API. Modelle mit dem Zusatz <span class="kbd">:free</span> kosten nichts; dafür genügt ein kostenloses Konto mit API-Schlüssel (<a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai → Keys</a>).</p>
+          <p><b>Limits:</b> Ohne Guthabenkauf gibt es nur <b>50 kostenlose Anfragen pro Tag für das ganze Konto</b> – das reicht nicht für eine Klasse. Nach einem einmaligen Guthabenkauf von 10 US-$ sind es 1000 pro Tag.</p>
+          <p><b>Datenschutz:</b> Die kostenlosen Modelle laufen bei Drittanbietern, die Eingaben protokollieren oder zum Training verwenden dürfen. Das muss im OpenRouter-Konto unter <a href="https://openrouter.ai/settings/privacy" target="_blank" rel="noopener">Settings → Privacy</a> erlaubt sein, sonst antwortet die API „No endpoints found matching your data policy“.</p>
+        </div>
+        <div class="provinfo note hidden" data-prov="gemini">
+          <p><b>Google Gemini</b> über die Gemini-API mit eigenem Schlüssel aus <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
+          <p><b>Limits:</b> Das kostenlose Kontingent hat Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus.</p>
+          <p><b>Datenschutz und Bedingungen:</b> Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Google die Bedingungen der bezahlten Dienste; dafür verlangt Google ein hinterlegtes Abrechnungskonto. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage.</p>
+        </div>
+        <div class="provinfo note hidden" data-prov="cerebras">
+          <p><b>Cerebras</b> bietet offene Modelle (z. B. gpt-oss-120b) über eine OpenAI-kompatible Schnittstelle an. Schlüssel in der <a href="https://cloud.cerebras.ai" target="_blank" rel="noopener">Cerebras-Cloud-Konsole</a>.</p>
+          <p><b>Limits:</b> Die Grenzen des kostenlosen Kontingents sind nicht offiziell bestätigt – bitte in der Konsole prüfen.</p>
+          <p><b>Datenschutz:</b> Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden.</p>
+        </div>
+        <div class="provinfo note hidden" data-prov="custom">
+          <p><b>Anderer Dienst</b> mit OpenAI-kompatibler Chat-API (<span class="kbd">…/chat/completions</span>), z. B. Mistral oder ein eigener Server. Basis-URL ohne Schrägstrich am Ende und mit <span class="kbd">https://</span> eintragen, z. B. <span class="kbd">https://api.mistral.ai/v1</span>, und die Modell-ID angeben.</p>
+          <p><b>Datenschutz:</b> Prüfen Sie die Bedingungen des Dienstes, bevor Schülertexte gesendet werden.</p>
+        </div>
+        <div class="field hidden" id="ai-base-field">
+          <label for="ai-base">Basis-URL</label>
+          <input type="url" id="ai-base" placeholder="https://…/v1" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="ai-model">Modell (leer = Vorgabe)</label>
+          <input type="text" id="ai-model" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="200">
+          <p class="fhint" id="ai-model-hint"></p>
+        </div>
+        <div class="field">
+          <label for="ai-key">API-Schlüssel</label>
+          <input type="password" id="ai-key" autocomplete="off" spellcheck="false" maxlength="500">
+          <p class="fhint" id="ai-key-hint"></p>
+        </div>
+        <div class="row" style="margin-top:4px">
+          <button type="button" class="btn" id="ai-save">Speichern</button>
+          <button type="button" class="btn ghost" id="ai-test">Verbindung testen</button>
+        </div>
+        <p class="status" id="ai-status" aria-live="polite"></p>
+      </div>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihre Musterlösungen und die Antworttexte – keine Kürzel, Geburtsdaten oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag.</p>
+    </div>
+
+    <!-- Passwort ändern -->
+    <div id="tv-pw" class="hidden">
+      <button type="button" class="backlink" id="pw-back">← zurück zur Übersicht</button>
+      <h1>Passwort ändern</h1>
+      <p class="sub">Ihr Schlüsselpaar bleibt erhalten; alle bisherigen Abgaben bleiben lesbar. Das neue Passwort gilt sofort.</p>
+      <div class="pbox" style="max-width:480px">
+        <p class="warnbox">Ein vergessenes Passwort kann nicht wiederhergestellt werden. Ohne Passwort sind alle Abgaben unlesbar.</p>
+        <div class="field">
+          <label for="pw-1">Neues Passwort (mindestens 10 Zeichen)</label>
+          <input type="password" id="pw-1" autocomplete="new-password" enterkeyhint="next">
+        </div>
+        <div class="field">
+          <label for="pw-2">Neues Passwort wiederholen</label>
+          <input type="password" id="pw-2" autocomplete="new-password" enterkeyhint="go">
+        </div>
+        <p class="err" id="pw-err" aria-live="polite"></p>
+        <button type="button" class="btn" id="pw-btn">Passwort ändern</button>
+        <p class="status" id="pw-status" aria-live="polite"></p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- Bestätigungsdialog -->
+<div class="modal" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-title" aria-describedby="dlg-text">
+  <div class="box">
+    <h2 id="dlg-title"></h2>
+    <p id="dlg-text"></p>
+    <div class="row">
+      <button type="button" class="btn ghost" id="dlg-cancel">Abbrechen</button>
+      <button type="button" class="btn" id="dlg-ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="pagefoot" class="copyright">Copyright Jan-Rickmer Feindt</div>
+
+<script>
+"use strict";
+(function(){
+
+/* ====================================================================== *
+ *  Feibeitsblatt – Frontend (eine Datei, keine Bibliotheken).            *
+ *  Nutzerdaten nur über textContent/DOM-APIs, nie über innerHTML.        *
+ * ====================================================================== */
+
+/* ---------------------------- Helfer ---------------------------- */
+const API = String(window.FEIBEITSBLATT_API || "").replace(/\/+$/, "");
+const $ = (id) => document.getElementById(id);
+const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;   // Blatt-Code (ohne I, L, O, 0, 1)
+/* Türcode für den Lehrkräfte-Zugang: geprüft nur auf dem Server (TEACHER_DOOR_CODE, Vorgabe 1104). Blatt-Codes enthalten
+   immer Buchstaben – rein numerische Eingaben (4–12 Ziffern) gehen deshalb an /api/teacher/door. */
+const DOOR_RE = /^[0-9]{4,12}$/;
+const MAX_ANSWER = 8000;                                     // wie die Grenze des Servers je Antwort
+
+/* Element bauen: h("p", {class:"x", text:"…"}, [kinder]) – Texte immer als Textknoten. */
+function h(tag, props, kids) {
+  const n = document.createElement(tag);
+  if (props) for (const k of Object.keys(props)) {
+    const v = props[k];
+    if (v == null || v === false) continue;
+    if (k === "class") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.slice(0, 2) === "on" && typeof v === "function") n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? "" : String(v));
+  }
+  if (kids) for (const c of kids) {
+    if (c == null || c === false) continue;
+    n.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return n;
+}
+const pad2 = (n) => String(n).padStart(2, "0");
+function toDate(v) { const d = new Date(typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v); return isNaN(d) ? null : d; }
+/* TT.MM.JJJJ, HH:MM */
+function fmtDT(v) { const d = toDate(v); return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : "–"; }
+function fmtD(v) { const d = toDate(v); return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : "–"; }
+/* "2011-05-04" → "04.05.2011" */
+function fmtIsoDate(s) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || "")); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(s || "–"); }
+function fmtCode(c) { c = String(c || ""); return c.length === 6 ? c.slice(0, 3) + "-" + c.slice(3) : c; }
+function normCode(s) { return String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+function listNums(arr) { return arr.length === 1 ? String(arr[0]) : arr.slice(0, -1).join(", ") + " und " + arr[arr.length - 1]; }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* Statuszeile setzen (kind: "", "ok", "bad", "busy") */
+function setStatus(node, text, kind) {
+  node.textContent = "";
+  node.className = node.className.replace(/\b(ok|bad)\b/g, "").trim();
+  if (kind === "ok" || kind === "bad") node.classList.add(kind);
+  if (kind === "busy") node.appendChild(h("span", { class: "spinner", "aria-hidden": "true" }));
+  if (text) node.appendChild(document.createTextNode(text));
+}
+/* Button während einer Anfrage sperren (verhindert Doppelklicks) */
+function busy(btn, on, text) {
+  if (on) { if (btn._label == null) btn._label = btn.textContent; btn.disabled = true; if (text) btn.textContent = text; }
+  else { btn.disabled = false; if (btn._label != null) { btn.textContent = btn._label; btn._label = null; } }
+}
+function onEnter(input, fn) { input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); fn(); } }); }
+
+/* Speicher dieses Geräts – jeder Zugriff in try/catch (privater Modus, gesperrte Website-Daten) */
+const store = {
+  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  del(k) { try { window.localStorage.removeItem(k); } catch (e) { /* egal */ } },
+  keys() { try { const out = []; for (let i = 0; i < window.localStorage.length; i++) out.push(window.localStorage.key(i)); return out; } catch (e) { return []; } }
+};
+
+/* ------------------------- Server-Anfragen ------------------------- */
+class ApiError extends Error {
+  constructor(code, serverMsg, status, retryAfter) { super(code); this.code = code; this.serverMsg = serverMsg || ""; this.status = status || 0; this.retryAfter = retryAfter || 0; }
+}
+async function api(method, path, opts) {
+  const o = opts || {};
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), o.timeout || 30000);
+  const headers = {};
+  if (o.body !== undefined) headers["Content-Type"] = "application/json";
+  if (o.auth) headers["Authorization"] = "Bearer " + o.auth;
+  let res, data = null;
+  try {
+    res = await fetch(API + path, { method, headers, body: o.body !== undefined ? JSON.stringify(o.body) : undefined,
+      signal: ac.signal, credentials: "omit", cache: "no-store" });
+    try { data = await res.json(); } catch (e) { data = null; }
+  } catch (e) {
+    throw new ApiError(ac.signal.aborted ? "timeout" : "network");
+  } finally { clearTimeout(timer); }
+  if (!data && ac.signal.aborted) throw new ApiError("timeout");
+  if (res.ok && data && data.ok === true) return data;
+  const code = data && typeof data.code === "string" ? data.code : "http_" + res.status;
+  const msg = data && typeof data.error === "string" ? data.error.trim().slice(0, 500) : "";
+  let ra = data && Number.isFinite(data.retryAfter) ? data.retryAfter : parseInt(res.headers.get("Retry-After") || "", 10);
+  throw new ApiError(code, msg, res.status, Number.isFinite(ra) ? ra : 0);
+}
+/* Deutsche Fehlermeldungen: s = Schüler:innen (du), t = Lehrkraft (Sie). Eine Meldung des Servers hat Vorrang. */
+const MSG = {
+  network: { s: "Keine Verbindung zum Server. Bitte prüfe die Internetverbindung und versuche es noch einmal.", t: "Keine Verbindung zum Server. Bitte prüfen Sie die Internetverbindung und versuchen Sie es erneut." },
+  timeout: { s: "Der Server hat zu lange nicht geantwortet. Bitte versuche es noch einmal.", t: "Der Server hat zu lange nicht geantwortet. Bitte versuchen Sie es erneut." },
+  not_found: { s: "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code.", t: "Dieses Feibeitsblatt gibt es nicht mehr. Bitte laden Sie die Übersicht neu." },
+  wrong_code: { s: "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code.", t: "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code." },
+  bad_json: { s: "Die Anfrage war fehlerhaft. Bitte lade die Seite neu und versuche es noch einmal.", t: "Die Anfrage war fehlerhaft. Bitte laden Sie die Seite neu und versuchen Sie es erneut." },
+  server_error: { s: "Auf dem Server ist ein Fehler aufgetreten. Bitte versuche es später noch einmal.", t: "Auf dem Server ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut." },
+  rate_limited: { s: "Gerade kommen zu viele Anfragen aus diesem Netz. Bitte warte etwas und versuche es dann noch einmal.", t: "Zu viele Versuche. Bitte warten Sie etwas und versuchen Sie es dann erneut." },
+  ai_not_configured: { s: "Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet. Bitte sag deiner Lehrkraft Bescheid.", t: "Es ist noch kein KI-Anbieter eingerichtet. Bitte speichern Sie zuerst Anbieter und API-Schlüssel." },
+  ai_error: { s: "Die KI hat gerade nicht geantwortet. Bitte versuche es in ein paar Minuten noch einmal.", t: "Die KI hat nicht geantwortet. Bitte prüfen Sie Anbieter, Modell und API-Schlüssel." },
+  already_setup: { s: "Der Lehrkräfte-Zugang ist bereits eingerichtet.", t: "Für diese Seite wurde bereits ein Passwort festgelegt. Bitte melden Sie sich an." },
+  unauthorized: { s: "Passwort falsch.", t: "Passwort falsch." },
+  too_large: { s: "Deine Abgabe ist zu groß. Bitte kürze deine Antworten.", t: "Die Daten sind zu groß für den Server." },
+  bad_request: { s: "Die Eingaben sind ungültig. Bitte prüfe sie noch einmal.", t: "Die Eingaben sind ungültig. Bitte prüfen Sie sie noch einmal." },
+  bad_answers: { s: "Deine Antworten passen nicht zu diesem Feibeitsblatt. Bitte lade die Seite neu.", t: "Die Antworten passen nicht zu diesem Feibeitsblatt." },
+  too_long: { s: "Deine Antworten sind zu lang. Bitte kürze sie.", t: "Die Eingaben sind zu lang." },
+  bad_envelope: { s: "Deine Abgabe ist beschädigt. Bitte lade die Seite neu und gib noch einmal ab.", t: "Die Abgabe ist beschädigt." },
+  too_many_submissions: { s: "Für dieses Feibeitsblatt sind bereits sehr viele Abgaben gespeichert. Bitte wende dich an deine Lehrkraft.", t: "Für dieses Feibeitsblatt sind bereits sehr viele Abgaben gespeichert." },
+  not_setup: { s: "Der Lehrkräfte-Zugang ist noch nicht eingerichtet.", t: "Es ist noch kein Lehrkraft-Passwort festgelegt." },
+  conflict: { s: "Das hat gerade nicht geklappt. Bitte versuche es noch einmal.", t: "Das Passwort wurde inzwischen geändert. Bitte melden Sie sich neu an." },
+  db_limit: { s: "Der Server hat sein Tageskontingent erreicht. Bitte versuche es morgen noch einmal.", t: "Die Datenbank hat ihr kostenloses Tageskontingent erreicht. Bitte morgen erneut versuchen." },
+  method_not_allowed: { s: "Diese Anfrage ist hier nicht erlaubt.", t: "Diese Anfrage ist hier nicht erlaubt." },
+  _: { s: "Das hat leider nicht geklappt. Bitte versuche es noch einmal.", t: "Das hat leider nicht geklappt. Bitte versuchen Sie es erneut." }
+};
+function waitText(sec, who) {
+  const min = Math.max(1, Math.round(sec / 60));
+  const span = sec < 90 ? "einer Minute" : (min >= 90 ? "etwa " + Math.round(min / 60) + " Stunden" : "etwa " + min + " Minuten");
+  return who === "t" ? `Bitte versuchen Sie es in ${span} erneut.` : `Versuche es in ${span} noch einmal.`;
+}
+function errMsg(e, who) {
+  if (!(e instanceof ApiError)) return MSG._[who];
+  const m = MSG[e.code] || (e.status === 413 ? MSG.too_large : e.status === 429 ? MSG.rate_limited : e.status === 400 ? MSG.bad_request
+    : e.status === 404 ? MSG.not_found : e.status === 401 ? MSG.unauthorized : e.status >= 500 ? MSG.server_error : null);
+  let text = e.serverMsg || (m ? m[who] : "") || MSG._[who];
+  if ((e.code === "rate_limited" || e.status === 429) && e.retryAfter > 0 && !/\d|Minute|Stunde|Sekunde/.test(text)) text += " " + waitText(e.retryAfter, who);
+  return text;
+}
+
+/* --------------------------- Kryptografie ---------------------------
+ * Wie in SPEC §2: PBKDF2-SHA256 → master; HKDF-SHA256 (leeres Salt) → encKey (AES-GCM-256) und authKey (32 Byte);
+ * RSA-OAEP-3072/SHA-256 (SPKI/PKCS8); Abgabe-Umschlag {v:1, ek, iv, ct}; Base64 = Standard-Base64. */
+const subtle = window.crypto && window.crypto.subtle;
+const te = new TextEncoder(), td = new TextDecoder();
+function b64(buf) {
+  const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function unb64(s) {
+  if (typeof s !== "string" || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) throw new Error("Base64");
+  const bin = atob(s), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+function rand(n) { const u = new Uint8Array(n); crypto.getRandomValues(u); return u; }
+const KDF_ITER = 600000;
+const Crypto = {
+  newKdf() { return { salt: b64(rand(16)), iterations: KDF_ITER }; },
+  /* Passwort + kdf → { encKey, authKey (Base64) } */
+  async derive(password, kdf) {
+    const it = Number(kdf && kdf.iterations);
+    if (!Number.isInteger(it) || it < 100000 || it > 10000000) throw new Error("kdf");
+    const base = await subtle.importKey("raw", te.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: unb64(kdf.salt), iterations: it }, base, 256);
+    const master = await subtle.importKey("raw", bits, "HKDF", false, ["deriveKey", "deriveBits"]);
+    const encKey = await subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode("feibeitsblatt/enc/v1") },
+      master, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    const auth = await subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode("feibeitsblatt/auth/v1") }, master, 256);
+    return { encKey, authKey: b64(auth) };
+  },
+  genKeyPair() { return subtle.generateKey({ name: "RSA-OAEP", modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["encrypt", "decrypt"]); },
+  async aesSeal(key, bytes) { const iv = rand(12); const ct = await subtle.encrypt({ name: "AES-GCM", iv }, key, bytes); return { iv: b64(iv), ct: b64(ct) }; },
+  async aesOpen(key, obj) { return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: unb64(obj.iv) }, key, unb64(obj.ct))); },
+  importPublic(spkiB64) { return subtle.importKey("spki", unb64(spkiB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]); },
+  importPrivate(pkcs8) { return subtle.importKey("pkcs8", pkcs8, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]); },
+  /* Abgabe verschlüsseln: zufälliger AES-Schlüssel K, mit dem öffentlichen Schlüssel der Lehrkraft eingepackt */
+  async seal(pub, payload) {
+    const K = await subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
+    const raw = await subtle.exportKey("raw", K);
+    const iv = rand(12);
+    const ct = await subtle.encrypt({ name: "AES-GCM", iv }, K, te.encode(JSON.stringify(payload)));
+    const ek = await subtle.encrypt({ name: "RSA-OAEP" }, pub, raw);
+    return { v: 1, ek: b64(ek), iv: b64(iv), ct: b64(ct) };
+  },
+  async open(priv, env) {
+    if (typeof env === "string") env = JSON.parse(env);
+    if (!env || env.v !== 1) throw new Error("Umschlag");
+    const raw = await subtle.decrypt({ name: "RSA-OAEP" }, priv, unb64(env.ek));
+    const K = await subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["decrypt"]);
+    const pt = await subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, K, unb64(env.ct));
+    return JSON.parse(td.decode(pt));
+  }
+};
+
+/* ---------------------------- Bildschirme ---------------------------- */
+let screen = "screen-start";
+function show(id) {
+  document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
+  screen = id;
+  document.body.classList.toggle("writing", id === "screen-editor");
+  window.scrollTo(0, 0);
+}
+
+/* Bestätigungsdialog → Promise<boolean> */
+let dlgResolve = null, dlgReturn = null;
+function askConfirm(o) {
+  return new Promise((resolve) => {
+    dlgResolve = resolve; dlgReturn = document.activeElement;
+    $("dlg-title").textContent = o.title || "";
+    $("dlg-text").textContent = o.text || "";
+    $("dlg-ok").textContent = o.ok || "OK";
+    $("dlg-cancel").textContent = o.cancel || "Abbrechen";
+    $("dlg-ok").className = "btn" + (o.danger ? " danger" : "");
+    $("dlg").classList.add("open");
+    setTimeout(() => (o.danger ? $("dlg-cancel") : $("dlg-ok")).focus(), 20);
+  });
+}
+function closeDlg(val) {
+  if (!dlgResolve) return;
+  $("dlg").classList.remove("open");
+  const r = dlgResolve; dlgResolve = null;
+  try { if (dlgReturn && dlgReturn.focus) dlgReturn.focus(); } catch (e) { /* egal */ }
+  r(val);
+}
+$("dlg-ok").addEventListener("click", () => closeDlg(true));
+$("dlg-cancel").addEventListener("click", () => closeDlg(false));
+$("dlg").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); closeDlg(false); }
+  else if (e.key === "Tab") { // Fokus im Dialog halten
+    const a = $("dlg-cancel"), b = $("dlg-ok");
+    if (e.shiftKey && document.activeElement === a) { e.preventDefault(); b.focus(); }
+    else if (!e.shiftKey && document.activeElement === b) { e.preventDefault(); a.focus(); }
+  }
+});
+$("dlg").addEventListener("click", (e) => { if (e.target === $("dlg")) closeDlg(false); });
+
+/* In die Zwischenablage kopieren (mit Rückfall für ältere Browser) */
+async function copyText(text, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+    const t = h("textarea", { class: "sr-only", "aria-hidden": "true" }); t.value = text; document.body.appendChild(t); t.select();
+    try { ok = document.execCommand("copy"); } catch (x) { ok = false; }
+    t.remove();
+  }
+  if (btn) {
+    if (btn._copyLabel == null) btn._copyLabel = btn.textContent;
+    btn.textContent = ok ? "Kopiert ✓" : "Bitte selbst markieren und kopieren";
+    clearTimeout(btn._copyT); btn._copyT = setTimeout(() => { btn.textContent = btn._copyLabel; }, 2200);
+  }
+  return ok;
+}
+
+/* Mitwachsende Textfelder: Höhe = Texthöhe (gemessen an einem unsichtbaren Zwilling, damit nichts springt). */
+function autoGrow(ta) {
+  if (!ta.isConnected || ta.offsetWidth === 0) return;
+  let m = ta._measure;
+  if (!m) {
+    m = ta.cloneNode(false);
+    ["id", "name", "aria-describedby", "aria-labelledby", "placeholder", "required"].forEach((a) => m.removeAttribute(a));
+    m.setAttribute("aria-hidden", "true"); m.tabIndex = -1; m.readOnly = true;
+    m.classList.add("measure");
+    ta._measure = m;
+  }
+  if (m.parentNode !== ta.parentNode) ta.parentNode.insertBefore(m, ta.nextSibling);
+  m.style.width = ta.offsetWidth + "px";
+  m.value = ta.value;
+  const borders = ta.offsetHeight - ta.clientHeight;
+  ta.style.height = (m.scrollHeight + borders) + "px";
+}
+let growAllPending = false;
+function growAll() {
+  if (growAllPending) return; growAllPending = true;
+  requestAnimationFrame(() => {
+    growAllPending = false;
+    document.querySelectorAll("textarea.answer:not(.measure), textarea.grow:not(.measure)").forEach(autoGrow);
+  });
+}
+window.addEventListener("resize", growAll);
+if (window.ResizeObserver) new ResizeObserver(growAll).observe(document.body);
+
+/* =====================================================================
+ *  Schüler:innen
+ * ===================================================================== */
+const S = {
+  code: "", sheet: null, pub: null, person: null, draftKey: "",
+  tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
+  submitted: false, busyFeedback: false, ltCache: new Map()
+};
+
+/* ---------- 1. Start: Code ---------- */
+async function startGo() {
+  const err = $("start-err"), btn = $("start-btn");
+  err.textContent = "";
+  if (!subtle) { err.textContent = "Dieser Browser unterstützt die nötige Verschlüsselung nicht (Seite bitte über https öffnen)."; return; }
+  const code = normCode($("code-input").value);
+  if (!code) { err.textContent = "Bitte gib den Code ein."; $("code-input").focus(); return; }
+  if (DOOR_RE.test(code)) return teacherDoor(code);
+  if (code.length !== 6) { err.textContent = "Ein Code hat 6 Zeichen, z. B. K7Q-M4X. Bitte prüfe deine Eingabe."; return; }
+  if (!CODE_RE.test(code) || !/[A-Z]/.test(code) || !/[0-9]/.test(code)) {
+    err.textContent = "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code. (In Codes kommen I, L, O, 0 und 1 nicht vor.)"; return;
+  }
+  busy(btn, true, "Einen Moment …");
+  try {
+    const r = await api("GET", "/api/sheet/" + encodeURIComponent(code));
+    const sh = r.sheet || {};
+    if (!Array.isArray(sh.tasks) || !sh.tasks.length) throw new ApiError("server_error");
+    let pub;
+    if (typeof sh.publicKey !== "string" || !sh.publicKey) throw new ApiError("bad_key");
+    try { pub = await Crypto.importPublic(sh.publicKey); } catch (e) { throw new ApiError("bad_key"); }
+    S.code = code; S.pub = pub;
+    S.sheet = {
+      code, title: String(sh.title || "Feibeitsblatt"),
+      tasks: sh.tasks.map((t) => String((t && t.text) || "")),
+      aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null
+    };
+    openPerson();
+  } catch (e) {
+    err.textContent = e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
+  } finally { busy(btn, false); }
+}
+$("start-btn").addEventListener("click", startGo);
+onEnter($("code-input"), startGo);
+
+/* ---------- 2. Angaben ---------- */
+function openPerson() {
+  const sl = $("p-sheet"); sl.textContent = "";
+  sl.appendChild(document.createTextNode(S.sheet.title));
+  sl.appendChild(h("small", { text: `Code ${fmtCode(S.code)} · ${S.sheet.tasks.length} ${S.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}` }));
+  $("p-err").textContent = "";
+  ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => $(id).classList.remove("invalid"));
+  const t = new Date(); $("p-geb").max = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+  show("screen-person");
+  setTimeout(() => $("p-vorname").focus(), 30);
+}
+const LETTERS = /^[\p{L}\p{M}]+$/u;
+function nameCase(s) { const a = Array.from(s); return a.length ? a[0].toLocaleUpperCase("de-DE") + a.slice(1).join("").toLocaleLowerCase("de-DE") : ""; }
+function parseBirth(v) {
+  v = String(v || "").trim(); let y, m, d, x;
+  if ((x = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v))) { y = +x[1]; m = +x[2]; d = +x[3]; }
+  else if ((x = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(v))) { d = +x[1]; m = +x[2]; y = +x[3]; }   // Browser ohne Datumsfeld
+  else return null;
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return { iso: `${y}-${pad2(m)}-${pad2(d)}`, date: dt };
+}
+function personGo() {
+  const err = $("p-err"); err.textContent = "";
+  const fields = { v: $("p-vorname"), n: $("p-nachname"), g: $("p-geb"), k: $("p-klasse") };
+  Object.values(fields).forEach((f) => f.classList.remove("invalid"));
+  const fail = (f, msg) => { f.classList.add("invalid"); err.textContent = msg; f.focus(); };
+  const v = fields.v.value.trim().normalize("NFC"), n = fields.n.value.trim().normalize("NFC");
+  const vl = Array.from(v).length, nl = Array.from(n).length;
+  if (!v) return fail(fields.v, "Bitte gib die ersten drei Buchstaben deines Vornamens ein.");
+  if (!LETTERS.test(v)) return fail(fields.v, "Beim Vornamen sind nur Buchstaben erlaubt.");
+  if (vl < 2 || vl > 3) return fail(fields.v, "Bitte gib die ersten drei Buchstaben deines Vornamens ein (bei kürzerem Vornamen den ganzen Vornamen).");
+  if (!n) return fail(fields.n, "Bitte gib die ersten zwei Buchstaben deines Nachnamens ein.");
+  if (!LETTERS.test(n)) return fail(fields.n, "Beim Nachnamen sind nur Buchstaben erlaubt.");
+  if (nl < 1 || nl > 2) return fail(fields.n, "Bitte gib die ersten zwei Buchstaben deines Nachnamens ein.");
+  const b = parseBirth(fields.g.value);
+  if (!b) return fail(fields.g, "Bitte gib dein Geburtsdatum ein.");
+  if (b.date > new Date() || b.date < new Date(1950, 0, 2)) return fail(fields.g, "Bitte prüfe dein Geburtsdatum.");
+  const k = fields.k.value.replace(/\s+/g, " ").trim();
+  if (!k) return fail(fields.k, "Bitte gib deine Klasse ein (z. B. 8b).");
+  if (!/^[\p{L}\p{N} ./-]{1,10}$/u.test(k)) return fail(fields.k, "Bitte gib deine Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
+  S.person = { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k };
+  openEditor();
+}
+$("p-btn").addEventListener("click", personGo);
+onEnter($("p-vorname"), () => $("p-nachname").focus());
+onEnter($("p-nachname"), () => $("p-geb").focus());
+onEnter($("p-geb"), () => $("p-klasse").focus());
+onEnter($("p-klasse"), personGo);
+$("p-back").addEventListener("click", () => { resetStudent(); show("screen-start"); setTimeout(() => $("code-input").focus(), 30); });
+
+/* ---------- 3. Schreibfläche ---------- */
+function openEditor() {
+  const p = S.person, sh = S.sheet;
+  S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.ltCache = new Map();
+  S.draftKey = "feibeitsblatt:draft:" + S.code + ":" + [p.vorname, p.nachname, p.geburtsdatum, p.klasse].join("|").toLocaleLowerCase("de-DE");
+  $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`;
+  $("ed-title").textContent = sh.title;
+  $("sheet-title").textContent = sh.title;
+  $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.`;
+  $("privacy").textContent = "";
+  $("privacy").append(h("b", { text: "Datenschutz: " }),
+    `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
+    `Er leitet sie zusammen mit den Aufgaben und der Musterlösung deiner Lehrkraft an den KI-Dienst ${sh.aiProvider ? "„" + sh.aiProvider + "“" : "der Lehrkraft"} weiter und speichert selbst nichts davon. ` +
+    `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. ` +
+    `Für die Rechtschreibprüfung wird nur der Text der jeweiligen Antwort an LanguageTool (`,
+    h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
+    `) gesendet – ohne Namen oder Angaben zu dir. Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
+  buildTasks();
+  // Zwischenstand dieses Geräts wiederherstellen
+  let restored = false;
+  const raw = store.get(S.draftKey);
+  if (raw) {
+    try {
+      const d = JSON.parse(raw);
+      if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
+        d.answers.forEach((a, i) => { S.tas[i].value = String(a || "").slice(0, MAX_ANSWER); S.tas[i]._ok = S.tas[i].value; });
+        if (Array.isArray(d.first) && d.first.length === sh.tasks.length && Array.isArray(d.feedback) && d.feedback.length === sh.tasks.length) {
+          S.first = d.first.map((x) => String(x || ""));
+          S.feedback = d.feedback.map(normFb);
+          S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
+        }
+        restored = d.answers.some((a) => String(a || "").trim());
+      }
+    } catch (e) { /* kaputter Entwurf: ignorieren */ }
+  }
+  renderFeedbackState();
+  setSaveState(restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", false);
+  setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
+  show("screen-editor");
+  $("paperwrap").scrollTop = 0;
+  growAll();
+  setTimeout(() => { if (S.tas[0]) S.tas[0].focus({ preventScroll: true }); }, 60);
+}
+
+function buildTasks() {
+  const box = $("tasks"); box.textContent = "";
+  S.tas = []; S.outs = []; S.fbs = [];
+  S.sheet.tasks.forEach((text, i) => {
+    const n = i + 1;
+    const ta = h("textarea", { class: "answer", id: "a-" + n, rows: "3", maxlength: String(MAX_ANSWER), autocomplete: "off", autocapitalize: "sentences",
+      spellcheck: "true", writingsuggestions: "false", "aria-describedby": "q-" + n, placeholder: "Deine Antwort …" });
+    const pe = h("p", { class: "paste-err", id: "pe-" + n, role: "alert" });
+    const ltBtn = h("button", { type: "button", class: "btn ghost small ltbtn", text: "Rechtschreibung und Grammatik prüfen" });
+    const ltStat = h("span", { class: "ltstat", role: "status", "aria-live": "polite" });
+    const out = h("div", { class: "lt-out hidden", "aria-live": "polite" });
+    const fb = h("div", { class: "fbbox hidden" });
+    const sec = h("section", { class: "task", id: "t-" + n, "aria-labelledby": "l-" + n }, [
+      h("div", { class: "task-q" }, [
+        h("label", { class: "task-label", for: "a-" + n, id: "l-" + n, text: "Aufgabe " + n }),
+        h("div", { class: "task-text", id: "q-" + n, text })
+      ]),
+      ta, pe,
+      h("div", { class: "checkrow" }, [ltBtn, ltStat]),
+      out, fb
+    ]);
+    ta._idx = i; ta._pe = pe; ta._ltStat = ltStat; ta._ltBtn = ltBtn;
+    ta.addEventListener("input", () => answerChanged(ta));
+    ltBtn.addEventListener("click", () => ltRun(i, ltBtn, ltStat));
+    S.tas.push(ta); S.outs.push(out); S.fbs.push(fb);
+    box.appendChild(sec);
+  });
+}
+
+/* Nach jeder Änderung einer Antwort: Feld anpassen, alte Prüfung abblenden, Zwischenstand speichern */
+function answerChanged(ta) {
+  autoGrow(ta);
+  if (ta._ltStat && !ta._ltBtn.disabled && ta._ltStat.textContent) setStatus(ta._ltStat, "", "");
+  const out = S.outs[ta._idx];
+  if (out && !out.classList.contains("hidden") && out._text != null) {
+    const stale = out._text !== ta.value;
+    out.classList.toggle("stale", stale);
+    const st = out.querySelector(".lt-stale"); if (st) st.classList.toggle("hidden", !stale);
+  }
+  scheduleSave();
+}
+
+/* ---------- Zwischenstand auf diesem Gerät ---------- */
+let saveTimer = 0;
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
+function saveDraft() {
+  clearTimeout(saveTimer);
+  if (!S.draftKey || S.submitted) return;
+  const d = { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt };
+  const ok = store.set(S.draftKey, JSON.stringify(d));
+  setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden", !ok);
+}
+function setSaveState(text, bad) { const s = $("save-state"); s.textContent = text; s.classList.toggle("bad", !!bad); }
+/* Alte Entwürfe (älter als 30 Tage) entfernen – gemeinsam genutzte Geräte */
+function cleanupDrafts() {
+  const limit = Date.now() - 30 * 864e5;
+  store.keys().forEach((k) => {
+    if (!k || k.indexOf("feibeitsblatt:draft:") !== 0) return;
+    try { const d = JSON.parse(store.get(k)); if (!d || !(d.t > limit)) store.del(k); } catch (e) { store.del(k); }
+  });
+}
+
+/* ---------- Einfügen sperren (in Schichten; nur in Antwortfeldern) ----------
+ * 1) paste  2) dragenter/dragover/drop  3) beforeinput (insertFrom…)  4) Netz: input-Unterschied vorher/nachher */
+const PASTE_MSG = "Einfügen aus der Zwischenablage ist hier nicht erlaubt – bitte selbst tippen.";
+const BLOCK_TYPES = new Set(["insertFromPaste", "insertFromPasteAsQuotation", "insertFromDrop", "insertFromYank"]);
+const TYPING_TYPES = new Set(["insertText", "insertCompositionText", "insertReplacementText"]);
+const MAX_JUMP = 20;       // mehr Zeichen auf einmal ohne Tipp-Eingabeart → Einfügen
+const MAX_TYPED = 200;     // so viel fügt auch Diktat/Autokorrektur nie in einem Schritt ein (z. B. Tastatur-Zwischenablage unter Android)
+const answerOf = (t) => (t && t.nodeType === 1 && t.closest) ? t.closest("textarea.answer:not(.measure)") : null;
+function warnPaste(ta) {
+  const pe = ta._pe; if (!pe) return;
+  pe.textContent = PASTE_MSG;
+  clearTimeout(pe._t); pe._t = setTimeout(() => { pe.textContent = ""; }, 5000);
+}
+function inserted(a, b) {   // neu hinzugekommener Abschnitt (gemeinsamen Anfang/Ende abziehen)
+  const n = Math.min(a.length, b.length); let p = 0, s = 0;
+  while (p < n && a.charCodeAt(p) === b.charCodeAt(p)) p++;
+  while (s < n - p && a.charCodeAt(a.length - 1 - s) === b.charCodeAt(b.length - 1 - s)) s++;
+  return { at: p, text: b.slice(p, b.length - s) };
+}
+document.addEventListener("paste", (e) => { const ta = answerOf(e.target); if (ta) { e.preventDefault(); e.stopImmediatePropagation(); warnPaste(ta); } }, true);
+["dragenter", "dragover"].forEach((type) => document.addEventListener(type, (e) => {
+  if (!answerOf(e.target)) return;
+  e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "none";   // Feld ist kein Ablageziel
+}, true));
+document.addEventListener("drop", (e) => { const ta = answerOf(e.target); if (ta) { e.preventDefault(); e.stopImmediatePropagation(); warnPaste(ta); } }, true);
+document.addEventListener("beforeinput", (e) => {
+  const ta = answerOf(e.target); if (!ta) return;
+  if (ta._ok === undefined) ta._ok = ta.value;
+  if (BLOCK_TYPES.has(e.inputType)) { e.preventDefault(); warnPaste(ta); return; }
+  if (e.cancelable && !e.isComposing && typeof e.data === "string" && e.data.length > MAX_TYPED) { e.preventDefault(); warnPaste(ta); }
+}, true);
+document.addEventListener("input", (e) => {
+  const ta = answerOf(e.target); if (!ta) return;
+  if (e.isComposing || e.inputType === "insertCompositionText") return;   // während einer Komposition (IME, Diktat) nichts anfassen
+  const t = e.inputType || "", prev = ta._ok === undefined ? "" : ta._ok;
+  if (t === "historyUndo" || t === "historyRedo") { ta._ok = ta.value; return; }
+  const ins = inserted(prev, ta.value);
+  if (BLOCK_TYPES.has(t) || (!TYPING_TYPES.has(t) && ins.text.length > MAX_JUMP) || ins.text.length > MAX_TYPED) {
+    ta.value = prev;
+    try { ta.setSelectionRange(ins.at, ins.at); } catch (x) { /* egal */ }
+    e.stopImmediatePropagation();
+    warnPaste(ta); answerChanged(ta);
+    return;
+  }
+  ta._ok = ta.value;
+}, true);
+document.addEventListener("compositionend", (e) => {
+  const ta = answerOf(e.target); if (!ta) return;
+  setTimeout(() => {
+    const prev = ta._ok === undefined ? "" : ta._ok;
+    if (inserted(prev, ta.value).text.length > MAX_TYPED) { ta.value = prev; warnPaste(ta); answerChanged(ta); }
+    else ta._ok = ta.value;
+  }, 0);
+}, true);
+document.addEventListener("focusin", (e) => { const ta = answerOf(e.target); if (ta && ta._ok === undefined) ta._ok = ta.value; }, true);
+
+/* ---------- Rechtschreibung und Grammatik (LanguageTool, öffentliche API) ----------
+ * Nur auf Klick; „simple request“ ohne eigene Header (kein Preflight); Offsets = UTF-16 = JS-Indizes. */
+const LT_URL = "https://api.languagetool.org/v2/check";
+const LT_MAX_BYTES = 20000;
+const LT_APPLY_CATEGORIES = new Set([
+  "TYPOS", "MULTITOKEN_SPELLING", "CASING", "COMPOUNDING", "GRAMMAR", "PUNCTUATION",
+  "HILFESTELLUNG_KOMMASETZUNG", "CONFUSED_WORDS", "PROPER_NOUNS"
+]);
+const LT_APPLY_RULE_PREFIXES = ["GERMAN_WORD_REPEAT_RULE", "DE_SENTENCE_WHITESPACE", "COMMA_PARENTHESIS_WHITESPACE", "DE_SIMPLE_REPLACE"];
+const LT_NEVER_APPLY_RULES = new Set([
+  "DE_DU_UPPER_LOWER", "DOPPELTES_AUSRUFEZEICHEN", "AUFFORDERUNG_MIT_FRAGEZEICHEN", "FRAGEZEICHEN_STATT_PUNKT",
+  "PFEILE", "GROESSERALS", "MALZEICHEN", "LEERZEICHEN_RECHENZEICHEN", "EINHEIT_LEERZEICHEN",
+  "BISSTRICH_STATT_WAEHRUNG", "ZAHL_PUNKT_KOMMA", "VON_BIS", "ZWISCHEN_BISSTRICH"
+]);
+/* null = Treffer darf angewendet werden, sonst Grund */
+function ltWhyNot(m, ignoreReplacement) {
+  const ruleId = (m.rule && m.rule.id) || "", cat = (m.rule && m.rule.category && m.rule.category.id) || "";
+  if (!ignoreReplacement && (!Array.isArray(m.replacements) || !m.replacements.length || typeof m.replacements[0].value !== "string")) return "no-replacement";
+  if (m.type && m.type.typeName === "Hint") return "hint";            // Stilhinweise nie
+  if (LT_NEVER_APPLY_RULES.has(ruleId)) return "never-rule";
+  if (ruleId.indexOf("AI_") === 0) return "ai-rule";
+  if (!LT_APPLY_RULE_PREFIXES.some((p) => ruleId.indexOf(p) === 0) && !LT_APPLY_CATEGORIES.has(cat)) return "category";
+  return null;
+}
+const isHigh = (c) => c >= 0xD800 && c <= 0xDBFF, isLow = (c) => c >= 0xDC00 && c <= 0xDFFF;
+function splitsPair(text, i) { return i > 0 && i < text.length && isLow(text.charCodeAt(i)) && isHigh(text.charCodeAt(i - 1)); }
+function ctxOk(text, m, off, len) {   // Kontext von LanguageTool (40 Zeichen, \n → Leerzeichen) muss zum Text passen
+  if (!m.context || typeof m.context.text !== "string" || !Number.isInteger(m.context.offset) || m.context.length !== len) return true;
+  return m.context.text.substr(m.context.offset, m.context.length) === text.slice(off, off + len).replace(/\n/g, " ");
+}
+/* Ersten Vorschlag je passendem Treffer anwenden – von hinten nach vorn, Überlappungen überspringen.
+   Ergebnis: korrigierter Text, Änderungen (Positionen im korrigierten Text) und Fehler ohne Vorschlag. */
+function correctText(text, matches) {
+  const cand = [], noSugg = [];
+  (matches || []).forEach((m, idx) => {
+    const off = m && m.offset, len = m && m.length;
+    if (!Number.isInteger(off) || !Number.isInteger(len) || off < 0 || len < 0 || off + len > text.length) return;
+    if (splitsPair(text, off) || splitsPair(text, off + len)) return;
+    if (!ctxOk(text, m, off, len)) return;
+    const why = ltWhyNot(m, false);
+    if (why === "no-replacement") { if (len > 0 && !ltWhyNot(m, true)) noSugg.push({ off, end: off + len, message: String(m.message || "") }); return; }
+    if (why) return;
+    const from = text.slice(off, off + len), to = m.replacements[0].value;
+    if (to === from) return;
+    cand.push({ m, idx, off, end: off + len, from, to });
+  });
+  cand.sort((a, b) => (b.off - a.off) || (b.end - a.end) || (a.idx - b.idx));
+  const kept = []; let limit = Infinity, lastInsertAt = -1;
+  for (const c of cand) {
+    if (c.end > limit || (c.off === c.end && c.off === lastInsertAt)) continue;
+    kept.push(c); limit = c.off; lastInsertAt = c.off === c.end ? c.off : -1;
+  }
+  let corrected = text;
+  for (const c of kept) corrected = corrected.slice(0, c.off) + c.to + corrected.slice(c.end);
+  kept.reverse();
+  let delta = 0;
+  const changes = kept.map((c) => {
+    const start = c.off + delta; delta += c.to.length - (c.end - c.off);
+    return { from: c.from, to: c.to, start, end: start + c.to.length, origStart: c.off, origEnd: c.end, message: String(c.m.message || "") };
+  });
+  // Fehler ohne Vorschlag in den korrigierten Text übertragen (nur wenn sie keine Änderung berühren)
+  const unknown = [];
+  noSugg.sort((a, b) => a.off - b.off);
+  let lastEnd = -1;
+  for (const q of noSugg) {
+    if (q.off < lastEnd) continue;
+    if (changes.some((c) => q.off < c.origEnd && c.origStart < q.end || (c.origStart === c.origEnd && c.origStart > q.off && c.origStart < q.end))) continue;
+    let d = 0; for (const c of changes) if (c.origEnd <= q.off) d += c.to.length - (c.origEnd - c.origStart);
+    unknown.push({ start: q.off + d, end: q.end + d, message: q.message }); lastEnd = q.end;
+  }
+  return { corrected, changes, unknown };
+}
+function utf8Bytes(s) { return te.encode(s).length; }
+class LTError extends Error { constructor(code, status) { super(code); this.code = code; this.status = status || 0; } }
+async function ltCheck(text, signal) {
+  const body = new URLSearchParams({
+    text, language: "de-DE",
+    disabledCategories: "STYLE,COLLOQUIALISMS,REDUNDANCY,REPETITIONS_STYLE,GENDER_NEUTRALITY,CREATIVE_WRITING,CORRESPONDENCE,WIKIPEDIA,TEXT_ANALYSIS",
+    enabledRules: "GERMAN_WORD_REPEAT_RULE"
+  });
+  let res;
+  try { res = await fetch(LT_URL, { method: "POST", body, signal, credentials: "omit", referrerPolicy: "no-referrer" }); }
+  catch (e) { throw new LTError(signal && signal.aborted ? "TIMEOUT" : "NETWORK"); }
+  if (res.ok) { try { return await res.json(); } catch (e) { throw new LTError(signal && signal.aborted ? "TIMEOUT" : "SERVER", res.status); } }
+  if (res.status === 429) throw new LTError("RATE_LIMIT", 429);
+  if (res.status === 413) throw new LTError("TOO_LONG", 413);
+  throw new LTError("SERVER", res.status);
+}
+const LT_ERR = {
+  RATE_LIMIT: "Gerade prüfen sehr viele gleichzeitig. Bitte warte eine Minute und versuche es dann noch einmal.",
+  NETWORK: "LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).",
+  TIMEOUT: "LanguageTool antwortet gerade nicht. Bitte versuche es später noch einmal.",
+  TOO_LONG: "Dein Text ist zu lang für die Prüfung (höchstens etwa 20 000 Zeichen)."
+};
+async function ltRun(i, btn, stat) {
+  const ta = S.tas[i];
+  setStatus(stat, "", "");
+  const text = ta.value;
+  if (!text.trim()) { setStatus(stat, "Schreibe zuerst etwas in das Feld.", ""); return; }
+  if (utf8Bytes(text) > LT_MAX_BYTES) { setStatus(stat, LT_ERR.TOO_LONG, "bad"); return; }
+  const cached = S.ltCache.get(text);
+  if (cached) { renderLT(i, text, cached); return; }
+  busy(btn, true);
+  setStatus(stat, "Wird geprüft …", "busy");
+  const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 30000);
+  try {
+    const data = await ltCheck(text, ac.signal);
+    const res = correctText(text, data && Array.isArray(data.matches) ? data.matches : []);
+    res.incomplete = !!(data && data.warnings && data.warnings.incompleteResults);
+    if (S.ltCache.size > 60) S.ltCache.clear();
+    S.ltCache.set(text, res);
+    if (ta.value !== text) { setStatus(stat, "Dein Text hat sich während der Prüfung geändert. Bitte klicke noch einmal auf „Rechtschreibung und Grammatik prüfen“.", ""); return; }
+    setStatus(stat, "", "");
+    renderLT(i, text, res);
+  } catch (e) {
+    setStatus(stat, LT_ERR[e && e.code] || `Die Prüfung hat gerade nicht geklappt${e && e.status ? " (Fehler " + e.status + ")" : ""}. Bitte versuche es später noch einmal.`, "bad");
+  } finally { clearTimeout(timer); busy(btn, false); }
+}
+function renderLT(i, text, res) {
+  const out = S.outs[i]; out.textContent = ""; out._text = text;
+  out.classList.remove("hidden", "stale");
+  if (!res.changes.length && !res.unknown.length) {
+    out.appendChild(h("p", { class: "lt-text", text: "Keine Rechtschreib- oder Grammatikfehler gefunden." }));
+  } else {
+    out.appendChild(h("p", { class: "lt-head", text: "Korrigierte Fassung" }));
+    const p = h("p", { class: "lt-text" });
+    const spans = res.changes.filter((c) => c.end > c.start).map((c) => ({ start: c.start, end: c.end, kind: "c", title: `statt „${c.from}“${c.message ? ": " + c.message : ""}` }))
+      .concat(res.unknown.map((q) => ({ start: q.start, end: q.end, kind: "q", title: q.message || "Möglicher Fehler – kein Vorschlag" })))
+      .sort((a, b) => a.start - b.start);
+    let pos = 0;
+    for (const s of spans) {
+      if (s.start < pos) continue;
+      if (s.start > pos) p.appendChild(document.createTextNode(res.corrected.slice(pos, s.start)));
+      p.appendChild(h(s.kind === "c" ? "mark" : "span", { class: s.kind === "q" ? "lt-q" : null, title: s.title, text: res.corrected.slice(s.start, s.end) }));
+      pos = s.end;
+    }
+    if (pos < res.corrected.length) p.appendChild(document.createTextNode(res.corrected.slice(pos)));
+    out.appendChild(p);
+    const leg = [];
+    if (res.changes.length) leg.push("Markiert: geänderte Stellen.");
+    if (res.unknown.length) leg.push("Rot unterstrichen: vermutlich falsch, aber ohne Vorschlag.");
+    out.appendChild(h("p", { class: "lt-legend", text: leg.join(" ") }));
+  }
+  if (res.incomplete) out.appendChild(h("p", { class: "lt-legend", text: "Prüfung unvollständig – ein Teil des Textes wurde nicht geprüft." }));
+  const note = h("p", { class: "lt-note" }, [
+    "Dies ist die Antwort einer KI (LanguageTool). Sie kann selbst Fehler machen. Nutze sie, um Rechtschreibung und Grammatik deines eigenen Textes zu überarbeiten – übernimm nichts ungeprüft. Prüfung durch ",
+    h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "LanguageTool" }), "."
+  ]);
+  out.appendChild(note);
+  out.appendChild(h("p", { class: "lt-stale hidden", text: "Diese Prüfung bezieht sich auf einen älteren Stand deines Textes." }));
+}
+
+/* ---------- KI-Feedback ---------- */
+function normFb(r) {
+  const arr = (x) => Array.isArray(x) ? x.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 300)).slice(0, 12) : [];
+  const o = { covered: arr(r && r.covered), missing: arr(r && r.missing) };
+  if (r && typeof r.note === "string" && r.note.trim()) o.note = r.note.trim().slice(0, 300);
+  return o;
+}
+function renderFeedbackState() {
+  const has = !!S.feedback;
+  S.fbs.forEach((box, i) => {
+    box.textContent = "";
+    box.classList.toggle("hidden", !has);
+    if (!has) return;
+    const f = S.feedback[i] || { covered: [], missing: [] };
+    box.appendChild(h("p", { class: "fb-head", text: "KI-Feedback zu Aufgabe " + (i + 1) }));
+    if (f.covered.length) {
+      box.appendChild(h("p", { class: "fb-sub fb-ok", text: "Angesprochen" }));
+      box.appendChild(h("ul", { class: "fb-list fb-ok" }, f.covered.map((s) => h("li", { text: s }))));
+    }
+    if (f.missing.length) {
+      box.appendChild(h("p", { class: "fb-sub fb-miss", text: "Noch nicht angesprochen" }));
+      box.appendChild(h("ul", { class: "fb-list fb-miss" }, f.missing.map((s) => h("li", { text: s }))));
+    }
+    if (f.note) box.appendChild(h("p", { class: "fb-note", text: f.note }));
+    else if (!f.covered.length && !f.missing.length) box.appendChild(h("p", { class: "fb-note", text: "Zu dieser Aufgabe gibt es keine Rückmeldung." }));
+  });
+  const fbBtn = $("fb-btn"), sub = $("submit-btn");
+  fbBtn.disabled = has || S.busyFeedback;
+  fbBtn.textContent = has ? "KI-Feedback erhalten" : "KI um ein Feedback bitten";
+  sub.disabled = !has;
+  $("submit-hint").textContent = has
+    ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen."
+    : "Der Button „Abgeben“ wird freigeschaltet, sobald du das KI-Feedback erhalten hast.";
+  const rh = $("revise-hint"), eh = $("ed-hint");
+  const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
+  rh.textContent = reviseText; rh.classList.toggle("hidden", !has);
+  eh.textContent = "Du hast das KI-Feedback erhalten. Überarbeite jetzt deine Antworten und gib danach ganz unten ab.";
+  eh.classList.toggle("hidden", !has);
+}
+async function requestFeedback() {
+  if (S.feedback || S.busyFeedback) return;
+  const st = $("fb-status"), btn = $("fb-btn");
+  setStatus(st, "", "");
+  const answers = S.tas.map((t) => t.value);
+  const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
+  if (empty.length === answers.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
+  const ok = await askConfirm(empty.length ? {
+    title: "Noch nicht alles beantwortet",
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\nDas KI-Feedback gibt es nur einmal. Möchtest du es trotzdem jetzt anfordern?`,
+    ok: "Trotzdem anfordern", cancel: "Weiterschreiben"
+  } : {
+    title: "KI-Feedback anfordern?",
+    text: "Das KI-Feedback gibt es nur einmal. Deine jetzigen Antworten werden als erste Fassung gespeichert und später mit abgegeben.",
+    ok: "Feedback anfordern", cancel: "Weiterschreiben"
+  });
+  if (!ok) return;
+  S.busyFeedback = true; btn.disabled = true;
+  S.tas.forEach((t) => { t.readOnly = true; });
+  setStatus(st, "Die KI arbeitet … das kann bis zu einer Minute dauern.", "busy");
+  const slow = setTimeout(() => setStatus(st, "Die KI arbeitet … das dauert gerade etwas länger. Bitte warte noch.", "busy"), 60000);
+  try {
+    const r = await api("POST", "/api/feedback", { body: { code: S.code, answers }, timeout: 150000 });
+    if (!Array.isArray(r.results) || r.results.length !== answers.length) throw new ApiError("bad_result");
+    S.first = answers.slice();
+    S.feedback = r.results.map(normFb);
+    S.feedbackAt = new Date().toISOString();
+    saveDraft();
+    setStatus(st, "", "");
+    S.busyFeedback = false;
+    renderFeedbackState();
+    $("revise-hint").scrollIntoView({ block: "nearest", behavior: "smooth" });
+  } catch (e) {
+    S.busyFeedback = false;
+    btn.disabled = false;
+    setStatus(st, e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s"), "bad");
+  } finally {
+    clearTimeout(slow);
+    S.tas.forEach((t) => { t.readOnly = false; });
+  }
+}
+$("fb-btn").addEventListener("click", requestFeedback);
+
+/* ---------- Abgabe ---------- */
+async function submitAll() {
+  if (!S.feedback || S.submitted) return;
+  const st = $("submit-status"), btn = $("submit-btn");
+  setStatus(st, "", "");
+  const ok = await askConfirm({
+    title: "Jetzt abgeben?",
+    text: "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.",
+    ok: "Abgeben", cancel: "Weiter überarbeiten"
+  });
+  if (!ok) return;
+  busy(btn, true, "Wird abgegeben …");
+  setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
+  try {
+    const payload = {
+      v: 1, sheetCode: S.code, sheetTitle: S.sheet.title,
+      person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse },
+      answers: S.tas.map((t, i) => ({ first: S.first[i], final: t.value })),
+      feedback: S.feedback.map((f) => f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing }),
+      feedbackAt: S.feedbackAt, submittedAt: new Date().toISOString()
+    };
+    saveDraft();
+    let envelope;
+    try { envelope = await Crypto.seal(S.pub, payload); } catch (e) { throw new ApiError("crypto"); }
+    const r = await api("POST", "/api/submit", { body: { code: S.code, envelope }, timeout: 60000 });
+    S.submitted = true;
+    store.del(S.draftKey);
+    const d = toDate(r.receivedAt) || new Date();
+    const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+    $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;
+    clearEditor();
+    show("screen-done");
+    setTimeout(() => $("done-btn").focus(), 30);
+  } catch (e) {
+    setStatus(st, (e.code === "crypto" ? "Deine Abgabe konnte nicht verschlüsselt werden." : errMsg(e, "s")) +
+      " Deine Antworten sind noch da – versuche es gleich noch einmal.", "bad");
+  } finally { busy(btn, false); if (S.submitted) btn.disabled = true; }
+}
+$("submit-btn").addEventListener("click", submitAll);
+
+/* Schreibfläche leeren (gemeinsam genutzte Geräte) */
+function clearEditor() {
+  $("tasks").textContent = "";
+  S.tas = []; S.outs = []; S.fbs = [];
+  $("who-name").textContent = ""; $("ed-title").textContent = ""; $("sheet-title").textContent = "";
+}
+function resetStudent() {
+  clearEditor();
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, submitted: false, busyFeedback: false, ltCache: new Map() });
+  ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
+  $("p-err").textContent = ""; $("start-err").textContent = "";
+}
+$("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").value = ""; show("screen-start"); setTimeout(() => $("code-input").focus(), 30); });
+
+/* =====================================================================
+ *  Lehrkraft
+ * ===================================================================== */
+const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false };
+const TA = (path, opts) => api(opts && opts.method || "GET", path, Object.assign({ auth: T.authKey }, opts || {}));
+
+/* ---------- Türcode ---------- */
+async function teacherDoor(code) {
+  const err = $("start-err"), btn = $("start-btn");
+  busy(btn, true, "Einen Moment …");
+  try {
+    const r = await api("POST", "/api/teacher/door", { body: { doorCode: code } });
+    T.door = code;
+    $("code-input").value = "";
+    if (r.setup) {
+      if (!r.kdf || typeof r.kdf.salt !== "string") throw new ApiError("server_error");
+      T.kdf = r.kdf;
+      $("tl-pw").value = ""; $("tl-err").textContent = "";
+      show("screen-tlogin"); setTimeout(() => $("tl-pw").focus(), 30);
+    } else {
+      $("ts-pw1").value = ""; $("ts-pw2").value = ""; $("ts-err").textContent = "";
+      show("screen-tsetup"); setTimeout(() => $("ts-pw1").focus(), 30);
+    }
+  } catch (e) { err.textContent = errMsg(e, e.code === "wrong_code" ? "s" : "t"); }
+  finally { busy(btn, false); }
+}
+
+/* ---------- Passwort festlegen (erstes Mal) ---------- */
+async function teacherSetup() {
+  const err = $("ts-err"), btn = $("ts-btn");
+  err.textContent = "";
+  const p1 = $("ts-pw1").value, p2 = $("ts-pw2").value;
+  if (p1.length < 10) { err.textContent = "Das Passwort muss mindestens 10 Zeichen lang sein."; $("ts-pw1").focus(); return; }
+  if (p1 !== p2) { err.textContent = "Die beiden Passwörter stimmen nicht überein."; $("ts-pw2").focus(); return; }
+  busy(btn, true, "Schlüssel werden erzeugt …");
+  setStatus(err, "Schlüssel werden erzeugt – das dauert einige Sekunden …", "busy");
+  try {
+    const kdf = Crypto.newKdf();
+    const { encKey, authKey } = await Crypto.derive(p1, kdf);
+    const pair = await Crypto.genKeyPair();
+    const spki = await subtle.exportKey("spki", pair.publicKey);
+    const pkcs8 = new Uint8Array(await subtle.exportKey("pkcs8", pair.privateKey));
+    const encPrivateKey = await Crypto.aesSeal(encKey, pkcs8);
+    await api("POST", "/api/teacher/setup", { body: { doorCode: T.door, authKey, kdf, publicKey: b64(spki), encPrivateKey } });
+    T.kdf = kdf; T.authKey = authKey; T.pkcs8 = pkcs8;
+    T.priv = await Crypto.importPrivate(pkcs8);
+    $("ts-pw1").value = ""; $("ts-pw2").value = "";
+    setStatus(err, "", "");
+    openOverview();
+  } catch (e) {
+    setStatus(err, e instanceof ApiError ? errMsg(e, "t") : "Die Schlüssel konnten in diesem Browser nicht erzeugt werden.", "bad");
+    if (e.code === "already_setup") setTimeout(() => teacherDoor(T.door), 1800);
+  } finally { busy(btn, false); }
+}
+$("ts-btn").addEventListener("click", teacherSetup);
+onEnter($("ts-pw1"), () => $("ts-pw2").focus());
+onEnter($("ts-pw2"), teacherSetup);
+$("ts-back").addEventListener("click", () => { T.door = ""; show("screen-start"); });
+
+/* ---------- Anmelden ---------- */
+async function teacherLogin() {
+  const err = $("tl-err"), btn = $("tl-btn"), pw = $("tl-pw").value;
+  err.textContent = "";
+  if (!pw) { err.textContent = "Bitte geben Sie Ihr Passwort ein."; $("tl-pw").focus(); return; }
+  busy(btn, true, "Wird geprüft …");
+  setStatus(err, "Passwort wird geprüft …", "busy");
+  try {
+    let keys;
+    try { keys = await Crypto.derive(pw, T.kdf); } catch (e) { throw new ApiError("bad_kdf"); }
+    const r = await api("POST", "/api/teacher/login", { auth: keys.authKey });
+    let pkcs8;
+    try { pkcs8 = await Crypto.aesOpen(keys.encKey, r.encPrivateKey); T.priv = await Crypto.importPrivate(pkcs8); }
+    catch (e) { throw new ApiError("bad_private"); }
+    T.authKey = keys.authKey; T.pkcs8 = pkcs8; if (r.kdf) T.kdf = r.kdf;
+    $("tl-pw").value = "";
+    setStatus(err, "", "");
+    openOverview();
+  } catch (e) {
+    const m = e.code === "bad_kdf" ? "Die Anmeldedaten des Servers sind ungültig." : e.code === "bad_private" ? "Der private Schlüssel konnte nicht entschlüsselt werden." : errMsg(e, "t");
+    setStatus(err, m, "bad");
+    $("tl-pw").select();
+  } finally { busy(btn, false); }
+}
+$("tl-btn").addEventListener("click", teacherLogin);
+onEnter($("tl-pw"), teacherLogin);
+$("tl-back").addEventListener("click", () => { T.door = ""; T.kdf = null; show("screen-start"); });
+
+/* Abgelaufene/fehlende Anmeldung → zurück zum Start */
+function handleAuthError(e) {
+  if (e && e.code === "unauthorized") { logout(true); $("start-err").textContent = "Bitte melden Sie sich erneut an."; return true; }
+  return false;
+}
+async function logout(force) {
+  if (force !== true && T.builderDirty && !(await askConfirm({ title: "Abmelden?", text: "Ihre Eingaben für das neue Feibeitsblatt gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
+  Object.assign(T, { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false });
+  $("t-sheets-body").textContent = ""; $("t-subs-body").textContent = ""; $("t-sel").classList.add("hidden");
+  $("code-input").value = "";
+  show("screen-start");
+}
+$("t-logout").addEventListener("click", () => logout(false));
+
+/* ---------- Übersicht ---------- */
+function teacherView(id) {
+  ["tv-overview", "tv-builder", "tv-ai", "tv-pw"].forEach((v) => $(v).classList.toggle("hidden", v !== id));
+  window.scrollTo(0, 0);
+}
+function openOverview() {
+  show("screen-teacher"); teacherView("tv-overview");
+  loadSheets(); loadAiState();
+}
+async function loadAiState() {
+  try {
+    const r = await TA("/api/teacher/ai");
+    T.ai = r;
+    const has = !!(r.provider && r.hasKey);
+    $("t-aiwarn").classList.toggle("hidden", has);
+    $("t-aiwarn").textContent = (r.keyError ? String(r.keyError) + " " : "") + "Das KI-Feedback ist noch nicht eingerichtet. Ohne KI-Feedback können Schüler:innen nicht abgeben – bitte richten Sie unter „KI-Einstellungen“ einen Anbieter mit API-Schlüssel ein.";
+    $("t-aiinfo").classList.toggle("hidden", !has);
+    $("t-aiinfo").textContent = has ? `KI-Feedback über ${provLabel(r.provider, r.label)}${r.model ? " (Modell: " + r.model + ")" : ""}.` : "";
+  } catch (e) { if (!handleAuthError(e)) { $("t-aiinfo").classList.remove("hidden"); $("t-aiinfo").textContent = "KI-Einstellungen konnten nicht geladen werden: " + errMsg(e, "t"); } }
+}
+async function loadSheets(keepSel) {
+  const st = $("t-list-status");
+  setStatus(st, "Wird geladen …", "busy");
+  try {
+    const r = await TA("/api/teacher/sheets");
+    T.sheets = Array.isArray(r.sheets) ? r.sheets : [];
+    setStatus(st, "", "");
+    renderSheets();
+    if (keepSel && T.sel && !T.sheets.some((s) => s.code === T.sel)) { T.sel = null; $("t-sel").classList.add("hidden"); }
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+}
+function renderSheets() {
+  const tb = $("t-sheets-body"); tb.textContent = "";
+  if (!T.sheets.length) {
+    tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: "Noch keine Feibeitsblätter. Klicken Sie oben auf „Neues Feibeitsblatt erstellen“." })]));
+    $("t-list-hint").classList.add("hidden");
+    return;
+  }
+  $("t-list-hint").classList.remove("hidden");
+  T.sheets.forEach((s) => {
+    const tr = h("tr", { class: "clickable" + (s.code === T.sel ? " selected" : ""), tabindex: "0", "aria-selected": s.code === T.sel ? "true" : "false" }, [
+      h("td", { text: String(s.title || "") }),
+      h("td", { class: "code", text: fmtCode(s.code) }),
+      h("td", { class: "nowrap hide-s", text: fmtDT(s.createdAt) }),
+      h("td", { class: "num hide-s", text: String(s.taskCount ?? "–") }),
+      h("td", { class: "num", text: String(s.submissionCount ?? "–") })
+    ]);
+    const pick = () => selectSheet(s.code);
+    tr.addEventListener("click", pick);
+    tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+    tb.appendChild(tr);
+  });
+}
+async function selectSheet(code) {
+  T.sel = code; renderSheets();
+  const box = $("t-sel"); box.classList.remove("hidden");
+  const meta = T.sheets.find((s) => s.code === code) || { code, title: "" };
+  $("t-sel-title").textContent = meta.title || "Feibeitsblatt";
+  $("t-sel-meta").textContent = "Erstellt am " + fmtDT(meta.createdAt);
+  $("t-sel-code").textContent = fmtCode(code);
+  $("t-sel-tasks").textContent = ""; $("t-sel-det").open = false;
+  $("t-subs-body").textContent = ""; $("t-subs-sum").textContent = "";
+  setStatus($("t-del-status"), "", "");
+  T.selSheet = null; T.subs = [];
+  setStatus($("t-subs-status"), "Abgaben werden geladen und entschlüsselt …", "busy");
+  try {
+    const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code));
+    if (T.sel !== code) return;
+    T.selSheet = r.sheet;
+    $("t-sel-title").textContent = r.sheet.title || "Feibeitsblatt";
+    $("t-sel-meta").textContent = `Erstellt am ${fmtDT(r.sheet.createdAt)} · ${r.sheet.tasks.length} ${r.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}`;
+    const list = $("t-sel-tasks");
+    r.sheet.tasks.forEach((t, i) => list.appendChild(h("div", { class: "si" }, [
+      h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
+      h("p", { text: String(t.text || "") }),
+      h("span", { class: "task-label", style: "margin-top:6px", text: "Musterlösung" }),
+      h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keine –" })
+    ])));
+    await loadSubs();
+  } catch (e) { if (!handleAuthError(e)) setStatus($("t-subs-status"), errMsg(e, "t"), "bad"); }
+}
+async function loadSubs() {
+  const code = T.sel, st = $("t-subs-status");
+  setStatus(st, "Abgaben werden geladen und entschlüsselt …", "busy");
+  try {
+    const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code) + "/submissions");
+    if (T.sel !== code) return;
+    const out = [];
+    for (const s of (Array.isArray(r.submissions) ? r.submissions : [])) {
+      let p = null;
+      try {
+        p = await Crypto.open(T.priv, s.envelope);
+        if (!p || typeof p !== "object" || !p.person || !Array.isArray(p.answers)) p = null;
+      } catch (e) { p = null; }
+      out.push({ id: s.id, receivedAt: s.receivedAt, p });
+    }
+    const key = (x) => x.p ? [String(x.p.person.klasse || ""), String(x.p.person.nachname || ""), String(x.p.person.vorname || "")] : ["￿", "", ""];
+    const coll = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+    out.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
+    T.subs = out;
+    setStatus(st, "", "");
+    renderSubs();
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+}
+function renderSubs() {
+  const tb = $("t-subs-body"); tb.textContent = "";
+  const n = T.subs.length;
+  $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : n === 1 ? "1 Abgabe" : n + " Abgaben";
+  $("t-expand-all").textContent = "Alle aufklappen";
+  $("t-expand-all").disabled = n === 0;
+  $("t-del-subs").disabled = n === 0;
+  if (!n) { tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: "Zu diesem Feibeitsblatt ist noch nichts abgegeben worden." })])); return; }
+  T.subs.forEach((s, idx) => {
+    if (!s.p) {
+      tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: `Abgabe vom ${fmtDT(s.receivedAt)} konnte nicht entschlüsselt werden (beschädigt oder mit einem anderen Schlüssel verschlüsselt).` })]));
+      return;
+    }
+    const pr = s.p.person;
+    const main = h("tr", { class: "clickable main", tabindex: "0", "aria-expanded": "false", "aria-controls": "sd-" + idx }, [
+      h("td", { class: "arrowcol" }, [h("span", { class: "arrow", "aria-hidden": "true", text: "▸" })]),
+      h("td", { text: String(pr.nachname || "") }),
+      h("td", { text: String(pr.vorname || "") }),
+      h("td", { class: "nowrap", text: fmtIsoDate(pr.geburtsdatum) }),
+      h("td", { text: String(pr.klasse || "") })
+    ]);
+    const det = h("tr", { class: "details hidden", id: "sd-" + idx }, [h("td", { colspan: "5" })]);
+    const toggle = (force) => {
+      const open = typeof force === "boolean" ? force : main.getAttribute("aria-expanded") !== "true";
+      main.setAttribute("aria-expanded", String(open)); main.classList.toggle("open", open); det.classList.toggle("hidden", !open);
+      if (open && !det.firstChild.firstChild) det.firstChild.appendChild(buildDetail(s));
+    };
+    main._toggle = toggle;
+    main.addEventListener("click", () => toggle());
+    main.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+    tb.appendChild(main); tb.appendChild(det);
+  });
+}
+function buildDetail(s) {
+  const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [];
+  const box = h("div", { class: "detbox" });
+  const meta = [`Abgegeben am ${fmtDT(s.receivedAt)}`];
+  if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
+  box.appendChild(h("p", { class: "dmeta", text: meta.join(" · ") }));
+  const n = Math.max(p.answers.length, tasks.length);
+  const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback";
+  for (let i = 0; i < n; i++) {
+    const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
+    const cell = (txt, label, extra) => {
+      const td = h("td", { "data-label": label });
+      if (txt.trim()) td.appendChild(document.createTextNode(txt)); else td.appendChild(h("span", { class: "empty", text: "(leer)" }));
+      if (extra) td.appendChild(extra);
+      return td;
+    };
+    const f = Array.isArray(p.feedback) && p.feedback[i] ? normFb(p.feedback[i]) : null;
+    const fbEl = h("div", { class: "dfb" });
+    if (f) {
+      fbEl.appendChild(h("p", { class: "fb-head", text: "Angezeigtes KI-Feedback" }));
+      if (f.covered.length) fbEl.append(h("p", { class: "fb-ok", text: "Angesprochen:" }), h("ul", { class: "fb-ok" }, f.covered.map((x) => h("li", { text: x }))));
+      if (f.missing.length) fbEl.append(h("p", { class: "fb-miss", text: "Noch nicht angesprochen:" }), h("ul", { class: "fb-miss" }, f.missing.map((x) => h("li", { text: x }))));
+      if (f.note) fbEl.appendChild(h("p", { class: "fb-note", text: f.note }));
+      else if (!f.covered.length && !f.missing.length) fbEl.appendChild(h("p", { class: "fb-note", text: "Keine Rückmeldung." }));
+    }
+    box.appendChild(h("div", { class: "dtask" }, [
+      h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
+      h("p", { class: "dtask-text", text: tasks[i] ? String(tasks[i].text || "") : "" }),
+      h("table", { class: "cmp" }, [
+        h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
+        h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null)])])
+      ]),
+      f ? fbEl : null
+    ]));
+  }
+  return box;
+}
+$("t-expand-all").addEventListener("click", () => {
+  const rows = Array.from(document.querySelectorAll("#t-subs-body tr.main"));
+  const open = rows.some((r) => r.getAttribute("aria-expanded") !== "true");
+  rows.forEach((r) => r._toggle(open));
+  $("t-expand-all").textContent = open ? "Alle zuklappen" : "Alle aufklappen";
+});
+$("t-sel-copy").addEventListener("click", () => copyText(fmtCode(T.sel), $("t-sel-copy")));
+$("t-refresh").addEventListener("click", async () => {
+  const b = $("t-refresh"); busy(b, true, "Wird aktualisiert …");
+  try { await loadSheets(true); if (T.sel) { renderSheets(); await loadSubs(); } } finally { busy(b, false); }
+});
+$("t-template").addEventListener("click", () => {
+  if (!T.selSheet) return;
+  openBuilder(T.selSheet.title, T.selSheet.tasks.map((t) => ({ text: String(t.text || ""), solution: String(t.solution || "") })));
+});
+$("t-del-subs").addEventListener("click", async () => {
+  const n = T.subs.length, title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-subs");
+  if (!n) return;
+  const ok = await askConfirm({
+    title: "Alle Abgaben löschen?",
+    text: `${n === 1 ? "Die eine Abgabe" : "Alle " + n + " Abgaben"} zu „${title}“ werden endgültig aus der Datenbank gelöscht. Das lässt sich nicht rückgängig machen.`,
+    ok: n === 1 ? "Abgabe löschen" : `${n} Abgaben löschen`, cancel: "Abbrechen", danger: true
+  });
+  if (!ok) return;
+  busy(btn, true, "Wird gelöscht …");
+  try {
+    const r = await TA("/api/teacher/sheets/" + encodeURIComponent(T.sel) + "/submissions", { method: "DELETE" });
+    setStatus(st, `${r.deleted === 1 ? "1 Abgabe" : (r.deleted ?? n) + " Abgaben"} gelöscht.`, "ok");
+    T.subs = []; renderSubs(); loadSheets(true);
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+  finally { busy(btn, false); $("t-del-subs").disabled = T.subs.length === 0; }
+});
+$("t-del-sheet").addEventListener("click", async () => {
+  const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-sheet");
+  const ok = await askConfirm({
+    title: "Feibeitsblatt löschen?",
+    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird mitsamt ${T.subs.length === 1 ? "der einen Abgabe" : "allen " + T.subs.length + " Abgaben"} endgültig gelöscht. Der Code wird ungültig.`,
+    ok: "Feibeitsblatt löschen", cancel: "Abbrechen", danger: true
+  });
+  if (!ok) return;
+  busy(btn, true);
+  try {
+    await TA("/api/teacher/sheets/" + encodeURIComponent(T.sel), { method: "DELETE" });
+    T.sel = null; T.selSheet = null; T.subs = [];
+    $("t-sel").classList.add("hidden");
+    await loadSheets();
+    setStatus($("t-list-status"), "Feibeitsblatt gelöscht.", "ok");
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+  finally { busy(btn, false); }
+});
+
+/* ---------- Neues Feibeitsblatt ---------- */
+function openBuilder(title, rows) {
+  teacherView("tv-builder");
+  $("b-form").classList.remove("hidden"); $("b-result").classList.add("hidden");
+  $("b-err").textContent = "";
+  const d = new Date(); $("b-today").textContent = fmtD(d);
+  $("b-title").value = title || "";
+  $("b-rows").textContent = "";
+  const init = rows && rows.length ? rows : [{}, {}, {}];
+  init.forEach((r) => addRow(r.text, r.solution));
+  T.builderDirty = false;
+  growAll();
+  setTimeout(() => $("b-title").focus(), 30);
+}
+function addRow(text, solution) {
+  const tb = $("b-rows");
+  const ta1 = h("textarea", { class: "grow q", rows: "3", maxlength: "4000", placeholder: "Aufgabenstellung …", spellcheck: "true" });
+  const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Kernpunkte der Musterlösung, je Zeile einer …", spellcheck: "true" });
+  ta1.value = text || ""; ta2.value = solution || "";
+  const l1 = h("label", { class: "rowlbl" }), l2 = h("label", { class: "rowlbl" });
+  const up = h("button", { type: "button", class: "iconbtn up", text: "↑" });
+  const down = h("button", { type: "button", class: "iconbtn down", text: "↓" });
+  const del = h("button", { type: "button", class: "iconbtn x", text: "✕" });
+  const tr = h("tr", null, [
+    h("td", { class: "c1" }, [l1, ta1]),
+    h("td", { class: "c2" }, [l2, ta2]),
+    h("td", { class: "act" }, [h("div", { class: "acts" }, [up, down, del])])
+  ]);
+  [ta1, ta2].forEach((t) => t.addEventListener("input", () => { autoGrow(t); t.classList.remove("invalid"); T.builderDirty = true; }));
+  up.addEventListener("click", () => { const p = tr.previousElementSibling; if (p) { tb.insertBefore(tr, p); renumber(); up.focus(); T.builderDirty = true; } });
+  down.addEventListener("click", () => { const n = tr.nextElementSibling; if (n) { tb.insertBefore(n, tr); renumber(); down.focus(); T.builderDirty = true; } });
+  del.addEventListener("click", async () => {
+    if (tb.children.length <= 1) { ta1.value = ""; ta2.value = ""; growAll(); return; }
+    if ((ta1.value.trim() || ta2.value.trim()) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung und Musterlösung dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    tr.remove(); renumber(); T.builderDirty = true;
+  });
+  tb.appendChild(tr);
+  renumber();
+  return tr;
+}
+function renumber() {
+  const rows = Array.from($("b-rows").children);
+  rows.forEach((tr, i) => {
+    const n = i + 1, q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)");
+    q.id = "bq-" + n; s.id = "bs-" + n;
+    const [l1, l2] = tr.querySelectorAll("label.rowlbl");
+    l1.htmlFor = q.id; l1.textContent = "Aufgabe " + n;
+    l2.htmlFor = s.id; l2.textContent = "Musterlösung " + n;
+    tr.querySelector(".up").disabled = i === 0;
+    tr.querySelector(".down").disabled = i === rows.length - 1;
+    tr.querySelector(".up").setAttribute("aria-label", `Aufgabe ${n} nach oben verschieben`);
+    tr.querySelector(".down").setAttribute("aria-label", `Aufgabe ${n} nach unten verschieben`);
+    tr.querySelector(".x").setAttribute("aria-label", `Aufgabe ${n} entfernen`);
+    tr.querySelector(".up").title = "Nach oben"; tr.querySelector(".down").title = "Nach unten"; tr.querySelector(".x").title = "Zeile entfernen";
+  });
+  $("b-add").disabled = rows.length >= 30;
+}
+$("b-add").addEventListener("click", () => {
+  if ($("b-rows").children.length >= 30) return;
+  const tr = addRow("", ""); growAll(); T.builderDirty = true;
+  setTimeout(() => tr.querySelector("textarea.q").focus(), 20);
+});
+$("b-title").addEventListener("input", () => { T.builderDirty = true; });
+$("t-new").addEventListener("click", () => openBuilder("", null));
+async function leaveBuilder() {
+  if (T.builderDirty && !(await askConfirm({ title: "Eingaben verwerfen?", text: "Das neue Feibeitsblatt ist noch nicht gespeichert. Wenn Sie jetzt zur Übersicht gehen, gehen Ihre Eingaben verloren.", ok: "Verwerfen", cancel: "Weiter bearbeiten", danger: true }))) return;
+  T.builderDirty = false;
+  teacherView("tv-overview"); loadSheets(true);
+}
+$("b-back").addEventListener("click", leaveBuilder);
+$("b-gen").addEventListener("click", async () => {
+  const err = $("b-err"), btn = $("b-gen");
+  err.textContent = "";
+  const tasks = [];
+  let bad = null;
+  Array.from($("b-rows").children).forEach((tr, i) => {
+    const q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)");
+    const text = q.value.trim(), solution = s.value.trim();
+    if (!text && !solution) return;                     // leere Zeilen weglassen
+    if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
+    tasks.push({ text, solution });
+  });
+  if (bad) { bad.focus(); return; }
+  if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector("textarea.q"); if (f) f.focus(); return; }
+  if (tasks.length > 30) { err.textContent = "Ein Feibeitsblatt kann höchstens 30 Aufgaben haben."; return; }
+  const title = $("b-title").value.trim().slice(0, 200);
+  busy(btn, true, "Code wird erzeugt …");
+  try {
+    const r = await TA("/api/teacher/sheets", { method: "POST", body: { title, tasks } });
+    T.builderDirty = false;
+    $("b-res-title").textContent = (typeof r.title === "string" && r.title) || title || ("Feibeitsblatt vom " + fmtD(new Date()));
+    $("b-res-code").textContent = fmtCode(r.code);
+    $("b-form").classList.add("hidden"); $("b-result").classList.remove("hidden");
+    T.sel = r.code;
+    window.scrollTo(0, 0);
+    setTimeout(() => $("b-res-copy").focus(), 30);
+  } catch (e) { if (!handleAuthError(e)) err.textContent = errMsg(e, "t"); }
+  finally { busy(btn, false); }
+});
+$("b-res-copy").addEventListener("click", () => copyText($("b-res-code").textContent, $("b-res-copy")));
+$("b-res-back").addEventListener("click", async () => {
+  teacherView("tv-overview");
+  await loadSheets(true);
+  if (T.sel && T.sheets.some((s) => s.code === T.sel)) selectSheet(T.sel);
+});
+
+/* ---------- KI-Einstellungen ---------- */
+const PROVIDERS = {
+  groq: { label: "Groq", model: "openai/gpt-oss-120b", key: "gsk_…" },
+  openrouter: { label: "OpenRouter", model: "openai/gpt-oss-120b:free", key: "sk-or-v1-…" },
+  gemini: { label: "Google Gemini", model: "gemini-flash-latest", key: "AIza…" },
+  cerebras: { label: "Cerebras", model: "gpt-oss-120b", key: "csk-…" },
+  custom: { label: "anderer OpenAI-kompatibler Dienst", model: "", key: "API-Schlüssel" }
+};
+function provLabel(p, serverLabel) { return typeof serverLabel === "string" && serverLabel ? serverLabel : PROVIDERS[p] ? PROVIDERS[p].label : String(p || "–"); }
+let aiDirty = false;
+function aiSyncForm() {
+  const p = $("ai-prov").value, def = PROVIDERS[p] || PROVIDERS.custom;
+  document.querySelectorAll(".provinfo").forEach((n) => n.classList.toggle("hidden", n.getAttribute("data-prov") !== p));
+  $("ai-base-field").classList.toggle("hidden", p !== "custom");
+  $("ai-model").placeholder = def.model ? def.model : "Modell-ID, z. B. mistral-small-latest";
+  $("ai-model-hint").textContent = def.model ? `Leer lassen für die Vorgabe (${def.model}). Bei erschöpftem Kontingent weicht der Server auf andere Modelle aus.` : "Bei einem anderen Dienst bitte die Modell-ID angeben.";
+  $("ai-key").placeholder = def.key;
+  const saved = T.ai && T.ai.provider;
+  let hint;
+  if (T.ai && T.ai.hasKey && saved === p) hint = `Gespeichert: ${T.ai.keyHint || "…"} – leer lassen, um ihn zu behalten.`;
+  else if (T.ai && T.ai.hasKey && saved && saved !== p) hint = "Für den neuen Anbieter bitte auch einen neuen API-Schlüssel eintragen.";
+  else if (saved && T.ai.keyError) hint = String(T.ai.keyError);
+  else if (saved) hint = "Kein gültiger Schlüssel gespeichert – bitte den API-Schlüssel neu eintragen.";
+  else hint = "Noch kein Schlüssel gespeichert.";
+  $("ai-key-hint").textContent = hint;
+}
+async function openAi() {
+  teacherView("tv-ai");
+  const st = $("ai-status");
+  setStatus(st, "Wird geladen …", "busy");
+  ["ai-save", "ai-test"].forEach((id) => { $(id).disabled = true; });
+  try {
+    const r = await TA("/api/teacher/ai");
+    T.ai = r;
+    $("ai-prov").value = PROVIDERS[r.provider] ? r.provider : "groq";
+    $("ai-model").value = r.model || "";
+    $("ai-base").value = r.baseUrl || "";
+    $("ai-key").value = "";
+    aiDirty = false;
+    setStatus(st, "", "");
+  } catch (e) { if (handleAuthError(e)) return; setStatus(st, errMsg(e, "t"), "bad"); }
+  finally { ["ai-save", "ai-test"].forEach((id) => { $(id).disabled = false; }); aiSyncForm(); }
+}
+$("t-ai").addEventListener("click", openAi);
+$("ai-back").addEventListener("click", () => { teacherView("tv-overview"); loadAiState(); });
+$("ai-prov").addEventListener("change", () => { aiDirty = true; aiSyncForm(); setStatus($("ai-status"), "", ""); });
+["ai-model", "ai-base", "ai-key"].forEach((id) => $(id).addEventListener("input", () => { aiDirty = true; }));
+function validBase(u) {
+  let x; try { x = new URL(u); } catch (e) { return false; }
+  if (x.protocol === "https:") return true;
+  return x.protocol === "http:" && (x.hostname === "127.0.0.1" || x.hostname === "localhost");
+}
+async function aiSave(quiet) {
+  const st = $("ai-status");
+  const provider = $("ai-prov").value, model = $("ai-model").value.trim(), key = $("ai-key").value.trim();
+  let baseUrl = $("ai-base").value.trim().replace(/\/+$/, "");
+  if (provider === "custom") {
+    if (!baseUrl) { setStatus(st, "Bitte die Basis-URL des Dienstes eintragen (https://…/v1).", "bad"); $("ai-base").focus(); return false; }
+    if (!validBase(baseUrl)) { setStatus(st, "Die Basis-URL muss mit https:// beginnen (http:// nur für 127.0.0.1 oder localhost).", "bad"); $("ai-base").focus(); return false; }
+    if (!model) { setStatus(st, "Bitte für den anderen Dienst eine Modell-ID angeben.", "bad"); $("ai-model").focus(); return false; }
+  }
+  const sameProv = T.ai && T.ai.hasKey && T.ai.provider === provider;
+  if (!key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel eintragen.", "bad"); $("ai-key").focus(); return false; }
+  const body = { provider, model };
+  if (provider === "custom") body.baseUrl = baseUrl;
+  if (key) body.apiKey = key;
+  setStatus(st, "Wird gespeichert …", "busy");
+  try {
+    const r = await TA("/api/teacher/ai", { method: "PUT", body, timeout: 60000 });
+    $("ai-key").value = "";
+    aiDirty = false;
+    try { T.ai = await TA("/api/teacher/ai"); } catch (e) { /* Anzeige bleibt */ }
+    aiSyncForm();
+    if (r.warning) setStatus(st, String(r.warning), "bad");      // gespeichert, aber Schlüssel/Verbindung nicht geprüft
+    else if (!quiet) setStatus(st, "Gespeichert." + (Number.isInteger(r.modelCount) ? ` ${r.modelCount} passende Modelle gefunden.` : "")
+      + (r.tierNote ? " " + r.tierNote : "") + " Mit „Verbindung testen“ prüfen Sie, ob die KI antwortet.", "ok");
+    return true;
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); return false; }
+}
+$("ai-save").addEventListener("click", async () => {
+  const b = $("ai-save"), t = $("ai-test"); busy(b, true, "Wird gespeichert …"); t.disabled = true;
+  try { await aiSave(false); } finally { busy(b, false); t.disabled = false; }
+});
+$("ai-test").addEventListener("click", async () => {
+  const b = $("ai-test"), s = $("ai-save"), st = $("ai-status");
+  busy(b, true, "Wird getestet …"); s.disabled = true;
+  try {
+    if (aiDirty && !(await aiSave(true))) return;
+    if (!T.ai || !T.ai.hasKey) { setStatus(st, "Bitte zuerst Anbieter und API-Schlüssel speichern.", "bad"); return; }
+    setStatus(st, "Die Verbindung wird getestet … das kann bis zu einer Minute dauern.", "busy");
+    const r = await TA("/api/teacher/ai/test", { method: "POST", timeout: 120000 });
+    setStatus(st, `Verbindung erfolgreich: ${provLabel(r.provider, r.label)}${r.model ? ", Modell „" + r.model + "“" : ""}.${r.sample ? " Testantwort: „" + String(r.sample).slice(0, 160) + "“" : ""}${r.tierNote ? " " + r.tierNote : ""}`, "ok");
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+  finally { busy(b, false); s.disabled = false; }
+});
+
+/* ---------- Passwort ändern ---------- */
+$("t-pw").addEventListener("click", () => {
+  teacherView("tv-pw");
+  $("pw-1").value = ""; $("pw-2").value = ""; $("pw-err").textContent = ""; setStatus($("pw-status"), "", "");
+  setTimeout(() => $("pw-1").focus(), 30);
+});
+$("pw-back").addEventListener("click", () => teacherView("tv-overview"));
+async function changePassword() {
+  const err = $("pw-err"), st = $("pw-status"), btn = $("pw-btn");
+  err.textContent = ""; setStatus(st, "", "");
+  const p1 = $("pw-1").value, p2 = $("pw-2").value;
+  if (p1.length < 10) { err.textContent = "Das neue Passwort muss mindestens 10 Zeichen lang sein."; $("pw-1").focus(); return; }
+  if (p1 !== p2) { err.textContent = "Die beiden Passwörter stimmen nicht überein."; $("pw-2").focus(); return; }
+  if (!T.pkcs8) { err.textContent = "Bitte melden Sie sich erneut an."; return; }
+  busy(btn, true, "Wird geändert …");
+  setStatus(st, "Neue Schlüssel werden abgeleitet …", "busy");
+  try {
+    const kdf = Crypto.newKdf();
+    const { encKey, authKey } = await Crypto.derive(p1, kdf);
+    const encPrivateKey = await Crypto.aesSeal(encKey, T.pkcs8);
+    await TA("/api/teacher/password", { method: "POST", body: { newAuthKey: authKey, kdf, encPrivateKey } });
+    T.authKey = authKey; T.kdf = kdf;
+    $("pw-1").value = ""; $("pw-2").value = "";
+    setStatus(st, "Das Passwort wurde geändert. Melden Sie sich künftig mit dem neuen Passwort an.", "ok");
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, e instanceof ApiError ? errMsg(e, "t") : "Das Passwort konnte nicht geändert werden.", "bad"); }
+  finally { busy(btn, false); }
+}
+$("pw-btn").addEventListener("click", changePassword);
+onEnter($("pw-1"), () => $("pw-2").focus());
+onEnter($("pw-2"), changePassword);
+
+/* ---------- Seite verlassen: Warnung bei ungespeicherter Arbeit ---------- */
+window.addEventListener("beforeunload", (e) => {
+  const writing = screen === "screen-editor" && !S.submitted && S.tas.some((t) => t.value.trim());
+  const building = screen === "screen-teacher" && T.builderDirty;
+  if (writing || building) { if (writing) saveDraft(); e.preventDefault(); e.returnValue = ""; }
+});
+
+/* ---------- Start ---------- */
+cleanupDrafts();
+setTimeout(() => { if (screen === "screen-start") $("code-input").focus(); }, 50);
+
+})();
+</script>
+</body>
+</html>
