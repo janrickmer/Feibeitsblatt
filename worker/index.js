@@ -4,7 +4,7 @@
 import {
   normalizeCode, isValidCode, generateCode, sha256Hex, timingSafeEqualStr, decodeAuthKey, importPublicKey,
   validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateAiInput,
-  keyHintOf, sealSecret, openSecret, bucketOf, rateMessage, RATE, LIMITS, InputError,
+  keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -27,6 +27,8 @@ const MSG = {
   aiNotConfigured: "Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.",
   aiNoKey: "Bitte zuerst einen API-Schlüssel speichern.",
   aiKeyLost: "Bitte den API-Schlüssel neu eintragen.",
+  aiKeyForNew: "Bitte für den neuen Anbieter bzw. die neue Adresse einen API-Schlüssel eintragen – der gespeicherte Schlüssel wird nie an einen anderen Dienst gesendet.",
+  noSecret: "Der Server ist noch nicht vollständig eingerichtet (Secret SETTINGS_SECRET fehlt). Bitte den Workflow „Deploy“ erneut ausführen; erst danach lässt sich ein API-Schlüssel speichern.",
   tooMany: "Für dieses Feibeitsblatt sind bereits sehr viele Abgaben gespeichert. Bitte wende dich an deine Lehrkraft.",
 };
 
@@ -108,13 +110,12 @@ async function aiConfig(env, row) {
   const s = parseSetting(row) || {};
   const provider = PROVIDERS[s.provider] ? s.provider : DEFAULT_PROVIDER;
   let apiKey = "", keyError = "";
-  if (s.apiKeyEnc) { apiKey = (await openSecret(s.apiKeyEnc, env.SETTINGS_SECRET)) || ""; if (!apiKey) keyError = MSG.aiKeyLost; }
-  else if (typeof s.apiKey === "string") apiKey = s.apiKey;
+  if (s.apiKeyEnc) { apiKey = (await openSecret(s.apiKeyEnc, env.SETTINGS_SECRET)) || ""; if (!apiKey) keyError = env.SETTINGS_SECRET ? MSG.aiKeyLost : MSG.noSecret; }
   const fallbacks = Array.isArray(s.fallbacks) ? s.fallbacks.filter((x) => typeof x === "string").slice(0, 10) : [];
   return { provider, model: typeof s.model === "string" ? s.model : "", baseUrl: provider === "custom" && typeof s.baseUrl === "string" ? s.baseUrl : "",
     fallbacks, apiKey, keyError, stored: s, raw: row ? row.value : null };
 }
-const hasStoredKey = (s) => !!(s && (s.apiKeyEnc || (typeof s.apiKey === "string" && s.apiKey)));
+const hasStoredKey = (s) => !!(s && s.apiKeyEnc);
 function aiPublicView(ai) {
   const p = PROVIDERS[ai.provider];
   const out = { provider: ai.provider, label: p.label, model: ai.model, defaultModel: p.defaultModel, baseUrl: ai.baseUrl,
@@ -124,49 +125,59 @@ function aiPublicView(ai) {
 }
 const cfgOf = (ai, skip = []) => ({ provider: ai.provider, apiKey: ai.apiKey, model: ai.model, fallbacks: ai.fallbacks, skip, base: ai.baseUrl });
 
-/* ---------- Rate-Limits (festes Zeitfenster, IP nur gehasht) ---------- */
-const rlSelect = (db, bucket) => db.prepare("SELECT count, reset_at FROM rate_limits WHERE bucket=?1").bind(bucket);
-const rlHit = (db, bucket, kind, now) => db.prepare(
-  "INSERT INTO rate_limits(bucket,count,reset_at) VALUES(?1,1,?2+?3) ON CONFLICT(bucket) DO UPDATE SET " +
-  "count=CASE WHEN reset_at<=?2 THEN 1 ELSE count+1 END, reset_at=CASE WHEN reset_at<=?2 THEN ?2+?3 ELSE reset_at END " +
-  "RETURNING count, reset_at").bind(bucket, now, RATE[kind].windowMs);
-function retryAfterOf(row, kind, now, inclusive = true) {   // > 0 → gesperrt
-  if (!row || row.reset_at <= now) return 0;
-  const over = inclusive ? row.count >= RATE[kind].max : row.count > RATE[kind].max;
-  return over ? Math.max(1, Math.ceil((row.reset_at - now) / 1000)) : 0;
+/* ---------- Rate-Limits (festes Zeitfenster, IP nur gehasht) ----------
+ * rlHit zählt atomar (Upsert … RETURNING): auch parallele Anfragen kommen nicht am Zähler vorbei. */
+const rlHit = (db, bucket, kind, now, weight = 1) => db.prepare(
+  "INSERT INTO rate_limits(bucket,count,reset_at) VALUES(?1,?4,?2+?3) ON CONFLICT(bucket) DO UPDATE SET " +
+  "count=CASE WHEN reset_at<=?2 THEN ?4 ELSE count+?4 END, reset_at=CASE WHEN reset_at<=?2 THEN ?2+?3 ELSE reset_at END " +
+  "RETURNING count, reset_at").bind(bucket, now, RATE[kind].windowMs, weight);
+const rlRefund = (db, bucket, now, weight = 1) =>   // Zählung zurücknehmen (z. B. KI nicht erreichbar: nicht die Schuld der Schüler:innen)
+  db.prepare("UPDATE rate_limits SET count=MAX(0,count-?3) WHERE bucket=?1 AND reset_at>?2").bind(bucket, now, weight);
+function retryAfterOf(row, kind, now) {   // > 0 → über dem Limit (Sekunden bis zum Ende des Fensters)
+  if (!row || row.reset_at <= now || row.count <= RATE[kind].max) return 0;
+  return Math.max(1, Math.ceil((row.reset_at - now) / 1000));
 }
 const limited = (kind, retryAfter) => new HttpError(429, "rate_limited", rateMessage(kind, retryAfter), { retryAfter });
-const bucket = (c, kind) => bucketOf(kind, c.ip, c.env.SETTINGS_SECRET || "");
-async function countEvery(c, kind) {   // jede Anfrage zählt (feedback, submit)
-  const row = await rlHit(c.db, await bucket(c, kind), kind, c.now).first();
-  const ra = retryAfterOf(row, kind, c.now, false);
+const bucket = (c, kind, key = c.ip) => bucketOf(kind, key, c.env.SETTINGS_SECRET || "");
+// Fehlversuch zählen; über dem Limit → 429 statt der eigentlichen Fehlermeldung
+async function countFailure(c, kind, key) {
+  const row = await rlHit(c.db, await bucket(c, kind, key), kind, c.now).first();
+  const ra = retryAfterOf(row, kind, c.now);
   if (ra) throw limited(kind, ra);
+}
+// Mehrere Zähler auf einmal (feedback, submit): alle werden erhöht, der erste über dem Limit sperrt
+async function countAll(c, items) {   // items: [{kind, key?, weight?}]
+  const buckets = await Promise.all(items.map((it) => bucket(c, it.kind, it.key)));
+  const rows = await c.db.batch(items.map((it, i) => rlHit(c.db, buckets[i], it.kind, c.now, it.weight || 1)));
+  items.forEach((it, i) => { const ra = retryAfterOf(firstRow(rows[i]), it.kind, c.now); if (ra) throw limited(it.kind, ra); });
+  return () => c.waitUntil(c.db.batch(items.map((it, i) => rlRefund(c.db, buckets[i], c.now, it.weight || 1))).catch(() => {}));
 }
 
 /* ---------- Lehrkraft-Zugang ---------- */
 const doorCodeOf = (env) => String(env.TEACHER_DOOR_CODE || "1104");
-async function checkDoor(c, doorCode, rlRow, b) {
-  const ra = retryAfterOf(rlRow, "door", c.now);
-  if (ra) throw limited("door", ra);
+// Der richtige Türcode geht immer durch (er ist absichtlich öffentlich); nur falsche Codes zählen und werden gesperrt
+async function checkDoor(c, doorCode) {
   const given = typeof doorCode === "string" ? doorCode.trim() : typeof doorCode === "number" ? String(doorCode) : "";
-  if (!timingSafeEqualStr(given, doorCodeOf(c.env))) {
-    await rlHit(c.db, b, "door", c.now).run();
-    throw new HttpError(403, "wrong_code", MSG.unknownCode);
-  }
+  if (timingSafeEqualStr(given, doorCodeOf(c.env))) return;
+  await countFailure(c, "door");
+  throw new HttpError(403, "wrong_code", MSG.unknownCode);
 }
+// Das richtige Passwort geht immer durch (sonst könnte jede:r im Schulnetz die Lehrkraft aussperren);
+// falsche Passwörter zählen je IP und insgesamt
 async function requireTeacher(c) {
   const m = /^Bearer\s+(\S+)\s*$/i.exec(c.request.headers.get("authorization") || "");
   if (!m) throw new HttpError(401, "unauthorized", MSG.unauthorized);
-  const b = await bucket(c, "auth");
-  const [rl, st] = await c.db.batch([rlSelect(c.db, b), settingStmt(c.db, "teacher")]);
-  const ra = retryAfterOf(firstRow(rl), "auth", c.now);
-  if (ra) throw limited("auth", ra);
-  const row = firstRow(st), teacher = parseSetting(row);
+  const row = await settingStmt(c.db, "teacher").first(), teacher = parseSetting(row);
   if (!teacher || typeof teacher.authHash !== "string") throw new HttpError(409, "not_setup", MSG.notSetup);
   const raw = decodeAuthKey(m[1]);
   const hash = await sha256Hex(raw || new Uint8Array(32));
   if (!raw || !timingSafeEqualStr(hash, teacher.authHash)) {
-    await rlHit(c.db, b, "auth", c.now).run();
+    const [perIp, all] = await c.db.batch([
+      rlHit(c.db, await bucket(c, "auth"), "auth", c.now),
+      rlHit(c.db, await bucket(c, "auth_all", "global"), "auth_all", c.now),
+    ]);
+    const ra = retryAfterOf(firstRow(perIp), "auth", c.now) || retryAfterOf(firstRow(all), "auth_all", c.now);
+    if (ra) { await new Promise((r) => setTimeout(r, 2000)); throw limited("auth", ra); }   // Raten bremsen (Wartezeit kostet keine CPU)
     throw new HttpError(401, "unauthorized", MSG.unauthorized);
   }
   return { teacher, raw: row.value };
@@ -174,19 +185,15 @@ async function requireTeacher(c) {
 
 async function routeDoor(c) {
   const body = await readJson(c.request);
-  const b = await bucket(c, "door");
-  const [rl, st] = await c.db.batch([rlSelect(c.db, b), settingStmt(c.db, "teacher")]);
-  await checkDoor(c, body.doorCode, firstRow(rl), b);
-  const t = parseSetting(firstRow(st));
+  await checkDoor(c, body.doorCode);
+  const t = parseSetting(await settingStmt(c.db, "teacher").first());
   return json({ ok: true, setup: !!t, kdf: t ? t.kdf : null });
 }
 
 async function routeSetup(c) {
   const body = await readJson(c.request);
-  const b = await bucket(c, "door");
-  const [rl, st] = await c.db.batch([rlSelect(c.db, b), settingStmt(c.db, "teacher")]);
-  await checkDoor(c, body.doorCode, firstRow(rl), b);
-  if (firstRow(st)) throw new HttpError(409, "already_setup", MSG.alreadySetup);
+  await checkDoor(c, body.doorCode);
+  if (await settingStmt(c.db, "teacher").first()) throw new HttpError(409, "already_setup", MSG.alreadySetup);
   const raw = decodeAuthKey(body.authKey);
   if (!raw) throw new InputError("Ungültiger Anmeldeschlüssel.");
   const kdf = validateKdf(body.kdf);
@@ -275,18 +282,28 @@ async function routeSheetDelete(c, codeRaw) {
   return json({ ok: true, deletedSubmissions: (subs.meta && subs.meta.changes) || 0 });
 }
 
+// Seitenweise (?after=<id>): je Seite höchstens LIMITS.submissionsPage Abgaben bzw. LIMITS.pageBytes – eine Flut von
+// Abgaben darf weder den Arbeitsspeicher des Workers sprengen noch die echten Abgaben unlesbar machen
 async function routeSubmissionsList(c, codeRaw) {
   await requireTeacher(c);
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
+  const after = Math.max(0, parseInt(new URL(c.request.url).searchParams.get("after") || "0", 10) || 0);
   const [sh, subs] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("SELECT id, received_at, envelope FROM submissions WHERE sheet_code=?1 ORDER BY id").bind(code),
+    c.db.prepare("SELECT id, received_at, envelope FROM submissions WHERE sheet_code=?1 AND id>?2 ORDER BY id LIMIT ?3")
+      .bind(code, after, LIMITS.submissionsPage + 1),
   ]);
   if (!firstRow(sh)) throw sheetGone();
+  const rows = subs.results || [];
   // Umschläge liegen als von uns normalisiertes JSON vor → ohne erneutes Parsen einsetzen (spart CPU-Zeit)
-  const items = (subs.results || []).map((r) => '{"id":' + Number(r.id) + ',"receivedAt":' + Number(r.received_at) + ',"envelope":' + r.envelope + "}");
-  return respond('{"ok":true,"submissions":[' + items.join(",") + "]}");
+  const items = []; let bytes = 0, next = null;
+  for (const r of rows) {
+    if (items.length >= LIMITS.submissionsPage || (items.length && bytes + r.envelope.length > LIMITS.pageBytes)) { next = items.length ? Number(rows[items.length - 1].id) : after; break; }
+    items.push('{"id":' + Number(r.id) + ',"receivedAt":' + Number(r.received_at) + ',"envelope":' + r.envelope + "}");
+    bytes += r.envelope.length;
+  }
+  return respond('{"ok":true,"submissions":[' + items.join(",") + '],"next":' + (next == null ? "null" : next) + "}");
 }
 
 async function routeSubmissionsDelete(c, codeRaw) {
@@ -311,12 +328,13 @@ async function routeAiGet(c) {
   return json({ ok: true, ...aiPublicView(ai) });
 }
 
+// Der API-Schlüssel liegt nur verschlüsselt (AES-GCM mit SETTINGS_SECRET) in der Datenbank – nie im Klartext
 async function storeAi(c, stored, apiKey) {
   const s = { ...stored };
   delete s.apiKey; delete s.apiKeyEnc;
   if (apiKey) {
-    if (c.env.SETTINGS_SECRET) s.apiKeyEnc = await sealSecret(apiKey, c.env.SETTINGS_SECRET);
-    else s.apiKey = apiKey;   // lokale Entwicklung ohne Secret
+    if (!c.env.SETTINGS_SECRET) throw new HttpError(503, "server_not_configured", MSG.noSecret);
+    s.apiKeyEnc = await sealSecret(apiKey, c.env.SETTINGS_SECRET);
   }
   return JSON.stringify(s);
 }
@@ -325,7 +343,11 @@ async function routeAiPut(c) {
   await requireTeacher(c);
   const input = validateAiInput(await readJson(c.request), PROVIDERS);
   const cur = await aiConfig(c.env, await settingStmt(c.db, "ai").first());
-  const apiKey = input.apiKey || cur.apiKey;   // leer → alter Schlüssel bleibt
+  // leer → alter Schlüssel bleibt, aber nur für denselben Dienst (ein Schlüssel geht nie an einen anderen Anbieter/Host)
+  const sameService = cur.provider === input.provider && cur.baseUrl === input.baseUrl;
+  if (!input.apiKey && cur.apiKey && !sameService) throw new InputError(MSG.aiKeyForNew);
+  const apiKey = input.apiKey || (sameService ? cur.apiKey : "");
+  if (apiKey && !c.env.SETTINGS_SECRET) throw new HttpError(503, "server_not_configured", MSG.noSecret);
   let fallbacks = [], warning = "", tierNote = "", modelCount = null;
   if (apiKey) {   // Rangliste der Modelle → Ausweich-Liste
     try {
@@ -334,7 +356,7 @@ async function routeAiPut(c) {
     } catch (e) {
       if (!(e instanceof AIError)) throw e;
       warning = "Gespeichert, aber die Verbindung konnte nicht geprüft werden: " + e.message;
-      if (cur.provider === input.provider && cur.baseUrl === input.baseUrl) fallbacks = cur.fallbacks;
+      if (sameService) fallbacks = cur.fallbacks;
     }
   }
   const stored = { provider: input.provider, model: input.model, baseUrl: input.baseUrl, keyHint: keyHintOf(apiKey), fallbacks, updatedAt: c.now };
@@ -386,24 +408,17 @@ function rememberRotated(c, provider, rotated) {
 }
 
 /* ---------- Öffentlich (Schüler:innen) ---------- */
+// Gültige Codes gehen immer durch; nur unbekannte Codes zählen (887 Mio. mögliche Codes – Raten lohnt nicht,
+// aber Tippfehler einer ganzen Schule dürfen niemanden aussperren)
 async function routePublicSheet(c, codeRaw) {
   const code = codeParam(codeRaw);
-  const b = await bucket(c, "lookup_miss");
-  if (!isValidCode(code)) {
-    const ra = retryAfterOf(await rlSelect(c.db, b).first(), "lookup_miss", c.now);
-    if (ra) throw limited("lookup_miss", ra);
-    await rlHit(c.db, b, "lookup_miss", c.now).run();
-    throw sheetNotFound();
-  }
-  const [rl, sh, st] = await c.db.batch([
-    rlSelect(c.db, b),
+  if (!isValidCode(code)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
+  const [sh, st] = await c.db.batch([
     c.db.prepare("SELECT code, title, tasks FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT key, value FROM settings WHERE key IN ('teacher','ai')"),
   ]);
-  const ra = retryAfterOf(firstRow(rl), "lookup_miss", c.now);
-  if (ra) throw limited("lookup_miss", ra);   // auch für gültige Codes – sonst wäre die Sperre ein Orakel
   const s = firstRow(sh);
-  if (!s) { await rlHit(c.db, b, "lookup_miss", c.now).run(); throw sheetNotFound(); }
+  if (!s) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
   const rows = Object.fromEntries((st.results || []).map((r) => [r.key, r]));
   const teacher = parseSetting(rows.teacher), ai = parseSetting(rows.ai);
   const aiProvider = ai && PROVIDERS[ai.provider] && hasStoredKey(ai) ? providerLabel(ai.provider, ai.baseUrl) : null;
@@ -412,9 +427,12 @@ async function routePublicSheet(c, codeRaw) {
   return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiProvider } });
 }
 
+// KI-Fehler, bei denen Warten hilft → 429 mit Retry-After (das Frontend zeigt die Wartezeit); sonst 502
+const AI_WAIT = { BUSY: 30, RATE_LIMIT: 60, TIMEOUT: 30 };
+const AI_REFUND = new Set(["BUSY", "RATE_LIMIT", "TIMEOUT", "SERVER", "NETWORK", "DAILY_LIMIT"]);   // nicht die Schuld der Schüler:innen
+
 async function routeFeedback(c) {
   const body = await readJson(c.request);
-  await countEvery(c, "feedback");
   const code = normalizeCode(body.code);
   if (!isValidCode(code)) throw sheetNotFound();
   const [sh, st] = await c.db.batch([
@@ -429,6 +447,9 @@ async function routeFeedback(c) {
   if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()) });   // keine Musterlösung: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
   if (!ai.apiKey) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
+  // Erst zählen, wenn die Anfrage gültig ist und wirklich zur KI geht: je IP (Anzahl und Zeichen) und je Blatt und Tag
+  const chars = answers.reduce((n, a) => n + a.length, 0);
+  const refund = await countAll(c, [{ kind: "feedback" }, { kind: "feedback_chars", weight: Math.max(1, chars) }, { kind: "sheet_feedback", key: code }]);
   const skip = ((await skipQuery(c.db, ai.provider, c.now).all()).results || []).map((r) => r.model);
   let out;
   try {
@@ -440,7 +461,10 @@ async function routeFeedback(c) {
   } catch (e) {
     if (!(e instanceof AIError)) throw e;
     rememberRotated(c, ai.provider, e.rotated);
+    if (AI_REFUND.has(e.code)) refund();
     if (e.code === "NO_KEY" || e.code === "CONFIG" || e.code === "NO_MODEL") throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
+    const retryAfter = AI_WAIT[e.code];
+    if (retryAfter) throw new HttpError(429, "ai_busy", PUBLIC_MSG[e.code] || PUBLIC_MSG._, { aiCode: e.code, retryAfter });
     throw new HttpError(502, "ai_error", PUBLIC_MSG[e.code] || PUBLIC_MSG._, { aiCode: e.code });
   }
   rememberRotated(c, ai.provider, out.rotated);
@@ -449,16 +473,18 @@ async function routeFeedback(c) {
 
 async function routeSubmit(c) {
   const body = await readJson(c.request);
-  await countEvery(c, "submit");
   const code = normalizeCode(body.code);
   if (!isValidCode(code)) throw sheetNotFound();
   const envelope = validateEnvelope(body.envelope);
   const [sh, cnt] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("SELECT COUNT(*) AS n FROM submissions WHERE sheet_code=?1").bind(code),
+    c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
   ]);
   if (!firstRow(sh)) throw sheetNotFound();
-  if (((firstRow(cnt) || {}).n || 0) >= LIMITS.submissionsPerSheet) throw new HttpError(409, "too_many_submissions", MSG.tooMany);
+  await countAll(c, [{ kind: "submit" }, { kind: "submit_bytes", weight: envelope.length }]);   // nur gültige Abgaben zählen
+  const use = firstRow(cnt) || {};
+  if ((use.n || 0) >= LIMITS.submissionsPerSheet || (use.bytes || 0) + envelope.length > LIMITS.sheetBytes)
+    throw new HttpError(409, "too_many_submissions", MSG.tooMany);
   const r = await c.db.prepare("INSERT INTO submissions(sheet_code,received_at,envelope) VALUES(?1,?2,?3)").bind(code, c.now, envelope).run();
   return json({ ok: true, id: r.meta ? r.meta.last_row_id : null, receivedAt: c.now });
 }
@@ -497,7 +523,7 @@ async function handleApi(request, env, ctx, path) {
   if (Number(request.headers.get("content-length")) > LIMITS.bodyBytes) return fail(413, "too_large", MSG.tooLarge);
   const c = {
     request, env, db: env.DB, now: Date.now(),
-    ip: request.headers.get("CF-Connecting-IP") || "local",
+    ip: ipKey(request.headers.get("CF-Connecting-IP") || "local"),
     waitUntil: (p) => { if (ctx && ctx.waitUntil) ctx.waitUntil(p); },
   };
   if (!route.opts.noDb) {

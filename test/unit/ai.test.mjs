@@ -191,7 +191,7 @@ test("buildFeedbackMessages: only tasks with solution, original numbers, data de
   const { messages, nrs } = buildFeedbackMessages(tasks, answers);
   assert.deepEqual(nrs, [1, 3]);
   assert.equal(messages[0].role, "system"); assert.match(messages[0].content, /JSON/); assert.match(messages[0].content, /<<< und >>>/);
-  assert.match(messages[0].content, /höchstens 8/); assert.match(messages[0].content, /"aufgaben"/);
+  assert.match(messages[0].content, /höchstens etwa 12 Wörter/); assert.match(messages[0].content, /zutreffend/); assert.match(messages[0].content, /"aufgaben"/);
   const u = messages[1].content;
   assert.match(u, /^### Aufgabe 1$/m); assert.match(u, /^### Aufgabe 3$/m); assert.doesNotMatch(u, /^### Aufgabe 2$/m);
   assert.doesNotMatch(u, /Meinung\?/);
@@ -209,12 +209,12 @@ test("normalizeFeedback: by number, caps, cleanup, cross-list duplicates", () =>
   const long = "x".repeat(250);
   const json = { aufgaben: [
     { nr: 3, angesprochen: ["- Wärme  ", "", 5, null, { text: "• Sonne" }], fehlt: ["wärme", "Wind"] },
-    { nr: 1, angesprochen: Array.from({ length: 12 }, (_, i) => "Punkt " + i), fehlt: [long, long] },
+    { nr: 1, angesprochen: Array.from({ length: 14 }, (_, i) => "Punkt " + i), fehlt: [long, long] },
     { nr: 7, angesprochen: ["fremd"], fehlt: [] },
   ] };
   const m = normalizeFeedback(json, [1, 3]);
   assert.deepEqual(m.get(3), { covered: ["Wärme", "5", "Sonne"], missing: ["Wind"] });
-  assert.equal(m.get(1).covered.length, 8);
+  assert.equal(m.get(1).covered.length, 12);
   assert.equal(m.get(1).missing.length, 1); assert.equal(m.get(1).missing[0].length, 200); assert.ok(m.get(1).missing[0].endsWith("…"));
   assert.equal(m.size, 2);
 });
@@ -233,7 +233,7 @@ test("feedbackResults: note for tasks without solution, empty lists for missing 
   assert.deepEqual(res, [{ covered: ["x"], missing: [] }, { covered: [], missing: [], note: NO_SOLUTION_NOTE }, { covered: [], missing: [] }]);
 });
 test("gemini feedback request carries responseSchema for the aufgaben shape", async () => {
-  script = [{ body: { modelVersion: "gemini-3.6-flash", candidates: [{ finishReason: "STOP", content: { parts: [{ text: "{\"aufgaben\":[{\"nr\":1,\"angesprochen\":[\"Licht\"],\"fehlt\":[]}]}" }] } }] } }];
+  script = [{ body: { modelVersion: "gemini-3.6-flash", candidates: [{ finishReason: "STOP", content: { parts: [{ text: "{\"aufgaben\":[{\"nr\":1,\"angesprochen\":[\"Licht\"],\"fehlt\":[]},{\"nr\":3,\"angesprochen\":[],\"fehlt\":[\"Wärme\"]}]}" }] } }] } }];
   const { messages, nrs } = buildFeedbackMessages(tasks, ["Licht", "", ""]);
   const r = await callAI({ provider: "gemini", apiKey: "g", model: "gemini-3.6-flash" }, messages, { geminiSchema: FEEDBACK_SCHEMA_GEMINI, accept: feedbackAcceptor(nrs), temperature: 0.1 });
   const gc = calls[0].body.generationConfig;

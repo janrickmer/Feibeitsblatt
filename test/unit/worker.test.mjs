@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults } from "../mock-ai.mjs";
+import { RATE } from "../../worker/lib.js";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
 
 /* ---------- D1-Nachbau (gleiche Aufrufform wie die Workers-API) ---------- */
@@ -159,29 +160,55 @@ test("submit and list submissions (decryptable), counts", async () => {
   let r = await call("POST", "/api/submit", { body: { code, envelope } });
   assert.equal(r.status, 200, r.text);
   r = await call("GET", "/api/teacher/sheets/" + code + "/submissions", { auth });
-  assert.equal(r.json.submissions.length, 1);
+  assert.equal(r.json.submissions.length, 1); assert.equal(r.json.next, null);
   assert.deepEqual(await openEnvelope(T.privateKey, r.json.submissions[0].envelope), payload);
   assert.equal(typeof r.json.submissions[0].receivedAt, "number");
   const rows = d1.db.prepare("SELECT * FROM submissions").all();
   assert.deepEqual(Object.keys(rows[0]).sort(), ["envelope", "id", "received_at", "sheet_code"]);
   assert.equal(rows[0].envelope.includes("Max"), false);
+  // Seitenweise: 52 weitere Abgaben → Seite 1 hat 50 + next, Seite 2 den Rest; Kappung je Blatt (Anzahl und Bytes)
+  for (let i = 0; i < 52; i++) await call("POST", "/api/submit", { body: { code, envelope }, ip: "198.51.100." + (2 + (i % 100)) });
+  r = await call("GET", "/api/teacher/sheets/" + code + "/submissions", { auth });
+  assert.equal(r.json.submissions.length, 50); assert.equal(r.json.next, r.json.submissions[49].id);
+  const r2 = await call("GET", "/api/teacher/sheets/" + code + "/submissions?after=" + r.json.next, { auth });
+  assert.equal(r2.json.submissions.length, 3); assert.equal(r2.json.next, null);
+  assert.ok(r2.json.submissions.every((s) => s.id > r.json.next));
+  const { LIMITS } = await import("../../worker/lib.js");
+  const savedMax = LIMITS.submissionsPerSheet; LIMITS.submissionsPerSheet = 53;
+  try {
+    const full = await call("POST", "/api/submit", { body: { code, envelope } });
+    assert.equal(full.status, 409); assert.equal(full.json.code, "too_many_submissions");
+  } finally { LIMITS.submissionsPerSheet = savedMax; }
+  d1.db.prepare("DELETE FROM submissions WHERE id > ?").run(rows[0].id);
 });
 
-test("key at rest: changed secret → hasKey false + hint, feedback 503; no secret → plaintext (dev)", async () => {
+test("key at rest: changed secret → hasKey false + hint, feedback 503; no secret → never plaintext (503)", async () => {
   const other = { ...ENV, SETTINGS_SECRET: b64(new Uint8Array(32).fill(1)) };
   let r = await call("GET", "/api/teacher/ai", { auth, env: other });
   assert.equal(r.json.hasKey, false); assert.equal(r.json.keyError, "Bitte den API-Schlüssel neu eintragen.");
   r = await call("POST", "/api/feedback", { body: { code, answers: ["x", ""] }, env: other });
   assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured");
   assert.equal(r.json.error, "Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.");
-  const dev = { DB: d1, ASSETS };
-  r = await call("PUT", "/api/teacher/ai", { auth, env: dev, body: { provider: "custom", model: "mock-x", baseUrl: mock.url, apiKey: "sk-dev" } });
+  const noSecret = { DB: d1, ASSETS };
+  r = await call("GET", "/api/teacher/ai", { auth, env: noSecret });
+  assert.equal(r.json.hasKey, false); assert.match(r.json.keyError, /SETTINGS_SECRET fehlt/);
+  r = await call("PUT", "/api/teacher/ai", { auth, env: noSecret, body: { provider: "custom", model: "mock-x", baseUrl: mock.url, apiKey: "sk-dev" } });
+  assert.equal(r.status, 503); assert.equal(r.json.code, "server_not_configured");
+  assert.equal(JSON.stringify(settingsRow("ai")).includes("sk-dev"), false, "nie im Klartext gespeichert");
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "mock-x", baseUrl: mock.url, apiKey: "sk-dev" } });
   assert.equal(r.status, 200);
-  assert.equal(settingsRow("ai").apiKey, "sk-dev");
-  r = await call("GET", "/api/teacher/ai", { auth });   // mit Secret: Klartext aus der Entwicklung bleibt lesbar
-  assert.equal(r.json.hasKey, true); assert.equal(r.json.model, "mock-x");
-  r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url } });   // ohne apiKey: bleibt, jetzt verschlüsselt
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url } });   // ohne apiKey, gleicher Dienst: bleibt
   assert.equal(r.json.hasKey, true); assert.equal(settingsRow("ai").apiKey, undefined); assert.ok(settingsRow("ai").apiKeyEnc);
+});
+
+test("stored key is never sent to another provider/host: new provider or base URL needs a new key", async () => {
+  let r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "groq", model: "" } });
+  assert.equal(r.status, 400); assert.match(r.json.error, /neuen Anbieter/);
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "m", baseUrl: "https://example.org/v1" } });
+  assert.equal(r.status, 400);
+  assert.equal(mock.state.requests.length, mock.state.requests.length);   // kein Aufruf nach außen
+  r = await call("GET", "/api/teacher/ai", { auth });
+  assert.equal(r.json.hasKey, true); assert.equal(r.json.provider, "custom");   // unverändert
 });
 
 test("feedback without configured AI → 503; sheet without solutions needs no AI", async () => {
@@ -195,14 +222,54 @@ test("feedback without configured AI → 503; sheet without solutions needs no A
   assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es keine Musterlösung." }] });
 });
 
-test("rate limits are per (hashed) IP", async () => {
+test("lockouts count only failures per (hashed) IP; correct door code and password always pass; IPv6 by /64", async () => {
   for (let i = 0; i < 10; i++) assert.equal((await call("POST", "/api/teacher/door", { body: { doorCode: "0" }, ip: "203.0.113.1" })).status, 403);
-  const r = await call("POST", "/api/teacher/door", { body: { doorCode: "1104" }, ip: "203.0.113.1" });
-  assert.equal(r.status, 429); assert.ok(r.json.retryAfter > 3500); assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
-  assert.equal((await call("POST", "/api/teacher/door", { body: { doorCode: "1104" }, ip: "203.0.113.2" })).status, 200);
+  let r = await call("POST", "/api/teacher/door", { body: { doorCode: "0" }, ip: "203.0.113.1" });
+  assert.equal(r.status, 429); assert.ok(r.json.retryAfter > 600 && r.json.retryAfter <= 900); assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
+  assert.equal((await call("POST", "/api/teacher/door", { body: { doorCode: "1104" }, ip: "203.0.113.1" })).status, 200, "richtiger Code trotz Sperre");
+  assert.equal((await call("POST", "/api/teacher/door", { body: { doorCode: "0" }, ip: "203.0.113.2" })).status, 403, "andere IP: eigener Zähler");
+  // Passwort: 10 falsche → 401, danach 429 (mit Bremse), das richtige geht weiter
+  const wrong = b64(new Uint8Array(32).fill(9));
+  for (let i = 0; i < 10; i++) assert.equal((await call("POST", "/api/teacher/login", { auth: wrong, ip: "203.0.113.3" })).status, 401);
+  const t0 = Date.now();
+  r = await call("POST", "/api/teacher/login", { auth: wrong, ip: "203.0.113.3" });
+  assert.equal(r.status, 429); assert.ok(Date.now() - t0 >= 1900, "Bremse");
+  assert.equal((await call("POST", "/api/teacher/login", { auth, ip: "203.0.113.3" })).status, 200, "richtiges Passwort trotz Sperre");
+  assert.equal((await call("GET", "/api/teacher/sheets", { auth, ip: "203.0.113.3" })).status, 200, "laufende Sitzung trotz Sperre");
+  // IPv6: zwei Adressen im selben /64 teilen sich den Zähler
+  for (let i = 0; i < 10; i++) await call("POST", "/api/teacher/door", { body: { doorCode: "0" }, ip: "2001:db8:1:2::" + (i + 1).toString(16) });
+  assert.equal((await call("POST", "/api/teacher/door", { body: { doorCode: "0" }, ip: "2001:db8:1:2:ffff::1" })).status, 429);
+  assert.equal((await call("POST", "/api/teacher/door", { body: { doorCode: "0" }, ip: "2001:db8:1:3::1" })).status, 403);
   const buckets = d1.db.prepare("SELECT bucket FROM rate_limits").all().map((x) => x.bucket);
   assert.ok(buckets.every((b) => /^[a-z_]+:[0-9a-f]{32}$/.test(b)));
   assert.equal(JSON.stringify(buckets).includes("203.0.113"), false);
+});
+
+test("unknown sheet codes lock only unknown codes; valid codes still open", async () => {
+  for (let i = 0; i < 30; i++) assert.equal((await call("GET", "/api/sheet/QQQQQ" + "23456789"[i % 8], { ip: "203.0.113.4" })).status, 404);
+  assert.equal((await call("GET", "/api/sheet/QQQQQ2", { ip: "203.0.113.4" })).status, 429);
+  assert.equal((await call("GET", "/api/sheet/" + code, { ip: "203.0.113.4" })).status, 200);
+});
+
+test("feedback counts only valid AI calls (per IP, chars, per sheet/day); BUSY/RATE_LIMIT → 429 ai_busy", async () => {
+  const saved = { f: RATE.feedback.max, s: RATE.sheet_feedback.max };
+  assert.equal((await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again" } })).status, 200);
+  try {
+    RATE.feedback.max = 2;
+    assert.equal((await call("POST", "/api/feedback", { body: { code: "AAAAA2", answers: [] }, ip: "203.0.113.5" })).status, 404);   // zählt nicht
+    assert.equal((await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.5" })).status, 200);
+    assert.equal((await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.5" })).status, 200);
+    let r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.5" });
+    assert.equal(r.status, 429); assert.equal(r.json.code, "rate_limited");
+    RATE.feedback.max = saved.f; RATE.sheet_feedback.max = 1;
+    r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.6" });
+    assert.equal(r.status, 429); assert.match(r.json.error, /dieses Feibeitsblatt/);
+    RATE.sheet_feedback.max = saved.s;
+    mock.setMode("429soft");   // kurzzeitiges Limit → nach Wartezeit wieder ok; ein Modell, Mock antwortet weiter 429 → BUSY/RATE_LIMIT
+    r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.7" });
+    assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy"); assert.ok(r.json.retryAfter >= 30);
+    assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
+  } finally { RATE.feedback.max = saved.f; RATE.sheet_feedback.max = saved.s; mock.setMode("ok"); }
 });
 
 test("password change keeps key pair; delete flow", async () => {

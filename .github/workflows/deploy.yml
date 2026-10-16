@@ -1,6 +1,7 @@
 # Feibeitsblatt – Deployment auf Cloudflare (Worker + D1 in der EU + statische Seite).
 # Benötigte Repository-Secrets: CLOUDFLARE_API_TOKEN (Vorlage „Edit Cloudflare Workers“ + „Konto → D1 → Bearbeiten“),
 # CLOUDFLARE_ACCOUNT_ID (optional, sonst das erste Konto des Tokens). Ohne Token wird nur ein Hinweis ausgegeben.
+# Das Token bekommen nur die Schritte, die es brauchen (nicht npm ci und die Tests).
 name: Deploy
 
 on:
@@ -40,13 +41,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       WRANGLER_SEND_METRICS: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -63,40 +62,66 @@ jobs:
         run: npm run build
 
       - name: Konto-ID ermitteln
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+          ACC="$CLOUDFLARE_ACCOUNT_ID"
+          if [ -z "$ACC" ]; then
             ACC=$(curl -fsS "https://api.cloudflare.com/client/v4/accounts" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id // empty')
             if [ -z "$ACC" ]; then
               echo "::error::Konto-ID nicht ermittelbar. Bitte das Secret CLOUDFLARE_ACCOUNT_ID setzen."
               exit 1
             fi
-            echo "CLOUDFLARE_ACCOUNT_ID=$ACC" >> "$GITHUB_ENV"
           fi
+          echo "::add-mask::$ACC"
+          echo "CF_ACCOUNT=$ACC" >> "$GITHUB_ENV"
 
       - name: workers.dev-Subdomain sicherstellen (neue Konten haben keine)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
-          SUB=$(curl -sS "$API" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result.subdomain // empty')
-          if [ -z "$SUB" ]; then
+          API="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain"
+          RESP=$(curl -sS "$API" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          SUB=$(echo "$RESP" | jq -r '.result.subdomain // empty')
+          if [ -n "$SUB" ]; then
+            echo "workers.dev-Subdomain vorhanden."
+          elif [ "$(echo "$RESP" | jq -r '.success')" = "true" ] || [ "$(echo "$RESP" | jq -r '.errors[0].code // empty')" = "10007" ]; then
+            # Nur anlegen, wenn Cloudflare bestätigt, dass noch keine existiert – nie eine vorhandene umbenennen
             WANT="feibeitsblatt-$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-' | cut -c1-40)"
             curl -fsS -X PUT "$API" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               -H "Content-Type: application/json" --data "{\"subdomain\":\"$WANT\"}" > /dev/null
             SUB="$WANT"
+          else
+            echo "::error::workers.dev-Subdomain konnte nicht abgefragt werden: $(echo "$RESP" | jq -c '.errors // .' | cut -c1-300)"
+            exit 1
           fi
           echo "WORKERS_SUBDOMAIN=$SUB" >> "$GITHUB_ENV"
 
       - name: D1-Datenbank in der EU sicherstellen
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT }}
         run: |
+          # Der Ort (EU) lässt sich nur beim Anlegen wählen – deshalb hier und nie per „wrangler deploy“ von Hand
           npx wrangler d1 info feibeitsblatt-db >/dev/null 2>&1 || npx wrangler d1 create feibeitsblatt-db --jurisdiction eu
 
       - name: Worker veröffentlichen
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT }}
         run: npx wrangler deploy
 
-      - name: SETTINGS_SECRET einmalig erzeugen (verschlüsselt den KI-Schlüssel)
+      - name: SETTINGS_SECRET sicherstellen (verschlüsselt den KI-Schlüssel, Pfeffer der Rate-Limits)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT }}
         run: |
           # Nie überschreiben: ein neues Secret macht den gespeicherten KI-Schlüssel unlesbar
-          if ! LIST=$(npx wrangler secret list --format json 2>/dev/null); then
-            echo "::warning::Secret-Liste nicht abrufbar – SETTINGS_SECRET bleibt unverändert."
+          if ! LIST=$(npx wrangler secret list --format json 2>&1); then
+            echo "::error::Secret-Liste nicht abrufbar – bitte den Workflow erneut starten. Ohne SETTINGS_SECRET lässt sich kein KI-Schlüssel speichern."
+            echo "$LIST" | tail -5
+            exit 1
           elif echo "$LIST" | grep -q '"SETTINGS_SECRET"'; then
             echo "SETTINGS_SECRET ist bereits gesetzt."
           else
@@ -104,4 +129,5 @@ jobs:
           fi
 
       - name: Adresse ausgeben
-        run: echo "::notice title=Feibeitsblatt ist online::https://feibeitsblatt.${WORKERS_SUBDOMAIN}.workers.dev"
+        run: |
+          echo "::notice title=Feibeitsblatt ist online::https://feibeitsblatt.${WORKERS_SUBDOMAIN}.workers.dev – bitte sofort öffnen, 1104 eingeben und das Lehrkraft-Passwort festlegen."

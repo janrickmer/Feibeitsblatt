@@ -36,7 +36,10 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    wächst; alles Folgende rückt dabei nach unten. Zwischen einem Antwortfeld und der nächsten Aufgabe bleibt eine
    leere Zeile Abstand. Einfügen aus der Zwischenablage und Hineinziehen von Text sind gesperrt – es darf nur
    selbst getippt werden. Autokorrektur und Diktierfunktion der Tastatur bleiben möglich. Der Zwischenstand wird
-   laufend auf dem Gerät gespeichert („Zwischenstand auf diesem Gerät gespeichert“).
+   laufend auf dem Gerät gespeichert („Zwischenstand auf diesem Gerät gespeichert“). Wird die Seite neu geladen
+   oder versehentlich geschlossen, bietet die Startseite an, mit den gespeicherten Angaben weiterzuschreiben
+   („Weiterschreiben“); mit „Abbrechen und Zwischenstand von diesem Gerät löschen“ oben rechts lässt sich ein
+   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten).
 4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button. Er schickt nur
    den Text dieser einen Antwort an den Prüfdienst LanguageTool. Darunter erscheint in kleiner Schrift der Text mit
    korrigierter Rechtschreibung, Grammatik, Groß- und Kleinschreibung, Getrennt- und Zusammenschreibung und
@@ -45,34 +48,41 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    des eigenen Textes dient. Das Antwortfeld selbst bleibt unverändert – Verbesserungen tippen die Schüler:innen
    selbst ein.
 5. **KI um ein Feedback bitten.** Am Ende des Blattes. Der Server vergleicht die Antworten mit Ihrer Musterlösung.
-   Je Aufgabe erscheint in Stichpunkten in **grüner** Schrift, welche Punkte der Musterlösung angesprochen wurden,
-   und in **roter** Schrift, welche noch fehlen. Das Feedback gibt es **nur einmal**; die Antworten zu diesem
-   Zeitpunkt werden als „erste Fassung“ festgehalten. Unter dem Button steht klein und ausgegraut, welche Daten
-   dabei wohin gehen (siehe [Datenschutz](#datenschutz)).
+   Je Aufgabe erscheint in Stichpunkten in **grüner** Schrift, welche Punkte der Musterlösung richtig angesprochen
+   wurden, und in **roter** Schrift, welche noch fehlen (dazu zählen auch falsch wiedergegebene Punkte). Das
+   Feedback gibt es **nur einmal**; die Antworten zu diesem Zeitpunkt werden als „erste Fassung“ festgehalten.
+   Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
+   [Datenschutz](#datenschutz)).
 6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Der Button
    „Abgeben“ ist bis dahin ausgegraut. Nach einer Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet:
    erste Fassung, überarbeitete Fassung und das KI-Feedback. Zum Schluss erscheint „Deine Lösung ist bei deiner
    Lehrkraft angekommen.“ mit dem Zeitpunkt. Der Zwischenstand auf dem Gerät wird dann gelöscht.
 
-> **Wichtig:** Abgeben ist erst nach dem KI-Feedback möglich. Richten Sie deshalb die
+> **Wichtig:** Abgeben ist normalerweise erst nach dem KI-Feedback möglich. Richten Sie deshalb die
 > [KI-Einstellungen](#schritt-8-ki-feedback-einrichten) ein und testen Sie das Blatt einmal selbst, bevor Sie den
-> Code an die Klasse geben.
+> Code an die Klasse geben. **Niemand sitzt fest:** Ist das KI-Feedback nicht eingerichtet oder schlägt es zweimal
+> hintereinander fehl (Kontingent erschöpft, Anbieter gestört), wird „Abgeben“ trotzdem freigeschaltet. Die
+> Abgabe enthält dann nur die aktuelle Fassung, und Sie sehen in der Übersicht den Hinweis „Ohne KI-Feedback
+> abgegeben“. Hat kein Arbeitsauftrag eine Musterlösung, ist gar keine KI nötig.
 
-Die Einfügesperre verhindert das übliche Einfügen (Tastenkürzel, Kontextmenü, Ziehen mit der Maus, Einfügen aus
-der Tastatur-Zwischenablage). Wer technisch versiert ist, kann eine Sperre im Browser grundsätzlich umgehen – sie
-ersetzt keine Aufsicht.
+Die Einfügesperre verhindert das übliche Einfügen (Tastenkürzel, Kontextmenü, Ziehen mit der Maus, größere
+Einfügungen aus der Zwischenablage einer Handy- oder Tablet-Tastatur). Kurze Stücke von wenigen Wörtern lassen sich
+technisch nicht von Tippen oder Wortvorschlägen unterscheiden und gehen durch; wer technisch versiert ist, kann
+eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht.
 
 ## So arbeiten Sie als Lehrkraft
 
 1. **Lehrkräfte-Zugang öffnen.** Auf der Startseite statt eines Codes `1104` eingeben und „Weiter“ klicken.
 2. **Passwort.** Beim allerersten Mal legen Sie Ihr Passwort fest (mindestens 10 Zeichen, siehe
    [Schritt 7](#schritt-7-sofort-das-passwort-festlegen)). Danach melden Sie sich jedes Mal mit diesem Passwort an.
-   Die Anmeldung gilt nur, solange die Seite geöffnet ist; nach dem Neuladen melden Sie sich erneut an. An
-   gemeinsam genutzten Rechnern bitte „Abmelden“ klicken.
+   Die Anmeldung gilt nur, solange die Seite geöffnet ist; nach dem Neuladen oder nach 20 Minuten ohne Eingabe
+   melden Sie sich erneut an. An gemeinsam genutzten Rechnern bitte „Abmelden“ klicken.
 3. **Neues Feibeitsblatt erstellen.** Oben in der Lehrkräfte-Übersicht. Sie tragen einen Titel ein (leer bleibt
    „Feibeitsblatt vom TT.MM.JJJJ“) und füllen eine Tabelle: Spalte 1 „Aufgabenstellung“, Spalte 2 „Musterlösung“.
-   Die Musterlösung sehen die Schüler:innen nie; sie dient nur dem KI-Feedback. Schreiben Sie sie am besten in
-   Stichpunkten, ein Kernpunkt je Zeile. Hier dürfen Sie Text einfügen. Zeilen lassen sich hinzufügen, entfernen
+   Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im
+   KI-Feedback (grün: angesprochen, rot: fehlt). Verwenden Sie deshalb keine Musterlösung, die geheim bleiben
+   muss (z. B. für eine Klassenarbeit). Schreiben Sie sie am besten in Stichpunkten, ein Kernpunkt je Zeile
+   (höchstens etwa 12 Punkte je Aufgabe). Hier dürfen Sie Text einfügen. Zeilen lassen sich hinzufügen, entfernen
    und verschieben (1 bis 30 Aufgaben). Eine Aufgabe ohne Musterlösung bekommt kein KI-Feedback, sondern den
    Hinweis „Zu dieser Aufgabe gibt es keine Musterlösung.“
 4. **Code generieren.** Der Code erscheint groß (z. B. `K7Q-M4X`) mit „Kopieren“. Geben Sie ihn an die Klasse
@@ -82,8 +92,11 @@ ersetzt keine Aufsicht.
    Abgaben. Ein Klick wählt ein Blatt aus. Die Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“,
    „Kürzel Vorname“, „Geburtstag“ und „Klasse“, sortiert nach Klasse und Namen. Aufgeklappt sehen Sie je Aufgabe
    eine Tabelle mit Spalte 1 „Erste Eingabe (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“,
-   darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. „Alle aufklappen“ öffnet alle
-   Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
+   darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Abgaben ohne KI-Feedback
+   (siehe oben) sind entsprechend gekennzeichnet. „Alle aufklappen“ öffnet alle Zeilen, „Aktualisieren“ lädt neu
+   eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser. Beachten Sie: Kürzel, Geburtsdatum,
+   Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der Server prüft sie nicht, und abgeben
+   kann jede Person, die den Code kennt.
 6. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl). Ohne diesen
    Klick bleiben die Abgaben verschlüsselt gespeichert. Darunter: „Feibeitsblatt selbst löschen (Code wird
    ungültig)“ – das löscht das Blatt und alle Abgaben dazu.
@@ -95,6 +108,12 @@ ersetzt keine Aufsicht.
 Sie brauchen dieses Repository in Ihrem GitHub-Konto und ein kostenloses Cloudflare-Konto. Alles Weitere erledigt
 der GitHub-Workflow „Deploy“ automatisch. Die Bezeichnungen in den Oberflächen von Cloudflare und GitHub können
 sich ändern und sind teils nur auf Englisch verfügbar; die englischen Namen stehen jeweils dabei.
+
+### Schritt 0: Repository übernehmen
+
+Liegt das Repository noch nicht in Ihrem eigenen GitHub-Konto: auf der Repository-Seite „Use this template“ →
+„Create a new repository“ (oder „Fork“) wählen. Bei einem Fork sind GitHub Actions zunächst abgeschaltet – einmal
+den Reiter „Actions“ öffnen und die Workflows aktivieren („I understand my workflows, go ahead and enable them“).
 
 ### Schritt 1: Cloudflare-Konto anlegen
 
@@ -113,7 +132,9 @@ Der Workflow braucht einen Schlüssel („API-Token“), mit dem er in Ihrem Nam
 3. Unter „Berechtigungen“ / „Permissions“ eine Zeile hinzufügen: **Konto → D1 → Bearbeiten**
    („Account → D1 → Edit“). Die Vorlage allein enthält D1 nicht; ohne diese Zeile kann der Workflow die Datenbank
    nicht anlegen.
-4. Unter „Kontoressourcen“ / „Account Resources“ Ihr Konto auswählen.
+4. Unter „Kontoressourcen“ / „Account Resources“ Ihr Konto auswählen. Unter „Zonenressourcen“ / „Zone
+   Resources“ „Alle Zonen“ / „All zones“ (bzw. „All zones from an account“) wählen – das geht auch ohne eigene
+   Domain.
 5. „Weiter zur Zusammenfassung“ / „Continue to summary“ → „Token erstellen“ / „Create Token“.
 6. Den angezeigten Token sofort kopieren – er wird nur einmal angezeigt. Er ist ein Geheimnis: nirgends
    veröffentlichen, nicht per E-Mail verschicken.
@@ -133,26 +154,34 @@ Dashboards zusätzlich unter „Workers & Pages“ in der rechten Spalte („Acc
 
 ### Schritt 5: Veröffentlichen
 
-Der Workflow „Deploy“ startet automatisch bei jeder Änderung im Branch `main` (also auch, wenn Sie einen
-Pull-Request nach `main` mergen). Von Hand: „Actions“ → „Deploy“ → „Run workflow“. Dieser Button erscheint erst,
-wenn die Workflow-Datei im Branch `main` liegt.
+Der Workflow „Deploy“ startet automatisch bei jeder Änderung im Branch `main`. Gibt es in Ihrem Repository noch
+keinen Branch `main` (der Code liegt z. B. nur in einem Branch `claude/…`): auf GitHub „Branches“ → „New branch“,
+Name `main`, Quelle der vorhandene Branch – das startet den Workflow bereits. Danach unter „Settings“ → „General“
+→ „Default branch“ `main` als Standard-Branch festlegen. Von Hand starten: „Actions“ → „Deploy“ → „Run
+workflow“ (der Button erscheint, sobald die Workflow-Datei im Standard-Branch liegt).
 
 Was der Workflow dabei tut:
 
 1. Ist `CLOUDFLARE_API_TOKEN` nicht gesetzt, überspringt er das Veröffentlichen mit einem Hinweis (kein Fehler).
-2. Er installiert die festgelegten Werkzeuge (wrangler 4.145.0), führt die Unit-Tests aus und baut die Seite.
+2. Er installiert die festgelegten Werkzeuge (wrangler 4.145.0), führt die Unit-Tests aus und baut die Seite. Das
+   Cloudflare-Token bekommen nur die Schritte, die es brauchen.
 3. Er stellt sicher, dass Ihr Konto eine **workers.dev-Subdomain** hat. Neue Konten haben noch keine; dann legt
-   er `feibeitsblatt-<Ihr GitHub-Name>` an.
+   er `feibeitsblatt-<Ihr GitHub-Name>` an. Eine vorhandene Subdomain wird nie umbenannt.
 4. Er legt die Datenbank `feibeitsblatt-db` an, **in der EU** (`--jurisdiction eu`), falls es sie noch nicht
    gibt. Der Speicherort lässt sich nur beim Anlegen festlegen, später nicht mehr ändern. Die Tabellen legt der
    Server beim ersten Aufruf selbst an.
 5. Er veröffentlicht den Worker samt Seite (`wrangler deploy`).
 6. Er erzeugt einmalig das Worker-Secret `SETTINGS_SECRET` (32 Zufallsbytes), mit dem der Server Ihren
-   KI-API-Schlüssel verschlüsselt speichert. Ein vorhandenes Secret wird nie überschrieben.
+   KI-API-Schlüssel verschlüsselt speichert. Ein vorhandenes Secret wird nie überschrieben; lässt sich nicht
+   feststellen, ob es existiert, bricht der Workflow mit einer Fehlermeldung ab (dann einfach erneut starten).
 7. Er gibt die Adresse der Seite aus.
 
 Spätere Veröffentlichungen (z. B. nach einem Update) lassen Datenbank, Passwort, Feibeitsblätter und Abgaben
 unverändert.
+
+**Nie vor dem ersten Workflow-Lauf von Hand `wrangler deploy` ausführen:** wrangler würde die Datenbank dann
+selbst anlegen – ohne EU-Festlegung, und das lässt sich später nicht ändern. Kontrolle: Im Cloudflare-Dashboard
+unter „Storage & Databases“ → „D1“ → `feibeitsblatt-db` muss als Ort/Jurisdiktion „EU“ stehen.
 
 ### Schritt 6: Adresse finden
 
@@ -191,9 +220,12 @@ Lehrkräfte-Übersicht übernehmen. Ist das passiert, setzen Sie den Zugang wie 
    besten als Ausweichmodelle. Klappt die Prüfung nicht, wird trotzdem gespeichert und ein Hinweis angezeigt.
 5. „Verbindung testen“ klicken. Erscheint eine kurze Beispielantwort, funktioniert das KI-Feedback.
 
-Der Schlüssel wird nur auf dem Server gespeichert (verschlüsselt mit `SETTINGS_SECRET`) und nie an die Browser
-der Schüler:innen übertragen. In den Einstellungen sehen Sie nur die letzten vier Zeichen („gespeichert: …abcd“).
-Ein neuer Schlüssel ersetzt den alten; ein leeres Schlüsselfeld lässt den gespeicherten unverändert.
+Der Schlüssel wird nur auf dem Server gespeichert (verschlüsselt mit `SETTINGS_SECRET`; ohne dieses Secret lehnt
+der Server das Speichern ab) und nie an die Browser der Schüler:innen übertragen. In den Einstellungen sehen Sie
+nur die letzten vier Zeichen („gespeichert: …abcd“). Ein neuer Schlüssel ersetzt den alten; ein leeres
+Schlüsselfeld lässt den gespeicherten unverändert – aber nur für denselben Anbieter und dieselbe Adresse. Wechseln
+Sie den Anbieter oder die Basis-URL, verlangt die Seite einen neuen Schlüssel; der alte wird nie an einen anderen
+Dienst geschickt.
 
 ### Schritt 9: Das erste Feibeitsblatt
 
@@ -206,16 +238,20 @@ Ein neuer Schlüssel ersetzt den alten; ein leeres Schlüsselfeld lässt den ges
 ## KI-Anbieter
 
 Das KI-Feedback läuft über Ihren eigenen API-Schlüssel bei einem Anbieter Ihrer Wahl. Je Schülerin bzw. Schüler
-und Feibeitsblatt stellt der Server **genau eine** Anfrage mit allen Aufgaben, die eine Musterlösung haben. Er hält
-je Anbieter einen Mindestabstand zwischen den Anfragen ein, wiederholt bei kurzzeitiger Überlastung und weicht
-automatisch auf ein anderes Modell aus, wenn das Tageskontingent eines Modells erschöpft ist.
+und Feibeitsblatt stellt der Server in der Regel **eine** Anfrage mit allen Aufgaben, die eine Musterlösung haben;
+bei Überlastung oder unbrauchbaren Antworten können daraus bis zu acht Versuche werden, und Schüler:innen können
+nach einem Fehlschlag erneut klicken. Der Server hält je Anbieter einen Mindestabstand zwischen den Anfragen ein,
+wiederholt bei kurzzeitiger Überlastung und weicht automatisch auf ein anderes Modell aus, wenn das Tageskontingent
+eines Modells erschöpft ist oder ein Modell die Anfrage als zu lang ablehnt.
 
-**Kein kostenloses Kontingent ist unbegrenzt.** Die folgenden Angaben sind **Stand Oktober 2026, bitte beim
-Anbieter prüfen**; die Anbieter ändern Limits und Bedingungen ohne Vorankündigung.
+**Kein kostenloses Kontingent ist unbegrenzt.** Die folgenden Angaben sind **Stand Oktober 2026 und nicht bei
+den Anbietern bestätigt** – sie stammen aus dem Schwesterprojekt „Check des Feind(t)es“ und aus Suchergebnissen zu
+den Anbieter-Dokumentationen. Bitte beim Anbieter prüfen; die Anbieter ändern Limits und Bedingungen ohne
+Vorankündigung.
 
-| Anbieter | Schlüssel | Limits (Stand Oktober 2026, bitte beim Anbieter prüfen) | Datenschutz und Hinweise |
+| Anbieter | Schlüssel | Limits (Stand Oktober 2026, nicht bestätigt – bitte beim Anbieter prüfen) | Datenschutz und Hinweise |
 |---|---|---|---|
-| **Groq** (Vorgabe, für Klassen empfohlen) | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Tageslimits je Modell**: etwa 200 000 Token pro Tag bei gpt-oss-120b (grob geschätzt 40–60 Feedback-Anfragen, je nach Länge der Texte), etwa 100 000 bei Llama 3.3 70B. Ist ein Modell erschöpft, wechselt der Server automatisch zum nächsten. | Sehr schnell. Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden. |
+| **Groq** (Vorgabe, für Klassen empfohlen) | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Tageslimits je Modell**: etwa 200 000 Token pro Tag bei gpt-oss-120b (grob geschätzt 40–60 Feedback-Anfragen, je nach Länge der Texte), etwa 100 000 bei Llama 3.3 70B. Außerdem ein Minutenlimit je Modell; sehr lange Blätter können daran scheitern – der Server wechselt dann das Modell. Ist ein Modell erschöpft, wechselt der Server automatisch zum nächsten. | Sehr schnell. Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden. |
 | **OpenRouter** | kostenloses Konto, <https://openrouter.ai/settings/keys> | nur kostenlose Modelle (`:free`). **Ohne einmaligen Guthabenkauf nur 50 kostenlose Anfragen pro Tag für das ganze Konto** – das reicht nicht für eine Klasse. Nach einem einmaligen Kauf von 10 US-$ Guthaben 1000 pro Tag. | Die kostenlosen Modelle laufen bei Drittanbietern, die Eingaben protokollieren oder zum Training verwenden dürfen. Das muss im Konto unter <https://openrouter.ai/settings/privacy> erlaubt sein, sonst antwortet die API „No endpoints found matching your data policy“. |
 | **Google Gemini** | Google AI Studio, <https://aistudio.google.com/app/apikey> | kostenloses Kontingent mit Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus. | Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Googles Bedingungen nur die bezahlten Dienste; dafür verlangt Google ein **hinterlegtes Abrechnungskonto**. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage. |
 | **Cerebras** | Konsole von Cerebras, <https://cloud.cerebras.ai> | **nicht bestätigt** – die Angaben Dritter widersprechen sich; bitte in der Konsole prüfen. | Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden. |
@@ -223,16 +259,18 @@ Anbieter prüfen**; die Anbieter ändern Limits und Bedingungen ohne Vorankündi
 
 Hinweise:
 
-- **Groq ist die Vorgabe**, weil es von den geprüften kostenlosen Angeboten die meisten Anfragen pro Tag erlaubt
-  und damit für ganze Klassen am ehesten reicht. Die Token-Tageslimits gelten je Modell; deshalb rotiert der
-  Server bei Bedarf über mehrere Modelle (die beim Speichern ermittelte Rangliste). Bei vielen Klassen am selben
-  Tag kann das Kontingent trotzdem erschöpft sein.
+- **Groq ist die Vorgabe**, weil es hohe Tageslimits je Modell hat und der Server über mehrere Modelle ausweichen
+  kann (die beim Speichern ermittelte Rangliste); damit reicht es für ganze Klassen am ehesten. Bei vielen Klassen
+  am selben Tag kann das Kontingent trotzdem erschöpft sein.
 - Ist das Kontingent aufgebraucht, sehen die Schüler:innen „Das KI-Kontingent für heute ist aufgebraucht. Bitte
-  frag deine Lehrkraft.“ Ihre Antworten bleiben auf dem Gerät gespeichert; das Feedback (und damit die Abgabe)
-  ist später auf demselben Gerät im selben Browser möglich.
-- Die KI bekommt die Anweisung, nur zu vergleichen: höchstens 8 Kernpunkte je Aufgabe, keine Noten, keine eigenen
-  Punkte, keine ausformulierten Lösungen. Auch eine KI kann sich dabei irren – das steht im Hinweis für die
-  Schüler:innen.
+  frag deine Lehrkraft.“ Ihre Antworten bleiben auf dem Gerät gespeichert; nach dem zweiten Fehlschlag können sie
+  ohne KI-Feedback abgeben oder es später auf demselben Gerät noch einmal versuchen.
+- Die KI bekommt die Anweisung, nur zu vergleichen: die Kernpunkte Ihrer Musterlösung (bei mehr als 12 fasst sie
+  zusammen), angesprochen nur, wenn der Punkt richtig wiedergegeben ist, keine Noten, keine eigenen Punkte, keine
+  ausformulierten Lösungen. Auch eine KI kann sich dabei irren – das steht im Hinweis für die Schüler:innen.
+- Das Feedback gibt es einmal je Gerät und Angaben; der Server kann das nicht erzwingen (wer andere Angaben
+  eingibt oder ein zweites Gerät nutzt, kann es erneut anfordern). Je Feibeitsblatt sind höchstens 300
+  KI-Anfragen pro Tag möglich – das schützt Ihr Kontingent vor Missbrauch.
 
 ## Sicherheit
 
@@ -259,18 +297,21 @@ Passwortfeld. Der Server prüft ihn; falsche Codes zählen als Fehlversuche.
 **Ein vergessenes Passwort bedeutet: Alle gespeicherten Abgaben sind unlesbar.** Das kann niemand rückgängig
 machen – weder Cloudflare noch die Entwickler:innen dieser Seite.
 
-**Sperren nach Fehlversuchen.** Der Server zählt Fehlversuche je Netzwerkadresse (IP-Adresse) und sperrt
-vorübergehend mit einer Wartezeit:
+**Sperren nach Fehlversuchen.** Der Server zählt **nur Fehlversuche** je Netzwerkadresse (IP-Adresse; bei IPv6
+je Anschluss) und weist weitere Fehlversuche vorübergehend ab. Das richtige Passwort, der richtige Türcode und
+gültige Feibeitsblatt-Codes gehen immer durch – im Schulnetz teilen sich alle Geräte eine Adresse, und niemand
+soll Sie oder die Klasse aussperren können, indem er Unsinn eintippt.
 
-| Was | Sperre ab |
+| Was | Weitere Versuche abgewiesen ab |
 |---|---|
-| falsches Passwort | 10 Fehlversuchen pro Stunde |
-| falscher Türcode | 10 Fehlversuchen pro Stunde |
-| unbekannte Feibeitsblatt-Codes | 30 Fehlversuchen in 10 Minuten |
+| falsches Passwort | 10 Fehlversuchen in 15 Minuten je Adresse, zusätzlich 200 pro Stunde insgesamt |
+| falscher Türcode | 10 Fehlversuchen in 15 Minuten je Adresse |
+| unbekannte Feibeitsblatt-Codes | 30 Fehlversuchen in 10 Minuten je Adresse |
 
-Im Schulnetz teilen sich meist alle Geräte eine Adresse. Probieren Schüler:innen dort Passwörter aus, kann das auch
-Sie im selben Netz bis zu eine Stunde lang aussperren; dann hilft Warten oder ein anderes Netz (z. B. zu Hause
-oder über das Handy).
+Tippen Schüler:innen im Schulnetz falsche Passwörter oder Zahlen ein, sehen andere dort kurzzeitig „Zu viele
+falsche Passwörter …“ bzw. „Zu viele Fehlversuche …“ – mit den richtigen Eingaben geht es trotzdem weiter.
+Muss eine Sperre ausnahmsweise sofort aufgehoben werden, löscht in der D1-Konsole (siehe
+[Zurücksetzen](#passwort-vergessen-oder-zugang-zurücksetzen)) der Befehl `DELETE FROM rate_limits;` alle Zähler.
 
 **Was die Verschlüsselung nicht schützt:**
 
@@ -279,16 +320,24 @@ oder über das Handy).
 - Die Seite wird vom Server ausgeliefert. Wer Ihr Cloudflare-Konto oder Ihr GitHub-Repository übernimmt, könnte
   den Code so ändern, dass künftig eingegebene Passwörter oder Texte abgefangen werden. Schützen Sie beide Konten
   mit einem starken Passwort und Zwei-Faktor-Anmeldung.
-- Wer Ihr Passwort kennt, kann alle Abgaben lesen. Melden Sie sich an fremden Rechnern ab.
+- Wer Ihr Passwort kennt, kann alle Abgaben lesen. Melden Sie sich an fremden Rechnern ab (nach 20 Minuten ohne
+  Eingabe meldet die Seite Sie automatisch ab).
+- Wer den Code eines Feibeitsblattes kennt, kann unter beliebigen Angaben (auch fremden Kürzeln) abgeben; der
+  Server prüft die Identität nicht. Abgaben sind deshalb keine beweissicheren Leistungsnachweise.
+- Die roten Stichpunkte des KI-Feedbacks verraten die Kernpunkte der Musterlösung. Musterlösungen eignen sich
+  daher nicht für Prüfungen, bei denen die Lösung geheim bleiben muss.
 
-**API-Schlüssel der KI.** Er liegt verschlüsselt (AES-GCM mit dem Worker-Secret `SETTINGS_SECRET`) in der
-Datenbank und wird nie an Browser ausgeliefert. Wird `SETTINGS_SECRET` gelöscht oder geändert, meldet die Seite
-„Bitte den API-Schlüssel neu eintragen.“
+**API-Schlüssel der KI.** Er liegt ausschließlich verschlüsselt (AES-GCM mit dem Worker-Secret `SETTINGS_SECRET`)
+in der Datenbank und wird nie an Browser ausgeliefert. Fehlt `SETTINGS_SECRET`, lehnt der Server das Speichern
+eines Schlüssels ab (Meldung „Der Server ist noch nicht vollständig eingerichtet …“) – dann den Workflow „Deploy“
+erneut ausführen, der das Secret anlegt. Wurde `SETTINGS_SECRET` geändert, meldet die Seite „Bitte den
+API-Schlüssel neu eintragen.“
 
 **Optional: anderer Türcode.** Wer statt 1104 eine andere Ziffernfolge (4–12 Ziffern) verwenden möchte, legt im
 Cloudflare-Dashboard beim Worker `feibeitsblatt` unter „Einstellungen“ / „Settings“ → „Variablen und Secrets“ /
 „Variables and Secrets“ ein **Secret** namens `TEACHER_DOOR_CODE` an. Das ändert nichts daran, dass die eigentliche
-Sicherheit vom Passwort kommt.
+Sicherheit vom Passwort kommt. Ein eigener Türcode, der vor dem ersten Aufruf gesetzt wird, schließt allerdings die
+kleine Lücke zwischen Veröffentlichung und Passwort-Festlegung (siehe Schritt 7).
 
 ### Passwort vergessen oder Zugang zurücksetzen
 
@@ -330,16 +379,17 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Feibeitsblätter: Titel, Aufgaben, **Musterlösungen** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code und der Eingangszeitpunkt | bis Sie die Abgaben oder das Blatt löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
-| KI-Einstellungen: Anbieter, Modell, API-Schlüssel | Cloudflare D1 (EU) | Schlüssel verschlüsselt | bis Sie sie ändern |
-| Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert | höchstens eine Stunde gültig, danach gelegentlich gelöscht |
-| Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtsdatum, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt | bis zur erfolgreichen Abgabe; Reste werden nach 30 Tagen beim nächsten Öffnen der Seite gelöscht |
+| KI-Einstellungen: Anbieter, Modell, API-Schlüssel | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
+| Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach gelegentlich gelöscht |
+| Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtsdatum, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten, und er protokolliert keine Schülertexte
-und keine Schlüssel. Cloudflare verarbeitet als Hoster technisch bedingt Verbindungsdaten wie IP-Adressen; die
-Einzelheiten regeln Cloudflares eigene Bedingungen (nicht im Einzelnen geprüft). Cloudflare ist ein Unternehmen
-mit Sitz in den USA; die Speicherung in der EU-Jurisdiktion ändert daran nichts. Auf gemeinsam genutzten Geräten
-kann, wer denselben Browser benutzt, einen nicht abgegebenen Zwischenstand sehen – Schüler:innen sollten deshalb
-vor dem Verlassen abgeben.
+und keine Schlüssel. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage in der
+Wiederherstellungsfunktion der Datenbank vor (D1 Time Travel). Cloudflare verarbeitet als Hoster technisch bedingt
+Verbindungsdaten wie IP-Adressen; die Einzelheiten regeln Cloudflares eigene Bedingungen (nicht im Einzelnen
+geprüft). Cloudflare ist ein Unternehmen mit Sitz in den USA; die Speicherung in der EU-Jurisdiktion ändert daran
+nichts. Auf gemeinsam genutzten Geräten kann, wer denselben Browser benutzt, einen nicht abgegebenen Zwischenstand
+sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen abgeben oder den Zwischenstand löschen.
 
 ### Was wohin gesendet wird
 
@@ -354,18 +404,22 @@ vor dem Verlassen abgeben.
   Deutschland verlassen. Nach Hinweisen des Anbieters ist der Dienst nicht für Nutzer:innen unter 16 Jahren
   gedacht. (Diese Angaben stammen aus Zusammenfassungen; die Seiten von LanguageTool konnten bei der Entwicklung
   nicht direkt gelesen werden.) **Ob Schüler:innen – besonders unter 16 Jahren – die Rechtschreibprüfung nutzen
-  dürfen, muss die bzw. der Datenschutzbeauftragte der Schule entscheiden.** Eine Einstellung zum Abschalten der
-  Prüfung gibt es bisher nicht; bis dahin genügt die Anweisung, den Button nicht zu benutzen.
+  dürfen, muss die Schule entscheiden** (die Schulleitung als Verantwortliche, beraten durch die bzw. den
+  Datenschutzbeauftragte:n). Eine Einstellung zum Abschalten der Prüfung gibt es bisher nicht; bis dahin bleibt nur
+  die Anweisung, den Button nicht zu benutzen – technisch erzwungen wird das nicht.
 - Die Seite lädt keine externen Schriften, Bibliotheken oder Tracker.
 
 ### Empfehlungen
 
-1. Klären Sie den Einsatz **vor** der Nutzung mit der bzw. dem **Datenschutzbeauftragten Ihrer Schule** – für
+1. Klären Sie den Einsatz **vor** der Nutzung mit Schulleitung und **Datenschutzbeauftragten Ihrer Schule** – für
    Cloudflare (Hosting und Datenbank), den gewählten KI-Anbieter und LanguageTool.
-2. Schließen Sie, soweit erforderlich, mit den Anbietern einen **Auftragsverarbeitungsvertrag (AVV/DPA)** ab. Ob
-   ein Anbieter für kostenlose Konten einen AVV anbietet, ist beim Anbieter zu prüfen.
-3. **Informieren Sie Schüler:innen und gegebenenfalls die Eltern**, welche Daten wohin gehen (der Hinweis unter
-   dem Feedback-Button fasst das für die Schüler:innen zusammen).
+2. Ein **Auftragsverarbeitungsvertrag (AVV/DPA)** mit den Anbietern ist, soweit erforderlich, von der Schule bzw.
+   dem Schulträger abzuschließen, nicht von der einzelnen Lehrkraft. Ob ein Anbieter für kostenlose Konten einen
+   AVV anbietet, ist beim Anbieter zu prüfen.
+3. **Informieren Sie Schüler:innen und gegebenenfalls die Eltern**, welche Daten wohin gehen – z. B. in einem
+   Elternbrief. Der Hinweis unter dem Feedback-Button nennt den Weg der Daten (Server, KI-Anbieter, LanguageTool,
+   Speicherung bis zum Löschen); die Bedingungen der Anbieter und die Rechtsgrundlage müssen Sie zusätzlich
+   mitteilen.
 4. Weisen Sie die Schüler:innen an, **keine personenbezogenen Daten in die Antworten** zu schreiben (keine Namen,
    Adressen, Gesundheits- oder Familienangaben). Auch Aufgaben und Musterlösungen sollten keine enthalten.
 5. **Löschen Sie die Abgaben nach der Korrektur** („Alle Abgaben dieses Feibeitsblattes löschen“) und nicht mehr
@@ -379,8 +433,9 @@ vor dem Verlassen abgeben.
 höchstens 75 KB Text pro Minute. Im Schulnetz gilt das meist für die ganze Schule zusammen, also eher weniger.
 Eine einzelne Prüfung ist auf 20 000 Zeichen begrenzt, und LanguageTool macht nur für bis zu 30 falsch
 geschriebene Wörter je Prüfung Vorschläge. Ist das Limit erreicht, sehen die Schüler:innen „Gerade prüfen sehr
-viele gleichzeitig. Bitte warte eine Minute und versuche es dann noch einmal.“ Tipp: Nicht alle gleichzeitig
-prüfen lassen.
+viele gleichzeitig. Bitte warte eine Minute und versuche es dann noch einmal.“ – oder, falls LanguageTool die
+Ablehnung ohne die nötigen Browser-Freigaben sendet (nicht geprüft), „LanguageTool ist gerade nicht erreichbar …“.
+Tipp: Nicht alle gleichzeitig prüfen lassen.
 
 **KI-Anbieter:** siehe [Tabelle oben](#ki-anbieter). Zusätzlich hält der Server je Anbieter einen Mindestabstand
 zwischen Anfragen ein (Groq 2,5 s, OpenRouter 3,5 s, Gemini 4 s, Cerebras 2 s, andere 1 s) und lässt höchstens etwa
@@ -404,24 +459,36 @@ Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage bis zu etwa 100
 |---|---|
 | Aufgaben je Feibeitsblatt | 1 bis 30 |
 | Aufgabenstellung / Musterlösung / Titel | 4000 / 8000 / 200 Zeichen |
-| Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen |
-| Abgaben je Feibeitsblatt | 1000 |
-| KI-Feedback-Anfragen je Netzwerk (IP-Adresse) | 120 pro Stunde |
-| Abgaben je Netzwerk (IP-Adresse) | 120 pro Stunde |
+| Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
+| Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
+| KI-Feedback-Anfragen je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 400 000 Zeichen pro Stunde; nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
+| KI-Feedback-Anfragen je Feibeitsblatt | 300 pro Tag |
+| Abgaben je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 30 MB pro Stunde |
+
+Diese Zähler gelten je Netzwerkadresse, im Schulnetz also meist für die ganze Schule zusammen; mehrere Klassen
+parallel können die Stundenlimits erreichen. Die Meldungen lauten dann „Gerade wurden von diesem Netzwerk sehr
+viele KI-Rückmeldungen angefordert …“ bzw. „… sehr viele Abgaben gesendet …“; die Antworten bleiben auf dem Gerät
+gespeichert.
 
 ## Häufige Probleme
 
 | Meldung oder Beobachtung | Ursache und Lösung |
 |---|---|
+| Unter „Actions“ läuft nichts | Bei einem Fork sind Workflows zunächst abgeschaltet (Schritt 0), oder es gibt noch keinen Branch `main` (Schritt 5). |
 | Workflow „Deploy“ meldet „Deployment übersprungen“ | `CLOUDFLARE_API_TOKEN` fehlt (Schritt 4). |
 | Workflow scheitert beim Anlegen der Datenbank | Dem Token fehlt „Konto → D1 → Bearbeiten“ (Schritt 2). Token anpassen oder neu erstellen und das Secret ersetzen. |
 | Workflow scheitert bei der workers.dev-Subdomain | Im Cloudflare-Dashboard einmal „Workers & Pages“ öffnen und dort eine Subdomain wählen, dann den Workflow erneut starten. |
-| „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“ | KI-Einstellungen speichern (Schritt 8). Ohne KI-Feedback können Schüler:innen nicht abgeben. |
-| „Bitte den API-Schlüssel neu eintragen.“ | `SETTINGS_SECRET` wurde geändert oder gelöscht. Schlüssel in den KI-Einstellungen neu eintragen. |
-| „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder in den KI-Einstellungen einen anderen Anbieter bzw. Schlüssel eintragen. |
-| „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org`. Die Schul-IT kann die Adresse freigeben. |
-| „Zu viele Fehlversuche …“ | Sperre nach Fehlversuchen (siehe [Sicherheit](#sicherheit)); Wartezeit abwarten oder anderes Netz. |
-| Die Seite lädt, aber Code-Eingabe, Feedback und Abgabe scheitern für den Rest des Tages (Cloudflare antwortet mit HTTP 429) | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht; ab Mitternacht UTC geht es wieder. |
+| Workflow scheitert bei „SETTINGS_SECRET sicherstellen“ | Die Secret-Liste war nicht abrufbar; den Workflow einfach erneut starten. |
+| „Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid.“ | Es ist kein Lehrkraft-Passwort festgelegt (z. B. nach dem Zurücksetzen). `1104` eingeben und ein Passwort festlegen (Schritt 7). |
+| „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“ | KI-Einstellungen speichern (Schritt 8). Bis dahin können Schüler:innen nur ohne KI-Feedback abgeben. |
+| „Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt).“ | Den Workflow „Deploy“ erneut ausführen; er legt das Secret an. Danach den API-Schlüssel eintragen. |
+| „Bitte den API-Schlüssel neu eintragen.“ | `SETTINGS_SECRET` wurde geändert. Schlüssel in den KI-Einstellungen neu eintragen. |
+| „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder in den KI-Einstellungen einen anderen Anbieter bzw. Schlüssel eintragen. Schüler:innen können nach dem zweiten Fehlschlag ohne KI-Feedback abgeben. |
+| „Die KI ist gerade ausgelastet.“ / „Gerade fragen sehr viele gleichzeitig.“ | Minutenlimit des Anbieters oder Warteschlange voll; nach einer Minute erneut versuchen. |
+| „Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich.“ | Die Anfrage überschreitet das Limit aller verfügbaren Modelle. Musterlösungen und Aufgaben kürzen oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen. |
+| „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
+| „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
+| „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |
 
 ## Optional: GitHub Pages oder eigene Domain
 
@@ -451,9 +518,9 @@ und @playwright/test 1.56.1).
 | Befehl | Zweck |
 |---|---|
 | `npm run build` | kopiert `index.html` und `_headers` nach `dist/` (aus diesem Ordner liefert der Worker die Seite aus) |
-| `npm run dev` | baut und startet den Worker lokal (`wrangler dev --local`, Standard: <http://localhost:8787>) mit lokaler D1-Datenbank unter `.wrangler/` |
+| `npm run dev` | baut und startet den Worker lokal (`wrangler dev --local`, Standard: <http://localhost:8787>) mit lokaler D1-Datenbank unter `.wrangler/` und einem festen Entwicklungs-`SETTINGS_SECRET` |
 | `npm test` | Unit-Tests (`node --test`, Dateien `test/unit/*.test.mjs`) |
-| `npm run test:e2e` | Browser-Tests mit Playwright (KI und LanguageTool werden dabei simuliert) |
+| `npm run test:e2e` | Browser-Tests mit Playwright (KI und LanguageTool werden dabei simuliert); braucht einmalig `npx playwright install chromium` und die freien Ports 8787/8790 – vorher `npm run dev` beenden |
 | `node test/smoke.mjs` | API-Durchlauf gegen einen echten `wrangler dev --local` mit Test-KI (Ports 8811/8812) |
 
 **Lokale Test-KI:** `node test/mock-ai.mjs --port 8812` startet einen OpenAI-kompatiblen Test-Server. In den
@@ -463,7 +530,10 @@ beliebiger API-Schlüssel (der Schlüssel `bad` simuliert einen abgelehnten Schl
 auch lokal den echten LanguageTool-Dienst auf; in den Tests wird er simuliert.
 
 **Lokale Secrets** (optional, z. B. `SETTINGS_SECRET`, `TEACHER_DOOR_CODE`) gehören in die Datei `.dev.vars`;
-sie ist von Git ausgeschlossen.
+sie ist von Git ausgeschlossen. Ohne `SETTINGS_SECRET` lässt sich auch lokal kein KI-Schlüssel speichern.
+
+**Nie `wrangler deploy` von Hand vor dem ersten Lauf des Workflows „Deploy“** – sonst entsteht die Datenbank
+außerhalb der EU (siehe Schritt 5).
 
 **Aufbau:**
 

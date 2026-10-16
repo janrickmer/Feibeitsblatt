@@ -59,7 +59,7 @@
   }
   input[type=password]{letter-spacing:.12em}
   input[type=date]{min-height:47px; -webkit-appearance:none; appearance:none}
-  input::placeholder{color:#b9b0a0; letter-spacing:normal}
+  input::placeholder{color:#756c60; letter-spacing:normal}   /* ≥ 4.5:1 auf dem Papierton */
   select{font-family:var(--sans); font-size:16px}
   input:focus,select:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
   input.invalid{border-color:var(--red); box-shadow:0 0 0 3px rgba(179,38,30,.14)}
@@ -110,21 +110,32 @@
     color:#a72020; font-size:13.5px; font-weight:600; line-height:1.5;
   }
   .donetime{font-family:var(--serif); font-size:17px; margin:0 0 24px}
+  .resumebox{margin:0 0 18px; padding:12px 14px; background:var(--soft); border:1px solid var(--line); border-radius:9px; font-size:13.5px; line-height:1.5}
+  .resumebox b{font-weight:600}
+  .resumebox .row{margin-top:8px}
+  .notebox{margin:12px 0 0; padding:12px 16px; background:var(--soft); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; font-size:14px; line-height:1.5}
 
-  /* ---------- Schreibfläche (Topbar, Papier, Aufgaben) ---------- */
-  #screen-editor{display:none; flex-direction:column; height:100vh; height:100dvh}
-  #screen-editor.active{display:flex; flex:0 0 auto}
+  /* ---------- Schreibfläche (Topbar, Papier, Aufgaben) ----------
+     Im Schreibmodus füllt der Bildschirm genau die Fensterhöhe; nur .paperwrap scrollt, die Fußzeile steht darunter
+     (nichts liegt über der Schreibfläche – die aktuelle Zeile bleibt immer sichtbar). */
+  body.writing{height:100vh; height:100dvh; overflow:hidden}
+  #screen-editor{display:none; flex-direction:column}
+  #screen-editor.active{display:flex; flex:1 1 auto; min-height:0}
   .topbar{
     display:flex; align-items:center; justify-content:space-between; gap:6px 16px; flex-wrap:wrap;
     padding:13px 22px; border-bottom:1px solid var(--line); background:var(--paper2);
   }
   .who{font-family:var(--serif); font-size:16px; overflow-wrap:anywhere}
   .who .lbl{font-family:var(--sans); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin-right:8px}
-  .topbar .right{display:flex; flex-direction:column; align-items:flex-end; text-align:right; min-width:0}
+  .topbar .right{display:flex; flex-direction:column; align-items:flex-end; text-align:right; min-width:0; max-width:100%}
   .stitle{font-family:var(--serif); font-size:15px; font-weight:600; overflow-wrap:anywhere}
   .count{font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums}
   .count.bad{color:var(--red)}
-  .paperwrap{flex:1; overflow:auto; display:flex; flex-direction:column; align-items:center; padding:34px 20px 96px; -webkit-overflow-scrolling:touch}
+  .topbar .linkbtn{margin-top:2px}
+  .paperwrap{
+    flex:1 1 auto; min-height:0; overflow:auto; display:flex; flex-direction:column; align-items:center; padding:34px 20px 60px;
+    -webkit-overflow-scrolling:touch; overscroll-behavior:contain; scrollbar-gutter:stable;
+  }
   .taskhint{
     width:100%; max-width:760px; margin:0 0 14px; color:var(--red); font-family:var(--sans);
     font-size:14.5px; font-weight:700; line-height:1.45; text-align:center;
@@ -159,6 +170,9 @@
   textarea.measure{position:absolute !important; top:0; left:0; visibility:hidden !important; height:0 !important; min-height:0 !important; pointer-events:none; transition:none}
   .paste-err{font-family:var(--sans); color:var(--red); font-size:13.5px; font-weight:600; line-height:1.45; margin:6px 0 0}
   .paste-err:empty{display:none}
+  .charcount{font-family:var(--sans); font-size:12px; color:var(--muted); text-align:right; margin:4px 0 0; line-height:1.4}
+  .charcount.bad{color:var(--red); font-weight:600}
+  .charcount:empty{display:none}
   .checkrow{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin:8px 0 0; font-family:var(--sans); line-height:1.4}
   .ltstat{font-size:13px; color:var(--muted)}
   .ltstat.bad{color:var(--red)}
@@ -173,7 +187,9 @@
   .lt-note a{color:var(--muted); text-decoration:underline; text-underline-offset:2px}
   .lt-note a:hover{color:var(--accent)}
   .lt-stale{font-family:var(--sans); font-size:12px; font-weight:600; color:var(--accent); margin:6px 0 0; line-height:1.45}
-  .lt-out.stale .lt-text,.lt-out.stale .lt-legend{opacity:.45}
+  .lt-out.stale{border-left-style:dashed}
+  .lt-out.stale .lt-text,.lt-out.stale .lt-legend{opacity:.7}   /* abgeblendet, aber noch lesbar (≥ 4.5:1) */
+  .lt-changes{margin:4px 0 0; padding-left:18px; font-family:var(--sans); font-size:12.5px; color:var(--muted); line-height:1.5}
   /* KI-Feedback je Aufgabe */
   .fbbox{margin:10px 0 0; padding:10px 14px 11px; background:var(--paper2); border:1px solid var(--line); border-radius:8px; font-family:var(--sans); font-size:14.5px; line-height:1.5}
   .fb-head{font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 4px}
@@ -196,15 +212,11 @@
   }
   .submitrow{margin:22px 0 0; padding:18px 0 0; border-top:1px dashed var(--line)}
   .submitrow .fhint{margin-top:8px}
-  .footfade{
-    position:fixed; left:0; right:0; bottom:0; height:44px; pointer-events:none; z-index:5;
-    background:linear-gradient(to top, var(--paper) 55%, rgba(247,244,236,0));
-  }
   .copyright{
     flex:0 0 auto; text-align:center; padding:6px 16px 13px;
     font-size:11px; letter-spacing:.05em; color:var(--muted); pointer-events:none;
   }
-  body.writing .copyright{position:fixed; left:0; right:0; bottom:13px; padding:0; z-index:6}
+  body.writing .copyright{padding:5px 16px 7px; border-top:1px solid var(--line); background:var(--paper)}
 
   /* ---------- Lehrkräfte-Bereich ---------- */
   #screen-teacher{display:none; place-items:start center; padding:40px 20px 20px}
@@ -329,7 +341,8 @@
     .card h1{font-size:27px}
     .topbar{padding:10px 16px}
     .topbar .right{align-items:flex-start; text-align:left}
-    .paperwrap{padding:16px 10px 90px}
+    .stitle{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}   /* der Titel steht ohnehin auf dem Blatt */
+    .paperwrap{padding:16px 10px 40px}
     .sheet{padding:28px 18px 40px}
     #screen-teacher{padding:24px 12px 16px}
     .pbox{padding:18px 16px}
@@ -367,9 +380,17 @@
       <p class="brand">Feibeitsblatt</p>
       <h1 id="start-h">Bevor du beginnst</h1>
       <p class="sub">Gib den Code ein, den du von deiner Lehrkraft bekommen hast.</p>
+      <div class="resumebox hidden" id="resume-box">
+        <span id="resume-text"></span>
+        <div class="row">
+          <button type="button" class="btn small" id="resume-btn">Weiterschreiben</button>
+          <button type="button" class="linkbtn" id="resume-del">Nein, Zwischenstand von diesem Gerät löschen</button>
+        </div>
+      </div>
       <div class="field">
         <label for="code-input">Code</label>
-        <input type="text" id="code-input" class="code-input" maxlength="16" placeholder="z. B. K7Q-M4X" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go">
+        <input type="text" id="code-input" class="code-input" maxlength="16" placeholder="z. B. K7Q-M4X" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="code-hint">
+        <p class="fhint" id="code-hint">6 Zeichen, z. B. K7Q-M4X.</p>
       </div>
       <p class="err" id="start-err" aria-live="polite"></p>
       <button type="button" class="btn block" id="start-btn">Weiter</button>
@@ -400,7 +421,8 @@
       </div>
       <div class="field">
         <label for="p-klasse">Klasse</label>
-        <input type="text" id="p-klasse" maxlength="10" placeholder="z. B. 8b" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+        <input type="text" id="p-klasse" maxlength="10" placeholder="z. B. 8b" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="p-klasse-hint">
+        <p class="fhint" id="p-klasse-hint">z. B. 8b oder E1. Deine Angaben werden erst bei der Abgabe verschlüsselt an die Lehrkraft gesendet; bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.</p>
       </div>
       <p class="err" id="p-err" aria-live="polite"></p>
       <button type="button" class="btn block" id="p-btn">Schreibbereich öffnen</button>
@@ -415,7 +437,8 @@
     <div class="who"><span class="lbl">Verfasser:in</span><span id="who-name"></span></div>
     <div class="right">
       <div class="stitle" id="ed-title"></div>
-      <div class="count" id="save-state" aria-live="polite"></div>
+      <div class="count" id="save-state"></div>
+      <button type="button" class="linkbtn" id="ed-cancel">Abbrechen und Zwischenstand von diesem Gerät löschen</button>
     </div>
   </div>
   <div class="paperwrap" id="paperwrap">
@@ -432,7 +455,8 @@
         <button type="button" class="btn" id="fb-btn">KI um ein Feedback bitten</button>
         <p class="privacy" id="privacy"></p>
         <p class="status" id="fb-status" aria-live="polite"></p>
-        <div class="moodle-hint hidden" id="revise-hint" role="status"></div>
+        <div class="notebox hidden" id="fb-fallback" role="status"></div>
+        <div class="moodle-hint hidden" id="revise-hint" role="status" tabindex="-1"></div>
         <div class="submitrow">
           <button type="button" class="btn" id="submit-btn" disabled aria-describedby="submit-hint">Abgeben</button>
           <p class="fhint" id="submit-hint"></p>
@@ -441,7 +465,6 @@
       </section>
     </div>
   </div>
-  <div class="footfade" aria-hidden="true"></div>
 </section>
 
 <!-- ============ ABGEGEBEN ============ -->
@@ -573,7 +596,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Die Musterlösung sehen die Schüler:innen nie; sie dient nur dem KI-Feedback.</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt).</p>
       <div id="b-form">
         <div class="field" style="max-width:640px">
           <label for="b-title">Titel</label>
@@ -585,7 +608,7 @@
           <table class="batch builder">
             <thead><tr>
               <th>Aufgabenstellung</th>
-              <th>Musterlösung (nur für das KI-Feedback, für Schüler:innen unsichtbar)</th>
+              <th>Musterlösung (nur für das KI-Feedback; Kernpunkte erscheinen als Stichpunkte im Feedback)</th>
               <th class="act"><span class="sr-only">Zeile verschieben oder entfernen</span></th>
             </tr></thead>
             <tbody id="b-rows"></tbody>
@@ -729,6 +752,8 @@ const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;   // Blatt-Code (ohne 
    immer Buchstaben – rein numerische Eingaben (4–12 Ziffern) gehen deshalb an /api/teacher/door. */
 const DOOR_RE = /^[0-9]{4,12}$/;
 const MAX_ANSWER = 8000;                                     // wie die Grenze des Servers je Antwort
+const MAX_ANSWERS_TOTAL = 40000;                             // … und für alle Antworten zusammen (KI-Feedback)
+const DRAFT_DAYS = 7;                                        // Zwischenstände bleiben so lange auf dem Gerät
 
 /* Element bauen: h("p", {class:"x", text:"…"}, [kinder]) – Texte immer als Textknoten. */
 function h(tag, props, kids) {
@@ -767,12 +792,31 @@ function setStatus(node, text, kind) {
   if (kind === "busy") node.appendChild(h("span", { class: "spinner", "aria-hidden": "true" }));
   if (text) node.appendChild(document.createTextNode(text));
 }
-/* Button während einer Anfrage sperren (verhindert Doppelklicks) */
+/* Button während einer Anfrage sperren (verhindert Doppelklicks); hatte er den Fokus, bekommt er ihn danach zurück */
 function busy(btn, on, text) {
-  if (on) { if (btn._label == null) btn._label = btn.textContent; btn.disabled = true; if (text) btn.textContent = text; }
-  else { btn.disabled = false; if (btn._label != null) { btn.textContent = btn._label; btn._label = null; } }
+  if (on) {
+    if (btn._label == null) btn._label = btn.textContent;
+    btn._hadFocus = document.activeElement === btn;
+    btn.disabled = true; if (text) btn.textContent = text;
+  } else {
+    btn.disabled = false; if (btn._label != null) { btn.textContent = btn._label; btn._label = null; }
+    if (btn._hadFocus && document.activeElement === document.body) { try { btn.focus({ preventScroll: true }); } catch (e) { /* egal */ } }
+    btn._hadFocus = false;
+  }
 }
-function onEnter(input, fn) { input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); fn(); } }); }
+/* Enter im Feld löst die Aktion aus – aber nicht, solange sie schon läuft (Button gesperrt) */
+function onEnter(input, fn, btn) {
+  input.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing) return;
+    e.preventDefault();
+    if (btn && btn.disabled) return;
+    fn();
+  });
+}
+async function sha256hex(s) {
+  const d = await subtle.digest("SHA-256", te.encode(s));
+  return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 /* Speicher dieses Geräts – jeder Zugriff in try/catch (privater Modus, gesperrte Website-Daten) */
 const store = {
@@ -819,6 +863,8 @@ const MSG = {
   rate_limited: { s: "Gerade kommen zu viele Anfragen aus diesem Netz. Bitte warte etwas und versuche es dann noch einmal.", t: "Zu viele Versuche. Bitte warten Sie etwas und versuchen Sie es dann erneut." },
   ai_not_configured: { s: "Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet. Bitte sag deiner Lehrkraft Bescheid.", t: "Es ist noch kein KI-Anbieter eingerichtet. Bitte speichern Sie zuerst Anbieter und API-Schlüssel." },
   ai_error: { s: "Die KI hat gerade nicht geantwortet. Bitte versuche es in ein paar Minuten noch einmal.", t: "Die KI hat nicht geantwortet. Bitte prüfen Sie Anbieter, Modell und API-Schlüssel." },
+  ai_busy: { s: "Die KI ist gerade ausgelastet. Bitte versuche es in einer Minute noch einmal.", t: "Die KI ist gerade ausgelastet. Bitte versuchen Sie es in einer Minute erneut." },
+  server_not_configured: { s: "Der Server ist noch nicht vollständig eingerichtet. Bitte sag deiner Lehrkraft Bescheid.", t: "Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt). Bitte den Workflow „Deploy“ erneut ausführen." },
   already_setup: { s: "Der Lehrkräfte-Zugang ist bereits eingerichtet.", t: "Für diese Seite wurde bereits ein Passwort festgelegt. Bitte melden Sie sich an." },
   unauthorized: { s: "Passwort falsch.", t: "Passwort falsch." },
   too_large: { s: "Deine Abgabe ist zu groß. Bitte kürze deine Antworten.", t: "Die Daten sind zu groß für den Server." },
@@ -912,18 +958,19 @@ function show(id) {
   window.scrollTo(0, 0);
 }
 
-/* Bestätigungsdialog → Promise<boolean> */
-let dlgResolve = null, dlgReturn = null;
+/* Bestätigungsdialog → Promise<boolean>. Bei endgültigen Schritten (danger, safeFirst) bekommt „Abbrechen“ den Fokus,
+   damit ein doppeltes Enter nichts Unumkehrbares bestätigt. */
+let dlgResolve = null, dlgReturn = null, dlgOpenedAt = 0;
 function askConfirm(o) {
   return new Promise((resolve) => {
-    dlgResolve = resolve; dlgReturn = document.activeElement;
+    dlgResolve = resolve; dlgReturn = document.activeElement; dlgOpenedAt = Date.now();
     $("dlg-title").textContent = o.title || "";
     $("dlg-text").textContent = o.text || "";
     $("dlg-ok").textContent = o.ok || "OK";
     $("dlg-cancel").textContent = o.cancel || "Abbrechen";
     $("dlg-ok").className = "btn" + (o.danger ? " danger" : "");
     $("dlg").classList.add("open");
-    setTimeout(() => (o.danger ? $("dlg-cancel") : $("dlg-ok")).focus(), 20);
+    setTimeout(() => (o.danger || o.safeFirst ? $("dlg-cancel") : $("dlg-ok")).focus(), 20);
   });
 }
 function closeDlg(val) {
@@ -943,7 +990,8 @@ $("dlg").addEventListener("keydown", (e) => {
     else if (!e.shiftKey && document.activeElement === b) { e.preventDefault(); a.focus(); }
   }
 });
-$("dlg").addEventListener("click", (e) => { if (e.target === $("dlg")) closeDlg(false); });
+// Klick auf den Hintergrund schließt – aber nicht der zweite Klick eines Doppelklicks direkt nach dem Öffnen
+$("dlg").addEventListener("click", (e) => { if (e.target === $("dlg") && Date.now() - dlgOpenedAt > 400) closeDlg(false); });
 
 /* In die Zwischenablage kopieren (mit Rückfall für ältere Browser) */
 async function copyText(text, btn) {
@@ -987,7 +1035,8 @@ function growAll() {
   });
 }
 window.addEventListener("resize", growAll);
-if (window.ResizeObserver) new ResizeObserver(growAll).observe(document.body);
+// Auch wenn nur das Blatt schmaler wird (z. B. weil ein Scrollbalken erscheint), alle Felder neu messen
+if (window.ResizeObserver) { const ro = new ResizeObserver(growAll); ro.observe(document.body); ro.observe($("sheet")); ro.observe($("b-rows")); }
 
 /* =====================================================================
  *  Schüler:innen
@@ -995,12 +1044,33 @@ if (window.ResizeObserver) new ResizeObserver(growAll).observe(document.body);
 const S = {
   code: "", sheet: null, pub: null, person: null, draftKey: "",
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
+  fbFails: 0, fbUnavailable: "",   // KI-Feedback nicht erreichbar → Abgabe ohne Feedback erlaubt (Grund als Text)
   submitted: false, busyFeedback: false, ltCache: new Map()
 };
+const LAST_KEY = "feibeitsblatt:last";   // zuletzt geöffnetes Blatt + Angaben: „Weiterschreiben?“ nach Neuladen
 
 /* ---------- 1. Start: Code ---------- */
+/* Blatt vom Server laden und in S übernehmen (wirft ApiError) */
+async function loadSheet(code) {
+  const r = await api("GET", "/api/sheet/" + encodeURIComponent(code));
+  const sh = r.sheet || {};
+  if (!Array.isArray(sh.tasks) || !sh.tasks.length) throw new ApiError("server_error");
+  let pub;
+  if (typeof sh.publicKey !== "string" || !sh.publicKey) throw new ApiError("bad_key");
+  try { pub = await Crypto.importPublic(sh.publicKey); } catch (e) { throw new ApiError("bad_key"); }
+  S.code = code; S.pub = pub;
+  S.sheet = {
+    code, title: String(sh.title || "Feibeitsblatt"),
+    tasks: sh.tasks.map((t) => String((t && t.text) || "")),
+    aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null
+  };
+}
+function startErr(e) {
+  return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
+}
 async function startGo() {
   const err = $("start-err"), btn = $("start-btn");
+  if (btn.disabled) return;
   err.textContent = "";
   if (!subtle) { err.textContent = "Dieser Browser unterstützt die nötige Verschlüsselung nicht (Seite bitte über https öffnen)."; return; }
   const code = normCode($("code-input").value);
@@ -1011,26 +1081,50 @@ async function startGo() {
     err.textContent = "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code. (In Codes kommen I, L, O, 0 und 1 nicht vor.)"; return;
   }
   busy(btn, true, "Einen Moment …");
-  try {
-    const r = await api("GET", "/api/sheet/" + encodeURIComponent(code));
-    const sh = r.sheet || {};
-    if (!Array.isArray(sh.tasks) || !sh.tasks.length) throw new ApiError("server_error");
-    let pub;
-    if (typeof sh.publicKey !== "string" || !sh.publicKey) throw new ApiError("bad_key");
-    try { pub = await Crypto.importPublic(sh.publicKey); } catch (e) { throw new ApiError("bad_key"); }
-    S.code = code; S.pub = pub;
-    S.sheet = {
-      code, title: String(sh.title || "Feibeitsblatt"),
-      tasks: sh.tasks.map((t) => String((t && t.text) || "")),
-      aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null
-    };
-    openPerson();
-  } catch (e) {
-    err.textContent = e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
-  } finally { busy(btn, false); }
+  try { await loadSheet(code); openPerson(); }
+  catch (e) { err.textContent = startErr(e); }
+  finally { busy(btn, false); }
 }
 $("start-btn").addEventListener("click", startGo);
-onEnter($("code-input"), startGo);
+onEnter($("code-input"), startGo, $("start-btn"));
+
+/* ---------- Weiterschreiben nach Neuladen (zuletzt geöffnetes Blatt dieses Geräts) ---------- */
+function lastSession() {
+  try {
+    const d = JSON.parse(store.get(LAST_KEY) || "null");
+    if (!d || d.v !== 1 || !d.code || !d.person || !(d.t > Date.now() - DRAFT_DAYS * 864e5)) return null;
+    return d;
+  } catch (e) { return null; }
+}
+async function showResume() {
+  const box = $("resume-box"), d = lastSession();
+  if (!d || !subtle) { box.classList.add("hidden"); return; }
+  const key = await draftKeyFor(d.code, d.person);
+  let has = false;
+  try { const x = JSON.parse(store.get(key) || "null"); has = !!(x && Array.isArray(x.answers) && x.answers.some((a) => String(a || "").trim())); } catch (e) { has = false; }
+  if (!has) { store.del(LAST_KEY); box.classList.add("hidden"); return; }
+  const p = d.person;
+  $("resume-text").textContent = "";
+  $("resume-text").append("Auf diesem Gerät liegt ein Zwischenstand von ", h("b", { text: `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}` }),
+    ` (Code ${fmtCode(d.code)}). Bist du das?`);
+  box.classList.remove("hidden");
+}
+$("resume-btn").addEventListener("click", async () => {
+  const d = lastSession(), err = $("start-err"), btn = $("resume-btn");
+  if (!d) { $("resume-box").classList.add("hidden"); return; }
+  busy(btn, true, "Einen Moment …");
+  try { await loadSheet(d.code); S.person = d.person; await openEditor(); }
+  catch (e) { err.textContent = startErr(e); }
+  finally { busy(btn, false); }
+});
+$("resume-del").addEventListener("click", async () => {
+  const d = lastSession();
+  if (d && !(await askConfirm({ title: "Zwischenstand löschen?", text: "Der gespeicherte Zwischenstand wird von diesem Gerät gelöscht. Das lässt sich nicht rückgängig machen.", ok: "Löschen", cancel: "Behalten", danger: true }))) return;
+  if (d) store.del(await draftKeyFor(d.code, d.person));
+  store.del(LAST_KEY);
+  $("resume-box").classList.add("hidden");
+  $("code-input").focus();
+});
 
 /* ---------- 2. Angaben ---------- */
 function openPerson() {
@@ -1054,7 +1148,7 @@ function parseBirth(v) {
   if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
   return { iso: `${y}-${pad2(m)}-${pad2(d)}`, date: dt };
 }
-function personGo() {
+async function personGo() {
   const err = $("p-err"); err.textContent = "";
   const fields = { v: $("p-vorname"), n: $("p-nachname"), g: $("p-geb"), k: $("p-klasse") };
   Object.values(fields).forEach((f) => f.classList.remove("invalid"));
@@ -1068,26 +1162,31 @@ function personGo() {
   if (!LETTERS.test(n)) return fail(fields.n, "Beim Nachnamen sind nur Buchstaben erlaubt.");
   if (nl < 1 || nl > 2) return fail(fields.n, "Bitte gib die ersten zwei Buchstaben deines Nachnamens ein.");
   const b = parseBirth(fields.g.value);
-  if (!b) return fail(fields.g, "Bitte gib dein Geburtsdatum ein.");
+  if (!b) return fail(fields.g, /^\d{1,3}-/.test(fields.g.value.trim()) ? "Bitte prüfe dein Geburtsdatum (Jahr vierstellig, z. B. 2011)." : "Bitte gib dein Geburtsdatum ein.");
   if (b.date > new Date() || b.date < new Date(1950, 0, 2)) return fail(fields.g, "Bitte prüfe dein Geburtsdatum.");
-  const k = fields.k.value.replace(/\s+/g, " ").trim();
+  const k = fields.k.value.replace(/[\s.]+/g, "").trim();   // „8 b“, „8.b“ und „8b“ sind dieselbe Klasse
   if (!k) return fail(fields.k, "Bitte gib deine Klasse ein (z. B. 8b).");
-  if (!/^[\p{L}\p{N} ./-]{1,10}$/u.test(k)) return fail(fields.k, "Bitte gib deine Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
+  if (!/^[\p{L}\p{N}/-]{1,10}$/u.test(k)) return fail(fields.k, "Bitte gib deine Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
   S.person = { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k };
-  openEditor();
+  const btn = $("p-btn"); busy(btn, true, "Einen Moment …");
+  try { await openEditor(); } finally { busy(btn, false); }
 }
 $("p-btn").addEventListener("click", personGo);
 onEnter($("p-vorname"), () => $("p-nachname").focus());
 onEnter($("p-nachname"), () => $("p-geb").focus());
 onEnter($("p-geb"), () => $("p-klasse").focus());
-onEnter($("p-klasse"), personGo);
-$("p-back").addEventListener("click", () => { resetStudent(); show("screen-start"); setTimeout(() => $("code-input").focus(), 30); });
+onEnter($("p-klasse"), personGo, $("p-btn"));
+$("p-back").addEventListener("click", () => { resetStudent(); show("screen-start"); showResume(); setTimeout(() => $("code-input").focus(), 30); });
 
 /* ---------- 3. Schreibfläche ---------- */
-function openEditor() {
+/* Schlüssel des Zwischenstands: nur ein Hash – Kürzel, Geburtsdatum und Klasse stehen nicht lesbar im Speicher */
+async function draftKeyFor(code, p) {
+  return "feibeitsblatt:draft:" + await sha256hex([code, p.vorname, p.nachname, p.geburtsdatum, p.klasse].join("|").toLocaleLowerCase("de-DE"));
+}
+async function openEditor() {
   const p = S.person, sh = S.sheet;
-  S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.ltCache = new Map();
-  S.draftKey = "feibeitsblatt:draft:" + S.code + ":" + [p.vorname, p.nachname, p.geburtsdatum, p.klasse].join("|").toLocaleLowerCase("de-DE");
+  S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.ltCache = new Map();
+  S.draftKey = await draftKeyFor(S.code, p);
   $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`;
   $("ed-title").textContent = sh.title;
   $("sheet-title").textContent = sh.title;
@@ -1095,11 +1194,14 @@ function openEditor() {
   $("privacy").textContent = "";
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
-    `Er leitet sie zusammen mit den Aufgaben und der Musterlösung deiner Lehrkraft an den KI-Dienst ${sh.aiProvider ? "„" + sh.aiProvider + "“" : "der Lehrkraft"} weiter und speichert selbst nichts davon. ` +
+    `Er leitet sie zusammen mit den Aufgaben und der Musterlösung deiner Lehrkraft an den KI-Dienst ${sh.aiProvider ? "„" + sh.aiProvider + "“" : "der Lehrkraft"} weiter und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen. ` +
     `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. ` +
     `Für die Rechtschreibprüfung wird nur der Text der jeweiligen Antwort an LanguageTool (`,
     h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
-    `) gesendet – ohne Namen oder Angaben zu dir. Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
+    `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
+    `Bei der Abgabe werden dein Namenskürzel, Geburtsdatum, Klasse und deine Antworten verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert; ` +
+    `nur deine Lehrkraft kann sie lesen und löscht sie nach der Durchsicht. Bis zur Abgabe liegt dein Zwischenstand nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
+    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen. Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
   buildTasks();
   // Zwischenstand dieses Geräts wiederherstellen
   let restored = false;
@@ -1114,10 +1216,13 @@ function openEditor() {
           S.feedback = d.feedback.map(normFb);
           S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
         }
+        if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
         restored = d.answers.some((a) => String(a || "").trim());
       }
     } catch (e) { /* kaputter Entwurf: ignorieren */ }
   }
+  store.set(LAST_KEY, JSON.stringify({ v: 1, t: Date.now(), code: S.code, person: p }));
+  S.tas.forEach(updateCounter);
   renderFeedbackState();
   setSaveState(restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", false);
   setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
@@ -1135,7 +1240,8 @@ function buildTasks() {
     const ta = h("textarea", { class: "answer", id: "a-" + n, rows: "3", maxlength: String(MAX_ANSWER), autocomplete: "off", autocapitalize: "sentences",
       spellcheck: "true", writingsuggestions: "false", "aria-describedby": "q-" + n, placeholder: "Deine Antwort …" });
     const pe = h("p", { class: "paste-err", id: "pe-" + n, role: "alert" });
-    const ltBtn = h("button", { type: "button", class: "btn ghost small ltbtn", text: "Rechtschreibung und Grammatik prüfen" });
+    const cnt = h("p", { class: "charcount", id: "cc-" + n, "aria-live": "polite" });
+    const ltBtn = h("button", { type: "button", class: "btn ghost small ltbtn", text: "Rechtschreibung und Grammatik prüfen", "aria-label": "Rechtschreibung und Grammatik prüfen – Aufgabe " + n });
     const ltStat = h("span", { class: "ltstat", role: "status", "aria-live": "polite" });
     const out = h("div", { class: "lt-out hidden", "aria-live": "polite" });
     const fb = h("div", { class: "fbbox hidden" });
@@ -1144,21 +1250,31 @@ function buildTasks() {
         h("label", { class: "task-label", for: "a-" + n, id: "l-" + n, text: "Aufgabe " + n }),
         h("div", { class: "task-text", id: "q-" + n, text })
       ]),
-      ta, pe,
+      ta, pe, cnt,
       h("div", { class: "checkrow" }, [ltBtn, ltStat]),
       out, fb
     ]);
-    ta._idx = i; ta._pe = pe; ta._ltStat = ltStat; ta._ltBtn = ltBtn;
+    ta._idx = i; ta._pe = pe; ta._cnt = cnt; ta._ltStat = ltStat; ta._ltBtn = ltBtn;
     ta.addEventListener("input", () => answerChanged(ta));
     ltBtn.addEventListener("click", () => ltRun(i, ltBtn, ltStat));
     S.tas.push(ta); S.outs.push(out); S.fbs.push(fb);
     box.appendChild(sec);
   });
 }
+/* Zeichenzähler erst kurz vor der Grenze (sonst bleibt das Blatt ruhig) */
+function updateCounter(ta) {
+  const c = ta._cnt; if (!c) return;
+  const n = ta.value.length, left = MAX_ANSWER - n;
+  if (n < MAX_ANSWER - 1000) { c.textContent = ""; c.classList.remove("bad"); return; }
+  c.textContent = left > 0 ? `Noch ${left.toLocaleString("de-DE")} Zeichen (höchstens ${MAX_ANSWER.toLocaleString("de-DE")}).`
+    : `Höchstens ${MAX_ANSWER.toLocaleString("de-DE")} Zeichen – bitte kürze deine Antwort.`;
+  c.classList.toggle("bad", left <= 0);
+}
 
 /* Nach jeder Änderung einer Antwort: Feld anpassen, alte Prüfung abblenden, Zwischenstand speichern */
 function answerChanged(ta) {
   autoGrow(ta);
+  updateCounter(ta);
   if (ta._ltStat && !ta._ltBtn.disabled && ta._ltStat.textContent) setStatus(ta._ltStat, "", "");
   const out = S.outs[ta._idx];
   if (out && !out.classList.contains("hidden") && out._text != null) {
@@ -1175,27 +1291,54 @@ function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDr
 function saveDraft() {
   clearTimeout(saveTimer);
   if (!S.draftKey || S.submitted) return;
-  const d = { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt };
+  const d = { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "" };
   const ok = store.set(S.draftKey, JSON.stringify(d));
   setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden", !ok);
 }
-function setSaveState(text, bad) { const s = $("save-state"); s.textContent = text; s.classList.toggle("bad", !!bad); }
-/* Alte Entwürfe (älter als 30 Tage) entfernen – gemeinsam genutzte Geräte */
+function setSaveState(text, bad) {   // nur bei Änderung schreiben (sonst würde ein Screenreader es bei jeder Pause erneut vorlesen)
+  const s = $("save-state");
+  if (s.textContent !== text) s.textContent = text;
+  s.classList.toggle("bad", !!bad);
+}
+/* Alte Entwürfe entfernen – gemeinsam genutzte Geräte */
 function cleanupDrafts() {
-  const limit = Date.now() - 30 * 864e5;
+  const limit = Date.now() - DRAFT_DAYS * 864e5;
   store.keys().forEach((k) => {
     if (!k || k.indexOf("feibeitsblatt:draft:") !== 0) return;
     try { const d = JSON.parse(store.get(k)); if (!d || !(d.t > limit)) store.del(k); } catch (e) { store.del(k); }
   });
+  if (!lastSession()) store.del(LAST_KEY);
 }
+/* Abbrechen: Zwischenstand und Angaben von diesem Gerät löschen */
+$("ed-cancel").addEventListener("click", async () => {
+  if (S.submitted) return;
+  const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen.", ok: "Löschen", cancel: "Weiterschreiben", danger: true });
+  if (!ok) return;
+  clearTimeout(saveTimer);
+  store.del(S.draftKey); store.del(LAST_KEY);
+  S.submitted = true;   // nichts mehr speichern
+  resetStudent(); $("code-input").value = "";
+  show("screen-start"); showResume();
+  setTimeout(() => $("code-input").focus(), 30);
+});
 
 /* ---------- Einfügen sperren (in Schichten; nur in Antwortfeldern) ----------
- * 1) paste  2) dragenter/dragover/drop  3) beforeinput (insertFrom…)  4) Netz: input-Unterschied vorher/nachher */
+ * 1) paste  2) dragenter/dragover/drop  3) beforeinput (insertFrom…; große insertText-Stücke = Tastatur-Zwischenablage)
+ * 4) Netz: input-Unterschied vorher/nachher. Diktat und IME (Komposition) bleiben erlaubt. */
 const PASTE_MSG = "Einfügen aus der Zwischenablage ist hier nicht erlaubt – bitte selbst tippen.";
 const BLOCK_TYPES = new Set(["insertFromPaste", "insertFromPasteAsQuotation", "insertFromDrop", "insertFromYank"]);
-const TYPING_TYPES = new Set(["insertText", "insertCompositionText", "insertReplacementText"]);
-const MAX_JUMP = 20;       // mehr Zeichen auf einmal ohne Tipp-Eingabeart → Einfügen
-const MAX_TYPED = 200;     // so viel fügt auch Diktat/Autokorrektur nie in einem Schritt ein (z. B. Tastatur-Zwischenablage unter Android)
+const TYPING_TYPES = new Set(["insertText", "insertCompositionText", "insertFromComposition", "insertReplacementText"]);
+const MAX_JUMP = 20;            // mehr Zeichen auf einmal ohne Tipp-Eingabeart → Einfügen
+const MAX_COMPOSED = 2000;      // Komposition (Diktat, IME) darf lang sein
+/* Ein einzelnes insertText ist ein Tastendruck oder ein Wortvorschlag; ein ganzer Satz auf einmal kommt aus einer
+   Zwischenablage (z. B. Gboard-Clip unter Android). Rechtschreibersatz (insertReplacementText): ein Wort. */
+function typedTooBig(type, text) {
+  const s = String(text || "");
+  if (type === "insertText") return s.length > 40 || /\n/.test(s) || (s.length > 20 && /\s/.test(s.trim()));
+  if (type === "insertReplacementText") return s.length > 60 || /\n/.test(s);
+  if (type === "insertCompositionText" || type === "insertFromComposition") return s.length > MAX_COMPOSED;
+  return s.length > MAX_JUMP;
+}
 const answerOf = (t) => (t && t.nodeType === 1 && t.closest) ? t.closest("textarea.answer:not(.measure)") : null;
 function warnPaste(ta) {
   const pe = ta._pe; if (!pe) return;
@@ -1218,7 +1361,7 @@ document.addEventListener("beforeinput", (e) => {
   const ta = answerOf(e.target); if (!ta) return;
   if (ta._ok === undefined) ta._ok = ta.value;
   if (BLOCK_TYPES.has(e.inputType)) { e.preventDefault(); warnPaste(ta); return; }
-  if (e.cancelable && !e.isComposing && typeof e.data === "string" && e.data.length > MAX_TYPED) { e.preventDefault(); warnPaste(ta); }
+  if (e.cancelable && !e.isComposing && typeof e.data === "string" && typedTooBig(e.inputType, e.data)) { e.preventDefault(); warnPaste(ta); }
 }, true);
 document.addEventListener("input", (e) => {
   const ta = answerOf(e.target); if (!ta) return;
@@ -1226,7 +1369,7 @@ document.addEventListener("input", (e) => {
   const t = e.inputType || "", prev = ta._ok === undefined ? "" : ta._ok;
   if (t === "historyUndo" || t === "historyRedo") { ta._ok = ta.value; return; }
   const ins = inserted(prev, ta.value);
-  if (BLOCK_TYPES.has(t) || (!TYPING_TYPES.has(t) && ins.text.length > MAX_JUMP) || ins.text.length > MAX_TYPED) {
+  if (BLOCK_TYPES.has(t) || (TYPING_TYPES.has(t) ? typedTooBig(t, ins.text) : ins.text.length > MAX_JUMP)) {
     ta.value = prev;
     try { ta.setSelectionRange(ins.at, ins.at); } catch (x) { /* egal */ }
     e.stopImmediatePropagation();
@@ -1239,7 +1382,7 @@ document.addEventListener("compositionend", (e) => {
   const ta = answerOf(e.target); if (!ta) return;
   setTimeout(() => {
     const prev = ta._ok === undefined ? "" : ta._ok;
-    if (inserted(prev, ta.value).text.length > MAX_TYPED) { ta.value = prev; warnPaste(ta); answerChanged(ta); }
+    if (inserted(prev, ta.value).text.length > MAX_COMPOSED) { ta.value = prev; warnPaste(ta); answerChanged(ta); }
     else ta._ok = ta.value;
   }, 0);
 }, true);
@@ -1387,6 +1530,10 @@ function renderLT(i, text, res) {
     if (res.changes.length) leg.push("Markiert: geänderte Stellen.");
     if (res.unknown.length) leg.push("Rot unterstrichen: vermutlich falsch, aber ohne Vorschlag.");
     out.appendChild(h("p", { class: "lt-legend", text: leg.join(" ") }));
+    // Änderungen auch als Liste (auf Tablets gibt es keine Tooltips)
+    const items = res.changes.filter((c) => c.from.trim() || c.to.trim()).slice(0, 12)
+      .map((c) => h("li", { text: `${c.from.trim() ? "„" + c.from + "“" : "(nichts)"} → ${c.to.trim() ? "„" + c.to + "“" : "(entfernt)"}${c.message ? " – " + c.message : ""}` }));
+    if (items.length) out.appendChild(h("ul", { class: "lt-changes" }, items));
   }
   if (res.incomplete) out.appendChild(h("p", { class: "lt-legend", text: "Prüfung unvollständig – ein Teil des Textes wurde nicht geprüft." }));
   const note = h("p", { class: "lt-note" }, [
@@ -1395,6 +1542,7 @@ function renderLT(i, text, res) {
   ]);
   out.appendChild(note);
   out.appendChild(h("p", { class: "lt-stale hidden", text: "Diese Prüfung bezieht sich auf einen älteren Stand deines Textes." }));
+  growAll();
 }
 
 /* ---------- KI-Feedback ---------- */
@@ -1423,18 +1571,30 @@ function renderFeedbackState() {
     if (f.note) box.appendChild(h("p", { class: "fb-note", text: f.note }));
     else if (!f.covered.length && !f.missing.length) box.appendChild(h("p", { class: "fb-note", text: "Zu dieser Aufgabe gibt es keine Rückmeldung." }));
   });
-  const fbBtn = $("fb-btn"), sub = $("submit-btn");
+  const fbBtn = $("fb-btn"), sub = $("submit-btn"), noAi = !has && !!S.fbUnavailable;
   fbBtn.disabled = has || S.busyFeedback;
   fbBtn.textContent = has ? "KI-Feedback erhalten" : "KI um ein Feedback bitten";
-  sub.disabled = !has;
+  sub.disabled = !(has || noAi);
   $("submit-hint").textContent = has
     ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen."
+    : noAi ? "Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : "Der Button „Abgeben“ wird freigeschaltet, sobald du das KI-Feedback erhalten hast.";
+  const fbf = $("fb-fallback");
+  fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es später noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass die KI nicht erreichbar war." : "";
+  fbf.classList.toggle("hidden", !noAi);
   const rh = $("revise-hint"), eh = $("ed-hint");
   const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
   rh.textContent = reviseText; rh.classList.toggle("hidden", !has);
   eh.textContent = "Du hast das KI-Feedback erhalten. Überarbeite jetzt deine Antworten und gib danach ganz unten ab.";
   eh.classList.toggle("hidden", !has);
+  growAll();
+}
+/* Gesamtlänge aller Antworten (Grenze des Servers für das KI-Feedback) */
+function tooLongTotal(answers) {
+  const total = answers.reduce((n, a) => n + a.length, 0);
+  if (total <= MAX_ANSWERS_TOTAL) return "";
+  const longest = answers.map((a, i) => ({ i: i + 1, n: a.length })).sort((a, b) => b.n - a.n).slice(0, 3).map((x) => x.i);
+  return `Deine Antworten sind zusammen zu lang für das KI-Feedback (${total.toLocaleString("de-DE")} Zeichen, höchstens ${MAX_ANSWERS_TOTAL.toLocaleString("de-DE")}). Bitte kürze vor allem ${longest.length === 1 ? "Aufgabe " + longest[0] : "die Aufgaben " + listNums(longest)}.`;
 }
 async function requestFeedback() {
   if (S.feedback || S.busyFeedback) return;
@@ -1443,14 +1603,16 @@ async function requestFeedback() {
   const answers = S.tas.map((t) => t.value);
   const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
   if (empty.length === answers.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
+  const tooLong = tooLongTotal(answers);
+  if (tooLong) { setStatus(st, tooLong, "bad"); return; }
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
     text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\nDas KI-Feedback gibt es nur einmal. Möchtest du es trotzdem jetzt anfordern?`,
-    ok: "Trotzdem anfordern", cancel: "Weiterschreiben"
+    ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
     text: "Das KI-Feedback gibt es nur einmal. Deine jetzigen Antworten werden als erste Fassung gespeichert und später mit abgegeben.",
-    ok: "Feedback anfordern", cancel: "Weiterschreiben"
+    ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok) return;
   S.busyFeedback = true; btn.disabled = true;
@@ -1463,15 +1625,27 @@ async function requestFeedback() {
     S.first = answers.slice();
     S.feedback = r.results.map(normFb);
     S.feedbackAt = new Date().toISOString();
+    S.fbUnavailable = ""; S.fbFails = 0;
     saveDraft();
     setStatus(st, "", "");
     S.busyFeedback = false;
     renderFeedbackState();
-    $("revise-hint").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const rh = $("revise-hint");
+    rh.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setTimeout(() => { try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ } }, 50);
   } catch (e) {
     S.busyFeedback = false;
     btn.disabled = false;
-    setStatus(st, e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s"), "bad");
+    const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s");
+    setStatus(st, msg, "bad");
+    // KI nicht eingerichtet oder wiederholt nicht erreichbar → Abgabe ohne Feedback erlauben (niemand darf festsitzen)
+    S.fbFails++;
+    const serverSide = e instanceof ApiError && e.code !== "bad_answers" && e.code !== "too_long" && e.code !== "bad_request" && e.code !== "not_found";
+    if (serverSide && (e.code === "ai_not_configured" || S.fbFails >= 2)) {
+      S.fbUnavailable = e.code === "ai_not_configured" ? "noch nicht eingerichtet" : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
+      saveDraft();
+      renderFeedbackState();
+    }
   } finally {
     clearTimeout(slow);
     S.tas.forEach((t) => { t.readOnly = false; });
@@ -1481,13 +1655,16 @@ $("fb-btn").addEventListener("click", requestFeedback);
 
 /* ---------- Abgabe ---------- */
 async function submitAll() {
-  if (!S.feedback || S.submitted) return;
+  if (!(S.feedback || S.fbUnavailable) || S.submitted) return;
   const st = $("submit-status"), btn = $("submit-btn");
+  if (btn.disabled) return;
   setStatus(st, "", "");
+  const withFb = !!S.feedback;
   const ok = await askConfirm({
     title: "Jetzt abgeben?",
-    text: "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.",
-    ok: "Abgeben", cancel: "Weiter überarbeiten"
+    text: withFb ? "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung."
+      : "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Du gibst ohne KI-Feedback ab; deine Lehrkraft sieht, dass die KI nicht erreichbar war.",
+    ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true
   });
   if (!ok) return;
   busy(btn, true, "Wird abgegeben …");
@@ -1496,16 +1673,17 @@ async function submitAll() {
     const payload = {
       v: 1, sheetCode: S.code, sheetTitle: S.sheet.title,
       person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse },
-      answers: S.tas.map((t, i) => ({ first: S.first[i], final: t.value })),
-      feedback: S.feedback.map((f) => f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing }),
-      feedbackAt: S.feedbackAt, submittedAt: new Date().toISOString()
+      answers: S.tas.map((t, i) => ({ first: withFb ? S.first[i] : t.value, final: t.value })),
+      feedback: withFb ? S.feedback.map((f) => f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing }) : null,
+      feedbackAt: withFb ? S.feedbackAt : null, submittedAt: new Date().toISOString()
     };
+    if (!withFb) payload.feedbackError = S.fbUnavailable;
     saveDraft();
     let envelope;
     try { envelope = await Crypto.seal(S.pub, payload); } catch (e) { throw new ApiError("crypto"); }
     const r = await api("POST", "/api/submit", { body: { code: S.code, envelope }, timeout: 60000 });
     S.submitted = true;
-    store.del(S.draftKey);
+    store.del(S.draftKey); store.del(LAST_KEY);
     const d = toDate(r.receivedAt) || new Date();
     const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
     $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;
@@ -1527,11 +1705,11 @@ function clearEditor() {
 }
 function resetStudent() {
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, submitted: false, busyFeedback: false, ltCache: new Map() });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map() });
   ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }
-$("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").value = ""; show("screen-start"); setTimeout(() => $("code-input").focus(), 30); });
+$("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").value = ""; show("screen-start"); showResume(); setTimeout(() => $("code-input").focus(), 30); });
 
 /* =====================================================================
  *  Lehrkraft
@@ -1542,6 +1720,7 @@ const TA = (path, opts) => api(opts && opts.method || "GET", path, Object.assign
 /* ---------- Türcode ---------- */
 async function teacherDoor(code) {
   const err = $("start-err"), btn = $("start-btn");
+  if (btn.disabled) return;
   busy(btn, true, "Einen Moment …");
   try {
     const r = await api("POST", "/api/teacher/door", { body: { doorCode: code } });
@@ -1563,6 +1742,7 @@ async function teacherDoor(code) {
 /* ---------- Passwort festlegen (erstes Mal) ---------- */
 async function teacherSetup() {
   const err = $("ts-err"), btn = $("ts-btn");
+  if (btn.disabled) return;
   err.textContent = "";
   const p1 = $("ts-pw1").value, p2 = $("ts-pw2").value;
   if (p1.length < 10) { err.textContent = "Das Passwort muss mindestens 10 Zeichen lang sein."; $("ts-pw1").focus(); return; }
@@ -1589,12 +1769,13 @@ async function teacherSetup() {
 }
 $("ts-btn").addEventListener("click", teacherSetup);
 onEnter($("ts-pw1"), () => $("ts-pw2").focus());
-onEnter($("ts-pw2"), teacherSetup);
+onEnter($("ts-pw2"), teacherSetup, $("ts-btn"));
 $("ts-back").addEventListener("click", () => { T.door = ""; show("screen-start"); });
 
 /* ---------- Anmelden ---------- */
 async function teacherLogin() {
   const err = $("tl-err"), btn = $("tl-btn"), pw = $("tl-pw").value;
+  if (btn.disabled) return;
   err.textContent = "";
   if (!pw) { err.textContent = "Bitte geben Sie Ihr Passwort ein."; $("tl-pw").focus(); return; }
   busy(btn, true, "Wird geprüft …");
@@ -1617,7 +1798,7 @@ async function teacherLogin() {
   } finally { busy(btn, false); }
 }
 $("tl-btn").addEventListener("click", teacherLogin);
-onEnter($("tl-pw"), teacherLogin);
+onEnter($("tl-pw"), teacherLogin, $("tl-btn"));
 $("tl-back").addEventListener("click", () => { T.door = ""; T.kdf = null; show("screen-start"); });
 
 /* Abgelaufene/fehlende Anmeldung → zurück zum Start */
@@ -1625,14 +1806,25 @@ function handleAuthError(e) {
   if (e && e.code === "unauthorized") { logout(true); $("start-err").textContent = "Bitte melden Sie sich erneut an."; return true; }
   return false;
 }
-async function logout(force) {
+async function logout(force, why) {
   if (force !== true && T.builderDirty && !(await askConfirm({ title: "Abmelden?", text: "Ihre Eingaben für das neue Feibeitsblatt gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
+  clearTimeout(idleTimer);
   Object.assign(T, { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false });
   $("t-sheets-body").textContent = ""; $("t-subs-body").textContent = ""; $("t-sel").classList.add("hidden");
   $("code-input").value = "";
   show("screen-start");
+  if (why) $("start-err").textContent = why;
 }
 $("t-logout").addEventListener("click", () => logout(false));
+/* Lehrkraft-Sitzung endet nach 20 Minuten ohne Eingabe (Klassenraum-PC, Beamer) */
+const IDLE_MS = 20 * 60 * 1000;
+let idleTimer = 0;
+function touchIdle() {
+  clearTimeout(idleTimer);
+  if (!T.authKey) return;
+  idleTimer = setTimeout(() => { if (T.authKey) logout(true, "Sie wurden nach 20 Minuten ohne Eingabe abgemeldet. Bitte melden Sie sich erneut an."); }, IDLE_MS);
+}
+["pointerdown", "keydown", "input"].forEach((t) => document.addEventListener(t, () => { if (T.authKey) touchIdle(); }, true));
 
 /* ---------- Übersicht ---------- */
 function teacherView(id) {
@@ -1641,6 +1833,7 @@ function teacherView(id) {
 }
 function openOverview() {
   show("screen-teacher"); teacherView("tv-overview");
+  touchIdle();
   loadSheets(); loadAiState();
 }
 async function loadAiState() {
@@ -1649,7 +1842,7 @@ async function loadAiState() {
     T.ai = r;
     const has = !!(r.provider && r.hasKey);
     $("t-aiwarn").classList.toggle("hidden", has);
-    $("t-aiwarn").textContent = (r.keyError ? String(r.keyError) + " " : "") + "Das KI-Feedback ist noch nicht eingerichtet. Ohne KI-Feedback können Schüler:innen nicht abgeben – bitte richten Sie unter „KI-Einstellungen“ einen Anbieter mit API-Schlüssel ein.";
+    $("t-aiwarn").textContent = (r.keyError ? String(r.keyError) + " " : "") + "Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte richten Sie unter „KI-Einstellungen“ einen Anbieter mit API-Schlüssel ein.";
     $("t-aiinfo").classList.toggle("hidden", !has);
     $("t-aiinfo").textContent = has ? `KI-Feedback über ${provLabel(r.provider, r.label)}${r.model ? " (Modell: " + r.model + ")" : ""}.` : "";
   } catch (e) { if (!handleAuthError(e)) { $("t-aiinfo").classList.remove("hidden"); $("t-aiinfo").textContent = "KI-Einstellungen konnten nicht geladen werden: " + errMsg(e, "t"); } }
@@ -1719,14 +1912,29 @@ async function loadSubs() {
   const code = T.sel, st = $("t-subs-status");
   setStatus(st, "Abgaben werden geladen und entschlüsselt …", "busy");
   try {
-    const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code) + "/submissions");
-    if (T.sel !== code) return;
+    // seitenweise laden (der Server liefert höchstens 50 Abgaben je Antwort)
+    const list = [];
+    let after = 0;
+    for (let page = 0; page < 40; page++) {
+      const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code) + "/submissions" + (after ? "?after=" + after : ""));
+      if (T.sel !== code) return;
+      list.push(...(Array.isArray(r.submissions) ? r.submissions : []));
+      if (!Number.isInteger(r.next) || r.next <= after) break;
+      after = r.next;
+      setStatus(st, `Abgaben werden geladen und entschlüsselt … (${list.length})`, "busy");
+    }
     const out = [];
-    for (const s of (Array.isArray(r.submissions) ? r.submissions : [])) {
+    for (const s of list) {
       let p = null;
       try {
         p = await Crypto.open(T.priv, s.envelope);
-        if (!p || typeof p !== "object" || !p.person || !Array.isArray(p.answers)) p = null;
+        if (!p || typeof p !== "object" || !p.person || typeof p.person !== "object" || !Array.isArray(p.answers)) p = null;
+        else {   // nur plausible Größen anzeigen (ein manipulierter Umschlag darf den Browser nicht lahmlegen)
+          const cut = (v, n) => String(v == null ? "" : v).slice(0, n);
+          p.person = { vorname: cut(p.person.vorname, 20), nachname: cut(p.person.nachname, 20), geburtsdatum: cut(p.person.geburtsdatum, 10), klasse: cut(p.person.klasse, 20) };
+          p.answers = p.answers.slice(0, 30).map((a) => ({ first: cut(a && a.first, MAX_ANSWER + 100), final: cut(a && a.final, MAX_ANSWER + 100) }));
+          if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
+        }
       } catch (e) { p = null; }
       out.push({ id: s.id, receivedAt: s.receivedAt, p });
     }
@@ -1777,7 +1985,10 @@ function buildDetail(s) {
   const meta = [`Abgegeben am ${fmtDT(s.receivedAt)}`];
   if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
   box.appendChild(h("p", { class: "dmeta", text: meta.join(" · ") }));
-  const n = Math.max(p.answers.length, tasks.length);
+  if (!Array.isArray(p.feedback)) {
+    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Ohne KI-Feedback abgegeben (KI war nicht erreichbar" + (p.feedbackError ? ": " + String(p.feedbackError).slice(0, 100) : "") + "). Beide Spalten zeigen deshalb denselben Text." }));
+  }
+  const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
   const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback";
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
@@ -1828,7 +2039,7 @@ $("t-del-subs").addEventListener("click", async () => {
   if (!n) return;
   const ok = await askConfirm({
     title: "Alle Abgaben löschen?",
-    text: `${n === 1 ? "Die eine Abgabe" : "Alle " + n + " Abgaben"} zu „${title}“ werden endgültig aus der Datenbank gelöscht. Das lässt sich nicht rückgängig machen.`,
+    text: `${n === 1 ? "Die eine Abgabe zu „" + title + "“ wird" : "Alle " + n + " Abgaben zu „" + title + "“ werden"} endgültig aus der Datenbank gelöscht. Das lässt sich nicht rückgängig machen.`,
     ok: n === 1 ? "Abgabe löschen" : `${n} Abgaben löschen`, cancel: "Abbrechen", danger: true
   });
   if (!ok) return;
@@ -1844,7 +2055,7 @@ $("t-del-sheet").addEventListener("click", async () => {
   const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-sheet");
   const ok = await askConfirm({
     title: "Feibeitsblatt löschen?",
-    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird mitsamt ${T.subs.length === 1 ? "der einen Abgabe" : "allen " + T.subs.length + " Abgaben"} endgültig gelöscht. Der Code wird ungültig.`,
+    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${T.subs.length === 0 ? "" : T.subs.length === 1 ? "mitsamt der einen Abgabe " : "mitsamt allen " + T.subs.length + " Abgaben "}endgültig gelöscht. Der Code wird ungültig.`,
     ok: "Feibeitsblatt löschen", cancel: "Abbrechen", danger: true
   });
   if (!ok) return;
@@ -2026,7 +2237,8 @@ async function aiSave(quiet) {
     if (!validBase(baseUrl)) { setStatus(st, "Die Basis-URL muss mit https:// beginnen (http:// nur für 127.0.0.1 oder localhost).", "bad"); $("ai-base").focus(); return false; }
     if (!model) { setStatus(st, "Bitte für den anderen Dienst eine Modell-ID angeben.", "bad"); $("ai-model").focus(); return false; }
   }
-  const sameProv = T.ai && T.ai.hasKey && T.ai.provider === provider;
+  // Der gespeicherte Schlüssel bleibt nur für denselben Dienst (Anbieter und Adresse) – er geht nie an einen anderen Host
+  const sameProv = T.ai && T.ai.hasKey && T.ai.provider === provider && (provider !== "custom" || String(T.ai.baseUrl || "") === baseUrl);
   if (!key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel eintragen.", "bad"); $("ai-key").focus(); return false; }
   const body = { provider, model };
   if (provider === "custom") body.baseUrl = baseUrl;
@@ -2039,7 +2251,7 @@ async function aiSave(quiet) {
     try { T.ai = await TA("/api/teacher/ai"); } catch (e) { /* Anzeige bleibt */ }
     aiSyncForm();
     if (r.warning) setStatus(st, String(r.warning), "bad");      // gespeichert, aber Schlüssel/Verbindung nicht geprüft
-    else if (!quiet) setStatus(st, "Gespeichert." + (Number.isInteger(r.modelCount) ? ` ${r.modelCount} passende Modelle gefunden.` : "")
+    else if (!quiet) setStatus(st, "Gespeichert." + (Number.isInteger(r.modelCount) ? (r.modelCount === 1 ? " 1 passendes Modell gefunden." : ` ${r.modelCount} passende Modelle gefunden.`) : "")
       + (r.tierNote ? " " + r.tierNote : "") + " Mit „Verbindung testen“ prüfen Sie, ob die KI antwortet.", "ok");
     return true;
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); return false; }
@@ -2070,6 +2282,7 @@ $("t-pw").addEventListener("click", () => {
 $("pw-back").addEventListener("click", () => teacherView("tv-overview"));
 async function changePassword() {
   const err = $("pw-err"), st = $("pw-status"), btn = $("pw-btn");
+  if (btn.disabled) return;
   err.textContent = ""; setStatus(st, "", "");
   const p1 = $("pw-1").value, p2 = $("pw-2").value;
   if (p1.length < 10) { err.textContent = "Das neue Passwort muss mindestens 10 Zeichen lang sein."; $("pw-1").focus(); return; }
@@ -2090,7 +2303,7 @@ async function changePassword() {
 }
 $("pw-btn").addEventListener("click", changePassword);
 onEnter($("pw-1"), () => $("pw-2").focus());
-onEnter($("pw-2"), changePassword);
+onEnter($("pw-2"), changePassword, $("pw-btn"));
 
 /* ---------- Seite verlassen: Warnung bei ungespeicherter Arbeit ---------- */
 window.addEventListener("beforeunload", (e) => {
@@ -2101,6 +2314,7 @@ window.addEventListener("beforeunload", (e) => {
 
 /* ---------- Start ---------- */
 cleanupDrafts();
+showResume();
 setTimeout(() => { if (screen === "screen-start") $("code-input").focus(); }, 50);
 
 })();

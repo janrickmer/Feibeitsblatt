@@ -70,10 +70,13 @@ export function timingSafeEqualStr(a, b) {
 /* ---------- Eingabeprüfung ---------- */
 export const LIMITS = {
   bodyBytes: 1024 * 1024,          // Request-Body
-  envelopeBytes: 400 * 1024,       // verschlüsselte Abgabe
+  envelopeBytes: 400 * 1024,       // verschlüsselte Abgabe (realistisch ≤ ~150 KB)
   tasks: 30, taskText: 4000, solution: 8000, title: 200,
   answer: 8000, answersTotal: 40000,
-  submissionsPerSheet: 1000,       // Schutz vor Vollschreiben der Datenbank
+  submissionsPerSheet: 400,        // Schutz vor Vollschreiben der Datenbank (eine Klasse braucht ≤ ~100)
+  sheetBytes: 40 * 1024 * 1024,    // Summe aller Umschläge je Blatt
+  submissionsPage: 50,             // Abgaben je Seite der Lehrkraft-Liste (Arbeitsspeicher des Workers)
+  pageBytes: 8 * 1024 * 1024,      // … und höchstens so viele Umschlag-Bytes je Seite
 };
 
 export class InputError extends Error {
@@ -197,29 +200,55 @@ export function validateAiInput(body, providers) {
 }
 export const keyHintOf = (key) => (key ? "…" + key.slice(-4) : "");
 
-/* ---------- Rate-Limits ---------- */
+/* ---------- Rate-Limits ----------
+ * Nur Fehlversuche zählen (door, auth, lookup_miss): richtige Codes, Passwörter und Blatt-Codes gehen immer durch –
+ * im Schulnetz teilen sich viele eine IP, und niemand darf die Lehrkraft oder die Klasse aussperren können.
+ * feedback/submit: jede Anfrage zählt (feedback_chars/submit_bytes gewichtet nach Umfang, sheet_feedback je Blatt). */
 export const RATE = {
-  door: { max: 10, windowMs: 3600e3 },
-  auth: { max: 10, windowMs: 3600e3 },
-  lookup_miss: { max: 30, windowMs: 600e3 },
-  feedback: { max: 120, windowMs: 3600e3 },
-  submit: { max: 120, windowMs: 3600e3 },
+  door: { max: 10, windowMs: 900e3 },             // falsche Türcodes je IP
+  auth: { max: 10, windowMs: 900e3 },             // falsche Passwörter je IP
+  auth_all: { max: 200, windowMs: 3600e3 },        // falsche Passwörter insgesamt (gegen verteiltes Raten)
+  lookup_miss: { max: 30, windowMs: 600e3 },       // unbekannte Codes je IP
+  feedback: { max: 120, windowMs: 3600e3 },        // KI-Anfragen je IP
+  feedback_chars: { max: 400000, windowMs: 3600e3 },   // … gewichtet nach Zeichen der Antworten
+  sheet_feedback: { max: 300, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (schützt das Kontingent der Lehrkraft)
+  submit: { max: 120, windowMs: 3600e3 },          // Abgaben je IP
+  submit_bytes: { max: 30 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
 };
 const minutes = (s) => { const m = Math.max(1, Math.ceil(s / 60)); return m + (m === 1 ? " Minute" : " Minuten"); };
 export function rateMessage(kind, retryAfter) {
   const t = minutes(retryAfter);
   switch (kind) {
-    case "auth": return "Zu viele Fehlversuche. Bitte versuchen Sie es in etwa " + t + " erneut.";
+    case "auth": case "auth_all": return "Zu viele falsche Passwörter. Mit dem richtigen Passwort können Sie sich weiterhin anmelden; weitere Versuche sind in etwa " + t + " möglich.";
     case "door": return "Zu viele Fehlversuche. Ein neuer Versuch ist in etwa " + t + " möglich.";   // neutral: Lehrkraft oder Schüler:in
-    case "lookup_miss": return "Zu viele unbekannte Codes. Bitte prüfe den Code und versuche es in etwa " + t + " erneut.";
-    case "feedback": return "Gerade wurden von diesem Netzwerk sehr viele KI-Rückmeldungen angefordert. Bitte versuche es in etwa " + t + " erneut.";
-    case "submit": return "Gerade wurden von diesem Netzwerk sehr viele Abgaben gesendet. Bitte versuche es in etwa " + t + " erneut – deine Antworten bleiben auf diesem Gerät gespeichert.";
+    case "lookup_miss": return "Zu viele unbekannte Codes aus diesem Netzwerk. Mit einem richtigen Code geht es weiter; bitte prüfe deinen Code – ein neuer Versuch ist in etwa " + t + " möglich.";
+    case "feedback": case "feedback_chars": return "Gerade wurden von diesem Netzwerk sehr viele KI-Rückmeldungen angefordert. Bitte versuche es in etwa " + t + " erneut.";
+    case "sheet_feedback": return "Für dieses Feibeitsblatt wurden heute schon sehr viele KI-Rückmeldungen angefordert. Bitte sag deiner Lehrkraft Bescheid.";
+    case "submit": case "submit_bytes": return "Gerade wurden von diesem Netzwerk sehr viele Abgaben gesendet. Bitte versuche es in etwa " + t + " erneut – deine Antworten bleiben auf diesem Gerät gespeichert.";
     default: return "Zu viele Anfragen. Bitte versuche es in etwa " + t + " erneut.";
   }
 }
 // Bucket ohne Klartext-IP; mit SETTINGS_SECRET als Pfeffer (sonst wäre der Hash einer IPv4 leicht umkehrbar)
 export async function bucketOf(kind, ip, pepper = "") {
   return kind + ":" + (await sha256Hex(ip + "|" + kind + (pepper ? "|" + pepper : ""))).slice(0, 32);
+}
+/* IP → Schlüssel für die Buckets: IPv6 auf das /64-Präfix kürzen (ein Anschluss hat meist ein ganzes /64 –
+   sonst ließe sich jede Sperre mit einer neuen Adresse umgehen); IPv4 unverändert. */
+export function ipKey(ip) {
+  const s = String(ip || "").trim();
+  if (!s.includes(":")) return s;
+  const m = /^\[?([0-9a-fA-F:.]+)\]?$/.exec(s.split("%")[0]);
+  if (!m) return s;
+  let a = m[1];
+  const v4 = /:(\d+\.\d+\.\d+\.\d+)$/.exec(a);   // ::ffff:1.2.3.4 → IPv4
+  if (v4 && /^::ffff:/i.test(a)) return v4[1];
+  const parts = a.split("::");
+  if (parts.length > 2) return s;
+  const head = parts[0] ? parts[0].split(":") : [], tail = parts.length === 2 && parts[1] ? parts[1].split(":") : [];
+  const fill = Math.max(0, 8 - head.length - tail.length);
+  const groups = [...head, ...(parts.length === 2 ? Array(fill).fill("0") : []), ...tail];
+  if (groups.length !== 8 || groups.some((g) => !/^[0-9a-fA-F]{1,4}$/.test(g))) return s;
+  return groups.slice(0, 4).map((g) => g.toLowerCase().padStart(4, "0")).join(":") + "::/64";
 }
 
 /* ---------- API-Schlüssel at rest (AES-GCM mit SETTINGS_SECRET) ---------- */

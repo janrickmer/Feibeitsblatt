@@ -5,7 +5,7 @@ import {
   CODE_ALPHABET, normalizeCode, isValidCode, formatCode, generateCode, b64Bytes, isB64, b64ToBytes, bytesToB64,
   sha256Hex, timingSafeEqualStr, validateKdf, validateEncPrivateKey, decodeAuthKey, importPublicKey, validateEnvelope,
   validateSheetInput, validateAnswers, normalizeBaseUrl, isAllowedBase, validateAiInput, keyHintOf, defaultTitle,
-  bucketOf, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
+  bucketOf, ipKey, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
 } from "../../worker/lib.js";
 import { PROVIDERS } from "../../worker/ai.js";
 
@@ -154,10 +154,25 @@ test("rate-limit buckets never contain the IP; messages in German", async () => 
   assert.notEqual(await bucketOf("door", "203.0.113.7", "pfeffer"), b);
   assert.notEqual(await bucketOf("auth", "203.0.113.7"), b.replace("door", "auth"));
   assert.deepEqual(Object.fromEntries(Object.entries(RATE).map(([k, v]) => [k, [v.max, v.windowMs / 60000]])),
-    { door: [10, 60], auth: [10, 60], lookup_miss: [30, 10], feedback: [120, 60], submit: [120, 60] });
-  assert.equal(rateMessage("auth", 61), "Zu viele Fehlversuche. Bitte versuchen Sie es in etwa 2 Minuten erneut.");
+    { door: [10, 15], auth: [10, 15], auth_all: [200, 60], lookup_miss: [30, 10], feedback: [120, 60], feedback_chars: [400000, 60],
+      sheet_feedback: [300, 1440], submit: [120, 60], submit_bytes: [30 * 1024 * 1024, 60] });
+  assert.match(rateMessage("auth", 61), /^Zu viele falsche Passwörter\. Mit dem richtigen Passwort .* in etwa 2 Minuten möglich\.$/);
   assert.equal(rateMessage("door", 30), "Zu viele Fehlversuche. Ein neuer Versuch ist in etwa 1 Minute möglich.");
+  assert.match(rateMessage("lookup_miss", 120), /richtigen Code geht es weiter/);
   assert.match(rateMessage("submit", 600), /10 Minuten/);
+});
+test("ipKey: IPv4 unchanged, IPv6 reduced to its /64 prefix, mapped IPv4 unwrapped", () => {
+  assert.equal(ipKey("203.0.113.7"), "203.0.113.7");
+  assert.equal(ipKey("local"), "local");
+  assert.equal(ipKey("2001:db8:1:2::1"), "2001:0db8:0001:0002::/64");
+  assert.equal(ipKey("2001:DB8:1:2:ffff:ffff:ffff:ffff"), "2001:0db8:0001:0002::/64");
+  assert.equal(ipKey("2001:db8:1:2::1"), ipKey("2001:db8:1:2:abcd::9"));
+  assert.notEqual(ipKey("2001:db8:1:2::1"), ipKey("2001:db8:1:3::1"));
+  assert.equal(ipKey("::1"), "0000:0000:0000:0000::/64");
+  assert.equal(ipKey("::ffff:198.51.100.3"), "198.51.100.3");
+  assert.equal(ipKey("[2001:db8::5]"), "2001:0db8:0000:0000::/64");
+  assert.equal(ipKey("fe80::1%eth0"), "fe80:0000:0000:0000::/64");
+  assert.equal(ipKey("1:2:3"), "1:2:3");   // ungültig: unverändert (eigener Bucket)
 });
 test("sealSecret/openSecret: AES-GCM at rest, wrong/missing secret → null", async () => {
   const secret = b64(32, 9);

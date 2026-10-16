@@ -319,10 +319,10 @@ async function main() {
       answers: [{ first: answers[0], final: answers[0] + " Ergänzt-Marker" }, { first: "", final: "Die Pause." }, { first: "", final: "Wärme" }],
       feedback: r.json.results, feedbackAt: new Date().toISOString(), submittedAt: new Date().toISOString() };
     const envelope = await makeEnvelope(sheetPub.publicKey, payload);
-    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, v: 2 } }), 400, "bad_envelope"); submitCount++;
-    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, iv: "kein base64!" } }), 400, "bad_envelope"); submitCount++;
-    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, ct: "A".repeat(420 * 1024) } }), 413, "too_large"); submitCount++;
-    expectErr(await api("POST", "/api/submit", { code: "AAAAA2", envelope }), 404, "not_found"); submitCount++;
+    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, v: 2 } }), 400, "bad_envelope");   // ungültige Anfragen zählen nicht
+    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, iv: "kein base64!" } }), 400, "bad_envelope");
+    expectErr(await api("POST", "/api/submit", { code, envelope: { ...envelope, ct: "A".repeat(420 * 1024) } }), 413, "too_large");
+    expectErr(await api("POST", "/api/submit", { code: "AAAAA2", envelope }), 404, "not_found");
     r = await api("POST", "/api/submit", { code: display, envelope }); submitCount++;
     assert.equal(r.status, 200, r.text);
     assert.equal(typeof r.json.id, "number"); assert.ok(Math.abs(r.json.receivedAt - Date.now()) < 60000);
@@ -367,7 +367,7 @@ async function main() {
     r = await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
     assert.deepEqual(r.json, { ok: true, deleted: 1 });
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
-    assert.deepEqual(r.json, { ok: true, submissions: [] });
+    assert.deepEqual(r.json, { ok: true, submissions: [], next: null });
     r = await api("POST", "/api/submit", { code, envelope }); submitCount++;
     assert.equal(r.status, 200);
     r = await api("DELETE", "/api/teacher/sheets/" + code, undefined, { auth });
@@ -388,22 +388,27 @@ async function main() {
     step = "Sperren";
     for (; doorFails < 10; doorFails++) expectErr(await api("POST", "/api/teacher/door", { doorCode: "1234" }), 403, "wrong_code");
     r = await api("POST", "/api/teacher/door", { doorCode: "1234" });
-    expectErr(r, 429, "rate_limited"); assert.ok(r.json.retryAfter > 3000); assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
-    expectErr(await api("POST", "/api/teacher/door", { doorCode: "1104" }), 429, "rate_limited");
-    ok("Türcode: nach 10 Fehlversuchen 429 (auch für den richtigen Code), Retry-After gesetzt");
+    expectErr(r, 429, "rate_limited"); assert.ok(r.json.retryAfter > 600 && r.json.retryAfter <= 900); assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
+    r = await api("POST", "/api/teacher/door", { doorCode: "1104" });
+    assert.equal(r.status, 200, "der richtige Türcode geht trotz Sperre: " + r.text);
+    ok("Türcode: nach 10 Fehlversuchen 429 für falsche Codes (Retry-After gesetzt); der richtige Code geht weiter");
     for (; authFails < 10; authFails++) expectErr(await api("POST", "/api/teacher/login", undefined, { auth: wrong.authKey }), 401, "unauthorized");
     expectErr(await api("POST", "/api/teacher/login", undefined, { auth: wrong.authKey }), 429, "rate_limited");
-    expectErr(await api("POST", "/api/teacher/login", undefined, { auth }), 429, "rate_limited");
-    ok("Passwort: nach 10 Fehlversuchen 429");
+    r = await api("POST", "/api/teacher/login", undefined, { auth });
+    assert.equal(r.status, 200, "das richtige Passwort geht trotz Sperre: " + r.text);
+    ok("Passwort: nach 10 Fehlversuchen 429 für falsche Passwörter; das richtige geht weiter");
     for (; misses < 30; misses++) expectErr(await api("GET", "/api/sheet/QQQQQ" + "23456789"[misses % 8]), 404, "not_found");
     expectErr(await api("GET", "/api/sheet/QQQQQ2"), 429, "rate_limited");
-    expectErr(await api("GET", "/api/sheet/" + otherCode), 429, "rate_limited");
-    ok("unbekannte Codes: nach 30 Fehlgriffen 429 (auch für gültige Codes)");
-    for (; feedbackCount < 120; feedbackCount++) expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found");
-    expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 429, "rate_limited");
-    for (; submitCount < 120; submitCount++) expectErr(await api("POST", "/api/submit", { code: "AAAAA2", envelope }), 404, "not_found");
-    expectErr(await api("POST", "/api/submit", { code: "AAAAA2", envelope }), 429, "rate_limited");
-    ok("Feedback und Abgabe: jede Anfrage zählt, die 121. → 429");
+    r = await api("GET", "/api/sheet/" + otherCode);
+    assert.equal(r.status, 200, "gültige Codes öffnen trotz Sperre: " + r.text);
+    ok("unbekannte Codes: nach 30 Fehlgriffen 429; gültige Codes öffnen weiter");
+    // Abgaben: jede gültige Abgabe zählt je IP (120/h); unbekannte Codes zählen nicht
+    const otherPub = r.json.sheet.publicKey;
+    const env2 = await makeEnvelope(otherPub, { v: 1, sheetCode: otherCode, person: { vorname: "Tes", nachname: "Tt", geburtsdatum: "2010-01-01", klasse: "5a" }, answers: [{ first: "", final: "x" }] });
+    for (; submitCount < 120; submitCount++) { r = await api("POST", "/api/submit", { code: otherCode, envelope: env2 }); assert.equal(r.status, 200, r.text); }
+    expectErr(await api("POST", "/api/submit", { code: otherCode, envelope: env2 }), 429, "rate_limited");
+    expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found");
+    ok("Abgabe: die 121. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
 
     console.log("\nSmoke-Test bestanden.");
   } catch (e) {

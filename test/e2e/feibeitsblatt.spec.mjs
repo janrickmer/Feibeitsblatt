@@ -51,6 +51,12 @@ const B = {
   first: ["Das Gewissen ist eine innere Stimme.", "Keine Ahnung, ehrlich gesagt.", "Schlecht, dann rede ich darüber."],
 };
 B.final = B.first.slice();
+// Schüler:in C: Die KI fällt zweimal aus → Abgabe ohne KI-Feedback (sortiert als Letzte: Klasse 9c)
+const C = {
+  input: { vorname: "lea", nachname: "sc", geb: "2012-06-30", klasse: "9 c" },   // „9 c“ → Klasse 9c
+  person: { vorname: "Lea", nachname: "Sc", geburtsdatum: "2012-06-30", klasse: "9c" },
+  first: ["Das Gewissen sagt mir, was richtig ist.", "Ich habe einmal gelogen und mich danach schlecht gefühlt.", "Ich schäme mich dann."],
+};
 
 const S = { code: "", shown: "", sheetBodies: [] };   // gemeinsamer Zustand der Tests
 const fmtDe = (iso) => iso.split("-").reverse().join(".");
@@ -416,10 +422,27 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   expect(failed[0].body).not.toContain(AI_KEY);
   await expect(page.locator("#fb-btn")).toBeEnabled();
   await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#fb-fallback")).toBeHidden();
   await expect(page.locator("#t-1 .fbbox")).toBeHidden();
   expect(await page.$eval("#a-1", (e) => e.readOnly)).toBe(false);
 
-  await requestFeedback(page);
+  // zweiter Fehlschlag → Abgabe ohne KI-Feedback wird freigeschaltet (niemand sitzt fest), Feedback bleibt möglich
+  await mockMode("500");
+  try {
+    await page.click("#fb-btn");
+    await confirmDialog(page, "KI-Feedback anfordern?");
+    await expect(page.locator("#fb-fallback")).toBeVisible({ timeout: 90_000 });
+  } finally { await mockMode("ok"); }
+  await expect(page.locator("#fb-fallback")).toContainText("Das KI-Feedback ist gerade nicht möglich");
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  await expect(page.locator("#submit-hint")).toHaveText("Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.");
+  await expect(page.locator("#fb-btn")).toBeEnabled();
+
+  // dritter Versuch klappt → normales Feedback, Hinweis verschwindet
+  await page.click("#fb-btn");
+  await confirmDialog(page, "KI-Feedback anfordern?");
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#fb-fallback")).toBeHidden();
   const exp = expectedResults(TASKS, B.first);
   for (let n = 1; n <= 3; n++) {
     const f = await feedbackOf(page, n);
@@ -430,14 +453,42 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await closePage(s);
 });
 
+test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback", async ({ browser }) => {
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, S.shown);
+  await fillPerson(page, C.input);
+  await expect(page.locator("#who-name")).toHaveText("Lea · Sc · 30.06.2012 · Klasse 9c");
+  for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), C.first[i]);
+  await mockMode("500");
+  try {
+    for (let k = 0; k < 2; k++) {
+      await page.click("#fb-btn");
+      await confirmDialog(page, "KI-Feedback anfordern?");
+      await expect(page.locator("#fb-status")).toHaveClass(/\bbad\b/, { timeout: 90_000 });
+      await expect(page.locator("#fb-btn")).toBeEnabled();
+    }
+  } finally { await mockMode("ok"); }
+  await expect(page.locator("#fb-fallback")).toBeVisible();
+  await expect(page.locator("#t-1 .fbbox")).toBeHidden();
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  await page.click("#submit-btn");
+  const text = await confirmDialog(page, "Jetzt abgeben?");
+  expect(text).toContain("ohne KI-Feedback");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  const sub = await s.calls((r) => r.path === "/api/submit");
+  expect(sub.map((r) => r.status)).toEqual([200]);
+  await closePage(s);
+});
+
 test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Aufklappen zeigt erste und überarbeitete Fassung", async ({ browser }) => {
   const t = await openPage(browser);
   const { page } = t;
   await teacherLogin(page, PW);
   const row = page.locator("#t-sheets-body tr", { hasText: S.shown });
-  await expect(row.locator("td").nth(4)).toHaveText("2");
+  await expect(row.locator("td").nth(4)).toHaveText("3");
   await row.click();
-  await expect(page.locator("#t-subs-sum")).toHaveText("2 Abgaben");
+  await expect(page.locator("#t-subs-sum")).toHaveText("3 Abgaben");
 
   // Kopf: schmale Pfeilspalte + genau vier sichtbare Datenspalten
   const heads = await page.$$eval("#t-subs thead th", (ths) => ths.map((th) => ({ text: th.textContent.trim(), arrow: th.classList.contains("arrowcol"),
@@ -449,12 +500,13 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
 
   // eingeklappt und sortiert nach Klasse, Nachname, Vorname (B: 7a vor A: 8b, obwohl A zuerst abgegeben hat)
   const mains = page.locator("#t-subs-body tr.main");
-  await expect(mains).toHaveCount(2);
-  for (let i = 0; i < 2; i++) await expect(mains.nth(i)).toHaveAttribute("aria-expanded", "false");
+  await expect(mains).toHaveCount(3);
+  for (let i = 0; i < 3; i++) await expect(mains.nth(i)).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#t-subs-body tr.details:visible")).toHaveCount(0);
   const cells = (i) => mains.nth(i).locator("td:not(.arrowcol)");
   await expect(cells(0)).toHaveText([B.person.nachname, B.person.vorname, fmtDe(B.person.geburtsdatum), B.person.klasse]);
   await expect(cells(1)).toHaveText([A.person.nachname, A.person.vorname, fmtDe(A.person.geburtsdatum), A.person.klasse]);
+  await expect(cells(2)).toHaveText([C.person.nachname, C.person.vorname, fmtDe(C.person.geburtsdatum), C.person.klasse]);
   await expect(page.locator("#t-subs-body")).not.toContainText(A.first[1]);   // Lösungen erst nach dem Aufklappen
 
   // A aufklappen: je Aufgabe Spalte 1 = erste Eingabe (vor dem Feedback), Spalte 2 = überarbeitete Eingabe
@@ -485,9 +537,20 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   expect(await tasks.nth(0).locator(".dfb ul.fb-ok").evaluate((e) => getComputedStyle(e).color)).toBe(GREEN);
   expect(await tasks.nth(0).locator(".dfb ul.fb-miss").evaluate((e) => getComputedStyle(e).color)).toBe(RED);
 
+  // C: ohne KI-Feedback abgegeben → Hinweis, beide Spalten gleich
+  await mains.nth(2).click();
+  const detC = page.locator("#t-subs-body tr.details").nth(2);
+  await expect(detC.locator(".moodle-hint")).toContainText("Ohne KI-Feedback abgegeben");
+  await expect(detC.locator(".dmeta")).not.toContainText("KI-Feedback am");
+  const tdC = detC.locator(".dtask").nth(0).locator("table.cmp tbody td");
+  expect(await tdC.nth(0).textContent()).toBe(C.first[0]);
+  expect(await tdC.nth(1).textContent()).toBe(C.first[0] + "(unverändert)");
+  await expect(detC.locator(".dfb")).toHaveCount(0);
+  await mains.nth(2).click();
+
   // Alle aufklappen / zuklappen; B: erste = letzte Fassung
   await page.click("#t-expand-all");
-  await expect(page.locator("#t-subs-body tr.details:visible")).toHaveCount(2);
+  await expect(page.locator("#t-subs-body tr.details:visible")).toHaveCount(3);
   await expect(page.locator("#t-expand-all")).toHaveText("Alle zuklappen");
   const bFirst = page.locator("#t-subs-body tr.details").nth(0).locator(".dtask").nth(0).locator("table.cmp tbody td");
   expect(await bFirst.nth(0).textContent()).toBe(B.first[0]);
@@ -500,10 +563,10 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
 test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie Musterlösungen", async ({ request }) => {
   // gespeicherte Umschläge (wrangler d1 execute auf derselben lokalen D1)
   const rows = await d1Query("SELECT id, sheet_code, received_at, envelope FROM submissions ORDER BY id");
-  expect(rows).toHaveLength(2);
-  const forbidden = [...A.first, ...A.final, ...B.first].flatMap((a) => a.split("\n")).concat(
+  expect(rows).toHaveLength(3);
+  const forbidden = [...A.first, ...A.final, ...B.first, ...C.first].flatMap((a) => a.split("\n")).concat(
     ["Gewissn", "Schwester angelogen", "Lügen ist unfair", "innere Stimme", "Keine Ahnung",
-      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", "2011-05-04", "2012-01-15", "vorname", "nachname", "geburtsdatum", "klasse", "person"]);
+      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', "2011-05-04", "2012-01-15", "2012-06-30", "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError"]);
   for (const r of rows) {
     expect(r.sheet_code).toBe(S.code);
     expect(Object.keys(r).sort()).toEqual(["envelope", "id", "received_at", "sheet_code"]);
@@ -570,7 +633,7 @@ test("7 Alle Abgaben löschen → Tabelle leer; Feibeitsblatt löschen → Code 
   const { page } = t;
   await teacherLogin(page, PW);
   await page.locator("#t-sheets-body tr", { hasText: S.shown }).click();
-  await expect(page.locator("#t-subs-sum")).toHaveText("2 Abgaben");
+  await expect(page.locator("#t-subs-sum")).toHaveText("3 Abgaben");
   await expect(page.locator("#t-del-subs")).toBeEnabled();
   // „Ganz unten“: die Lösch-Schaltflächen stehen unter der Abgaben-Tabelle
   const yTable = (await page.locator("#t-subs").boundingBox()).y, yDel = (await page.locator("#t-del-subs").boundingBox()).y;
@@ -578,8 +641,8 @@ test("7 Alle Abgaben löschen → Tabelle leer; Feibeitsblatt löschen → Code 
 
   await page.click("#t-del-subs");
   const text = await confirmDialog(page, "Alle Abgaben löschen?");
-  expect(text).toContain("Alle 2 Abgaben");
-  await expect(page.locator("#t-del-status")).toHaveText("2 Abgaben gelöscht.");
+  expect(text).toContain("Alle 3 Abgaben zu „" + TITLE + "“ werden endgültig");
+  await expect(page.locator("#t-del-status")).toHaveText("3 Abgaben gelöscht.");
   await expect(page.locator("#t-subs-sum")).toHaveText("Noch keine Abgaben.");
   await expect(page.locator("#t-subs-body tr.main")).toHaveCount(0);
   await expect(page.locator("#t-subs-body")).toHaveText("Zu diesem Feibeitsblatt ist noch nichts abgegeben worden.");
@@ -670,33 +733,37 @@ test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgab
   await closePage(t);
 });
 
-test("9 Sperre nach Fehlversuchen: Passwort (auth) und Türcode (door)", async ({ browser, request }) => {
-  // Passwort: falsche Anmeldeschlüssel, bis der Server sperrt (höchstens 10 Fehlversuche je Stunde)
+test("9 Sperre nach Fehlversuchen trifft nur falsche Eingaben: richtiges Passwort und 1104 gehen weiter", async ({ browser, request }) => {
+  // Passwort: falsche Anmeldeschlüssel, bis der Server sperrt (10 Fehlversuche je Viertelstunde)
   const wrong = Buffer.alloc(32, 7).toString("base64");
   const auth = [];
   for (let i = 0; i < 12 && !auth.includes(429); i++)
     auth.push((await request.post("/api/teacher/login", { headers: { Authorization: "Bearer " + wrong } })).status());
   expect(auth.at(-1)).toBe(429);
-  expect(auth.filter((s) => s === 401).length).toBeLessThanOrEqual(10);
+  expect(auth.filter((s) => s === 401).length).toBeLessThanOrEqual(10);   // frühere Tests zählten schon Fehlversuche
   const p = await openPage(browser);
   const { page } = p;
   await enterCode(page, "1104");
-  await page.fill("#tl-pw", NEW_PW);   // auch das richtige Passwort ist jetzt gesperrt
+  await page.fill("#tl-pw", "falsches Passwort 123");
   await page.click("#tl-btn");
-  await expect(page.locator("#tl-err")).toHaveText(/^Zu viele Fehlversuche\. Bitte versuchen Sie es in etwa (5\d|60) Minuten erneut\.$/, { timeout: 30_000 });
-  await page.click("#tl-back");
+  await expect(page.locator("#tl-err")).toHaveText(/^Zu viele falsche Passwörter\. Mit dem richtigen Passwort können Sie sich weiterhin anmelden; weitere Versuche sind in etwa 1[0-5] Minuten möglich\.$/, { timeout: 30_000 });
+  await page.fill("#tl-pw", NEW_PW);   // das richtige Passwort geht trotz Sperre
+  await page.click("#tl-btn");
+  await expect(page.locator("#screen-teacher")).toHaveClass(/active/, { timeout: 30_000 });
+  await page.click("#t-logout");
+  await expect(page.locator("#screen-start")).toHaveClass(/active/);
 
-  // Türcode: falsche Codes, bis gesperrt; danach öffnet auch 1104 nicht mehr
+  // Türcode: falsche Codes, bis gesperrt; 1104 öffnet weiterhin, falsche Zahlen zeigen die allgemeine Meldung
   const door = [];
   for (let i = 0; i < 12 && !door.includes(429); i++)
     door.push((await request.post("/api/teacher/door", { data: { doorCode: "9999" } })).status());
   expect(door.at(-1)).toBe(429);
   expect(door.filter((s) => s === 403).length).toBeLessThanOrEqual(10);
   const r = await request.post("/api/teacher/door", { data: { doorCode: "1104" } });
-  expect(r.status()).toBe(429);
-  expect(Number(r.headers()["retry-after"])).toBeGreaterThan(3000);
+  expect(r.status()).toBe(200);
+  await enterCode(page, "2011");
+  await expect(page.locator("#start-err")).toHaveText(/^Zu viele Fehlversuche\. Ein neuer Versuch ist in etwa 1[0-5] Minuten möglich\.$/);
   await enterCode(page, "1104");
-  await expect(page.locator("#start-err")).toHaveText(/^Zu viele Fehlversuche\. Ein neuer Versuch ist in etwa (5\d|60) Minuten möglich\.$/);
-  await expect(page.locator("#screen-start")).toHaveClass(/active/);
+  await expect(page.locator("#screen-tlogin")).toHaveClass(/active/);
   await closePage(p);
 });
