@@ -30,8 +30,8 @@ const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ2
 
 // Schüler:in A: tippt Kürzel klein/groß gemischt, überarbeitet nach dem Feedback
 const A = {
-  input: { vorname: "max", nachname: "MU", geb: "2011-05-04", klasse: " 8b " },
-  person: { vorname: "Max", nachname: "Mu", geburtsdatum: "2011-05-04", klasse: "8b" },
+  input: { vorname: "max", nachname: "MU", geb: "2009-05-04", klasse: " 8b " },
+  person: { vorname: "Max", nachname: "Mu", geburtsdatum: "2009-05-04", klasse: "8b" },
   lines1: ["Das Gewissn ist eine innere Instanz.", "Es unterscheidet zwischen gut und böse.", "Man hört es im Kopf."],
   line4: "Das finde ich sehr toll.",
   a2start: "Eine konkrete ", a2rest: "Situation: Ich habe meine Schwester angelogen.",
@@ -225,7 +225,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
 
   // Schreibbereich
-  await expect(page.locator("#who-name")).toHaveText("Max · Mu · 04.05.2011 · Klasse 8b");
+  await expect(page.locator("#who-name")).toHaveText("Max · Mu · 04.05.2009 · Klasse 8b");
   await expect(page.locator("#ed-title")).toHaveText(TITLE);
   await expect(page.locator("#sheet-title")).toHaveText(TITLE);
   await expect(page.locator("#tasks .task-label")).toHaveText(["Aufgabe 1", "Aufgabe 2", "Aufgabe 3"]);
@@ -320,9 +320,20 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await typeAt(page, "#a-3", A.a3);
   for (let i = 0; i < 3; i++) expect(await page.inputValue("#a-" + (i + 1))).toBe(A.first[i]);
 
-  // Rechtschreibung und Grammatik (LanguageTool-Attrappe)
+  // Rechtschreibung und Grammatik (LanguageTool-Attrappe): A ist 17 → Button da, aber erst nach Altersbestätigung
   await expect(page.locator("#t-1 .ltbtn")).toHaveText("Rechtschreibung und Grammatik prüfen");
+  await expect(page.locator(".ltbtn")).toHaveCount(3);
+  await expect(page.locator(".lt-off")).toHaveCount(0);
   await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg-ok")).toHaveText("Ich bin mindestens 16 Jahre alt – prüfen");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Nicht prüfen");
+  const consent = await confirmDialog(page, "Rechtschreibung und Grammatik prüfen", false);   // erst ablehnen
+  for (const p of ["LanguageTool", "Learneo, Inc., USA", "ab 16 Jahren", "mindestens 16 Jahre alt", "solange dieses Feibeitsblatt geöffnet ist"]) expect(consent).toContain(p);
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("Ohne Bestätigung wird nichts an LanguageTool gesendet.");
+  await expect(page.locator("#t-1 .lt-out")).toBeHidden();
+  expect(s.lt).toHaveLength(0);                                   // ohne Bestätigung geht nichts raus
+  await page.click("#t-1 .ltbtn");
+  await confirmDialog(page, "Rechtschreibung und Grammatik prüfen");   // jetzt bestätigen
   const out = page.locator("#t-1 .lt-out");
   await expect(out).toBeVisible();
   expect(s.lt).toHaveLength(1);
@@ -342,6 +353,11 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(await link.getAttribute("rel") || "").not.toContain("nofollow");
   expect(await page.inputValue("#a-1")).toBe(A.first[0]);   // das Feld selbst bleibt unverändert
   expect(Math.abs((await gapAfterTask(page, 1)) - lh)).toBeLessThan(1);
+  // zweite Prüfung in derselben Sitzung: keine erneute Bestätigung (gleicher Text → aus dem Zwischenspeicher)
+  await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg")).not.toHaveClass(/open/);
+  await expect(out).toBeVisible();
+  expect(s.lt).toHaveLength(1);
 
   // KI-Feedback (eine Anfrage an die KI, nur Aufgaben mit Musterlösung, keine Personendaten)
   await expect(page.locator("#submit-btn")).toBeDisabled();
@@ -358,7 +374,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   const prompt = JSON.stringify(ms.requests[0].messages);
   expect(prompt).toContain("innere Instanz");
   expect(prompt).not.toContain(A.a3);                                   // Aufgabe ohne Musterlösung geht nicht an die KI
-  for (const p of ["2011-05-04", "04.05.2011", "8b", "Max"]) expect(prompt).not.toContain(p);
+  for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt).not.toContain(p);
 
   const exp = expectedResults(TASKS, A.first);
   expect(exp[0].missing).toEqual(["Meldet sich als schlechtes Gewissen"]);   // Plausibilität der Testdaten
@@ -393,7 +409,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   const sb = JSON.parse(sub[0].reqBody);
   expect(Object.keys(sb).sort()).toEqual(["code", "envelope"]);
   expect(Object.keys(sb.envelope).sort()).toEqual(["ct", "ek", "iv", "v"]);
-  for (const p of ["Gewissn", "Schwester", "Max", "2011-05-04", "vorname"]) expect(sub[0].reqBody).not.toContain(p);
+  for (const p of ["Gewissn", "Schwester", "Max", "2009-05-04", "vorname"]) expect(sub[0].reqBody).not.toContain(p);
   expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")))).toEqual([]);
   S.sheetBodies.push(lookup.body);
   await closePage(s);
@@ -406,6 +422,11 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await expect(page.locator("#screen-person")).toHaveClass(/active/);
   await fillPerson(page, B.input);
   await expect(page.locator("#who-name")).toHaveText("Özg · Ün · 15.01.2012 · Klasse 7a");
+  // B ist laut Geburtsdatum unter 16: keine Rechtschreibprüfung, nur ein Hinweis – Absatz zum Feedback-Hinweis stimmt
+  await expect(page.locator(".ltbtn")).toHaveCount(0);
+  await expect(page.locator(".lt-off")).toHaveCount(3);
+  await expect(page.locator("#t-1 .lt-off")).toHaveText("Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.");
+  await expect(page.locator("#privacy")).toContainText("erst ab 16 Jahren und nur nach deiner Bestätigung");
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), B.first[i]);
 
   // KI lehnt ab (Mock: HTTP 401) → kurze Meldung ohne Interna, Feedback erneut möglich, „Abgeben“ bleibt gesperrt
@@ -566,7 +587,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie M
   expect(rows).toHaveLength(3);
   const forbidden = [...A.first, ...A.final, ...B.first, ...C.first].flatMap((a) => a.split("\n")).concat(
     ["Gewissn", "Schwester angelogen", "Lügen ist unfair", "innere Stimme", "Keine Ahnung",
-      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', "2011-05-04", "2012-01-15", "2012-06-30", "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError"]);
+      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', "2009-05-04", "2012-01-15", "2012-06-30", "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError"]);
   for (const r of rows) {
     expect(r.sheet_code).toBe(S.code);
     expect(Object.keys(r).sort()).toEqual(["envelope", "id", "received_at", "sheet_code"]);

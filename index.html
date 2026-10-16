@@ -177,6 +177,7 @@
   .ltstat{font-size:13px; color:var(--muted)}
   .ltstat.bad{color:var(--red)}
   .ltstat:empty{display:none}
+  .lt-off{font-style:italic}
   /* Ausgabe der Rechtschreibprüfung – klein unter dem Feld */
   .lt-out{margin:10px 0 0; padding:10px 14px 9px; background:var(--paper); border:1px solid var(--line); border-left:3px solid var(--accent2); border-radius:8px}
   .lt-head{font-family:var(--sans); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 4px; line-height:1.4}
@@ -754,6 +755,7 @@ const DOOR_RE = /^[0-9]{4,12}$/;
 const MAX_ANSWER = 8000;                                     // wie die Grenze des Servers je Antwort
 const MAX_ANSWERS_TOTAL = 40000;                             // … und für alle Antworten zusammen (KI-Feedback)
 const DRAFT_DAYS = 7;                                        // Zwischenstände bleiben so lange auf dem Gerät
+const LT_MIN_AGE = 16;                                       // Rechtschreibprüfung (LanguageTool) nur ab diesem Alter, nach Bestätigung
 
 /* Element bauen: h("p", {class:"x", text:"…"}, [kinder]) – Texte immer als Textknoten. */
 function h(tag, props, kids) {
@@ -1045,7 +1047,8 @@ const S = {
   code: "", sheet: null, pub: null, person: null, draftKey: "",
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
   fbFails: 0, fbUnavailable: "",   // KI-Feedback nicht erreichbar → Abgabe ohne Feedback erlaubt (Grund als Text)
-  submitted: false, busyFeedback: false, ltCache: new Map()
+  submitted: false, busyFeedback: false, ltCache: new Map(),
+  ltAllowed: false, ltConsent: false   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
 };
 const LAST_KEY = "feibeitsblatt:last";   // zuletzt geöffnetes Blatt + Angaben: „Weiterschreiben?“ nach Neuladen
 
@@ -1139,6 +1142,13 @@ function openPerson() {
 }
 const LETTERS = /^[\p{L}\p{M}]+$/u;
 function nameCase(s) { const a = Array.from(s); return a.length ? a[0].toLocaleUpperCase("de-DE") + a.slice(1).join("").toLocaleLowerCase("de-DE") : ""; }
+/* Alter in vollen Jahren aus "JJJJ-MM-TT" (am Geburtstag selbst schon erreicht) */
+function ageOf(iso, now = new Date()) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "")); if (!m) return 0;
+  let age = now.getFullYear() - +m[1];
+  if (now.getMonth() + 1 < +m[2] || (now.getMonth() + 1 === +m[2] && now.getDate() < +m[3])) age--;
+  return age;
+}
 function parseBirth(v) {
   v = String(v || "").trim(); let y, m, d, x;
   if ((x = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v))) { y = +x[1]; m = +x[2]; d = +x[3]; }
@@ -1186,6 +1196,7 @@ async function draftKeyFor(code, p) {
 async function openEditor() {
   const p = S.person, sh = S.sheet;
   S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.ltCache = new Map();
+  S.ltAllowed = ageOf(p.geburtsdatum) >= LT_MIN_AGE; S.ltConsent = false;   // Bestätigung gilt nur für diese Sitzung
   S.draftKey = await draftKeyFor(S.code, p);
   $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`;
   $("ed-title").textContent = sh.title;
@@ -1196,7 +1207,7 @@ async function openEditor() {
     `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
     `Er leitet sie zusammen mit den Aufgaben und der Musterlösung deiner Lehrkraft an den KI-Dienst ${sh.aiProvider ? "„" + sh.aiProvider + "“" : "der Lehrkraft"} weiter und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen. ` +
     `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. ` +
-    `Für die Rechtschreibprüfung wird nur der Text der jeweiligen Antwort an LanguageTool (`,
+    `Die Rechtschreibprüfung gibt es erst ab ${LT_MIN_AGE} Jahren und nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
     h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
     `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
     `Bei der Abgabe werden dein Namenskürzel, Geburtsdatum, Klasse und deine Antworten verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert; ` +
@@ -1241,8 +1252,10 @@ function buildTasks() {
       spellcheck: "true", writingsuggestions: "false", "aria-describedby": "q-" + n, placeholder: "Deine Antwort …" });
     const pe = h("p", { class: "paste-err", id: "pe-" + n, role: "alert" });
     const cnt = h("p", { class: "charcount", id: "cc-" + n, "aria-live": "polite" });
-    const ltBtn = h("button", { type: "button", class: "btn ghost small ltbtn", text: "Rechtschreibung und Grammatik prüfen", "aria-label": "Rechtschreibung und Grammatik prüfen – Aufgabe " + n });
+    // Rechtschreibprüfung nur ab LT_MIN_AGE (laut Geburtsdatum) – darunter kein Button, nur ein Hinweis
+    const ltBtn = S.ltAllowed ? h("button", { type: "button", class: "btn ghost small ltbtn", text: "Rechtschreibung und Grammatik prüfen", "aria-label": "Rechtschreibung und Grammatik prüfen – Aufgabe " + n }) : null;
     const ltStat = h("span", { class: "ltstat", role: "status", "aria-live": "polite" });
+    const ltOff = S.ltAllowed ? null : h("span", { class: "ltstat lt-off", text: `Die Rechtschreibprüfung (LanguageTool) gibt es erst ab ${LT_MIN_AGE} Jahren.` });
     const out = h("div", { class: "lt-out hidden", "aria-live": "polite" });
     const fb = h("div", { class: "fbbox hidden" });
     const sec = h("section", { class: "task", id: "t-" + n, "aria-labelledby": "l-" + n }, [
@@ -1251,12 +1264,12 @@ function buildTasks() {
         h("div", { class: "task-text", id: "q-" + n, text })
       ]),
       ta, pe, cnt,
-      h("div", { class: "checkrow" }, [ltBtn, ltStat]),
+      h("div", { class: "checkrow" }, [ltBtn, ltOff, ltStat]),
       out, fb
     ]);
     ta._idx = i; ta._pe = pe; ta._cnt = cnt; ta._ltStat = ltStat; ta._ltBtn = ltBtn;
     ta.addEventListener("input", () => answerChanged(ta));
-    ltBtn.addEventListener("click", () => ltRun(i, ltBtn, ltStat));
+    if (ltBtn) ltBtn.addEventListener("click", () => ltRun(i, ltBtn, ltStat));
     S.tas.push(ta); S.outs.push(out); S.fbs.push(fb);
     box.appendChild(sec);
   });
@@ -1275,7 +1288,7 @@ function updateCounter(ta) {
 function answerChanged(ta) {
   autoGrow(ta);
   updateCounter(ta);
-  if (ta._ltStat && !ta._ltBtn.disabled && ta._ltStat.textContent) setStatus(ta._ltStat, "", "");
+  if (ta._ltStat && ta._ltBtn && !ta._ltBtn.disabled && ta._ltStat.textContent) setStatus(ta._ltStat, "", "");
   const out = S.outs[ta._idx];
   if (out && !out.classList.contains("hidden") && out._text != null) {
     const stale = out._text !== ta.value;
@@ -1482,11 +1495,24 @@ const LT_ERR = {
   TIMEOUT: "LanguageTool antwortet gerade nicht. Bitte versuche es später noch einmal.",
   TOO_LONG: "Dein Text ist zu lang für die Prüfung (höchstens etwa 20 000 Zeichen)."
 };
+/* Vor der ersten Prüfung dieser Sitzung: Altersbestätigung und Hinweis, wohin der Text geht */
+async function ltConsent() {
+  if (S.ltConsent) return true;
+  const ok = await askConfirm({
+    title: "Rechtschreibung und Grammatik prüfen",
+    text: `Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird der Text dieser Antwort an LanguageTool gesendet – ohne deinen Namen oder deine Angaben, aber mit der Internetadresse deines Geräts. LanguageTool ist laut Anbieter für Personen ab ${LT_MIN_AGE} Jahren gedacht.\n\nBestätige bitte, dass du mindestens ${LT_MIN_AGE} Jahre alt bist und die Prüfung nutzen möchtest. Die Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.`,
+    ok: `Ich bin mindestens ${LT_MIN_AGE} Jahre alt – prüfen`, cancel: "Nicht prüfen", safeFirst: true
+  });
+  if (ok) S.ltConsent = true;
+  return ok;
+}
 async function ltRun(i, btn, stat) {
   const ta = S.tas[i];
+  if (!S.ltAllowed) return;
   setStatus(stat, "", "");
   const text = ta.value;
   if (!text.trim()) { setStatus(stat, "Schreibe zuerst etwas in das Feld.", ""); return; }
+  if (!(await ltConsent())) { setStatus(stat, "Ohne Bestätigung wird nichts an LanguageTool gesendet.", ""); return; }
   if (utf8Bytes(text) > LT_MAX_BYTES) { setStatus(stat, LT_ERR.TOO_LONG, "bad"); return; }
   const cached = S.ltCache.get(text);
   if (cached) { renderLT(i, text, cached); return; }
@@ -1705,7 +1731,7 @@ function clearEditor() {
 }
 function resetStudent() {
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map() });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false });
   ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }

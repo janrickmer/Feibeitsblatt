@@ -40,9 +40,13 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    oder versehentlich geschlossen, bietet die Startseite an, mit den gespeicherten Angaben weiterzuschreiben
    („Weiterschreiben“); mit „Abbrechen und Zwischenstand von diesem Gerät löschen“ oben rechts lässt sich ein
    Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten).
-4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button. Er schickt nur
-   den Text dieser einen Antwort an den Prüfdienst LanguageTool. Darunter erscheint in kleiner Schrift der Text mit
-   korrigierter Rechtschreibung, Grammatik, Groß- und Kleinschreibung, Getrennt- und Zusammenschreibung und
+4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button – aber nur, wenn
+   die Schülerin oder der Schüler laut Geburtsdatum mindestens 16 Jahre alt ist (darunter steht an seiner Stelle der
+   Hinweis „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“). Beim ersten Klick erklärt ein
+   Dialog, dass der Text an LanguageTool (Learneo, Inc., USA) geht, und verlangt die Bestätigung „Ich bin mindestens
+   16 Jahre alt – prüfen“; ohne Bestätigung wird nichts gesendet. Die Bestätigung gilt, solange das Blatt geöffnet
+   ist. Der Button schickt dann nur den Text dieser einen Antwort an den Prüfdienst LanguageTool. Darunter erscheint
+   in kleiner Schrift der Text mit korrigierter Rechtschreibung, Grammatik, Groß- und Kleinschreibung, Getrennt- und Zusammenschreibung und
    Zeichensetzung; die Änderungen sind markiert. Inhalt und Stil werden nie verändert. Ein ausgegrauter Hinweis
    erklärt, dass dies die Antwort einer KI ist, die selbst Fehler machen kann, und dass sie nur zum Überarbeiten
    des eigenen Textes dient. Das Antwortfeld selbst bleibt unverändert – Verbesserungen tippen die Schüler:innen
@@ -398,15 +402,18 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   KI-Anbieter weiter – nur für Aufgaben mit Musterlösung. **Nie** gesendet werden Kürzel, Geburtsdatum und Klasse;
   der Server bekommt sie dabei gar nicht. Der KI-Anbieter verarbeitet die Daten nach seinen eigenen Bedingungen;
   bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe [KI-Anbieter](#ki-anbieter)).
-- **Rechtschreibprüfung:** Nur auf Klick schickt der Browser **nur den Text dieser einen Antwort** direkt an
-  LanguageTool (`api.languagetool.org`) – ohne Namen oder Angaben zur Person, aber naturgemäß mit der IP-Adresse
+- **Rechtschreibprüfung:** Sie wird nur Schüler:innen angeboten, die laut eingegebenem Geburtsdatum **mindestens
+  16 Jahre** alt sind, und erst nach einer ausdrücklichen Bestätigung im Browser (Altersangabe und Hinweis, wohin der
+  Text geht; einmal je geöffnetem Blatt). Nur auf Klick schickt der Browser dann **nur den Text dieser einen
+  Antwort** direkt an LanguageTool (`api.languagetool.org`) – ohne Namen oder Angaben zur Person, aber naturgemäß mit der IP-Adresse
   des Geräts. Laut LanguageTool ist seit Dezember 2024 die **Learneo, Inc. (USA)** verantwortlich; Daten können
   Deutschland verlassen. Nach Hinweisen des Anbieters ist der Dienst nicht für Nutzer:innen unter 16 Jahren
   gedacht. (Diese Angaben stammen aus Zusammenfassungen; die Seiten von LanguageTool konnten bei der Entwicklung
-  nicht direkt gelesen werden.) **Ob Schüler:innen – besonders unter 16 Jahren – die Rechtschreibprüfung nutzen
+  nicht direkt gelesen werden.) **Ob Schüler:innen die Rechtschreibprüfung überhaupt nutzen
   dürfen, muss die Schule entscheiden** (die Schulleitung als Verantwortliche, beraten durch die bzw. den
-  Datenschutzbeauftragte:n). Eine Einstellung zum Abschalten der Prüfung gibt es bisher nicht; bis dahin bleibt nur
-  die Anweisung, den Button nicht zu benutzen – technisch erzwungen wird das nicht.
+  Datenschutzbeauftragte:n). Die Altersgrenze stützt sich auf das selbst eingegebene Geburtsdatum und die eigene
+  Bestätigung – ein Ausweis wird nicht geprüft. Die Grenze steht als `LT_MIN_AGE` in `index.html`; eine Einstellung
+  zum vollständigen Abschalten der Prüfung gibt es bisher nicht.
 - Die Seite lädt keine externen Schriften, Bibliotheken oder Tracker.
 
 ### Empfehlungen
@@ -487,6 +494,7 @@ gespeichert.
 | „Die KI ist gerade ausgelastet.“ / „Gerade fragen sehr viele gleichzeitig.“ | Minutenlimit des Anbieters oder Warteschlange voll; nach einer Minute erneut versuchen. |
 | „Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich.“ | Die Anfrage überschreitet das Limit aller verfügbaren Modelle. Musterlösungen und Aufgaben kürzen oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen. |
 | „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
+| „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“ (statt des Buttons) | Kein Fehler: Laut eingegebenem Geburtsdatum ist die Schülerin oder der Schüler jünger als 16; die Prüfung wird dann nicht angeboten (Altersgrenze `LT_MIN_AGE` in `index.html`). Bei einem Tippfehler im Geburtsdatum oben „Abbrechen und Zwischenstand löschen“ wählen und den Code neu eingeben. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |
 
