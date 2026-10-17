@@ -4,6 +4,7 @@
 import { test, expect } from "@playwright/test";
 import { expectedResults } from "../mock-ai.mjs";
 import { deriveTeacherKeys, makeEnvelope } from "../smoke.mjs";
+import { makePng } from "../png.mjs";
 import { MOCK_URL } from "./env.mjs";
 import {
   PASTE_MSG, UNKNOWN_CODE_MSG, NO_SOLUTION_NOTE, GREEN, RED, openPage, closePage, confirmDialog, teacherLogin,
@@ -58,7 +59,7 @@ const C = {
   first: ["Das Gewissen sagt mir, was richtig ist.", "Ich habe einmal gelogen und mich danach schlecht gefühlt.", "Ich schäme mich dann."],
 };
 
-const S = { code: "", shown: "", sheetBodies: [] };   // gemeinsamer Zustand der Tests
+const S = { code: "", shown: "", sheetBodies: [], imgs: [] };   // gemeinsamer Zustand der Tests (imgs: hochgeladene Bilder zu Aufgabe 1)
 const fmtDe = (iso) => iso.split("-").reverse().join(".");
 
 /* ---------- Hilfen für den Schreibbereich ---------- */
@@ -67,6 +68,7 @@ async function enterCode(page, typed) {
   await page.press("#code-input", "Enter");
 }
 async function fillPerson(page, input) {
+  await expect(page.locator("#p-vorname")).toBeFocused();   // die Seite setzt den Fokus kurz nach dem Öffnen; danach stiehlt sie ihn nicht mehr
   await page.fill("#p-vorname", input.vorname);
   await page.fill("#p-nachname", input.nachname);
   await page.fill("#p-geb", input.geb);
@@ -166,6 +168,32 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#bs-1")).toHaveValue(TASKS[0].solution);
   await page.fill("#bq-2", TASKS[1].text); await page.fill("#bs-2", TASKS[1].solution);
   await page.fill("#bq-3", TASKS[2].text);
+
+  // Bilder zu Aufgabe 1: ein großes PNG wird auf 1600 px verkleinert, ein „Foto“ wird als JPEG neu kodiert; je Bild die Anzeigeart
+  const row1 = page.locator("#b-rows > tr").nth(0);
+  await expect(row1.locator(".bimg-add")).toHaveText("+ Bild hinzufügen");
+  await row1.locator('input[type="file"]').setInputFiles([
+    { name: "skizze.png", mimeType: "image/png", buffer: makePng(2400, 1200, (x, y) => [x & 255, (y >> 2) & 255, 60]) },
+    { name: "foto.jpg", mimeType: "image/jpeg", buffer: makePng(300, 450, [30, 90, 160]) },
+  ]);
+  await expect(row1.locator(".bimg")).toHaveCount(2, { timeout: 30_000 });
+  await expect(row1.locator(".bimg").nth(0).locator(".bimg-meta")).toHaveText(/^1600 × 800 px · \d+ KB$/);
+  await expect(row1.locator(".bimg").nth(1).locator(".bimg-meta")).toHaveText(/^300 × 450 px · \d+ KB$/);
+  await expect(row1.locator(".bimg img").nth(0)).toHaveAttribute("src", /^blob:/);
+  await expect(row1.locator(".bimg-mode").nth(0)).toHaveValue("thumb");
+  await row1.locator(".bimg-mode").nth(1).selectOption("inline");
+  // unlesbare Datei → Meldung, kein Eintrag; Grenze: höchstens 5 je Aufgabe
+  await row1.locator('input[type="file"]').setInputFiles([{ name: "text.heic", mimeType: "image/heic", buffer: Buffer.from("kein Bild") }]);
+  await expect(row1.locator(".bimg-stat")).toContainText("„text.heic“: Das Bild kann der Browser nicht lesen");
+  await expect(row1.locator(".bimg")).toHaveCount(2);
+  await row1.locator('input[type="file"]').setInputFiles(Array.from({ length: 4 }, (_, i) => ({ name: `b${i}.png`, mimeType: "image/png", buffer: makePng(8, 8, [i * 40, 0, 0]) })));
+  await expect(row1.locator(".bimg")).toHaveCount(5, { timeout: 30_000 });
+  await expect(row1.locator(".bimg-stat")).toContainText("Nur noch 3 Bilder möglich (höchstens 5 je Aufgabe)");
+  await expect(row1.locator(".bimg-add")).toBeDisabled();
+  for (let i = 0; i < 3; i++) await row1.locator(".bimg .iconbtn.x").nth(2).click();   // die drei kleinen wieder entfernen
+  await expect(row1.locator(".bimg")).toHaveCount(2);
+  await expect(row1.locator(".bimg-add")).toBeEnabled();
+  await expect(page.locator("#b-rows > tr").nth(1).locator(".bimg")).toHaveCount(0);
   await page.click("#b-gen");
   await expect(page.locator("#b-result")).toBeVisible();
   S.shown = (await page.locator("#b-res-code").textContent()).trim();
@@ -173,6 +201,20 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   expect(S.shown).toMatch(/[A-Z]/); expect(S.shown).toMatch(/[2-9]/);
   S.code = S.shown.replace("-", "");
   await expect(page.locator("#b-res-title")).toHaveText(TITLE);
+  await expect(page.locator("#b-res-img")).toHaveText("Alle 2 Bilder sind gespeichert.", { timeout: 60_000 });
+  await expect(page.locator("#b-res-retry")).toBeHidden();
+  const ups = await t.calls((r) => r.method === "POST" && r.path.endsWith("/images"));
+  expect(ups.map((r) => r.status)).toEqual([200, 200]);
+  for (const [i, u] of ups.entries()) {
+    const req = JSON.parse(u.reqBody), res = JSON.parse(u.body);
+    expect(Object.keys(req).sort()).toEqual(["data", "mode", "task"]);          // kein Dateiname, nichts Persönliches
+    expect(req).toMatchObject({ task: 1, mode: i === 0 ? "thumb" : "inline" });
+    expect(req.data).toMatch(/^[A-Za-z0-9+/]+=*$/);
+    expect(res.image).toMatchObject({ task: 1, pos: i, mode: req.mode, w: i === 0 ? 1600 : 300, h: i === 0 ? 800 : 450 });
+    expect(res.image.bytes).toBeLessThanOrEqual(500 * 1024);
+    S.imgs.push(res.image);
+  }
+  expect(S.imgs[1].mime).toBe("image/jpeg");
   await page.click("#b-res-back");
   await expect(page.locator("#t-sel")).toBeVisible();
   await expect(page.locator("#t-sel-code")).toHaveText(S.shown);
@@ -182,6 +224,12 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.locator("#t-sel-det summary").click();
   await expect(page.locator("#t-sel-tasks .si")).toHaveCount(3);
   await expect(page.locator("#t-sel-tasks .si").nth(2)).toContainText("– keine –");
+  const si0 = page.locator("#t-sel-tasks .si").nth(0);
+  await expect(si0.locator(".timgs .thumbbtn")).toHaveCount(2);
+  await expect(si0.locator(".timgs .thumbbtn img").nth(0)).toHaveAttribute("src", /^data:image\/(png|jpeg);base64,/, { timeout: 15_000 });
+  expect(await si0.locator(".timgs .thumbbtn img").nth(0).evaluate((e) => [e.naturalWidth, e.naturalHeight])).toEqual([1600, 800]);
+  await expect(si0.locator(".timgs .thumbbtn").nth(1)).toHaveAttribute("title", "Erscheint größer unter der Aufgabenstellung");
+  await expect(page.locator("#t-sel-tasks .si").nth(1).locator(".timgs")).toHaveCount(0);
 
   // Der API-Schlüssel verlässt den Server nie
   for (const r of await t.calls()) expect(r.body, r.method + " " + r.path).not.toContain(AI_KEY);
@@ -235,6 +283,43 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(css).toEqual({ fs: "18.5px", ov: "hidden", rs: "none", ac: "off" });
   const lh = await lineHeightOf(page, "#a-1");
   expect(Math.abs(lh - 1.78 * 18.5)).toBeLessThan(0.1);
+
+  // Bilder der Lehrkraft: Miniatur rechts neben Aufgabe 1 und Antwortfeld, das zweite größer zwischen Aufgabenstellung und Antwortfeld
+  const t1 = page.locator("#t-1");
+  await expect(t1).toHaveClass(/has-thumbs/);
+  await expect(t1.locator(".task-thumbs .thumbbtn")).toHaveCount(1);
+  await expect(t1.locator(".task-body .task-figs .figbtn")).toHaveCount(1);
+  const thumbImg = t1.locator(".task-thumbs .thumbbtn img"), figImg = t1.locator(".task-figs .figbtn img");
+  await expect(thumbImg).toHaveAttribute("alt", "Bild 1 zu Aufgabe 1");
+  await expect(thumbImg).toHaveAttribute("src", /^data:image\/(png|jpeg);base64,/, { timeout: 15_000 });
+  await expect(figImg).toHaveAttribute("src", /^data:image\/jpeg;base64,/, { timeout: 15_000 });
+  await expect(t1.locator(".task-thumbs .thumbbtn")).toBeEnabled();
+  expect(await thumbImg.evaluate((e) => [e.naturalWidth, e.naturalHeight, Math.round(e.getBoundingClientRect().width)])).toEqual([1600, 800, 112]);
+  const [qBox, figBox, aBox1, thBox, aBox2] = await Promise.all(["#q-1", "#t-1 .task-figs", "#a-1", "#t-1 .task-thumbs", "#a-2"].map((sel) => page.locator(sel).boundingBox()));
+  expect(figBox.height).toBeLessThanOrEqual(302);
+  expect(figBox.width).toBeGreaterThan(150);
+  expect(thBox.x).toBeGreaterThan(aBox1.x + aBox1.width - 1);           // Miniatur rechts neben dem Antwortfeld …
+  expect(thBox.y).toBeLessThan(qBox.y + qBox.height);                    // … auf Höhe der Aufgabenstellung
+  expect(aBox2.width - aBox1.width).toBeGreaterThan(100);                // Aufgabe 2 ohne Bilder nutzt die volle Breite
+  expect(figBox.y).toBeGreaterThanOrEqual(qBox.y + qBox.height - 1);     // Reihenfolge: Aufgabenstellung → Bild → Antwortfeld
+  expect(aBox1.y).toBeGreaterThanOrEqual(figBox.y + figBox.height - 1);
+  await expect(page.locator("#t-2 .thumbbtn, #t-2 .figbtn, #t-3 .thumbbtn, #t-3 .figbtn")).toHaveCount(0);
+  // Klick auf die Miniatur vergrößert; Esc schließt und gibt den Fokus zurück; Klick ins große Bild schließt ebenfalls
+  await t1.locator(".task-thumbs .thumbbtn").click();
+  await expect(page.locator("#lightbox")).toBeVisible();
+  await expect(page.locator("#lb-img")).toHaveAttribute("src", /^data:image\//);
+  await expect(page.locator("#lb-close")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#lightbox")).toBeHidden();
+  await expect(t1.locator(".task-thumbs .thumbbtn")).toBeFocused();
+  await t1.locator(".task-figs .figbtn").click();
+  await expect(page.locator("#lightbox")).toBeVisible();
+  await page.locator("#lb-img").click();
+  await expect(page.locator("#lightbox")).toBeHidden();
+  // Bilddaten kommen nur über den Bild-Endpunkt (Base64), nicht im Blatt-JSON
+  expect(lookup.body.length).toBeLessThan(20_000);
+  expect(JSON.parse(lookup.body).sheet.tasks[0].images.map((m) => m.id)).toEqual(S.imgs.map((m) => m.id));
+  expect((await s.calls((r) => /\/api\/sheet\/[^/]+\/images\//.test(r.path))).map((r) => r.status)).toEqual([200, 200]);
   await expect(page.locator("#submit-btn")).toBeDisabled();
   await expect(page.locator("#submit-hint")).toHaveText("Der Button „Abgeben“ wird freigeschaltet, sobald du das KI-Feedback erhalten hast.");
   await expect(page.locator("#fb-btn")).toHaveText("KI um ein Feedback bitten");
@@ -543,6 +628,7 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
     const dt = tasks.nth(i);
     await expect(dt.locator(".task-label")).toHaveText("Aufgabe " + (i + 1));
     expect(await dt.locator(".dtask-text").textContent()).toBe(TASKS[i].text);
+    await expect(dt.locator(".timgs .thumbbtn")).toHaveCount(i === 0 ? 2 : 0);   // Bilder der Aufgabe auch in der Detailansicht
     await expect(dt.locator("table.cmp thead th")).toHaveText(["Erste Eingabe (vor dem KI-Feedback)", "Eingabe nach dem KI-Feedback"]);
     const td = dt.locator("table.cmp tbody td");
     await expect(td).toHaveCount(2);
@@ -578,6 +664,18 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   expect(await bFirst.nth(1).textContent()).toBe(B.final[0] + "(unverändert)");
   await page.click("#t-expand-all");
   await expect(page.locator("#t-subs-body tr.details:visible")).toHaveCount(0);
+
+  // „Als Vorlage verwenden“ nimmt die Bilder samt Anzeigeart mit
+  await page.click("#t-template");
+  await expect(page.locator("#tv-builder")).toBeVisible();
+  const vRow = page.locator("#b-rows > tr").nth(0);
+  await expect(vRow.locator(".bimg")).toHaveCount(2);
+  await expect(vRow.locator(".bimg-mode").nth(0)).toHaveValue("thumb");
+  await expect(vRow.locator(".bimg-mode").nth(1)).toHaveValue("inline");
+  await expect(vRow.locator(".bimg").nth(0).locator(".bimg-meta")).toHaveText(/^1600 × 800 px · \d+ KB$/);
+  await expect(page.locator("#b-err")).toHaveText("");
+  await page.click("#b-back");
+  await expect(page.locator("#tv-overview")).toBeVisible();
   await closePage(t);
 });
 
@@ -621,7 +719,8 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie M
     const body = await res.text();
     const j = JSON.parse(body);
     expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "code", "publicKey", "tasks", "title"]);
-    expect(j.sheet.tasks).toEqual(TASKS.map((t) => ({ text: t.text })));
+    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h })) : [] })));
+    expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
   }
   expect(S.sheetBodies.length).toBeGreaterThanOrEqual(5);
@@ -686,6 +785,9 @@ test("7 Alle Abgaben löschen → Tabelle leer; Feibeitsblatt löschen → Code 
   const res = await request.get("/api/sheet/" + S.code);
   expect(res.status()).toBe(404);
   expect(await res.json()).toMatchObject({ ok: false, code: "not_found", error: UNKNOWN_CODE_MSG });
+  // die Bilder des Blattes sind mit gelöscht
+  expect((await request.get("/api/sheet/" + S.code + "/images/" + S.imgs[0].id)).status()).toBe(404);
+  expect(await d1Query("SELECT COUNT(*) AS n FROM sheet_images")).toEqual([{ n: 0 }]);
 });
 
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {

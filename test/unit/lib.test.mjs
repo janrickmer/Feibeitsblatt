@@ -185,3 +185,60 @@ test("sealSecret/openSecret: AES-GCM at rest, wrong/missing secret → null", as
   const sealed2 = await sealSecret("k", "kein base64 – wird gehasht");
   assert.equal(await openSecret(sealed2, "kein base64 – wird gehasht"), "k");
 });
+
+/* ---------- Bilder zu Aufgaben: Kopfdaten lesen ---------- */
+import { imageInfo, validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, IMAGE_MODES } from "../../worker/lib.js";
+import { makePng, jpegHeader, webpHeader } from "../png.mjs";
+
+test("imageInfo: PNG, JPEG (SOF0/SOF2, mit Füll- und Kommentarsegmenten), WebP (VP8X/VP8L/VP8)", () => {
+  assert.deepEqual(imageInfo(makePng(3, 2)), { mime: "image/png", w: 3, h: 2 });
+  assert.deepEqual(imageInfo(new Uint8Array(makePng(1600, 900))), { mime: "image/png", w: 1600, h: 900 });
+  assert.deepEqual(imageInfo(jpegHeader(640, 480)), { mime: "image/jpeg", w: 640, h: 480 });
+  assert.deepEqual(imageInfo(jpegHeader(1234, 77, { padding: 60000, sofMarker: 0xc2 })), { mime: "image/jpeg", w: 1234, h: 77 });
+  const padded = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xff, 0xff]), jpegHeader(20, 10).subarray(2)]);   // Füllbytes vor dem ersten Marker
+  assert.deepEqual(imageInfo(padded), { mime: "image/jpeg", w: 20, h: 10 });
+  assert.deepEqual(imageInfo(webpHeader("VP8X", 800, 600)), { mime: "image/webp", w: 800, h: 600 });
+  assert.deepEqual(imageInfo(webpHeader("VP8L", 1024, 1)), { mime: "image/webp", w: 1024, h: 1 });
+  assert.deepEqual(imageInfo(webpHeader("VP8 ", 320, 240)), { mime: "image/webp", w: 320, h: 240 });
+});
+
+test("imageInfo: alles andere → null (kein Bild, zu groß, kaputte Köpfe, GIF/SVG/HTML)", () => {
+  assert.equal(imageInfo(new Uint8Array(0)), null);
+  assert.equal(imageInfo(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'></svg>")), null);
+  assert.equal(imageInfo(Buffer.from("GIF89a\x01\x00\x01\x00", "latin1")), null);
+  assert.equal(imageInfo(Buffer.from("<html><script>alert(1)</script>")), null);
+  assert.equal(imageInfo(makePng(LIMITS.imageSide + 1, 10)), null);
+  assert.equal(imageInfo(makePng(10, 10).subarray(0, 20)), null);                       // abgeschnitten vor IHDR-Maßen
+  assert.equal(imageInfo(Buffer.from([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0xff, 0xd9])), null);   // Bilddaten ohne Frame-Kopf
+  assert.equal(imageInfo(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01])), null);     // Segmentlänge < 2
+  assert.equal(imageInfo(Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0x00, 0x00, 0x05])), null);   // Höhe 0
+  const badSig = webpHeader("VP8 ", 5, 5); badSig[23] = 0x00;
+  assert.equal(imageInfo(badSig), null);
+  assert.equal(imageInfo(Buffer.from("RIFF\0\0\0\0WEBPXXXX" + "\0".repeat(20), "latin1")), null);
+});
+
+test("validateImageUpload: Aufgabennummer 1..LIMITS.tasks, Anzeigeart thumb|inline, Base64-Bild mit lesbaren Kopfdaten", () => {
+  const png = makePng(40, 30), b64 = png.toString("base64");
+  const v = validateImageUpload({ task: 1, mode: "thumb", data: b64 });
+  assert.deepEqual([v.task, v.mode, v.bytes, v.info, v.data === b64], [1, "thumb", png.length, { mime: "image/png", w: 40, h: 30 }, true]);
+  assert.equal(validateImageUpload({ task: 30, mode: "INLINE", data: b64 }).mode, "inline");
+  for (const t of [0, 31, 1.5, "1", "a", "", null, undefined]) rejectsWith(() => validateImageUpload({ task: t, mode: "thumb", data: b64 }), "bad_request");
+  for (const m of ["", "big", "thumbs", null]) rejectsWith(() => validateImageUpload({ task: 1, mode: m, data: b64 }), "bad_request");
+  for (const d of ["", "kein base64!", "abc", null, 5, b64.slice(0, 20)]) rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: d }), "bad_image");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: Buffer.from("<svg/>").toString("base64") }), "bad_image");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: Buffer.alloc(LIMITS.imageBytes + 1).toString("base64") }), "too_large", 413);
+  rejectsWith(() => validateImageUpload(null), "bad_request");
+  // JPEG mit großem Kommentarsegment: Frame-Kopf liegt jenseits der ersten Bytes, aber innerhalb der dekodierten 144 KB
+  const jpg = jpegHeader(800, 600, { padding: 60000 });
+  assert.deepEqual(validateImageUpload({ task: 2, mode: "inline", data: jpg.toString("base64") }).info, { mime: "image/jpeg", w: 800, h: 600 });
+  assert.deepEqual(IMAGE_MODES, ["thumb", "inline"]);
+});
+
+test("imagesForTask + generateImageId", () => {
+  const rows = [{ id: "a", task: 2, mode: "inline", w: 10, h: 5 }, { id: "b", task: "1", mode: "weird", w: "3", h: null }, { id: "c", task: 2, mode: "thumb", w: 1, h: 1 }];
+  assert.deepEqual(imagesForTask(rows, 2), [{ id: "a", mode: "inline", w: 10, h: 5 }, { id: "c", mode: "thumb", w: 1, h: 1 }]);
+  assert.deepEqual(imagesForTask(rows, 1), [{ id: "b", mode: "thumb", w: 3, h: 0 }]);
+  assert.deepEqual(imagesForTask(undefined, 1), []);
+  for (let i = 0; i < 20; i++) assert.match(generateImageId(), IMAGE_ID_RE);
+  assert.equal(generateImageId((n) => new Uint8Array(n).fill(255)), "ffffffffffffffff");
+});

@@ -19,6 +19,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie Musterlösungen**),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
   `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/ai`, `/ai/test` (Pfade unter `/api/teacher`).
+  Bilder: `POST /api/teacher/sheets/:code/images` (JSON `{task (1-basiert), mode: thumb|inline, data: Base64}` →
+  `{image:{id, task, pos, mode, mime, w, h, bytes}}`), öffentlich `GET /api/sheet/:code/images/:id` →
+  `{mime, w, h, data: Base64}` mit `Cache-Control: public, max-age=31536000, immutable`; `GET /api/sheet/:code` und
+  `GET /api/teacher/sheets/:code` liefern je Aufgabe `images: [{id, mode, w, h}]` (nie Bilddaten).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
   `/door`, Blatt-Codes enthalten immer Buchstaben. `GET …/submissions?after=<id>` liefert seitenweise (≤ 50 bzw.
   ≤ 8 MB je Seite, `next` = letzte id oder `null`); das Frontend schleift über `next`. `GET /api/health` ohne
@@ -27,7 +31,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Codes:** 6 Zeichen aus `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (≥ 1 Buchstabe, ≥ 1 Ziffer), Anzeige `K7Q-M4X`,
   Eingabe normalisieren (Großbuchstaben, nur `A–Z0–9`), Erzeugung mit `crypto.getRandomValues` ohne Modulo-Bias.
 - **D1-Schema:** `settings(key, value)` (`teacher` = `{authHash, kdf, publicKey, encPrivateKey}`, `ai`), `sheets`,
-  `submissions(id, sheet_code, received_at, envelope)` + Index, `rate_limits`, `ai_gate`, `ai_skip`. Angelegt per
+  `submissions(id, sheet_code, received_at, envelope)` + Index, `sheet_images(id, sheet_code, task, pos, mode, mime,
+  w, h, bytes, data TEXT = Base64, created_at)` + Index (`sheet_code, task, pos`), `rate_limits`, `ai_gate`,
+  `ai_skip`. Angelegt per
   `CREATE TABLE IF NOT EXISTS` beim ersten Request je Isolate (ein `batch`), keine Migrationen → Schemaänderungen
   nur additiv und idempotent im `SCHEMA`-Array.
 - **Krypto (nur im Browser; Server sieht nie Passwort oder Klartext-Abgaben):** PBKDF2-HMAC-SHA256, 600 000
@@ -65,6 +71,21 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Groß-/Klein, Getrennt-/Zusammen, Zeichensetzung anwenden – nie Stil/Typografie/`Hint`. ≤ 20 000 UTF-8-Bytes.
   Sichtbarer Link auf https://languagetool.org ohne `rel="nofollow"` (Pflicht). Nicht über den Worker leiten
   (gemeinsame Cloudflare-IPs → ein Limit für alle). CSP `connect-src` muss `https://api.languagetool.org` erlauben.
+- **Bilder zu Aufgaben:** höchstens `LIMITS.imagesPerTask` (5) je Aufgabe, `imageBytes` 500 KB je Bild,
+  `sheetImageBytes` 12 MB je Blatt. Der Browser verkleinert vor dem Upload (`prepareImage`: längste Seite 1600 px,
+  weißer Hintergrund, PNG für Grafiken sonst JPEG mit sinkender Qualität bis ≤ 500 KB; `createImageBitmap` mit
+  EXIF-Drehung, `<img>` als Rückfall) und schickt Base64 als JSON. Der Worker dekodiert **nie** ganze Bilder
+  (10 ms CPU): `validateImageUpload` prüft Base64 per Regex und liest nur die Kopfdaten (`imageInfo`: PNG/JPEG/
+  WebP, Maße ≤ 4096) aus den ersten 144 KB. Gespeichert wird Base64 als TEXT, nicht BLOB (D1 gibt BLOBs als
+  Zahlen-Array zurück – zu teuer); der Browser baut `data:`-URLs (`loadImage`, Cache je Code/id; CSP `img-src`
+  erlaubt `data:` und `blob:`). Ein bedingter `INSERT … SELECT … RETURNING pos` prüft Blatt, Aufgabennummer,
+  Anzahl und Gesamtgröße atomar; `pos` = Reihenfolge je Aufgabe, deshalb lädt das Frontend nacheinander hoch
+  (`runUploads`, nach einem Fehler werden weitere Bilder derselben Aufgabe zurückgestellt; „erneut hochladen“).
+  Blätter bleiben unveränderlich: Bilder nur beim Anlegen, gelöscht mit dem Blatt; „Als Vorlage verwenden“ lädt sie
+  herunter und wieder hoch. Anzeige: `thumb` = 112 px rechts (`.task.has-thumbs` Grid-Areas, mobil als Reihe
+  zwischen Frage und Antwortfeld), `inline` = ≤ 420×300 px zwischen Aufgabenstellung und Antwortfeld; Klick →
+  `#lightbox` (Esc/Klick schließt, Fokus zurück). Bilder gehen nie an die KI und sind unverschlüsselt (Lehrkraft-
+  Inhalte). Test-Helfer `test/png.mjs` (PNG/JPEG-/WebP-Köpfe).
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-

@@ -127,7 +127,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port });
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, images: [] })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
   assert.deepEqual(r.json.sheets.map((s) => [s.code, s.title, s.taskCount, s.submissionCount]), [[code, "Bio", 2, 0]]);

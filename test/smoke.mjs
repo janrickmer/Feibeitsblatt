@@ -9,6 +9,7 @@ import { readFile, rm, readdir, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
+import { makePng } from "./png.mjs";
 
 const subtle = globalThis.crypto.subtle;
 const te = new TextEncoder(), td = new TextDecoder();
@@ -123,7 +124,7 @@ async function main() {
 
     const api = async (method, path, body, { auth, headers = {}, rawBody } = {}) => {
       const h = { ...headers };
-      if (body !== undefined || rawBody !== undefined) h["content-type"] = "application/json";
+      if ((body !== undefined || rawBody !== undefined) && !h["content-type"]) h["content-type"] = "application/json";
       if (auth) h.authorization = "Bearer " + auth;
       const init = { method, headers: h, body: rawBody !== undefined ? rawBody : body !== undefined ? JSON.stringify(body) : undefined };
       if (rawBody instanceof ReadableStream) init.duplex = "half";
@@ -256,14 +257,57 @@ async function main() {
     assert.equal(r.json.sheets.find((s) => s.code === code).taskCount, 3);
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 0);
     r = await api("GET", "/api/teacher/sheets/" + code.toLowerCase(), undefined, { auth });
-    assert.deepEqual(r.json.sheet.tasks, tasks);
+    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, images: [] })));
     ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Musterlösungen");
+
+    step = "Bilder zu Aufgaben";
+    const png = makePng(640, 400), pngBig = makePng(1200, 900, (x, y) => [x & 255, (y >> 3) & 255, 90]);
+    const up = (sheet, task, mode, body, data) => api("POST", "/api/teacher/sheets/" + sheet + "/images",
+      { task, mode, data: data !== undefined ? data : Buffer.isBuffer(body) ? body.toString("base64") : body }, { auth });
+    expectErr(await api("POST", "/api/teacher/sheets/" + code + "/images", { task: 1, mode: "thumb", data: png.toString("base64") }), 401, "unauthorized");
+    expectErr(await up(code, 4, "thumb", png), 400, "bad_request");                 // Aufgabe 4 gibt es nicht
+    expectErr(await up(code, 0, "thumb", png), 400, "bad_request");
+    expectErr(await up(code, "1", "thumb", png), 400, "bad_request");
+    expectErr(await up(code, 1, "huge", png), 400, "bad_request");
+    expectErr(await up(code, 1, "thumb", Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>")), 400, "bad_image");
+    expectErr(await up(code, 1, "thumb", null, "kein base64!"), 400, "bad_image");
+    expectErr(await up(code, 1, "thumb", null, ""), 400, "bad_image");
+    expectErr(await up(code, 1, "thumb", Buffer.concat([png.subarray(0, 33), Buffer.alloc(520 * 1024)])), 413, "too_large");   // > 500 KB
+    expectErr(await up("ZZZZZ9", 1, "thumb", png), 404, "not_found");
+    r = await up(code, 1, "thumb", png); assert.equal(r.status, 200, r.text);
+    const img1 = r.json.image;
+    assert.match(img1.id, /^[0-9a-f]{16}$/);
+    assert.deepEqual([img1.task, img1.pos, img1.mode, img1.mime, img1.w, img1.h, img1.bytes], [1, 0, "thumb", "image/png", 640, 400, png.length]);
+    r = await up(code, 1, "inline", pngBig); assert.equal(r.status, 200, r.text); const img2 = r.json.image; assert.equal(img2.pos, 1);
+    r = await up(code, 2, "thumb", png); assert.equal(r.status, 200, r.text); const img3 = r.json.image; assert.equal(img3.pos, 0);
+    for (let i = 0; i < 3; i++) { r = await up(code, 1, "thumb", png); assert.equal(r.status, 200, r.text); assert.equal(r.json.image.pos, 2 + i); }
+    expectErr(await up(code, 1, "thumb", png), 400, "too_many_images");             // höchstens 5 je Aufgabe
+    r = await api("GET", "/api/teacher/sheets/" + code, undefined, { auth });
+    assert.equal(r.json.sheet.tasks[0].images.length, 5);
+    assert.deepEqual(r.json.sheet.tasks[0].images[0], { id: img1.id, mode: "thumb", w: 640, h: 400 });
+    assert.deepEqual(r.json.sheet.tasks[0].images[1], { id: img2.id, mode: "inline", w: 1200, h: 900 });
+    assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400 }]);
+    assert.deepEqual(r.json.sheet.tasks[2].images, []);
+    assert.equal(r.text.includes('"data"'), false);
+    r = await api("GET", "/api/sheet/" + code.toLowerCase() + "/images/" + img2.id);
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.headers.get("cache-control"), "public, max-age=31536000, immutable");
+    assert.equal(r.headers.get("x-content-type-options"), "nosniff");
+    assert.deepEqual([r.json.id, r.json.mime, r.json.w, r.json.h], [img2.id, "image/png", 1200, 900]);
+    assert.equal(Buffer.compare(Buffer.from(r.json.data, "base64"), pngBig), 0);
+    r = await api("GET", "/api/sheet/" + otherCode + "/images/" + img2.id); expectErr(r, 404, "not_found", "Diese Adresse gibt es nicht.");   // Bild eines anderen Blattes
+    r = await api("GET", "/api/sheet/" + code + "/images/0123456789abcdef"); expectErr(r, 404, "not_found", "Diese Adresse gibt es nicht.");
+    r = await api("GET", "/api/sheet/" + code + "/images/nope"); expectErr(r, 404, "not_found", "Diese Adresse gibt es nicht.");
+    r = await api("GET", "/api/sheet/ZZZZZ9/images/" + img2.id); misses++; expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);   // unbekannter Code zählt als Fehlgriff
+    ok("Bilder: Upload-Prüfungen (Auth, Aufgabe, Art, Base64, Format, Größe, höchstens 5 je Aufgabe), Reihenfolge, Metadaten ohne Bilddaten, öffentlicher Abruf (Base64, cachebar)");
 
     step = "Öffentlicher Abruf";
     const display = code.slice(0, 3) + "-" + code.slice(3);
     r = await api("GET", "/api/sheet/" + encodeURIComponent(" " + display.toLowerCase() + " "));
     assert.equal(r.status, 200, r.text);
-    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ text: t.text })));
+    assert.deepEqual(r.json.sheet.tasks.map((t) => t.text), tasks.map((t) => t.text));
+    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["images,text", "images,text", "images,text"]);
+    assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400 }]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
     for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Musterlösung im öffentlichen JSON!");
@@ -373,6 +417,7 @@ async function main() {
     r = await api("DELETE", "/api/teacher/sheets/" + code, undefined, { auth });
     assert.equal(r.json.ok, true); assert.equal(r.json.deletedSubmissions, 1);
     expectErr(await api("GET", "/api/teacher/sheets/" + code, undefined, { auth }), 404, "not_found");
+    r = await api("GET", "/api/sheet/" + code + "/images/" + img1.id); misses++; expectErr(r, 404, "not_found");   // Bilder mit dem Blatt gelöscht
     expectErr(await api("DELETE", "/api/teacher/sheets/" + code, undefined, { auth }), 404, "not_found");
     r = await api("GET", "/api/sheet/" + code); misses++;
     expectErr(r, 404, "not_found");
