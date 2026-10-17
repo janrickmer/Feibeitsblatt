@@ -4,13 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<!-- Content-Security-Policy auch dann, wenn die Seite nicht vom Worker kommt (GitHub Pages setzt keine Header).
+     Bei Auslieferung durch den Worker gilt zusätzlich _headers. Die Worker-Adresse hier und im Skript darunter
+     müssen übereinstimmen. frame-ancestors lässt sich per <meta> nicht setzen. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.languagetool.org https://feibeitsblatt.feindt.workers.dev; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
 <title>Feibeitsblatt</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236b4f2c'/%3E%3Ctext x='32' y='45' font-family='Georgia,serif' font-size='40' font-weight='bold' text-anchor='middle' fill='%23fffdf8'%3EF%3C/text%3E%3C/svg%3E">
 <script>
-  /* Adresse des Servers (Cloudflare Worker). "" = gleiche Herkunft: Der Worker liefert diese Seite selbst aus.
-     Nur wenn die Seite woanders liegt (z. B. GitHub Pages), hier die Worker-Adresse eintragen,
-     z. B. "https://feibeitsblatt.beispiel.workers.dev" (ohne Schrägstrich am Ende). */
-  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || "";
+  /* Adresse des Servers (Cloudflare Worker, ohne Schrägstrich am Ende). Liefert der Worker diese Seite selbst aus
+     (workers.dev) oder läuft sie lokal, gilt "" = gleiche Herkunft. Liegt die Seite woanders (GitHub Pages unter
+     feibeitsblatt.janrickmer.de), ruft sie den Worker unter dieser Adresse auf – dieselbe Adresse steht in der
+     Content-Security-Policy darüber (connect-src). */
+  window.FEIBEITSBLATT_WORKER = "https://feibeitsblatt.feindt.workers.dev";
+  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || (/\.workers\.dev$|^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? "" : window.FEIBEITSBLATT_WORKER);
 </script>
 <style>
   /* ---------- Grundlagen (Tokens wie im Feiditor) ---------- */

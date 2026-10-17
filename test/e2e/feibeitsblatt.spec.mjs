@@ -118,6 +118,9 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   const t = await openPage(browser, { clipboard: true });
   const { page } = t;
 
+  // lokal (127.0.0.1) spricht die Seite ihren eigenen Ursprung an; nur außerhalb von workers.dev/localhost die Worker-Adresse
+  expect(await page.evaluate(() => [window.FEIBEITSBLATT_API, /^https:\/\/[a-z0-9.-]+\.workers\.dev$/.test(window.FEIBEITSBLATT_WORKER)])).toEqual(["", true]);
+  expect(await page.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]').content)).toContain("connect-src 'self' https://api.languagetool.org " + await page.evaluate(() => window.FEIBEITSBLATT_WORKER));
   await enterCode(page, "1104");
   await expect(page.locator("#screen-tsetup")).toHaveClass(/active/);
   await page.fill("#ts-pw1", "zu kurz"); await page.fill("#ts-pw2", "zu kurz"); await page.click("#ts-btn");
@@ -237,10 +240,13 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.click("#ld-remove");
   await expect(ed1.locator("a")).toHaveCount(1);
   await expect(ed1).toContainText("Hinweis: Quelle 2 – Verlag");
-  // Tab bleibt im Link-Dialog
+  // Tab bleibt im Link-Dialog (erst den Anfangsfokus des Dialogs abwarten, dann vom letzten Knopf weiter)
   await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await expect(page.locator("#ld-text")).toBeFocused();
   await page.locator("#ld-ok").focus(); await page.keyboard.press("Tab");
   await expect(page.locator("#ld-text")).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.locator("#ld-ok")).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.locator("#linkdlg")).not.toHaveClass(/open/);
   // Werkzeugleiste: Zustand der Formatknöpfe folgt dem Cursor

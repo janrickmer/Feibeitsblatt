@@ -534,30 +534,47 @@ gespeichert.
 
 ## Optional: GitHub Pages oder eigene Domain
 
-Normalerweise liefert der Worker die Seite selbst aus; mehr ist nicht nötig. Wer die Seite zusätzlich unter
-einer anderen Adresse anbieten möchte (z. B. GitHub Pages mit eigener Domain), trägt in `index.html` ganz oben die
-Adresse des Workers ein (ohne Schrägstrich am Ende):
+Normalerweise liefert der Worker die Seite selbst aus (`https://feibeitsblatt.<subdomain>.workers.dev`); mehr ist
+nicht nötig. Dieses Repository ist zusätzlich so eingerichtet, dass GitHub Pages dieselbe Seite unter der eigenen
+Adresse **`feibeitsblatt.janrickmer.de`** ausliefert, so wie ParentsDay. Die Seite erkennt dann selbst, dass sie nicht
+vom Worker kommt, und ruft den Worker unter der Adresse auf, die ganz oben in `index.html` steht
+(`window.FEIBEITSBLATT_WORKER`, derzeit `https://feibeitsblatt.feindt.workers.dev`). Beide Adressen nutzen dieselbe
+Datenbank; Schüler:innen und Lehrkraft können jede davon verwenden.
 
-```html
-<script>
-  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || "https://feibeitsblatt.<subdomain>.workers.dev";
-</script>
-```
+**Einrichten (einmalig):**
+
+1. Die Dateien `CNAME` (Inhalt: `feibeitsblatt.janrickmer.de`) und `.nojekyll` liegen schon im Repository. Heißt Ihre
+   Worker-Adresse anders als oben, tragen Sie sie in `index.html` an **zwei** Stellen ein: bei
+   `window.FEIBEITSBLATT_WORKER` und in der Zeile `<meta http-equiv="Content-Security-Policy" …>` (dort hinter
+   `connect-src`). Die Adresse steht am Ende des Workflow-Laufs „Deploy“ (Hinweis „Feibeitsblatt ist online“).
+2. Auf GitHub: „Settings“ → „Pages“ → bei „Build and deployment“ → „Source“ **„Deploy from a branch“**, Branch
+   **`main`**, Ordner **`/ (root)`** → „Save“. Darunter bei „Custom domain“ `feibeitsblatt.janrickmer.de` eintragen
+   (falls nicht schon aus der Datei `CNAME` übernommen) → „Save“.
+3. Beim DNS-Anbieter der Domain (Strato): einen **CNAME-Eintrag** `feibeitsblatt` anlegen, der auf
+   **`janrickmer.github.io`** zeigt – genau wie der vorhandene Eintrag `parentsday`. Keine weiteren Einträge nötig.
+4. Einige Minuten warten, bis GitHub die DNS-Prüfung bestanden hat und das Zertifikat ausgestellt ist; dann in den
+   Pages-Einstellungen **„Enforce HTTPS“** anhaken.
+5. Prüfen: <https://feibeitsblatt.janrickmer.de> öffnen, `1104` eingeben – die Anmeldung muss genauso funktionieren
+   wie unter der Worker-Adresse. (Geht es nicht, meldet die Seite meist „Keine Verbindung zum Server“: dann stimmt
+   die Worker-Adresse in `index.html` nicht.)
+
+GitHub Pages veröffentlicht den Inhalt des Branches `main` – also auch nach jeder Änderung automatisch, so wie der
+Workflow den Worker neu veröffentlicht.
 
 Zu beachten:
 
-- Die Sicherheits-Header aus `_headers` (u. a. die Content-Security-Policy) gelten nur für die Auslieferung durch
-  Cloudflare. GitHub Pages kann keine eigenen Header setzen; dort fehlt dieser zusätzliche Schutz.
-- Die Datei `index.html` wird auch vom Worker ausgeliefert; dort stört die eingetragene Adresse nicht.
-- Die Bilder zu Aufgaben kommen weiterhin vom Worker (über die eingetragene Adresse); die Seite bettet sie als
-  `data:`-Adressen ein, ein eigener Eintrag in der CSP ist dafür nicht nötig.
-- Eine eigene Domain (z. B. `feibeitsblatt.ihre-domain.de`) lässt sich auch direkt beim Worker einrichten
-  („Workers & Pages“ → `feibeitsblatt` → „Settings“ → „Domains & Routes“ → „Add“ → „Custom domain“). Das setzt
-  voraus, dass die Domain bei Cloudflare verwaltet wird, also ihre Nameserver auf Cloudflare zeigen (kostenlos;
-  beim bisherigen Anbieter unter den Nameserver-Einstellungen der Domain umstellen, vorher alle vorhandenen
-  DNS-Einträge wie E-Mail bei Cloudflare nachtragen). Ein bloßer CNAME-Eintrag beim bisherigen Anbieter auf die
-  `workers.dev`-Adresse genügt **nicht** – Cloudflare beantwortet fremde Hostnamen dort nicht (nicht im
-  Einzelnen geprüft).
+- Auf GitHub Pages gelten die Sicherheits-Header aus `_headers` nicht (GitHub Pages kann keine eigenen Header setzen).
+  Die Content-Security-Policy ist deshalb zusätzlich als `<meta>`-Zeile in `index.html` hinterlegt; nur der Schutz
+  gegen das Einbetten in fremde Seiten (`frame-ancestors`) fehlt dort.
+- Die Seite selbst kommt dann von GitHub (USA); Daten fließen weiterhin nur zum Worker (Cloudflare, Datenbank in der
+  EU), zum KI-Anbieter und bei der Rechtschreibprüfung zu LanguageTool – daran ändert sich nichts.
+- Die Bilder zu Aufgaben kommen weiterhin vom Worker; die Seite bettet sie als `data:`-Adressen ein, ein eigener
+  Eintrag in der CSP ist dafür nicht nötig.
+- Eine eigene Domain lässt sich alternativ direkt beim Worker einrichten („Workers & Pages“ → `feibeitsblatt` →
+  „Settings“ → „Domains & Routes“ → „Add“ → „Custom domain“). Das setzt voraus, dass die Domain bei Cloudflare
+  verwaltet wird, also ihre Nameserver auf Cloudflare zeigen (vorher alle vorhandenen DNS-Einträge wie E-Mail bei
+  Cloudflare nachtragen). Ein bloßer CNAME-Eintrag beim bisherigen Anbieter auf die `workers.dev`-Adresse genügt
+  **nicht** – Cloudflare beantwortet fremde Hostnamen dort nicht (nicht im Einzelnen geprüft).
 
 ## Entwicklung
 
