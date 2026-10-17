@@ -325,8 +325,9 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(figBox.y).toBeGreaterThanOrEqual(qBox.y + qBox.height - 1);     // Reihenfolge: Aufgabenstellung → Bild → Antwortfeld
   expect(aBox1.y).toBeGreaterThanOrEqual(figBox.y + figBox.height - 1);
   await expect(page.locator("#t-2 .thumbbtn, #t-2 .figbtn, #t-3 .thumbbtn, #t-3 .figbtn")).toHaveCount(0);
-  // Frage bleibt direkt über dem Antwortteil, auch wenn die Miniaturspalte höher wäre (kein Leerraum durch das Raster)
-  expect(await page.locator("#t-1 .task-q").boundingBox().then((b) => b.height)).toBeLessThan(qBox.height + 20);
+  // Frage und Antwortteil bleiben direkt untereinander (die Miniaturspalte erzeugt keinen Leerraum im Raster)
+  const [qArea, bodyArea] = await Promise.all(["#t-1 .task-q", "#t-1 .task-body"].map((sel) => page.locator(sel).boundingBox()));
+  expect(bodyArea.y - (qArea.y + qArea.height)).toBeLessThan(10);
   // schmaler Bildschirm: Miniaturen als Reihe zwischen Aufgabenstellung und Antwortfeld, Antwortfeld in voller Breite
   await page.setViewportSize({ width: 400, height: 800 });
   const [mq, mth, ma1, ma2] = await Promise.all(["#q-1", "#t-1 .task-thumbs", "#a-1", "#a-2"].map((sel) => page.locator(sel).boundingBox()));
