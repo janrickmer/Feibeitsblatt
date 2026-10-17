@@ -257,7 +257,7 @@ async function main() {
     assert.equal(r.json.sheets.find((s) => s.code === code).taskCount, 3);
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 0);
     r = await api("GET", "/api/teacher/sheets/" + code.toLowerCase(), undefined, { auth });
-    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, images: [] })));
+    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, material: [], images: [] })));
     ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Musterlösungen");
 
     step = "Bilder zu Aufgaben";
@@ -308,7 +308,7 @@ async function main() {
     r = await api("GET", "/api/sheet/" + encodeURIComponent(" " + display.toLowerCase() + " "));
     assert.equal(r.status, 200, r.text);
     assert.deepEqual(r.json.sheet.tasks.map((t) => t.text), tasks.map((t) => t.text));
-    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["images,text", "images,text", "images,text"]);
+    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["images,material,text", "images,material,text", "images,material,text"]);
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");

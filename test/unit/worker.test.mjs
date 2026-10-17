@@ -128,10 +128,27 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, images: [] })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port });
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, material: [], images: [] })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
   assert.deepEqual(r.json.sheets.map((s) => [s.code, s.title, s.taskCount, s.submissionCount]), [[code, "Bio", 2, 0]]);
+});
+
+test("sheet material: gespeichert, öffentlich und für die Lehrkraft geliefert, ungültige Links abgelehnt", async () => {
+  const material = [[{ t: "Lies den " }, { t: "Auszug", f: "b" }, { t: " aufmerksam." }], [], [{ t: "Quelle", h: "https://beispiel.de/" }]];
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Material", tasks: [{ text: "A", solution: "k", material }, { text: "B" }] } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  r = await call("GET", "/api/sheet/" + c);
+  assert.deepEqual(r.json.sheet.tasks.map((t) => t.material), [material, []]);
+  assert.equal(/solution|musterl/i.test(r.text), false);
+  r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", solution: "k", material, images: [] });
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: [[{ t: "x", h: "javascript:alert(1)" }]] }] } });
+  assert.equal(r.status, 400); assert.match(r.json.error, /^Aufgabe 1: Ein Link im Material ist ungültig/);
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: "fett" }] } });
+  assert.equal(r.status, 400);
+  await call("DELETE", "/api/teacher/sheets/" + c, { auth });
 });
 
 test("sheet images: Grenzen je Aufgabe und je Blatt (12 MB), wiederholbarer Upload mit id, Bildbeschreibung", async () => {

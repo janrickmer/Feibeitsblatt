@@ -170,9 +170,29 @@
   .task-figs{display:flex; flex-wrap:wrap; gap:10px; margin:0 0 10px}
   .figbtn img{display:block; width:auto; height:auto; max-width:min(100%, 420px); max-height:300px}
   .timgs{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 0}
+  /* Material zur Aufgabe: Text der Lehrkraft mit Fett/Kursiv/Unterstrichen und Links (neuer Tab) */
+  .task-material{margin:0 0 12px; padding:10px 14px 4px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px; font-size:17px; line-height:1.65}
+  .task-material > .sublabel{display:block; margin:0 0 4px}
+  .material p{margin:0 0 .55em; overflow-wrap:anywhere}
+  .material a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
+  .material a:hover{color:var(--accent2)}
+  .material a::after{content:"\00a0↗"; font-size:.75em; color:var(--muted)}
+  .si .material{font-family:var(--serif); font-size:15.5px; margin:6px 0 0; padding:6px 12px 1px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px}
+  /* Material-Editor der Lehrkraft */
+  .bmat{margin:8px 0 0; font-family:var(--sans)}
+  .bmat-bar{display:flex; flex-wrap:wrap; gap:4px; margin:0 0 4px}
+  .fmtbtn{min-width:34px; height:30px; padding:0 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper2); font:14px var(--sans); color:var(--ink); cursor:pointer}
+  .fmtbtn:hover{background:var(--soft)}
+  .bmat-edit{min-height:64px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--paper); font-family:var(--serif); font-size:17px; line-height:1.6; outline:none; overflow-wrap:anywhere; white-space:pre-wrap}
+  .bmat-edit:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
+  .bmat-edit.is-empty::before{content:attr(data-placeholder); color:#756c60; font-family:var(--serif); pointer-events:none}
+  .bmat-edit a{color:var(--accent); text-decoration:underline}
+  .bmat .fhint{margin:4px 0 0}
+  #linkdlg .field{margin:0 0 12px}
+  #linkdlg p.err{margin:0 0 10px; min-height:1.3em}
   .task + .task{margin-top:1.78em}
   .task-q{font-weight:700; padding:2px 0 0; margin:0 0 6px}
-  .task-label{
+  .task-label,.sublabel{
     display:block; font-family:var(--sans); font-size:12px; font-weight:700; line-height:1.5;
     letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 2px;
   }
@@ -640,7 +660,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können.</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab.</p>
       <div id="b-form">
         <div class="field" style="max-width:640px">
           <label for="b-title">Titel</label>
@@ -775,6 +795,28 @@
     <div class="row">
       <button type="button" class="btn ghost" id="dlg-cancel">Abbrechen</button>
       <button type="button" class="btn" id="dlg-ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Link im Material einfügen oder bearbeiten -->
+<div class="modal" id="linkdlg" role="dialog" aria-modal="true" aria-labelledby="ld-title">
+  <div class="box">
+    <h2 id="ld-title">Link einfügen</h2>
+    <div class="field">
+      <label for="ld-text">Linktext</label>
+      <input type="text" id="ld-text" maxlength="500" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="ld-url">Adresse (beginnt mit http:// oder https://)</label>
+      <input type="url" id="ld-url" maxlength="1000" autocomplete="off" spellcheck="false" placeholder="https://…">
+      <p class="fhint">Schüler:innen öffnen den Link immer in einem neuen Tab.</p>
+    </div>
+    <p class="err" id="ld-err" aria-live="polite"></p>
+    <div class="row">
+      <button type="button" class="linkbtn hidden" id="ld-remove">Link entfernen</button>
+      <button type="button" class="btn ghost" id="ld-cancel">Abbrechen</button>
+      <button type="button" class="btn" id="ld-ok">Einfügen</button>
     </div>
   </div>
 </div>
@@ -1071,6 +1113,145 @@ async function copyText(text, btn) {
 }
 
 /* Mitwachsende Textfelder: Höhe = Texthöhe (gemessen an einem unsichtbaren Zwilling, damit nichts springt). */
+/* ---------- Material zu Aufgaben: Absätze aus Läufen {t, f ("b"/"i"/"u"), h (Link)} – nie innerHTML ---------- */
+const MAT_LIMITS = { chars: 8000, paragraphs: 200, runs: 600, links: 60, href: 1000 };   // wie LIMITS im Worker
+function cleanHref(raw) {   // → http(s)-Adresse oder "" (javascript:, data: usw. werden verworfen)
+  const s = String(raw == null ? "" : raw).trim();
+  if (!s || s.length > MAT_LIMITS.href || /[\u0000-\u0020\u007f]/.test(s)) return "";
+  let u; try { u = new URL(s); } catch (e) { return ""; }
+  return u.protocol === "http:" || u.protocol === "https:" ? u.href : "";
+}
+function cleanMaterial(raw) {   // Daten vom Server prüfen, bevor daraus DOM wird
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, MAT_LIMITS.paragraphs).map((p) => (Array.isArray(p) ? p : []).map((r) => (r && typeof r.t === "string"
+    ? { t: r.t.slice(0, MAT_LIMITS.chars), f: ["b", "i", "u"].filter((c) => String(r.f || "").includes(c)).join(""), h: cleanHref(r.h) } : null)).filter((r) => r && r.t));
+}
+const materialChars = (m) => m.reduce((n, p) => n + p.reduce((k, r) => k + r.t.length, 0), 0);
+// Modell → DOM: links = anklickbar in neuem Tab (Schüler:innen, Lehrkraft-Ansicht); editor = Zeilen als <div> für contenteditable
+function materialDom(material, opts) {
+  const o = opts || {}, root = h("div", { class: "material" });
+  cleanMaterial(material).forEach((runs) => {
+    const p = h(o.editor ? "div" : "p");
+    if (!runs.length) p.appendChild(h("br"));
+    runs.forEach((r) => {
+      let node = document.createTextNode(r.t);
+      if (r.f.includes("u")) node = h("u", null, [node]);
+      if (r.f.includes("i")) node = h("i", null, [node]);
+      if (r.f.includes("b")) node = h("b", null, [node]);
+      if (r.h) node = h("a", o.links ? { href: r.h, target: "_blank", rel: "noopener noreferrer" } : { href: r.h }, [node]);
+      p.appendChild(node);
+    });
+    root.appendChild(p);
+  });
+  return root;
+}
+// DOM des Editors (oder eingefügtes HTML) → Modell. Nur b/i/u/Links bleiben; Blöcke und <br> trennen Absätze.
+const MAT_BLOCK_RE = /^(p|div|li|h[1-6]|tr|blockquote|pre|section|article|ul|ol|table|tbody|thead|dd|dt|figure)$/;
+function serializeMaterial(root) {
+  const lines = []; let cur = [];
+  const flush = () => { lines.push(cur); cur = []; };
+  const push = (text, f, hr) => {
+    const t = text.replace(/[\u00a0\t\r\n]+/g, " ");
+    if (!t || (!cur.length && !t.trim())) return;
+    const prev = cur[cur.length - 1];
+    if (prev && prev.f === f && prev.h === hr) prev.t += t; else cur.push({ t, f, h: hr });
+  };
+  const walk = (node, b, i, u, hr) => {
+    if (node.nodeType === 3) { push(node.nodeValue || "", (b ? "b" : "") + (i ? "i" : "") + (u ? "u" : ""), hr); return; }
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName.toLowerCase();
+    if (tag === "br") { flush(); return; }
+    if (tag === "script" || tag === "style" || tag === "template" || tag === "img" || tag === "svg" || tag === "iframe" || tag === "object") return;
+    const st = node.style || {}, fw = String(st.fontWeight || "");
+    b = b || tag === "b" || tag === "strong" || fw === "bold" || fw === "bolder" || +fw >= 600;
+    i = i || tag === "i" || tag === "em" || st.fontStyle === "italic";
+    u = u || tag === "u" || /underline/.test(String(st.textDecoration || st.textDecorationLine || ""));
+    if (tag === "a") { const x = cleanHref(node.getAttribute("href")); if (x) hr = x; }
+    const block = MAT_BLOCK_RE.test(tag);
+    if (block && cur.length) flush();
+    for (const c of Array.from(node.childNodes)) walk(c, b, i, u, hr);
+    if (block && cur.length) flush();
+  };
+  walk(root, false, false, false, "");
+  flush();
+  const out = lines.map((runs) => {
+    if (runs.length) { runs[0].t = runs[0].t.replace(/^\s+/, ""); runs[runs.length - 1].t = runs[runs.length - 1].t.replace(/\s+$/, ""); }
+    return runs.filter((r) => r.t).map((r) => { const o = { t: r.t }; if (r.f) o.f = r.f; if (r.h) o.h = r.h; return o; });
+  });
+  while (out.length && !out[out.length - 1].length) out.pop();
+  while (out.length && !out[0].length) out.shift();
+  return out;
+}
+// Eingefügtes HTML (Zwischenablage) bereinigt an der Cursorposition einfügen
+function insertMaterialHtml(ed, html) {
+  let doc; try { doc = new DOMParser().parseFromString(html, "text/html"); } catch (e) { return; }
+  const model = serializeMaterial(doc.body);
+  if (!model.length) return;
+  const dom = materialDom(model, { editor: true });
+  const sel = getSelection();
+  if (!sel.rangeCount || !ed.contains(sel.anchorNode)) { ed.focus(); sel.selectAllChildren(ed); sel.collapseToEnd(); }
+  const range = sel.getRangeAt(0); range.deleteContents();
+  const frag = document.createDocumentFragment();
+  (model.length === 1 ? Array.from(dom.firstChild.childNodes) : Array.from(dom.childNodes)).forEach((n) => frag.appendChild(n));
+  const last = frag.lastChild;
+  range.insertNode(frag);
+  if (last) { range.setStartAfter(last); range.collapse(true); sel.removeAllRanges(); sel.addRange(range); }
+}
+/* Link-Dialog für den Material-Editor */
+let ldState = null;
+function closestAnchor(node, ed) { let n = node && node.nodeType === 3 ? node.parentNode : node; while (n && n !== ed) { if (n.tagName === "A") return n; n = n.parentNode; } return null; }
+function linkDialog(ed) {
+  ed.focus();
+  const sel = getSelection();
+  if (!sel.rangeCount || !ed.contains(sel.anchorNode)) { sel.selectAllChildren(ed); sel.collapseToEnd(); }
+  const range = sel.getRangeAt(0).cloneRange(), anchor = closestAnchor(sel.anchorNode, ed);
+  ldState = { ed, range, anchor };
+  $("ld-title").textContent = anchor ? "Link bearbeiten" : "Link einfügen";
+  $("ld-text").value = anchor ? anchor.textContent : range.toString().replace(/\s+/g, " ").trim();
+  $("ld-url").value = anchor ? anchor.getAttribute("href") || "" : "";
+  $("ld-err").textContent = "";
+  $("ld-remove").classList.toggle("hidden", !anchor);
+  $("ld-ok").textContent = anchor ? "Übernehmen" : "Einfügen";
+  $("linkdlg").classList.add("open");
+  setTimeout(() => ($("ld-text").value && !$("ld-url").value ? $("ld-url") : $("ld-text")).focus(), 20);
+}
+function closeLinkDlg() {
+  $("linkdlg").classList.remove("open");
+  const st = ldState; ldState = null;
+  if (st && st.ed) { try { st.ed.focus(); } catch (e) { /* egal */ } }
+}
+function applyLink() {
+  const st = ldState; if (!st) return;
+  const text = $("ld-text").value.replace(/\s+/g, " ").trim();
+  let raw = $("ld-url").value.trim();
+  if (raw && !/^[a-z][a-z0-9+.-]*:/i.test(raw)) raw = "https://" + raw;   // ohne Schema → https://
+  const url = cleanHref(raw);
+  if (!url) { $("ld-err").textContent = "Bitte eine gültige Adresse eingeben, z. B. https://www.beispiel.de"; $("ld-url").focus(); return; }
+  if (!text) { $("ld-err").textContent = "Bitte einen Linktext eingeben."; $("ld-text").focus(); return; }
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(st.range);
+  let a;
+  if (st.anchor) { a = st.anchor; a.setAttribute("href", url); if (a.textContent !== text) a.textContent = text; }
+  else if (!st.range.collapsed && st.range.toString().replace(/\s+/g, " ").trim() === text) {
+    document.execCommand("createLink", false, url);   // markierten Text verlinken (Formatierung bleibt)
+    a = closestAnchor(sel.anchorNode, st.ed);
+  } else { a = h("a", { href: url }, [document.createTextNode(text)]); st.range.deleteContents(); st.range.insertNode(a); }
+  if (a) { const r = document.createRange(); r.setStartAfter(a); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+  st.ed.dispatchEvent(new Event("input", { bubbles: true }));
+  closeLinkDlg();
+}
+$("ld-ok").addEventListener("click", applyLink);
+$("ld-cancel").addEventListener("click", closeLinkDlg);
+$("ld-remove").addEventListener("click", () => {
+  const st = ldState;
+  if (st && st.anchor) { st.anchor.replaceWith(...Array.from(st.anchor.childNodes)); st.ed.dispatchEvent(new Event("input", { bubbles: true })); }
+  closeLinkDlg();
+});
+$("linkdlg").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); closeLinkDlg(); }
+  else if (e.key === "Enter" && (e.target.id === "ld-text" || e.target.id === "ld-url")) { e.preventDefault(); applyLink(); }
+});
+$("linkdlg").addEventListener("click", (e) => { if (e.target === $("linkdlg")) closeLinkDlg(); });
+
 /* ---------- Bilder zu Aufgaben: Adresse und Vergrößerung ---------- */
 const IMAGE_ID_RE = /^[0-9a-f]{16}$/, IMAGE_MIME_RE = /^image\/(jpeg|png|webp)$/;
 const hexOf = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -1190,6 +1371,7 @@ async function loadSheet(code) {
     code, title: String(sh.title || "Feibeitsblatt"),
     tasks: sh.tasks.map((t) => String((t && t.text) || "")),
     images: sh.tasks.map((t) => cleanImages(t && t.images)),   // je Aufgabe: Miniaturen (thumb) oder größer unter der Aufgabe (inline)
+    material: sh.tasks.map((t) => cleanMaterial(t && t.material)),   // je Aufgabe: formatierter Text der Lehrkraft mit Links
     aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null
   };
 }
@@ -1384,7 +1566,7 @@ function buildTasks() {
     const out = h("div", { class: "lt-out hidden", "aria-live": "polite" });
     const fb = h("div", { class: "fbbox hidden" });
     // Bilder der Lehrkraft: Miniaturen rechts neben Aufgabe und Antwort, größere Bilder zwischen Aufgabenstellung und Antwortfeld
-    const imgs = (S.sheet.images && S.sheet.images[i]) || [];
+    const imgs = (S.sheet.images && S.sheet.images[i]) || [], mat = (S.sheet.material && S.sheet.material[i]) || [];
     const mk = (m, k, cls) => imgButton(S.code, m, `Bild ${k + 1} zu Aufgabe ${n}`, cls);
     const thumbs = imgs.map((m, k) => (m.mode === "thumb" ? mk(m, k, "thumbbtn") : null)).filter(Boolean);
     const figs = imgs.map((m, k) => (m.mode === "inline" ? mk(m, k, "figbtn") : null)).filter(Boolean);
@@ -1395,6 +1577,7 @@ function buildTasks() {
       ]),
       thumbs.length ? h("div", { class: "task-thumbs" }, thumbs) : null,
       h("div", { class: "task-body" }, [
+        mat.length ? h("div", { class: "task-material" }, [h("span", { class: "sublabel", text: "Material" }), materialDom(mat, { links: true })]) : null,
         figs.length ? h("div", { class: "task-figs" }, figs) : null,
         ta, pe, cnt,
         h("div", { class: "checkrow" }, [ltBtn, ltOff, ltStat]),
@@ -2073,6 +2256,7 @@ async function selectSheet(code) {
     r.sheet.tasks.forEach((t, i) => list.appendChild(h("div", { class: "si" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
       h("p", { text: String(t.text || "") }),
+      cleanMaterial(t.material).length ? materialDom(t.material, { links: true }) : null,
       teacherImgs(code, t.images, i + 1),
       h("span", { class: "task-label", style: "margin-top:6px", text: "Musterlösung" }),
       h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keine –" })
@@ -2219,7 +2403,7 @@ $("t-template").addEventListener("click", async () => {
           images.push({ blob, mime: blob.type, w: m.w, h: m.h, mode: m.mode, alt: m.alt || "", url: URL.createObjectURL(blob) });
         } catch (e) { lost++; }
       }
-      return { text: String(t.text || ""), solution: String(t.solution || ""), images };
+      return { text: String(t.text || ""), solution: String(t.solution || ""), images, material: cleanMaterial(t.material) };
     }));
     openBuilder(T.selSheet.title, rows);
     if (lost) $("b-err").textContent = `${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`;
@@ -2271,7 +2455,7 @@ function openBuilder(title, rows) {
   Array.from($("b-rows").children).forEach((tr) => (tr._images || []).forEach((im) => URL.revokeObjectURL(im.url)));   // alte Vorschauen freigeben
   $("b-rows").textContent = "";
   const init = rows && rows.length ? rows : [{}, {}, {}];
-  init.forEach((r) => addRow(r.text, r.solution, r.images));
+  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material));
   T.builderDirty = false;
   growAll();
   focusSoon("b-title", 30);
@@ -2347,7 +2531,7 @@ async function addImages(tr, files) {
     }
   } finally { busy(tr._imgAdd, false); renderImages(tr); }
 }
-function addRow(text, solution, images) {
+function addRow(text, solution, images, material) {
   const tb = $("b-rows");
   const ta1 = h("textarea", { class: "grow q", rows: "3", maxlength: "4000", placeholder: "Aufgabenstellung …", spellcheck: "true" });
   const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Kernpunkte der Musterlösung, je Zeile einer …", spellcheck: "true" });
@@ -2361,12 +2545,39 @@ function addRow(text, solution, images) {
   const file = h("input", { type: "file", accept: "image/*", multiple: true, class: "sr-only", tabindex: "-1", "aria-hidden": "true" });
   const imgAdd = h("button", { type: "button", class: "btn ghost small bimg-add", text: "+ Bild hinzufügen" });
   const imgStat = h("span", { class: "fhint bimg-stat", role: "status", "aria-live": "polite" });
+  // Material: formatierbarer Text (fett/kursiv/unterstrichen) mit Links – als contenteditable, gespeichert als Modell
+  const matEd = h("div", { class: "bmat-edit is-empty", contenteditable: "true", role: "textbox", "aria-multiline": "true", spellcheck: "true",
+    "data-placeholder": "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …" });
+  const matInput = () => { matEd.classList.toggle("is-empty", !matEd.textContent.trim()); T.builderDirty = true; };
+  const fmt = (cmd, title, kid) => {
+    const b = h("button", { type: "button", class: "fmtbtn", title, "aria-label": title }, [kid]);
+    b.addEventListener("mousedown", (e) => e.preventDefault());   // Markierung im Editor behalten
+    b.addEventListener("click", () => { matEd.focus(); document.execCommand(cmd); matInput(); });
+    return b;
+  };
+  const linkBtn = h("button", { type: "button", class: "fmtbtn", title: "Link einfügen oder bearbeiten", text: "Link" });
+  linkBtn.addEventListener("mousedown", (e) => e.preventDefault());
+  linkBtn.addEventListener("click", () => linkDialog(matEd));
+  const matLbl = h("span", { class: "rowlbl", style: "margin-top:10px" });
+  const matBar = h("div", { class: "bmat-bar", role: "toolbar", "aria-label": "Formatierung des Materials" }, [
+    fmt("bold", "Fett (Strg+B)", h("b", { text: "F" })), fmt("italic", "Kursiv (Strg+I)", h("i", { text: "K" })), fmt("underline", "Unterstrichen (Strg+U)", h("u", { text: "U" })), linkBtn]);
+  matEd.addEventListener("input", matInput);
+  matEd.addEventListener("paste", (e) => {   // eingefügtes HTML wird auf fett/kursiv/unterstrichen/Links reduziert
+    e.preventDefault();
+    const dt = e.clipboardData; if (!dt) return;
+    const html = dt.getData("text/html");
+    if (html) insertMaterialHtml(matEd, html); else document.execCommand("insertText", false, dt.getData("text/plain") || "");
+    matInput();
+  });
+  matEd.addEventListener("drop", (e) => { e.preventDefault(); const t = e.dataTransfer && e.dataTransfer.getData("text/plain"); if (t) { matEd.focus(); document.execCommand("insertText", false, t); matInput(); } });
+  if (material && material.length) { Array.from(materialDom(material, { editor: true }).childNodes).forEach((n) => matEd.appendChild(n)); matEd.classList.remove("is-empty"); }
   const tr = h("tr", null, [
-    h("td", { class: "c1" }, [l1, ta1, h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])])]),
+    h("td", { class: "c1" }, [l1, ta1, h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
+      h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])])]),
     h("td", { class: "c2" }, [l2, ta2]),
     h("td", { class: "act" }, [h("div", { class: "acts" }, [up, down, del])])
   ]);
-  tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat;
+  tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl;
   imgAdd.addEventListener("click", () => { file.value = ""; file.click(); });
   file.addEventListener("change", () => addImages(tr, Array.from(file.files || [])));
   (images || []).forEach((im) => { if (tr._images.length < IMG_PER_TASK) tr._images.push(im); });
@@ -2375,10 +2586,11 @@ function addRow(text, solution, images) {
   up.addEventListener("click", () => { const p = tr.previousElementSibling; if (p) { tb.insertBefore(tr, p); renumber(); up.focus(); T.builderDirty = true; } });
   down.addEventListener("click", () => { const n = tr.nextElementSibling; if (n) { tb.insertBefore(n, tr); renumber(); down.focus(); T.builderDirty = true; } });
   del.addEventListener("click", async () => {
-    if (tb.children.length <= 1 && !tr._images.length) { ta1.value = ""; ta2.value = ""; growAll(); return; }
-    if ((ta1.value.trim() || ta2.value.trim() || tr._images.length) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Musterlösung und Bilder dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    const hasMat = !!matEd.textContent.trim();
+    if (tb.children.length <= 1 && !tr._images.length && !hasMat) { ta1.value = ""; ta2.value = ""; growAll(); return; }
+    if ((ta1.value.trim() || ta2.value.trim() || tr._images.length || hasMat) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Musterlösung, Material und Bilder dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
     tr._images.forEach((im) => URL.revokeObjectURL(im.url));
-    if (tb.children.length <= 1) { ta1.value = ""; ta2.value = ""; tr._images = []; renderImages(tr); growAll(); T.builderDirty = true; return; }
+    if (tb.children.length <= 1) { ta1.value = ""; ta2.value = ""; matEd.textContent = ""; matInput(); tr._images = []; renderImages(tr); growAll(); T.builderDirty = true; return; }
     tr.remove(); renumber(); T.builderDirty = true;
   });
   tb.appendChild(tr);
@@ -2399,6 +2611,8 @@ function renumber() {
     tr.querySelector(".down").setAttribute("aria-label", `Aufgabe ${n} nach unten verschieben`);
     tr.querySelector(".x").setAttribute("aria-label", `Aufgabe ${n} entfernen`);
     tr.querySelector(".bimg-add").setAttribute("aria-label", `Bild zu Aufgabe ${n} hinzufügen`);
+    tr._matLbl.textContent = `Material ${n} (optional)`;
+    tr._matEd.setAttribute("aria-label", `Material zu Aufgabe ${n}`);
     tr.querySelector(".up").title = "Nach oben"; tr.querySelector(".down").title = "Nach unten"; tr.querySelector(".x").title = "Zeile entfernen";
   });
   $("b-add").disabled = rows.length >= 30;
@@ -2423,10 +2637,13 @@ $("b-gen").addEventListener("click", async () => {
   let bad = null;
   Array.from($("b-rows").children).forEach((tr, i) => {
     const q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)");
-    const text = q.value.trim(), solution = s.value.trim(), imgs = tr._images || [];
-    if (!text && !solution && !imgs.length) return;     // leere Zeilen weglassen
+    const text = q.value.trim(), solution = s.value.trim(), imgs = tr._images || [], material = serializeMaterial(tr._matEd);
+    if (!text && !solution && !imgs.length && !material.length) return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
-    tasks.push({ text, solution });
+    if (materialChars(material) > MAT_LIMITS.chars && !bad) { bad = tr._matEd; err.textContent = `Zeile ${i + 1}: Das Material ist zu lang (höchstens ${MAT_LIMITS.chars.toLocaleString("de-DE")} Zeichen).`; }
+    const task = { text, solution };
+    if (material.length) task.material = material;
+    tasks.push(task);
     imgs.forEach((im, k) => uploads.push({ task: tasks.length, im, id: hexOf(crypto.getRandomValues(new Uint8Array(8))), label: `Aufgabe ${tasks.length}, Bild ${k + 1}` }));
   });
   if (bad) { bad.focus(); return; }

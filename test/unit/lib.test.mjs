@@ -260,3 +260,40 @@ test("imagesForTask + generateImageId", () => {
   for (let i = 0; i < 20; i++) assert.match(generateImageId(), IMAGE_ID_RE);
   assert.equal(generateImageId((n) => new Uint8Array(n).fill(255)), "ffffffffffffffff");
 });
+
+/* ---------- Material zu Aufgaben ---------- */
+import { validateMaterial, materialText, cleanHref } from "../../worker/lib.js";
+
+test("cleanHref: nur http(s), normalisiert; alles andere leer", () => {
+  assert.equal(cleanHref(" https://Beispiel.de/Weg?x=1#a "), "https://beispiel.de/Weg?x=1#a");
+  assert.equal(cleanHref("http://127.0.0.1:8787/api/health"), "http://127.0.0.1:8787/api/health");
+  for (const bad of ["javascript:alert(1)", "data:text/html,x", "mailto:a@b.de", "ftp://x.de", "beispiel.de", "", null, undefined, "https://a b.de", "https://x.de/\u0007", "x".repeat(LIMITS.href + 1)])
+    assert.equal(cleanHref(bad), "", String(bad).slice(0, 30));
+});
+
+test("validateMaterial: normalisiert Läufe, verbindet gleiche Formate, prüft Links und Grenzen", () => {
+  assert.deepEqual(validateMaterial(undefined), []); assert.deepEqual(validateMaterial(null), []); assert.deepEqual(validateMaterial([]), []);
+  const m = validateMaterial([
+    [], [{ t: "Lies " }, { t: "den", f: "ub" }, { t: " Text", f: "" }, { t: "", f: "b" }, { t: "\tjetzt\n" }],
+    [{ t: "Quelle", h: "HTTPS://Beispiel.de/x", f: "iii" }, { t: "  " }],
+    [], [],
+  ], 2);
+  assert.deepEqual(m, [[{ t: "Lies " }, { t: "den", f: "bu" }, { t: " Text jetzt " }], [{ t: "Quelle", f: "i", h: "https://beispiel.de/x" }, { t: "  " }]]);
+  rejectsWith(() => validateMaterial("x"), "bad_request"); rejectsWith(() => validateMaterial([{}]), "bad_request"); rejectsWith(() => validateMaterial([[5]]), "bad_request");
+  rejectsWith(() => validateMaterial([[{ t: 5 }]]), "bad_request"); rejectsWith(() => validateMaterial([[{ t: "a", f: 1 }]]), "bad_request");
+  assert.throws(() => validateMaterial([[{ t: "x", h: "javascript:alert(1)" }]], 3), (e) => e instanceof InputError && /Aufgabe 3: Ein Link im Material ist ungültig/.test(e.message));
+  rejectsWith(() => validateMaterial([[{ t: "x".repeat(LIMITS.material + 1) }]]), "bad_request");
+  rejectsWith(() => validateMaterial(Array.from({ length: LIMITS.materialParagraphs + 1 }, () => [])), "bad_request");
+  rejectsWith(() => validateMaterial([Array.from({ length: LIMITS.materialRuns + 1 }, (_, i) => ({ t: "a", f: i % 2 ? "b" : "" }))]), "bad_request");
+  rejectsWith(() => validateMaterial([Array.from({ length: LIMITS.materialLinks + 1 }, (_, i) => ({ t: "a", h: "https://x.de/" + i }))]), "bad_request");
+  // Steuerzeichen raus, NBSP → Leerzeichen
+  assert.deepEqual(validateMaterial([[{ t: "a\u0000b\u00a0c" }]]), [[{ t: "ab c" }]]);
+});
+
+test("validateSheetInput nimmt Material je Aufgabe mit (nur wenn vorhanden) und materialText macht reinen Text", () => {
+  const r = validateSheetInput({ title: "x", tasks: [{ text: "A", material: [[{ t: "Hallo " }, { t: "Welt", f: "b" }], [], [{ t: "Link", h: "https://x.de" }]] }, { text: "B", material: [] }, { text: "C" }] });
+  assert.deepEqual(r.tasks[0].material, [[{ t: "Hallo " }, { t: "Welt", f: "b" }], [], [{ t: "Link", h: "https://x.de/" }]]);
+  assert.equal("material" in r.tasks[1], false); assert.equal("material" in r.tasks[2], false);
+  assert.equal(materialText(r.tasks[0].material), "Hallo Welt\n\nLink");
+  assert.equal(materialText(undefined), ""); assert.equal(materialText([[{ t: "  x " }]]), "x");
+});

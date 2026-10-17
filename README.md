@@ -42,7 +42,9 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten). Hat die Lehrkraft Bilder zu einer Aufgabe
    hinterlegt, stehen sie je nach Einstellung als kleine Miniaturen rechts neben Aufgabe und Antwortfeld (auf
    schmalen Bildschirmen zwischen Aufgabenstellung und Antwortfeld) oder etwas größer unter der Aufgabenstellung.
-   Ein Klick auf ein Bild zeigt es groß; ein weiterer Klick oder die Esc-Taste schließt die Ansicht.
+   Ein Klick auf ein Bild zeigt es groß; ein weiterer Klick oder die Esc-Taste schließt die Ansicht. Hat die
+   Lehrkraft „Material“ hinterlegt (einen Text mit Hervorhebungen oder Links), steht es unter der Aufgabenstellung;
+   Links darin öffnen sich immer in einem neuen Tab, das Feibeitsblatt bleibt geöffnet.
 4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button – aber nur, wenn
    die Schülerin oder der Schüler laut Geburtsdatum mindestens 16 Jahre alt ist (darunter steht an seiner Stelle der
    Hinweis „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“). Beim ersten Klick erklärt ein
@@ -92,6 +94,14 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    (höchstens etwa 12 Punkte je Aufgabe). Hier dürfen Sie Text einfügen. Zeilen lassen sich hinzufügen, entfernen
    und verschieben (1 bis 30 Aufgaben). Eine Aufgabe ohne Musterlösung bekommt kein KI-Feedback, sondern den
    Hinweis „Zu dieser Aufgabe gibt es keine Musterlösung.“
+   **Material:** Unter jeder Aufgabenstellung gibt es das Feld „Material“ für einen Text, den die Schüler:innen zur
+   Aufgabe sehen – etwa einen Auszug, ein Zitat, Arbeitshinweise oder Links. Mit den Knöpfen **F**, **K**, **U**
+   (oder Strg+B, Strg+I, Strg+U) formatieren Sie markierten Text fett, kursiv oder unterstrichen; „Link“ verlinkt
+   den markierten Text (oder fügt einen neuen Link mit Linktext ein), nur Adressen mit `http://` oder `https://`.
+   Eingefügter Text aus Word oder dem Browser behält diese Hervorhebungen und Links, alles andere (Farben,
+   Schriften, Bilder) wird entfernt. Das Material sehen Schüler:innen unter der Aufgabenstellung; Links öffnen
+   sich bei ihnen immer in einem neuen Tab. Der reine Text des Materials (ohne Links) geht beim KI-Feedback als
+   Kontext mit an die KI (höchstens 4000 Zeichen je Aufgabe). Höchstens 8000 Zeichen je Aufgabe.
    **Bilder:** Unter jeder Aufgabenstellung lassen sich mit „+ Bild hinzufügen“ bis zu fünf Bilder hochladen
    (JPG, PNG oder WebP, auch mehrere auf einmal; HEIC-Fotos vom iPhone vorher als JPG sichern). Der Browser
    verkleinert jedes Bild vor dem Hochladen auf höchstens 1600 Pixel Kantenlänge und höchstens 500 KB. Zu jedem
@@ -396,7 +406,7 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 
 | Daten | Wo | Wie | Wie lange |
 |---|---|---|---|
-| Feibeitsblätter: Titel, Aufgaben, **Musterlösungen** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
+| Feibeitsblätter: Titel, Aufgaben, Material, **Musterlösungen** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code und der Eingangszeitpunkt | bis Sie die Abgaben oder das Blatt löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
@@ -415,7 +425,7 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 ### Was wohin gesendet wird
 
 - **KI-Feedback:** Der Browser schickt den Blatt-Code und die Antworten an den Server dieser Seite (Cloudflare).
-  Der Server leitet **Aufgabenstellungen, Ihre Musterlösungen und die Antworten** an den von Ihnen gewählten
+  Der Server leitet **Aufgabenstellungen, den Text des Materials, Ihre Musterlösungen und die Antworten** an den von Ihnen gewählten
   KI-Anbieter weiter – nur für Aufgaben mit Musterlösung. **Nie** gesendet werden Kürzel, Geburtsdatum und Klasse;
   der Server bekommt sie dabei gar nicht. Der KI-Anbieter verarbeitet die Daten nach seinen eigenen Bedingungen;
   bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe [KI-Anbieter](#ki-anbieter)).
@@ -484,6 +494,7 @@ Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage bis zu etwa 100
 |---|---|
 | Aufgaben je Feibeitsblatt | 1 bis 30 |
 | Aufgabenstellung / Musterlösung / Titel | 4000 / 8000 / 200 Zeichen |
+| Material je Aufgabe | 8000 Zeichen, 60 Links; nur fett, kursiv, unterstrichen und Links (http/https) |
 | Bilder je Aufgabe | 5; je Bild höchstens 500 KB nach dem Verkleinern (längste Seite 1600 Pixel); alle Bilder eines Blattes zusammen 12 MB |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |

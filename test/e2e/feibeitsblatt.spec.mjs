@@ -5,7 +5,7 @@ import { test, expect } from "@playwright/test";
 import { expectedResults } from "../mock-ai.mjs";
 import { deriveTeacherKeys, makeEnvelope } from "../smoke.mjs";
 import { makePng } from "../png.mjs";
-import { MOCK_URL } from "./env.mjs";
+import { MOCK_URL, BASE_URL } from "./env.mjs";
 import {
   PASTE_MSG, UNKNOWN_CODE_MSG, NO_SOLUTION_NOTE, GREEN, RED, openPage, closePage, confirmDialog, teacherLogin,
   lineHeightOf, gapAfterTask, mockState, mockReset, mockMode, d1Query, scanState,
@@ -59,7 +59,14 @@ const C = {
   first: ["Das Gewissen sagt mir, was richtig ist.", "Ich habe einmal gelogen und mich danach schlecht gefühlt.", "Ich schäme mich dann."],
 };
 
-const S = { code: "", shown: "", sheetBodies: [], imgs: [] };   // gemeinsamer Zustand der Tests (imgs: hochgeladene Bilder zu Aufgabe 1)
+const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [] };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe)
+// Material, das Test 1 im Editor erzeugt (Aufgabe 1 getippt und formatiert, Aufgabe 2 als HTML eingefügt)
+const LINK_URL = BASE_URL + "/api/health";
+const MATERIAL_1 = [
+  [{ t: "Lies zuerst den " }, { t: "Textauszug", f: "b" }, { t: " und dann " }, { t: "diese Seite", f: "i" }, { t: ":" }],
+  [{ t: "Hinweis:", f: "u" }, { t: " " }, { t: "Quelle", h: LINK_URL }],
+];
+const MATERIAL_2 = [[{ t: "Siehe " }, { t: "Kapitel 3", f: "b" }, { t: " und böse sowie " }, { t: "gut", h: "https://example.org/x" }, { t: "." }]];
 const fmtDe = (iso) => iso.split("-").reverse().join(".");
 
 /* ---------- Hilfen für den Schreibbereich ---------- */
@@ -169,6 +176,57 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.fill("#bq-2", TASKS[1].text); await page.fill("#bs-2", TASKS[1].solution);
   await page.fill("#bq-3", TASKS[2].text);
 
+  // Material zu Aufgabe 1: tippen, fett/kursiv per Tastenkürzel, unterstrichen per Knopf, Link per Dialog
+  const ed1 = page.locator("#b-rows > tr").nth(0).locator(".bmat-edit");
+  await expect(ed1).toHaveAttribute("aria-label", "Material zu Aufgabe 1");
+  await expect(ed1).toHaveClass(/is-empty/);
+  await ed1.click();
+  await page.keyboard.type("Lies zuerst den ");
+  await page.keyboard.press("Control+B"); await page.keyboard.type("Textauszug"); await page.keyboard.press("Control+B");
+  await page.keyboard.type(" und dann ");
+  await page.keyboard.press("Control+I"); await page.keyboard.type("diese Seite"); await page.keyboard.press("Control+I");
+  await page.keyboard.type(":");
+  await page.keyboard.press("Enter");
+  const row0 = page.locator("#b-rows > tr").nth(0);
+  await row0.locator(".fmtbtn", { hasText: "U" }).click(); await page.keyboard.type("Hinweis:"); await row0.locator(".fmtbtn", { hasText: "U" }).click();
+  await page.keyboard.type(" Quelle");
+  for (let i = 0; i < 6; i++) await page.keyboard.press("Shift+ArrowLeft");   // „Quelle“ markieren
+  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await expect(page.locator("#linkdlg")).toHaveClass(/open/);
+  await expect(page.locator("#ld-title")).toHaveText("Link einfügen");
+  await expect(page.locator("#ld-text")).toHaveValue("Quelle");
+  await page.fill("#ld-url", "javascript:alert(1)");
+  await page.click("#ld-ok");
+  await expect(page.locator("#ld-err")).toHaveText("Bitte eine gültige Adresse eingeben, z. B. https://www.beispiel.de");
+  await page.fill("#ld-url", LINK_URL);
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#linkdlg")).not.toHaveClass(/open/);
+  await expect(ed1.locator("a")).toHaveText("Quelle");
+  await expect(ed1.locator("b")).toHaveText("Textauszug");
+  await expect(ed1).not.toHaveClass(/is-empty/);
+  // Link bearbeiten: Cursor im Link → Dialog zeigt die Adresse, „Link entfernen“ steht bereit; Abbrechen ändert nichts
+  await ed1.locator("a").click();
+  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await expect(page.locator("#ld-title")).toHaveText("Link bearbeiten");
+  await expect(page.locator("#ld-url")).toHaveValue(LINK_URL);
+  await expect(page.locator("#ld-remove")).toBeVisible();
+  await page.click("#ld-cancel");
+  await expect(ed1.locator("a")).toHaveCount(1);
+  // Material zu Aufgabe 2 aus der Zwischenablage (HTML): nur fett/kursiv/unterstrichen und http(s)-Links bleiben
+  const ed2 = page.locator("#b-rows > tr").nth(1).locator(".bmat-edit");
+  await ed2.click();
+  await ed2.evaluate((el) => {
+    const dt = new DataTransfer();
+    dt.setData("text/html", '<p style="color:red">Siehe <strong>Kapitel 3</strong> und <a href="javascript:alert(1)">böse</a> sowie <a href="https://example.org/x">gut</a>.</p><script>window.__pasted = 1</script><img src="https://example.org/t.png">');
+    dt.setData("text/plain", "Siehe Kapitel 3 und böse sowie gut.");
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  await expect(ed2.locator("b")).toHaveText("Kapitel 3");
+  await expect(ed2.locator("a")).toHaveCount(1);
+  await expect(ed2.locator("a")).toHaveAttribute("href", "https://example.org/x");
+  await expect(ed2.locator("img, script")).toHaveCount(0);
+  expect(await page.evaluate(() => window.__pasted)).toBeUndefined();
+
   // Bilder zu Aufgabe 1: ein großes PNG wird auf 1600 px verkleinert, ein „Foto“ wird als JPEG neu kodiert; je Bild die Anzeigeart
   const row1 = page.locator("#b-rows > tr").nth(0);
   await expect(row1.locator(".bimg-add")).toHaveText("+ Bild hinzufügen");
@@ -214,6 +272,11 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   expect(S.shown).toMatch(/[A-Z]/); expect(S.shown).toMatch(/[2-9]/);
   S.code = S.shown.replace("-", "");
   await expect(page.locator("#b-res-title")).toHaveText(TITLE);
+  const created = (await t.calls((r) => r.method === "POST" && r.path === "/api/teacher/sheets"))[0];
+  const sentTasks = JSON.parse(created.reqBody).tasks;
+  expect(sentTasks.map((x) => x.material)).toEqual([MATERIAL_1, MATERIAL_2, undefined]);   // Modell statt HTML
+  expect(created.reqBody).not.toContain("<");
+  S.material = [MATERIAL_1, MATERIAL_2, []];
   await expect(page.locator("#b-res-img")).toHaveText("Alle 2 Bilder sind gespeichert.", { timeout: 60_000 });
   await expect(page.locator("#b-res-retry")).toBeHidden();
   await page.unroute("**/api/teacher/sheets/*/images");
@@ -242,6 +305,9 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#t-sel-tasks .si")).toHaveCount(3);
   await expect(page.locator("#t-sel-tasks .si").nth(2)).toContainText("– keine –");
   const si0 = page.locator("#t-sel-tasks .si").nth(0);
+  await expect(si0.locator(".material p")).toHaveCount(2);
+  await expect(si0.locator(".material a")).toHaveAttribute("target", "_blank");
+  await expect(page.locator("#t-sel-tasks .si").nth(2).locator(".material")).toHaveCount(0);
   await expect(si0.locator(".timgs .thumbbtn")).toHaveCount(2);
   await expect(si0.locator(".timgs .thumbbtn img").nth(0)).toHaveAttribute("src", /^data:image\/(png|jpeg);base64,/, { timeout: 15_000 });
   expect(await si0.locator(".timgs .thumbbtn img").nth(0).evaluate((e) => [e.naturalWidth, e.naturalHeight])).toEqual([1600, 800]);
@@ -301,6 +367,29 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(css).toEqual({ fs: "18.5px", ov: "hidden", rs: "none", ac: "off" });
   const lh = await lineHeightOf(page, "#a-1");
   expect(Math.abs(lh - 1.78 * 18.5)).toBeLessThan(0.1);
+
+  // Material der Lehrkraft unter der Aufgabenstellung: Formatierung erhalten, Links öffnen in neuem Tab (ohne Opener)
+  const mat1 = page.locator("#t-1 .task-material");
+  await expect(mat1.locator(".sublabel")).toHaveText("Material");
+  await expect(mat1.locator(".material p")).toHaveCount(2);
+  await expect(mat1.locator(".material p").nth(0)).toHaveText("Lies zuerst den Textauszug und dann diese Seite:");
+  await expect(mat1.locator("b")).toHaveText("Textauszug"); await expect(mat1.locator("i")).toHaveText("diese Seite"); await expect(mat1.locator("u")).toHaveText("Hinweis:");
+  const matLink = mat1.locator("a");
+  await expect(matLink).toHaveText("Quelle");
+  await expect(matLink).toHaveAttribute("href", LINK_URL);
+  await expect(matLink).toHaveAttribute("target", "_blank");
+  expect(await matLink.getAttribute("rel")).toMatch(/noopener/);
+  const [popup] = await Promise.all([page.context().waitForEvent("page"), matLink.click()]);
+  await popup.waitForLoadState();
+  expect(popup.url()).toBe(LINK_URL);
+  expect(await popup.evaluate(() => window.opener)).toBeNull();
+  await popup.close();
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);   // das Blatt bleibt offen
+  await expect(page.locator("#t-2 .task-material a")).toHaveAttribute("href", "https://example.org/x");
+  await expect(page.locator("#t-2 .task-material")).toContainText("Siehe Kapitel 3 und böse sowie gut.");
+  await expect(page.locator("#t-3 .task-material")).toHaveCount(0);
+  expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.material)).toEqual(S.material);
+  expect(lookup.body).not.toContain("<b>");
 
   // Bilder der Lehrkraft: Miniatur rechts neben Aufgabe 1 und Antwortfeld, das zweite größer zwischen Aufgabenstellung und Antwortfeld
   const t1 = page.locator("#t-1");
@@ -493,6 +582,8 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(prompt).toContain("innere Instanz");
   expect(prompt).not.toContain(A.a3);                                   // Aufgabe ohne Musterlösung geht nicht an die KI
   for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt).not.toContain(p);
+  expect(prompt).toContain(JSON.stringify("Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\nLies zuerst den Textauszug und dann diese Seite:\nHinweis: Quelle\n>>>").slice(1, -1));   // prompt ist JSON-kodiert
+  expect(prompt).not.toContain(LINK_URL);
 
   const exp = expectedResults(TASKS, A.first);
   expect(exp[0].missing).toEqual(["Meldet sich als schlechtes Gewissen"]);   // Plausibilität der Testdaten
@@ -707,6 +798,8 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(vRow.locator(".bimg-mode").nth(1)).toHaveValue("inline");
   await expect(vRow.locator(".bimg").nth(0).locator(".bimg-meta")).toHaveText(/^1600 × 800 px · \d+ KB$/);
   await expect(vRow.locator(".bimg-alt").nth(0)).toHaveValue("Skizze: Zelle mit Zellkern");
+  await expect(vRow.locator(".bmat-edit b")).toHaveText("Textauszug");
+  await expect(vRow.locator(".bmat-edit a")).toHaveAttribute("href", LINK_URL);
   await expect(page.locator("#b-err")).toHaveText("");
   // … und bis zum neuen Blatt: die Bilder werden erneut hochgeladen (Reihenfolge, Art und Beschreibung bleiben)
   await page.click("#b-gen");
@@ -718,6 +811,7 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   expect(tUps.map((m) => [m.task, m.pos, m.mode, m.alt, m.w, m.h])).toEqual([[1, 0, "thumb", "Skizze: Zelle mit Zellkern", 1600, 800], [1, 1, "inline", "", 300, 450]]);
   const pub = await (await t.page.request.get("/api/sheet/" + newCode)).json();
   expect(pub.sheet.tasks[0].images.map((m) => [m.mode, m.w, m.h, m.alt])).toEqual([["thumb", 1600, 800, "Skizze: Zelle mit Zellkern"], ["inline", 300, 450, ""]]);
+  expect(pub.sheet.tasks.map((x) => x.material)).toEqual(S.material);   // Material der Vorlage unverändert übernommen
   // das Vorlagen-Blatt wieder löschen (die späteren Tests rechnen mit genau einem Blatt)
   await page.click("#b-res-back");
   await expect(page.locator("#t-sel-code")).toHaveText(newCode.slice(0, 3) + "-" + newCode.slice(3));
@@ -768,7 +862,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie M
     const body = await res.text();
     const j = JSON.parse(body);
     expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "code", "publicKey", "tasks", "title"]);
-    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [] })));
+    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [] })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
   }

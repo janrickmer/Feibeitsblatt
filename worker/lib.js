@@ -82,6 +82,8 @@ export const LIMITS = {
   sheetImageBytes: 12 * 1024 * 1024, // Summe aller Bilder je Blatt (D1-Speicher)
   imageSide: 4096,                 // größte erlaubte Kantenlänge laut Kopfdaten
   imageAlt: 200,                   // Bildbeschreibung (wird vorgelesen)
+  material: 8000,                  // Material je Aufgabe (Zeichen), formatiert als Absätze aus Läufen
+  materialParagraphs: 200, materialRuns: 600, materialLinks: 60, href: 1000,
 };
 
 export class InputError extends Error {
@@ -152,10 +154,56 @@ export function validateSheetInput(body, now = Date.now()) {
     if (!text) throw new InputError("Aufgabe " + n + ": Bitte eine Aufgabenstellung eintragen.");
     if (text.length > LIMITS.taskText) throw new InputError("Aufgabe " + n + ": Die Aufgabenstellung ist zu lang (höchstens " + LIMITS.taskText + " Zeichen).");
     if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Die Musterlösung ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
-    return { text, solution };
+    const material = validateMaterial(t.material, n);
+    const task = { text, solution };
+    if (material.length) task.material = material;
+    return task;
   });
   return { title, tasks };
 }
+
+/* ---------- Material zu Aufgaben: Absätze aus Läufen {t, f?, h?} – f ⊆ "biu" (fett/kursiv/unterstrichen), h = Link.
+   Kein HTML: das Frontend baut daraus DOM-Knoten (nie innerHTML), Links nur http(s) und immer in neuem Tab. ---------- */
+export function cleanHref(raw) {   // → normalisierte http(s)-Adresse oder "" (javascript:, data:, mailto: … werden verworfen)
+  const s = String(raw == null ? "" : raw).trim();
+  if (!s || s.length > LIMITS.href || /[\u0000-\u0020\u007f]/.test(s)) return "";
+  let u; try { u = new URL(s); } catch { return ""; }
+  return u.protocol === "http:" || u.protocol === "https:" ? u.href : "";
+}
+export function validateMaterial(raw, n) {
+  if (raw == null) return [];
+  const where = n ? "Aufgabe " + n + ": " : "";
+  const bad = () => new InputError(where + "Das Material hat ein ungültiges Format.");
+  if (!Array.isArray(raw)) throw bad();
+  if (raw.length > LIMITS.materialParagraphs) throw new InputError(where + "Das Material hat zu viele Absätze (höchstens " + LIMITS.materialParagraphs + ").");
+  let chars = 0, runs = 0, links = 0;
+  const out = raw.map((para) => {
+    if (!Array.isArray(para)) throw bad();
+    const line = [];
+    for (const r of para) {
+      if (!isObj(r) || typeof r.t !== "string" || (r.f != null && typeof r.f !== "string") || (r.h != null && typeof r.h !== "string")) throw bad();
+      const t = cleanText(r.t).replace(/[\t\n\r\u00a0]+/g, " ");   // innerhalb eines Laufs keine Zeilenumbrüche
+      if (!t) continue;
+      const f = ["b", "i", "u"].filter((c) => String(r.f || "").includes(c)).join("");
+      let h = "";
+      if (r.h) { h = cleanHref(r.h); if (!h) throw new InputError(where + "Ein Link im Material ist ungültig (erlaubt sind nur Adressen mit http:// oder https://)."); }
+      chars += t.length; runs++;
+      const prev = line[line.length - 1];
+      if (prev && (prev.f || "") === f && (prev.h || "") === h) { prev.t += t; continue; }
+      const run = { t }; if (f) run.f = f; if (h) { run.h = h; links++; }
+      line.push(run);
+    }
+    return line;
+  });
+  if (chars > LIMITS.material) throw new InputError(where + "Das Material ist zu lang (höchstens " + LIMITS.material + " Zeichen).");
+  if (runs > LIMITS.materialRuns) throw new InputError(where + "Das Material ist zu kleinteilig formatiert (höchstens " + LIMITS.materialRuns + " Abschnitte).");
+  if (links > LIMITS.materialLinks) throw new InputError(where + "Zu viele Links im Material (höchstens " + LIMITS.materialLinks + ").");
+  while (out.length && !out[out.length - 1].length) out.pop();   // leere Absätze am Ende und Anfang weg
+  while (out.length && !out[0].length) out.shift();
+  return out;
+}
+// Material als reiner Text (für die KI: ohne Formatierung und ohne Links)
+export const materialText = (m) => (Array.isArray(m) ? m : []).map((p) => (Array.isArray(p) ? p : []).map((r) => (r && typeof r.t === "string" ? r.t : "")).join("")).join("\n").trim();
 
 /* ---------- Bilder zu Aufgaben: nur die Kopfdaten lesen (kein Dekodieren im Worker – 10 ms CPU) ---------- */
 export const IMAGE_MODES = ["thumb", "inline"];   // thumb = Miniatur rechts neben Aufgabe und Antwort, inline = größer unter der Aufgabenstellung

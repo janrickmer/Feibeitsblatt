@@ -274,7 +274,7 @@ async function routeSheetGet(c, codeRaw) {
   ]);
   const s = firstRow(sh);
   if (!s) throw sheetGone();
-  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), solution: String(t.solution || ""), images: imagesForTask(im.results, i + 1) }));
+  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), solution: String(t.solution || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1) }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, createdAt: s.created_at, tasks, submissionCount: (firstRow(cnt) || {}).n || 0 } });
 }
 
@@ -492,7 +492,7 @@ async function routePublicSheet(c, codeRaw) {
   const teacher = parseSetting(rows.teacher), ai = parseSetting(rows.ai);
   const aiProvider = ai && PROVIDERS[ai.provider] && hasStoredKey(ai) ? providerLabel(ai.provider, ai.baseUrl) : null;
   // Niemals Musterlösungen ausliefern: nur Aufgabentext und Bild-Metadaten verlassen den Server
-  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), images: imagesForTask(im.results, i + 1) }));
+  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1) }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiProvider } });
 }
 

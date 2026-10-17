@@ -286,3 +286,17 @@ test("skipStatements/skipQuery store exhausted models with TTL", async () => {
   await d1.batch(skipStatements(d1, "groq", [{ model: "a", reason: "neu", ttlMs: -1 }], now));   // Upsert überschreibt
   assert.deepEqual((await skipQuery(d1, "groq", now).all()).results, []);
 });
+
+test("buildFeedbackMessages: Material der Lehrkraft als reiner Text im Prompt (gekürzt), ohne Links", () => {
+  const long = "M".repeat(5000);
+  const { messages } = buildFeedbackMessages([
+    { text: "A", solution: "x", material: [[{ t: "Lies den " }, { t: "Auszug", f: "b" }], [{ t: "Quelle", h: "https://geheim.example/" }]] },
+    { text: "B", solution: "y", material: [[{ t: long }]] },
+    { text: "C", solution: "z" },
+  ], ["a", "b", "c"]);
+  const u = messages[1].content;
+  assert.match(u, /Material zur Aufgabe \(von der Lehrkraft bereitgestellt\):\n<<<\nLies den Auszug\nQuelle\n>>>/);
+  assert.equal(u.includes("geheim.example"), false);
+  assert.equal(u.includes("M".repeat(4000) + " …"), true); assert.equal(u.includes("M".repeat(4001)), false);
+  assert.equal((u.match(/Material zur Aufgabe/g) || []).length, 2);
+});
