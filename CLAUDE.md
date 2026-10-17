@@ -72,20 +72,28 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Sichtbarer Link auf https://languagetool.org ohne `rel="nofollow"` (Pflicht). Nicht über den Worker leiten
   (gemeinsame Cloudflare-IPs → ein Limit für alle). CSP `connect-src` muss `https://api.languagetool.org` erlauben.
 - **Bilder zu Aufgaben:** höchstens `LIMITS.imagesPerTask` (5) je Aufgabe, `imageBytes` 500 KB je Bild,
-  `sheetImageBytes` 12 MB je Blatt. Der Browser verkleinert vor dem Upload (`prepareImage`: längste Seite 1600 px,
-  weißer Hintergrund, PNG für Grafiken sonst JPEG mit sinkender Qualität bis ≤ 500 KB; `createImageBitmap` mit
-  EXIF-Drehung, `<img>` als Rückfall) und schickt Base64 als JSON. Der Worker dekodiert **nie** ganze Bilder
-  (10 ms CPU): `validateImageUpload` prüft Base64 per Regex und liest nur die Kopfdaten (`imageInfo`: PNG/JPEG/
-  WebP, Maße ≤ 4096) aus den ersten 144 KB. Gespeichert wird Base64 als TEXT, nicht BLOB (D1 gibt BLOBs als
-  Zahlen-Array zurück – zu teuer); der Browser baut `data:`-URLs (`loadImage`, Cache je Code/id; CSP `img-src`
-  erlaubt `data:` und `blob:`). Ein bedingter `INSERT … SELECT … RETURNING pos` prüft Blatt, Aufgabennummer,
-  Anzahl und Gesamtgröße atomar; `pos` = Reihenfolge je Aufgabe, deshalb lädt das Frontend nacheinander hoch
-  (`runUploads`, nach einem Fehler werden weitere Bilder derselben Aufgabe zurückgestellt; „erneut hochladen“).
-  Blätter bleiben unveränderlich: Bilder nur beim Anlegen, gelöscht mit dem Blatt; „Als Vorlage verwenden“ lädt sie
-  herunter und wieder hoch. Anzeige: `thumb` = 112 px rechts (`.task.has-thumbs` Grid-Areas, mobil als Reihe
-  zwischen Frage und Antwortfeld), `inline` = ≤ 420×300 px zwischen Aufgabenstellung und Antwortfeld; Klick →
-  `#lightbox` (Esc/Klick schließt, Fokus zurück). Bilder gehen nie an die KI und sind unverschlüsselt (Lehrkraft-
-  Inhalte). Test-Helfer `test/png.mjs` (PNG/JPEG-/WebP-Köpfe).
+  `sheetImageBytes` 12 MB je Blatt (das Frontend prüft die Summe vor dem Anlegen, `IMG_SHEET_BYTES`), `imageAlt`
+  200 Zeichen Bildbeschreibung. Der Browser verkleinert vor dem Upload (`prepareImage`: längste Seite 1600 px,
+  notfalls 1200/900 px, weißer Hintergrund, PNG für Grafiken sonst JPEG mit sinkender Qualität bis ≤ 500 KB;
+  `createImageBitmap` mit EXIF-Drehung, `<img>` als Rückfall) und schickt JSON `{id, task, mode, alt, data}` mit
+  Base64 und einer selbst erzeugten 16-Hex-id (Wiederholung nach Timeout → `existing:true`, kein Duplikat). Der
+  Worker dekodiert **nie** ganze Bilder (10 ms CPU): `validateImageUpload` prüft Base64 mit `strictB64` (atob +
+  Längenvergleich – ein Regex über 680 KB kostete ~5 ms) und liest nur die Kopfdaten (`imageInfo`: PNG/JPEG/WebP,
+  Maße ≤ 4096) aus den ersten 144 KB. Gespeichert wird Base64 als TEXT, nicht BLOB (D1 gibt BLOBs als Zahlen-Array
+  zurück – zu teuer); `data` ist die **letzte** Spalte und Listen (`imagesStmt`) lesen nur Spalten davor mit
+  `ORDER BY task, pos` (Index), sonst liest SQLite je Zeile den ganzen Datenteil. Der Browser baut `data:`-URLs
+  (`loadImage`, Cache je Code/id, ≤ 60 Einträge; CSP `img-src` erlaubt `data:` und `blob:`). Ein bedingter
+  `INSERT … SELECT … RETURNING pos` prüft id, Blatt, Aufgabennummer, Anzahl und Gesamtgröße atomar; `pos` =
+  Reihenfolge je Aufgabe, deshalb lädt das Frontend nacheinander hoch (`runUploads` mit Lauf-Kennung
+  `T.uploadRun`; endet bei Abmeldung; „Zur Übersicht“ ist so lange gesperrt; vorübergehende Fehler stellen weitere
+  Bilder derselben Aufgabe zurück und „erneut hochladen“ holt sie nach, endgültige Ablehnungen `PERMANENT_CODES`
+  werden nur gemeldet). Blätter bleiben unveränderlich: Bilder nur beim Anlegen, gelöscht mit dem Blatt; „Als
+  Vorlage verwenden“ lädt sie herunter und wieder hoch. Anzeige: `thumb` = 112 px rechts (`.task.has-thumbs`
+  Grid-Areas mit `grid-template-rows:auto 1fr`, mobil als Reihe zwischen Frage und Antwortfeld), `inline` = ≤
+  420×300 px zwischen Aufgabenstellung und Antwortfeld; `imgButton` zeigt beim Laden einen Spinner, bei Fehlern
+  „erneut versuchen“; `alt` = Bildbeschreibung oder „Bild k zu Aufgabe n“; Klick → `#lightbox` mit Bildunterschrift
+  (Esc/Klick schließt, Tab bleibt drin, Fokus zurück). Bilder gehen nie an die KI und sind unverschlüsselt
+  (Lehrkraft-Inhalte). Test-Helfer `test/png.mjs` (PNG/JPEG-/WebP-Köpfe).
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-

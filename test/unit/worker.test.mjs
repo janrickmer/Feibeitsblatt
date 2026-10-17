@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults } from "../mock-ai.mjs";
-import { RATE } from "../../worker/lib.js";
+import { RATE, LIMITS } from "../../worker/lib.js";
+import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
 
 /* ---------- D1-Nachbau (gleiche Aufrufform wie die Workers-API) ---------- */
@@ -131,6 +132,53 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
   assert.deepEqual(r.json.sheets.map((s) => [s.code, s.title, s.taskCount, s.submissionCount]), [[code, "Bio", 2, 0]]);
+});
+
+test("sheet images: Grenzen je Aufgabe und je Blatt (12 MB), wiederholbarer Upload mit id, Bildbeschreibung", async () => {
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Bilder", tasks: [{ text: "A" }, { text: "B" }] } });
+  const c = r.json.code, png = makePng(4, 4).toString("base64");
+  const up = (body) => call("POST", "/api/teacher/sheets/" + c + "/images", { auth, body });
+  r = await up({ task: 1, mode: "thumb", data: png, alt: "  Skizze   einer Zelle " });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual([r.json.image.pos, r.json.image.alt, r.json.existing], [0, "Skizze einer Zelle", undefined]);
+  const id = r.json.image.id;
+  // gleicher Upload mit derselben id (Wiederholung nach Timeout) → dieselbe Zeile, kein Duplikat
+  r = await up({ id, task: 1, mode: "thumb", data: png });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual([r.json.existing, r.json.image.id, r.json.image.pos, r.json.image.alt], [true, id, 0, "Skizze einer Zelle"]);
+  assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_images WHERE sheet_code=?").get(c).n, 1);
+  // eigene id wird übernommen; fremde (vergebene) id eines anderen Blattes → 400
+  r = await up({ id: "0123456789abcdef", task: 2, mode: "inline", data: png });
+  assert.equal(r.status, 200, r.text); assert.equal(r.json.image.id, "0123456789abcdef");
+  r = await call("POST", "/api/teacher/sheets/" + code + "/images", { auth, body: { id: "0123456789abcdef", task: 1, mode: "thumb", data: png } });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Diese Bild-Kennung ist schon vergeben.");
+  r = await call("GET", "/api/sheet/" + c);
+  assert.deepEqual(r.json.sheet.tasks.map((t) => t.images), [[{ id, mode: "thumb", w: 4, h: 4, alt: "Skizze einer Zelle" }], [{ id: "0123456789abcdef", mode: "inline", w: 4, h: 4, alt: "" }]]);
+  assert.equal(r.text.includes('"data"'), false);
+  // 12 MB je Blatt: Summe direkt in die Datenbank schreiben, dann ein kleines Bild → 413 mit der Meldung
+  d1.db.prepare("INSERT INTO sheet_images(id,sheet_code,task,pos,mode,mime,w,h,bytes,created_at,alt,data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("ffffffffffffff01", c, 2, 1, "thumb", "image/png", 4, 4, LIMITS.sheetImageBytes - 100, 0, "", "x");
+  r = await up({ task: 1, mode: "thumb", data: png });
+  assert.equal(r.status, 413, r.text);
+  assert.deepEqual([r.json.code, r.json.error], ["too_large", "Die Bilder dieses Feibeitsblattes sind zusammen zu groß (höchstens 12 MB)."]);
+  d1.db.prepare("DELETE FROM sheet_images WHERE id='ffffffffffffff01'").run();
+  // höchstens 5 je Aufgabe (geht der Gesamtgröße vor), Aufgabe 3 gibt es nicht
+  for (let i = 1; i < 5; i++) { r = await up({ task: 1, mode: "inline", data: png }); assert.equal(r.status, 200, r.text); assert.equal(r.json.image.pos, i); }
+  r = await up({ task: 1, mode: "thumb", data: png });
+  assert.equal(r.status, 400); assert.equal(r.json.code, "too_many_images");
+  r = await up({ task: 3, mode: "thumb", data: png });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 3 gibt es in diesem Feibeitsblatt nicht.");
+  r = await up({ task: 1, mode: "thumb", data: png, alt: "x".repeat(201) });
+  assert.equal(r.status, 400);
+  r = await call("GET", "/api/sheet/" + c + "/images/" + id);
+  assert.equal(r.status, 200); assert.equal(r.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(Buffer.from(r.json.data, "base64").equals(makePng(4, 4)), true);
+  // Blatt löschen → Bilder weg
+  r = await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  assert.equal(r.status, 200);
+  assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_images WHERE sheet_code=?").get(c).n, 0);
+  r = await call("GET", "/api/sheet/" + c + "/images/" + id);
+  assert.equal(r.status, 404);
 });
 
 test("feedback: one AI call, expected covered/missing, ≤ 50 D1 queries", async () => {

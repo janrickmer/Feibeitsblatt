@@ -81,6 +81,7 @@ export const LIMITS = {
   imagesPerTask: 5,                // Bilder je Aufgabe
   sheetImageBytes: 12 * 1024 * 1024, // Summe aller Bilder je Blatt (D1-Speicher)
   imageSide: 4096,                 // größte erlaubte Kantenlänge laut Kopfdaten
+  imageAlt: 200,                   // Bildbeschreibung (wird vorgelesen)
 };
 
 export class InputError extends Error {
@@ -204,27 +205,42 @@ export function imageInfo(bytes) {
   }
   return null;
 }
-// Upload-Body {task, mode, data}: data = Base64 (so wird es auch gespeichert – Strings kosten im Worker kaum CPU,
-// D1 liefert BLOBs als Zahlen-Array). Geprüft werden nur die Kopfdaten des Bildes (erste 144 KB dekodiert).
-const IMAGE_HEAD_CHARS = 4 * 48 * 1024;
+// Strenges Base64 → Binärstring oder null. atob statt Regex: über 680 KB kostet der Regex ~5 ms CPU, atob ~0,3 ms.
+// Die Längenprüfung lehnt ab, was atob stillschweigend überliest (Leerraum), damit nur echtes Base64 gespeichert wird.
+export function strictB64(s) {
+  if (typeof s !== "string" || !s || s.length % 4 !== 0) return null;
+  let bin; try { bin = atob(s); } catch { return null; }
+  const pad = s.endsWith("==") ? 2 : s.endsWith("=") ? 1 : 0;
+  return bin.length === (s.length / 4) * 3 - pad ? bin : null;
+}
+// Upload-Body {task, mode, data, id?, alt?}: data = Base64 (so wird es auch gespeichert – Strings kosten im Worker kaum
+// CPU, D1 liefert BLOBs als Zahlen-Array). Geprüft werden nur die Kopfdaten des Bildes (erste 144 KB). id = vom
+// Browser erzeugte Kennung (Wiederholung nach Timeout speichert nichts doppelt), alt = Bildbeschreibung (Vorlesen).
+const IMAGE_HEAD_BYTES = 144 * 1024;
 export function validateImageUpload(body) {
   if (!isObj(body)) throw new InputError("Ungültige Anfrage.");
   const task = body.task;
   if (typeof task !== "number" || !Number.isInteger(task) || task < 1 || task > LIMITS.tasks) throw new InputError("Ungültige Aufgabennummer für das Bild.");
   const mode = String(body.mode || "").trim().toLowerCase();
   if (!IMAGE_MODES.includes(mode)) throw new InputError("Ungültige Anzeigeart für das Bild (thumb oder inline).");
-  const data = body.data;
-  const bytes = b64Bytes(data);
-  if (bytes < 1) throw new InputError("Das Bild konnte nicht gelesen werden (erlaubt sind JPG, PNG und WebP).", "bad_image");
+  let id = null;
+  if (body.id != null) { id = String(body.id).toLowerCase(); if (!IMAGE_ID_RE.test(id)) throw new InputError("Ungültige Bild-Kennung."); }
+  if (body.alt != null && typeof body.alt !== "string") throw new InputError("Die Bildbeschreibung muss ein Text sein.");
+  const alt = cleanText(body.alt || "").replace(/\s+/g, " ").trim();
+  if (alt.length > LIMITS.imageAlt) throw new InputError("Die Bildbeschreibung ist zu lang (höchstens " + LIMITS.imageAlt + " Zeichen).");
+  const data = body.data, bin = strictB64(data);
+  if (!bin) throw new InputError("Das Bild konnte nicht gelesen werden (erlaubt sind JPG, PNG und WebP).", "bad_image");
+  const bytes = bin.length;
   if (bytes > LIMITS.imageBytes) throw new InputError("Das Bild ist zu groß (höchstens " + Math.round(LIMITS.imageBytes / 1024) + " KB nach dem Verkleinern).", "too_large", 413);
-  let info = null;
-  try { info = imageInfo(b64ToBytes(data.slice(0, IMAGE_HEAD_CHARS))); } catch { info = null; }
+  const n = Math.min(bytes, IMAGE_HEAD_BYTES), head = new Uint8Array(n);
+  for (let i = 0; i < n; i++) head[i] = bin.charCodeAt(i);
+  const info = imageInfo(head);
   if (!info) throw new InputError("Das Bild konnte nicht gelesen werden (erlaubt sind JPG, PNG und WebP).", "bad_image");
-  return { task, mode, data, bytes, info };
+  return { task, mode, data, bytes, info, id, alt };
 }
 // Bild-Metadaten aus D1-Zeilen für eine Aufgabe (ohne Bilddaten)
 export function imagesForTask(rows, task) {
-  return (rows || []).filter((r) => Number(r.task) === task).map((r) => ({ id: String(r.id), mode: r.mode === "inline" ? "inline" : "thumb", w: Number(r.w) || 0, h: Number(r.h) || 0 }));
+  return (rows || []).filter((r) => Number(r.task) === task).map((r) => ({ id: String(r.id), mode: r.mode === "inline" ? "inline" : "thumb", w: Number(r.w) || 0, h: Number(r.h) || 0, alt: typeof r.alt === "string" ? r.alt : "" }));
 }
 
 export function validateAnswers(answers, taskCount) {

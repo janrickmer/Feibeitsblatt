@@ -152,16 +152,21 @@
   /* Aufgabe als Raster: Frage, Antwortteil und – falls vorhanden – Miniaturbilder rechts daneben (auf schmalen
      Bildschirmen zwischen Frage und Antwortfeld). Ohne Bilder bleibt die Höhe exakt wie ein normaler Block. */
   .task{display:grid; grid-template-columns:minmax(0,1fr); grid-template-areas:"q" "body"; margin:0}
-  .task.has-thumbs{grid-template-columns:minmax(0,1fr) 112px; grid-template-areas:"q thumbs" "body thumbs"; column-gap:16px}
-  .task-q{grid-area:q}
+  .task.has-thumbs{grid-template-columns:minmax(0,1fr) 112px; grid-template-rows:auto 1fr; grid-template-areas:"q thumbs" "body thumbs"; column-gap:16px}
+  .task-q{grid-area:q; align-self:start}
   .task-body{grid-area:body; min-width:0}
   .task-thumbs{grid-area:thumbs; display:flex; flex-direction:column; gap:8px; align-self:start; padding-top:4px}
-  .thumbbtn,.figbtn{display:block; padding:0; margin:0; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:zoom-in; overflow:hidden; line-height:0; font:inherit; color:inherit}
+  .thumbbtn,.figbtn{display:block; padding:0; margin:0; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:zoom-in; overflow:hidden; line-height:0; font:inherit; color:inherit; box-sizing:border-box}
+  .thumbbtn{width:112px; flex:0 0 auto}
+  .thumbbtn.small{width:72px}
   .thumbbtn:hover,.figbtn:hover{border-color:var(--accent2)}
-  .thumbbtn.loading,.figbtn.loading{background:var(--soft); cursor:progress}
-  .thumbbtn.failed,.figbtn.failed{cursor:default; opacity:.6; font:12px var(--sans); line-height:1.3; padding:6px; color:var(--muted)}
-  .thumbbtn img{display:block; width:112px; height:auto; max-height:112px; object-fit:contain}
-  .thumbbtn.small img{width:72px; max-height:72px}
+  .thumbbtn.loading,.figbtn.loading{background:var(--soft); cursor:progress; min-height:40px; display:flex; align-items:center; justify-content:center}
+  .thumbbtn.loading img,.figbtn.loading img{display:none}
+  .thumbbtn.loading .spinner,.figbtn.loading .spinner{margin:0}
+  .thumbbtn.failed,.figbtn.failed{cursor:pointer; font:12px var(--sans); line-height:1.35; padding:6px; color:var(--muted); white-space:normal; text-align:center; max-width:220px}
+  .thumbbtn.failed:hover,.figbtn.failed:hover{color:var(--ink)}
+  .thumbbtn img{display:block; width:100%; height:auto; max-height:112px; object-fit:contain}
+  .thumbbtn.small img{max-height:72px}
   .task-figs{display:flex; flex-wrap:wrap; gap:10px; margin:0 0 10px}
   .figbtn img{display:block; width:auto; height:auto; max-width:min(100%, 420px); max-height:300px}
   .timgs{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 0}
@@ -199,7 +204,8 @@
   .lightbox img{display:block; max-width:min(96vw, 1600px); max-height:calc(100vh - 88px); width:auto; height:auto; background:#fff; border-radius:4px; box-shadow:0 30px 80px -20px rgba(0,0,0,.6)}
   .lb-close{position:absolute; top:10px; right:14px; width:40px; height:40px; border-radius:50%; border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.35); color:#fff; font:20px/1 var(--sans); cursor:pointer}
   .lb-close:hover{background:rgba(0,0,0,.6)}
-  .lb-hint{position:absolute; left:0; right:0; bottom:10px; margin:0; text-align:center; color:#e6e0d4; font:13px var(--sans)}
+  .lb-hint{position:absolute; left:0; right:0; bottom:10px; margin:0; padding:0 60px; text-align:center; color:#e6e0d4; font:13px/1.45 var(--sans)}
+  .lb-hint b{font-weight:600; color:#fff}
   /* Bilder im Blatt-Editor der Lehrkraft */
   .bimgs{margin:8px 0 0; font-family:var(--sans)}
   .bimg-list{display:flex; flex-direction:column; gap:8px; margin:0 0 8px}
@@ -208,8 +214,10 @@
   .bimg-ctl{display:flex; flex-direction:column; gap:4px; min-width:0}
   .bimg-ctl select{width:100%; font-size:13.5px; padding:6px 8px; border-radius:7px}
   .bimg-meta{font-size:12px; color:var(--muted)}
+  .bimg-ctl input[type=text]{font-size:13.5px; padding:6px 8px; border-radius:7px; font-family:var(--sans)}
   .bimg-row{display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center}
   .bimg-stat{margin:0; font-size:12.5px}
+  @media (max-width:1000px){ .bimg{grid-template-columns:auto auto} .bimg-ctl{grid-column:1 / -1} }
   /* Ausgabe der Rechtschreibprüfung – klein unter dem Feld */
   .lt-out{margin:10px 0 0; padding:10px 14px 9px; background:var(--paper); border:1px solid var(--line); border-left:3px solid var(--accent2); border-radius:8px}
   .lt-head{font-family:var(--sans); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 4px; line-height:1.4}
@@ -632,7 +640,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen, ob es als Miniatur rechts neben Aufgabe und Antwort oder größer unter der Aufgabenstellung erscheint.</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können.</p>
       <div id="b-form">
         <div class="field" style="max-width:640px">
           <label for="b-title">Titel</label>
@@ -775,7 +783,7 @@
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Bild vergrößert" hidden>
   <button type="button" class="lb-close" id="lb-close" aria-label="Schließen">✕</button>
   <img id="lb-img" alt="">
-  <p class="lb-hint">Klicken oder Esc zum Schließen</p>
+  <p class="lb-hint"><b id="lb-cap"></b><span id="lb-sep"> · </span>Klicken oder Esc zum Schließen</p>
 </div>
 
 <div id="pagefoot" class="copyright">Copyright Jan-Rickmer Feindt</div>
@@ -1065,6 +1073,7 @@ async function copyText(text, btn) {
 /* Mitwachsende Textfelder: Höhe = Texthöhe (gemessen an einem unsichtbaren Zwilling, damit nichts springt). */
 /* ---------- Bilder zu Aufgaben: Adresse und Vergrößerung ---------- */
 const IMAGE_ID_RE = /^[0-9a-f]{16}$/, IMAGE_MIME_RE = /^image\/(jpeg|png|webp)$/;
+const hexOf = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, "0")).join("");
 const imgCache = new Map();   // "code/id" → Promise<data:-URL> (Server liefert {mime, w, h, data: Base64}; Browser cacht die Antwort)
 function loadImage(code, id) {
   const key = code + "/" + id;
@@ -1083,22 +1092,32 @@ function dataUrlToBlob(src) {   // "data:image/png;base64,…" → Blob (für di
 }
 function cleanImages(list) {   // Metadaten vom Server prüfen (fremde Daten nie ungeprüft ins DOM)
   return (Array.isArray(list) ? list : []).filter((m) => m && typeof m.id === "string" && IMAGE_ID_RE.test(m.id)).slice(0, 5)
-    .map((m) => ({ id: m.id, mode: m.mode === "inline" ? "inline" : "thumb", w: Number.isInteger(m.w) && m.w > 0 ? m.w : 0, h: Number.isInteger(m.h) && m.h > 0 ? m.h : 0 }));
+    .map((m) => ({ id: m.id, mode: m.mode === "inline" ? "inline" : "thumb", w: Number.isInteger(m.w) && m.w > 0 ? m.w : 0, h: Number.isInteger(m.h) && m.h > 0 ? m.h : 0,
+      alt: typeof m.alt === "string" ? m.alt.slice(0, 200) : "" }));
 }
 // Klickbares Bild (Miniatur oder größer); der Platz steht per width/height schon vor dem Laden fest. Klick vergrößert.
+// Während des Ladens ein Spinner (kein „kaputtes Bild“), bei einem Fehler ein Button „erneut versuchen“.
 function imgButton(code, m, label, cls) {
-  const img = h("img", { alt: label, width: m.w || null, height: m.h || null, decoding: "async" });
-  const btn = h("button", { type: "button", class: cls + " loading", "aria-label": label + " vergrößern", disabled: true }, [img]);
-  loadImage(code, m.id).then(
-    (src) => { img.src = src; btn._src = src; btn.disabled = false; btn.classList.remove("loading"); },
-    () => { btn.classList.remove("loading"); btn.classList.add("failed"); btn.title = "Das Bild konnte nicht geladen werden."; img.alt = label + " (nicht geladen)"; });
-  btn.addEventListener("click", () => { if (btn._src) openLightbox(btn._src, label, btn); });
+  const alt = m.alt || label;
+  const img = h("img", { alt: "", width: m.w || null, height: m.h || null, decoding: "async" });
+  const btn = h("button", { type: "button", class: cls, "aria-label": alt + " – wird geladen" }, [img]);
+  btn._alt = alt;
+  const load = () => {
+    btn.classList.add("loading"); btn.classList.remove("failed"); btn.disabled = true; btn.setAttribute("aria-busy", "true");
+    btn.textContent = ""; btn.append(h("span", { class: "spinner", "aria-hidden": "true" }), img);
+    loadImage(code, m.id).then(
+      (src) => { img.src = src; img.alt = alt; btn._src = src; btn.disabled = false; btn.removeAttribute("aria-busy"); btn.classList.remove("loading"); btn.setAttribute("aria-label", alt + " – vergrößern"); btn.textContent = ""; btn.appendChild(img); },
+      () => { btn.classList.remove("loading"); btn.classList.add("failed"); btn.disabled = false; btn.removeAttribute("aria-busy"); btn.textContent = "Bild konnte nicht geladen werden – erneut versuchen"; btn.setAttribute("aria-label", alt + " – konnte nicht geladen werden, erneut versuchen"); });
+  };
+  btn.addEventListener("click", () => { if (btn._src) openLightbox(btn._src, alt, btn); else if (btn.classList.contains("failed")) load(); });
+  load();
   return btn;
 }
 let lbOpener = null;
 function openLightbox(src, alt, opener) {
   const lb = $("lightbox"), im = $("lb-img");
   im.src = src; im.alt = alt || "";
+  $("lb-cap").textContent = alt || ""; $("lb-sep").hidden = !alt;
   lbOpener = opener || document.activeElement;
   lb.hidden = false; lb.classList.add("open");
   $("lb-close").focus();
@@ -1856,14 +1875,14 @@ $("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").
  *  Lehrkraft
  * ===================================================================== */
 const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false,
-  pendingUploads: [], doneUploads: 0 };   // Bilder, die nach dem Anlegen eines Blattes noch hochzuladen sind
+  pendingUploads: [], doneUploads: 0, uploadRun: 0 };   // Bilder, die nach dem Anlegen eines Blattes noch hochzuladen sind
 // Bilder einer Aufgabe in der Lehrkraft-Ansicht (klein, Klick vergrößert; der Titel nennt die gewählte Anzeigeart)
 function teacherImgs(code, metas, n) {
   const list = cleanImages(metas);
   if (!list.length) return null;
   return h("div", { class: "timgs" }, list.map((m, k) => {
     const b = imgButton(code, m, `Bild ${k + 1} zu Aufgabe ${n}`, "thumbbtn small");
-    b.title = m.mode === "inline" ? "Erscheint größer unter der Aufgabenstellung" : "Erscheint als Miniatur rechts neben Aufgabe und Antwort";
+    b.title = (m.mode === "inline" ? "Groß zwischen Aufgabe und Antwortfeld" : "Miniatur rechts (Klick vergrößert)") + (m.alt ? " – " + m.alt : "");
     return b;
   }));
 }
@@ -2197,7 +2216,7 @@ $("t-template").addEventListener("click", async () => {
         try {
           const blob = dataUrlToBlob(await loadImage(code, m.id));
           if (!blob) throw new Error("decode");
-          images.push({ blob, mime: blob.type, w: m.w, h: m.h, mode: m.mode, url: URL.createObjectURL(blob) });
+          images.push({ blob, mime: blob.type, w: m.w, h: m.h, mode: m.mode, alt: m.alt || "", url: URL.createObjectURL(blob) });
         } catch (e) { lost++; }
       }
       return { text: String(t.text || ""), solution: String(t.solution || ""), images };
@@ -2258,14 +2277,14 @@ function openBuilder(title, rows) {
   focusSoon("b-title", 30);
 }
 /* ---------- Bilder im Blatt-Editor: im Browser verkleinern, Vorschau, Anzeigeart je Bild ---------- */
-const IMG_PER_TASK = 5, IMG_MAX_SIDE = 1600, IMG_MAX_BYTES = 500 * 1024;
+const IMG_PER_TASK = 5, IMG_MAX_SIDE = 1600, IMG_MAX_BYTES = 500 * 1024, IMG_SHEET_BYTES = 12 * 1024 * 1024;   // wie LIMITS im Worker
 const fmtKB = (n) => (n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
 async function decodeImage(file) {   // ImageBitmap (mit EXIF-Drehung) oder <img> als Rückfall (z. B. SVG)
   if (window.createImageBitmap) { try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch (e) { /* Rückfall */ } }
   const url = URL.createObjectURL(file);
   const img = new Image();
   img._url = url;
-  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("decode")); img.src = url; });
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("decode")); }; img.src = url; });
   return img;
 }
 // → {blob, mime, w, h, mode, url}: längste Seite ≤ 1600 px, ≤ 500 KB (PNG für Grafiken, sonst JPEG; Transparenz wird weiß)
@@ -2287,7 +2306,7 @@ async function prepareImage(file) {
       ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh);
       ctx.drawImage(src, 0, 0, w, hh);
       const blob = await new Promise((res) => cv.toBlob(res, type, q));
-      if (blob && blob.size <= IMG_MAX_BYTES) return { blob, mime: blob.type || type, w, h: hh, mode: "thumb", url: URL.createObjectURL(blob) };
+      if (blob && blob.size <= IMG_MAX_BYTES) return { blob, mime: blob.type || type, w, h: hh, mode: "thumb", alt: "", url: URL.createObjectURL(blob) };
     }
     throw new Error("Das Bild lässt sich nicht klein genug verkleinern (höchstens 500 KB).");
   } finally {
@@ -2299,16 +2318,18 @@ function renderImages(tr) {
   const list = tr._imgList; list.textContent = "";
   tr._images.forEach((im, k) => {
     const sel = h("select", { class: "bimg-mode", "aria-label": `Anzeige von Bild ${k + 1}` }, [
-      h("option", { value: "thumb", text: "Miniatur rechts neben der Aufgabe (Klick vergrößert)" }),
-      h("option", { value: "inline", text: "Größer unter der Aufgabenstellung" })
+      h("option", { value: "thumb", text: "Miniatur rechts (Klick vergrößert)" }),
+      h("option", { value: "inline", text: "Groß zwischen Aufgabe und Antwortfeld" })
     ]);
     sel.value = im.mode;
     sel.addEventListener("change", () => { im.mode = sel.value === "inline" ? "inline" : "thumb"; T.builderDirty = true; });
+    const alt = h("input", { type: "text", class: "bimg-alt", maxlength: "200", value: im.alt || "", placeholder: "Bildbeschreibung (optional, wird vorgelesen)", "aria-label": `Beschreibung von Bild ${k + 1}`, autocomplete: "off" });
+    alt.addEventListener("input", () => { im.alt = alt.value; T.builderDirty = true; });
     const del = h("button", { type: "button", class: "iconbtn x", text: "✕", title: "Bild entfernen", "aria-label": `Bild ${k + 1} entfernen` });
     del.addEventListener("click", () => { URL.revokeObjectURL(im.url); tr._images.splice(k, 1); renderImages(tr); T.builderDirty = true; tr._imgAdd.focus(); });
     list.appendChild(h("div", { class: "bimg" }, [
       h("img", { src: im.url, alt: `Bild ${k + 1}`, width: im.w, height: im.h }),
-      h("div", { class: "bimg-ctl" }, [sel, h("span", { class: "bimg-meta", text: `${im.w} × ${im.h} px · ${fmtKB(im.blob.size)}` })]),
+      h("div", { class: "bimg-ctl" }, [sel, alt, h("span", { class: "bimg-meta", text: `${im.w} × ${im.h} px · ${fmtKB(im.blob.size)}` })]),
       del
     ]));
   });
@@ -2406,9 +2427,11 @@ $("b-gen").addEventListener("click", async () => {
     if (!text && !solution && !imgs.length) return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
     tasks.push({ text, solution });
-    imgs.forEach((im, k) => uploads.push({ task: tasks.length, im, label: `Aufgabe ${tasks.length}, Bild ${k + 1}` }));
+    imgs.forEach((im, k) => uploads.push({ task: tasks.length, im, id: hexOf(crypto.getRandomValues(new Uint8Array(8))), label: `Aufgabe ${tasks.length}, Bild ${k + 1}` }));
   });
   if (bad) { bad.focus(); return; }
+  const imgTotal = uploads.reduce((n, u) => n + u.im.blob.size, 0);
+  if (imgTotal > IMG_SHEET_BYTES) { err.textContent = `Die Bilder sind zusammen zu groß (${fmtKB(imgTotal)}, höchstens ${fmtKB(IMG_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Bilder entfernen.`; return; }
   if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector("textarea.q"); if (f) f.focus(); return; }
   if (tasks.length > 30) { err.textContent = "Ein Feibeitsblatt kann höchstens 30 Aufgaben haben."; return; }
   const title = $("b-title").value.trim().slice(0, 200);
@@ -2427,31 +2450,45 @@ $("b-gen").addEventListener("click", async () => {
   } catch (e) { if (!handleAuthError(e)) err.textContent = errMsg(e, "t"); }
   finally { busy(btn, false); }
 });
-/* Bilder nacheinander hochladen (die Reihenfolge je Aufgabe ergibt sich aus der Reihenfolge der Uploads). Schlägt ein
-   Bild fehl, werden die weiteren Bilder derselben Aufgabe zurückgestellt; „erneut hochladen“ holt sie nach. */
+/* Bilder nacheinander hochladen (die Reihenfolge je Aufgabe ergibt sich aus der Reihenfolge der Uploads; jede Datei hat
+   eine feste id, Wiederholungen speichern nichts doppelt). Schlägt ein Bild vorübergehend fehl (Netz, Server), werden
+   die weiteren Bilder derselben Aufgabe zurückgestellt und „erneut hochladen“ holt sie nach; endgültige Ablehnungen
+   (zu groß, zu viele, unlesbar) werden gemeldet und nicht wiederholt. Während des Laufs bleibt die Seite im
+   Ergebnisbereich; eine Abmeldung beendet den Lauf. */
+const PERMANENT_CODES = new Set(["too_large", "too_many_images", "bad_image", "bad_request", "not_found"]);
 async function runUploads() {
-  const st = $("b-res-img"), retry = $("b-res-retry");
+  const st = $("b-res-img"), retry = $("b-res-retry"), run = ++T.uploadRun;
   retry.classList.add("hidden");
   const list = T.pendingUploads;
   if (!list.length) { setStatus(st, "", ""); return; }
   const total = list.length + T.doneUploads, failed = [], skipTask = new Set();
-  for (const u of list) {
-    if (skipTask.has(u.task)) { failed.push({ u, msg: "zurückgestellt" }); continue; }
-    setStatus(st, `Bild ${T.doneUploads + 1} von ${total} wird hochgeladen …`, "busy");
-    try {
-      await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/images", { method: "POST", timeout: 90000,
-        body: { task: u.task, mode: u.im.mode, data: await blobToB64(u.im.blob) } });
-      T.doneUploads++;
-    } catch (e) {
-      if (handleAuthError(e)) return;
-      failed.push({ u, msg: errMsg(e, "t") }); skipTask.add(u.task);
+  busy($("b-res-back"), true, "Bilder werden hochgeladen …"); $("b-back").disabled = true;
+  try {
+    for (const u of list) {
+      if (run !== T.uploadRun || !T.authKey) return;   // abgemeldet oder neuer Lauf
+      if (skipTask.has(u.task)) { failed.push({ u, msg: "zurückgestellt", retry: true }); continue; }
+      setStatus(st, `Bild ${T.doneUploads + 1} von ${total} wird hochgeladen …`, "busy");
+      try {
+        await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/images", { method: "POST", timeout: 120000,
+          body: { id: u.id, task: u.task, mode: u.im.mode, alt: u.im.alt || "", data: await blobToB64(u.im.blob) } });
+        T.doneUploads++;
+      } catch (e) {
+        if (run !== T.uploadRun || !T.authKey) return;
+        if (handleAuthError(e)) return;
+        const permanent = PERMANENT_CODES.has(e.code);
+        failed.push({ u, msg: errMsg(e, "t"), retry: !permanent });
+        if (!permanent) skipTask.add(u.task);
+      }
     }
-  }
-  T.pendingUploads = failed.map((f) => f.u);
-  if (!failed.length) setStatus(st, total === 1 ? "Das Bild ist gespeichert." : `Alle ${total} Bilder sind gespeichert.`, "ok");
-  else {
-    setStatus(st, `${failed.length === 1 ? "1 Bild konnte" : failed.length + " Bilder konnten"} nicht gespeichert werden (${failed.map((f) => f.u.label + ": " + f.msg).join("; ")}). Das Feibeitsblatt selbst ist angelegt.`, "bad");
-    retry.classList.remove("hidden");
+    if (run !== T.uploadRun) return;
+    T.pendingUploads = failed.filter((f) => f.retry).map((f) => f.u);
+    if (!failed.length) setStatus(st, total === 1 ? "Das Bild ist gespeichert." : `Alle ${total} Bilder sind gespeichert.`, "ok");
+    else {
+      setStatus(st, `${failed.length === 1 ? "1 Bild konnte" : failed.length + " Bilder konnten"} nicht gespeichert werden (${failed.map((f) => f.u.label + ": " + f.msg).join("; ")}). Das Feibeitsblatt selbst ist angelegt.`, "bad");
+      if (T.pendingUploads.length) retry.classList.remove("hidden");
+    }
+  } finally {
+    if (run === T.uploadRun) { busy($("b-res-back"), false); $("b-back").disabled = false; }
   }
 }
 $("b-res-retry").addEventListener("click", async () => { const b = $("b-res-retry"); busy(b, true, "Wird hochgeladen …"); try { await runUploads(); } finally { busy(b, false); } });

@@ -187,7 +187,7 @@ test("sealSecret/openSecret: AES-GCM at rest, wrong/missing secret → null", as
 });
 
 /* ---------- Bilder zu Aufgaben: Kopfdaten lesen ---------- */
-import { imageInfo, validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, IMAGE_MODES } from "../../worker/lib.js";
+import { imageInfo, validateImageUpload, imagesForTask, generateImageId, strictB64, IMAGE_ID_RE, IMAGE_MODES } from "../../worker/lib.js";
 import { makePng, jpegHeader, webpHeader } from "../png.mjs";
 
 test("imageInfo: PNG, JPEG (SOF0/SOF2, mit Füll- und Kommentarsegmenten), WebP (VP8X/VP8L/VP8)", () => {
@@ -220,7 +220,15 @@ test("imageInfo: alles andere → null (kein Bild, zu groß, kaputte Köpfe, GIF
 test("validateImageUpload: Aufgabennummer 1..LIMITS.tasks, Anzeigeart thumb|inline, Base64-Bild mit lesbaren Kopfdaten", () => {
   const png = makePng(40, 30), b64 = png.toString("base64");
   const v = validateImageUpload({ task: 1, mode: "thumb", data: b64 });
-  assert.deepEqual([v.task, v.mode, v.bytes, v.info, v.data === b64], [1, "thumb", png.length, { mime: "image/png", w: 40, h: 30 }, true]);
+  assert.deepEqual([v.task, v.mode, v.bytes, v.info, v.data === b64, v.id, v.alt], [1, "thumb", png.length, { mime: "image/png", w: 40, h: 30 }, true, null, ""]);
+  const w = validateImageUpload({ task: 1, mode: "thumb", data: b64, id: "0123456789ABCDEF", alt: "  Skizze \n einer   Zelle\u0007 " });
+  assert.deepEqual([w.id, w.alt], ["0123456789abcdef", "Skizze einer Zelle"]);
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64, id: "nope" }), "bad_request");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64, id: 5 }), "bad_request");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64, alt: "x".repeat(LIMITS.imageAlt + 1) }), "bad_request");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64, alt: ["a"] }), "bad_request");
+  // Leerraum im Base64 (atob würde ihn überlesen) → abgelehnt, es wird nur echtes Base64 gespeichert
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64.slice(0, 8) + " \n  " + b64.slice(8) }), "bad_image");
   assert.equal(validateImageUpload({ task: 30, mode: "INLINE", data: b64 }).mode, "inline");
   for (const t of [0, 31, 1.5, "1", "a", "", null, undefined]) rejectsWith(() => validateImageUpload({ task: t, mode: "thumb", data: b64 }), "bad_request");
   for (const m of ["", "big", "thumbs", null]) rejectsWith(() => validateImageUpload({ task: 1, mode: m, data: b64 }), "bad_request");
@@ -234,10 +242,20 @@ test("validateImageUpload: Aufgabennummer 1..LIMITS.tasks, Anzeigeart thumb|inli
   assert.deepEqual(IMAGE_MODES, ["thumb", "inline"]);
 });
 
+test("strictB64: nur echtes Base64 mit passender Länge", () => {
+  assert.equal(strictB64("aGFsbG8="), "hallo");
+  assert.equal(strictB64("aGFsbG8"), null);        // Länge kein Vielfaches von 4
+  assert.equal(strictB64("aGFs bG8="), null);      // Leerraum
+  assert.equal(strictB64("aGFs=bG8="), null);      // Padding in der Mitte
+  assert.equal(strictB64("aGFsbG8-"), null);       // url-safe-Zeichen
+  assert.equal(strictB64(""), null); assert.equal(strictB64(null), null); assert.equal(strictB64(12), null);
+  assert.equal(strictB64("YQ=="), "a"); assert.equal(strictB64("YWI="), "ab"); assert.equal(strictB64("YWJj"), "abc");
+});
+
 test("imagesForTask + generateImageId", () => {
-  const rows = [{ id: "a", task: 2, mode: "inline", w: 10, h: 5 }, { id: "b", task: "1", mode: "weird", w: "3", h: null }, { id: "c", task: 2, mode: "thumb", w: 1, h: 1 }];
-  assert.deepEqual(imagesForTask(rows, 2), [{ id: "a", mode: "inline", w: 10, h: 5 }, { id: "c", mode: "thumb", w: 1, h: 1 }]);
-  assert.deepEqual(imagesForTask(rows, 1), [{ id: "b", mode: "thumb", w: 3, h: 0 }]);
+  const rows = [{ id: "a", task: 2, mode: "inline", w: 10, h: 5, alt: "Zelle" }, { id: "b", task: "1", mode: "weird", w: "3", h: null }, { id: "c", task: 2, mode: "thumb", w: 1, h: 1, alt: null }];
+  assert.deepEqual(imagesForTask(rows, 2), [{ id: "a", mode: "inline", w: 10, h: 5, alt: "Zelle" }, { id: "c", mode: "thumb", w: 1, h: 1, alt: "" }]);
+  assert.deepEqual(imagesForTask(rows, 1), [{ id: "b", mode: "thumb", w: 3, h: 0, alt: "" }]);
   assert.deepEqual(imagesForTask(undefined, 1), []);
   for (let i = 0; i < 20; i++) assert.match(generateImageId(), IMAGE_ID_RE);
   assert.equal(generateImageId((n) => new Uint8Array(n).fill(255)), "ffffffffffffffff");

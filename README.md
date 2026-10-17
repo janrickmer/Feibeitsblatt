@@ -95,13 +95,16 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    **Bilder:** Unter jeder Aufgabenstellung lassen sich mit „+ Bild hinzufügen“ bis zu fünf Bilder hochladen
    (JPG, PNG oder WebP, auch mehrere auf einmal; HEIC-Fotos vom iPhone vorher als JPG sichern). Der Browser
    verkleinert jedes Bild vor dem Hochladen auf höchstens 1600 Pixel Kantenlänge und höchstens 500 KB. Zu jedem
-   Bild wählen Sie die Anzeige: „Miniatur rechts neben der Aufgabe (Klick vergrößert)“ – die Miniatur steht rechts
-   neben Aufgabenstellung und Antwortfeld – oder „Größer unter der Aufgabenstellung“, also zwischen Aufgabenstellung
-   und Antwortfeld. Die Bilder sehen alle, die den Code kennen; sie sind nicht
+   Bild wählen Sie die Anzeige: „Miniatur rechts (Klick vergrößert)“ – die Miniatur steht rechts neben
+   Aufgabenstellung und Antwortfeld – oder „Groß zwischen Aufgabe und Antwortfeld“. Dazu können Sie eine kurze
+   Bildbeschreibung eintragen (bis 200 Zeichen); sie wird Schüler:innen vorgelesen, die das Bild nicht sehen können,
+   und steht unter dem vergrößerten Bild. Alle Bilder eines Blattes dürfen zusammen höchstens 12 MB haben; die Seite
+   prüft das vor dem Anlegen. Die Bilder sehen alle, die den Code kennen; sie sind nicht
    verschlüsselt und gehen nicht an die KI – laden Sie deshalb keine Bilder mit personenbezogenen Daten hoch.
 4. **Code generieren.** Der Code erscheint groß (z. B. `K7Q-M4X`) mit „Kopieren“. Die Bilder werden dabei
-   nacheinander hochgeladen („Alle 3 Bilder sind gespeichert.“); schlägt eines fehl, sagt die Seite welches, und
-   „Fehlende Bilder erneut hochladen“ holt es nach. Geben Sie den Code an die Klasse weiter. Ein erstelltes
+   nacheinander hochgeladen („Alle 3 Bilder sind gespeichert.“); so lange bleibt „Zur Übersicht“ gesperrt. Schlägt
+   eines fehl, sagt die Seite welches, und „Fehlende Bilder erneut hochladen“ holt es nach (eine Wiederholung legt
+   nie ein Bild doppelt an). Geben Sie den Code an die Klasse weiter. Ein erstelltes
    Feibeitsblatt lässt sich nicht mehr ändern; für eine geänderte Fassung wählen Sie es aus und klicken „Als
    Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Musterlösungen und Bilder und ergibt
    einen neuen Code.
@@ -511,7 +514,8 @@ gespeichert.
 | „Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich.“ | Die Anfrage überschreitet das Limit aller verfügbaren Modelle. Musterlösungen und Aufgaben kürzen oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen. |
 | „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
 | „Das Bild kann der Browser nicht lesen (z. B. HEIC). Bitte als JPG oder PNG speichern.“ | Das Format kann der Browser nicht öffnen – meist HEIC-Fotos vom iPhone. Das Foto als JPG sichern (iOS: Einstellungen → Kamera → Formate → „Maximale Kompatibilität“, oder aus der Fotos-App als JPG teilen) oder ein anderes Bild wählen. |
-| „1 Bild konnte nicht gespeichert werden … Das Feibeitsblatt selbst ist angelegt.“ | Das Hochladen ist unterbrochen worden (Netz) oder der Server hat das Bild abgelehnt (Meldung in Klammern). „Fehlende Bilder erneut hochladen“ klicken; bleibt es dabei, das Blatt löschen und mit kleineren Bildern neu anlegen. |
+| „1 Bild konnte nicht gespeichert werden … Das Feibeitsblatt selbst ist angelegt.“ | Das Hochladen ist unterbrochen worden (Netz) oder der Server hat das Bild abgelehnt (Meldung in Klammern). Bei Netzfehlern „Fehlende Bilder erneut hochladen“ klicken; bei einer Ablehnung (zu groß, zu viele) das Blatt löschen und mit weniger oder kleineren Bildern neu anlegen. |
+| „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
 | „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“ (statt des Buttons) | Kein Fehler: Laut eingegebenem Geburtsdatum ist die Schülerin oder der Schüler jünger als 16; die Prüfung wird dann nicht angeboten (Altersgrenze `LT_MIN_AGE` in `index.html`). Bei einem Tippfehler im Geburtsdatum oben „Abbrechen und Zwischenstand löschen“ wählen und den Code neu eingeben. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |

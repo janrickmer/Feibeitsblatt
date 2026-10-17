@@ -67,7 +67,8 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS ai_skip (provider TEXT NOT NULL, model TEXT NOT NULL, until INTEGER NOT NULL, reason TEXT, PRIMARY KEY(provider, model))",
   // Bilder zu Aufgaben (Lehrkraft lädt sie beim Anlegen hoch; Schüler:innen holen sie per Code). pos = Reihenfolge je
   // Aufgabe, data = Base64 (Strings statt BLOB: D1 gäbe BLOBs als Zahlen-Array zurück – zu teuer für 10 ms CPU).
-  "CREATE TABLE IF NOT EXISTS sheet_images (id TEXT PRIMARY KEY, sheet_code TEXT NOT NULL, task INTEGER NOT NULL, pos INTEGER NOT NULL, mode TEXT NOT NULL, mime TEXT NOT NULL, w INTEGER NOT NULL, h INTEGER NOT NULL, bytes INTEGER NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL)",
+  // Spalten vor `data` halten, was Listen brauchen: SQLite liest sonst für jede Zeile den ~700 KB langen Datenteil mit.
+  "CREATE TABLE IF NOT EXISTS sheet_images (id TEXT PRIMARY KEY, sheet_code TEXT NOT NULL, task INTEGER NOT NULL, pos INTEGER NOT NULL, mode TEXT NOT NULL, mime TEXT NOT NULL, w INTEGER NOT NULL, h INTEGER NOT NULL, bytes INTEGER NOT NULL, created_at INTEGER NOT NULL, alt TEXT NOT NULL DEFAULT '', data TEXT NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_sheet_images_sheet ON sheet_images(sheet_code, task, pos)",
 ];
 let schemaReady = false;   // kein geteiltes Promise: workerd erlaubt kein I/O über Request-Grenzen hinweg
@@ -291,35 +292,42 @@ async function routeSheetDelete(c, codeRaw) {
 }
 
 /* ---------- Bilder zu Aufgaben ---------- */
-const imagesStmt = (db, code) => db.prepare("SELECT id, task, pos, mode, w, h FROM sheet_images WHERE sheet_code=?1 ORDER BY task, pos, created_at").bind(code);
+// Nur Spalten vor `data` und eine Sortierung, die der Index abdeckt (pos ist je Blatt und Aufgabe eindeutig)
+const imagesStmt = (db, code) => db.prepare("SELECT id, task, pos, mode, w, h, alt FROM sheet_images WHERE sheet_code=?1 ORDER BY task, pos").bind(code);
 
-// POST …/sheets/:code/images – JSON {task (1-basiert), mode (thumb|inline), data (Base64 von JPEG/PNG/WebP)}.
-// Ein einziger bedingter INSERT prüft Blatt, Aufgabennummer, Anzahl je Aufgabe und Gesamtgröße atomar.
+// POST …/sheets/:code/images – JSON {task (1-basiert), mode (thumb|inline), data (Base64 von JPEG/PNG/WebP), id?, alt?}.
+// Ein einziger bedingter INSERT prüft Blatt, Aufgabennummer, Anzahl je Aufgabe und Gesamtgröße atomar. Mit einer vom
+// Browser erzeugten id ist der Upload wiederholbar (Timeout nach erfolgreichem Speichern → kein Duplikat).
 async function routeImageUpload(c, codeRaw) {
   await requireTeacher(c);
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
-  const { task, mode, data, bytes, info } = validateImageUpload(await readJson(c.request));
-  const id = generateImageId();
+  const v = validateImageUpload(await readJson(c.request));
+  const { task, mode, data, bytes, info, alt } = v, id = v.id || generateImageId();
   const row = await c.db.prepare(
-    "INSERT INTO sheet_images(id,sheet_code,task,pos,mode,mime,w,h,bytes,data,created_at) " +
-    "SELECT ?1,?2,?3,(SELECT COUNT(*) FROM sheet_images WHERE sheet_code=?2 AND task=?3),?4,?5,?6,?7,?8,?9,?10 " +
-    "WHERE EXISTS(SELECT 1 FROM sheets WHERE code=?2 AND json_array_length(tasks)>=?3) " +
+    "INSERT INTO sheet_images(id,sheet_code,task,pos,mode,mime,w,h,bytes,created_at,alt,data) " +
+    "SELECT ?1,?2,?3,(SELECT COUNT(*) FROM sheet_images WHERE sheet_code=?2 AND task=?3),?4,?5,?6,?7,?8,?10,?13,?9 " +
+    "WHERE NOT EXISTS(SELECT 1 FROM sheet_images WHERE id=?1) " +
+    "AND EXISTS(SELECT 1 FROM sheets WHERE code=?2 AND json_array_length(tasks)>=?3) " +
     "AND (SELECT COUNT(*) FROM sheet_images WHERE sheet_code=?2 AND task=?3)<?11 " +
     "AND (SELECT COALESCE(SUM(bytes),0) FROM sheet_images WHERE sheet_code=?2)+?8<=?12 RETURNING pos")
-    .bind(id, code, task, mode, info.mime, info.w, info.h, bytes, data, c.now, LIMITS.imagesPerTask, LIMITS.sheetImageBytes).first();
+    .bind(id, code, task, mode, info.mime, info.w, info.h, bytes, data, c.now, LIMITS.imagesPerTask, LIMITS.sheetImageBytes, alt).first();
   if (!row) {   // Grund ermitteln (nur im Fehlerfall ein zweiter Lesezugriff)
-    const [sh, cnt] = await c.db.batch([
+    const [ex, sh, cnt] = await c.db.batch([
+      c.db.prepare("SELECT task, pos, mode, mime, w, h, bytes, alt FROM sheet_images WHERE id=?1 AND sheet_code=?2").bind(id, code),
       c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code),
       c.db.prepare("SELECT COUNT(*) AS n FROM sheet_images WHERE sheet_code=?1 AND task=?2").bind(code, task),
     ]);
+    const e = firstRow(ex);
+    if (e) return json({ ok: true, existing: true, image: { id, task: Number(e.task), pos: Number(e.pos), mode: e.mode, mime: e.mime, w: Number(e.w), h: Number(e.h), bytes: Number(e.bytes), alt: String(e.alt || "") } });
+    if (v.id) throw new InputError("Diese Bild-Kennung ist schon vergeben.");
     const s = firstRow(sh);
     if (!s) throw sheetGone();
     if (task > Number(s.n)) throw new InputError("Aufgabe " + task + " gibt es in diesem Feibeitsblatt nicht.");
     if (Number((firstRow(cnt) || {}).n) >= LIMITS.imagesPerTask) throw new InputError("Höchstens " + LIMITS.imagesPerTask + " Bilder je Aufgabe.", "too_many_images");
     throw new HttpError(413, "too_large", MSG.imagesFull);
   }
-  return json({ ok: true, image: { id, task, pos: Number(row.pos), mode, mime: info.mime, w: info.w, h: info.h, bytes } });
+  return json({ ok: true, image: { id, task, pos: Number(row.pos), mode, mime: info.mime, w: info.w, h: info.h, bytes, alt } });
 }
 
 // GET /api/sheet/:code/images/:id – öffentlich (der Code ist der Zugang): {mime, w, h, data (Base64)}; der Browser baut

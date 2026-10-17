@@ -182,6 +182,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(row1.locator(".bimg img").nth(0)).toHaveAttribute("src", /^blob:/);
   await expect(row1.locator(".bimg-mode").nth(0)).toHaveValue("thumb");
   await row1.locator(".bimg-mode").nth(1).selectOption("inline");
+  await row1.locator(".bimg-alt").nth(0).fill("Skizze: Zelle mit Zellkern");
   // unlesbare Datei → Meldung, kein Eintrag; Grenze: höchstens 5 je Aufgabe
   await row1.locator('input[type="file"]').setInputFiles([{ name: "text.heic", mimeType: "image/heic", buffer: Buffer.from("kein Bild") }]);
   await expect(row1.locator(".bimg-stat")).toContainText("„text.heic“: Das Bild kann der Browser nicht lesen");
@@ -194,8 +195,20 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(row1.locator(".bimg")).toHaveCount(2);
   await expect(row1.locator(".bimg-add")).toBeEnabled();
   await expect(page.locator("#b-rows > tr").nth(1).locator(".bimg")).toHaveCount(0);
+  // der erste Bild-Upload scheitert (simulierter Serverfehler) → das zweite Bild derselben Aufgabe wird zurückgestellt,
+  // das Blatt ist trotzdem angelegt, „Fehlende Bilder erneut hochladen“ holt beide in der richtigen Reihenfolge nach
+  let failOnce = true;
+  await page.route("**/api/teacher/sheets/*/images", (route) => {
+    if (!failOnce) return route.continue();
+    failOnce = false;
+    return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Testfehler", code: "server_error" }) });
+  });
   await page.click("#b-gen");
   await expect(page.locator("#b-result")).toBeVisible();
+  await expect(page.locator("#b-res-img")).toHaveText("2 Bilder konnten nicht gespeichert werden (Aufgabe 1, Bild 1: Testfehler; Aufgabe 1, Bild 2: zurückgestellt). Das Feibeitsblatt selbst ist angelegt.", { timeout: 60_000 });
+  await expect(page.locator("#b-res-retry")).toBeVisible();
+  await expect(page.locator("#b-res-back")).toBeEnabled();
+  await page.click("#b-res-retry");
   S.shown = (await page.locator("#b-res-code").textContent()).trim();
   expect(S.shown).toMatch(CODE_RE);
   expect(S.shown).toMatch(/[A-Z]/); expect(S.shown).toMatch(/[2-9]/);
@@ -203,14 +216,18 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#b-res-title")).toHaveText(TITLE);
   await expect(page.locator("#b-res-img")).toHaveText("Alle 2 Bilder sind gespeichert.", { timeout: 60_000 });
   await expect(page.locator("#b-res-retry")).toBeHidden();
-  const ups = await t.calls((r) => r.method === "POST" && r.path.endsWith("/images"));
-  expect(ups.map((r) => r.status)).toEqual([200, 200]);
+  await page.unroute("**/api/teacher/sheets/*/images");
+  const allUps = await t.calls((r) => r.method === "POST" && r.path.endsWith("/images"));
+  expect(allUps.map((r) => r.status)).toEqual([500, 200, 200]);
+  const ups = allUps.filter((r) => r.status === 200);
+  expect(JSON.parse(allUps[0].reqBody).id).toBe(JSON.parse(ups[0].reqBody).id);   // Wiederholung mit derselben Kennung
   for (const [i, u] of ups.entries()) {
     const req = JSON.parse(u.reqBody), res = JSON.parse(u.body);
-    expect(Object.keys(req).sort()).toEqual(["data", "mode", "task"]);          // kein Dateiname, nichts Persönliches
-    expect(req).toMatchObject({ task: 1, mode: i === 0 ? "thumb" : "inline" });
+    expect(Object.keys(req).sort()).toEqual(["alt", "data", "id", "mode", "task"]);   // kein Dateiname, nichts Persönliches
+    expect(req).toMatchObject({ task: 1, mode: i === 0 ? "thumb" : "inline", alt: i === 0 ? "Skizze: Zelle mit Zellkern" : "" });
+    expect(req.id).toMatch(/^[0-9a-f]{16}$/);
     expect(req.data).toMatch(/^[A-Za-z0-9+/]+=*$/);
-    expect(res.image).toMatchObject({ task: 1, pos: i, mode: req.mode, w: i === 0 ? 1600 : 300, h: i === 0 ? 800 : 450 });
+    expect(res.image).toMatchObject({ id: req.id, task: 1, pos: i, mode: req.mode, alt: req.alt, w: i === 0 ? 1600 : 300, h: i === 0 ? 800 : 450 });
     expect(res.image.bytes).toBeLessThanOrEqual(500 * 1024);
     S.imgs.push(res.image);
   }
@@ -228,7 +245,8 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(si0.locator(".timgs .thumbbtn")).toHaveCount(2);
   await expect(si0.locator(".timgs .thumbbtn img").nth(0)).toHaveAttribute("src", /^data:image\/(png|jpeg);base64,/, { timeout: 15_000 });
   expect(await si0.locator(".timgs .thumbbtn img").nth(0).evaluate((e) => [e.naturalWidth, e.naturalHeight])).toEqual([1600, 800]);
-  await expect(si0.locator(".timgs .thumbbtn").nth(1)).toHaveAttribute("title", "Erscheint größer unter der Aufgabenstellung");
+  await expect(si0.locator(".timgs .thumbbtn").nth(0)).toHaveAttribute("title", "Miniatur rechts (Klick vergrößert) – Skizze: Zelle mit Zellkern");
+  await expect(si0.locator(".timgs .thumbbtn").nth(1)).toHaveAttribute("title", "Groß zwischen Aufgabe und Antwortfeld");
   await expect(page.locator("#t-sel-tasks .si").nth(1).locator(".timgs")).toHaveCount(0);
 
   // Der API-Schlüssel verlässt den Server nie
@@ -290,24 +308,38 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(t1.locator(".task-thumbs .thumbbtn")).toHaveCount(1);
   await expect(t1.locator(".task-body .task-figs .figbtn")).toHaveCount(1);
   const thumbImg = t1.locator(".task-thumbs .thumbbtn img"), figImg = t1.locator(".task-figs .figbtn img");
-  await expect(thumbImg).toHaveAttribute("alt", "Bild 1 zu Aufgabe 1");
   await expect(thumbImg).toHaveAttribute("src", /^data:image\/(png|jpeg);base64,/, { timeout: 15_000 });
   await expect(figImg).toHaveAttribute("src", /^data:image\/jpeg;base64,/, { timeout: 15_000 });
+  await expect(thumbImg).toHaveAttribute("alt", "Skizze: Zelle mit Zellkern");            // Bildbeschreibung der Lehrkraft
+  await expect(figImg).toHaveAttribute("alt", "Bild 2 zu Aufgabe 1");                      // ohne Beschreibung: Standardtext
+  await expect(t1.locator(".task-thumbs .thumbbtn")).toHaveAttribute("aria-label", "Skizze: Zelle mit Zellkern – vergrößern");
   await expect(t1.locator(".task-thumbs .thumbbtn")).toBeEnabled();
-  expect(await thumbImg.evaluate((e) => [e.naturalWidth, e.naturalHeight, Math.round(e.getBoundingClientRect().width)])).toEqual([1600, 800, 112]);
-  const [qBox, figBox, aBox1, thBox, aBox2] = await Promise.all(["#q-1", "#t-1 .task-figs", "#a-1", "#t-1 .task-thumbs", "#a-2"].map((sel) => page.locator(sel).boundingBox()));
-  expect(figBox.height).toBeLessThanOrEqual(302);
-  expect(figBox.width).toBeGreaterThan(150);
+  await expect(t1.locator(".task-thumbs .thumbbtn .spinner")).toHaveCount(0);
+  expect(await thumbImg.evaluate((e) => [e.naturalWidth, e.naturalHeight, Math.round(e.getBoundingClientRect().width)])).toEqual([1600, 800, 110]);
+  const [qBox, figBox, aBox1, thBox, aBox2] = await Promise.all(["#q-1", "#t-1 .task-figs .figbtn img", "#a-1", "#t-1 .task-thumbs", "#a-2"].map((sel) => page.locator(sel).boundingBox()));
+  expect(figBox.height).toBeLessThanOrEqual(300);                        // 300 × 450 → auf 300 px Höhe skaliert …
+  expect(Math.round(figBox.width)).toBeGreaterThanOrEqual(199); expect(Math.round(figBox.width)).toBeLessThanOrEqual(201);   // … also 200 px breit
   expect(thBox.x).toBeGreaterThan(aBox1.x + aBox1.width - 1);           // Miniatur rechts neben dem Antwortfeld …
   expect(thBox.y).toBeLessThan(qBox.y + qBox.height);                    // … auf Höhe der Aufgabenstellung
   expect(aBox2.width - aBox1.width).toBeGreaterThan(100);                // Aufgabe 2 ohne Bilder nutzt die volle Breite
   expect(figBox.y).toBeGreaterThanOrEqual(qBox.y + qBox.height - 1);     // Reihenfolge: Aufgabenstellung → Bild → Antwortfeld
   expect(aBox1.y).toBeGreaterThanOrEqual(figBox.y + figBox.height - 1);
   await expect(page.locator("#t-2 .thumbbtn, #t-2 .figbtn, #t-3 .thumbbtn, #t-3 .figbtn")).toHaveCount(0);
-  // Klick auf die Miniatur vergrößert; Esc schließt und gibt den Fokus zurück; Klick ins große Bild schließt ebenfalls
+  // Frage bleibt direkt über dem Antwortteil, auch wenn die Miniaturspalte höher wäre (kein Leerraum durch das Raster)
+  expect(await page.locator("#t-1 .task-q").boundingBox().then((b) => b.height)).toBeLessThan(qBox.height + 20);
+  // schmaler Bildschirm: Miniaturen als Reihe zwischen Aufgabenstellung und Antwortfeld, Antwortfeld in voller Breite
+  await page.setViewportSize({ width: 400, height: 800 });
+  const [mq, mth, ma1, ma2] = await Promise.all(["#q-1", "#t-1 .task-thumbs", "#a-1", "#a-2"].map((sel) => page.locator(sel).boundingBox()));
+  expect(mth.y).toBeGreaterThanOrEqual(mq.y + mq.height - 1);
+  expect(ma1.y).toBeGreaterThanOrEqual(mth.y + mth.height - 1);
+  expect(Math.abs(ma1.width - ma2.width)).toBeLessThan(1);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // Klick auf die Miniatur vergrößert (mit Bildunterschrift); Esc schließt und gibt den Fokus zurück; Klick ins große Bild schließt ebenfalls
   await t1.locator(".task-thumbs .thumbbtn").click();
   await expect(page.locator("#lightbox")).toBeVisible();
   await expect(page.locator("#lb-img")).toHaveAttribute("src", /^data:image\//);
+  await expect(page.locator("#lb-img")).toHaveAttribute("alt", "Skizze: Zelle mit Zellkern");
+  await expect(page.locator("#lb-cap")).toHaveText("Skizze: Zelle mit Zellkern");
   await expect(page.locator("#lb-close")).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.locator("#lightbox")).toBeHidden();
@@ -673,9 +705,25 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(vRow.locator(".bimg-mode").nth(0)).toHaveValue("thumb");
   await expect(vRow.locator(".bimg-mode").nth(1)).toHaveValue("inline");
   await expect(vRow.locator(".bimg").nth(0).locator(".bimg-meta")).toHaveText(/^1600 × 800 px · \d+ KB$/);
+  await expect(vRow.locator(".bimg-alt").nth(0)).toHaveValue("Skizze: Zelle mit Zellkern");
   await expect(page.locator("#b-err")).toHaveText("");
-  await page.click("#b-back");
-  await expect(page.locator("#tv-overview")).toBeVisible();
+  // … und bis zum neuen Blatt: die Bilder werden erneut hochgeladen (Reihenfolge, Art und Beschreibung bleiben)
+  await page.click("#b-gen");
+  await expect(page.locator("#b-result")).toBeVisible();
+  await expect(page.locator("#b-res-img")).toHaveText("Alle 2 Bilder sind gespeichert.", { timeout: 60_000 });
+  const newCode = (await page.locator("#b-res-code").textContent()).trim().replace("-", "");
+  expect(newCode).not.toBe(S.code);
+  const tUps = (await t.calls((r) => r.method === "POST" && r.path.endsWith("/images"))).map((r) => JSON.parse(r.body).image);
+  expect(tUps.map((m) => [m.task, m.pos, m.mode, m.alt, m.w, m.h])).toEqual([[1, 0, "thumb", "Skizze: Zelle mit Zellkern", 1600, 800], [1, 1, "inline", "", 300, 450]]);
+  const pub = await (await t.page.request.get("/api/sheet/" + newCode)).json();
+  expect(pub.sheet.tasks[0].images.map((m) => [m.mode, m.w, m.h, m.alt])).toEqual([["thumb", 1600, 800, "Skizze: Zelle mit Zellkern"], ["inline", 300, 450, ""]]);
+  // das Vorlagen-Blatt wieder löschen (die späteren Tests rechnen mit genau einem Blatt)
+  await page.click("#b-res-back");
+  await expect(page.locator("#t-sel-code")).toHaveText(newCode.slice(0, 3) + "-" + newCode.slice(3));
+  await page.click("#t-del-sheet");
+  await confirmDialog(page, "Feibeitsblatt löschen?");
+  await expect(page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await expect(page.locator("#t-sheets-body tr", { hasText: S.shown })).toHaveCount(1);
   await closePage(t);
 });
 

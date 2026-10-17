@@ -277,16 +277,18 @@ async function main() {
     r = await up(code, 1, "thumb", png); assert.equal(r.status, 200, r.text);
     const img1 = r.json.image;
     assert.match(img1.id, /^[0-9a-f]{16}$/);
-    assert.deepEqual([img1.task, img1.pos, img1.mode, img1.mime, img1.w, img1.h, img1.bytes], [1, 0, "thumb", "image/png", 640, 400, png.length]);
+    assert.deepEqual([img1.task, img1.pos, img1.mode, img1.mime, img1.w, img1.h, img1.bytes, img1.alt], [1, 0, "thumb", "image/png", 640, 400, png.length, ""]);
+    r = await api("POST", "/api/teacher/sheets/" + code + "/images", { id: img1.id, task: 1, mode: "thumb", data: png.toString("base64") }, { auth });   // Wiederholung → kein Duplikat
+    assert.equal(r.status, 200, r.text); assert.deepEqual([r.json.existing, r.json.image.pos], [true, 0]);
     r = await up(code, 1, "inline", pngBig); assert.equal(r.status, 200, r.text); const img2 = r.json.image; assert.equal(img2.pos, 1);
     r = await up(code, 2, "thumb", png); assert.equal(r.status, 200, r.text); const img3 = r.json.image; assert.equal(img3.pos, 0);
     for (let i = 0; i < 3; i++) { r = await up(code, 1, "thumb", png); assert.equal(r.status, 200, r.text); assert.equal(r.json.image.pos, 2 + i); }
     expectErr(await up(code, 1, "thumb", png), 400, "too_many_images");             // höchstens 5 je Aufgabe
     r = await api("GET", "/api/teacher/sheets/" + code, undefined, { auth });
     assert.equal(r.json.sheet.tasks[0].images.length, 5);
-    assert.deepEqual(r.json.sheet.tasks[0].images[0], { id: img1.id, mode: "thumb", w: 640, h: 400 });
-    assert.deepEqual(r.json.sheet.tasks[0].images[1], { id: img2.id, mode: "inline", w: 1200, h: 900 });
-    assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400 }]);
+    assert.deepEqual(r.json.sheet.tasks[0].images[0], { id: img1.id, mode: "thumb", w: 640, h: 400, alt: "" });
+    assert.deepEqual(r.json.sheet.tasks[0].images[1], { id: img2.id, mode: "inline", w: 1200, h: 900, alt: "" });
+    assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]);
     assert.deepEqual(r.json.sheet.tasks[2].images, []);
     assert.equal(r.text.includes('"data"'), false);
     r = await api("GET", "/api/sheet/" + code.toLowerCase() + "/images/" + img2.id);
@@ -307,7 +309,7 @@ async function main() {
     assert.equal(r.status, 200, r.text);
     assert.deepEqual(r.json.sheet.tasks.map((t) => t.text), tasks.map((t) => t.text));
     assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["images,text", "images,text", "images,text"]);
-    assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400 }]);
+    assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
     for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Musterlösung im öffentlichen JSON!");
