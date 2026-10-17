@@ -176,20 +176,23 @@
   .material p{margin:0 0 .55em; overflow-wrap:anywhere}
   .material a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
   .material a:hover{color:var(--accent2)}
-  .material a::after{content:"\00a0↗"; font-size:.75em; color:var(--muted)}
-  .si .material{font-family:var(--serif); font-size:15.5px; margin:6px 0 0; padding:6px 12px 1px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px}
+  .material a::after{content:"\00a0↗" / ""; font-size:.75em; color:var(--muted)}   /* nur sichtbar, nicht vorgelesen */
+  .si .material{font-family:var(--serif); font-size:15.5px; margin:4px 0 0; padding:6px 12px 2px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px}
+  .solist .si .material p{margin:0 0 .45em; white-space:normal}
   /* Material-Editor der Lehrkraft */
   .bmat{margin:8px 0 0; font-family:var(--sans)}
   .bmat-bar{display:flex; flex-wrap:wrap; gap:4px; margin:0 0 4px}
   .fmtbtn{min-width:34px; height:30px; padding:0 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper2); font:14px var(--sans); color:var(--ink); cursor:pointer}
   .fmtbtn:hover{background:var(--soft)}
-  .bmat-edit{min-height:64px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--paper); font-family:var(--serif); font-size:17px; line-height:1.6; outline:none; overflow-wrap:anywhere; white-space:pre-wrap}
+  .bmat-edit{position:relative; min-height:64px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--paper); font-family:var(--serif); font-size:17px; line-height:1.6; outline:none; overflow-wrap:anywhere; white-space:pre-wrap}
   .bmat-edit:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
-  .bmat-edit.is-empty::before{content:attr(data-placeholder); color:#756c60; font-family:var(--serif); pointer-events:none}
+  .bmat-edit.is-empty::before{content:attr(data-placeholder); position:absolute; left:13px; right:13px; top:9px; color:#756c60; font-family:var(--serif); pointer-events:none}
   .bmat-edit a{color:var(--accent); text-decoration:underline}
   .bmat .fhint{margin:4px 0 0}
   #linkdlg .field{margin:0 0 12px}
   #linkdlg p.err{margin:0 0 10px; min-height:1.3em}
+  #linkdlg p.fhint{margin:5px 0 0; font-size:12.5px; line-height:1.45}
+  .fmtbtn[aria-pressed="true"]{background:var(--soft); border-color:var(--accent2)}
   .task + .task{margin-top:1.78em}
   .task-q{font-weight:700; padding:2px 0 0; margin:0 0 6px}
   .task-label,.sublabel{
@@ -808,7 +811,7 @@
       <input type="text" id="ld-text" maxlength="500" autocomplete="off">
     </div>
     <div class="field">
-      <label for="ld-url">Adresse (beginnt mit http:// oder https://)</label>
+      <label for="ld-url">Adresse (http:// oder https://; ohne Angabe wird https:// ergänzt)</label>
       <input type="url" id="ld-url" maxlength="1000" autocomplete="off" spellcheck="false" placeholder="https://…">
       <p class="fhint">Schüler:innen öffnen den Link immer in einem neuen Tab.</p>
     </div>
@@ -1119,7 +1122,7 @@ function cleanHref(raw) {   // → http(s)-Adresse oder "" (javascript:, data: u
   const s = String(raw == null ? "" : raw).trim();
   if (!s || s.length > MAT_LIMITS.href || /[\u0000-\u0020\u007f]/.test(s)) return "";
   let u; try { u = new URL(s); } catch (e) { return ""; }
-  return u.protocol === "http:" || u.protocol === "https:" ? u.href : "";
+  return (u.protocol === "http:" || u.protocol === "https:") && u.href.length <= MAT_LIMITS.href ? u.href : "";
 }
 function cleanMaterial(raw) {   // Daten vom Server prüfen, bevor daraus DOM wird
   if (!Array.isArray(raw)) return [];
@@ -1138,7 +1141,7 @@ function materialDom(material, opts) {
       if (r.f.includes("u")) node = h("u", null, [node]);
       if (r.f.includes("i")) node = h("i", null, [node]);
       if (r.f.includes("b")) node = h("b", null, [node]);
-      if (r.h) node = h("a", o.links ? { href: r.h, target: "_blank", rel: "noopener noreferrer" } : { href: r.h }, [node]);
+      if (r.h) node = o.links ? h("a", { href: r.h, target: "_blank", rel: "noopener noreferrer" }, [node, h("span", { class: "sr-only", text: " (öffnet in neuem Tab)" })]) : h("a", { href: r.h }, [node]);
       p.appendChild(node);
     });
     root.appendChild(p);
@@ -1146,7 +1149,7 @@ function materialDom(material, opts) {
   return root;
 }
 // DOM des Editors (oder eingefügtes HTML) → Modell. Nur b/i/u/Links bleiben; Blöcke und <br> trennen Absätze.
-const MAT_BLOCK_RE = /^(p|div|li|h[1-6]|tr|blockquote|pre|section|article|ul|ol|table|tbody|thead|dd|dt|figure)$/;
+const MAT_BLOCK_RE = /^(p|div|li|h[1-6]|tr|blockquote|pre|section|article|ul|ol|table|tbody|thead|tfoot|dd|dt|dl|figure|header|footer|nav|main|aside|address|details|summary|form|fieldset)$/;
 function serializeMaterial(root) {
   const lines = []; let cur = [];
   const flush = () => { lines.push(cur); cur = []; };
@@ -1156,23 +1159,31 @@ function serializeMaterial(root) {
     const prev = cur[cur.length - 1];
     if (prev && prev.f === f && prev.h === hr) prev.t += t; else cur.push({ t, f, h: hr });
   };
-  const walk = (node, b, i, u, hr) => {
-    if (node.nodeType === 3) { push(node.nodeValue || "", (b ? "b" : "") + (i ? "i" : "") + (u ? "u" : ""), hr); return; }
+  const walk = (node, b, i, u, hr, pre) => {
+    if (node.nodeType === 3) {
+      const f = (b ? "b" : "") + (i ? "i" : "") + (u ? "u" : "");
+      if (pre) (node.nodeValue || "").split("\n").forEach((part, k) => { if (k) flush(); push(part.replace(/\t/g, "    "), f, hr); });   // Zeilen in <pre> bleiben
+      else push(node.nodeValue || "", f, hr);
+      return;
+    }
     if (node.nodeType !== 1) return;
     const tag = node.tagName.toLowerCase();
     if (tag === "br") { flush(); return; }
     if (tag === "script" || tag === "style" || tag === "template" || tag === "img" || tag === "svg" || tag === "iframe" || tag === "object") return;
-    const st = node.style || {}, fw = String(st.fontWeight || "");
-    b = b || tag === "b" || tag === "strong" || fw === "bold" || fw === "bolder" || +fw >= 600;
-    i = i || tag === "i" || tag === "em" || st.fontStyle === "italic";
+    const st = node.style || {}, fw = String(st.fontWeight || ""), fs = String(st.fontStyle || "");
+    // Ein ausdrückliches Inline-Gewicht hebt vererbtes Fett auf (Google Docs hüllt alles in <b style="font-weight:normal">)
+    b = fw ? (fw === "bold" || fw === "bolder" || +fw >= 600) : (b || tag === "b" || tag === "strong");
+    i = fs ? (fs === "italic" || fs === "oblique") : (i || tag === "i" || tag === "em");
     u = u || tag === "u" || /underline/.test(String(st.textDecoration || st.textDecorationLine || ""));
+    pre = pre || tag === "pre" || /^pre/.test(String(st.whiteSpace || ""));
     if (tag === "a") { const x = cleanHref(node.getAttribute("href")); if (x) hr = x; }
     const block = MAT_BLOCK_RE.test(tag);
     if (block && cur.length) flush();
-    for (const c of Array.from(node.childNodes)) walk(c, b, i, u, hr);
+    for (const c of Array.from(node.childNodes)) walk(c, b, i, u, hr, pre);
+    if (tag === "td" || tag === "th") push(" ", (b ? "b" : "") + (i ? "i" : "") + (u ? "u" : ""), hr);   // Zellen einer Zeile mit Abstand
     if (block && cur.length) flush();
   };
-  walk(root, false, false, false, "");
+  walk(root, false, false, false, "", false);
   flush();
   const out = lines.map((runs) => {
     if (runs.length) { runs[0].t = runs[0].t.replace(/^\s+/, ""); runs[runs.length - 1].t = runs[runs.length - 1].t.replace(/\s+$/, ""); }
@@ -1223,9 +1234,9 @@ function closeLinkDlg() {
 function applyLink() {
   const st = ldState; if (!st) return;
   const text = $("ld-text").value.replace(/\s+/g, " ").trim();
-  let raw = $("ld-url").value.trim();
-  if (raw && !/^[a-z][a-z0-9+.-]*:/i.test(raw)) raw = "https://" + raw;   // ohne Schema → https://
-  const url = cleanHref(raw);
+  const raw = $("ld-url").value.trim();
+  let url = cleanHref(raw);
+  if (!url && raw && !/^https?:\/\//i.test(raw)) url = cleanHref("https://" + raw);   // ohne Schema (auch host:port) → https://
   if (!url) { $("ld-err").textContent = "Bitte eine gültige Adresse eingeben, z. B. https://www.beispiel.de"; $("ld-url").focus(); return; }
   if (!text) { $("ld-err").textContent = "Bitte einen Linktext eingeben."; $("ld-text").focus(); return; }
   const sel = getSelection(); sel.removeAllRanges(); sel.addRange(st.range);
@@ -1249,7 +1260,19 @@ $("ld-remove").addEventListener("click", () => {
 $("linkdlg").addEventListener("keydown", (e) => {
   if (e.key === "Escape") { e.preventDefault(); closeLinkDlg(); }
   else if (e.key === "Enter" && (e.target.id === "ld-text" || e.target.id === "ld-url")) { e.preventDefault(); applyLink(); }
+  else if (e.key === "Tab") {   // Fokus im Dialog halten
+    const f = Array.from($("linkdlg").querySelectorAll("input, button")).filter((x) => !x.classList.contains("hidden") && !x.disabled);
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 });
+// Formatknöpfe spiegeln den Zustand an der Cursorposition (aria-pressed), wenn ein Material-Editor den Fokus hat
+function syncFmt(ed) {
+  if (!ed || !ed._fmtBtns) return;
+  for (const [cmd, b] of Object.entries(ed._fmtBtns)) { let on = false; try { on = document.queryCommandState(cmd); } catch (e) { on = false; } b.setAttribute("aria-pressed", on ? "true" : "false"); }
+}
+document.addEventListener("selectionchange", () => { const a = document.activeElement; if (a && a.classList && a.classList.contains("bmat-edit")) syncFmt(a); });
 $("linkdlg").addEventListener("click", (e) => { if (e.target === $("linkdlg")) closeLinkDlg(); });
 
 /* ---------- Bilder zu Aufgaben: Adresse und Vergrößerung ---------- */
@@ -2256,6 +2279,7 @@ async function selectSheet(code) {
     r.sheet.tasks.forEach((t, i) => list.appendChild(h("div", { class: "si" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
       h("p", { text: String(t.text || "") }),
+      cleanMaterial(t.material).length ? h("span", { class: "task-label", style: "margin-top:6px", text: "Material" }) : null,
       cleanMaterial(t.material).length ? materialDom(t.material, { links: true }) : null,
       teacherImgs(code, t.images, i + 1),
       h("span", { class: "task-label", style: "margin-top:6px", text: "Musterlösung" }),
@@ -2546,21 +2570,35 @@ function addRow(text, solution, images, material) {
   const imgAdd = h("button", { type: "button", class: "btn ghost small bimg-add", text: "+ Bild hinzufügen" });
   const imgStat = h("span", { class: "fhint bimg-stat", role: "status", "aria-live": "polite" });
   // Material: formatierbarer Text (fett/kursiv/unterstrichen) mit Links – als contenteditable, gespeichert als Modell
+  const MAT_PLACEHOLDER = "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …";
   const matEd = h("div", { class: "bmat-edit is-empty", contenteditable: "true", role: "textbox", "aria-multiline": "true", spellcheck: "true",
-    "data-placeholder": "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …" });
-  const matInput = () => { matEd.classList.toggle("is-empty", !matEd.textContent.trim()); T.builderDirty = true; };
+    "data-placeholder": MAT_PLACEHOLDER, "aria-placeholder": MAT_PLACEHOLDER });
+  const matInput = (e) => {
+    const empty = !matEd.textContent.trim() && !matEd.querySelector("a");
+    if (empty && matEd.childNodes.length && !(e && e.isComposing)) matEd.textContent = "";   // Rest-<br> nach dem Leeren weg, Caret bleibt oben
+    matEd.classList.toggle("is-empty", empty); T.builderDirty = true;
+  };
   const fmt = (cmd, title, kid) => {
-    const b = h("button", { type: "button", class: "fmtbtn", title, "aria-label": title }, [kid]);
+    const b = h("button", { type: "button", class: "fmtbtn", title, "aria-label": title, "aria-pressed": "false" }, [kid]);
     b.addEventListener("mousedown", (e) => e.preventDefault());   // Markierung im Editor behalten
-    b.addEventListener("click", () => { matEd.focus(); document.execCommand(cmd); matInput(); });
+    b.addEventListener("click", () => { matEd.focus(); document.execCommand(cmd); matInput(); syncFmt(matEd); });
     return b;
   };
   const linkBtn = h("button", { type: "button", class: "fmtbtn", title: "Link einfügen oder bearbeiten", text: "Link" });
   linkBtn.addEventListener("mousedown", (e) => e.preventDefault());
   linkBtn.addEventListener("click", () => linkDialog(matEd));
   const matLbl = h("span", { class: "rowlbl", style: "margin-top:10px" });
-  const matBar = h("div", { class: "bmat-bar", role: "toolbar", "aria-label": "Formatierung des Materials" }, [
-    fmt("bold", "Fett (Strg+B)", h("b", { text: "F" })), fmt("italic", "Kursiv (Strg+I)", h("i", { text: "K" })), fmt("underline", "Unterstrichen (Strg+U)", h("u", { text: "U" })), linkBtn]);
+  const fmtBtns = { bold: fmt("bold", "Fett (Strg+B)", h("b", { text: "F" })), italic: fmt("italic", "Kursiv (Strg+I)", h("i", { text: "K" })), underline: fmt("underline", "Unterstrichen (Strg+U)", h("u", { text: "U" })) };
+  matEd._fmtBtns = fmtBtns;
+  const barBtns = [fmtBtns.bold, fmtBtns.italic, fmtBtns.underline, linkBtn];
+  barBtns.forEach((b, k) => { b.tabIndex = k ? -1 : 0; });   // Werkzeugleiste: ein Tab-Stopp, Pfeiltasten wechseln
+  const matBar = h("div", { class: "bmat-bar", role: "toolbar", "aria-label": "Formatierung des Materials" }, barBtns);
+  matBar.addEventListener("keydown", (e) => {
+    const k = barBtns.indexOf(document.activeElement); if (k < 0) return;
+    const n = e.key === "ArrowRight" ? (k + 1) % barBtns.length : e.key === "ArrowLeft" ? (k + barBtns.length - 1) % barBtns.length : e.key === "Home" ? 0 : e.key === "End" ? barBtns.length - 1 : -1;
+    if (n < 0) return;
+    e.preventDefault(); barBtns.forEach((b, j) => { b.tabIndex = j === n ? 0 : -1; }); barBtns[n].focus();
+  });
   matEd.addEventListener("input", matInput);
   matEd.addEventListener("paste", (e) => {   // eingefügtes HTML wird auf fett/kursiv/unterstrichen/Links reduziert
     e.preventDefault();
@@ -2569,7 +2607,23 @@ function addRow(text, solution, images, material) {
     if (html) insertMaterialHtml(matEd, html); else document.execCommand("insertText", false, dt.getData("text/plain") || "");
     matInput();
   });
-  matEd.addEventListener("drop", (e) => { e.preventDefault(); const t = e.dataTransfer && e.dataTransfer.getData("text/plain"); if (t) { matEd.focus(); document.execCommand("insertText", false, t); matInput(); } });
+  matEd.addEventListener("dragstart", () => { matEd._dragInside = true; });
+  matEd.addEventListener("dragend", () => { matEd._dragInside = false; });
+  matEd.addEventListener("drop", (e) => {   // nur Text, an der Stelle des Mauszeigers; Ziehen innerhalb des Editors verschiebt
+    e.preventDefault();
+    const t = e.dataTransfer && e.dataTransfer.getData("text/plain");
+    const sel = getSelection(), inside = matEd._dragInside; matEd._dragInside = false;
+    if (!t) return;
+    if (inside && sel.rangeCount && matEd.contains(sel.anchorNode) && !sel.isCollapsed) sel.deleteFromDocument();
+    let r = null;
+    try {
+      if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(e.clientX, e.clientY);
+      else if (document.caretPositionFromPoint) { const pos = document.caretPositionFromPoint(e.clientX, e.clientY); if (pos) { r = document.createRange(); r.setStart(pos.offsetNode, pos.offset); r.collapse(true); } }
+    } catch (x) { r = null; }
+    matEd.focus();
+    if (r && matEd.contains(r.startContainer)) { sel.removeAllRanges(); sel.addRange(r); }
+    document.execCommand("insertText", false, t); matInput();
+  });
   if (material && material.length) { Array.from(materialDom(material, { editor: true }).childNodes).forEach((n) => matEd.appendChild(n)); matEd.classList.remove("is-empty"); }
   const tr = h("tr", null, [
     h("td", { class: "c1" }, [l1, ta1, h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
@@ -2640,7 +2694,12 @@ $("b-gen").addEventListener("click", async () => {
     const text = q.value.trim(), solution = s.value.trim(), imgs = tr._images || [], material = serializeMaterial(tr._matEd);
     if (!text && !solution && !imgs.length && !material.length) return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
-    if (materialChars(material) > MAT_LIMITS.chars && !bad) { bad = tr._matEd; err.textContent = `Zeile ${i + 1}: Das Material ist zu lang (höchstens ${MAT_LIMITS.chars.toLocaleString("de-DE")} Zeichen).`; }
+    const mRuns = material.reduce((n, p) => n + p.length, 0), mLinks = material.reduce((n, p) => n + p.filter((r) => r.h).length, 0);
+    const mErr = materialChars(material) > MAT_LIMITS.chars ? `Das Material ist zu lang (höchstens ${MAT_LIMITS.chars.toLocaleString("de-DE")} Zeichen).`
+      : material.length > MAT_LIMITS.paragraphs ? `Das Material hat zu viele Absätze (höchstens ${MAT_LIMITS.paragraphs}).`
+      : mRuns > MAT_LIMITS.runs ? `Das Material ist zu kleinteilig formatiert (höchstens ${MAT_LIMITS.runs} Abschnitte).`
+      : mLinks > MAT_LIMITS.links ? `Zu viele Links im Material (höchstens ${MAT_LIMITS.links}).` : "";
+    if (mErr && !bad) { bad = tr._matEd; err.textContent = `Zeile ${i + 1}: ${mErr}`; }
     const task = { text, solution };
     if (material.length) task.material = material;
     tasks.push(task);

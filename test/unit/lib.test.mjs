@@ -267,8 +267,10 @@ import { validateMaterial, materialText, cleanHref } from "../../worker/lib.js";
 test("cleanHref: nur http(s), normalisiert; alles andere leer", () => {
   assert.equal(cleanHref(" https://Beispiel.de/Weg?x=1#a "), "https://beispiel.de/Weg?x=1#a");
   assert.equal(cleanHref("http://127.0.0.1:8787/api/health"), "http://127.0.0.1:8787/api/health");
-  for (const bad of ["javascript:alert(1)", "data:text/html,x", "mailto:a@b.de", "ftp://x.de", "beispiel.de", "", null, undefined, "https://a b.de", "https://x.de/\u0007", "x".repeat(LIMITS.href + 1)])
+  for (const bad of ["javascript:alert(1)", "data:text/html,x", "mailto:a@b.de", "ftp://x.de", "beispiel.de", "", null, undefined, "https://a b.de", "https://x.de/\u0007", "x".repeat(LIMITS.href + 1),
+    "https://example.com/" + "ä".repeat(900)])   // nach der Prozent-Kodierung zu lang
     assert.equal(cleanHref(bad), "", String(bad).slice(0, 30));
+  assert.equal(cleanHref("https://example.com/" + "ä".repeat(100)), "https://example.com/" + "%C3%A4".repeat(100));
 });
 
 test("validateMaterial: normalisiert Läufe, verbindet gleiche Formate, prüft Links und Grenzen", () => {
@@ -285,6 +287,7 @@ test("validateMaterial: normalisiert Läufe, verbindet gleiche Formate, prüft L
   rejectsWith(() => validateMaterial([[{ t: "x".repeat(LIMITS.material + 1) }]]), "bad_request");
   rejectsWith(() => validateMaterial(Array.from({ length: LIMITS.materialParagraphs + 1 }, () => [])), "bad_request");
   rejectsWith(() => validateMaterial([Array.from({ length: LIMITS.materialRuns + 1 }, (_, i) => ({ t: "a", f: i % 2 ? "b" : "" }))]), "bad_request");
+  rejectsWith(() => validateMaterial([Array.from({ length: LIMITS.materialRuns + 1 }, () => ({ t: "" }))]), "bad_request");   // leere Läufe zählen mit
   rejectsWith(() => validateMaterial([Array.from({ length: LIMITS.materialLinks + 1 }, (_, i) => ({ t: "a", h: "https://x.de/" + i }))]), "bad_request");
   // Steuerzeichen raus, NBSP → Leerzeichen
   assert.deepEqual(validateMaterial([[{ t: "a\u0000b\u00a0c" }]]), [[{ t: "ab c" }]]);

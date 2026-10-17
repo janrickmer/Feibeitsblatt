@@ -168,7 +168,7 @@ export function cleanHref(raw) {   // → normalisierte http(s)-Adresse oder "" 
   const s = String(raw == null ? "" : raw).trim();
   if (!s || s.length > LIMITS.href || /[\u0000-\u0020\u007f]/.test(s)) return "";
   let u; try { u = new URL(s); } catch { return ""; }
-  return u.protocol === "http:" || u.protocol === "https:" ? u.href : "";
+  return (u.protocol === "http:" || u.protocol === "https:") && u.href.length <= LIMITS.href ? u.href : "";   // Länge nach der Normalisierung (Prozent-Kodierung)
 }
 export function validateMaterial(raw, n) {
   if (raw == null) return [];
@@ -176,28 +176,32 @@ export function validateMaterial(raw, n) {
   const bad = () => new InputError(where + "Das Material hat ein ungültiges Format.");
   if (!Array.isArray(raw)) throw bad();
   if (raw.length > LIMITS.materialParagraphs) throw new InputError(where + "Das Material hat zu viele Absätze (höchstens " + LIMITS.materialParagraphs + ").");
+  // Grenzen so früh wie möglich prüfen (10 ms CPU): Läufe zählen vor dem Verarbeiten, Zeichen und Links beim Zählen
+  const tooLong = () => new InputError(where + "Das Material ist zu lang (höchstens " + LIMITS.material + " Zeichen).");
   let chars = 0, runs = 0, links = 0;
   const out = raw.map((para) => {
     if (!Array.isArray(para)) throw bad();
+    runs += para.length;
+    if (runs > LIMITS.materialRuns) throw new InputError(where + "Das Material ist zu kleinteilig formatiert (höchstens " + LIMITS.materialRuns + " Abschnitte).");
     const line = [];
     for (const r of para) {
       if (!isObj(r) || typeof r.t !== "string" || (r.f != null && typeof r.f !== "string") || (r.h != null && typeof r.h !== "string")) throw bad();
+      if (r.t.length > LIMITS.material) throw tooLong();
       const t = cleanText(r.t).replace(/[\t\n\r\u00a0]+/g, " ");   // innerhalb eines Laufs keine Zeilenumbrüche
       if (!t) continue;
+      chars += t.length;
+      if (chars > LIMITS.material) throw tooLong();
       const f = ["b", "i", "u"].filter((c) => String(r.f || "").includes(c)).join("");
       let h = "";
       if (r.h) { h = cleanHref(r.h); if (!h) throw new InputError(where + "Ein Link im Material ist ungültig (erlaubt sind nur Adressen mit http:// oder https://)."); }
-      chars += t.length; runs++;
       const prev = line[line.length - 1];
       if (prev && (prev.f || "") === f && (prev.h || "") === h) { prev.t += t; continue; }
-      const run = { t }; if (f) run.f = f; if (h) { run.h = h; links++; }
+      const run = { t }; if (f) run.f = f;
+      if (h) { run.h = h; links++; if (links > LIMITS.materialLinks) throw new InputError(where + "Zu viele Links im Material (höchstens " + LIMITS.materialLinks + ")."); }
       line.push(run);
     }
     return line;
   });
-  if (chars > LIMITS.material) throw new InputError(where + "Das Material ist zu lang (höchstens " + LIMITS.material + " Zeichen).");
-  if (runs > LIMITS.materialRuns) throw new InputError(where + "Das Material ist zu kleinteilig formatiert (höchstens " + LIMITS.materialRuns + " Abschnitte).");
-  if (links > LIMITS.materialLinks) throw new InputError(where + "Zu viele Links im Material (höchstens " + LIMITS.materialLinks + ").");
   while (out.length && !out[out.length - 1].length) out.pop();   // leere Absätze am Ende und Anfang weg
   while (out.length && !out[0].length) out.shift();
   return out;

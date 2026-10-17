@@ -97,7 +97,8 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    **Material:** Unter jeder Aufgabenstellung gibt es das Feld „Material“ für einen Text, den die Schüler:innen zur
    Aufgabe sehen – etwa einen Auszug, ein Zitat, Arbeitshinweise oder Links. Mit den Knöpfen **F**, **K**, **U**
    (oder Strg+B, Strg+I, Strg+U) formatieren Sie markierten Text fett, kursiv oder unterstrichen; „Link“ verlinkt
-   den markierten Text (oder fügt einen neuen Link mit Linktext ein), nur Adressen mit `http://` oder `https://`.
+   den markierten Text (oder fügt einen neuen Link mit Linktext ein), nur Adressen mit `http://` oder `https://`
+   (eine Adresse ohne Angabe wie `www.beispiel.de` wird mit `https://` ergänzt).
    Eingefügter Text aus Word oder dem Browser behält diese Hervorhebungen und Links, alles andere (Farben,
    Schriften, Bilder) wird entfernt. Das Material sehen Schüler:innen unter der Aufgabenstellung; Links öffnen
    sich bei ihnen immer in einem neuen Tab. Der reine Text des Materials (ohne Links) geht beim KI-Feedback als
@@ -116,8 +117,8 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    eines fehl, sagt die Seite welches, und „Fehlende Bilder erneut hochladen“ holt es nach (eine Wiederholung legt
    nie ein Bild doppelt an). Geben Sie den Code an die Klasse weiter. Ein erstelltes
    Feibeitsblatt lässt sich nicht mehr ändern; für eine geänderte Fassung wählen Sie es aus und klicken „Als
-   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Musterlösungen und Bilder und ergibt
-   einen neuen Code.
+   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Musterlösungen und Bilder und
+   ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben. Ein Klick wählt ein Blatt aus. Die Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“,
    „Kürzel Vorname“, „Geburtstag“ und „Klasse“, sortiert nach Klasse und Namen. Aufgeklappt sehen Sie je Aufgabe

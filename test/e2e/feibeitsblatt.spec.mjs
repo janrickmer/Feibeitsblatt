@@ -62,9 +62,10 @@ const C = {
 const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [] };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe)
 // Material, das Test 1 im Editor erzeugt (Aufgabe 1 getippt und formatiert, Aufgabe 2 als HTML eingefügt)
 const LINK_URL = BASE_URL + "/api/health";
+const LINK_URL2 = LINK_URL + "?v=2";
 const MATERIAL_1 = [
   [{ t: "Lies zuerst den " }, { t: "Textauszug", f: "b" }, { t: " und dann " }, { t: "diese Seite", f: "i" }, { t: ":" }],
-  [{ t: "Hinweis:", f: "u" }, { t: " " }, { t: "Quelle", h: LINK_URL }],
+  [{ t: "Hinweis:", f: "u" }, { t: " " }, { t: "Quelle 2", h: LINK_URL2 }, { t: " – Verlag" }],
 ];
 const MATERIAL_2 = [[{ t: "Siehe " }, { t: "Kapitel 3", f: "b" }, { t: " und böse sowie " }, { t: "gut", h: "https://example.org/x" }, { t: "." }]];
 const fmtDe = (iso) => iso.split("-").reverse().join(".");
@@ -212,12 +213,46 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#ld-remove")).toBeVisible();
   await page.click("#ld-cancel");
   await expect(ed1.locator("a")).toHaveCount(1);
+  // Link bearbeiten („Übernehmen“): Text und Adresse ändern
+  await ed1.locator("a").click();
+  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await expect(page.locator("#ld-ok")).toHaveText("Übernehmen");
+  await page.fill("#ld-text", "Quelle 2"); await page.fill("#ld-url", LINK_URL2);
+  await page.click("#ld-ok");
+  await expect(ed1.locator("a")).toHaveText("Quelle 2");
+  await expect(ed1.locator("a")).toHaveAttribute("href", LINK_URL2);
+  // neuen Link ohne Markierung am Ende einfügen (Adresse ohne Schema → https://), dann wieder entfernen
+  await ed1.click(); await page.keyboard.press("Control+End");
+  await page.keyboard.type(" – ");
+  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await expect(page.locator("#ld-title")).toHaveText("Link einfügen");
+  await expect(page.locator("#ld-text")).toHaveValue("");
+  await page.fill("#ld-text", "Verlag"); await page.fill("#ld-url", "www.beispiel.de");
+  await page.keyboard.press("Enter");
+  await expect(ed1.locator("a")).toHaveCount(2);
+  await expect(ed1.locator("a").nth(1)).toHaveAttribute("href", "https://www.beispiel.de/");
+  await ed1.locator("a").nth(1).click();
+  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await expect(page.locator("#ld-url")).toHaveValue("https://www.beispiel.de/");
+  await page.click("#ld-remove");
+  await expect(ed1.locator("a")).toHaveCount(1);
+  await expect(ed1).toContainText("Hinweis: Quelle 2 – Verlag");
+  // Tab bleibt im Link-Dialog
+  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await page.locator("#ld-ok").focus(); await page.keyboard.press("Tab");
+  await expect(page.locator("#ld-text")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#linkdlg")).not.toHaveClass(/open/);
+  // Werkzeugleiste: Zustand der Formatknöpfe folgt dem Cursor
+  await ed1.locator("b").click();
+  await expect(row0.locator('.fmtbtn[aria-pressed="true"]')).toHaveCount(1);
+  await expect(row0.locator(".fmtbtn", { hasText: "F" })).toHaveAttribute("aria-pressed", "true");
   // Material zu Aufgabe 2 aus der Zwischenablage (HTML): nur fett/kursiv/unterstrichen und http(s)-Links bleiben
   const ed2 = page.locator("#b-rows > tr").nth(1).locator(".bmat-edit");
   await ed2.click();
   await ed2.evaluate((el) => {
     const dt = new DataTransfer();
-    dt.setData("text/html", '<p style="color:red">Siehe <strong>Kapitel 3</strong> und <a href="javascript:alert(1)">böse</a> sowie <a href="https://example.org/x">gut</a>.</p><script>window.__pasted = 1</script><img src="https://example.org/t.png">');
+    dt.setData("text/html", '<b style="font-weight:normal" id="docs-internal-guid-1"><p style="color:red">Siehe <span style="font-weight:700">Kapitel 3</span> und <a href="javascript:alert(1)">böse</a> sowie <a href="https://example.org/x">gut</a>.</p></b><script>window.__pasted = 1</script><img src="https://example.org/t.png">');
     dt.setData("text/plain", "Siehe Kapitel 3 und böse sowie gut.");
     el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   });
@@ -375,18 +410,19 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(mat1.locator(".material p").nth(0)).toHaveText("Lies zuerst den Textauszug und dann diese Seite:");
   await expect(mat1.locator("b")).toHaveText("Textauszug"); await expect(mat1.locator("i")).toHaveText("diese Seite"); await expect(mat1.locator("u")).toHaveText("Hinweis:");
   const matLink = mat1.locator("a");
-  await expect(matLink).toHaveText("Quelle");
-  await expect(matLink).toHaveAttribute("href", LINK_URL);
+  expect(await matLink.evaluate((e) => e.firstChild.textContent)).toBe("Quelle 2");
+  await expect(matLink.locator(".sr-only")).toHaveText("(öffnet in neuem Tab)");
+  await expect(matLink).toHaveAttribute("href", LINK_URL2);
   await expect(matLink).toHaveAttribute("target", "_blank");
   expect(await matLink.getAttribute("rel")).toMatch(/noopener/);
   const [popup] = await Promise.all([page.context().waitForEvent("page"), matLink.click()]);
   await popup.waitForLoadState();
-  expect(popup.url()).toBe(LINK_URL);
+  expect(popup.url()).toBe(LINK_URL2);
   expect(await popup.evaluate(() => window.opener)).toBeNull();
   await popup.close();
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);   // das Blatt bleibt offen
   await expect(page.locator("#t-2 .task-material a")).toHaveAttribute("href", "https://example.org/x");
-  await expect(page.locator("#t-2 .task-material")).toContainText("Siehe Kapitel 3 und böse sowie gut.");
+  await expect(page.locator("#t-2 .task-material")).toContainText("Siehe Kapitel 3 und böse sowie gut");
   await expect(page.locator("#t-3 .task-material")).toHaveCount(0);
   expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.material)).toEqual(S.material);
   expect(lookup.body).not.toContain("<b>");
@@ -582,7 +618,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(prompt).toContain("innere Instanz");
   expect(prompt).not.toContain(A.a3);                                   // Aufgabe ohne Musterlösung geht nicht an die KI
   for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt).not.toContain(p);
-  expect(prompt).toContain(JSON.stringify("Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\nLies zuerst den Textauszug und dann diese Seite:\nHinweis: Quelle\n>>>").slice(1, -1));   // prompt ist JSON-kodiert
+  expect(prompt).toContain(JSON.stringify("Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\nLies zuerst den Textauszug und dann diese Seite:\nHinweis: Quelle 2 – Verlag\n>>>").slice(1, -1));   // prompt ist JSON-kodiert
   expect(prompt).not.toContain(LINK_URL);
 
   const exp = expectedResults(TASKS, A.first);
@@ -799,7 +835,7 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(vRow.locator(".bimg").nth(0).locator(".bimg-meta")).toHaveText(/^1600 × 800 px · \d+ KB$/);
   await expect(vRow.locator(".bimg-alt").nth(0)).toHaveValue("Skizze: Zelle mit Zellkern");
   await expect(vRow.locator(".bmat-edit b")).toHaveText("Textauszug");
-  await expect(vRow.locator(".bmat-edit a")).toHaveAttribute("href", LINK_URL);
+  await expect(vRow.locator(".bmat-edit a")).toHaveAttribute("href", LINK_URL2);
   await expect(page.locator("#b-err")).toHaveText("");
   // … und bis zum neuen Blatt: die Bilder werden erneut hochgeladen (Reihenfolge, Art und Beschreibung bleiben)
   await page.click("#b-gen");
