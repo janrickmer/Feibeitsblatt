@@ -768,7 +768,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie M
     const body = await res.text();
     const j = JSON.parse(body);
     expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "code", "publicKey", "tasks", "title"]);
-    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h })) : [] })));
+    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [] })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
   }
