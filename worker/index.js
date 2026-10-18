@@ -21,6 +21,8 @@ const MSG = {
   tooLarge: "Die Anfrage ist zu groß.",
   imagesFull: "Die Bilder dieses Feibeitsblattes sind zusammen zu groß (höchstens " + Math.round(LIMITS.sheetImageBytes / 1024 / 1024) + " MB).",
   filesFull: "Die PDF-Dateien dieses Feibeitsblattes sind zusammen zu groß (höchstens " + Math.round(LIMITS.sheetFileBytes / 1024 / 1024) + " MB).",
+  storageFull: "Der Speicher für Bilder und PDF-Dateien ist voll (höchstens " + Math.round(LIMITS.storageBytes / 1024 / 1024) + " MB für alle Feibeitsblätter zusammen). Bitte löschen Sie Feibeitsblätter, die Sie nicht mehr brauchen – vorher können Sie sie mit „Als PDF-Datei herunterladen“ sichern.",
+  dbFull: "Der Speicher der Datenbank ist voll. Die Lehrkraft muss alte Feibeitsblätter löschen, bevor wieder etwas gespeichert werden kann.",
   server: "Auf dem Server ist ein Fehler aufgetreten. Bitte später erneut versuchen.",
   dbLimit: "Die Datenbank hat ihr kostenloses Tageskontingent erreicht. Bitte morgen erneut versuchen.",
   sheetGone: "Dieses Feibeitsblatt gibt es nicht mehr. Bitte laden Sie die Übersicht neu.",
@@ -77,7 +79,12 @@ const SCHEMA = [
   // PDF-Dateien zu Aufgaben: je Teil (n) eine Zeile mit Base64; Teil 0 trägt die Metadaten, `data` ist die letzte Spalte
   "CREATE TABLE IF NOT EXISTS sheet_files (id TEXT NOT NULL, n INTEGER NOT NULL, sheet_code TEXT NOT NULL, task INTEGER NOT NULL, pos INTEGER NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, chunks INTEGER NOT NULL, created_at INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(id, n))",
   "CREATE INDEX IF NOT EXISTS idx_sheet_files_sheet ON sheet_files(sheet_code, n, task, pos)",
+  // Summen für die gemeinsame Speichergrenze (LIMITS.storageBytes) nur aus dem Index lesen
+  "CREATE INDEX IF NOT EXISTS idx_sheet_files_bytes ON sheet_files(n, bytes)",
+  "CREATE INDEX IF NOT EXISTS idx_sheet_images_bytes ON sheet_images(bytes)",
 ];
+// Belegter Speicher für Bilder und PDF-Dateien aller Blätter (roh, Bytes) – als SQL-Ausdruck für Bedingungen und Listen
+const STORAGE_SQL = "((SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE n=0)+(SELECT COALESCE(SUM(bytes),0) FROM sheet_images))";
 let schemaReady = false;   // kein geteiltes Promise: workerd erlaubt kein I/O über Request-Grenzen hinweg
 async function ensureSchema(db) {
   if (schemaReady) return;
@@ -281,13 +288,17 @@ function parseTasks(text) {
 
 async function routeSheetsList(c) {
   await requireTeacher(c);
-  const { results } = await c.db.prepare(
-    "SELECT s.code, s.title, s.created_at, json_array_length(s.tasks) AS task_count, " +
-    "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code AND stage='final') AS submission_count, " +
-    "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code AND stage='first') AS first_count " +
-    "FROM sheets s ORDER BY s.created_at DESC, s.code LIMIT 1000").all();
-  return json({ ok: true, sheets: (results || []).map((r) => ({ code: r.code, title: r.title, createdAt: r.created_at,
-    taskCount: r.task_count || 0, submissionCount: r.submission_count || 0, firstCount: r.first_count || 0 })) });
+  const [list, st] = await c.db.batch([
+    c.db.prepare(
+      "SELECT s.code, s.title, s.created_at, json_array_length(s.tasks) AS task_count, " +
+      "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code AND stage='final') AS submission_count, " +
+      "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code AND stage='first') AS first_count " +
+      "FROM sheets s ORDER BY s.created_at DESC, s.code LIMIT 1000"),
+    c.db.prepare("SELECT " + STORAGE_SQL + " AS used"),
+  ]);
+  return json({ ok: true, sheets: (list.results || []).map((r) => ({ code: r.code, title: r.title, createdAt: r.created_at,
+    taskCount: r.task_count || 0, submissionCount: r.submission_count || 0, firstCount: r.first_count || 0 })),
+    storage: { used: Number((firstRow(st) || {}).used) || 0, limit: LIMITS.storageBytes } });
 }
 
 async function routeSheetCreate(c) {
@@ -352,13 +363,15 @@ async function routeImageUpload(c, codeRaw) {
     "WHERE NOT EXISTS(SELECT 1 FROM sheet_images WHERE id=?1) " +
     "AND EXISTS(SELECT 1 FROM sheets WHERE code=?2 AND json_array_length(tasks)>=?3) " +
     "AND (SELECT COUNT(*) FROM sheet_images WHERE sheet_code=?2 AND task=?3)<?11 " +
-    "AND (SELECT COALESCE(SUM(bytes),0) FROM sheet_images WHERE sheet_code=?2)+?8<=?12 RETURNING pos")
-    .bind(id, code, task, mode, info.mime, info.w, info.h, bytes, data, c.now, LIMITS.imagesPerTask, LIMITS.sheetImageBytes, alt).first();
+    "AND (SELECT COALESCE(SUM(bytes),0) FROM sheet_images WHERE sheet_code=?2)+?8<=?12 " +
+    "AND " + STORAGE_SQL + "+?8<=?14 RETURNING pos")
+    .bind(id, code, task, mode, info.mime, info.w, info.h, bytes, data, c.now, LIMITS.imagesPerTask, LIMITS.sheetImageBytes, alt, LIMITS.storageBytes).first();
   if (!row) {   // Grund ermitteln (nur im Fehlerfall ein zweiter Lesezugriff)
-    const [ex, sh, cnt] = await c.db.batch([
+    const [ex, sh, cnt, sum] = await c.db.batch([
       c.db.prepare("SELECT task, pos, mode, mime, w, h, bytes, alt FROM sheet_images WHERE id=?1 AND sheet_code=?2").bind(id, code),
       c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code),
       c.db.prepare("SELECT COUNT(*) AS n FROM sheet_images WHERE sheet_code=?1 AND task=?2").bind(code, task),
+      c.db.prepare("SELECT (SELECT COALESCE(SUM(bytes),0) FROM sheet_images WHERE sheet_code=?1) AS sheet, " + STORAGE_SQL + " AS used").bind(code),
     ]);
     const e = firstRow(ex);
     if (e) return json({ ok: true, existing: true, image: { id, task: Number(e.task), pos: Number(e.pos), mode: e.mode, mime: e.mime, w: Number(e.w), h: Number(e.h), bytes: Number(e.bytes), alt: String(e.alt || "") } });
@@ -367,6 +380,8 @@ async function routeImageUpload(c, codeRaw) {
     if (!s) throw sheetGone();
     if (task > Number(s.n)) throw new InputError("Aufgabe " + task + " gibt es in diesem Feibeitsblatt nicht.");
     if (Number((firstRow(cnt) || {}).n) >= LIMITS.imagesPerTask) throw new InputError("Höchstens " + LIMITS.imagesPerTask + " Bilder je Aufgabe.", "too_many_images");
+    const u = firstRow(sum) || {};
+    if (Number(u.sheet) + bytes <= LIMITS.sheetImageBytes && Number(u.used) + bytes > LIMITS.storageBytes) throw new HttpError(413, "storage_full", MSG.storageFull);
     throw new HttpError(413, "too_large", MSG.imagesFull);
   }
   return json({ ok: true, image: { id, task, pos: Number(row.pos), mode, mime: info.mime, w: info.w, h: info.h, bytes, alt } });
@@ -413,34 +428,42 @@ async function routeFileUpload(c, codeRaw) {
       "WHERE NOT EXISTS(SELECT 1 FROM sheet_files WHERE id=?1) " +
       "AND EXISTS(SELECT 1 FROM sheets WHERE code=?2 AND json_array_length(tasks)>=?3) " +
       "AND (SELECT COUNT(*) FROM sheet_files WHERE sheet_code=?2 AND task=?3 AND n=0)<?10 " +
-      "AND (SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE sheet_code=?2 AND n=0)+?6<=?11 RETURNING pos")
-      .bind(id, code, task, name, FILE_MIME, bytes, chunks, c.now, data, LIMITS.filesPerTask, LIMITS.sheetFileBytes).first();
+      "AND (SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE sheet_code=?2 AND n=0)+?6<=?11 " +
+      "AND " + STORAGE_SQL + "+?6<=?12 RETURNING pos")
+      .bind(id, code, task, name, FILE_MIME, bytes, chunks, c.now, data, LIMITS.filesPerTask, LIMITS.sheetFileBytes, LIMITS.storageBytes).first();
     if (!row) {   // Grund ermitteln (nur im Fehlerfall ein zweiter Lesezugriff)
-      const [ex, sh, cnt, taken] = await c.db.batch([
+      const [ex, sh, cnt, taken, sum] = await c.db.batch([
         c.db.prepare("SELECT task, pos, name, bytes, chunks, (SELECT COUNT(*) FROM sheet_files c WHERE c.id=?1) AS have FROM sheet_files WHERE id=?1 AND n=0 AND sheet_code=?2").bind(id, code),
         c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code),
         c.db.prepare("SELECT COUNT(*) AS n FROM sheet_files WHERE sheet_code=?1 AND task=?2 AND n=0").bind(code, task),
         c.db.prepare("SELECT 1 AS x FROM sheet_files WHERE id=?1 LIMIT 1").bind(id),
+        c.db.prepare("SELECT (SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE sheet_code=?1 AND n=0) AS sheet, " + STORAGE_SQL + " AS used").bind(code),
       ]);
       const e = firstRow(ex);
-      if (e) return json({ ok: true, existing: true, file: { id, task: Number(e.task), pos: Number(e.pos), name: String(e.name), bytes: Number(e.bytes), chunks: Number(e.chunks), n: 0, complete: Number(e.have) >= Number(e.chunks) } });
-      if (firstRow(taken)) throw new InputError("Diese Datei-Kennung ist schon vergeben.");   // Kennung gehört zu einem anderen Blatt
+      // Wiederholung derselben Datei (gleiche Aufgabe, Größe, Stückelung) → vorhandene Zeile; sonst ist die Kennung vergeben
+      if (e && Number(e.task) === task && Number(e.bytes) === bytes && Number(e.chunks) === chunks)
+        return json({ ok: true, existing: true, file: { id, task, pos: Number(e.pos), name: String(e.name), bytes, chunks, n: 0, complete: Number(e.have) >= chunks } });
+      if (e || firstRow(taken)) throw new InputError("Diese Datei-Kennung ist schon vergeben.");   // andere Datei oder anderes Blatt
       const s = firstRow(sh);
       if (!s) throw sheetGone();
       if (task > Number(s.n)) throw new InputError("Aufgabe " + task + " gibt es in diesem Feibeitsblatt nicht.");
       if (Number((firstRow(cnt) || {}).n) >= LIMITS.filesPerTask) throw new InputError("Höchstens " + LIMITS.filesPerTask + " PDF-Dateien je Aufgabe.", "too_many_files");
+      const u = firstRow(sum) || {};
+      if (Number(u.sheet) + bytes <= LIMITS.sheetFileBytes && Number(u.used) + bytes > LIMITS.storageBytes) throw new HttpError(413, "storage_full", MSG.storageFull);
       throw new HttpError(413, "too_large", MSG.filesFull);
     }
     return json({ ok: true, file: { id, task, pos: Number(row.pos), name, bytes, chunks, n: 0, complete: chunks === 1 } });
   }
-  const [ins, have] = await c.db.batch([
+  const [ins, have, mine] = await c.db.batch([
     c.db.prepare("INSERT OR IGNORE INTO sheet_files(id,n,sheet_code,task,pos,name,mime,bytes,chunks,created_at,data) " +
       "SELECT id,?2,sheet_code,task,pos,name,mime,bytes,chunks,?3,?4 FROM sheet_files WHERE id=?1 AND n=0 AND sheet_code=?5 AND task=?6 AND bytes=?7 AND chunks>?2")
       .bind(id, n, c.now, data, code, task, bytes),
-    c.db.prepare("SELECT COUNT(*) AS have, MAX(chunks) AS chunks FROM sheet_files WHERE id=?1 AND sheet_code=?2").bind(id, code),
+    c.db.prepare("SELECT COUNT(*) AS have, MAX(chunks) AS chunks FROM sheet_files WHERE id=?1 AND +sheet_code=?2").bind(id, code),   // nur die Teile dieser Datei (Primärschlüssel)
+    c.db.prepare("SELECT 1 AS x FROM sheet_files WHERE id=?1 AND n=?2 AND sheet_code=?3 AND task=?4 AND bytes=?5").bind(id, n, code, task, bytes),
   ]);
   const h = firstRow(have);
   if (!h || !Number(h.have)) throw new InputError("Zu dieser Datei fehlt der erste Teil – bitte den Upload neu beginnen.", "bad_request");
+  if (!firstRow(mine)) throw new InputError("Dieser Teil passt nicht zur Datei (Aufgabe oder Größe weichen ab).", "bad_request");   // nichts gespeichert
   const existing = !(ins.meta && ins.meta.changes);
   return json({ ok: true, ...(existing ? { existing: true } : {}), file: { id, task, n, chunks: Number(h.chunks), complete: Number(h.have) >= Number(h.chunks) } });
 }
@@ -458,8 +481,8 @@ async function routePublicFile(c, codeRaw, idRaw) {
   const n = part == null || part === "" ? 0 : (/^\d{1,3}$/.test(part) ? Number(part) : -1);
   if (!FILE_ID_RE.test(id) || n < 0) throw new HttpError(404, "not_found", MSG.notFound);
   const [fi, have, sh] = await c.db.batch([
-    c.db.prepare("SELECT name, bytes, chunks, data FROM sheet_files WHERE id=?1 AND sheet_code=?2 AND n=?3").bind(id, code, n),
-    c.db.prepare("SELECT COUNT(*) AS have FROM sheet_files WHERE id=?1 AND sheet_code=?2").bind(id, code),
+    c.db.prepare("SELECT name, bytes, chunks, data FROM sheet_files WHERE id=?1 AND n=?3 AND +sheet_code=?2").bind(id, code, n),
+    c.db.prepare("SELECT COUNT(*) AS have FROM sheet_files WHERE id=?1 AND +sheet_code=?2").bind(id, code),   // liest nur die Teile dieser Datei
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
   ]);
   const row = firstRow(fi), h = firstRow(have);
@@ -808,6 +831,8 @@ export default {
       if (e instanceof InputError) return fail(e.status, e.code, e.message);
       const m = String((e && e.message) || "");
       if (/free tier|daily row (read|write) limit|exceeded D1/i.test(m)) return fail(503, "db_limit", MSG.dbLimit);
+      // Datenbank voll („Exceeded maximum DB size“ laut Cloudflare-Doku; SQLite: „database or disk is full“)
+      if (/maximum (db|database) size|database or disk is full|SQLITE_FULL|storage limit/i.test(m)) return fail(503, "db_full", MSG.dbFull);
       console.error("Feibeitsblatt: unerwarteter Fehler", (e && e.name) || "Error", m.slice(0, 200));   // ohne Nutzdaten
       return fail(500, "server_error", MSG.server);
     }

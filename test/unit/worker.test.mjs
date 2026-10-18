@@ -202,8 +202,10 @@ test("sheet images: Grenzen je Aufgabe und je Blatt (12 MB), wiederholbarer Uplo
 });
 
 test("sheet files (PDF): chunked upload, only complete files listed, part-wise download, limits, sanitized names", async () => {
-  assert.deepEqual(["Arbeits/blatt Zelle.PDF", "Skript", "", "..\\..\\x.pdf", "a\u0000b\u200b.pdf", "x".repeat(200) + ".pdf"].map(cleanFileName),
-    ["Arbeits-blatt Zelle.PDF", "Skript.pdf", "Datei.pdf", "-..-x.pdf", "ab.pdf", "x".repeat(116) + ".pdf"]);
+  assert.deepEqual(["Arbeits/blatt Zelle.PDF", "Skript", "", "..\\..\\x.pdf", "a\u0000b\u200b.pdf", "x".repeat(200) + ".pdf",
+    "Rechnung\u2067fdp.exe\u2069", "a\u0085b\u061c\u00ad.pdf", "x".repeat(115) + "😀yyy", "\ud83dx.pdf"].map(cleanFileName),
+    ["Arbeits-blatt Zelle.PDF", "Skript.pdf", "Datei.pdf", "-..-x.pdf", "ab.pdf", "x".repeat(116) + ".pdf",
+      "Rechnungfdp.exe.pdf", "a b.pdf", "x".repeat(115) + ".pdf", "x.pdf"]);   // Bidi-Isolate, C1, Format, kein halbes Emoji
   let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "PDFs", tasks: [{ text: "A" }, { text: "B" }] } });
   const c = r.json.code;
   const pdf = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(700 * 1024 - 9, 0x41)]);   // 700 KB → 2 Teile
@@ -263,6 +265,10 @@ test("sheet files (PDF): chunked upload, only complete files listed, part-wise d
   assert.equal(r.status, 400);
   r = await call("POST", "/api/teacher/sheets/" + code + "/files", { auth, body: { ...meta, n: 0, data: part(0) } });   // Kennung eines anderen Blattes
   assert.equal(r.status, 400, r.text); assert.equal(r.json.error, "Diese Datei-Kennung ist schon vergeben.");
+  r = await up({ ...meta, task: 2, n: 0, data: part(0) });   // gleiche Kennung, andere Aufgabe → keine Wiederholung derselben Datei
+  assert.equal(r.status, 400, r.text); assert.equal(r.json.error, "Diese Datei-Kennung ist schon vergeben.");
+  r = await up({ ...meta, task: 2, n: 1, data: part(1) });   // Teil passt nicht zu Teil 0 → nichts gespeichert, kein „existing“
+  assert.equal(r.status, 400, r.text); assert.equal(r.json.error, "Dieser Teil passt nicht zur Datei (Aufgabe oder Größe weichen ab).");
   assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_files").get().n, 2);
   // kleine PDFs: Name ohne Endung bekommt .pdf, leerer Name → Datei.pdf, höchstens 3 je Aufgabe, Aufgabe 3 gibt es nicht
   const small = Buffer.from("%PDF-1.4\n%klein\n");
@@ -271,12 +277,33 @@ test("sheet files (PDF): chunked upload, only complete files listed, part-wise d
   r = await sm("00000000000000b2", 1, ""); assert.equal(r.status, 200, r.text); assert.deepEqual([r.json.file.pos, r.json.file.name], [2, "Datei.pdf"]);
   r = await sm("00000000000000b3", 1, "vier.pdf"); assert.equal(r.status, 400); assert.equal(r.json.code, "too_many_files");
   r = await sm("00000000000000b3", 3, "drei.pdf"); assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 3 gibt es in diesem Feibeitsblatt nicht.");
-  // 20 MB je Blatt: Summe direkt in die Datenbank schreiben → 413 mit Meldung
+  // 20 MB je Blatt, genau an der Grenze: ein Byte darüber → 413 mit Meldung, genau bis zur Grenze → gespeichert
+  const sheetSum = () => d1.db.prepare("SELECT SUM(bytes) AS s FROM sheet_files WHERE sheet_code=? AND n=0").get(c).s;
   d1.db.prepare("INSERT INTO sheet_files(id,n,sheet_code,task,pos,name,mime,bytes,chunks,created_at,data) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-    .run("ffffffffffffff02", 0, c, 2, 0, "gross.pdf", "application/pdf", LIMITS.sheetFileBytes - 100, 1, 0, "x");
+    .run("ffffffffffffff02", 0, c, 2, 0, "gross.pdf", "application/pdf", LIMITS.sheetFileBytes - sheetSum() - small.length + 1, 1, 0, "x");
   r = await sm("00000000000000b4", 2, "noch.pdf");
   assert.equal(r.status, 413, r.text); assert.deepEqual([r.json.code, r.json.error], ["too_large", "Die PDF-Dateien dieses Feibeitsblattes sind zusammen zu groß (höchstens 20 MB)."]);
-  d1.db.prepare("DELETE FROM sheet_files WHERE id='ffffffffffffff02'").run();
+  d1.db.prepare("UPDATE sheet_files SET bytes=bytes-1 WHERE id='ffffffffffffff02'").run();
+  r = await sm("00000000000000b4", 2, "passt.pdf");
+  assert.equal(r.status, 200, r.text); assert.equal(sheetSum(), LIMITS.sheetFileBytes);
+  d1.db.prepare("DELETE FROM sheet_files WHERE id IN ('ffffffffffffff02','00000000000000b4')").run();
+  // gemeinsame Grenze für Bilder und PDF-Dateien aller Blätter (200 MB): ein großes Bild eines anderen Blattes direkt in die
+  // Datenbank → weitere Dateien und Bilder → 413 storage_full; die Übersicht meldet den belegten Speicher
+  const used = () => d1.db.prepare("SELECT (SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE n=0)+(SELECT COALESCE(SUM(bytes),0) FROM sheet_images) AS u").get().u;
+  d1.db.prepare("INSERT INTO sheet_images(id,sheet_code,task,pos,mode,mime,w,h,bytes,created_at,alt,data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("ffffffffffffff03", code, 1, 0, "thumb", "image/png", 4, 4, LIMITS.storageBytes - used() - small.length + 1, 0, "", "x");
+  r = await sm("00000000000000b5", 2, "voll.pdf");
+  assert.equal(r.status, 413, r.text); assert.equal(r.json.code, "storage_full");
+  assert.match(r.json.error, /^Der Speicher für Bilder und PDF-Dateien ist voll \(höchstens 200 MB für alle Feibeitsblätter zusammen\)/);
+  r = await call("POST", "/api/teacher/sheets/" + c + "/images", { auth, body: { task: 1, mode: "thumb", data: makePng(4, 4).toString("base64") } });
+  assert.equal(r.status, 413, r.text); assert.equal(r.json.code, "storage_full");
+  r = await call("GET", "/api/teacher/sheets", { auth });
+  assert.deepEqual(r.json.storage, { used: LIMITS.storageBytes - small.length + 1, limit: LIMITS.storageBytes });
+  d1.db.prepare("UPDATE sheet_images SET bytes=bytes-1 WHERE id='ffffffffffffff03'").run();
+  r = await sm("00000000000000b5", 2, "passt.pdf");
+  assert.equal(r.status, 200, r.text); assert.equal(used(), LIMITS.storageBytes);
+  d1.db.prepare("DELETE FROM sheet_images WHERE id='ffffffffffffff03'").run();
+  d1.db.prepare("DELETE FROM sheet_files WHERE id='00000000000000b5'").run();
   r = await call("GET", "/api/sheet/" + c);
   assert.deepEqual(r.json.sheet.tasks[0].files.map((f) => f.name), ["Arbeits-blatt Zelle.PDF", "Skript.pdf", "Datei.pdf"]);
   // Blatt löschen → Dateien weg
@@ -628,6 +655,9 @@ test("unexpected errors → 500 without internals; D1 daily limit → 503", asyn
   d1.fail = "D1_ERROR: Your account has exceeded D1's free tier daily row read limit";
   r = await call("GET", "/api/sheet/K7QM4X");
   assert.equal(r.status, 503); assert.equal(r.json.code, "db_limit");
+  d1.fail = "D1_ERROR: Exceeded maximum DB size";   // Datenbank voll → eigene Meldung statt „Fehler auf dem Server“
+  r = await call("GET", "/api/sheet/K7QM4X");
+  assert.equal(r.status, 503); assert.equal(r.json.code, "db_full");
   d1.fail = null;
   console.log("# höchste Zahl an D1-Abfragen je Request: " + maxQueries);
 });

@@ -360,6 +360,7 @@
   tr.open > td{background:var(--soft)}
   tr.details > td{background:var(--paper); font-family:var(--sans); font-size:14px; padding:14px 18px 20px}
   .batchhint{font-size:12.5px; color:var(--muted); margin:8px 0 0}
+  .batchhint.bad{color:var(--red)}
   .selbox h2{margin-top:0}
   .selmeta{font-size:13px; color:var(--muted); margin:0 0 14px}
   .codebox{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap}
@@ -671,6 +672,7 @@
       </div>
       <p class="status" id="t-list-status" aria-live="polite"></p>
       <p class="batchhint" id="t-list-hint">Klicken Sie auf ein Feibeitsblatt, um den Code und die Abgaben zu sehen.</p>
+      <p class="batchhint hidden" id="t-storage"></p>
 
       <div class="pbox selbox hidden" id="t-sel">
         <h2 id="t-sel-title"></h2>
@@ -1076,6 +1078,8 @@ const MSG = {
   too_large: { s: "Deine Abgabe ist zu groß. Bitte kürze deine Antworten.", t: "Die Daten sind zu groß für den Server." },
   bad_request: { s: "Die Eingaben sind ungültig. Bitte prüfe sie noch einmal.", t: "Die Eingaben sind ungültig. Bitte prüfen Sie sie noch einmal." },
   bad_answers: { s: "Deine Antworten passen nicht zu diesem Feibeitsblatt. Bitte lade die Seite neu.", t: "Die Antworten passen nicht zu diesem Feibeitsblatt." },
+  db_full: { s: "Der Speicher des Servers ist voll. Bitte sag deiner Lehrkraft Bescheid.", t: "Der Speicher der Datenbank ist voll. Bitte löschen Sie Feibeitsblätter, die Sie nicht mehr brauchen (vorher als PDF-Datei sichern)." },
+  storage_full: { s: "Der Speicher des Servers ist voll. Bitte sag deiner Lehrkraft Bescheid.", t: "Der Speicher für Bilder und PDF-Dateien ist voll. Bitte löschen Sie Feibeitsblätter, die Sie nicht mehr brauchen (vorher als PDF-Datei sichern)." },
   too_long: { s: "Deine Antworten sind zu lang. Bitte kürze sie.", t: "Die Eingaben sind zu lang." },
   bad_envelope: { s: "Deine Abgabe ist beschädigt. Bitte lade die Seite neu und gib noch einmal ab.", t: "Die Abgabe ist beschädigt." },
   too_many_submissions: { s: "Für dieses Feibeitsblatt sind bereits sehr viele Abgaben gespeichert. Bitte wende dich an deine Lehrkraft.", t: "Für dieses Feibeitsblatt sind bereits sehr viele Abgaben gespeichert." },
@@ -1397,9 +1401,12 @@ function dataUrlToBlob(src) {   // "data:image/png;base64,…" → Blob (für di
 /* ---------- PDF-Dateien zu Aufgaben: Herunterladen in Teilen ---------- */
 const FILE_ID_RE = IMAGE_ID_RE, FILE_B64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 const FILE_MAX_BYTES = 6 * 1024 * 1024, FILES_PER_TASK = 3, FILE_SHEET_BYTES = 20 * 1024 * 1024, FILE_CHUNK = 512 * 1024;   // wie LIMITS im Worker
-function safeFileName(name) {   // nur für Anzeige und Download: keine Steuer- und Pfadzeichen, endet auf .pdf
-  let s = String(name == null ? "" : name).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/g, "").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().replace(/^\.+/, "").slice(0, 120);
-  if (!/\.pdf$/i.test(s)) s = s.slice(0, 116).trim() + ".pdf";
+function safeFileName(name) {   // wie cleanFileName im Worker: keine Steuer-, Format- (Bidi, Nullbreite) und Pfadzeichen, endet auf .pdf
+  let s = String(name == null ? "" : name).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ").replace(/[\p{Cc}\p{Cf}]/gu, "")
+    .replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().replace(/^\.+/, "");
+  if (!/\.pdf$/i.test(s)) s += ".pdf";
+  if (s.length > 120) { s = s.slice(0, 116); if (/[\uD800-\uDBFF]$/.test(s)) s = s.slice(0, -1); s = s.trim() + ".pdf"; }
+  s = s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
   return s === ".pdf" ? "Datei.pdf" : s;
 }
 function cleanFiles(list) {   // Metadaten vom Server prüfen (fremde Daten nie ungeprüft ins DOM)
@@ -2869,8 +2876,18 @@ async function loadSheets(keepSel) {
     T.sheets = Array.isArray(r.sheets) ? r.sheets : [];
     setStatus(st, "", "");
     renderSheets();
+    renderStorage(r.storage);
     if (keepSel && T.sel && !T.sheets.some((s) => s.code === T.sel)) { T.sel = null; $("t-sel").classList.add("hidden"); }
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+}
+// Belegter Speicher für Bilder und PDF-Dateien aller Blätter (gemeinsame Grenze im Worker) – ab 80 % als Warnung
+function renderStorage(st) {
+  const el = $("t-storage"), used = st && Number.isFinite(st.used) ? st.used : -1, limit = st && Number.isFinite(st.limit) && st.limit > 0 ? st.limit : 0;
+  if (used < 0 || !limit) { el.classList.add("hidden"); return; }
+  const full = used / limit >= 0.8;
+  el.textContent = `Bilder und PDF-Dateien aller Feibeitsblätter belegen ${used ? fmtKB(used) : "0 KB"} von ${Math.round(limit / 1024 / 1024)} MB.` +
+    (full ? " Der Speicher ist bald voll: Löschen Sie Feibeitsblätter, die Sie nicht mehr brauchen – vorher können Sie sie mit „Als PDF-Datei herunterladen“ sichern." : "");
+  el.classList.toggle("bad", full); el.classList.remove("hidden");
 }
 function renderSheets() {
   const tb = $("t-sheets-body"); tb.textContent = "";
@@ -3231,15 +3248,22 @@ async function addPdfFiles(tr, files) {
   const free = FILES_PER_TASK - tr._files.length, stat = tr._fileStat;
   setStatus(stat, "", "");
   if (files.length > free) setStatus(stat, free > 0 ? `Nur noch ${free} ${free === 1 ? "PDF-Datei" : "PDF-Dateien"} möglich (höchstens ${FILES_PER_TASK} je Aufgabe) – die weiteren wurden ausgelassen.` : `Höchstens ${FILES_PER_TASK} PDF-Dateien je Aufgabe.`, "bad");
-  for (const f of files.slice(0, Math.max(0, free))) {
-    try {
-      if (f.size < 1) throw new Error("Die Datei ist leer.");
-      if (f.size > FILE_MAX_BYTES) throw new Error(`Die Datei ist zu groß (${fmtKB(f.size)}, höchstens ${fmtKB(FILE_MAX_BYTES)} je PDF-Datei).`);
-      if (await f.slice(0, 5).text() !== "%PDF-") throw new Error("Das ist keine PDF-Datei (erlaubt sind nur PDF-Dateien).");
-      tr._files.push({ blob: f, name: safeFileName(f.name), size: f.size }); T.builderDirty = true;
-    } catch (e) { setStatus(stat, `„${f.name}“: ${(e && e.message) || "Die Datei konnte nicht gelesen werden."}`, "bad"); }
-  }
-  renderFiles(tr);
+  busy(tr._fileAdd, true, "Wird gelesen …");
+  try {
+    for (const f of files.slice(0, Math.max(0, free))) {
+      try {
+        if (f.size < 1) throw new Error("Die Datei ist leer.");
+        if (f.size > FILE_MAX_BYTES) throw new Error(`Die Datei ist zu groß (${fmtKB(f.size)}, höchstens ${fmtKB(FILE_MAX_BYTES)} je PDF-Datei).`);
+        const sum = Array.from($("b-rows").children).reduce((n, row) => n + (row._files || []).reduce((k, x) => k + x.size, 0), 0);
+        if (sum + f.size > FILE_SHEET_BYTES) throw new Error(`Die PDF-Dateien wären zusammen zu groß (höchstens ${fmtKB(FILE_SHEET_BYTES)} je Feibeitsblatt).`);
+        // sofort in den Arbeitsspeicher lesen: ändert sich die Datei auf dem Gerät danach (Sync, neu gespeichert), bleibt der Stand
+        let buf;
+        try { buf = new Uint8Array(await f.arrayBuffer()); } catch (e) { throw new Error("Die Datei konnte nicht gelesen werden."); }
+        if (String.fromCharCode.apply(null, buf.subarray(0, 5)) !== "%PDF-") throw new Error("Das ist keine PDF-Datei (erlaubt sind nur PDF-Dateien).");
+        tr._files.push({ blob: new Blob([buf], { type: "application/pdf" }), name: safeFileName(f.name), size: buf.length }); T.builderDirty = true;
+      } catch (e) { setStatus(stat, `„${f.name}“: ${(e && e.message) || "Die Datei konnte nicht gelesen werden."}`, "bad"); }
+    }
+  } finally { busy(tr._fileAdd, false); renderFiles(tr); }
 }
 function renderFiles(tr) {
   const list = tr._fileList; list.textContent = "";
@@ -3374,12 +3398,12 @@ function renumber() {
     tr.querySelector(".down").disabled = i === rows.length - 1;
     tr.querySelector(".up").setAttribute("aria-label", `Aufgabe ${n} nach oben verschieben`);
     tr.querySelector(".down").setAttribute("aria-label", `Aufgabe ${n} nach unten verschieben`);
-    tr.querySelector(".x").setAttribute("aria-label", `Aufgabe ${n} entfernen`);
+    tr.querySelector(".acts .x").setAttribute("aria-label", `Aufgabe ${n} entfernen`);
     tr.querySelector(".bimg-add").setAttribute("aria-label", `Bild zu Aufgabe ${n} hinzufügen`);
     tr.querySelector(".bfile-add").setAttribute("aria-label", `PDF-Datei zu Aufgabe ${n} hinzufügen`);
     tr._matLbl.textContent = `Material ${n} (optional)`;
     tr._matEd.setAttribute("aria-label", `Material zu Aufgabe ${n}`);
-    tr.querySelector(".up").title = "Nach oben"; tr.querySelector(".down").title = "Nach unten"; tr.querySelector(".x").title = "Zeile entfernen";
+    tr.querySelector(".up").title = "Nach oben"; tr.querySelector(".down").title = "Nach unten"; tr.querySelector(".acts .x").title = "Zeile entfernen";
   });
   $("b-add").disabled = rows.length >= 30;
 }
@@ -3447,7 +3471,7 @@ $("b-gen").addEventListener("click", async () => {
    vorübergehend fehl (Netz, Server), werden die weiteren Dateien derselben Aufgabe zurückgestellt und „erneut hochladen“
    holt sie nach; endgültige Ablehnungen (zu groß, zu viele, unlesbar) werden gemeldet und nicht wiederholt. Während des
    Laufs bleibt die Seite im Ergebnisbereich; eine Abmeldung beendet den Lauf. */
-const PERMANENT_CODES = new Set(["too_large", "too_many_images", "too_many_files", "bad_image", "bad_file", "bad_request", "not_found"]);
+const PERMANENT_CODES = new Set(["too_large", "too_many_images", "too_many_files", "bad_image", "bad_file", "bad_request", "not_found", "storage_full", "db_full"]);
 const uploadNoun = (n, kinds) => (kinds.files && !kinds.images ? (n === 1 ? "PDF-Datei" : "PDF-Dateien") : kinds.files ? (n === 1 ? "Datei" : "Dateien") : (n === 1 ? "Bild" : "Bilder"));
 async function runUploads() {
   const st = $("b-res-img"), retry = $("b-res-retry"), run = ++T.uploadRun;
@@ -3468,9 +3492,13 @@ async function runUploads() {
           for (let n = u.part || 0; n < chunks; n++) {
             if (run !== T.uploadRun || !T.authKey) return;
             if (chunks > 1) setStatus(st, `${what} ${T.doneUploads + 1} von ${total} wird hochgeladen … (Teil ${n + 1} von ${chunks})`, "busy");
-            await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/files", { method: "POST", timeout: 120000,
+            const r = await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/files", { method: "POST", timeout: 120000,
               body: { id: u.id, task: u.task, name: u.f.name, bytes: u.f.size, chunks, n, data: await blobToB64(u.f.blob.slice(n * FILE_CHUNK, Math.min(u.f.size, (n + 1) * FILE_CHUNK))) } });
             u.part = n + 1;   // bei einer Wiederholung hier weitermachen
+            if (n === chunks - 1 && !(r.file && r.file.complete === true)) {   // ein Teil fehlt auf dem Server: beim nächsten Versuch alle Teile senden
+              u.part = 0;
+              throw new ApiError("incomplete", "Die Datei ist auf dem Server nicht vollständig angekommen.");
+            }
           }
         } else {
           await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/images", { method: "POST", timeout: 120000,
@@ -3480,8 +3508,8 @@ async function runUploads() {
       } catch (e) {
         if (run !== T.uploadRun || !T.authKey) return;
         if (handleAuthError(e)) return;
-        const permanent = PERMANENT_CODES.has(e.code);
-        failed.push({ u, msg: errMsg(e, "t"), retry: !permanent });
+        const isApi = e instanceof ApiError, permanent = !isApi || PERMANENT_CODES.has(e.code);   // kein ApiError: Datei im Browser nicht lesbar
+        failed.push({ u, msg: isApi ? errMsg(e, "t") : "Die Datei konnte im Browser nicht gelesen werden", retry: !permanent });
         if (!permanent) skipTask.add(u.task);
       }
     }

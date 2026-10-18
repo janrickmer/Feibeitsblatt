@@ -87,6 +87,8 @@ export const LIMITS = {
   sheetFileBytes: 20 * 1024 * 1024, // Summe aller PDF-Dateien je Blatt (D1-Speicher)
   fileChunk: 512 * 1024,           // Dateien werden in Teilen hochgeladen (Body ≤ 1 MB, D1-Zeile klein halten)
   fileName: 120,                   // Dateiname (Anzeige und Download)
+  storageBytes: 200 * 1024 * 1024, // Bilder und PDF-Dateien ALLER Blätter zusammen (roh; als Base64 ≈ 267 MB) – D1 Free
+                                   // erlaubt 500 MB je Datenbank, der Rest bleibt für Abgaben, Blätter und Zähler
   material: 8000,                  // Material je Aufgabe (Zeichen), formatiert als Absätze aus Läufen
   materialParagraphs: 200, materialRuns: 600, materialLinks: 60, href: 1000,
 };
@@ -314,11 +316,14 @@ export function validateImageUpload(body) {
 export const FILE_ID_RE = IMAGE_ID_RE;
 export const FILE_MIME = "application/pdf";
 // Dateiname für Anzeige und Download: keine Steuerzeichen, keine Pfadzeichen, endet auf .pdf
+// Steuer- und Formatzeichen (Cc, Cf: u. a. Bidi-Steuerung und -Isolate, Nullbreite, weiches Trennzeichen) entfallen,
+// Leerraum wird zu einem Leerzeichen; gekürzt wird ohne ein Ersatzzeichen-Paar (Emoji) zu zerschneiden.
 export function cleanFileName(name) {
-  let s = cleanText(String(name == null ? "" : name)).normalize("NFC").replace(/[\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/g, "")
+  let s = String(name == null ? "" : name).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ").replace(/[\p{Cc}\p{Cf}]/gu, "")
     .replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().replace(/^\.+/, "");
   if (!/\.pdf$/i.test(s)) s += ".pdf";
-  if (s.length > LIMITS.fileName) s = s.slice(0, LIMITS.fileName - 4).trim() + ".pdf";
+  if (s.length > LIMITS.fileName) { s = s.slice(0, LIMITS.fileName - 4); if (/[\uD800-\uDBFF]$/.test(s)) s = s.slice(0, -1); s = s.trim() + ".pdf"; }
+  s = s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");   // einzelne Ersatzzeichen
   return s === ".pdf" ? "Datei.pdf" : s;
 }
 // Upload-Body {id, task, name, bytes, chunks, n, data}: Teil n (0-basiert) einer PDF-Datei als Base64; Teil 0 muss mit
