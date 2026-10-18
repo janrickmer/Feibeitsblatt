@@ -39,7 +39,17 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    laufend auf dem Gerät gespeichert („Zwischenstand auf diesem Gerät gespeichert“). Wird die Seite neu geladen
    oder versehentlich geschlossen, bietet die Startseite an, mit den gespeicherten Angaben weiterzuschreiben
    („Weiterschreiben“); mit „Abbrechen und Zwischenstand von diesem Gerät löschen“ oben rechts lässt sich ein
-   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten). Hat die Lehrkraft Bilder zu einer Aufgabe
+   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten). Wer seine Browserdaten regelmäßig löscht
+   oder das Gerät wechselt, klickt oben rechts auf **„Zwischenstand als PDF-Datei sichern“**: Der Browser lädt eine
+   PDF-Datei herunter (`Feibeitsblatt-Zwischenstand-<Code>-<Datum>.pdf`). In einem PDF-Programm geöffnet zeigt sie
+   eine einzige Seite mit dem Hinweis, dass es sich um einen Zwischenstand für ein Feibeitsblatt handelt, und einen
+   orangen Kasten: Genau diese PDF-Datei (kein Screenshot davon) kann auf <https://feibeitsblatt.janrickmer.de/>
+   hochgeladen werden, um weiterzuarbeiten – der Link darin öffnet sich im Browser. Der eigentliche Zwischenstand
+   (Antworten, Angaben, ggf. KI-Feedback) steckt unsichtbar als eingebettete Datei in der PDF. Auf der Startseite
+   stellt **„Zwischenstand-PDF hochladen“** aus genau dieser Datei alles wieder her (ein Screenshot oder Ausdruck
+   enthält die Daten nicht). Die Datei enthält die Antworten lesbar – sie gehört nicht in fremde Hände. Liegt auf
+   dem Gerät schon ein neuerer Zwischenstand derselben Person, fragt die Seite, welcher Stand gelten soll. Hat die
+   Lehrkraft Bilder zu einer Aufgabe
    hinterlegt, stehen sie je nach Einstellung als kleine Miniaturen rechts neben Aufgabe und Antwortfeld (auf
    schmalen Bildschirmen zwischen Aufgabenstellung und Antwortfeld) oder etwas größer unter der Aufgabenstellung.
    Ein Klick auf ein Bild zeigt es groß; ein weiterer Klick oder die Esc-Taste schließt die Ansicht. Hat die
@@ -60,12 +70,25 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Je Aufgabe erscheint in Stichpunkten in **grüner** Schrift, welche Punkte der Musterlösung richtig angesprochen
    wurden, und in **roter** Schrift, welche noch fehlen (dazu zählen auch falsch wiedergegebene Punkte). Das
    Feedback gibt es **nur einmal**; die Antworten zu diesem Zeitpunkt werden als „erste Fassung“ festgehalten.
-   Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
+   Der Dialog vor dem Senden nennt den KI-Dienst (Betreiber und Sitz) und, falls eingerichtet, die Reserve-KI. Ist die
+   KI ausgelastet (viele Anfragen in derselben Minute), wartet die Seite mit Countdown und wiederholt die Anfrage
+   automatisch – bis zu fünf Versuche in etwa vier Minuten, jeweils mit dem aktuellen Text; währenddessen darf
+   weitergeschrieben werden, „Nicht länger warten“ bricht ab. Erst ein erschöpfter Zyklus zählt als Fehlversuch.
+   Mit dem Feedback geht diese erste Fassung samt Feedback außerdem verschlüsselt an die Lehrkraft – als
+   **„Erstversuch“**. So sehen Sie auch, wer sich ein Feedback geholt, aber nicht abgegeben hat; die spätere Abgabe
+   ersetzt den Erstversuch. Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
    [Datenschutz](#datenschutz)).
 6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Der Button
    „Abgeben“ ist bis dahin ausgegraut. Nach einer Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet:
-   erste Fassung, überarbeitete Fassung und das KI-Feedback. Zum Schluss erscheint „Deine Lösung ist bei deiner
-   Lehrkraft angekommen.“ mit dem Zeitpunkt. Der Zwischenstand auf dem Gerät wird dann gelöscht.
+   erste Fassung, überarbeitete Fassung und das KI-Feedback. War die Abgabe technisch erfolgreich, erscheint die
+   Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt. Darunter steht der Button
+   **„Meine Lösungen als PDF herunterladen“** mit dem Hinweis, die Datei zur Sicherheit in den eigenen Unterlagen zu
+   speichern – erstens, um die Lösungen vorzeigen zu können, falls die Abgabe die Lehrkraft wegen technischer
+   Probleme doch nicht erreicht, und zweitens, weil alle Lösungen zum Lernen für Klausur, Klassenarbeit bzw.
+   schriftlichen Leistungsnachweis gebraucht werden. Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene
+   Lösung, bei Überarbeitung auch die erste Fassung und das KI-Feedback (mehrere Seiten, falls nötig); sie entsteht
+   im Browser und enthält kein Geburtsdatum. Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
+   Lösungen bleiben nur bis „Neues Feibeitsblatt öffnen“ für den Download im Arbeitsspeicher.
 
 > **Wichtig:** Abgeben ist normalerweise erst nach dem KI-Feedback möglich. Richten Sie deshalb die
 > [KI-Einstellungen](#schritt-8-ki-feedback-einrichten) ein und testen Sie das Blatt einmal selbst, bevor Sie den
@@ -120,17 +143,23 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Musterlösungen und Bilder und
    ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
-   Abgaben. Ein Klick wählt ein Blatt aus. Die Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“,
-   „Kürzel Vorname“, „Geburtstag“ und „Klasse“, sortiert nach Klasse und Namen. Aufgeklappt sehen Sie je Aufgabe
-   eine Tabelle mit Spalte 1 „Erste Eingabe (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“,
-   darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Abgaben ohne KI-Feedback
-   (siehe oben) sind entsprechend gekennzeichnet. „Alle aufklappen“ öffnet alle Zeilen, „Aktualisieren“ lädt neu
-   eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser. Beachten Sie: Kürzel, Geburtsdatum,
-   Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der Server prüft sie nicht, und abgeben
-   kann jede Person, die den Code kennt.
-6. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl). Ohne diesen
-   Klick bleiben die Abgaben verschlüsselt gespeichert. Darunter: „Feibeitsblatt selbst löschen (Code wird
-   ungültig)“ – das löscht das Blatt und alle Abgaben dazu.
+   Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
+   Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ und „Klasse“,
+   sortiert nach Klasse und Namen. Die Kürzel sind farbig: **grün** = Abgabe nach der Überarbeitung, **orange** =
+   „Erstversuch ohne Überarbeitung“ – diese Person hat sich nur das KI-Feedback geholt und (noch) nicht abgegeben;
+   eine Legende über der Tabelle erklärt die Farben, und die Zusammenfassung lautet dann z. B. „3 Abgaben ·
+   1 Erstversuch ohne Überarbeitung“. Aufgeklappt sehen Sie je Aufgabe eine Tabelle mit Spalte 1 „Erste Eingabe
+   (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“ (bei einem Erstversuch steht dort „(noch
+   nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Gibt die
+   Person später ab, ersetzt die Abgabe ihren Erstversuch; gibt sie von einem anderen Gerät oder nach einem
+   neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
+   die Zahl). Abgaben ohne KI-Feedback (siehe oben) sind entsprechend gekennzeichnet. „Alle aufklappen“ öffnet
+   alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
+   Beachten Sie: Kürzel, Geburtsdatum, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
+   Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt.
+6. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche
+   werden mitgelöscht). Ohne diesen Klick bleiben die Abgaben verschlüsselt gespeichert. Darunter: „Feibeitsblatt
+   selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu.
 7. **Weitere Schaltflächen** oben: „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und
    „Abmelden“.
 
@@ -282,7 +311,7 @@ Vorankündigung.
 
 | Anbieter | Schlüssel | Limits (Stand Oktober 2026, nicht bestätigt – bitte beim Anbieter prüfen) | Datenschutz und Hinweise |
 |---|---|---|---|
-| **Groq** (Vorgabe, für Klassen empfohlen) | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Tageslimits je Modell**: etwa 200 000 Token pro Tag bei gpt-oss-120b (grob geschätzt 40–60 Feedback-Anfragen, je nach Länge der Texte), etwa 100 000 bei Llama 3.3 70B. Außerdem ein Minutenlimit je Modell; sehr lange Blätter können daran scheitern – der Server wechselt dann das Modell. Ist ein Modell erschöpft, wechselt der Server automatisch zum nächsten. | Sehr schnell. Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden. |
+| **Groq** (Vorgabe, für Klassen empfohlen) | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Limits je Modell**: bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag, etwa 100 000 pro Tag bei Llama 3.3 70B (Angaben Dritter, Stand Oktober 2026; die für Ihr Konto gültigen Werte stehen in der Groq-Konsole unter „Limits“). Gecachte Token zählen bei Groq nicht gegen diese Limits – Feibeitsblatt stellt die Anfrage so, dass Aufgaben, Material und Musterlösungen ab der zweiten Anfrage zum selben Blatt aus dem Cache kommen (siehe [Kapazität](#kapazität-und-grenzen)). Ist ein Modell erschöpft oder ausgelastet, wechselt der Server automatisch zum nächsten. | Sehr schnell. Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden. |
 | **OpenRouter** | kostenloses Konto, <https://openrouter.ai/settings/keys> | nur kostenlose Modelle (`:free`). **Ohne einmaligen Guthabenkauf nur 50 kostenlose Anfragen pro Tag für das ganze Konto** – das reicht nicht für eine Klasse. Nach einem einmaligen Kauf von 10 US-$ Guthaben 1000 pro Tag. | Die kostenlosen Modelle laufen bei Drittanbietern, die Eingaben protokollieren oder zum Training verwenden dürfen. Das muss im Konto unter <https://openrouter.ai/settings/privacy> erlaubt sein, sonst antwortet die API „No endpoints found matching your data policy“. |
 | **Google Gemini** | Google AI Studio, <https://aistudio.google.com/app/apikey> | kostenloses Kontingent mit Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus. | Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Googles Bedingungen nur die bezahlten Dienste; dafür verlangt Google ein **hinterlegtes Abrechnungskonto**. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage. |
 | **Cerebras** | Konsole von Cerebras, <https://cloud.cerebras.ai> | **nicht bestätigt** – die Angaben Dritter widersprechen sich; bitte in der Konsole prüfen. | Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden. |
@@ -302,6 +331,29 @@ Hinweise:
 - Das Feedback gibt es einmal je Gerät und Angaben; der Server kann das nicht erzwingen (wer andere Angaben
   eingibt oder ein zweites Gerät nutzt, kann es erneut anfordern). Je Feibeitsblatt sind höchstens 300
   KI-Anfragen pro Tag möglich – das schützt Ihr Kontingent vor Missbrauch.
+
+### Reserve-KI (zweiter Anbieter)
+
+Unter „KI-Einstellungen“ gibt es den Block **„Reserve-KI (optional)“**: ein zweiter Anbieter mit eigenem
+API-Schlüssel (Anbieter, Modell, Schlüssel, „Reserve speichern“, „Reserve testen“, „Reserve entfernen“). Der Server
+fragt immer zuerst den ersten Anbieter – mit allen seinen Ausweichmodellen – und nur bei **Verfügbarkeitsproblemen**
+die Reserve: ausgelastet (HTTP 429), Tageskontingent erreicht, keine oder zu langsame Antwort, Serverfehler, Anfrage
+zu lang oder keine verwertbare Antwort. **Nie** bei einem Inhaltsfilter des ersten Anbieters (die Schüler:innen sehen
+„Die KI hat diese Antworten nicht bewertet“) und nie bei Fehlkonfiguration (falscher Schlüssel, fehlende Freigabe) –
+dann ist die Lehrkraft gefragt. Es wird nie an beide gleichzeitig gesendet. Am sinnvollsten ist ein **anderer**
+Anbieter (z. B. Groq als erster, dazu ein zweiter Dienst, für den Sie einen Schlüssel haben): Dann addieren sich zwei
+Kontingente, und ein Ausfall eines Anbieters trifft die Klasse nicht. Ein zweites kostenloses Konto beim **selben**
+Anbieter ist keine Lösung – die Limits gelten dort je Organisation, und mehrere Gratis-Konten verstoßen meist gegen
+die Bedingungen.
+
+**Datenschutz:** Jede Reserve ist ein weiterer Empfänger der Schülertexte. Beim Speichern fragt die Seite deshalb
+ausdrücklich nach („Weiteren KI-Empfänger hinzufügen?“) und nennt den Empfänger mit Sitz; die Schüler:innen sehen
+beide Empfänger im Datenschutzhinweis unter dem Button **und** im Dialog vor dem Senden. Der Browser schickt mit
+der Anfrage mit, über welche Empfänger informiert wurde – ändern Sie die KI-Einstellungen, während ein Blatt
+geöffnet ist, bekommt die Schülerin bzw. der Schüler statt einer Antwort den Hinweis, den neuen Datenschutzhinweis
+zu lesen, und muss erneut klicken; es wird nichts gesendet. Für Google Gemini müssen Sie (als erster Anbieter wie
+als Reserve) bestätigen, dass ein Abrechnungskonto hinterlegt ist. Beide Schlüssel liegen nur verschlüsselt auf dem
+Server. Ohne Reserve ändert sich nichts.
 
 ## Sicherheit
 
@@ -409,11 +461,14 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 |---|---|---|---|
 | Feibeitsblätter: Titel, Aufgaben, Material, **Musterlösungen** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code und der Eingangszeitpunkt | bis Sie die Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
+| Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt oder Sie löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
-| KI-Einstellungen: Anbieter, Modell, API-Schlüssel | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
+| KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach gelegentlich gelöscht |
 | Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtsdatum, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| Zwischenstand als PDF-Datei (dieselben Angaben), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
+| „Meine Lösungen“ als PDF nach der Abgabe (Kürzel, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtsdatum), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten, und er protokolliert keine Schülertexte
 und keine Schlüssel. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage in der
@@ -425,11 +480,23 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 
 ### Was wohin gesendet wird
 
-- **KI-Feedback:** Der Browser schickt den Blatt-Code und die Antworten an den Server dieser Seite (Cloudflare).
-  Der Server leitet **Aufgabenstellungen, den Text des Materials, Ihre Musterlösungen und die Antworten** an den von Ihnen gewählten
-  KI-Anbieter weiter – nur für Aufgaben mit Musterlösung. **Nie** gesendet werden Kürzel, Geburtsdatum und Klasse;
-  der Server bekommt sie dabei gar nicht. Der KI-Anbieter verarbeitet die Daten nach seinen eigenen Bedingungen;
-  bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe [KI-Anbieter](#ki-anbieter)).
+- **KI-Feedback:** Der Browser schickt den Blatt-Code, die Antworten und die Liste der Empfänger, über die
+  informiert wurde, an den Server dieser Seite (Cloudflare). Der Server leitet **Aufgabenstellungen, den Text des
+  Materials, Ihre Musterlösungen und die Antworten** an den ersten KI-Anbieter weiter – nur für Aufgaben mit
+  Musterlösung. Nur wenn dieser ausgelastet ist, nicht antwortet, einen Serverfehler meldet, die Anfrage als zu lang
+  ablehnt oder keine verwertbare Antwort liefert, geht dieselbe Anfrage danach an die eingetragene
+  [Reserve-KI](#reserve-ki-zweiter-anbieter) – nie an beide gleichzeitig, nie nach einem Inhaltsfilter. Ein Dienst,
+  der erst nach dem Senden ausfällt (z. B. Zeitüberschreitung), hat die Texte trotzdem erhalten. Ist die KI
+  ausgelastet, wiederholt der Browser die Anfrage bis zu viermal automatisch (jeweils mit dem aktuellen Text); im
+  ungünstigsten Fall erhalten also beide Dienste dieselben Antworten mehrfach. **Nie** gesendet werden Kürzel,
+  Geburtsdatum und Klasse; der Server bekommt sie dabei gar nicht. Groq (Groq, Inc.), Cerebras (Cerebras Systems
+  Inc.) und OpenRouter (OpenRouter, Inc.) haben ihren Sitz in den USA, Google verarbeitet Gemini-Anfragen auch in
+  den USA; damit liegt eine **Übermittlung in ein Drittland** vor, deren Grundlage (z. B. eine Zertifizierung nach dem
+  EU-US Data Privacy Framework oder Standardvertragsklauseln) die Schule beim Anbieter prüfen muss. OpenRouter
+  leitet Anfragen zudem an wechselnde Rechenzentren anderer Anbieter weiter. Der KI-Anbieter verarbeitet die Daten
+  nach seinen eigenen Bedingungen; bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe
+  [KI-Anbieter](#ki-anbieter)). Der Datenschutzhinweis unter dem Button und der Dialog vor dem Senden nennen jeden
+  möglichen Empfänger mit Rechtsträger und Sitz.
 - **Rechtschreibprüfung:** Sie wird nur Schüler:innen angeboten, die laut eingegebenem Geburtsdatum **mindestens
   16 Jahre** alt sind, und erst nach einer ausdrücklichen Bestätigung im Browser (Altersangabe und Hinweis, wohin der
   Text geht; einmal je geöffnetem Blatt). Nur auf Klick schickt der Browser dann **nur den Text dieser einen
@@ -451,16 +518,38 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 2. Ein **Auftragsverarbeitungsvertrag (AVV/DPA)** mit den Anbietern ist, soweit erforderlich, von der Schule bzw.
    dem Schulträger abzuschließen, nicht von der einzelnen Lehrkraft. Ob ein Anbieter für kostenlose Konten einen
    AVV anbietet, ist beim Anbieter zu prüfen.
-3. **Informieren Sie Schüler:innen und gegebenenfalls die Eltern**, welche Daten wohin gehen – z. B. in einem
-   Elternbrief. Der Hinweis unter dem Feedback-Button nennt den Weg der Daten (Server, KI-Anbieter, LanguageTool,
-   Speicherung bis zum Löschen); die Bedingungen der Anbieter und die Rechtsgrundlage müssen Sie zusätzlich
-   mitteilen.
+3. **Informieren Sie Schüler:innen und gegebenenfalls die Eltern**, welche Daten wohin gehen – z. B. mit dem
+   [Textbaustein unten](#textbaustein-für-schülerinnen-und-eltern). Der Hinweis unter dem Feedback-Button nennt den
+   Weg der Daten (Server, KI-Anbieter mit Sitz, Reserve-KI, LanguageTool, Speicherung bis zum Löschen); die
+   Bedingungen der Anbieter und die Rechtsgrundlage müssen Sie zusätzlich mitteilen. Wechseln Sie den Anbieter oder
+   tragen Sie eine Reserve ein, muss die Information erneuert werden. Die API-Konten sollten der Schule gehören,
+   nicht einer Privatperson.
 4. Weisen Sie die Schüler:innen an, **keine personenbezogenen Daten in die Antworten** zu schreiben (keine Namen,
    Adressen, Gesundheits- oder Familienangaben). Auch Aufgaben und Musterlösungen sollten keine enthalten.
 5. **Löschen Sie die Abgaben nach der Korrektur** („Alle Abgaben dieses Feibeitsblattes löschen“) und nicht mehr
    benötigte Feibeitsblätter.
 6. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen (Gemini im EWR nur mit Abrechnungskonto;
    kostenlose OpenRouter-Modelle dürfen Eingaben protokollieren).
+
+### Textbaustein für Schüler:innen und Eltern
+
+Platzhalter in eckigen Klammern bitte ersetzen; die Empfängerliste muss zu Ihren KI-Einstellungen passen (sie steht
+auch im Datenschutzhinweis unter dem Feedback-Button).
+
+> Liebe Schülerinnen und Schüler, liebe Eltern,
+>
+> im Fach [Fach] nutzen wir die Schreibplattform „Feibeitsblatt“. Verantwortlich ist die [Schule, Anschrift],
+> Datenschutzbeauftragte:r: [Kontakt]. Zweck ist das Üben des Schreibens mit einer automatischen Rückmeldung, die die
+> Antworten mit der Musterlösung der Lehrkraft vergleicht; Rechtsgrundlage ist [§ … Schulgesetz / Art. 6 Abs. 1 lit. e
+> DSGVO]. Gespeichert werden Namenskürzel, Geburtsdatum, Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
+> lesbar – auf Servern von Cloudflare (Datenbank in der EU) bis zur Löschung nach der Durchsicht, spätestens [Frist].
+> Für die Rückmeldung werden nur die Antworttexte (ohne Namen und Angaben zur Person) zusammen mit den Aufgaben an
+> den KI-Dienst [z. B. Groq, Inc., USA] gesendet; nur wenn dieser nicht antwortet oder ausgelastet ist, an
+> [Reserve-Dienst mit Sitz]. Diese Dienste haben ihren Sitz in den USA; die Übermittlung stützt sich auf [EU-US
+> Data Privacy Framework / Standardvertragsklauseln]. Schülerinnen und Schüler ab 16 Jahren können auf Wunsch eine
+> Rechtschreibprüfung nutzen, die den Text der jeweiligen Antwort an LanguageTool (Learneo, Inc., USA) sendet. Es
+> werden keine Namen, Adressen oder andere personenbezogenen Angaben in die Antworten geschrieben. Bei Fragen
+> wenden Sie sich an [Lehrkraft, Kontakt].
 
 ## Kapazität und Grenzen
 
@@ -472,11 +561,51 @@ viele gleichzeitig. Bitte warte eine Minute und versuche es dann noch einmal.“
 Ablehnung ohne die nötigen Browser-Freigaben sendet (nicht geprüft), „LanguageTool ist gerade nicht erreichbar …“.
 Tipp: Nicht alle gleichzeitig prüfen lassen.
 
+Rechenbeispiel: 60 Schüler:innen am Tag mit je etwa 600 Wörtern (≈ 4 000 Zeichen = 4 KB je Prüfung) – selbst drei
+Prüfungen je Person (180 am Tag) liegen weit unter jeder Grenze; ein Tageslimit nennt LanguageTool nicht. Eng wird
+es nur, wenn mehr als 20 Personen **in derselben Minute** aus demselben Schulnetz prüfen – dann hilft Warten.
+
 **KI-Anbieter:** siehe [Tabelle oben](#ki-anbieter). Zusätzlich hält der Server je Anbieter einen Mindestabstand
 zwischen Anfragen ein (Groq 2,5 s, OpenRouter 3,5 s, Gemini 4 s, Cerebras 2 s, andere 1 s) und lässt höchstens etwa
-eine Minute Wartezeit zu. Bei Groq passen so etwa 24 Feedback-Anfragen in eine Minute; fordern mehr Schüler:innen
-gleichzeitig ein Feedback an, erhalten einige „Gerade fragen sehr viele gleichzeitig. Bitte versuche es in einer
-Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage bis zu etwa 100 Sekunden dauern.
+eine Minute Wartezeit zu. Fordern viele Schüler:innen gleichzeitig ein Feedback an, erhalten einige „Gerade fragen
+sehr viele gleichzeitig. Bitte versuche es in einer Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage
+bis zu etwa 100 Sekunden dauern.
+
+Rechenbeispiel für **60 Schüler:innen am Tag mit je etwa 600 Wörtern** bei Groq (Vorgabe gpt-oss-120b; die
+Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole prüfen):
+
+- Eine Feedback-Anfrage besteht aus den Anweisungen (≈ 500 Token), Aufgaben und Musterlösungen (≈ 300–800),
+  ggf. Material (bis ≈ 1 200 je Aufgabe), den Antworten (600 deutsche Wörter ≈ 1 200–1 600 Token) und der Ausgabe
+  (≈ 200–500). Ohne Material also grob **2 500–4 000 Token je Anfrage**, mit viel Material mehr.
+- 60 solche Anfragen wären 150 000–250 000 Token – an oder über dem Tageslimit von etwa 200 000 Token des
+  Vorgabe-Modells. Deshalb macht Feibeitsblatt zwei Dinge:
+  1. **Anfrage in Cache-freundlicher Reihenfolge.** Der für alle Schüler:innen eines Blattes gleiche Teil (Anweisungen,
+     Aufgaben, Material, Musterlösungen) steht vorn, die Antworten stehen hinten. Groq cacht solche Präfixe
+     automatisch (für die gpt-oss-Modelle, laut Groq „best effort“, Cache einige Stunden gültig), und **gecachte
+     Token zählen nicht gegen die Minuten- und Tageslimits**. Ab der zweiten Anfrage zum selben Blatt kosten dann im
+     Wesentlichen nur noch Antworten und Ausgabe, grob 1 500–2 000 Token: 60 Anfragen ≈ 100 000–120 000 Token,
+     also innerhalb des Tageslimits des Vorgabe-Modells, und je Minute etwa 4–5 statt 2 Anfragen.
+  2. **Alle Modelle gleichzeitig nutzen.** Bei Groq, Cerebras und Gemini gelten die Minutenlimits **je Modell**.
+     Der Server verteilt gleichzeitige Anfragen deshalb von Anfang an auf alle Modelle des Anbieters (versetztes
+     Startmodell, Mindestabstand je Modell statt je Anbieter), wechselt bei einem Minutenlimit (HTTP 429) sofort
+     und ohne Wartezeit zum nächsten Modell und sperrt das erschöpfte Modell nur für die vom Anbieter gemeldete
+     Zeit (5–90 s) – die Sperre wird sofort geschrieben, sodass auch schon laufende Anfragen sie sehen. Bei Groq
+     stehen so gpt-oss-120b, gpt-oss-20b, Llama 3.3 70B, Llama 4 Scout, Kimi K2, Qwen 3 32B u. a. mit zusammen
+     grob 60 000–100 000 Token pro Minute zur Verfügung (Angaben Dritter; die schwächeren Modelle stehen hinten).
+  3. **Warten übernimmt der Browser, nicht der Server.** Sind alle Modelle ausgelastet, antwortet der Server sofort
+     mit „ausgelastet“ und der Zeit, nach der es frühestens wieder geht. Die Seite der Schülerin bzw. des Schülers
+     wartet dann mit Countdown und wiederholt automatisch (bis zu fünf Versuche in etwa vier Minuten, leicht
+     zufällig versetzt, damit nicht alle Browser einer Klasse in derselben Sekunde wiederkommen); weiterschreiben
+     ist währenddessen möglich. Erst danach – oder nach „Nicht länger warten“ – zählt ein Fehlversuch.
+  4. **Reserve-KI.** Erst wenn der erste Anbieter mit allen Modellen ausgelastet ist oder ausfällt, geht die Anfrage
+     an die [Reserve-KI](#reserve-ki-zweiter-anbieter), falls eingerichtet.
+- **Fazit:** 60 Schüler:innen am Tag mit je 600 Wörtern sind mit einem kostenlosen Groq-Schlüssel machbar. Auch
+  **30 Anfragen in derselben Minute** gehen durch: Bei grob 2 500–3 500 Token je Anfrage und 60 000–100 000 Token
+  pro Minute über alle Groq-Modelle sind etwa 20–30 Anfragen in der ersten Minute möglich, der Rest folgt
+  automatisch in der zweiten – ohne dass jemand klicken muss. Eine Reserve-KI macht das Ganze unabhängig von einem
+  einzelnen Anbieter. Diese Zahlen beruhen auf Angaben Dritter und sind nicht garantiert (prüfen Sie die Limits in
+  der Groq-Konsole); fällt die Kapazität geringer aus, dauert es entsprechend länger, aber niemand muss selbst
+  nachklicken.
 
 **Cloudflare, kostenloser Tarif (Workers Free):**
 
@@ -501,7 +630,8 @@ Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage bis zu etwa 100
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
 | KI-Feedback-Anfragen je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 400 000 Zeichen pro Stunde; nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
 | KI-Feedback-Anfragen je Feibeitsblatt | 300 pro Tag |
-| Abgaben je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 30 MB pro Stunde |
+| Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
+| Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
 
 Diese Zähler gelten je Netzwerkadresse, im Schulnetz also meist für die ganze Schule zusammen; mehrere Klassen
 parallel können die Stundenlimits erreichen. Die Meldungen lauten dann „Gerade wurden von diesem Netzwerk sehr
@@ -528,6 +658,10 @@ gespeichert.
 | „Das Bild kann der Browser nicht lesen (z. B. HEIC). Bitte als JPG oder PNG speichern.“ | Das Format kann der Browser nicht öffnen – meist HEIC-Fotos vom iPhone. Das Foto als JPG sichern (iOS: Einstellungen → Kamera → Formate → „Maximale Kompatibilität“, oder aus der Fotos-App als JPG teilen) oder ein anderes Bild wählen. |
 | „1 Bild konnte nicht gespeichert werden … Das Feibeitsblatt selbst ist angelegt.“ | Das Hochladen ist unterbrochen worden (Netz) oder der Server hat das Bild abgelehnt (Meldung in Klammern). Bei Netzfehlern „Fehlende Bilder erneut hochladen“ klicken; bei einer Ablehnung (zu groß, zu viele) das Blatt löschen und mit weniger oder kleineren Bildern neu anlegen. |
 | „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
+| „Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in …“ | Kein Fehler: Die Minutenlimits aller Modelle sind gerade ausgeschöpft; die Seite wiederholt von selbst (bis zu fünf Versuche in etwa vier Minuten). Weiterschreiben ist möglich; „Nicht länger warten“ bricht ab. Kommt das ständig vor, Feedback gestaffelt anfordern lassen oder eine Reserve-KI eintragen. |
+| „Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis …“ | Sie haben den ersten Anbieter geändert oder eine Reserve eingetragen, während das Blatt geöffnet war. Die Seite hat den Hinweis neu geladen; die Schülerin bzw. der Schüler liest ihn und klickt erneut. Nichts ging verloren. |
+| „Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.“ | Der KI-Anbieter hat die Anfrage mit seinem Inhaltsfilter abgelehnt. Absichtlich geht sie dann **nicht** an die Reserve. Sehen Sie sich die Antworten an; nach zwei Fehlversuchen kann ohne KI-Feedback abgegeben werden. |
+| „In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.“ beim Hochladen einer PDF | Es wurde nicht die Original-PDF aus „Zwischenstand als PDF-Datei sichern“ hochgeladen, sondern z. B. ein Screenshot, ein Ausdruck oder eine „Drucken als PDF“-Kopie – die enthalten die eingebetteten Daten nicht. Nur die heruntergeladene Datei selbst (unverändert) funktioniert; ein Neuspeichern in einem PDF-Programm, das die eingebettete Datei behält, ist unproblematisch. |
 | „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“ (statt des Buttons) | Kein Fehler: Laut eingegebenem Geburtsdatum ist die Schülerin oder der Schüler jünger als 16; die Prüfung wird dann nicht angeboten (Altersgrenze `LT_MIN_AGE` in `index.html`). Bei einem Tippfehler im Geburtsdatum oben „Abbrechen und Zwischenstand löschen“ wählen und den Code neu eingeben. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |

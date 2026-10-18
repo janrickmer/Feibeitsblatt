@@ -128,6 +128,21 @@ export function validateEnvelope(env) {
   return json;
 }
 
+/* Erstversuch oder Abgabe: stage "first" = erste Fassung samt KI-Feedback (noch nicht abgegeben), "final" = Abgabe.
+   attempt = vom Browser erzeugte Kennung je Bearbeitung; die Abgabe ersetzt damit den Erstversuch derselben Bearbeitung. */
+export const ATTEMPT_RE = /^[0-9a-f]{16}$/;
+export function validateSubmitMeta(body) {
+  const stage = body.stage == null ? "final" : body.stage;
+  if (stage !== "first" && stage !== "final") throw new InputError("Unbekannte Art der Abgabe.", "bad_request");
+  let attempt = null;
+  if (body.attempt != null) {
+    attempt = String(body.attempt).toLowerCase();
+    if (!ATTEMPT_RE.test(attempt)) throw new InputError("Ungültige Kennung der Bearbeitung.", "bad_request");
+  }
+  if (stage === "first" && !attempt) throw new InputError("Ein Erstversuch braucht eine Kennung der Bearbeitung.", "bad_request");
+  return { stage, attempt };
+}
+
 export function defaultTitle(now = Date.now()) {
   let d;
   try {
@@ -355,8 +370,8 @@ export const RATE = {
   feedback: { max: 120, windowMs: 3600e3 },        // KI-Anfragen je IP
   feedback_chars: { max: 400000, windowMs: 3600e3 },   // … gewichtet nach Zeichen der Antworten
   sheet_feedback: { max: 300, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (schützt das Kontingent der Lehrkraft)
-  submit: { max: 120, windowMs: 3600e3 },          // Abgaben je IP
-  submit_bytes: { max: 30 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
+  submit: { max: 240, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu zwei Aufrufe)
+  submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
 };
 const minutes = (s) => { const m = Math.max(1, Math.ceil(s / 60)); return m + (m === 1 ? " Minute" : " Minuten"); };
 export function rateMessage(kind, retryAfter) {

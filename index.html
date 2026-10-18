@@ -16,6 +16,7 @@
      feibeitsblatt.janrickmer.de), ruft sie den Worker unter dieser Adresse auf – dieselbe Adresse steht in der
      Content-Security-Policy darüber (connect-src). */
   window.FEIBEITSBLATT_WORKER = "https://feibeitsblatt.feindt.workers.dev";
+  window.FEIBEITSBLATT_PUBLIC = "https://feibeitsblatt.janrickmer.de/";   // Adresse in der Zwischenstand-PDF (Schüler:innen laden sie dort wieder hoch)
   window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || (/\.workers\.dev$|^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? "" : window.FEIBEITSBLATT_WORKER);
 </script>
 <style>
@@ -119,6 +120,21 @@
   .resumebox{margin:0 0 18px; padding:12px 14px; background:var(--soft); border:1px solid var(--line); border-radius:9px; font-size:13.5px; line-height:1.5}
   .resumebox b{font-weight:600}
   .resumebox .row{margin-top:8px}
+  .pdfrow{margin:14px 0 0; text-align:center}
+  .pdfrow .fhint{margin:6px 0 0}
+  .st-first{color:#b85c00; font-weight:600}   /* Erstversuch ohne Überarbeitung */
+  .st-final{color:var(--green); font-weight:600}   /* Abgabe nach der Überarbeitung */
+  .legend{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:4px 0 8px}
+  .fbwait{font-family:var(--sans); font-size:13px; color:var(--muted); margin:4px 0 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+  .done-check{width:104px; height:104px; margin:6px auto 2px; display:block}
+  .done-check circle{fill:var(--green)}
+  .done-check path{fill:none; stroke:#fff; stroke-width:7; stroke-linecap:round; stroke-linejoin:round}
+  .donehint{font-family:var(--sans); font-size:13.5px; color:var(--ink); margin:14px 0 4px; text-align:left}
+  .donelist{font-family:var(--sans); font-size:13.5px; color:var(--muted); margin:0 0 14px; padding-left:22px; text-align:left}
+  .donelist li{margin:4px 0}
+  .provinfo2{margin-top:8px}
+  .checkrow{display:flex; gap:8px; align-items:flex-start; font-family:var(--sans); font-size:13.5px}
+  .checkrow input{margin-top:3px}
   .notebox{margin:12px 0 0; padding:12px 16px; background:var(--soft); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; font-size:14px; line-height:1.5}
 
   /* ---------- Schreibfläche (Topbar, Papier, Aufgaben) ----------
@@ -467,6 +483,11 @@
       </div>
       <p class="err" id="start-err" aria-live="polite"></p>
       <button type="button" class="btn block" id="start-btn">Weiter</button>
+      <div class="pdfrow">
+        <button type="button" class="btn ghost small" id="start-pdf">Zwischenstand-PDF hochladen</button>
+        <input type="file" id="start-pdf-file" class="sr-only" accept="application/pdf,.pdf" tabindex="-1" aria-hidden="true">
+        <p class="fhint">Hast du deinen Zwischenstand als PDF-Datei gesichert, kannst du ihn hier hochladen und weiterarbeiten.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -511,6 +532,7 @@
     <div class="right">
       <div class="stitle" id="ed-title"></div>
       <div class="count" id="save-state"></div>
+      <button type="button" class="linkbtn" id="ed-pdf">Zwischenstand als PDF-Datei sichern</button>
       <button type="button" class="linkbtn" id="ed-cancel">Abbrechen und Zwischenstand von diesem Gerät löschen</button>
     </div>
   </div>
@@ -528,6 +550,7 @@
         <button type="button" class="btn" id="fb-btn">KI um ein Feedback bitten</button>
         <p class="privacy" id="privacy"></p>
         <p class="status" id="fb-status" aria-live="polite"></p>
+        <div class="fbwait hidden" id="fb-wait"><span id="fb-wait-num" aria-hidden="true"></span><button type="button" class="linkbtn" id="fb-wait-stop">Nicht länger warten</button></div>
         <div class="notebox hidden" id="fb-fallback" role="status"></div>
         <div class="moodle-hint hidden" id="revise-hint" role="status" tabindex="-1"></div>
         <div class="submitrow">
@@ -545,10 +568,18 @@
   <div class="start-wrap">
     <div class="card">
       <p class="brand">Feibeitsblatt</p>
-      <h1 id="done-h">Abgegeben</h1>
+      <svg class="done-check" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="31"/><path d="M18 33.5 L27.5 43 L46 22"/></svg>
+      <h1 id="done-h">Abgabe erfolgreich</h1>
       <p class="sub">Deine Lösung ist bei deiner Lehrkraft angekommen.</p>
       <p class="donetime" id="done-time"></p>
-      <button type="button" class="btn block" id="done-btn">Neues Feibeitsblatt öffnen</button>
+      <button type="button" class="btn block" id="done-pdf">Meine Lösungen als PDF herunterladen</button>
+      <p class="donehint">Lade dir zur Sicherheit deine Lösungen als PDF-Datei herunter und speichere sie in deinen Unterlagen – aus zwei Gründen:</p>
+      <ol class="donelist">
+        <li>Falls es doch zu technischen Problemen kommt und deine Abgabe die Lehrkraft nicht erreicht, kannst du deine Lösungen vorzeigen.</li>
+        <li>Alle Lösungen brauchst du zum Lernen für die Klausur, die Klassenarbeit bzw. den schriftlichen Leistungsnachweis – darum gehören sie in deine Unterlagen.</li>
+      </ol>
+      <p class="status" id="done-status" aria-live="polite"></p>
+      <button type="button" class="btn ghost block" id="done-btn">Neues Feibeitsblatt öffnen</button>
     </div>
   </div>
 </section>
@@ -645,6 +676,7 @@
           <button type="button" class="btn ghost small" id="t-expand-all">Alle aufklappen</button>
         </div>
         <p class="batchsum" id="t-subs-sum"></p>
+        <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
         <p class="status" id="t-subs-status" aria-live="polite"></p>
         <div class="tablewrap" style="margin-top:10px">
           <table class="batch subs" id="t-subs">
@@ -727,7 +759,7 @@
         </div>
         <div class="provinfo note" data-prov="groq">
           <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
-          <p><b>Limits</b> (bitte in der Groq-Konsole prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Tageslimits je Modell (z. B. etwa 200 000 Token pro Tag bei gpt-oss-120b). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; ist das Tageskontingent eines Modells erschöpft, weicht der Server automatisch auf das nächste Modell aus. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Musterlösungen ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
           <p><b>Datenschutz:</b> Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="openrouter">
@@ -753,6 +785,9 @@
           <label for="ai-base">Basis-URL</label>
           <input type="url" id="ai-base" placeholder="https://…/v1" autocomplete="off" spellcheck="false">
         </div>
+        <div class="field hidden" id="ai-gemini-field">
+          <label class="checkrow"><input type="checkbox" id="ai-gemini-ok"> <span>Für diesen Google-Schlüssel ist ein Abrechnungskonto hinterlegt. Nur dann gelten im EWR die Bedingungen der bezahlten Dienste (keine Nutzung der Eingaben zur Produktverbesserung) – ohne Abrechnungskonto kommt Gemini für Schulen nicht infrage.</span></label>
+        </div>
         <div class="field">
           <label for="ai-model">Modell (leer = Vorgabe)</label>
           <input type="text" id="ai-model" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="200">
@@ -769,7 +804,44 @@
         </div>
         <p class="status" id="ai-status" aria-live="polite"></p>
       </div>
-      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihre Musterlösungen und die Antworttexte – keine Kürzel, Geburtsdaten oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag.</p>
+      <div class="pbox" style="max-width:760px; margin-top:16px">
+        <h3 style="margin:0 0 6px">Reserve-KI (optional)</h3>
+        <p class="note" style="margin:0 0 12px">Ein zweiter Anbieter mit eigenem API-Schlüssel, der automatisch einspringt, wenn der erste ausgelastet ist, sein Tageskontingent erreicht hat, nicht antwortet oder keine verwertbare Antwort liefert – nie bei Inhaltsfiltern oder Fehlkonfiguration, und nie parallel. Am besten ein <b>anderer</b> Anbieter – dann addieren sich die beiden Kontingente. <b>Datenschutz:</b> Jede Reserve ist ein weiterer Empfänger der Schülertexte. Die Schüler:innen sehen beide Empfänger (mit Sitz) im Datenschutzhinweis und im Dialog vor dem Senden; informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern, bevor Sie eine Reserve nutzen.</p>
+        <div class="field">
+          <label for="ai2-prov">Anbieter der Reserve</label>
+          <select id="ai2-prov">
+            <option value="groq">Groq</option>
+            <option value="openrouter">OpenRouter – kostenlose Modelle</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="cerebras">Cerebras</option>
+            <option value="custom">Anderer OpenAI-kompatibler Dienst</option>
+          </select>
+        </div>
+        <div id="ai2-info"></div>
+        <div class="field hidden" id="ai2-base-field">
+          <label for="ai2-base">Basis-URL</label>
+          <input type="url" id="ai2-base" placeholder="https://…/v1" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field hidden" id="ai2-gemini-field">
+          <label class="checkrow"><input type="checkbox" id="ai2-gemini-ok"> <span>Für diesen Google-Schlüssel ist ein Abrechnungskonto hinterlegt (nur dann gelten im EWR die Bedingungen der bezahlten Dienste).</span></label>
+        </div>
+        <div class="field">
+          <label for="ai2-model">Modell (leer = Vorgabe)</label>
+          <input type="text" id="ai2-model" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="200">
+        </div>
+        <div class="field">
+          <label for="ai2-key">API-Schlüssel der Reserve</label>
+          <input type="password" id="ai2-key" autocomplete="off" spellcheck="false" maxlength="500">
+          <p class="fhint" id="ai2-key-hint"></p>
+        </div>
+        <div class="row" style="margin-top:4px">
+          <button type="button" class="btn" id="ai2-save">Reserve speichern</button>
+          <button type="button" class="btn ghost" id="ai2-test">Reserve testen</button>
+          <button type="button" class="btn ghost" id="ai2-remove">Reserve entfernen</button>
+        </div>
+        <p class="status" id="ai2-status" aria-live="polite"></p>
+      </div>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Musterlösungen und die Antworttexte – keine Kürzel, Geburtsdaten oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Musterlösungen) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits.</p>
     </div>
 
     <!-- Passwort ändern -->
@@ -855,6 +927,9 @@ const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;   // Blatt-Code (ohne 
 /* Türcode für den Lehrkräfte-Zugang: geprüft nur auf dem Server (TEACHER_DOOR_CODE, Vorgabe 1104). Blatt-Codes enthalten
    immer Buchstaben – rein numerische Eingaben (4–12 Ziffern) gehen deshalb an /api/teacher/door. */
 const DOOR_RE = /^[0-9]{4,12}$/;
+const ATTEMPT_RE = /^[0-9a-f]{16}$/;                         // Kennung einer Bearbeitung (Erstversuch ↔ Abgabe), vom Browser erzeugt
+const PUBLIC_URL = String(window.FEIBEITSBLATT_PUBLIC || "https://feibeitsblatt.janrickmer.de/");   // steht in der Zwischenstand-PDF
+const PDF_MAX_BYTES = 5 * 1024 * 1024;                       // hochgeladene Zwischenstand-PDF (unsere sind < 100 KB; neu gespeicherte größer)
 const MAX_ANSWER = 8000;                                     // wie die Grenze des Servers je Antwort
 const MAX_ANSWERS_TOTAL = 40000;                             // … und für alle Antworten zusammen (KI-Feedback)
 const DRAFT_DAYS = 7;                                        // Zwischenstände bleiben so lange auf dem Gerät
@@ -946,6 +1021,7 @@ async function api(method, path, opts) {
   const o = opts || {};
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), o.timeout || 30000);
+  if (o.signal) { if (o.signal.aborted) ac.abort(); else o.signal.addEventListener("abort", () => ac.abort(), { once: true }); }   // Abbruch von außen
   const headers = {};
   if (o.body !== undefined) headers["Content-Type"] = "application/json";
   if (o.auth) headers["Authorization"] = "Bearer " + o.auth;
@@ -955,9 +1031,9 @@ async function api(method, path, opts) {
       signal: ac.signal, credentials: "omit", cache: o.cache || "no-store" });   // Bilder sind unveränderlich → cache "default"
     try { data = await res.json(); } catch (e) { data = null; }
   } catch (e) {
-    throw new ApiError(ac.signal.aborted ? "timeout" : "network");
+    throw new ApiError(ac.signal.aborted ? (o.signal && o.signal.aborted ? "aborted" : "timeout") : "network");
   } finally { clearTimeout(timer); }
-  if (!data && ac.signal.aborted) throw new ApiError("timeout");
+  if (!data && ac.signal.aborted) throw new ApiError(o.signal && o.signal.aborted ? "aborted" : "timeout");
   if (res.ok && data && data.ok === true) return data;
   const code = data && typeof data.code === "string" ? data.code : "http_" + res.status;
   const msg = data && typeof data.error === "string" ? data.error.trim().slice(0, 500) : "";
@@ -1382,7 +1458,10 @@ const S = {
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
   fbFails: 0, fbUnavailable: "",   // KI-Feedback nicht erreichbar → Abgabe ohne Feedback erlaubt (Grund als Text)
   submitted: false, busyFeedback: false, ltCache: new Map(),
-  ltAllowed: false, ltConsent: false   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
+  ltAllowed: false, ltConsent: false,   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
+  attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
+  fbRun: 0, fbStop: null, fbAbort: null,   // laufende Feedback-Anfrage: Lauf-Kennung (gegen späte Antworten nach Abbruch/Wechsel), Warten abbrechen, Anfrage abbrechen
+  lastSubmission: null   // die soeben abgegebene Lösung (nur im Arbeitsspeicher, bis „Neues Feibeitsblatt öffnen“) – für die PDF der Lösungen
 };
 const LAST_KEY = "feibeitsblatt:last";   // zuletzt geöffnetes Blatt + Angaben: „Weiterschreiben?“ nach Neuladen
 
@@ -1401,8 +1480,62 @@ async function loadSheet(code) {
     tasks: sh.tasks.map((t) => String((t && t.text) || "")),
     images: sh.tasks.map((t) => cleanImages(t && t.images)),   // je Aufgabe: Miniaturen (thumb) oder größer unter der Aufgabe (inline)
     material: sh.tasks.map((t) => cleanMaterial(t && t.material)),   // je Aufgabe: formatierter Text der Lehrkraft mit Links
-    aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null
+    aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null,
+    aiRecipients: recipientsOf(sh)   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
   };
+}
+// Empfänger aus der Antwort; eine ältere Worker-Version liefert nur aiProvider/aiReserve → daraus ableiten (ids leer → der neue
+// Worker antwortet dann 409 und die Seite lädt den Hinweis neu)
+function recipientsOf(sh) {
+  const list = cleanRecipients(sh.aiRecipients);
+  if (list.length) return list;
+  const out = [];
+  if (typeof sh.aiProvider === "string" && sh.aiProvider.trim()) out.push({ id: "", label: sh.aiProvider.trim().slice(0, 200) });
+  if (typeof sh.aiReserve === "string" && sh.aiReserve.trim()) out.push({ id: "", label: sh.aiReserve.trim().slice(0, 200) });
+  return out;
+}
+function cleanRecipients(v) {
+  return Array.isArray(v) ? v.filter((x) => x && typeof x.id === "string" && typeof x.label === "string").slice(0, 5)
+    .map((x) => ({ id: x.id.slice(0, 200), label: x.label.trim().slice(0, 200) })) : [];
+}
+// Empfängerliste nach dem Hinweis neu laden (die Lehrkraft hat die KI-Einstellungen geändert → 409 ai_changed)
+async function reloadRecipients() {
+  const r = await api("GET", "/api/sheet/" + encodeURIComponent(S.code));
+  const sh = r.sheet || {};
+  S.sheet.aiProvider = typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null;
+  S.sheet.aiRecipients = recipientsOf(sh);
+  renderPrivacy();
+}
+/* Satz über die Empfänger (erster Anbieter, dann die Reserve) – für Hinweis und Dialog; derselbe Wortlaut, dedupliziert */
+function recipientParts() {
+  const list = (S.sheet && S.sheet.aiRecipients) || [], q = (t) => "„" + t + "“";
+  const first = list.length ? q(list[0].label) : (S.sheet && S.sheet.aiProvider ? q(S.sheet.aiProvider) : "deiner Lehrkraft");
+  const rest = list.slice(1).map((x) => x.label).filter((l, i, a) => l !== (list[0] && list[0].label) && a.indexOf(l) === i).map(q);
+  const usa = list.some((x) => /USA/.test(x.label));
+  return { first, rest, usa, any: list.length > 0 };
+}
+function recipientSentence() {
+  const r = recipientParts();
+  return `Deine Antworten gehen – ohne Namenskürzel, Geburtsdatum und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
+    (r.rest.length ? ` Nur wenn dieser Dienst nicht antwortet oder ausgelastet ist, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
+    (r.usa ? " Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU." : "");
+}
+function renderPrivacy() {
+  const r = recipientParts();
+  $("privacy").textContent = "";
+  $("privacy").append(h("b", { text: "Datenschutz: " }),
+    `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
+    `Er leitet sie zusammen mit den Aufgaben, dem Material und der Musterlösung deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
+    (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
+    ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen${r.usa ? ", bei Sitz in den USA außerhalb der EU" : ""}. ` +
+    `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
+    `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. ` +
+    `Die Rechtschreibprüfung gibt es erst ab ${LT_MIN_AGE} Jahren und nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
+    h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
+    `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
+    `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
+    `Deine Abgabe nach der Überarbeitung ersetzt ihn. Die Lehrkraft löscht alles nach der Durchsicht. Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
+    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter). Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -1464,6 +1597,40 @@ $("resume-del").addEventListener("click", async () => {
   $("resume-box").classList.add("hidden");
   $("code-input").focus();
 });
+
+/* ---------- Zwischenstand-PDF hochladen (Startseite) ---------- */
+const PDF_NOT_DRAFT = "In dieser Datei steckt kein Feibeitsblatt-Zwischenstand. Lade genau die PDF-Datei hoch, die du mit „Zwischenstand als PDF-Datei sichern“ gespeichert hast – kein Screenshot und kein Ausdruck davon.";
+async function importDraftPdf(file) {
+  const err = $("start-err"), btn = $("start-pdf");
+  err.textContent = "";
+  if (!subtle) { err.textContent = "Dieser Browser unterstützt die nötige Verschlüsselung nicht (Seite bitte über https öffnen)."; return; }
+  if (!file) return;
+  if (file.size > PDF_MAX_BYTES) { err.textContent = "Diese Datei ist zu groß für einen Zwischenstand. " + PDF_NOT_DRAFT; return; }
+  busy(btn, true, "Datei wird gelesen …");
+  try {
+    let d = null;
+    try { d = cleanDraft(await readDraftPdf(await file.arrayBuffer())); } catch (e) { d = null; }
+    if (!d) { err.textContent = PDF_NOT_DRAFT; return; }
+    await loadSheet(d.code);
+    if (S.sheet.tasks.length !== d.answers.length) { resetStudent(); err.textContent = "Der Zwischenstand passt nicht zu diesem Feibeitsblatt (andere Anzahl Aufgaben). Bitte frag deine Lehrkraft."; return; }
+    // Liegt auf diesem Gerät schon ein neuerer Zwischenstand derselben Person? Dann nachfragen, welcher gelten soll.
+    const person = d.person;
+    let local = null;
+    try { local = JSON.parse(store.get(await draftKeyFor(d.code, person)) || "null"); } catch (e) { local = null; }
+    if (local && local.v === 1 && local.t > d.t && Array.isArray(local.answers) && local.answers.some((a) => String(a || "").trim())) {
+      const usePdf = await askConfirm({ title: "Neuerer Zwischenstand auf diesem Gerät",
+        text: `Auf diesem Gerät liegt schon ein Zwischenstand von ${fmtDT(local.t)} Uhr; die PDF-Datei ist von ${fmtDT(d.t)} Uhr. Welchen Stand möchtest du verwenden?`,
+        ok: "Stand aus der PDF-Datei", cancel: "Neueren Stand von diesem Gerät", safeFirst: true });
+      if (!usePdf) d = null;
+    }
+    S.person = person; S.importDraft = d;
+    $("code-input").value = "";
+    await openEditor();
+  } catch (e) { resetStudent(); err.textContent = startErr(e); }
+  finally { busy(btn, false); }
+}
+$("start-pdf").addEventListener("click", () => { const f = $("start-pdf-file"); f.value = ""; f.click(); });
+$("start-pdf-file").addEventListener("change", () => { const f = $("start-pdf-file").files && $("start-pdf-file").files[0]; if (f) importDraftPdf(f); });
 
 /* ---------- 2. Angaben ---------- */
 function openPerson() {
@@ -1532,46 +1699,43 @@ async function draftKeyFor(code, p) {
 async function openEditor() {
   const p = S.person, sh = S.sheet;
   S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.ltCache = new Map();
+  S.attempt = ""; S.firstSent = false;
+  stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltAllowed = ageOf(p.geburtsdatum) >= LT_MIN_AGE; S.ltConsent = false;   // Bestätigung gilt nur für diese Sitzung
   S.draftKey = await draftKeyFor(S.code, p);
   $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`;
   $("ed-title").textContent = sh.title;
   $("sheet-title").textContent = sh.title;
   $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.`;
-  $("privacy").textContent = "";
-  $("privacy").append(h("b", { text: "Datenschutz: " }),
-    `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
-    `Er leitet sie zusammen mit den Aufgaben und der Musterlösung deiner Lehrkraft an den KI-Dienst ${sh.aiProvider ? "„" + sh.aiProvider + "“" : "der Lehrkraft"} weiter und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen. ` +
-    `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. ` +
-    `Die Rechtschreibprüfung gibt es erst ab ${LT_MIN_AGE} Jahren und nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
-    h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
-    `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
-    `Bei der Abgabe werden dein Namenskürzel, Geburtsdatum, Klasse und deine Antworten verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert; ` +
-    `nur deine Lehrkraft kann sie lesen und löscht sie nach der Durchsicht. Bis zur Abgabe liegt dein Zwischenstand nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
-    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen. Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
+  renderPrivacy();
   buildTasks();
-  // Zwischenstand dieses Geräts wiederherstellen
+  // Zwischenstand wiederherstellen: aus einer hochgeladenen PDF-Datei oder von diesem Gerät
   let restored = false;
-  const raw = store.get(S.draftKey);
-  if (raw) {
-    try {
-      const d = JSON.parse(raw);
-      if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
-        d.answers.forEach((a, i) => { S.tas[i].value = String(a || "").slice(0, MAX_ANSWER); S.tas[i]._ok = S.tas[i].value; });
-        if (Array.isArray(d.first) && d.first.length === sh.tasks.length && Array.isArray(d.feedback) && d.feedback.length === sh.tasks.length) {
-          S.first = d.first.map((x) => String(x || ""));
-          S.feedback = d.feedback.map(normFb);
-          S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
-        }
-        if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
-        restored = d.answers.some((a) => String(a || "").trim());
+  const imported = S.importDraft; S.importDraft = null;
+  let d = imported;
+  if (!d) { const raw = store.get(S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
+  try {
+    if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
+      d.answers.forEach((a, i) => { S.tas[i].value = String(a || "").slice(0, MAX_ANSWER); S.tas[i]._ok = S.tas[i].value; });
+      if (Array.isArray(d.first) && d.first.length === sh.tasks.length && Array.isArray(d.feedback) && d.feedback.length === sh.tasks.length) {
+        S.first = d.first.map((x) => String(x || ""));
+        S.feedback = d.feedback.map(normFb);
+        S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
       }
-    } catch (e) { /* kaputter Entwurf: ignorieren */ }
-  }
+      if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
+      if (Number.isInteger(d.fbFails)) S.fbFails = Math.max(0, Math.min(9, d.fbFails));   // Fehlversuche überdauern ein Neuladen
+      if (typeof d.attempt === "string" && ATTEMPT_RE.test(d.attempt)) S.attempt = d.attempt;
+      S.firstSent = !!d.firstSent;
+      restored = d.answers.some((a) => String(a || "").trim());
+    }
+  } catch (e) { /* kaputter Entwurf: ignorieren */ }
+  if (!S.attempt) S.attempt = hexOf(crypto.getRandomValues(new Uint8Array(8)));   // Kennung dieser Bearbeitung (Erstversuch ↔ Abgabe)
   store.set(LAST_KEY, JSON.stringify({ v: 1, t: Date.now(), code: S.code, person: p }));
+  if (imported) saveDraft();   // aus der PDF auch auf diesem Gerät weiterführen
   S.tas.forEach(updateCounter);
   renderFeedbackState();
-  setSaveState(restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", false);
+  setSaveState(imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", false);
+  if (S.feedback && !S.firstSent) sendFirstAttempt();   // Erstversuch nachholen, falls die Übermittlung damals scheiterte
   setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
   show("screen-editor");
   $("paperwrap").scrollTop = 0;
@@ -1647,11 +1811,14 @@ function answerChanged(ta) {
 /* ---------- Zwischenstand auf diesem Gerät ---------- */
 let saveTimer = 0;
 function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
+/* Zwischenstand als Datensatz (für localStorage und die PDF-Datei) */
+function draftRecord() {
+  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", fbFails: S.fbFails || 0, attempt: S.attempt, firstSent: S.firstSent };
+}
 function saveDraft() {
   clearTimeout(saveTimer);
   if (!S.draftKey || S.submitted) return;
-  const d = { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "" };
-  const ok = store.set(S.draftKey, JSON.stringify(d));
+  const ok = store.set(S.draftKey, JSON.stringify(draftRecord()));
   setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden", !ok);
 }
 function setSaveState(text, bad) {   // nur bei Änderung schreiben (sonst würde ein Screenreader es bei jeder Pause erneut vorlesen)
@@ -1659,6 +1826,280 @@ function setSaveState(text, bad) {   // nur bei Änderung schreiben (sonst würd
   if (s.textContent !== text) s.textContent = text;
   s.classList.toggle("bad", !!bad);
 }
+/* ---------- Zwischenstand als PDF-Datei (mitnehmen, falls die Browserdaten gelöscht werden) ----------
+ * Eine sichtbare Seite (Helvetica, WinAnsi) mit orangem Hinweiskasten und anklickbarem Link; der Zwischenstand selbst
+ * liegt als eingebettete Datei (JSON, UTF-8) in einem Stream-Objekt mit dem Kennzeichen /FbDraft 1 – ohne Bibliothek.
+ * Beim Hochladen wird dieser Stream gesucht (auch wenn ein PDF-Programm die Datei neu gespeichert und komprimiert hat). */
+const PDF_W_REG = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const PDF_W_BOLD = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
+const WINANSI = { "€": 0x80, "‚": 0x82, "ƒ": 0x83, "„": 0x84, "…": 0x85, "†": 0x86, "‡": 0x87, "ˆ": 0x88, "‰": 0x89, "Š": 0x8A, "‹": 0x8B, "Œ": 0x8C, "Ž": 0x8E, "‘": 0x91, "’": 0x92, "“": 0x93, "”": 0x94, "•": 0x95, "–": 0x96, "—": 0x97, "˜": 0x98, "™": 0x99, "š": 0x9A, "›": 0x9B, "œ": 0x9C, "ž": 0x9E, "Ÿ": 0x9F };
+function pdfBytes(str) {   // Text → WinAnsi-Bytes (Zeichen außerhalb → „?“)
+  const out = [];
+  for (const ch of String(str).normalize("NFC")) {
+    const c = ch.codePointAt(0);
+    out.push(c < 0x80 || (c >= 0xA0 && c <= 0xFF) ? c : WINANSI[ch] || 0x3F);
+  }
+  return out;
+}
+function pdfStr(str) {   // PDF-Zeichenkette in Klammern; Klammern/Backslash maskiert, Bytes außerhalb ASCII oktal
+  return "(" + pdfBytes(str).map((b) => b === 0x28 || b === 0x29 || b === 0x5C ? "\\" + String.fromCharCode(b) : b < 0x20 || b > 0x7E ? "\\" + b.toString(8).padStart(3, "0") : String.fromCharCode(b)).join("") + ")";
+}
+function pdfWidth(str, size, bold) {   // Textbreite in pt nach den Helvetica-Metriken (Umlaute über den Grundbuchstaben)
+  const tab = bold ? PDF_W_BOLD : PDF_W_REG;
+  let w = 0;
+  for (const ch of String(str).normalize("NFC")) {
+    let c = ch.codePointAt(0);
+    if (c < 0x20 || c > 0x7E) { const base = ch.normalize("NFD").codePointAt(0); c = base >= 0x20 && base <= 0x7E ? base : 0; }
+    w += c ? tab[c - 0x20] : ch === "ß" ? (bold ? 611 : 556) : "„“”‚‘’".indexOf(ch) >= 0 ? (bold ? 500 : 333) : ch === "·" ? 278 : 556;
+  }
+  return w * size / 1000;
+}
+function pdfWrap(str, size, bold, maxW) {   // Zeilenumbruch an Leerzeichen
+  const lines = [];
+  for (const para of String(str).split("\n")) {
+    let line = "";
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const t = line ? line + " " + word : word;
+      if (!line || pdfWidth(t, size, bold) <= maxW) line = t; else { lines.push(line); line = word; }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+const pdfUtf16 = (str) => { let x = "<FEFF"; for (let i = 0; i < str.length; i++) x += str.charCodeAt(i).toString(16).padStart(4, "0"); return x + ">"; };   // Info-Texte (PDFDocEncoding ≠ WinAnsi)
+const latin1 = (str) => { const u = new Uint8Array(str.length); for (let i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 0xFF; return u; };
+/* Zwischenstand d (siehe draftRecord + kind/code/sheetTitle/person) → PDF-Bytes */
+function makeDraftPdf(d) {
+  const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M;   // A4, Ränder
+  const ops = [];
+  const put = (x, yTop, str, size, bold, color) => ops.push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - yTop).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
+  const para = (x, yTop, str, size, bold, maxW, lh, color) => { const ls = pdfWrap(str, size, bold, maxW); ls.forEach((l, i) => put(x, yTop + i * lh, l, size, bold, color)); return yTop + ls.length * lh; };
+  const p = d.person || {}, answers = Array.isArray(d.answers) ? d.answers : [];
+  const done = answers.filter((a) => String(a || "").trim()).length;
+  const when = toDate(d.t) || new Date();
+  let y = 96;
+  put(M, y, "Zwischenstand für ein Feibeitsblatt", 21, true, "0.1 0.1 0.1"); y += 24;
+  y = para(M, y, "Diese Datei ist kein fertiges Arbeitsblatt und keine Abgabe, sondern ein gesicherter Zwischenstand: Die Antworten stecken als Daten in der Datei, damit du später weiterschreiben kannst.", 11, false, TW, 15, "0.3 0.3 0.3") + 12;
+  const row = (label, val) => { put(M, y, label, 11, true); y = para(M + 100, y, val, 11, false, TW - 100, 15); };
+  row("Feibeitsblatt:", `${d.sheetTitle || "Feibeitsblatt"} (Code ${fmtCode(d.code)})`);
+  row("Gesichert am:", fmtDT(when) + " Uhr");
+  row("Angaben:", `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`);
+  row("Stand:", `${done} von ${answers.length} ${answers.length === 1 ? "Aufgabe" : "Aufgaben"} mit Text · KI-Feedback ${Array.isArray(d.feedback) ? "schon erhalten" : "noch nicht angefordert"}`);
+  y += 14;
+  // Orangener Hinweiskasten: erst die Zeilen setzen, dann Höhe, Rahmen und Text
+  const pad = 16, bsz = 11.5, lh = 16, url = PUBLIC_URL, items = [];
+  let cur = pad + 14;
+  items.push({ dy: cur, text: "So arbeitest du weiter:", size: 12.5, bold: true, color: "0.72 0.36 0" }); cur += 20;
+  pdfWrap("Genau diese PDF-Datei (kein Screenshot und kein Ausdruck davon) kannst du auf", bsz, false, TW - 2 * pad).forEach((l) => { items.push({ dy: cur, text: l, size: bsz, color: "0.15 0.1 0" }); cur += lh; });
+  cur += 4; const urlDy = cur, uw = pdfWidth(url, 13, true);
+  items.push({ dy: cur, text: url, size: 13, bold: true, color: "0 0.29 0.6" }); cur += 22;
+  pdfWrap("hochladen, um weiter an dem Feibeitsblatt zu arbeiten: Klicke dort auf „Zwischenstand-PDF hochladen“ und wähle diese Datei aus. Dein Zwischenstand erscheint dann wieder auf dem Gerät.", bsz, false, TW - 2 * pad).forEach((l) => { items.push({ dy: cur, text: l, size: bsz, color: "0.15 0.1 0" }); cur += lh; });
+  const bh = cur - lh + pad;
+  ops.push(`1 0.93 0.82 rg 0.86 0.45 0 RG 1.5 w ${M.toFixed(2)} ${(H - y - bh).toFixed(2)} ${TW.toFixed(2)} ${bh.toFixed(2)} re B`);
+  items.forEach((it) => put(M + pad, y + it.dy, it.text, it.size, it.bold, it.color));
+  ops.push(`0 0.29 0.6 RG 0.8 w ${(M + pad).toFixed(2)} ${(H - y - urlDy - 2.5).toFixed(2)} m ${(M + pad + uw).toFixed(2)} ${(H - y - urlDy - 2.5).toFixed(2)} l S`);   // Unterstreichung
+  const linkRect = [M + pad - 2, H - y - urlDy - 5, M + pad + uw + 2, H - y - urlDy + 12];
+  y += bh + 28;
+  put(M, y, "Bitte beachte", 12.5, true); y += 18;
+  ["Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
+    "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
+    "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites Feedback gibt es nicht."
+  ].forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
+  put(M, H - 40, "Erstellt mit Feibeitsblatt · " + url, 9, false, "0.45 0.45 0.45");
+  // Objekte zusammensetzen
+  const content = ops.join("\n"), json = te.encode(JSON.stringify(d)), parts = [], offsets = [];
+  let pos = 0;
+  const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
+  const obj = (n, body) => { offsets[n] = pos; push(`${n} 0 obj\n`); (Array.isArray(body) ? body : [body]).forEach(push); push("\nendobj\n"); };
+  const t = new Date(), stamp = `${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}${pad2(t.getHours())}${pad2(t.getMinutes())}${pad2(t.getSeconds())}`;
+  push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(zwischenstand.json) 7 0 R] >> >> /AF [7 0 R] >>");
+  obj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R /Annots [8 0 R] >>`);
+  obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  obj(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  obj(6, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  obj(7, "<< /Type /Filespec /F (zwischenstand.json) /UF (zwischenstand.json) /Desc (Feibeitsblatt-Zwischenstand) /AFRelationship /Data /EF << /F 9 0 R /UF 9 0 R >> >>");
+  obj(8, `<< /Type /Annot /Subtype /Link /Rect [${linkRect.map((v) => v.toFixed(2)).join(" ")}] /Border [0 0 0] /A << /S /URI /URI ${pdfStr(url)} >> >>`);
+  obj(9, [`<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbDraft 1 /Params << /Size ${json.length} >> /Length ${json.length} >>\nstream\n`, json, "\nendstream"]);
+  obj(10, `<< /Title ${pdfUtf16("Feibeitsblatt – Zwischenstand " + fmtCode(d.code))} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  const xref = pos;
+  let x = "xref\n0 11\n0000000000 65535 f \n";
+  for (let i = 1; i <= 10; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  push(x + `trailer\n<< /Size 11 /Root 1 0 R /Info 10 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const out = new Uint8Array(pos); let o = 0;
+  for (const b of parts) { out.set(b, o); o += b.length; }
+  return out;
+}
+/* PDF-Bytes → eingebetteter Zwischenstand (Objekt) oder Fehler. Sucht das Kennzeichen /FbDraft 1 bzw. eingebettete
+   Dateien (/Type /EmbeddedFile), liest den Stream (Länge direkt oder als Verweis), entpackt FlateDecode bei Bedarf. */
+async function readDraftPdf(buf) {
+  const u = new Uint8Array(buf);
+  let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  if (s.slice(0, 5) !== "%PDF-") throw new Error("nopdf");
+  const starts = [];
+  for (const mark of ["/FbDraft 1", "/Type /EmbeddedFile", "/Type/EmbeddedFile"]) { let i = -1; while ((i = s.indexOf(mark, i + 1)) >= 0 && starts.length < 60) starts.push(i); }
+  const tried = new Set();
+  for (const i of starts) {
+    const st = s.indexOf("stream", i); if (st < 0) continue;
+    const objStart = s.lastIndexOf(" obj", i);
+    if (objStart < 0 || tried.has(objStart)) continue; tried.add(objStart);
+    const dict = s.slice(objStart, st);
+    if (/\/Filter/.test(dict) && !/\/Filter\s*(\/FlateDecode\b|\[\s*\/FlateDecode\s*\])/.test(dict)) continue;   // andere Filter: nicht lesbar
+    let len = null, m;
+    if ((m = /\/Length\s+(\d+)(\s+0\s+R)?/.exec(dict))) {
+      if (m[2]) { const r = new RegExp("(?:^|\\s)" + m[1] + "\\s+0\\s+obj\\s*(\\d+)").exec(s); len = r ? +r[1] : null; } else len = +m[1];
+    }
+    let a = st + 6; if (s[a] === "\r") a++; if (s[a] === "\n") a++;
+    let end = len != null ? a + len : -1;
+    if (end < a || end > u.length || s.indexOf("endstream", end) < 0) {   // Länge unbrauchbar: bis „endstream“
+      end = s.indexOf("endstream", a); if (end < 0) continue;
+      while (end > a && (s[end - 1] === "\n" || s[end - 1] === "\r")) end--;
+    }
+    let data = u.subarray(a, end);
+    try {
+      if (/\/FlateDecode/.test(dict)) data = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer());
+      const o = JSON.parse(td.decode(data));
+      if (o && o.kind === "feibeitsblatt-draft") return o;
+    } catch (e) { /* nächster Kandidat */ }
+  }
+  throw new Error("nodraft");
+}
+/* Zwischenstand aus einer Datei prüfen und normalisieren (wie die Eingabefelder) → Objekt oder null */
+function cleanDraft(o) {
+  if (!o || typeof o !== "object" || o.v !== 1 || o.kind !== "feibeitsblatt-draft") return null;
+  const code = normCode(o.code);
+  if (!CODE_RE.test(code) || !/[A-Z]/.test(code) || !/[0-9]/.test(code)) return null;
+  const pr = o.person && typeof o.person === "object" ? o.person : null;
+  if (!pr) return null;
+  const v = String(pr.vorname || "").trim().normalize("NFC"), n = String(pr.nachname || "").trim().normalize("NFC");
+  const vl = Array.from(v).length, nl = Array.from(n).length;
+  if (!LETTERS.test(v) || vl < 2 || vl > 3 || !LETTERS.test(n) || nl < 1 || nl > 2) return null;
+  const b = parseBirth(pr.geburtsdatum);
+  if (!b || b.date > new Date() || b.date < new Date(1950, 0, 2)) return null;
+  const k = String(pr.klasse || "").replace(/[\s.]+/g, "");
+  if (!/^[\p{L}\p{N}/-]{1,10}$/u.test(k)) return null;
+  if (!Array.isArray(o.answers) || !o.answers.length || o.answers.length > 30) return null;
+  const answers = o.answers.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER));
+  let first = null, feedback = null;
+  if (Array.isArray(o.first) && Array.isArray(o.feedback) && o.first.length === answers.length && o.feedback.length === answers.length) {
+    first = o.first.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER)); feedback = o.feedback.map(normFb);
+  }
+  return {
+    v: 1, code, sheetTitle: String(o.sheetTitle || "").slice(0, 200), t: Number.isFinite(o.t) ? o.t : 0,
+    person: { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k },
+    answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
+    fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
+    fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0,
+    attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true
+  };
+}
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = h("a", { href: url, download: name, class: "sr-only", text: name });
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
+}
+$("ed-pdf").addEventListener("click", () => {
+  if (S.submitted || !S.sheet || !S.person) return;
+  try {
+    saveDraft();
+    const d = Object.assign(draftRecord(), { kind: "feibeitsblatt-draft", code: S.code, sheetTitle: S.sheet.title,
+      person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse } });
+    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
+    downloadBlob(new Blob([makeDraftPdf(d)], { type: "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
+    setSaveState("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf", false);
+  } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
+});
+/* ---------- „Meine Lösungen“ als PDF nach der Abgabe (mehrseitig, zum Aufbewahren und Lernen) ----------
+ * Inhalt: Blatt, Angaben, Abgabezeitpunkt, je Aufgabe die Aufgabenstellung, die abgegebene Lösung, bei Überarbeitung auch
+ * die erste Fassung und das KI-Feedback. Gleiche Bausteine wie die Zwischenstand-PDF (Helvetica, WinAnsi), ohne Bibliothek. */
+function makeSolutionsPdf(sub) {
+  const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M, TOP = 64, BOTTOM = 60;
+  const pages = [[]];
+  let y = TOP;
+  const newPage = () => { pages.push([]); y = TOP; };
+  const line = (x, str, size, bold, color) => pages[pages.length - 1].push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - y).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
+  const para = (str, size, bold, opts = {}) => {   // Absätze umbrechen, Zeilenumbrüche des Textes erhalten, Seitenumbruch bei Bedarf
+    const lh = opts.lh || Math.round(size * 1.38), x = M + (opts.indent || 0);
+    for (const l of pdfWrap(str, size, bold, TW - (opts.indent || 0))) {
+      if (y + lh > H - BOTTOM) newPage();
+      y += lh; line(x, l, size, bold, opts.color);
+    }
+  };
+  const gap = (n) => { y += n; if (y > H - BOTTOM) newPage(); };
+  const p = sub.person || {}, when = toDate(sub.receivedAt) || new Date();
+  para("Meine Lösungen – " + (sub.title || "Feibeitsblatt"), 17, true);
+  gap(4);
+  para(`${p.vorname} · ${p.nachname} · Klasse ${p.klasse} · abgegeben am ${fmtDT(when)} Uhr · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
+  gap(14);
+  const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
+  const n = Math.max(tasks.length, answers.length);
+  for (let i = 0; i < n; i++) {
+    const a = answers[i] || {}, fin = typeof a.final === "string" ? a.final : "", first = typeof a.first === "string" ? a.first : "";
+    const fb = Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
+    if (y > H - BOTTOM - 80) newPage();   // Aufgabenkopf nicht ganz unten beginnen
+    para("Aufgabe " + (i + 1), 13, true);
+    gap(2);
+    if (tasks[i]) para(String(tasks[i]), 11, false, { color: "0.25 0.25 0.25" });
+    gap(6);
+    para("Meine Lösung (abgegebene Fassung):", 10.5, true);
+    para(fin.trim() ? fin : "(leer)", 11, false);
+    if (fb && first.trim() && first !== fin) {
+      gap(6);
+      para("Erste Fassung (vor dem KI-Feedback):", 10.5, true, { color: "0.35 0.35 0.35" });
+      para(first, 10.5, false, { color: "0.35 0.35 0.35" });
+    }
+    if (fb && (fb.covered.length || fb.missing.length || fb.note)) {
+      gap(6);
+      para("KI-Feedback zur ersten Fassung:", 10.5, true, { color: "0.35 0.35 0.35" });
+      for (const c of fb.covered) para("• angesprochen: " + c, 10.5, false, { indent: 10, color: "0.12 0.42 0.16" });
+      for (const m of fb.missing) para("– fehlt: " + m, 10.5, false, { indent: 10, color: "0.7 0.15 0.12" });
+      if (fb.note) para(fb.note, 10.5, false, { indent: 10, color: "0.35 0.35 0.35" });
+    } else if (sub.feedbackError && i === 0) {
+      gap(4);
+      para("Ohne KI-Feedback abgegeben (" + sub.feedbackError + ").", 10.5, false, { color: "0.35 0.35 0.35" });
+    }
+    gap(16);
+  }
+  // Fußzeile je Seite, dann Objekte zusammensetzen (Kopf, Katalog, Seitenbaum, Schriften, je Seite Seite + Inhalt, Info)
+  const total = pages.length;
+  pages.forEach((ops, i) => ops.push(`BT 0.45 0.45 0.45 rg /F1 9 Tf ${M.toFixed(2)} 36 Td ${pdfStr("Feibeitsblatt · " + (sub.title || "") + " · " + p.vorname + " " + p.nachname + " · Seite " + (i + 1) + " von " + total)} Tj ET`));
+  const parts = [], offsets = [];
+  let pos = 0;
+  const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
+  const obj = (num, body) => { offsets[num] = pos; push(`${num} 0 obj\n`); push(body); push("\nendobj\n"); };
+  const kids = pages.map((_, i) => `${6 + 2 * i} 0 R`).join(" ");
+  const t = new Date(), stamp = `${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}${pad2(t.getHours())}${pad2(t.getMinutes())}${pad2(t.getSeconds())}`;
+  push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${total} >>`);
+  obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  obj(5, `<< /Title ${pdfUtf16("Meine Lösungen – " + (sub.title || "Feibeitsblatt"))} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  pages.forEach((ops, i) => {
+    const content = ops.join("\n");
+    obj(6 + 2 * i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${7 + 2 * i} 0 R >>`);
+    obj(7 + 2 * i, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+  const count = 6 + 2 * total, xref = pos;
+  let x = `xref\n0 ${count}\n0000000000 65535 f \n`;
+  for (let i = 1; i < count; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  push(x + `trailer\n<< /Size ${count} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const out = new Uint8Array(pos); let o = 0;
+  for (const b of parts) { out.set(b, o); o += b.length; }
+  return out;
+}
+$("done-pdf").addEventListener("click", () => {
+  const sub = S.lastSubmission, st = $("done-status");
+  if (!sub) { setStatus(st, "Die Lösungen sind auf diesem Gerät nicht mehr verfügbar.", "bad"); return; }
+  try {
+    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+    downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/pdf" }), `Feibeitsblatt-Loesungen-${fmtCode(sub.code)}-${stamp}.pdf`);
+    setStatus(st, "Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.", "ok");
+  } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuche es noch einmal.", "bad"); }
+});
+
 /* Alte Entwürfe entfernen – gemeinsam genutzte Geräte */
 function cleanupDrafts() {
   const limit = Date.now() - DRAFT_DAYS * 864e5;
@@ -1671,7 +2112,7 @@ function cleanupDrafts() {
 /* Abbrechen: Zwischenstand und Angaben von diesem Gerät löschen */
 $("ed-cancel").addEventListener("click", async () => {
   if (S.submitted) return;
-  const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen.", ok: "Löschen", cancel: "Weiterschreiben", danger: true });
+  const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." + (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
   if (!ok) return;
   clearTimeout(saveTimer);
   store.del(S.draftKey); store.del(LAST_KEY);
@@ -1968,62 +2409,156 @@ function tooLongTotal(answers) {
   const longest = answers.map((a, i) => ({ i: i + 1, n: a.length })).sort((a, b) => b.n - a.n).slice(0, 3).map((x) => x.i);
   return `Deine Antworten sind zusammen zu lang für das KI-Feedback (${total.toLocaleString("de-DE")} Zeichen, höchstens ${MAX_ANSWERS_TOTAL.toLocaleString("de-DE")}). Bitte kürze vor allem ${longest.length === 1 ? "Aufgabe " + longest[0] : "die Aufgaben " + listNums(longest)}.`;
 }
+const FB_TRIES = 5;            // Versuche je Klick bei ausgelasteter KI (1 + 4 automatische Wiederholungen)
+const FB_MAX_MS = 4 * 60e3;    // … und höchstens etwa vier Minuten seit dem Klick
+const roughTime = (ms) => ms < 20000 ? "einer Viertelminute" : ms < 45000 ? "einer halben Minute" : ms < 80000 ? "einer Minute" : "zwei Minuten";
+const jitterMs = (max) => { const u = new Uint32Array(1); crypto.getRandomValues(u); return (u[0] / 4294967296) * max; };
+/* Warten bis zur Fälligkeit (absoluter Zeitpunkt, ein Timer – Hintergrund-Tabs drosseln Timer, deshalb auch bei Rückkehr prüfen);
+   der sichtbare Sekundenzähler steht außerhalb der Live-Region (sonst liest ein Screenreader jede Sekunde vor) */
+function waitBeforeRetry(run, ms, nextTry) {
+  return new Promise((resolve) => {
+    const due = Date.now() + ms, box = $("fb-wait"), num = $("fb-wait-num"), st = $("fb-status");
+    setStatus(st, `Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in etwa ${roughTime(ms)} (Versuch ${nextTry} von ${FB_TRIES}). Du kannst so lange weiterschreiben; beim nächsten Versuch wird dein aktueller Text geschickt. Lass diese Seite geöffnet.`, "busy");
+    box.classList.remove("hidden");
+    const tick = () => { num.textContent = `Nächster Versuch in ${Math.max(0, Math.ceil((due - Date.now()) / 1000))} s`; };
+    tick();
+    const iv = setInterval(tick, 1000);
+    let timer = 0, cancelled = false;
+    const done = () => {
+      clearInterval(iv); clearTimeout(timer); document.removeEventListener("visibilitychange", onVis);
+      if (document.activeElement === $("fb-wait-stop")) { try { $("fb-wait-stop").blur(); } catch (e) { /* egal */ } }   // der Button verschwindet; failed() setzt den Fokus
+      box.classList.add("hidden"); num.textContent = ""; S.fbStop = null;
+      resolve(cancelled);
+    };
+    const onVis = () => { if (document.visibilityState === "visible") { tick(); if (Date.now() >= due) done(); } };
+    document.addEventListener("visibilitychange", onVis);
+    timer = setTimeout(done, ms);
+    S.fbStop = () => { cancelled = true; done(); };
+  });
+}
+$("fb-wait-stop").addEventListener("click", () => { if (S.fbStop) S.fbStop(); });
+
 async function requestFeedback() {
   if (S.feedback || S.busyFeedback) return;
   const st = $("fb-status"), btn = $("fb-btn");
   setStatus(st, "", "");
-  const answers = S.tas.map((t) => t.value);
-  const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
+  const snapshot = () => {   // Antworten jetzt lesen – vor jedem Versuch neu, damit Feedback und erste Fassung zum gesendeten Text passen
+    const answers = S.tas.map((t) => t.value);
+    const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
+    return { answers, empty, tooLong: tooLongTotal(answers) };
+  };
+  let { answers, empty, tooLong } = snapshot();
   if (empty.length === answers.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
-  const tooLong = tooLongTotal(answers);
   if (tooLong) { setStatus(st, tooLong, "bad"); return; }
+  const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
-    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\nDas KI-Feedback gibt es nur einmal. Möchtest du es trotzdem jetzt anfordern?`,
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${who}\nDas KI-Feedback gibt es nur einmal. Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
-    text: "Das KI-Feedback gibt es nur einmal. Deine jetzigen Antworten werden als erste Fassung gespeichert und später mit abgegeben.",
+    text: `${who}\nDas KI-Feedback gibt es nur einmal. Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok) return;
+  const run = ++S.fbRun, t0 = Date.now();
   S.busyFeedback = true; btn.disabled = true;
-  S.tas.forEach((t) => { t.readOnly = true; });
-  setStatus(st, "Die KI arbeitet … das kann bis zu einer Minute dauern.", "busy");
-  const slow = setTimeout(() => setStatus(st, "Die KI arbeitet … das dauert gerade etwas länger. Bitte warte noch.", "busy"), 60000);
-  try {
-    const r = await api("POST", "/api/feedback", { body: { code: S.code, answers }, timeout: 150000 });
-    if (!Array.isArray(r.results) || r.results.length !== answers.length) throw new ApiError("bad_result");
-    S.first = answers.slice();
+  let tries = 0, busySeen = 0;
+  const unlock = () => { S.busyFeedback = false; btn.disabled = !!S.feedback; S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; };
+  const failed = (e, count, msg) => {   // Fehlversuch(e) zählen; nach zweien darf ohne KI-Feedback abgegeben werden (niemand sitzt fest)
+    unlock();
+    if (document.activeElement === document.body) { try { btn.focus({ preventScroll: true }); } catch (x) { /* egal */ } }   // Fokus nach „Nicht länger warten“
+    setStatus(st, msg, "bad");
+    S.fbFails += count;
+    const serverSide = e instanceof ApiError && e.code !== "bad_answers" && e.code !== "too_long" && e.code !== "bad_request" && e.code !== "not_found";
+    if (serverSide && (e.code === "ai_not_configured" || S.fbFails >= 2)) {
+      S.fbUnavailable = e.code === "ai_not_configured" ? "noch nicht eingerichtet" : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
+      renderFeedbackState();
+    }
+    saveDraft();
+  };
+  for (;;) {
+    if (run !== S.fbRun) return;
+    tries++;
+    S.tas.forEach((t) => { t.readOnly = true; });   // nur während eine Anfrage wirklich läuft
+    setStatus(st, tries === 1 ? "Die KI arbeitet … das kann bis zu einer Minute dauern." : `Neuer Versuch – die KI arbeitet (Versuch ${tries} von ${FB_TRIES}).`, "busy");
+    const slow = setTimeout(() => { if (run === S.fbRun) setStatus(st, "Die KI arbeitet … das dauert gerade etwas länger. Bitte warte noch.", "busy"); }, 60000);
+    S.fbAbort = new AbortController();
+    let r;
+    try {
+      r = await api("POST", "/api/feedback", { body: { code: S.code, answers, recipients: (S.sheet.aiRecipients || []).map((x) => x.id) }, timeout: 150000, signal: S.fbAbort.signal });
+    } catch (e) {
+      clearTimeout(slow);
+      if (run !== S.fbRun || (e instanceof ApiError && e.code === "aborted")) return;
+      S.tas.forEach((t) => { t.readOnly = false; });
+      if (e instanceof ApiError && e.code === "ai_busy") {
+        busySeen++;
+        if (tries < FB_TRIES && Date.now() - t0 < FB_MAX_MS) {
+          // Automatisch erneut – mit Zufallsanteil, damit nicht alle Browser einer Klasse in derselben Sekunde wiederkommen
+          const base = Math.max(3, Math.min(60, e.retryAfter || 30)) * 1000;
+          const cancelled = await waitBeforeRetry(run, Math.round(base * (1 + jitterMs(0.3)) + jitterMs(3000)), tries + 1);
+          if (run !== S.fbRun || S.submitted) return;
+          if (cancelled) {
+            failed(e, 1, "Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
+            return;
+          }
+          ({ answers, empty, tooLong } = snapshot());
+          if (tooLong) { unlock(); setStatus(st, tooLong, "bad"); return; }
+          continue;
+        }
+        failed(e, 2, "Die KI ist gerade sehr stark ausgelastet – auch nach mehreren Versuchen hat es nicht geklappt. Du kannst es in ein paar Minuten noch einmal versuchen.");
+        return;
+      }
+      if (e instanceof ApiError && e.code === "ai_changed") {   // Lehrkraft hat die KI-Einstellungen geändert: erst neu informieren, nichts gesendet
+        setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – der Datenschutzhinweis wird neu geladen …", "busy");
+        try { await reloadRecipients(); } catch (x) { /* Hinweis bleibt der alte */ }
+        if (run !== S.fbRun) return;
+        unlock();
+        setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis unter dem Button noch einmal und fordere das Feedback dann erneut an.", "bad");
+        return;
+      }
+      const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s");
+      failed(e, 1, msg);
+      return;
+    } finally { clearTimeout(slow); }
+    if (run !== S.fbRun) return;
+    if (!Array.isArray(r.results) || r.results.length !== answers.length) { failed(new ApiError("bad_result"), 1, "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal."); return; }
+    S.first = answers.slice();   // genau die gesendete Fassung
     S.feedback = r.results.map(normFb);
     S.feedbackAt = new Date().toISOString();
     S.fbUnavailable = ""; S.fbFails = 0;
     saveDraft();
     setStatus(st, "", "");
-    S.busyFeedback = false;
+    unlock();
     renderFeedbackState();
+    sendFirstAttempt();   // im Hintergrund; die Abgabe enthält die erste Fassung ohnehin
     const rh = $("revise-hint");
     rh.scrollIntoView({ block: "nearest", behavior: "smooth" });
     setTimeout(() => { try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ } }, 50);
-  } catch (e) {
-    S.busyFeedback = false;
-    btn.disabled = false;
-    const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s");
-    setStatus(st, msg, "bad");
-    // KI nicht eingerichtet oder wiederholt nicht erreichbar → Abgabe ohne Feedback erlauben (niemand darf festsitzen)
-    S.fbFails++;
-    const serverSide = e instanceof ApiError && e.code !== "bad_answers" && e.code !== "too_long" && e.code !== "bad_request" && e.code !== "not_found";
-    if (serverSide && (e.code === "ai_not_configured" || S.fbFails >= 2)) {
-      S.fbUnavailable = e.code === "ai_not_configured" ? "noch nicht eingerichtet" : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
-      saveDraft();
-      renderFeedbackState();
-    }
-  } finally {
-    clearTimeout(slow);
-    S.tas.forEach((t) => { t.readOnly = false; });
+    return;
   }
 }
 $("fb-btn").addEventListener("click", requestFeedback);
+
+/* Feedback-Einträge in der gespeicherten Form (ohne Darstellungsfelder) */
+const fbOut = (f) => (f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing });
+/* Erstversuch: erste Fassung + KI-Feedback verschlüsselt an die Lehrkraft übermitteln. Die spätere Abgabe (gleiche Kennung)
+   ersetzt ihn auf dem Server. Schlägt die Übermittlung fehl, wird sie beim nächsten Öffnen nachgeholt. */
+async function sendFirstAttempt() {
+  if (!S.feedback || !S.first || S.firstSent || S.submitted || !S.attempt || !S.pub) return;
+  try {
+    const payload = {
+      v: 1, stage: "first", sheetCode: S.code, sheetTitle: S.sheet.title,
+      person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse },
+      answers: S.first.map((a) => ({ first: a, final: null })),
+      feedback: S.feedback.map(fbOut), feedbackAt: S.feedbackAt, submittedAt: null
+    };
+    const envelope = await Crypto.seal(S.pub, payload);
+    await api("POST", "/api/submit", { body: { code: S.code, envelope, stage: "first", attempt: S.attempt }, timeout: 60000 });
+    S.firstSent = true;
+    if (!S.submitted) saveDraft();
+  } catch (e) { /* kein Drama: beim nächsten Öffnen erneut, und die Abgabe enthält die erste Fassung */ }
+}
 
 /* ---------- Abgabe ---------- */
 async function submitAll() {
@@ -2039,26 +2574,31 @@ async function submitAll() {
     ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true
   });
   if (!ok) return;
+  stopFeedbackRun();   // eine noch wartende Feedback-Anfrage wird mit der Abgabe hinfällig
   busy(btn, true, "Wird abgegeben …");
   setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
   try {
     const payload = {
-      v: 1, sheetCode: S.code, sheetTitle: S.sheet.title,
+      v: 1, stage: "final", sheetCode: S.code, sheetTitle: S.sheet.title,
       person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse },
       answers: S.tas.map((t, i) => ({ first: withFb ? S.first[i] : t.value, final: t.value })),
-      feedback: withFb ? S.feedback.map((f) => f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing }) : null,
+      feedback: withFb ? S.feedback.map(fbOut) : null,
       feedbackAt: withFb ? S.feedbackAt : null, submittedAt: new Date().toISOString()
     };
     if (!withFb) payload.feedbackError = S.fbUnavailable;
     saveDraft();
     let envelope;
     try { envelope = await Crypto.seal(S.pub, payload); } catch (e) { throw new ApiError("crypto"); }
-    const r = await api("POST", "/api/submit", { body: { code: S.code, envelope }, timeout: 60000 });
+    const r = await api("POST", "/api/submit", { body: { code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }, timeout: 60000 });
     S.submitted = true;
     store.del(S.draftKey); store.del(LAST_KEY);
     const d = toDate(r.receivedAt) || new Date();
     const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
     $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;
+    // Für „Meine Lösungen als PDF herunterladen“ auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
+    S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
+      feedback: payload.feedback, feedbackError: payload.feedbackError || "", receivedAt: d.getTime() };
+    setStatus($("done-status"), "", "");
     clearEditor();
     show("screen-done");
     focusSoon("done-btn", 30);
@@ -2075,9 +2615,18 @@ function clearEditor() {
   S.tas = []; S.outs = []; S.fbs = [];
   $("who-name").textContent = ""; $("ed-title").textContent = ""; $("sheet-title").textContent = "";
 }
+/* Laufende Feedback-Anfrage samt Warten beenden: späte Antworten werden anhand der Lauf-Kennung verworfen */
+function stopFeedbackRun() {
+  S.fbRun++;
+  if (S.fbStop) { try { S.fbStop(); } catch (e) { /* egal */ } }
+  if (S.fbAbort) { try { S.fbAbort.abort(); } catch (e) { /* egal */ } }
+  S.fbStop = null; S.fbAbort = null; S.busyFeedback = false;
+  $("fb-wait").classList.add("hidden");
+}
 function resetStudent() {
+  stopFeedbackRun();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
   ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }
@@ -2086,7 +2635,7 @@ $("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").
 /* =====================================================================
  *  Lehrkraft
  * ===================================================================== */
-const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false,
+const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], subsHidden: 0, ai: null, builderDirty: false,
   pendingUploads: [], doneUploads: 0, uploadRun: 0 };   // Bilder, die nach dem Anlegen eines Blattes noch hochzuladen sind
 // Bilder einer Aufgabe in der Lehrkraft-Ansicht (klein, Klick vergrößert; der Titel nennt die gewählte Anzeigeart)
 function teacherImgs(code, metas, n) {
@@ -2227,7 +2776,8 @@ async function loadAiState() {
     $("t-aiwarn").classList.toggle("hidden", has);
     $("t-aiwarn").textContent = (r.keyError ? String(r.keyError) + " " : "") + "Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte richten Sie unter „KI-Einstellungen“ einen Anbieter mit API-Schlüssel ein.";
     $("t-aiinfo").classList.toggle("hidden", !has);
-    $("t-aiinfo").textContent = has ? `KI-Feedback über ${provLabel(r.provider, r.label)}${r.model ? " (Modell: " + r.model + ")" : ""}.` : "";
+    const rs = r.reserve && r.reserve.hasKey ? r.reserve : null;
+    $("t-aiinfo").textContent = has ? `KI-Feedback über ${provLabel(r.provider, r.label)}${r.model ? " (Modell: " + r.model + ")" : ""}.${rs ? ` Reserve: ${provLabel(rs.provider, rs.label)}${rs.model ? " (Modell: " + rs.model + ")" : ""}.` : ""}` : "";
   } catch (e) { if (!handleAuthError(e)) { $("t-aiinfo").classList.remove("hidden"); $("t-aiinfo").textContent = "KI-Einstellungen konnten nicht geladen werden: " + errMsg(e, "t"); } }
 }
 async function loadSheets(keepSel) {
@@ -2255,7 +2805,8 @@ function renderSheets() {
       h("td", { class: "code", text: fmtCode(s.code) }),
       h("td", { class: "nowrap hide-s", text: fmtDT(s.createdAt) }),
       h("td", { class: "num hide-s", text: String(s.taskCount ?? "–") }),
-      h("td", { class: "num", text: String(s.submissionCount ?? "–") })
+      h("td", { class: "num" }, [String(s.submissionCount ?? "–"),
+        s.firstCount > 0 ? h("span", { class: "st-first", title: `${s.firstCount === 1 ? "1 Erstversuch" : s.firstCount + " Erstversuche"} ohne Überarbeitung (nur KI-Feedback angefordert)` }, [" +" + s.firstCount, h("span", { class: "sr-only", text: s.firstCount === 1 ? " Erstversuch ohne Überarbeitung" : " Erstversuche ohne Überarbeitung" })]) : null])
     ]);
     const pick = () => selectSheet(s.code);
     tr.addEventListener("click", pick);
@@ -2273,7 +2824,7 @@ async function selectSheet(code) {
   $("t-sel-tasks").textContent = ""; $("t-sel-det").open = false;
   $("t-subs-body").textContent = ""; $("t-subs-sum").textContent = "";
   setStatus($("t-del-status"), "", "");
-  T.selSheet = null; T.subs = [];
+  T.selSheet = null; T.subs = []; T.subsHidden = 0; $("t-subs-legend").classList.add("hidden");
   setStatus($("t-subs-status"), "Abgaben werden geladen und entschlüsselt …", "busy");
   try {
     const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code));
@@ -2322,34 +2873,49 @@ async function loadSubs() {
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
         }
       } catch (e) { p = null; }
-      out.push({ id: s.id, receivedAt: s.receivedAt, p });
+      out.push({ id: s.id, receivedAt: s.receivedAt, stage: s.stage === "first" ? "first" : "final", p });
     }
+    // Erstversuche von Schüler:innen, die (z. B. von einem anderen Gerät aus) inzwischen abgegeben haben, sind überholt
+    const who = (x) => x.p ? [x.p.person.klasse, x.p.person.nachname, x.p.person.vorname, x.p.person.geburtsdatum].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|") : "";
+    const finals = new Set(out.filter((x) => x.stage === "final" && x.p).map(who));
+    const shown = out.filter((x) => !(x.stage === "first" && x.p && finals.has(who(x))));
+    T.subsHidden = out.length - shown.length;
     const key = (x) => x.p ? [String(x.p.person.klasse || ""), String(x.p.person.nachname || ""), String(x.p.person.vorname || "")] : ["￿", "", ""];
     const coll = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
-    out.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
-    T.subs = out;
+    shown.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
+    T.subs = shown;
     setStatus(st, "", "");
     renderSubs();
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
 }
+/* Zählung der Einträge in Worten: „3 Abgaben · 1 Erstversuch ohne Überarbeitung“ */
+function subsSummary(finals, firsts) {
+  const parts = [];
+  if (finals || !firsts) parts.push(finals === 0 ? "Noch keine Abgabe" : finals === 1 ? "1 Abgabe" : finals + " Abgaben");
+  if (firsts) parts.push(firsts === 1 ? "1 Erstversuch ohne Überarbeitung" : firsts + " Erstversuche ohne Überarbeitung");
+  return parts.join(" · ");
+}
 function renderSubs() {
   const tb = $("t-subs-body"); tb.textContent = "";
-  const n = T.subs.length;
-  $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : n === 1 ? "1 Abgabe" : n + " Abgaben";
+  const n = T.subs.length, firsts = T.subs.filter((s) => s.stage === "first").length, finals = n - firsts;
+  $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : subsSummary(finals, firsts) +
+    (T.subsHidden ? ` · ${T.subsHidden === 1 ? "1 älterer Erstversuch" : T.subsHidden + " ältere Erstversuche"} von Schüler:innen, die inzwischen abgegeben haben, ${T.subsHidden === 1 ? "wird" : "werden"} nicht angezeigt` : "");
+  $("t-subs-legend").classList.toggle("hidden", n === 0);
   $("t-expand-all").textContent = "Alle aufklappen";
   $("t-expand-all").disabled = n === 0;
-  $("t-del-subs").disabled = n === 0;
+  $("t-del-subs").disabled = n === 0 && !T.subsHidden;
   if (!n) { tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: "Zu diesem Feibeitsblatt ist noch nichts abgegeben worden." })])); return; }
   T.subs.forEach((s, idx) => {
+    const isFirst = s.stage === "first";
     if (!s.p) {
-      tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: `Abgabe vom ${fmtDT(s.receivedAt)} konnte nicht entschlüsselt werden (beschädigt oder mit einem anderen Schlüssel verschlüsselt).` })]));
+      tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: `${isFirst ? "Erstversuch" : "Abgabe"} vom ${fmtDT(s.receivedAt)} konnte nicht entschlüsselt werden (beschädigt oder mit einem anderen Schlüssel verschlüsselt).` })]));
       return;
     }
-    const pr = s.p.person;
-    const main = h("tr", { class: "clickable main", tabindex: "0", "aria-expanded": "false", "aria-controls": "sd-" + idx }, [
-      h("td", { class: "arrowcol" }, [h("span", { class: "arrow", "aria-hidden": "true", text: "▸" })]),
-      h("td", { text: String(pr.nachname || "") }),
-      h("td", { text: String(pr.vorname || "") }),
+    const pr = s.p.person, cls = isFirst ? "st-first" : "st-final";
+    const main = h("tr", { class: "clickable main " + (isFirst ? "row-first" : "row-final"), tabindex: "0", "aria-expanded": "false", "aria-controls": "sd-" + idx }, [
+      h("td", { class: "arrowcol" }, [h("span", { class: "arrow", "aria-hidden": "true", text: "▸" }), h("span", { class: "sr-only", text: isFirst ? "Erstversuch ohne Überarbeitung" : "Abgabe nach der Überarbeitung" })]),
+      h("td", { class: cls, text: String(pr.nachname || "") }),
+      h("td", { class: cls, text: String(pr.vorname || "") }),
       h("td", { class: "nowrap", text: fmtIsoDate(pr.geburtsdatum) }),
       h("td", { text: String(pr.klasse || "") })
     ]);
@@ -2366,21 +2932,24 @@ function renderSubs() {
   });
 }
 function buildDetail(s) {
-  const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [];
+  const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [], isFirst = s.stage === "first";
   const box = h("div", { class: "detbox" });
-  const meta = [`Abgegeben am ${fmtDT(s.receivedAt)}`];
+  const meta = [isFirst ? "Erstversuch ohne Überarbeitung – noch nicht abgegeben" : `Abgegeben am ${fmtDT(s.receivedAt)}`];
   if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
-  box.appendChild(h("p", { class: "dmeta", text: meta.join(" · ") }));
-  if (!Array.isArray(p.feedback)) {
+  box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
+  if (isFirst) {
+    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Diese Schülerin oder dieser Schüler hat das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
+  } else if (!Array.isArray(p.feedback)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Ohne KI-Feedback abgegeben (KI war nicht erreichbar" + (p.feedbackError ? ": " + String(p.feedbackError).slice(0, 100) : "") + "). Beide Spalten zeigen deshalb denselben Text." }));
   }
   const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
   const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback";
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
-    const cell = (txt, label, extra) => {
+    const cell = (txt, label, extra, pending) => {
       const td = h("td", { "data-label": label });
-      if (txt.trim()) td.appendChild(document.createTextNode(txt)); else td.appendChild(h("span", { class: "empty", text: "(leer)" }));
+      if (pending) td.appendChild(h("span", { class: "empty", text: "(noch nicht überarbeitet)" }));
+      else if (txt.trim()) td.appendChild(document.createTextNode(txt)); else td.appendChild(h("span", { class: "empty", text: "(leer)" }));
       if (extra) td.appendChild(extra);
       return td;
     };
@@ -2399,7 +2968,7 @@ function buildDetail(s) {
       tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
       h("table", { class: "cmp" }, [
         h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
-        h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null)])])
+        h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, !isFirst && first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null, isFirst)])])
       ]),
       f ? fbEl : null
     ]));
@@ -2439,35 +3008,42 @@ $("t-template").addEventListener("click", async () => {
     if (lost) $("b-err").textContent = `${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`;
   } finally { busy(btn, false); }
 });
+/* „Die eine Abgabe“, „Alle 4 Abgaben und Erstversuche“ … (Subjekt für Lösch-Dialoge) */
+function subsNoun(n, firsts) {
+  if (n === 1) return firsts ? "Der eine Erstversuch" : "Die eine Abgabe";
+  return `Alle ${n} ${firsts === 0 ? "Abgaben" : firsts === n ? "Erstversuche" : "Abgaben und Erstversuche"}`;
+}
 $("t-del-subs").addEventListener("click", async () => {
-  const n = T.subs.length, title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-subs");
+  const firsts = T.subs.filter((s) => s.stage === "first").length + (T.subsHidden || 0), n = T.subs.length + (T.subsHidden || 0);
+  const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-subs");
   if (!n) return;
   const ok = await askConfirm({
     title: "Alle Abgaben löschen?",
-    text: `${n === 1 ? "Die eine Abgabe zu „" + title + "“ wird" : "Alle " + n + " Abgaben zu „" + title + "“ werden"} endgültig aus der Datenbank gelöscht. Das lässt sich nicht rückgängig machen.`,
-    ok: n === 1 ? "Abgabe löschen" : `${n} Abgaben löschen`, cancel: "Abbrechen", danger: true
+    text: `${subsNoun(n, firsts)} zu „${title}“ ${n === 1 ? "wird" : "werden"} endgültig aus der Datenbank gelöscht. Das lässt sich nicht rückgängig machen.`,
+    ok: n === 1 ? (firsts ? "Erstversuch löschen" : "Abgabe löschen") : `${n} ${firsts === n ? "Erstversuche" : "Abgaben"} löschen`, cancel: "Abbrechen", danger: true
   });
   if (!ok) return;
   busy(btn, true, "Wird gelöscht …");
   try {
     const r = await TA("/api/teacher/sheets/" + encodeURIComponent(T.sel) + "/submissions", { method: "DELETE" });
     setStatus(st, `${r.deleted === 1 ? "1 Abgabe" : (r.deleted ?? n) + " Abgaben"} gelöscht.`, "ok");
-    T.subs = []; renderSubs(); loadSheets(true);
+    T.subs = []; T.subsHidden = 0; renderSubs(); loadSheets(true);
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
-  finally { busy(btn, false); $("t-del-subs").disabled = T.subs.length === 0; }
+  finally { busy(btn, false); $("t-del-subs").disabled = T.subs.length === 0 && !T.subsHidden; }
 });
 $("t-del-sheet").addEventListener("click", async () => {
   const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-sheet");
   const ok = await askConfirm({
     title: "Feibeitsblatt löschen?",
-    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${T.subs.length === 0 ? "" : T.subs.length === 1 ? "mitsamt der einen Abgabe " : "mitsamt allen " + T.subs.length + " Abgaben "}endgültig gelöscht. Der Code wird ungültig.`,
+    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${(() => { const n = T.subs.length + (T.subsHidden || 0), f = T.subs.filter((s) => s.stage === "first").length + (T.subsHidden || 0);
+      return n === 0 ? "" : n === 1 ? (f ? "mitsamt dem einen Erstversuch " : "mitsamt der einen Abgabe ") : `mitsamt allen ${n} ${f === 0 ? "Abgaben" : f === n ? "Erstversuchen" : "Abgaben und Erstversuchen"} `; })()}endgültig gelöscht. Der Code wird ungültig.`,
     ok: "Feibeitsblatt löschen", cancel: "Abbrechen", danger: true
   });
   if (!ok) return;
   busy(btn, true);
   try {
     await TA("/api/teacher/sheets/" + encodeURIComponent(T.sel), { method: "DELETE" });
-    T.sel = null; T.selSheet = null; T.subs = [];
+    T.sel = null; T.selSheet = null; T.subs = []; T.subsHidden = 0;
     $("t-sel").classList.add("hidden");
     await loadSheets();
     setStatus($("t-list-status"), "Feibeitsblatt gelöscht.", "ok");
@@ -2782,19 +3358,25 @@ $("b-res-back").addEventListener("click", async () => {
 });
 
 /* ---------- KI-Einstellungen ---------- */
-const PROVIDERS = {
-  groq: { label: "Groq", model: "openai/gpt-oss-120b", key: "gsk_…" },
-  openrouter: { label: "OpenRouter", model: "openai/gpt-oss-120b:free", key: "sk-or-v1-…" },
-  gemini: { label: "Google Gemini", model: "gemini-flash-latest", key: "AIza…" },
-  cerebras: { label: "Cerebras", model: "gpt-oss-120b", key: "csk-…" },
-  custom: { label: "anderer OpenAI-kompatibler Dienst", model: "", key: "API-Schlüssel" }
+const PROVIDERS = {   // recipient = Rechtsträger und Sitz, wie der Server ihn den Schüler:innen nennt (worker/ai.js)
+  groq: { label: "Groq", model: "openai/gpt-oss-120b", key: "gsk_…", recipient: "Groq, Inc. (USA)" },
+  openrouter: { label: "OpenRouter", model: "openai/gpt-oss-120b:free", key: "sk-or-v1-…", recipient: "OpenRouter, Inc. (USA) – leitet die Anfrage an wechselnde Rechenzentren anderer Anbieter weiter" },
+  gemini: { label: "Google Gemini", model: "gemini-flash-latest", key: "AIza…", recipient: "Google (Gemini-API; Verarbeitung auch in den USA möglich)" },
+  cerebras: { label: "Cerebras", model: "gpt-oss-120b", key: "csk-…", recipient: "Cerebras Systems Inc. (USA)" },
+  custom: { label: "anderer OpenAI-kompatibler Dienst", model: "", key: "API-Schlüssel", recipient: "" }
 };
+function recipientOf(provider, baseUrl) {
+  if (provider !== "custom") return (PROVIDERS[provider] || {}).recipient || provider;
+  let host = ""; try { host = new URL(baseUrl).host; } catch (e) { host = String(baseUrl || ""); }
+  return host + " (Betreiber und Sitz: von Ihnen zu prüfen)";
+}
 function provLabel(p, serverLabel) { return typeof serverLabel === "string" && serverLabel ? serverLabel : PROVIDERS[p] ? PROVIDERS[p].label : String(p || "–"); }
 let aiDirty = false;
 function aiSyncForm() {
   const p = $("ai-prov").value, def = PROVIDERS[p] || PROVIDERS.custom;
   document.querySelectorAll(".provinfo").forEach((n) => n.classList.toggle("hidden", n.getAttribute("data-prov") !== p));
   $("ai-base-field").classList.toggle("hidden", p !== "custom");
+  $("ai-gemini-field").classList.toggle("hidden", p !== "gemini");
   $("ai-model").placeholder = def.model ? def.model : "Modell-ID, z. B. mistral-small-latest";
   $("ai-model-hint").textContent = def.model ? `Leer lassen für die Vorgabe (${def.model}). Bei erschöpftem Kontingent weicht der Server auf andere Modelle aus.` : "Bei einem anderen Dienst bitte die Modell-ID angeben.";
   $("ai-key").placeholder = def.key;
@@ -2819,10 +3401,15 @@ async function openAi() {
     $("ai-model").value = r.model || "";
     $("ai-base").value = r.baseUrl || "";
     $("ai-key").value = "";
-    aiDirty = false;
-    setStatus(st, "", "");
+    const rs = r.reserve;
+    $("ai2-prov").value = rs && PROVIDERS[rs.provider] ? rs.provider : "groq";
+    $("ai2-model").value = rs ? rs.model || "" : "";
+    $("ai2-base").value = rs ? rs.baseUrl || "" : "";
+    $("ai2-key").value = "";
+    aiDirty = false; ai2Dirty = false;
+    setStatus(st, "", ""); setStatus($("ai2-status"), "", "");
   } catch (e) { if (handleAuthError(e)) return; setStatus(st, errMsg(e, "t"), "bad"); }
-  finally { ["ai-save", "ai-test"].forEach((id) => { $(id).disabled = false; }); aiSyncForm(); }
+  finally { ["ai-save", "ai-test"].forEach((id) => { $(id).disabled = false; }); aiSyncForm(); ai2SyncForm(); }
 }
 $("t-ai").addEventListener("click", openAi);
 $("ai-back").addEventListener("click", () => { teacherView("tv-overview"); loadAiState(); });
@@ -2845,8 +3432,10 @@ async function aiSave(quiet) {
   // Der gespeicherte Schlüssel bleibt nur für denselben Dienst (Anbieter und Adresse) – er geht nie an einen anderen Host
   const sameProv = T.ai && T.ai.hasKey && T.ai.provider === provider && (provider !== "custom" || String(T.ai.baseUrl || "") === baseUrl);
   if (!key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel eintragen.", "bad"); $("ai-key").focus(); return false; }
+  if (provider === "gemini" && !$("ai-gemini-ok").checked) { setStatus(st, "Bitte bestätigen Sie, dass für diesen Google-Schlüssel ein Abrechnungskonto hinterlegt ist – ohne gilt Gemini im EWR nicht als zulässig.", "bad"); $("ai-gemini-ok").focus(); return false; }
   const body = { provider, model };
   if (provider === "custom") body.baseUrl = baseUrl;
+  if (provider === "gemini") body.confirmBilling = true;
   if (key) body.apiKey = key;
   setStatus(st, "Wird gespeichert …", "busy");
   try {
@@ -2876,6 +3465,96 @@ $("ai-test").addEventListener("click", async () => {
     setStatus(st, `Verbindung erfolgreich: ${provLabel(r.provider, r.label)}${r.model ? ", Modell „" + r.model + "“" : ""}.${r.sample ? " Testantwort: „" + String(r.sample).slice(0, 160) + "“" : ""}${r.tierNote ? " " + r.tierNote : ""}`, "ok");
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
   finally { busy(b, false); s.disabled = false; }
+});
+
+/* ---------- Reserve-KI (zweiter Anbieter, springt bei Auslastung ein) ---------- */
+let ai2Dirty = false;
+function ai2SyncForm() {
+  const p = $("ai2-prov").value, def = PROVIDERS[p] || PROVIDERS.custom, rs = T.ai && T.ai.reserve;
+  $("ai2-base-field").classList.toggle("hidden", p !== "custom");
+  $("ai2-gemini-field").classList.toggle("hidden", p !== "gemini");
+  const info = $("ai2-info"), src = document.querySelector('.provinfo[data-prov="' + p + '"]');   // dieselben Anbieter-Hinweise wie oben
+  info.textContent = "";
+  if (src) { const cl = src.cloneNode(true); cl.classList.remove("hidden", "provinfo"); cl.classList.add("provinfo2"); info.appendChild(cl); }
+  $("ai2-model").placeholder = def.model ? def.model : "Modell-ID, z. B. mistral-small-latest";
+  $("ai2-key").placeholder = def.key;
+  let hint;
+  if (rs && rs.hasKey && rs.provider === p) hint = `Gespeichert: ${rs.keyHint || "…"} – leer lassen, um ihn zu behalten.`;
+  else if (rs && rs.hasKey) hint = "Für den neuen Anbieter bitte auch einen neuen API-Schlüssel eintragen.";
+  else if (rs && rs.keyError) hint = String(rs.keyError);
+  else hint = "Keine Reserve-KI eingerichtet.";
+  $("ai2-key-hint").textContent = hint;
+  $("ai2-test").disabled = !(rs && rs.hasKey);
+  $("ai2-remove").disabled = !rs;
+}
+$("ai2-prov").addEventListener("change", () => { ai2Dirty = true; ai2SyncForm(); setStatus($("ai2-status"), "", ""); });
+["ai2-model", "ai2-base", "ai2-key"].forEach((id) => $(id).addEventListener("input", () => { ai2Dirty = true; }));
+async function ai2Save(quiet) {
+  const st = $("ai2-status");
+  const provider = $("ai2-prov").value, model = $("ai2-model").value.trim(), key = $("ai2-key").value.trim();
+  let baseUrl = $("ai2-base").value.trim().replace(/\/+$/, "");
+  if (provider === "custom") {
+    if (!baseUrl) { setStatus(st, "Bitte die Basis-URL des Dienstes eintragen (https://…/v1).", "bad"); $("ai2-base").focus(); return false; }
+    if (!validBase(baseUrl)) { setStatus(st, "Die Basis-URL muss mit https:// beginnen (http:// nur für 127.0.0.1 oder localhost).", "bad"); $("ai2-base").focus(); return false; }
+    if (!model) { setStatus(st, "Bitte für den anderen Dienst eine Modell-ID angeben.", "bad"); $("ai2-model").focus(); return false; }
+  }
+  const rs = T.ai && T.ai.reserve;
+  const sameProv = rs && rs.hasKey && rs.provider === provider && (provider !== "custom" || String(rs.baseUrl || "") === baseUrl);
+  if (!key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel der Reserve eintragen.", "bad"); $("ai2-key").focus(); return false; }
+  if (provider === "gemini" && !$("ai2-gemini-ok").checked) { setStatus(st, "Bitte bestätigen Sie, dass für diesen Google-Schlüssel ein Abrechnungskonto hinterlegt ist – ohne gilt Gemini im EWR nicht als zulässig.", "bad"); $("ai2-gemini-ok").focus(); return false; }
+  // Jede Reserve ist ein weiterer Empfänger der Schülertexte – das bestätigt die Lehrkraft ausdrücklich
+  const confirmed = await askConfirm({
+    title: "Weiteren KI-Empfänger hinzufügen?",
+    text: `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ausgelastet ist oder nicht antwortet. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
+    ok: "Reserve speichern", cancel: "Abbrechen", safeFirst: true
+  });
+  if (!confirmed) { setStatus(st, "", ""); return false; }
+  const reserve = { provider, model };
+  if (provider === "custom") reserve.baseUrl = baseUrl;
+  if (provider === "gemini") reserve.confirmBilling = true;
+  if (key) reserve.apiKey = key;
+  setStatus(st, "Wird gespeichert …", "busy");
+  try {
+    const r = await TA("/api/teacher/ai", { method: "PUT", body: { reserve }, timeout: 60000 });
+    $("ai2-key").value = "";
+    ai2Dirty = false;
+    T.ai = r;
+    ai2SyncForm();
+    if (r.reserveWarning) setStatus(st, String(r.reserveWarning), "bad");
+    else if (!quiet) setStatus(st, "Reserve gespeichert." + (Number.isInteger(r.reserveModelCount) ? (r.reserveModelCount === 1 ? " 1 passendes Modell gefunden." : ` ${r.reserveModelCount} passende Modelle gefunden.`) : "")
+      + (r.reserveTierNote ? " " + r.reserveTierNote : "") + " Mit „Reserve testen“ prüfen Sie, ob sie antwortet.", "ok");
+    return true;
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); return false; }
+}
+$("ai2-save").addEventListener("click", async () => {
+  const b = $("ai2-save"); busy(b, true, "Wird gespeichert …");
+  try { await ai2Save(false); } finally { busy(b, false); }
+});
+$("ai2-test").addEventListener("click", async () => {
+  const b = $("ai2-test"), st = $("ai2-status");
+  busy(b, true, "Wird getestet …");
+  try {
+    if (ai2Dirty && !(await ai2Save(true))) return;
+    if (!T.ai || !T.ai.reserve || !T.ai.reserve.hasKey) { setStatus(st, "Bitte zuerst Anbieter und API-Schlüssel der Reserve speichern.", "bad"); return; }
+    setStatus(st, "Die Reserve wird getestet … das kann bis zu einer Minute dauern.", "busy");
+    const r = await TA("/api/teacher/ai/test?which=reserve", { method: "POST", timeout: 120000 });
+    setStatus(st, `Reserve erfolgreich: ${provLabel(r.provider, r.label)}${r.model ? ", Modell „" + r.model + "“" : ""}.${r.sample ? " Testantwort: „" + String(r.sample).slice(0, 160) + "“" : ""}${r.tierNote ? " " + r.tierNote : ""}`, "ok");
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+  finally { busy(b, false); }
+});
+$("ai2-remove").addEventListener("click", async () => {
+  const b = $("ai2-remove"), st = $("ai2-status");
+  if (!T.ai || !T.ai.reserve) return;
+  const ok = await askConfirm({ title: "Reserve-KI entfernen?", text: "Der gespeicherte Schlüssel der Reserve wird gelöscht. Der erste Anbieter bleibt unverändert.", ok: "Entfernen", cancel: "Abbrechen", danger: true });
+  if (!ok) return;
+  busy(b, true, "Wird entfernt …");
+  try {
+    T.ai = await TA("/api/teacher/ai", { method: "PUT", body: { reserve: null } });
+    $("ai2-key").value = ""; $("ai2-model").value = ""; $("ai2-base").value = ""; ai2Dirty = false;
+    ai2SyncForm();
+    setStatus(st, "Reserve-KI entfernt.", "ok");
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+  finally { busy(b, false); }
 });
 
 /* ---------- Passwort ändern ---------- */

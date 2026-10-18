@@ -25,12 +25,16 @@ const STOP = new Set(("aber alle allem allen aller alles also auch auf aus bei b
 
 /* ---------- Prompt lesen (Format aus worker/ai.js buildFeedbackMessages) ---------- */
 export function parseFeedbackPrompt(text) {
-  const parts = String(text || "").split(/^### Aufgabe (\d+)[ \t]*$/m);
+  const s = String(text || "");
+  const grab = (seg, label) => { const m = new RegExp(label + "[^\\n]*\\n<<<\\n([\\s\\S]*?)\\n?>>>").exec(seg); return m ? m[1] : ""; };
+  // Antworten stehen gesammelt am Ende (Präfix-Caching); davor Aufgaben, Material (optional) und Musterlösungen
+  const ap = s.split(/^### Antwort zu Aufgabe (\d+)[ \t]*$/m), answers = new Map();
+  for (let i = 1; i < ap.length; i += 2) { const m = /^<<<\n([\s\S]*?)\n?>>>/m.exec(ap[i + 1]); answers.set(Number(ap[i]), m ? m[1] : ""); }
+  const parts = ap[0].split(/^### Aufgabe (\d+)[ \t]*$/m);
   const out = [];
   for (let i = 1; i < parts.length; i += 2) {
-    const seg = parts[i + 1];   // Blöcke anhand ihrer Beschriftung (das Material ist optional)
-    const grab = (label) => { const m = new RegExp(label + "[^\\n]*\\n<<<\\n([\\s\\S]*?)\\n?>>>").exec(seg); return m ? m[1] : ""; };
-    out.push({ nr: Number(parts[i]), task: grab("Aufgabenstellung:"), material: grab("Material zur Aufgabe"), solution: grab("Musterlösung der Lehrkraft:"), answer: grab("Antwort der Schülerin bzw\\. des Schülers:") });
+    const seg = parts[i + 1], nr = Number(parts[i]);
+    out.push({ nr, task: grab(seg, "Aufgabenstellung:"), material: grab(seg, "Material zur Aufgabe"), solution: grab(seg, "Musterlösung der Lehrkraft:"), answer: answers.has(nr) ? answers.get(nr) : "" });
   }
   return out;
 }
@@ -75,7 +79,7 @@ const readBody = (req) => new Promise((resolve, reject) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs = Number(process.env.MOCK_AI_DELAY_MS) || 0 } = {}) {
-  const state = { mode, delayMs, requests: [] };
+  const state = { mode, delayMs, requests: [], tpm: {}, tpmLimit: 2 };
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, "http://x");
@@ -84,8 +88,9 @@ export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs 
       if (path === "/__mock/reset" && req.method === "POST") { state.requests = []; return send(res, 200, { ok: true }); }
       if (path === "/__mock/mode" && req.method === "POST") {
         const b = JSON.parse((await readBody(req)) || "{}");
-        if (b.mode) state.mode = String(b.mode);
+        if (b.mode) { state.mode = String(b.mode); state.tpm = {}; }
         if (b.delayMs != null) state.delayMs = Number(b.delayMs) || 0;
+        if (b.tpmLimit != null) state.tpmLimit = Math.max(1, Number(b.tpmLimit) || 2);
         return send(res, 200, { ok: true, mode: state.mode, delayMs: state.delayMs });
       }
       const key = (/^Bearer\s+(.+)$/i.exec(req.headers.authorization || "") || [])[1] || "";
@@ -103,6 +108,12 @@ export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs 
         else if (state.delayMs) await sleep(state.delayMs);
         if (state.mode === "429") return send(res, 429, { error: { message: "Rate limit reached for model `" + body.model + "` on tokens per day (TPD): Limit 200000, Used 200000. Please try again in 7m12s.", type: "tokens", code: "rate_limit_exceeded" } });
         if (state.mode === "429soft") return send(res, 429, { error: { message: "Rate limit reached on requests per minute (RPM): Limit 30. Please try again in 1s.", type: "requests" } }, { "retry-after": "1" });
+        if (state.mode === "tpm") {   // Minutenlimit je Modell wie bei Groq: ab der (tpmLimit+1). Anfrage je Modell und Minute 429
+          const k = String(body.model || "?") + "@" + Math.floor(Date.now() / 300000);   // Fenster 5 min (Tests: kein Minutenwechsel mittendrin)
+          state.tpm[k] = (state.tpm[k] || 0) + 1;
+          if (state.tpm[k] > state.tpmLimit) return send(res, 429, { error: { message: "Rate limit reached for model `" + body.model + "` on tokens per minute (TPM): Limit 8000, Used 8000, Requested 3000. Please try again in 2s.", type: "tokens", code: "rate_limit_exceeded" } }, { "retry-after": "2" });
+        }
+        if (state.mode === "403flag") return send(res, 403, { error: { message: "Request flagged by moderation", type: "invalid_request_error", code: "content_moderation" } });
         if (state.mode === "500") return send(res, 500, { error: { message: "Internal server error" } });
         if (state.mode === "reasoning400" && (body.reasoning_effort != null || body.reasoning != null))
           return send(res, 400, { error: { message: "property 'reasoning_effort' is unsupported for this model", type: "invalid_request_error" } });
@@ -128,7 +139,7 @@ export async function startMockAI({ port = 0, host = "127.0.0.1", ...opts } = {}
   const p = server.address().port;
   return {
     server, state, port: p, url: "http://" + host + ":" + p + "/v1",
-    setMode(mode, delayMs) { state.mode = mode; if (delayMs != null) state.delayMs = delayMs; },
+    setMode(mode, delayMs, tpmLimit) { state.mode = mode; state.tpm = {}; if (delayMs != null) state.delayMs = delayMs; if (tpmLimit != null) state.tpmLimit = tpmLimit; },
     reset() { state.requests = []; },
     close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(() => r()); }),
   };

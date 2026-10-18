@@ -311,6 +311,7 @@ async function main() {
     assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["images,material,text", "images,material,text", "images,material,text"]);
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
+    assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }]);   // Empfänger für den Datenschutzhinweis
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
     for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Musterlösung im öffentlichen JSON!");
     assert.equal(/solution|musterl/i.test(r.text), false);
@@ -379,6 +380,29 @@ async function main() {
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 1);
     ok("Abgabe: Umschlag-Prüfungen; gespeicherter Umschlag mit dem privaten Schlüssel entschlüsselt = payload");
 
+    step = "Erstversuch";
+    const attempt = "0123456789abcdef";
+    const firstPayload = { ...payload, stage: "first", answers: payload.answers.map((a) => ({ first: a.final, final: null })), submittedAt: null };
+    const envFirst = await makeEnvelope(sheetPub.publicKey, firstPayload);
+    expectErr(await api("POST", "/api/submit", { code, envelope: envFirst, stage: "first" }), 400, "bad_request");          // Kennung fehlt
+    expectErr(await api("POST", "/api/submit", { code, envelope: envFirst, stage: "first", attempt: "nein" }), 400, "bad_request");
+    r = await api("POST", "/api/submit", { code, envelope: envFirst, stage: "first", attempt }); submitCount++;
+    assert.equal(r.status, 200, r.text); const firstId = r.json.id;
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(r.json.submissions.map((s) => s.stage), ["final", "first"]);
+    r = await api("GET", "/api/teacher/sheets", undefined, { auth });
+    assert.deepEqual([r.json.sheets[0].submissionCount, r.json.sheets[0].firstCount], [1, 1]);
+    r = await api("POST", "/api/submit", { code, envelope, stage: "final", attempt }); submitCount++;   // Abgabe derselben Bearbeitung
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.id, firstId); assert.equal(r.json.replaced, "first");
+    r = await api("POST", "/api/submit", { code, envelope: envFirst, stage: "first", attempt }); submitCount++;   // verspäteter Erstversuch
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.kept, true);
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(r.json.submissions.map((s) => s.stage), ["final", "final"]);
+    assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[1].envelope), payload);
+    r = await api("GET", "/api/teacher/sheets", undefined, { auth });
+    assert.deepEqual([r.json.sheets[0].submissionCount, r.json.sheets[0].firstCount], [2, 0]);
+    ok("Erstversuch: stage first mit Kennung; die Abgabe derselben Bearbeitung ersetzt ihn; ein späterer Erstversuch bleibt wirkungslos");
+
     step = "Datenbank ohne Klartext";
     await sleep(500);
     let scanned = 0;
@@ -411,7 +435,7 @@ async function main() {
 
     step = "Löschen";
     r = await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
-    assert.deepEqual(r.json, { ok: true, deleted: 1 });
+    assert.deepEqual(r.json, { ok: true, deleted: 2 });
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
     assert.deepEqual(r.json, { ok: true, submissions: [], next: null });
     r = await api("POST", "/api/submit", { code, envelope }); submitCount++;
@@ -449,13 +473,13 @@ async function main() {
     r = await api("GET", "/api/sheet/" + otherCode);
     assert.equal(r.status, 200, "gültige Codes öffnen trotz Sperre: " + r.text);
     ok("unbekannte Codes: nach 30 Fehlgriffen 429; gültige Codes öffnen weiter");
-    // Abgaben: jede gültige Abgabe zählt je IP (120/h); unbekannte Codes zählen nicht
+    // Abgaben: jede gültige Abgabe und jeder Erstversuch zählt je IP (240/h); unbekannte Codes zählen nicht
     const otherPub = r.json.sheet.publicKey;
     const env2 = await makeEnvelope(otherPub, { v: 1, sheetCode: otherCode, person: { vorname: "Tes", nachname: "Tt", geburtsdatum: "2010-01-01", klasse: "5a" }, answers: [{ first: "", final: "x" }] });
-    for (; submitCount < 120; submitCount++) { r = await api("POST", "/api/submit", { code: otherCode, envelope: env2 }); assert.equal(r.status, 200, r.text); }
+    for (; submitCount < 240; submitCount++) { r = await api("POST", "/api/submit", { code: otherCode, envelope: env2 }); assert.equal(r.status, 200, r.text); }
     expectErr(await api("POST", "/api/submit", { code: otherCode, envelope: env2 }), 429, "rate_limited");
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found");
-    ok("Abgabe: die 121. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
+    ok("Abgabe: die 241. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
 
     console.log("\nSmoke-Test bestanden.");
   } catch (e) {

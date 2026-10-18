@@ -8,18 +8,35 @@ import { isAllowedBase, materialText } from "./lib.js";
 // reasoning: "effort" = reasoning_effort (Groq/Cerebras), "object" = reasoning:{effort} (OpenRouter) – nur gpt-oss
 export const PROVIDERS = {
   groq: { label: "Groq", kind: "openai", base: "https://api.groq.com/openai/v1", defaultModel: "openai/gpt-oss-120b",
-    gapMs: 2500, maxTokensField: "max_completion_tokens", reasoning: "effort", keyHint: " Bitte unter console.groq.com → API Keys prüfen." },
+    gapMs: 2500, perModelGate: true, recipient: "Groq, Inc. (USA)",
+    maxTokensField: "max_completion_tokens", reasoning: "effort", keyHint: " Bitte unter console.groq.com → API Keys prüfen." },
   openrouter: { label: "OpenRouter", kind: "openai", base: "https://openrouter.ai/api/v1", freeOnly: true,
     keyCheck: ["/key", "/auth/key"], defaultModel: "openai/gpt-oss-120b:free", gapMs: 3500, reasoning: "object",
+    recipient: "OpenRouter, Inc. (USA) – leitet die Anfrage an wechselnde Rechenzentren anderer Anbieter weiter",
     keyHint: " Bitte unter openrouter.ai → Keys prüfen." },
   gemini: { label: "Google Gemini", kind: "gemini", base: "https://generativelanguage.googleapis.com/v1beta",
-    defaultModel: "gemini-flash-latest", gapMs: 4000, keyHint: " Bitte in Google AI Studio prüfen.",
+    defaultModel: "gemini-flash-latest", gapMs: 4000, perModelGate: true, recipient: "Google (Gemini-API; Verarbeitung auch in den USA möglich)",
+    keyHint: " Bitte in Google AI Studio prüfen.",
     retired: /^gemini-3\.5-flash(?!-lite)/i },   // seit Oktober 2026 auf gemini-3.6-flash umgeleitet: nie wählen
   cerebras: { label: "Cerebras", kind: "openai", base: "https://api.cerebras.ai/v1", defaultModel: "gpt-oss-120b",
-    gapMs: 2000, maxTokensField: "max_completion_tokens", reasoning: "effort", keyHint: " Bitte in der Cerebras-Konsole prüfen." },
+    gapMs: 2000, perModelGate: true, recipient: "Cerebras Systems Inc. (USA)",
+    maxTokensField: "max_completion_tokens", reasoning: "effort", keyHint: " Bitte in der Cerebras-Konsole prüfen." },
   custom: { label: "Eigener Dienst", kind: "openai", base: "", defaultModel: "", gapMs: 1000, keyHint: "" },
 };
 export const DEFAULT_PROVIDER = "groq";
+// Schlüssel für den Mindestabstand (ai_gate): je Modell, wo der Anbieter je Modell begrenzt (groq, cerebras, gemini) –
+// gleichzeitige Anfragen verteilen sich dann auf die Minutenkontingente aller Modelle; sonst je Anbieter-Eintrag.
+// `key` ist der Eintrag (erster Anbieter = provider, Reserve = provider + "#r"): getrennte Schlüssel = getrennte Kontingente.
+export function gateKey(provider, key, model) {
+  const p = PROVIDERS[provider];
+  return p && p.perModelGate && model ? key + "|" + String(model).slice(0, 120) : key;
+}
+export const RATE_LIMIT_TTL = { min: 5000, max: 90000, fallback: 30000 };   // Sperre eines Modells nach einem Minutenlimit (429)
+/* Empfänger für den Datenschutzhinweis der Schüler:innen: Rechtsträger und Sitz, beim eigenen Dienst der Host */
+export function recipientLabel(provider, baseUrl) {
+  const p = PROVIDERS[provider]; if (!p) return null;
+  return provider === "custom" ? hostOf(baseUrl) + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" : p.recipient || p.label;
+}
 
 export class AIError extends Error {
   constructor(code, message, extra = {}) { super(message); this.name = "AIError"; this.code = code; Object.assign(this, extra); }
@@ -31,6 +48,7 @@ export const PUBLIC_MSG = {
   DAILY_LIMIT: "Das KI-Kontingent für heute ist aufgebraucht. Bitte frag deine Lehrkraft.",
   TIMEOUT: "Die KI hat zu lange gebraucht. Bitte versuche es noch einmal.",
   TOO_LARGE: "Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich. Bitte sag deiner Lehrkraft Bescheid.",
+  FILTERED: "Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.",
   _: "Die KI-Rückmeldung ist gerade nicht verfügbar. Bitte versuche es später noch einmal oder frag deine Lehrkraft.",
 };
 
@@ -39,7 +57,7 @@ const withMsg = (m) => (m ? ": " + m : "");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hostOf = (b) => { try { return new URL(b).host; } catch { return b || "dem Dienst"; } };
 const HARD_LIMIT_RE = /per day|per-day|perday|daily|\bTPD\b|\bRPD\b|limit:\s*0\b/i;   // Tageskontingent / Kontingent 0: Warten hilft nicht
-export const TTL = { hard: 60 * 60e3, gone: 24 * 60 * 60e3, soft: 5 * 60e3 };   // wie lange ein Modell übersprungen wird
+export const TTL = { hard: 60 * 60e3, gone: 24 * 60 * 60e3, soft: 5 * 60e3, slow: 60e3 };   // wie lange ein Modell übersprungen wird
 
 /* Anzeigename für Schüler:innen (Datenschutzhinweis): beim eigenen Dienst der Host */
 export function providerLabel(provider, baseUrl) {
@@ -163,7 +181,7 @@ async function callAIInner(cfg, messages, opts, rotated) {
   const base = baseOf(cfg, p);
   if (!isAllowedBase(base)) throw new AIError("CONFIG", "Keine gültige Basis-URL für den Dienst hinterlegt (https://…/v1).");
   const o = { json: true, temperature: p.kind === "gemini" ? null : 0.2, timeoutMs: 45000, deadlineMs: 85000,
-    maxAttempts: 8, maxWaitMs: 20000, reasoning: true, ...opts };
+    maxAttempts: 8, maxWaitMs: 20000, minLeftMs: 15000, startAt: 0, reasoning: true, ...opts };
   const skip = new Set(cfg.skip || []);
   const all = [...new Set([cfg.model, ...(cfg.fallbacks || []), p.defaultModel])].filter((m) => m && !(p.retired && p.retired.test(m)));
   const queue = [...all.filter((m) => !skip.has(m)), ...all.filter((m) => skip.has(m))];   // erschöpfte Modelle nur als letzte Wahl
@@ -173,16 +191,41 @@ async function callAIInner(cfg, messages, opts, rotated) {
     ? { "HTTP-Referer": cfg.referer, "X-OpenRouter-Title": cfg.title || "Feibeitsblatt", "X-Title": cfg.title || "Feibeitsblatt" } : {};
 
   const t0 = Date.now(), left = () => o.deadlineMs - (Date.now() - t0);
-  const tries = {};
-  let qi = 0, jsonMode = !!o.json, reasoning = !!o.reasoning, lastErr = null;
-  const rotate = (model, reason, ttlMs) => {   // Ausweichen auf das nächste Modell der Liste (Check: rotateModel)
-    rotated.push({ model, reason, ttlMs }); qi++; return qi < queue.length;
+  const tries = {}, entryKey = cfg.key || cfg.provider;
+  // Startmodell versetzen (o.startAt): 30 gleichzeitige Anfragen laufen dann nicht alle dieselbe Reihenfolge, sondern
+  // verteilen sich von Anfang an auf die Modelle des Anbieters; erschöpfte Modelle bleiben hinten.
+  const fresh = queue.filter((m) => !skip.has(m)), stale = queue.filter((m) => skip.has(m));
+  const off = fresh.length ? (((Number(o.startAt) || 0) % fresh.length) + fresh.length) % fresh.length : 0;
+  const order = [...fresh.slice(off), ...fresh.slice(0, off), ...stale];
+  let qi = 0, jsonMode = !!o.json, reasoning = !!o.reasoning, lastErr = null, minRetryMs = 0, waited = false;
+  const noteRetry = (ms) => { if (ms > 0) minRetryMs = minRetryMs ? Math.min(minRetryMs, ms) : ms; };
+  const clampTtl = (ms) => Math.min(RATE_LIMIT_TTL.max, Math.max(RATE_LIMIT_TTL.min, ms || RATE_LIMIT_TTL.fallback));
+  const rotate = (model, reason, ttlMs) => {   // Ausweichen auf das nächste Modell; ttlMs > 0 sperrt das Modell sofort für alle Anfragen (onRotate)
+    const until = Date.now() + Math.max(0, ttlMs || 0);
+    rotated.push({ model, reason, ttlMs, until });
+    if (ttlMs > 0 && o.onRotate) { try { o.onRotate(entryKey, model, reason, until); } catch {} }
+    qi++; return qi < order.length;
   };
+  const next = () => { qi++; return qi < order.length; };   // stilles Weiterrücken ohne Sperre
 
-  for (let attempt = 0; attempt < o.maxAttempts && left() > 3000; attempt++) {
-    const model = queue[qi];
+  for (let attempt = 0; attempt < o.maxAttempts; attempt++) {
+    if (qi >= order.length) {
+      // Alle Modelle durch: einmal bis zum frühesten Ende einer Sperre warten, wenn das Zeitbudget das noch hergibt
+      if (!waited && minRetryMs > 0 && minRetryMs <= left() - o.minLeftMs - 5000) { waited = true; await sleep(minRetryMs + 250); qi = 0; minRetryMs = 0; continue; }
+      break;
+    }
+    if (left() < o.minLeftMs) break;   // zu wenig Zeit für einen weiteren Versuch – sonst nur ein nutzloser TIMEOUT
+    const model = order[qi];
     tries[model] = (tries[model] || 0) + 1;
-    if (o.beforeAttempt) await o.beforeAttempt(cfg.provider, p.gapMs, left());   // Mindestabstand je Anbieter (Check: waitForSlot)
+    if (o.beforeAttempt) {   // Mindestabstand je Anbieter/Modell; prüft zugleich frische Sperren – außer bei den letzten Reserven
+      try { await o.beforeAttempt(cfg.provider, p.gapMs, left(), model, entryKey, { lastResort: qi >= fresh.length }); }
+      catch (e) {
+        if (!(e instanceof AIError) || e.code !== "BUSY") throw e;
+        lastErr = e; noteRetry(e.retryAfterMs);
+        next(); continue;   // Warteschlange dieses Modells voll oder Modell gerade gesperrt → nächstes Modell, keine neue Sperre
+      }
+    }
+    const started = Date.now();
     const req = buildRequest(p, base, key, model, messages, o, jsonMode, reasoning, extraHeaders);
     const ac = new AbortController(), timer = setTimeout(() => ac.abort(), Math.max(1000, Math.min(o.timeoutMs, left())));
     let r, raw = "", data = null;
@@ -193,11 +236,13 @@ async function callAIInner(cfg, messages, opts, rotated) {
     } catch (e) {
       const timeout = ac.signal.aborted;
       lastErr = timeout
-        ? new AIError("TIMEOUT", "Zeitüberschreitung – " + p.label + " hat für „" + model + "“ nicht rechtzeitig geantwortet.")
+        ? new AIError("TIMEOUT", "Zeitüberschreitung – " + p.label + " hat für „" + model + "“ nicht rechtzeitig geantwortet.", { retryAfterMs: 15000 })
         : new AIError("NETWORK", "Netzwerkfehler – Anfrage an " + hostOf(base) + " nicht möglich.");
-      if (!timeout && tries[model] < 2) { await sleep(1500 * tries[model]); continue; }
-      if (rotate(model, timeout ? "antwortet zu langsam" : "nicht erreichbar", TTL.soft)) continue;
-      throw lastErr;
+      if (!timeout && tries[model] < 2 && left() > o.minLeftMs + 2000) { await sleep(1500 * tries[model]); continue; }
+      // Eine Zeitüberschreitung sperrt das Modell nur, wenn der Versuch wirklich Zeit hatte (volle timeoutMs, höchstens 30 s) – sonst war das Budget schuld
+      if (timeout && Date.now() - started < Math.min(o.timeoutMs, 30000) - 500) { next(); continue; }
+      rotate(model, timeout ? "antwortet zu langsam" : "nicht erreichbar", timeout ? TTL.slow : TTL.soft);
+      continue;
     } finally { clearTimeout(timer); }
 
     const emsg = errText(data);
@@ -214,8 +259,8 @@ async function callAIInner(cfg, messages, opts, rotated) {
       } catch (e) {
         if (!(e instanceof AIError) || !e.soft) throw e;           // Filter: nicht ausweichen (wie im Check)
         lastErr = e;
-        if (rotate(model, e.code === "BAD_JSON" ? "liefert kein gültiges JSON" : "liefert keine verwertbare Antwort", TTL.soft)) continue;
-        throw e;
+        rotate(model, e.code === "BAD_JSON" ? "liefert kein gültiges JSON" : "liefert keine verwertbare Antwort", TTL.soft);
+        continue;
       }
     }
     const status = !r.ok ? r.status
@@ -242,8 +287,8 @@ async function callAIInner(cfg, messages, opts, rotated) {
     if (status === 413 || ((status === 400 || status === 422) && /context|too large|too long|reduce the length|maximum .*tokens|token limit/i.test(emsg))) {
       lastErr = new AIError("TOO_LARGE", "Die Anfrage ist für das Modell „" + model + "“ zu lang (HTTP " + status + withMsg(emsg) + "). " +
         "Bitte kürzere Musterlösungen/Aufgaben verwenden oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen.", { status });
-      if (rotate(model, "lehnt die Anfrage als zu lang ab (HTTP " + status + ")", TTL.soft)) continue;
-      throw lastErr;
+      rotate(model, "lehnt die Anfrage als zu lang ab (HTTP " + status + ")", TTL.soft);
+      continue;
     }
 
     if (status === 429 || status === 404 || status === 408 || status >= 500) {
@@ -253,22 +298,39 @@ async function callAIInner(cfg, messages, opts, rotated) {
         : HARD_LIMIT_RE.test(emsg));
       if (status === 429 && hard && cfg.provider === "openrouter")   // Tageslimit gilt kontoweit für alle :free-Modelle
         throw new AIError("DAILY_LIMIT", "Tageslimit von OpenRouter für kostenlose Modelle erreicht (HTTP 429" + withMsg(emsg) + "). Morgen erneut versuchen oder einmalig Guthaben kaufen (dann gilt das höhere Tageslimit).", { status });
-      const wait = retryAfterMs(r, raw) || (status === 429 ? 10000 : 3000 * tries[model]);
-      if (!hard && status !== 404 && tries[model] < 2 && wait <= Math.min(o.maxWaitMs, left() - 5000)) {
-        lastErr = new AIError("RATE_LIMIT", status === 429 ? "Rate-Limit bei " + p.label + " (HTTP 429" + withMsg(emsg) + ")."
-          : p.label + "-Serverfehler (HTTP " + status + withMsg(emsg) + ").", { status });
+      const ra = retryAfterMs(r, raw), wait = ra || (status === 429 ? 10000 : 3000 * tries[model]);
+      // Minutenlimit (429, nicht hart) und ein weiteres Modell in der Liste: sofort wechseln statt warten – jedes Modell hat
+      // bei Groq/Cerebras/Gemini ein eigenes Minutenkontingent, so verteilen sich gleichzeitige Anfragen von selbst. Das
+      // 429-Modell wird nur für die gemeldete Wartezeit (5–90 s) gesperrt, nicht 5 Minuten. Ohne Alternative: kurz warten.
+      if (status === 429 && !hard && qi + 1 < order.length) {
+        lastErr = new AIError("RATE_LIMIT", "Rate-Limit bei " + p.label + " (HTTP 429" + withMsg(emsg) + ").", { status, retryAfterMs: clampTtl(ra) });
+        noteRetry(clampTtl(ra));
+        rotate(model, "hat sein Minutenlimit erreicht (HTTP 429)", clampTtl(ra));
+        continue;
+      }
+      if (!hard && status !== 404 && tries[model] < 2 && wait <= Math.min(o.maxWaitMs, left() - o.minLeftMs)) {
+        lastErr = status === 429 ? new AIError("RATE_LIMIT", "Rate-Limit bei " + p.label + " (HTTP 429" + withMsg(emsg) + ").", { status, retryAfterMs: wait })
+          : new AIError("SERVER", p.label + "-Serverfehler (HTTP " + status + withMsg(emsg) + ").", { status });
         await sleep(wait); continue;                                // kurzzeitig: warten, dasselbe Modell erneut
       }
       const why = status === 429 ? (limit0 ? "hat für diesen Schlüssel kein kostenloses Kontingent (limit: 0)" : hard ? "hat sein Tageskontingent erreicht" : "ist überlastet (HTTP 429)")
         : status === 404 ? "ist nicht (mehr) verfügbar (HTTP 404)" : "meldet einen Fehler (HTTP " + status + ")";
-      if (rotate(model, why, status === 404 ? TTL.gone : hard ? TTL.hard : TTL.soft)) continue;
-      if (status === 429) throw new AIError(hard ? "DAILY_LIMIT" : "RATE_LIMIT", "Rate-Limit oder Kontingent bei " + p.label + " erreicht (HTTP 429" + withMsg(emsg) + ") und kein weiteres Modell verfügbar – später erneut versuchen.", { status });
-      if (status === 404) throw new AIError("NOT_FOUND", "Modell „" + model + "“ nicht gefunden (HTTP 404" + withMsg(emsg) + "). Bitte in den KI-Einstellungen ein anderes Modell wählen.", { status });
-      throw new AIError("SERVER", p.label + "-Serverfehler (HTTP " + status + withMsg(emsg) + ").", { status });
+      if (status === 429) {
+        lastErr = new AIError(hard ? "DAILY_LIMIT" : "RATE_LIMIT", "Rate-Limit oder Kontingent bei " + p.label + " erreicht (HTTP 429" + withMsg(emsg) + ") und kein weiteres Modell verfügbar – später erneut versuchen.", { status, retryAfterMs: hard ? 0 : clampTtl(ra) });
+        if (!hard) noteRetry(clampTtl(ra));
+      } else if (status === 404) lastErr = new AIError("NOT_FOUND", "Modell „" + model + "“ nicht gefunden (HTTP 404" + withMsg(emsg) + "). Bitte in den KI-Einstellungen ein anderes Modell wählen.", { status });
+      else lastErr = new AIError("SERVER", p.label + "-Serverfehler (HTTP " + status + withMsg(emsg) + ").", { status });
+      rotate(model, why, status === 404 ? TTL.gone : hard ? TTL.hard : status === 429 ? clampTtl(ra) : TTL.soft);
+      continue;
     }
     throw new AIError("HTTP", "HTTP " + status + withMsg(emsg || raw.slice(0, 200)), { status });
   }
-  throw lastErr || new AIError("TIMEOUT", "Anfrage fehlgeschlagen (Zeitbudget aufgebraucht).");
+  // Ende ohne Antwort: Wartefehler (429/BUSY) wiegen schwerer als ein einzelner Server-/Formatfehler – die Schüler:innen
+  // sollen automatisch zum richtigen Zeitpunkt erneut anfragen (retryAfterMs), statt einen Fehlversuch zu zählen
+  if (minRetryMs > 0)   // unabhängig davon, welches Modell zuletzt dran war (Tageslimit, 404, Serverfehler …): Warten lohnt sich
+    throw new AIError(lastErr && lastErr.code === "BUSY" ? "BUSY" : "RATE_LIMIT", (lastErr ? lastErr.message + " " : "") + "Alle Modelle von " + p.label + " sind gerade ausgelastet.", { retryAfterMs: minRetryMs });
+  if (lastErr) throw lastErr;
+  throw new AIError("TIMEOUT", "Anfrage fehlgeschlagen (Zeitbudget aufgebraucht).", { retryAfterMs: 15000 });
 }
 
 /* ---------- Verbindungstest + Modellliste (Check: fetchModelsOpenAI / fetchModelsGemini) ---------- */
@@ -446,7 +508,7 @@ export const FEEDBACK_SCHEMA_GEMINI = {
  */
 const MATERIAL_CAP = 4000;   // Zeichen Material je Aufgabe im Prompt
 export function buildFeedbackMessages(tasks, answers) {
-  const nrs = [], blocks = [];
+  const nrs = [], blocks = [], replies = [];
   tasks.forEach((t, i) => {
     const solution = str(t.solution).trim();
     if (!solution) return;
@@ -455,10 +517,14 @@ export function buildFeedbackMessages(tasks, answers) {
     if (material.length > MATERIAL_CAP) material = material.slice(0, MATERIAL_CAP).trimEnd() + " …";
     blocks.push("### Aufgabe " + nr + "\nAufgabenstellung:\n<<<\n" + safeData(str(t.text).trim()) + "\n>>>\n" +
       (material ? "Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\n" + safeData(material) + "\n>>>\n" : "") +
-      "Musterlösung der Lehrkraft:\n<<<\n" + safeData(solution) + "\n>>>\n" +
-      "Antwort der Schülerin bzw. des Schülers:\n<<<\n" + safeData(str(answers[i]).trim()) + "\n>>>");
+      "Musterlösung der Lehrkraft:\n<<<\n" + safeData(solution) + "\n>>>");
+    replies.push("### Antwort zu Aufgabe " + nr + "\n<<<\n" + safeData(str(answers[i]).trim()) + "\n>>>");
   });
-  const user = "Aufgaben, Musterlösungen und Antworten:\n\n" + blocks.join("\n\n") +
+  // Der für alle Schüler:innen eines Blattes gleiche Teil (Aufgaben, Material, Musterlösungen) steht zuerst, die Antworten
+  // zuletzt: So greift das automatische Präfix-Caching der Anbieter (Groq: gecachte Token zählen nicht gegen die
+  // Minuten-/Tageslimits) ab der zweiten Anfrage zum selben Blatt – nur die Antworten und die Ausgabe kosten Kontingent.
+  const user = "Aufgaben, Material und Musterlösungen (Nummern: " + nrs.join(", ") + "):\n\n" + blocks.join("\n\n") +
+    "\n\nAntworten der Schülerin bzw. des Schülers:\n\n" + replies.join("\n\n") +
     "\n\nGib für jede der " + nrs.length + " Aufgaben (Nummern: " + nrs.join(", ") + ") die angesprochenen und die fehlenden Kernpunkte als JSON zurück.";
   return { messages: [{ role: "system", content: FEEDBACK_SYSTEM }, { role: "user", content: user }], nrs };
 }
@@ -533,25 +599,39 @@ export const TEST_MESSAGES = [
   { role: "user", content: "Gib genau dieses JSON zurück: {\"ok\":true,\"antwort\":\"Verbindung steht.\"}" },
 ];
 
-/* ---------- D1: globaler Mindestabstand je Anbieter + übersprungene Modelle ---------- */
-// Reserviert den nächsten Zeitpunkt (Upsert + Select in einem Batch = atomar); voll → BUSY
-export async function reserveSlot(db, provider, gapMs, maxWaitMs = 60000) {
-  const now = Date.now();
-  const [up, sel] = await db.batch([
-    db.prepare("INSERT INTO ai_gate(provider,next_at) VALUES(?1,?2+?3) ON CONFLICT(provider) DO UPDATE SET next_at=MAX(next_at,?2)+?3 WHERE MAX(next_at,?2)-?2<=?4")
-      .bind(provider, now, gapMs, maxWaitMs),
-    db.prepare("SELECT next_at FROM ai_gate WHERE provider=?1").bind(provider),
-  ]);
-  if (!up.meta || !up.meta.changes) throw new AIError("BUSY", "Warteschlange für " + (PROVIDERS[provider] || { label: provider }).label + " ist voll.");
-  const row = sel.results && sel.results[0];
-  const wait = row ? row.next_at - gapMs - now : 0;
+/* ---------- D1: Mindestabstand je Anbieter/Modell + gesperrte Modelle ---------- */
+// Reserviert atomar den nächsten Zeitpunkt für den Gate-Schlüssel (ein Upsert mit RETURNING). Mit skipKey/model gilt die
+// Reservierung nur, wenn das Modell nicht gerade gesperrt ist (ai_skip) – so sehen auch schon laufende Anfragen frische
+// Sperren. Voll oder gesperrt → BUSY mit retryAfterMs (wann es frühestens wieder geht). Lange Wartezeiten übernimmt der
+// Browser (automatische Wiederholung), nicht der Worker: maxWaitMs ist deshalb kurz.
+export async function reserveSlot(db, gateK, gapMs, maxWaitMs = 10000, skipKey = null, model = null) {
+  const now = Date.now(), checked = !!(skipKey && model);
+  const skipCond = checked ? " AND NOT EXISTS (SELECT 1 FROM ai_skip WHERE provider=?5 AND model=?6 AND until>?2)" : "";
+  const sql = "INSERT INTO ai_gate(provider,next_at) SELECT ?1, ?2+?3 WHERE 1" + skipCond +
+    " ON CONFLICT(provider) DO UPDATE SET next_at=MAX(next_at,?2)+?3 WHERE MAX(next_at,?2)-?2<=?4" + skipCond + " RETURNING next_at";
+  const st = checked ? db.prepare(sql).bind(gateK, now, gapMs, maxWaitMs, skipKey, model) : db.prepare(sql).bind(gateK, now, gapMs, maxWaitMs);
+  const res = await st.all();
+  const row = res && res.results && res.results[0];
+  if (!row) {
+    const label = (PROVIDERS[String(gateK).split(/[|#]/)[0]] || { label: String(gateK) }).label;
+    const [g, s] = await db.batch([   // seltener Pfad: wann frühestens wieder?
+      db.prepare("SELECT next_at FROM ai_gate WHERE provider=?1").bind(gateK),
+      checked ? db.prepare("SELECT until FROM ai_skip WHERE provider=?1 AND model=?2 AND until>?3").bind(skipKey, model, now) : db.prepare("SELECT NULL AS until WHERE 0"),
+    ]);
+    const gr = g.results && g.results[0], sr = s.results && s.results[0];
+    const retryAfterMs = Math.max(1000, sr && sr.until ? sr.until - now : gr ? gr.next_at - now : 5000);
+    throw new AIError("BUSY", sr ? "Modell „" + model + "“ ist bei " + label + " gerade gesperrt (Limit erreicht)." : "Warteschlange für " + label + " ist voll.", { retryAfterMs, skipped: !!sr });
+  }
+  const wait = row.next_at - gapMs - now;
   if (wait > 0) await sleep(wait);
 }
 export function skipQuery(db, provider, now = Date.now()) {
   return db.prepare("SELECT model FROM ai_skip WHERE provider=?1 AND until>?2").bind(provider, now);
 }
+// Sperren schreiben: eine längere Sperre (Tageslimit) wird nie durch eine spätere kurze (Minutenlimit) verkürzt
 export function skipStatements(db, provider, rotated, now = Date.now()) {
-  return (rotated || []).filter((x) => x && x.model).map((x) =>
-    db.prepare("INSERT INTO ai_skip(provider,model,until,reason) VALUES(?1,?2,?3,?4) ON CONFLICT(provider,model) DO UPDATE SET until=excluded.until, reason=excluded.reason")
-      .bind(provider, x.model, now + (x.ttlMs || TTL.soft), str(x.reason).slice(0, 200)));
+  return (rotated || []).filter((x) => x && x.model && (x.until > 0 || x.ttlMs > 0 || x.ttlMs == null)).map((x) =>
+    db.prepare("INSERT INTO ai_skip(provider,model,until,reason) VALUES(?1,?2,?3,?4) ON CONFLICT(provider,model) DO UPDATE SET " +
+      "until=MAX(until,excluded.until), reason=CASE WHEN excluded.until>=until THEN excluded.reason ELSE reason END")
+      .bind(provider, x.model, x.until > 0 ? x.until : now + (x.ttlMs || TTL.soft), str(x.reason).slice(0, 200)));
 }

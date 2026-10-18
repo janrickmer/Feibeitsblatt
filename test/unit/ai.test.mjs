@@ -5,8 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   callAI, testKey, anonymize, safeData, extractJsonObject, rankModels, buildGeminiBody, buildOpenAIBody, PROVIDERS,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI, NO_SOLUTION_NOTE,
-  reserveSlot, skipQuery, skipStatements, pickFallbacks, providerLabel, PUBLIC_MSG, TTL,
-} from "../../worker/ai.js";
+  reserveSlot, skipQuery, skipStatements, pickFallbacks, providerLabel, PUBLIC_MSG, TTL, AIError, gateKey } from "../../worker/ai.js";
 import { parseFeedbackPrompt, mockFeedback } from "../mock-ai.mjs";
 
 const realFetch = globalThis.fetch;
@@ -259,7 +258,7 @@ function miniD1() {
     bind: (...a) => stmt(sql, a),
     exec() {
       const s = db.prepare(sql);
-      if (/^\s*select/i.test(sql)) return { results: s.all(...args).map((r) => ({ ...r })), meta: { changes: 0 } };
+      if (/^\s*select/i.test(sql) || /\breturning\b/i.test(sql)) { const rows = s.all(...args).map((r) => ({ ...r })); return { results: rows, meta: { changes: rows.length } }; }
       const i = s.run(...args); return { results: [], meta: { changes: Number(i.changes) } };
     },
     all: async function () { return this.exec(); },
@@ -283,8 +282,47 @@ test("skipStatements/skipQuery store exhausted models with TTL", async () => {
   const d1 = miniD1(), now = Date.now();
   await d1.batch(skipStatements(d1, "groq", [{ model: "a", reason: "Tageslimit", ttlMs: TTL.hard }, { model: "b", reason: "x", ttlMs: -1 }], now));
   assert.deepEqual((await skipQuery(d1, "groq", now).all()).results.map((r) => r.model), ["a"]);
-  await d1.batch(skipStatements(d1, "groq", [{ model: "a", reason: "neu", ttlMs: -1 }], now));   // Upsert überschreibt
-  assert.deepEqual((await skipQuery(d1, "groq", now).all()).results, []);
+  await d1.batch(skipStatements(d1, "groq", [{ model: "a", reason: "kurz", ttlMs: 5000 }], now));   // kürzere Sperre verkürzt die längere nicht
+  assert.deepEqual((await skipQuery(d1, "groq", now + 10000).all()).results.map((r) => r.model), ["a"]);
+  await d1.batch(skipStatements(d1, "groq", [{ model: "a", reason: "neu", ttlMs: -1 }], now));   // ttl ≤ 0: keine Sperre
+  assert.deepEqual((await skipQuery(d1, "groq", now + 10000).all()).results.map((r) => r.model), ["a"]);
+  assert.equal(d1.db.prepare("SELECT reason FROM ai_skip WHERE model='a'").get().reason, "Tageslimit");
+});
+test("reserveSlot: per-model gate keys run independently; a locked model is refused with the lock's remaining time", async () => {
+  const d1 = miniD1(), t0 = Date.now();
+  await reserveSlot(d1, "groq|m1", 120, 1000, "groq", "m1");
+  await reserveSlot(d1, "groq|m2", 120, 1000, "groq", "m2");   // anderes Modell: kein Abstand nötig
+  assert.ok(Date.now() - t0 < 100, "zwei Modelle, kein Warten");
+  d1.db.prepare("INSERT INTO ai_skip VALUES('groq','m1',?,'Minutenlimit')").run(Date.now() + 7000);
+  await assert.rejects(reserveSlot(d1, "groq|m1", 120, 1000, "groq", "m1"), (e) => e.code === "BUSY" && e.skipped === true && e.retryAfterMs > 5000 && e.retryAfterMs <= 7000);
+  await reserveSlot(d1, "groq|m2", 120, 1000, "groq", "m2");   // m2 bleibt frei
+  assert.equal(gateKey("groq", "groq", "m1"), "groq|m1"); assert.equal(gateKey("groq", "groq#r", "m1"), "groq#r|m1");
+  assert.equal(gateKey("openrouter", "openrouter", "m1"), "openrouter"); assert.equal(gateKey("custom", "custom", "x"), "custom");
+});
+test("callAI: 429 per-minute with another model → immediate switch, short lock written at once via onRotate; start offset", async () => {
+  const locks = [];
+  script = [{ status: 429, headers: { "retry-after": "12" }, body: { error: { message: "Rate limit reached for model `a` on tokens per minute (TPM): Limit 8000. Please try again in 12s." } } }, oa("{\"q\":1}")];
+  const t0 = Date.now();
+  const r = await callAI({ provider: "groq", apiKey: "k", model: "a", fallbacks: ["b", "c"], key: "groq" }, msgs, { onRotate: (key, model, reason, until) => locks.push({ key, model, reason, ttl: until - Date.now() }) });
+  assert.deepEqual(r.json, { q: 1 }); assert.equal(calls[1].body.model, "b");
+  assert.ok(Date.now() - t0 < 2000, "kein Warten vor dem Modellwechsel");
+  assert.equal(locks.length, 1); assert.equal(locks[0].model, "a"); assert.equal(locks[0].key, "groq"); assert.ok(locks[0].ttl > 10000 && locks[0].ttl <= 12000);
+  assert.match(locks[0].reason, /Minutenlimit/);
+  calls = []; script = [oa("{\"s\":2}")];
+  await callAI({ provider: "groq", apiKey: "k", model: "a", fallbacks: ["b", "c"] }, msgs, { startAt: 5 });   // Liste a, b, c + Vorgabemodell = 4 → 5 % 4 = 1 → beginnt bei b
+  assert.equal(calls[0].body.model, "b");
+  calls = []; script = [oa("{\"s\":3}")];
+  await callAI({ provider: "groq", apiKey: "k", model: "a", fallbacks: ["b", "c"], skip: ["b"] }, msgs, { startAt: 1 });   // gesperrte Modelle bleiben hinten: Reihenfolge c, a, b
+  assert.equal(calls[0].body.model, "c");
+});
+test("callAI: gate BUSY for one model moves on to the next model; all busy → BUSY with the earliest retry time", async () => {
+  script = [oa("{\"g\":1}")];
+  const seen = [];
+  const r = await callAI({ provider: "groq", apiKey: "k", model: "a", fallbacks: ["b"] }, msgs, { beforeAttempt: async (p, gap, left, model) => { seen.push(model); if (model === "a") throw new AIError("BUSY", "voll", { retryAfterMs: 9000 }); } });
+  assert.deepEqual(r.json, { g: 1 }); assert.deepEqual(seen, ["a", "b"]); assert.equal(r.rotated.length, 0);
+  script = [];
+  await assert.rejects(callAI({ provider: "groq", apiKey: "k", model: "a", fallbacks: ["b"] }, msgs, { deadlineMs: 20000, beforeAttempt: async () => { throw new AIError("BUSY", "voll", { retryAfterMs: 9000 }); } }),
+    (e) => e.code === "BUSY" && e.retryAfterMs === 9000);
 });
 
 test("buildFeedbackMessages: Material der Lehrkraft als reiner Text im Prompt (gekürzt), ohne Links", () => {
