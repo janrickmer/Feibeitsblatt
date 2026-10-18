@@ -181,9 +181,11 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    Musterlösungen, Materialien, Bildern und PDF-Dateien. Sie können dort noch etwas ändern, etwa die Klasse im
    Titel, und klicken dann „Code generieren“: Das Feibeitsblatt bekommt einen **neuen Code**. So bearbeiten zwei
    Klassen desselben Jahrgangs dasselbe Feibeitsblatt mit verschiedenen Codes, und die Übersicht zeigt ihre Abgaben
-   getrennt. Das funktioniert auch, nachdem Sie das ursprüngliche Blatt gelöscht haben, und auch mit einer Datei,
-   die ein PDF-Programm neu gespeichert hat. Ein Ausdruck oder Screenshot enthält die Daten aber nicht. Bilder oder
-   Dateien, die in der Datei beschädigt sind (Prüfsumme falsch), lässt die Seite mit einem Hinweis weg. Sichtbar in
+   getrennt. Das funktioniert auch, nachdem Sie das ursprüngliche Blatt gelöscht haben. Auch eine Datei, die ein
+   PDF-Programm neu gespeichert hat, lässt sich in der Regel laden. Ein Ausdruck oder Screenshot enthält die Daten
+   aber nicht. Bilder oder Dateien, die in der Datei fehlen oder beschädigt sind (Prüfsumme falsch), lässt die Seite
+   mit einem Hinweis weg. Eine solche Sicherung und ein Zwischenstand von Schüler:innen lassen sich nicht als
+   PDF-Material an eine Aufgabe hängen – sonst bekämen Schüler:innen die Musterlösungen bzw. fremde Angaben. Sichtbar in
    der PDF sind nur Zeichen des Zeichensatzes Windows-1252; andere Zeichen, z. B. griechische Buchstaben oder Emoji,
    erscheinen dort als „?“. In den Hintergrunddaten bleiben sie erhalten.
 7. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche

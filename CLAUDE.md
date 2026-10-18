@@ -217,13 +217,23 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bytes, sha256}], files:[{ref, name, bytes, sha256}]}]}` – **nie Abgaben**. Dateiname `sheetPdfName` =
   `Feibeitsblatt-<Code>-<Titel>.pdf`, Titel per `pdfAscii` nur ASCII (Chromium verwirft Download-Namen mit Umlauten/„–“
   auf manchen Systemen und nimmt „download“ – so in der E2E-Sandbox). `#t-import` „Feibeitsblatt aus PDF-Datei laden“ (Übersicht) → `#t-import-file` →
-  `importSheetPdf` (≤ `SHEET_PDF_MAX_BYTES` 80 MB) → `readSheetPdf`: `pdfLatin1` + `pdfStreamAt`/`pdfStreamData`
-  (gemeinsam mit `readDraftPdf`: Länge direkt oder als Verweis, sonst bis `endstream`, FlateDecode), `cleanSheetRecord`
+  `importSheetPdf` (≤ `SHEET_PDF_MAX_BYTES` 80 MB) → `readSheetPdf`: `pdfDoc` (`pdfLatin1`) + `pdfStreamAt(doc, i)` /
+  `pdfStreamData(u, x, max)` (gemeinsam mit `readDraftPdf`: Länge direkt oder als Verweis – Verweise einmal je Datei
+  über `pdfIndirectInt` –, sonst bis `endstream`; FlateDecode per `DecompressionStream`, **abgebrochen über `max`**:
+  Datensatz 8 MB, Bild/Datei die erwartete Größe, Zwischenstand 4 MB). Kennzeichen werden tolerant und in **einem**
+  Durchlauf gesucht (`/FbSheet\s+1`, `/FbBlob\s*(…)` mit `pdfStringValue` für \-/Oktal-Escapes und `<hex>`, da PDF-Programme
+  beim Neuspeichern kompakt schreiben); fehlt das Kennzeichen eines Anhangs, wird er unter allen `/Type /EmbeddedFile`-Streams
+  über Größe + SHA-256 gefunden. `cleanSheetRecord`
   kappt wie die Eingabefelder (≤ 30 Aufgaben, Text 4000/Lösung 8000, `cleanMaterial`, ≤ 5 Bilder mit erlaubtem MIME,
   ≤ 3 Dateien, `safeFileName`, Refs `SHEET_REF_RE`); liegt ein Datensatz innerhalb eines Anhangs eines anderen
   (Sicherung als Material angehängt), gilt der äußere. Bilder/Dateien nur mit passender Größe und SHA-256
   (`sheetBlobOk`), Bilder zusätzlich per `decodeImage` lesbar und ≤ 4096 px, Dateien mit `%PDF-`; Fehlendes →
-  Hinweis in `#b-err`. Dann `openBuilder(title, rows)` wie „Als Vorlage verwenden“ + Hinweis `#b-import` (bisheriger
+  Hinweis in `#b-err` (Satzanfang groß). Angehängte Dateien, die selbst eine Sicherung (`/FbSheet 1`) oder ein
+  Zwischenstand (`/FbDraft 1`) sind, lehnt `addPdfFiles` ab (`feibeitsblattPdfKind`) und der Import lässt sie weg.
+  `importStillWanted(run)` (`T.importRun`): hat die Lehrkraft die Übersicht verlassen oder sich abgemeldet, wird das
+  Ergebnis verworfen; der Export bricht nach dem Abmelden ab und speichert nichts. `makeSheetPdf` entfernt eine leere
+  letzte Seite und kürzt den Titel in der Fußzeile nach Breite; `pdfWidth` kennt die Breiten der WinAnsi-Sonderzeichen
+  (`PDF_W_EXTRA`, im Zweifel breiter). Dann `openBuilder(title, rows)` wie „Als Vorlage verwenden“ + Hinweis `#b-import` (bisheriger
   Code, „bekommt einen neuen Code“); „Code generieren“ legt ein neues Blatt an. Meldungen in `#t-import-status`: fremde
   PDF „In dieser PDF-Datei steckt kein Feibeitsblatt.“, Zwischenstand (`/FbDraft 1`) eigene Meldung. `pdfWrap` trennt
   überlange Wörter hart. E2E-Test 4b prüft Export (Datensatz, Anhänge byte-genau, keine Abgaben), Import einer „neu
