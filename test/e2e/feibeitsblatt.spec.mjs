@@ -1257,6 +1257,9 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
   let resaved = editStream(pdf, "/FbBlob (" + fileRef + ")", { lenRef: 999, data: (b) => deflateSync(b),
     dict: (d) => d.replace("/FbBlob (" + fileRef + ")", "/FbBlob(" + fileRef.replace("-", "\\055") + ")").replace("/Length", "/Filter/FlateDecode/Length") });
   resaved = editStream(resaved, "/FbBlob (" + img1 + ")", { dict: (d) => d.replace("/FbBlob (", "/XxBlob (") });
+  // dieselbe Objektnummer der Länge kommt vorher noch einmal mit anderem Wert vor (wie in einer angehängten PDF-Datei)
+  const hdr = resaved.indexOf("\n", 9) + 1;
+  resaved = Buffer.concat([resaved.subarray(0, hdr), Buffer.from("999 0 obj\n43\nendobj\n", "latin1"), resaved.subarray(hdr)]);
   expect(resaved.toString("latin1")).toContain("/FbBlob(" + fileRef.slice(0, 16) + "\\0553)");
   expect(resaved.toString("latin1")).toContain("/Filter/FlateDecode/Length 999 0 R");
   expect(resaved.toString("latin1")).not.toContain("/FbBlob (" + img1 + ")");
@@ -1286,6 +1289,12 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
   // die Sicherung selbst (mit Musterlösungen) lässt sich nicht als Material für Schüler:innen anhängen
   await rows.nth(2).locator("input.bfile-input").setInputFiles({ name: "Sicherung.pdf", mimeType: "application/pdf", buffer: pdf });
   await expect(rows.nth(2).locator(".bfile-stat")).toHaveText("„Sicherung.pdf“: Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Musterlösungen und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
+  await expect(rows.nth(2).locator(".bfile")).toHaveCount(0);
+  // … auch dann nicht, wenn ein PDF-Programm das Kennzeichen /FbSheet entfernt hat (erkannt am eingebetteten Datensatz)
+  const unmarked = editStream(pdf, "/FbSheet 1", { dict: (d) => d.replace("/FbSheet 1", "/XxSheet 1") });
+  expect(unmarked.toString("latin1")).not.toContain("/FbSheet");
+  await rows.nth(2).locator("input.bfile-input").setInputFiles({ name: "Sicherung2.pdf", mimeType: "application/pdf", buffer: unmarked });
+  await expect(rows.nth(2).locator(".bfile-stat")).toContainText("„Sicherung2.pdf“: Das ist eine gesicherte Feibeitsblatt-Datei");
   await expect(rows.nth(2).locator(".bfile")).toHaveCount(0);
 
   // neuer Titel für die Parallelgruppe → neues Blatt mit neuem Code; Bilder und PDF-Datei werden hochgeladen

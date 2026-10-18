@@ -1945,9 +1945,11 @@ function pdfWidth(str, size, bold) {   // Textbreite in pt nach den Helvetica-Me
   const tab = bold ? PDF_W_BOLD : PDF_W_REG;
   let w = 0;
   for (const ch of String(str).normalize("NFC")) {
-    let c = ch.codePointAt(0);
-    if (c < 0x20 || c > 0x7E) { const base = ch.normalize("NFD").codePointAt(0); c = base >= 0x20 && base <= 0x7E ? base : 0; }
-    w += c ? tab[c - 0x20] : "„“”‚‘’".indexOf(ch) >= 0 ? (bold ? 500 : 333) : PDF_W_EXTRA[ch] || 611;
+    const cp = ch.codePointAt(0);
+    if (cp >= 0x20 && cp <= 0x7E) { w += tab[cp - 0x20]; continue; }
+    if (!(cp >= 0xA0 && cp <= 0xFF) && !WINANSI[ch]) { w += tab[0x3F - 0x20]; continue; }   // nicht in WinAnsi: wird als „?“ gedruckt
+    const base = ch.normalize("NFD").codePointAt(0);
+    w += base >= 0x20 && base <= 0x7E ? tab[base - 0x20] : "„“”‚‘’".indexOf(ch) >= 0 ? (bold ? 500 : 333) : PDF_W_EXTRA[ch] || 611;
   }
   return w * size / 1000;
 }
@@ -2037,13 +2039,18 @@ function makeDraftPdf(d) {
 // PDF-Bytes als Latin-1-Zeichenkette (ein Zeichen je Byte): Offsets in der Zeichenkette = Offsets in den Bytes
 function pdfLatin1(u) { let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return s; }
 function pdfDoc(buf) { const u = new Uint8Array(buf); return { u, s: pdfLatin1(u), ints: null }; }
-// „12 0 obj 3456 endobj“ – Längen, die als Verweis gespeichert sind; einmal je Datei in einem Durchlauf gesammelt
-function pdfIndirectInt(doc, num) {
+// „12 0 obj 3456 endobj“ – Längen, die als Verweis gespeichert sind; einmal je Datei in einem Durchlauf gesammelt. Dieselbe
+// Nummer kann mehrfach vorkommen (z. B. in einer angehängten PDF-Datei) → alle Werte, pdfStreamAt nimmt den passenden.
+function pdfIndirectInts(doc, num) {
   if (!doc.ints) {
     doc.ints = new Map();
-    for (const m of doc.s.matchAll(/(\d+)\s+0\s+obj\s*(\d+)\s*endobj/g)) if (!doc.ints.has(m[1])) doc.ints.set(m[1], +m[2]);
+    for (const m of doc.s.matchAll(/(?<!\d)(\d{1,10})\s+0\s+obj\s*(\d{1,10})\s*endobj/g)) {
+      const list = doc.ints.get(m[1]) || [];
+      if (list.length < 20) list.push(+m[2]);
+      doc.ints.set(m[1], list);
+    }
   }
-  return doc.ints.has(num) ? doc.ints.get(num) : null;
+  return doc.ints.get(num) || [];
 }
 // Stream-Objekt, in dessen Wörterbuch die Stelle i liegt → {obj, dict, start, end} (Datenbereich) oder null. Die Länge
 // steht direkt oder als Verweis („/Length 12 0 R“); ist sie unbrauchbar, gilt alles bis „endstream“. Nur ohne Filter
@@ -2054,11 +2061,13 @@ function pdfStreamAt(doc, i) {
   const obj = s.lastIndexOf(" obj", i); if (obj < 0) return null;
   const dict = s.slice(obj, st);
   if (/\/Filter/.test(dict) && !/\/Filter\s*(\/FlateDecode\b|\[\s*\/FlateDecode\s*\])/.test(dict)) return null;
-  let len = null, m;
-  if ((m = /\/Length\s+(\d+)(\s+0\s+R)?/.exec(dict))) len = m[2] ? pdfIndirectInt(doc, m[1]) : +m[1];
   let a = st + 6; if (s[a] === "\r") a++; if (s[a] === "\n") a++;
+  // eine Länge gilt nur, wenn direkt dahinter (nach Leerraum) „endstream“ steht
+  const fits = (n) => Number.isInteger(n) && a + n <= u.length && /^[\r\n\t ]*endstream/.test(s.slice(a + n, a + n + 24));
+  let len = null, m;
+  if ((m = /\/Length\s+(\d+)(\s+0\s+R)?/.exec(dict))) len = (m[2] ? pdfIndirectInts(doc, m[1]) : [+m[1]]).find(fits) ?? null;
   let end = len != null ? a + len : -1;
-  if (end < a || end > u.length || s.indexOf("endstream", end) < 0) {   // Länge unbrauchbar: bis „endstream“
+  if (end < a) {   // Länge fehlt oder passt nicht: bis zum nächsten „endstream“
     end = s.indexOf("endstream", a); if (end < 0) return null;
     while (end > a && (s[end - 1] === "\n" || s[end - 1] === "\r")) end--;
   }
@@ -2092,10 +2101,24 @@ function pdfStringValue(tok) {
   return tok.slice(1, -1).replace(/\\([0-7]{1,3}|[\s\S])/g, (m0, c) => (/^[0-7]/.test(c) ? String.fromCharCode(parseInt(c, 8) & 255)
     : c === "\n" || c === "\r" ? "" : ({ n: "\n", r: "\r", t: "\t", b: "\b", f: "\f" })[c] || c));
 }
-// Ist die Datei eine gesicherte Feibeitsblatt-PDF (Musterlösungen!) oder ein Zwischenstand (Personendaten)? → nie als Material
-function feibeitsblattPdfKind(u8) {
-  const s = pdfLatin1(u8);
-  return /\/FbSheet\s+1\b/.test(s) ? "sheet" : /\/FbDraft\s+1\b/.test(s) ? "draft" : null;
+// Ist die Datei eine gesicherte Feibeitsblatt-PDF (Musterlösungen!) oder ein Zwischenstand (Personendaten)? → nie als Material.
+// Erkannt wie beim Laden: am Kennzeichen oder – falls ein PDF-Programm es beim Neuspeichern entfernt hat – am Inhalt der
+// eingebetteten JSON-Dateien.
+async function feibeitsblattPdfKind(u8) {
+  const doc = pdfDoc(u8), s = doc.s;
+  if (/\/FbSheet\s+1\b/.test(s)) return "sheet";
+  if (/\/FbDraft\s+1\b/.test(s)) return "draft";
+  let n = 0;
+  for (const m of s.matchAll(/\/Type\s*\/EmbeddedFile\b/g)) {
+    if (++n > 60) break;
+    const x = pdfStreamAt(doc, m.index);
+    if (!x) continue;
+    let o = null;
+    try { o = JSON.parse(td.decode(await pdfStreamData(doc.u, x, 8 * 1024 * 1024))); } catch (e) { continue; }
+    if (o && o.kind === "feibeitsblatt-sheet") return "sheet";
+    if (o && o.kind === "feibeitsblatt-draft") return "draft";
+  }
+  return null;
 }
 async function readDraftPdf(buf) {
   const doc = pdfDoc(buf), s = doc.s;
@@ -2894,6 +2917,7 @@ function handleAuthError(e) {
 async function logout(force, why) {
   if (force !== true && T.builderDirty && !(await askConfirm({ title: "Abmelden?", text: "Ihre Eingaben für das neue Feibeitsblatt gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
   clearTimeout(idleTimer);
+  T.importRun = (T.importRun || 0) + 1; T.exportRun = (T.exportRun || 0) + 1;   // laufende Importe/Exporte enden mit der Sitzung
   Object.assign(T, { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false });
   $("t-sheets-body").textContent = ""; $("t-subs-body").textContent = ""; $("t-sel").classList.add("hidden");
   setStatus($("t-import-status"), "", ""); setStatus($("t-export-status"), "", "");
@@ -2914,6 +2938,7 @@ function touchIdle() {
 
 /* ---------- Übersicht ---------- */
 function teacherView(id) {
+  if (id !== "tv-overview") T.importRun = (T.importRun || 0) + 1;   // ein noch laufender Import aus der Übersicht gilt nicht mehr
   ["tv-overview", "tv-builder", "tv-ai", "tv-pw"].forEach((v) => $(v).classList.toggle("hidden", v !== id));
   window.scrollTo(0, 0);
 }
@@ -3157,7 +3182,7 @@ $("t-template").addEventListener("click", async () => {
   if (!T.selSheet) return;
   const btn = $("t-template"), code = T.sel;
   busy(btn, true, "Vorlage wird geladen …");
-  let lost = 0, lostF = 0;
+  let lost = 0, lostF = 0, unsafeF = 0;
   try {
     // Bilder und PDF-Dateien der Vorlage mitnehmen (werden beim Anlegen erneut hochgeladen); nicht ladbare werden ausgelassen
     const rows = await Promise.all(T.selSheet.tasks.map(async (t) => {
@@ -3170,7 +3195,11 @@ $("t-template").addEventListener("click", async () => {
         } catch (e) { lost++; }
       }
       for (const f of cleanFiles(t.files)) {
-        try { const r = await loadFile(code, f.id); files.push({ blob: r.blob, name: f.name, size: r.blob.size }); } catch (e) { lostF++; }
+        try {
+          const r = await loadFile(code, f.id);
+          if (await feibeitsblattPdfKind(new Uint8Array(await r.blob.arrayBuffer()))) { unsafeF++; continue; }   // Sicherung/Zwischenstand nie weitergeben
+          files.push({ blob: r.blob, name: f.name, size: r.blob.size });
+        } catch (e) { lostF++; }
       }
       return { text: String(t.text || ""), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files };
     }));
@@ -3178,6 +3207,7 @@ $("t-template").addEventListener("click", async () => {
     const msgs = [];
     if (lost) msgs.push(`${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
     if (lostF) msgs.push(`${lostF === 1 ? "Eine PDF-Datei der Vorlage konnte" : lostF + " PDF-Dateien der Vorlage konnten"} nicht geladen werden und ${lostF === 1 ? "fehlt" : "fehlen"} hier.`);
+    if (unsafeF) msgs.push(`${unsafeF === 1 ? "Eine PDF-Datei der Vorlage war" : unsafeF + " PDF-Dateien der Vorlage waren"} eine Feibeitsblatt-Sicherung (mit Musterlösungen) oder ein Zwischenstand von Schüler:innen und ${unsafeF === 1 ? "wurde" : "wurden"} weggelassen.`);
     if (msgs.length) $("b-err").textContent = msgs.join(" ");
   } finally { busy(btn, false); }
 });
@@ -3375,16 +3405,16 @@ const sheetPdfName = (rec) => {   // „Feibeitsblatt-K7Q-M4X-Titel.pdf“ – T
 };
 $("t-export").addEventListener("click", async () => {
   if (!T.selSheet) return;
-  const btn = $("t-export"), st = $("t-export-status"), code = T.sel, sheet = T.selSheet;
+  const btn = $("t-export"), st = $("t-export-status"), code = T.sel, sheet = T.selSheet, run = T.exportRun = (T.exportRun || 0) + 1;
   busy(btn, true, "PDF-Datei wird erstellt …");
   setStatus(st, "PDF-Datei wird erstellt …", "busy");
   try {
     const { rec, blobs, shows } = await sheetPdfData(code, sheet, (msg) => {
-      if (!T.authKey) throw new Error("abgemeldet");   // abgemeldet (z. B. am Klassenraum-PC): abbrechen
+      if (!exportStillWanted(run)) throw new Error("abgemeldet");   // abgemeldet (z. B. am Klassenraum-PC): abbrechen
       if (T.sel === code) setStatus(st, msg, "busy");
     });
     const pdf = await makeSheetPdf(rec, blobs, shows);
-    if (!T.authKey) return;   // inzwischen abgemeldet: die Datei mit den Musterlösungen nicht mehr speichern
+    if (!exportStillWanted(run)) return;   // inzwischen abgemeldet: die Datei mit den Musterlösungen nicht mehr speichern
     downloadBlob(new Blob([pdf], { type: "application/pdf" }), sheetPdfName(rec));
     if (T.sel === code) setStatus(st, `Die PDF-Datei (${fmtKB(pdf.length)}) wird heruntergeladen. Bewahren Sie sie gut auf – sie enthält auch die Musterlösungen.`, "ok");
   } catch (e) {
@@ -3481,6 +3511,7 @@ async function sheetPdfImage(m, b) {   // Bild aus der Sicherung → Eintrag fü
 }
 // Läuft ein Import noch, wenn die Lehrkraft die Übersicht verlassen oder sich abgemeldet hat, wird das Ergebnis verworfen
 const importStillWanted = (run) => run === T.importRun && !!T.authKey && !$("tv-overview").classList.contains("hidden") && $("screen-teacher").classList.contains("active");
+const exportStillWanted = (run) => run === T.exportRun && !!T.authKey;
 async function importSheetPdf(file) {
   const st = $("t-import-status"), btn = $("t-import"), run = T.importRun = (T.importRun || 0) + 1;
   if (file.size > SHEET_PDF_MAX_BYTES) { setStatus(st, `Die Datei ist zu groß (höchstens ${Math.round(SHEET_PDF_MAX_BYTES / 1024 / 1024)} MB). ` + SHEET_PDF_HINT, "bad"); return; }
@@ -3504,7 +3535,7 @@ async function importSheetPdf(file) {
       for (const f of t.files) {
         const b = r.blobs.get(f.ref);
         if (!b || String.fromCharCode.apply(null, b.subarray(0, 5)) !== "%PDF-") { lostFile++; continue; }
-        if (feibeitsblattPdfKind(b)) { unsafe++; continue; }   // eine angehängte Sicherung oder ein Zwischenstand gehört nicht zu den Schüler:innen
+        if (await feibeitsblattPdfKind(b)) { unsafe++; continue; }   // eine angehängte Sicherung oder ein Zwischenstand gehört nicht zu den Schüler:innen
         files.push({ blob: new Blob([b], { type: "application/pdf" }), name: f.name, size: b.length });
       }
       rows.push({ text: t.text, solution: t.solution, material: t.material, images, files });
@@ -3674,7 +3705,7 @@ async function addPdfFiles(tr, files) {
         let buf;
         try { buf = new Uint8Array(await f.arrayBuffer()); } catch (e) { throw new Error("Die Datei konnte nicht gelesen werden."); }
         if (String.fromCharCode.apply(null, buf.subarray(0, 5)) !== "%PDF-") throw new Error("Das ist keine PDF-Datei (erlaubt sind nur PDF-Dateien).");
-        const kind = feibeitsblattPdfKind(buf);   // Schüler:innen bekämen sonst Musterlösungen bzw. fremde Angaben
+        const kind = await feibeitsblattPdfKind(buf);   // Schüler:innen bekämen sonst Musterlösungen bzw. fremde Angaben
         if (kind === "sheet") throw new Error("Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Musterlösungen und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
         if (kind === "draft") throw new Error("Das ist ein Zwischenstand von Schüler:innen mit persönlichen Angaben – bitte nicht als Material anhängen.");
         tr._files.push({ blob: new Blob([buf], { type: "application/pdf" }), name: safeFileName(f.name), size: buf.length }); T.builderDirty = true;
