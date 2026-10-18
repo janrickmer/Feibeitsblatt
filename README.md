@@ -39,7 +39,12 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    laufend auf dem Gerät gespeichert („Zwischenstand auf diesem Gerät gespeichert“). Wird die Seite neu geladen
    oder versehentlich geschlossen, bietet die Startseite an, mit den gespeicherten Angaben weiterzuschreiben
    („Weiterschreiben“); mit „Abbrechen und Zwischenstand von diesem Gerät löschen“ oben rechts lässt sich ein
-   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten).
+   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten). Hat die Lehrkraft Bilder zu einer Aufgabe
+   hinterlegt, stehen sie je nach Einstellung als kleine Miniaturen rechts neben Aufgabe und Antwortfeld (auf
+   schmalen Bildschirmen zwischen Aufgabenstellung und Antwortfeld) oder etwas größer unter der Aufgabenstellung.
+   Ein Klick auf ein Bild zeigt es groß; ein weiterer Klick oder die Esc-Taste schließt die Ansicht. Hat die
+   Lehrkraft „Material“ hinterlegt (einen Text mit Hervorhebungen oder Links), steht es unter der Aufgabenstellung;
+   Links darin öffnen sich immer in einem neuen Tab, das Feibeitsblatt bleibt geöffnet.
 4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button – aber nur, wenn
    die Schülerin oder der Schüler laut Geburtsdatum mindestens 16 Jahre alt ist (darunter steht an seiner Stelle der
    Hinweis „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“). Beim ersten Klick erklärt ein
@@ -89,9 +94,31 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    (höchstens etwa 12 Punkte je Aufgabe). Hier dürfen Sie Text einfügen. Zeilen lassen sich hinzufügen, entfernen
    und verschieben (1 bis 30 Aufgaben). Eine Aufgabe ohne Musterlösung bekommt kein KI-Feedback, sondern den
    Hinweis „Zu dieser Aufgabe gibt es keine Musterlösung.“
-4. **Code generieren.** Der Code erscheint groß (z. B. `K7Q-M4X`) mit „Kopieren“. Geben Sie ihn an die Klasse
-   weiter. Ein erstelltes Feibeitsblatt lässt sich nicht mehr ändern; für eine geänderte Fassung wählen Sie es aus
-   und klicken „Als Vorlage für ein neues Feibeitsblatt verwenden“ – das ergibt einen neuen Code.
+   **Material:** Unter jeder Aufgabenstellung gibt es das Feld „Material“ für einen Text, den die Schüler:innen zur
+   Aufgabe sehen – etwa einen Auszug, ein Zitat, Arbeitshinweise oder Links. Mit den Knöpfen **F**, **K**, **U**
+   (oder Strg+B, Strg+I, Strg+U) formatieren Sie markierten Text fett, kursiv oder unterstrichen; „Link“ verlinkt
+   den markierten Text (oder fügt einen neuen Link mit Linktext ein), nur Adressen mit `http://` oder `https://`
+   (eine Adresse ohne Angabe wie `www.beispiel.de` wird mit `https://` ergänzt).
+   Eingefügter Text aus Word oder dem Browser behält diese Hervorhebungen und Links, alles andere (Farben,
+   Schriften, Bilder) wird entfernt. Das Material sehen Schüler:innen unter der Aufgabenstellung; Links öffnen
+   sich bei ihnen immer in einem neuen Tab. Der reine Text des Materials (ohne Links) geht beim KI-Feedback als
+   Kontext mit an die KI (höchstens 4000 Zeichen je Aufgabe). Höchstens 8000 Zeichen je Aufgabe.
+   **Bilder:** Unter jeder Aufgabenstellung lassen sich mit „+ Bild hinzufügen“ bis zu fünf Bilder hochladen
+   (JPG, PNG oder WebP, auch mehrere auf einmal; HEIC-Fotos vom iPhone vorher als JPG sichern). Der Browser
+   verkleinert jedes Bild vor dem Hochladen auf höchstens 1600 Pixel Kantenlänge und höchstens 500 KB. Zu jedem
+   Bild wählen Sie die Anzeige: „Miniatur rechts (Klick vergrößert)“ – die Miniatur steht rechts neben
+   Aufgabenstellung und Antwortfeld – oder „Groß zwischen Aufgabe und Antwortfeld“. Dazu können Sie eine kurze
+   Bildbeschreibung eintragen (bis 200 Zeichen); sie wird Schüler:innen vorgelesen, die das Bild nicht sehen können,
+   und steht unter dem vergrößerten Bild. Alle Bilder eines Blattes dürfen zusammen höchstens 12 MB haben; die Seite
+   prüft das vor dem Anlegen. Die Bilder sehen alle, die den Code kennen; sie sind nicht
+   verschlüsselt und gehen nicht an die KI – laden Sie deshalb keine Bilder mit personenbezogenen Daten hoch.
+4. **Code generieren.** Der Code erscheint groß (z. B. `K7Q-M4X`) mit „Kopieren“. Die Bilder werden dabei
+   nacheinander hochgeladen („Alle 3 Bilder sind gespeichert.“); so lange bleibt „Zur Übersicht“ gesperrt. Schlägt
+   eines fehl, sagt die Seite welches, und „Fehlende Bilder erneut hochladen“ holt es nach (eine Wiederholung legt
+   nie ein Bild doppelt an). Geben Sie den Code an die Klasse weiter. Ein erstelltes
+   Feibeitsblatt lässt sich nicht mehr ändern; für eine geänderte Fassung wählen Sie es aus und klicken „Als
+   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Musterlösungen und Bilder und
+   ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben. Ein Klick wählt ein Blatt aus. Die Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“,
    „Kürzel Vorname“, „Geburtstag“ und „Klasse“, sortiert nach Klasse und Namen. Aufgeklappt sehen Sie je Aufgabe
@@ -380,7 +407,8 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 
 | Daten | Wo | Wie | Wie lange |
 |---|---|---|---|
-| Feibeitsblätter: Titel, Aufgaben, **Musterlösungen** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
+| Feibeitsblätter: Titel, Aufgaben, Material, **Musterlösungen** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
+| Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code und der Eingangszeitpunkt | bis Sie die Abgaben oder das Blatt löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
 | KI-Einstellungen: Anbieter, Modell, API-Schlüssel | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
@@ -398,7 +426,7 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 ### Was wohin gesendet wird
 
 - **KI-Feedback:** Der Browser schickt den Blatt-Code und die Antworten an den Server dieser Seite (Cloudflare).
-  Der Server leitet **Aufgabenstellungen, Ihre Musterlösungen und die Antworten** an den von Ihnen gewählten
+  Der Server leitet **Aufgabenstellungen, den Text des Materials, Ihre Musterlösungen und die Antworten** an den von Ihnen gewählten
   KI-Anbieter weiter – nur für Aufgaben mit Musterlösung. **Nie** gesendet werden Kürzel, Geburtsdatum und Klasse;
   der Server bekommt sie dabei gar nicht. Der KI-Anbieter verarbeitet die Daten nach seinen eigenen Bedingungen;
   bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe [KI-Anbieter](#ki-anbieter)).
@@ -458,7 +486,8 @@ Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage bis zu etwa 100
   geschriebene Zeilen pro Tag. Seit dem 1. September 2026 schlagen Datenbankabfragen nach Überschreiten bis
   Mitternacht UTC fehl; gespeicherte Daten bleiben erhalten.
 - Für Schulklassen reicht das in aller Regel bei Weitem. Eine Abgabe belegt je nach Textlänge grob einige bis
-  einige Dutzend Kilobyte (Schätzung).
+  einige Dutzend Kilobyte (Schätzung); Bilder zu Aufgaben belegen bis zu etwa 700 KB je Bild (Base64) und werden
+  beim Öffnen eines Blattes je einmal gelesen – auch das zählt zu den gelesenen Zeilen.
 
 **Grenzen in Feibeitsblatt:**
 
@@ -466,6 +495,8 @@ Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage bis zu etwa 100
 |---|---|
 | Aufgaben je Feibeitsblatt | 1 bis 30 |
 | Aufgabenstellung / Musterlösung / Titel | 4000 / 8000 / 200 Zeichen |
+| Material je Aufgabe | 8000 Zeichen, 60 Links; nur fett, kursiv, unterstrichen und Links (http/https) |
+| Bilder je Aufgabe | 5; je Bild höchstens 500 KB nach dem Verkleinern (längste Seite 1600 Pixel); alle Bilder eines Blattes zusammen 12 MB |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
 | KI-Feedback-Anfragen je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 400 000 Zeichen pro Stunde; nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
@@ -494,29 +525,56 @@ gespeichert.
 | „Die KI ist gerade ausgelastet.“ / „Gerade fragen sehr viele gleichzeitig.“ | Minutenlimit des Anbieters oder Warteschlange voll; nach einer Minute erneut versuchen. |
 | „Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich.“ | Die Anfrage überschreitet das Limit aller verfügbaren Modelle. Musterlösungen und Aufgaben kürzen oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen. |
 | „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
+| „Das Bild kann der Browser nicht lesen (z. B. HEIC). Bitte als JPG oder PNG speichern.“ | Das Format kann der Browser nicht öffnen – meist HEIC-Fotos vom iPhone. Das Foto als JPG sichern (iOS: Einstellungen → Kamera → Formate → „Maximale Kompatibilität“, oder aus der Fotos-App als JPG teilen) oder ein anderes Bild wählen. |
+| „1 Bild konnte nicht gespeichert werden … Das Feibeitsblatt selbst ist angelegt.“ | Das Hochladen ist unterbrochen worden (Netz) oder der Server hat das Bild abgelehnt (Meldung in Klammern). Bei Netzfehlern „Fehlende Bilder erneut hochladen“ klicken; bei einer Ablehnung (zu groß, zu viele) das Blatt löschen und mit weniger oder kleineren Bildern neu anlegen. |
+| „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
 | „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“ (statt des Buttons) | Kein Fehler: Laut eingegebenem Geburtsdatum ist die Schülerin oder der Schüler jünger als 16; die Prüfung wird dann nicht angeboten (Altersgrenze `LT_MIN_AGE` in `index.html`). Bei einem Tippfehler im Geburtsdatum oben „Abbrechen und Zwischenstand löschen“ wählen und den Code neu eingeben. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |
 
 ## Optional: GitHub Pages oder eigene Domain
 
-Normalerweise liefert der Worker die Seite selbst aus; mehr ist nicht nötig. Wer die Seite zusätzlich unter
-einer anderen Adresse anbieten möchte (z. B. GitHub Pages mit eigener Domain), trägt in `index.html` ganz oben die
-Adresse des Workers ein (ohne Schrägstrich am Ende):
+Normalerweise liefert der Worker die Seite selbst aus (`https://feibeitsblatt.<subdomain>.workers.dev`); mehr ist
+nicht nötig. Dieses Repository ist zusätzlich so eingerichtet, dass GitHub Pages dieselbe Seite unter der eigenen
+Adresse **`feibeitsblatt.janrickmer.de`** ausliefert, so wie ParentsDay. Die Seite erkennt dann selbst, dass sie nicht
+vom Worker kommt, und ruft den Worker unter der Adresse auf, die ganz oben in `index.html` steht
+(`window.FEIBEITSBLATT_WORKER`, derzeit `https://feibeitsblatt.feindt.workers.dev`). Beide Adressen nutzen dieselbe
+Datenbank; Schüler:innen und Lehrkraft können jede davon verwenden.
 
-```html
-<script>
-  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || "https://feibeitsblatt.<subdomain>.workers.dev";
-</script>
-```
+**Einrichten (einmalig):**
+
+1. Die Dateien `CNAME` (Inhalt: `feibeitsblatt.janrickmer.de`) und `.nojekyll` liegen schon im Repository. Heißt Ihre
+   Worker-Adresse anders als oben, tragen Sie sie in `index.html` an **zwei** Stellen ein: bei
+   `window.FEIBEITSBLATT_WORKER` und in der Zeile `<meta http-equiv="Content-Security-Policy" …>` (dort hinter
+   `connect-src`). Die Adresse steht am Ende des Workflow-Laufs „Deploy“ (Hinweis „Feibeitsblatt ist online“).
+2. Auf GitHub: „Settings“ → „Pages“ → bei „Build and deployment“ → „Source“ **„Deploy from a branch“**, Branch
+   **`main`**, Ordner **`/ (root)`** → „Save“. Darunter bei „Custom domain“ `feibeitsblatt.janrickmer.de` eintragen
+   (falls nicht schon aus der Datei `CNAME` übernommen) → „Save“.
+3. Beim DNS-Anbieter der Domain (Strato): einen **CNAME-Eintrag** `feibeitsblatt` anlegen, der auf
+   **`janrickmer.github.io`** zeigt – genau wie der vorhandene Eintrag `parentsday`. Keine weiteren Einträge nötig.
+4. Einige Minuten warten, bis GitHub die DNS-Prüfung bestanden hat und das Zertifikat ausgestellt ist; dann in den
+   Pages-Einstellungen **„Enforce HTTPS“** anhaken.
+5. Prüfen: <https://feibeitsblatt.janrickmer.de> öffnen, `1104` eingeben – die Anmeldung muss genauso funktionieren
+   wie unter der Worker-Adresse. (Geht es nicht, meldet die Seite meist „Keine Verbindung zum Server“: dann stimmt
+   die Worker-Adresse in `index.html` nicht.)
+
+GitHub Pages veröffentlicht den Inhalt des Branches `main` – also auch nach jeder Änderung automatisch, so wie der
+Workflow den Worker neu veröffentlicht.
 
 Zu beachten:
 
-- Die Sicherheits-Header aus `_headers` (u. a. die Content-Security-Policy) gelten nur für die Auslieferung durch
-  Cloudflare. GitHub Pages kann keine eigenen Header setzen; dort fehlt dieser zusätzliche Schutz.
-- Die Datei `index.html` wird auch vom Worker ausgeliefert; dort stört die eingetragene Adresse nicht.
-- Eine eigene Domain lässt sich auch direkt beim Worker im Cloudflare-Dashboard einrichten, wenn die Domain bei
-  Cloudflare verwaltet wird (nicht im Einzelnen geprüft).
+- Auf GitHub Pages gelten die Sicherheits-Header aus `_headers` nicht (GitHub Pages kann keine eigenen Header setzen).
+  Die Content-Security-Policy ist deshalb zusätzlich als `<meta>`-Zeile in `index.html` hinterlegt; nur der Schutz
+  gegen das Einbetten in fremde Seiten (`frame-ancestors`) fehlt dort.
+- Die Seite selbst kommt dann von GitHub (USA); Daten fließen weiterhin nur zum Worker (Cloudflare, Datenbank in der
+  EU), zum KI-Anbieter und bei der Rechtschreibprüfung zu LanguageTool – daran ändert sich nichts.
+- Die Bilder zu Aufgaben kommen weiterhin vom Worker; die Seite bettet sie als `data:`-Adressen ein, ein eigener
+  Eintrag in der CSP ist dafür nicht nötig.
+- Eine eigene Domain lässt sich alternativ direkt beim Worker einrichten („Workers & Pages“ → `feibeitsblatt` →
+  „Settings“ → „Domains & Routes“ → „Add“ → „Custom domain“). Das setzt voraus, dass die Domain bei Cloudflare
+  verwaltet wird, also ihre Nameserver auf Cloudflare zeigen (vorher alle vorhandenen DNS-Einträge wie E-Mail bei
+  Cloudflare nachtragen). Ein bloßer CNAME-Eintrag beim bisherigen Anbieter auf die `workers.dev`-Adresse genügt
+  **nicht** – Cloudflare beantwortet fremde Hostnamen dort nicht (nicht im Einzelnen geprüft).
 
 ## Entwicklung
 

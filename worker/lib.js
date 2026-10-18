@@ -77,6 +77,13 @@ export const LIMITS = {
   sheetBytes: 40 * 1024 * 1024,    // Summe aller Umschläge je Blatt
   submissionsPage: 50,             // Abgaben je Seite der Lehrkraft-Liste (Arbeitsspeicher des Workers)
   pageBytes: 8 * 1024 * 1024,      // … und höchstens so viele Umschlag-Bytes je Seite
+  imageBytes: 500 * 1024,          // ein Bild zu einer Aufgabe (der Browser verkleinert vorher auf ≤ 1600 px)
+  imagesPerTask: 5,                // Bilder je Aufgabe
+  sheetImageBytes: 12 * 1024 * 1024, // Summe aller Bilder je Blatt (D1-Speicher)
+  imageSide: 4096,                 // größte erlaubte Kantenlänge laut Kopfdaten
+  imageAlt: 200,                   // Bildbeschreibung (wird vorgelesen)
+  material: 8000,                  // Material je Aufgabe (Zeichen), formatiert als Absätze aus Läufen
+  materialParagraphs: 200, materialRuns: 600, materialLinks: 60, href: 1000,
 };
 
 export class InputError extends Error {
@@ -147,9 +154,145 @@ export function validateSheetInput(body, now = Date.now()) {
     if (!text) throw new InputError("Aufgabe " + n + ": Bitte eine Aufgabenstellung eintragen.");
     if (text.length > LIMITS.taskText) throw new InputError("Aufgabe " + n + ": Die Aufgabenstellung ist zu lang (höchstens " + LIMITS.taskText + " Zeichen).");
     if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Die Musterlösung ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
-    return { text, solution };
+    const material = validateMaterial(t.material, n);
+    const task = { text, solution };
+    if (material.length) task.material = material;
+    return task;
   });
   return { title, tasks };
+}
+
+/* ---------- Material zu Aufgaben: Absätze aus Läufen {t, f?, h?} – f ⊆ "biu" (fett/kursiv/unterstrichen), h = Link.
+   Kein HTML: das Frontend baut daraus DOM-Knoten (nie innerHTML), Links nur http(s) und immer in neuem Tab. ---------- */
+export function cleanHref(raw) {   // → normalisierte http(s)-Adresse oder "" (javascript:, data:, mailto: … werden verworfen)
+  const s = String(raw == null ? "" : raw).trim();
+  if (!s || s.length > LIMITS.href || /[\u0000-\u0020\u007f]/.test(s)) return "";
+  let u; try { u = new URL(s); } catch { return ""; }
+  return (u.protocol === "http:" || u.protocol === "https:") && u.href.length <= LIMITS.href ? u.href : "";   // Länge nach der Normalisierung (Prozent-Kodierung)
+}
+export function validateMaterial(raw, n) {
+  if (raw == null) return [];
+  const where = n ? "Aufgabe " + n + ": " : "";
+  const bad = () => new InputError(where + "Das Material hat ein ungültiges Format.");
+  if (!Array.isArray(raw)) throw bad();
+  if (raw.length > LIMITS.materialParagraphs) throw new InputError(where + "Das Material hat zu viele Absätze (höchstens " + LIMITS.materialParagraphs + ").");
+  // Grenzen so früh wie möglich prüfen (10 ms CPU): Läufe zählen vor dem Verarbeiten, Zeichen und Links beim Zählen
+  const tooLong = () => new InputError(where + "Das Material ist zu lang (höchstens " + LIMITS.material + " Zeichen).");
+  let chars = 0, runs = 0, links = 0;
+  const out = raw.map((para) => {
+    if (!Array.isArray(para)) throw bad();
+    runs += para.length;
+    if (runs > LIMITS.materialRuns) throw new InputError(where + "Das Material ist zu kleinteilig formatiert (höchstens " + LIMITS.materialRuns + " Abschnitte).");
+    const line = [];
+    for (const r of para) {
+      if (!isObj(r) || typeof r.t !== "string" || (r.f != null && typeof r.f !== "string") || (r.h != null && typeof r.h !== "string")) throw bad();
+      if (r.t.length > LIMITS.material) throw tooLong();
+      const t = cleanText(r.t).replace(/[\t\n\r\u00a0]+/g, " ");   // innerhalb eines Laufs keine Zeilenumbrüche
+      if (!t) continue;
+      chars += t.length;
+      if (chars > LIMITS.material) throw tooLong();
+      const f = ["b", "i", "u"].filter((c) => String(r.f || "").includes(c)).join("");
+      let h = "";
+      if (r.h) { h = cleanHref(r.h); if (!h) throw new InputError(where + "Ein Link im Material ist ungültig (erlaubt sind nur Adressen mit http:// oder https://)."); }
+      const prev = line[line.length - 1];
+      if (prev && (prev.f || "") === f && (prev.h || "") === h) { prev.t += t; continue; }
+      const run = { t }; if (f) run.f = f;
+      if (h) { run.h = h; links++; if (links > LIMITS.materialLinks) throw new InputError(where + "Zu viele Links im Material (höchstens " + LIMITS.materialLinks + ")."); }
+      line.push(run);
+    }
+    return line;
+  });
+  while (out.length && !out[out.length - 1].length) out.pop();   // leere Absätze am Ende und Anfang weg
+  while (out.length && !out[0].length) out.shift();
+  return out;
+}
+// Material als reiner Text (für die KI: ohne Formatierung und ohne Links)
+export const materialText = (m) => (Array.isArray(m) ? m : []).map((p) => (Array.isArray(p) ? p : []).map((r) => (r && typeof r.t === "string" ? r.t : "")).join("")).join("\n").trim();
+
+/* ---------- Bilder zu Aufgaben: nur die Kopfdaten lesen (kein Dekodieren im Worker – 10 ms CPU) ---------- */
+export const IMAGE_MODES = ["thumb", "inline"];   // thumb = Miniatur rechts neben Aufgabe und Antwort, inline = größer unter der Aufgabenstellung
+export const IMAGE_ID_RE = /^[0-9a-f]{16}$/;
+export function generateImageId(rand = (n) => crypto.getRandomValues(new Uint8Array(n))) { return toHex(rand(8)); }
+const be16 = (b, i) => (b[i] << 8) | b[i + 1];
+const be32 = (b, i) => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+const le16 = (b, i) => b[i] | (b[i + 1] << 8);
+const le24 = (b, i) => b[i] | (b[i + 1] << 8) | (b[i + 2] << 16);
+const dims = (mime, w, h) => (w >= 1 && h >= 1 && w <= LIMITS.imageSide && h <= LIMITS.imageSide ? { mime, w, h } : null);
+// → {mime, w, h} für JPEG, PNG und WebP (lossy, lossless, extended) – sonst null. Liest nur die Kopfdaten.
+export function imageInfo(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const n = b.length;
+  if (n >= 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a
+      && b[12] === 0x49 && b[13] === 0x48 && b[14] === 0x44 && b[15] === 0x52)
+    return dims("image/png", be32(b, 16), be32(b, 20));
+  if (n >= 4 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) {
+    let i = 2;
+    const end = Math.min(n, 512 * 1024);
+    for (let seg = 0; seg < 2000 && i + 3 < end; seg++) {   // Segmente bis zum SOF-Marker (Frame-Kopf mit Höhe/Breite)
+      if (b[i] !== 0xff) return null;
+      const marker = b[i + 1];
+      if (marker === 0xff) { i++; continue; }                                                     // Füllbyte
+      if (marker === 0x01 || marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7)) { i += 2; continue; }   // Marker ohne Länge
+      if (marker === 0xd9 || marker === 0xda) return null;                                          // Ende/Bilddaten vor dem Frame-Kopf
+      const len = be16(b, i + 2);
+      if (len < 2) return null;
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        if (len < 7 || i + 8 >= n) return null;
+        return dims("image/jpeg", be16(b, i + 7), be16(b, i + 5));
+      }
+      i += 2 + len;
+    }
+    return null;
+  }
+  if (n >= 25 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
+    const fourcc = String.fromCharCode(b[12], b[13], b[14], b[15]);
+    if (fourcc === "VP8 ") return n >= 30 && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a ? dims("image/webp", le16(b, 26) & 0x3fff, le16(b, 28) & 0x3fff) : null;
+    if (fourcc === "VP8L") {
+      if (b[20] !== 0x2f) return null;
+      const bits = (b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24)) >>> 0;
+      return dims("image/webp", (bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1);
+    }
+    if (fourcc === "VP8X") return n >= 30 ? dims("image/webp", le24(b, 24) + 1, le24(b, 27) + 1) : null;
+    return null;
+  }
+  return null;
+}
+// Strenges Base64 → Binärstring oder null. atob statt Regex: über 680 KB kostet der Regex ~5 ms CPU, atob ~0,3 ms.
+// Die Längenprüfung lehnt ab, was atob stillschweigend überliest (Leerraum), damit nur echtes Base64 gespeichert wird.
+export function strictB64(s) {
+  if (typeof s !== "string" || !s || s.length % 4 !== 0) return null;
+  let bin; try { bin = atob(s); } catch { return null; }
+  const pad = s.endsWith("==") ? 2 : s.endsWith("=") ? 1 : 0;
+  return bin.length === (s.length / 4) * 3 - pad ? bin : null;
+}
+// Upload-Body {task, mode, data, id?, alt?}: data = Base64 (so wird es auch gespeichert – Strings kosten im Worker kaum
+// CPU, D1 liefert BLOBs als Zahlen-Array). Geprüft werden nur die Kopfdaten des Bildes (erste 144 KB). id = vom
+// Browser erzeugte Kennung (Wiederholung nach Timeout speichert nichts doppelt), alt = Bildbeschreibung (Vorlesen).
+const IMAGE_HEAD_BYTES = 144 * 1024;
+export function validateImageUpload(body) {
+  if (!isObj(body)) throw new InputError("Ungültige Anfrage.");
+  const task = body.task;
+  if (typeof task !== "number" || !Number.isInteger(task) || task < 1 || task > LIMITS.tasks) throw new InputError("Ungültige Aufgabennummer für das Bild.");
+  const mode = String(body.mode || "").trim().toLowerCase();
+  if (!IMAGE_MODES.includes(mode)) throw new InputError("Ungültige Anzeigeart für das Bild (thumb oder inline).");
+  let id = null;
+  if (body.id != null) { id = String(body.id).toLowerCase(); if (!IMAGE_ID_RE.test(id)) throw new InputError("Ungültige Bild-Kennung."); }
+  if (body.alt != null && typeof body.alt !== "string") throw new InputError("Die Bildbeschreibung muss ein Text sein.");
+  const alt = cleanText(body.alt || "").replace(/\s+/g, " ").trim();
+  if (alt.length > LIMITS.imageAlt) throw new InputError("Die Bildbeschreibung ist zu lang (höchstens " + LIMITS.imageAlt + " Zeichen).");
+  const data = body.data, bin = strictB64(data);
+  if (!bin) throw new InputError("Das Bild konnte nicht gelesen werden (erlaubt sind JPG, PNG und WebP).", "bad_image");
+  const bytes = bin.length;
+  if (bytes > LIMITS.imageBytes) throw new InputError("Das Bild ist zu groß (höchstens " + Math.round(LIMITS.imageBytes / 1024) + " KB nach dem Verkleinern).", "too_large", 413);
+  const n = Math.min(bytes, IMAGE_HEAD_BYTES), head = new Uint8Array(n);
+  for (let i = 0; i < n; i++) head[i] = bin.charCodeAt(i);
+  const info = imageInfo(head);
+  if (!info) throw new InputError("Das Bild konnte nicht gelesen werden (erlaubt sind JPG, PNG und WebP).", "bad_image");
+  return { task, mode, data, bytes, info, id, alt };
+}
+// Bild-Metadaten aus D1-Zeilen für eine Aufgabe (ohne Bilddaten)
+export function imagesForTask(rows, task) {
+  return (rows || []).filter((r) => Number(r.task) === task).map((r) => ({ id: String(r.id), mode: r.mode === "inline" ? "inline" : "thumb", w: Number(r.w) || 0, h: Number(r.h) || 0, alt: typeof r.alt === "string" ? r.alt : "" }));
 }
 
 export function validateAnswers(answers, taskCount) {

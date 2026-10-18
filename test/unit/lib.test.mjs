@@ -185,3 +185,118 @@ test("sealSecret/openSecret: AES-GCM at rest, wrong/missing secret → null", as
   const sealed2 = await sealSecret("k", "kein base64 – wird gehasht");
   assert.equal(await openSecret(sealed2, "kein base64 – wird gehasht"), "k");
 });
+
+/* ---------- Bilder zu Aufgaben: Kopfdaten lesen ---------- */
+import { imageInfo, validateImageUpload, imagesForTask, generateImageId, strictB64, IMAGE_ID_RE, IMAGE_MODES } from "../../worker/lib.js";
+import { makePng, jpegHeader, webpHeader } from "../png.mjs";
+
+test("imageInfo: PNG, JPEG (SOF0/SOF2, mit Füll- und Kommentarsegmenten), WebP (VP8X/VP8L/VP8)", () => {
+  assert.deepEqual(imageInfo(makePng(3, 2)), { mime: "image/png", w: 3, h: 2 });
+  assert.deepEqual(imageInfo(new Uint8Array(makePng(1600, 900))), { mime: "image/png", w: 1600, h: 900 });
+  assert.deepEqual(imageInfo(jpegHeader(640, 480)), { mime: "image/jpeg", w: 640, h: 480 });
+  assert.deepEqual(imageInfo(jpegHeader(1234, 77, { padding: 60000, sofMarker: 0xc2 })), { mime: "image/jpeg", w: 1234, h: 77 });
+  const padded = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xff, 0xff]), jpegHeader(20, 10).subarray(2)]);   // Füllbytes vor dem ersten Marker
+  assert.deepEqual(imageInfo(padded), { mime: "image/jpeg", w: 20, h: 10 });
+  assert.deepEqual(imageInfo(webpHeader("VP8X", 800, 600)), { mime: "image/webp", w: 800, h: 600 });
+  assert.deepEqual(imageInfo(webpHeader("VP8L", 1024, 1)), { mime: "image/webp", w: 1024, h: 1 });
+  assert.deepEqual(imageInfo(webpHeader("VP8 ", 320, 240)), { mime: "image/webp", w: 320, h: 240 });
+});
+
+test("imageInfo: alles andere → null (kein Bild, zu groß, kaputte Köpfe, GIF/SVG/HTML)", () => {
+  assert.equal(imageInfo(new Uint8Array(0)), null);
+  assert.equal(imageInfo(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'></svg>")), null);
+  assert.equal(imageInfo(Buffer.from("GIF89a\x01\x00\x01\x00", "latin1")), null);
+  assert.equal(imageInfo(Buffer.from("<html><script>alert(1)</script>")), null);
+  assert.equal(imageInfo(makePng(LIMITS.imageSide + 1, 10)), null);
+  assert.equal(imageInfo(makePng(10, 10).subarray(0, 20)), null);                       // abgeschnitten vor IHDR-Maßen
+  assert.equal(imageInfo(Buffer.from([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0xff, 0xd9])), null);   // Bilddaten ohne Frame-Kopf
+  assert.equal(imageInfo(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01])), null);     // Segmentlänge < 2
+  assert.equal(imageInfo(Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0x00, 0x00, 0x05])), null);   // Höhe 0
+  const badSig = webpHeader("VP8 ", 5, 5); badSig[23] = 0x00;
+  assert.equal(imageInfo(badSig), null);
+  assert.equal(imageInfo(Buffer.from("RIFF\0\0\0\0WEBPXXXX" + "\0".repeat(20), "latin1")), null);
+});
+
+test("validateImageUpload: Aufgabennummer 1..LIMITS.tasks, Anzeigeart thumb|inline, Base64-Bild mit lesbaren Kopfdaten", () => {
+  const png = makePng(40, 30), b64 = png.toString("base64");
+  const v = validateImageUpload({ task: 1, mode: "thumb", data: b64 });
+  assert.deepEqual([v.task, v.mode, v.bytes, v.info, v.data === b64, v.id, v.alt], [1, "thumb", png.length, { mime: "image/png", w: 40, h: 30 }, true, null, ""]);
+  const w = validateImageUpload({ task: 1, mode: "thumb", data: b64, id: "0123456789ABCDEF", alt: "  Skizze \n einer   Zelle\u0007 " });
+  assert.deepEqual([w.id, w.alt], ["0123456789abcdef", "Skizze einer Zelle"]);
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64, id: "nope" }), "bad_request");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64, id: 5 }), "bad_request");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64, alt: "x".repeat(LIMITS.imageAlt + 1) }), "bad_request");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64, alt: ["a"] }), "bad_request");
+  // Leerraum im Base64 (atob würde ihn überlesen) → abgelehnt, es wird nur echtes Base64 gespeichert
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: b64.slice(0, 8) + " \n  " + b64.slice(8) }), "bad_image");
+  assert.equal(validateImageUpload({ task: 30, mode: "INLINE", data: b64 }).mode, "inline");
+  for (const t of [0, 31, 1.5, "1", "a", "", null, undefined]) rejectsWith(() => validateImageUpload({ task: t, mode: "thumb", data: b64 }), "bad_request");
+  for (const m of ["", "big", "thumbs", null]) rejectsWith(() => validateImageUpload({ task: 1, mode: m, data: b64 }), "bad_request");
+  for (const d of ["", "kein base64!", "abc", null, 5, b64.slice(0, 20)]) rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: d }), "bad_image");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: Buffer.from("<svg/>").toString("base64") }), "bad_image");
+  rejectsWith(() => validateImageUpload({ task: 1, mode: "thumb", data: Buffer.alloc(LIMITS.imageBytes + 1).toString("base64") }), "too_large", 413);
+  rejectsWith(() => validateImageUpload(null), "bad_request");
+  // JPEG mit großem Kommentarsegment: Frame-Kopf liegt jenseits der ersten Bytes, aber innerhalb der dekodierten 144 KB
+  const jpg = jpegHeader(800, 600, { padding: 60000 });
+  assert.deepEqual(validateImageUpload({ task: 2, mode: "inline", data: jpg.toString("base64") }).info, { mime: "image/jpeg", w: 800, h: 600 });
+  assert.deepEqual(IMAGE_MODES, ["thumb", "inline"]);
+});
+
+test("strictB64: nur echtes Base64 mit passender Länge", () => {
+  assert.equal(strictB64("aGFsbG8="), "hallo");
+  assert.equal(strictB64("aGFsbG8"), null);        // Länge kein Vielfaches von 4
+  assert.equal(strictB64("aGFs bG8="), null);      // Leerraum
+  assert.equal(strictB64("aGFs=bG8="), null);      // Padding in der Mitte
+  assert.equal(strictB64("aGFsbG8-"), null);       // url-safe-Zeichen
+  assert.equal(strictB64(""), null); assert.equal(strictB64(null), null); assert.equal(strictB64(12), null);
+  assert.equal(strictB64("YQ=="), "a"); assert.equal(strictB64("YWI="), "ab"); assert.equal(strictB64("YWJj"), "abc");
+});
+
+test("imagesForTask + generateImageId", () => {
+  const rows = [{ id: "a", task: 2, mode: "inline", w: 10, h: 5, alt: "Zelle" }, { id: "b", task: "1", mode: "weird", w: "3", h: null }, { id: "c", task: 2, mode: "thumb", w: 1, h: 1, alt: null }];
+  assert.deepEqual(imagesForTask(rows, 2), [{ id: "a", mode: "inline", w: 10, h: 5, alt: "Zelle" }, { id: "c", mode: "thumb", w: 1, h: 1, alt: "" }]);
+  assert.deepEqual(imagesForTask(rows, 1), [{ id: "b", mode: "thumb", w: 3, h: 0, alt: "" }]);
+  assert.deepEqual(imagesForTask(undefined, 1), []);
+  for (let i = 0; i < 20; i++) assert.match(generateImageId(), IMAGE_ID_RE);
+  assert.equal(generateImageId((n) => new Uint8Array(n).fill(255)), "ffffffffffffffff");
+});
+
+/* ---------- Material zu Aufgaben ---------- */
+import { validateMaterial, materialText, cleanHref } from "../../worker/lib.js";
+
+test("cleanHref: nur http(s), normalisiert; alles andere leer", () => {
+  assert.equal(cleanHref(" https://Beispiel.de/Weg?x=1#a "), "https://beispiel.de/Weg?x=1#a");
+  assert.equal(cleanHref("http://127.0.0.1:8787/api/health"), "http://127.0.0.1:8787/api/health");
+  for (const bad of ["javascript:alert(1)", "data:text/html,x", "mailto:a@b.de", "ftp://x.de", "beispiel.de", "", null, undefined, "https://a b.de", "https://x.de/\u0007", "x".repeat(LIMITS.href + 1),
+    "https://example.com/" + "ä".repeat(900)])   // nach der Prozent-Kodierung zu lang
+    assert.equal(cleanHref(bad), "", String(bad).slice(0, 30));
+  assert.equal(cleanHref("https://example.com/" + "ä".repeat(100)), "https://example.com/" + "%C3%A4".repeat(100));
+});
+
+test("validateMaterial: normalisiert Läufe, verbindet gleiche Formate, prüft Links und Grenzen", () => {
+  assert.deepEqual(validateMaterial(undefined), []); assert.deepEqual(validateMaterial(null), []); assert.deepEqual(validateMaterial([]), []);
+  const m = validateMaterial([
+    [], [{ t: "Lies " }, { t: "den", f: "ub" }, { t: " Text", f: "" }, { t: "", f: "b" }, { t: "\tjetzt\n" }],
+    [{ t: "Quelle", h: "HTTPS://Beispiel.de/x", f: "iii" }, { t: "  " }],
+    [], [],
+  ], 2);
+  assert.deepEqual(m, [[{ t: "Lies " }, { t: "den", f: "bu" }, { t: " Text jetzt " }], [{ t: "Quelle", f: "i", h: "https://beispiel.de/x" }, { t: "  " }]]);
+  rejectsWith(() => validateMaterial("x"), "bad_request"); rejectsWith(() => validateMaterial([{}]), "bad_request"); rejectsWith(() => validateMaterial([[5]]), "bad_request");
+  rejectsWith(() => validateMaterial([[{ t: 5 }]]), "bad_request"); rejectsWith(() => validateMaterial([[{ t: "a", f: 1 }]]), "bad_request");
+  assert.throws(() => validateMaterial([[{ t: "x", h: "javascript:alert(1)" }]], 3), (e) => e instanceof InputError && /Aufgabe 3: Ein Link im Material ist ungültig/.test(e.message));
+  rejectsWith(() => validateMaterial([[{ t: "x".repeat(LIMITS.material + 1) }]]), "bad_request");
+  rejectsWith(() => validateMaterial(Array.from({ length: LIMITS.materialParagraphs + 1 }, () => [])), "bad_request");
+  rejectsWith(() => validateMaterial([Array.from({ length: LIMITS.materialRuns + 1 }, (_, i) => ({ t: "a", f: i % 2 ? "b" : "" }))]), "bad_request");
+  rejectsWith(() => validateMaterial([Array.from({ length: LIMITS.materialRuns + 1 }, () => ({ t: "" }))]), "bad_request");   // leere Läufe zählen mit
+  rejectsWith(() => validateMaterial([Array.from({ length: LIMITS.materialLinks + 1 }, (_, i) => ({ t: "a", h: "https://x.de/" + i }))]), "bad_request");
+  // Steuerzeichen raus, NBSP → Leerzeichen
+  assert.deepEqual(validateMaterial([[{ t: "a\u0000b\u00a0c" }]]), [[{ t: "ab c" }]]);
+});
+
+test("validateSheetInput nimmt Material je Aufgabe mit (nur wenn vorhanden) und materialText macht reinen Text", () => {
+  const r = validateSheetInput({ title: "x", tasks: [{ text: "A", material: [[{ t: "Hallo " }, { t: "Welt", f: "b" }], [], [{ t: "Link", h: "https://x.de" }]] }, { text: "B", material: [] }, { text: "C" }] });
+  assert.deepEqual(r.tasks[0].material, [[{ t: "Hallo " }, { t: "Welt", f: "b" }], [], [{ t: "Link", h: "https://x.de/" }]]);
+  assert.equal("material" in r.tasks[1], false); assert.equal("material" in r.tasks[2], false);
+  assert.equal(materialText(r.tasks[0].material), "Hallo Welt\n\nLink");
+  assert.equal(materialText(undefined), ""); assert.equal(materialText([[{ t: "  x " }]]), "x");
+});

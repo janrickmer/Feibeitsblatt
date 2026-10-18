@@ -4,13 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<!-- Content-Security-Policy auch dann, wenn die Seite nicht vom Worker kommt (GitHub Pages setzt keine Header).
+     Bei Auslieferung durch den Worker gilt zusätzlich _headers. Die Worker-Adresse hier und im Skript darunter
+     müssen übereinstimmen. frame-ancestors lässt sich per <meta> nicht setzen. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.languagetool.org https://feibeitsblatt.feindt.workers.dev; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
 <title>Feibeitsblatt</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236b4f2c'/%3E%3Ctext x='32' y='45' font-family='Georgia,serif' font-size='40' font-weight='bold' text-anchor='middle' fill='%23fffdf8'%3EF%3C/text%3E%3C/svg%3E">
 <script>
-  /* Adresse des Servers (Cloudflare Worker). "" = gleiche Herkunft: Der Worker liefert diese Seite selbst aus.
-     Nur wenn die Seite woanders liegt (z. B. GitHub Pages), hier die Worker-Adresse eintragen,
-     z. B. "https://feibeitsblatt.beispiel.workers.dev" (ohne Schrägstrich am Ende). */
-  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || "";
+  /* Adresse des Servers (Cloudflare Worker, ohne Schrägstrich am Ende). Liefert der Worker diese Seite selbst aus
+     (workers.dev) oder läuft sie lokal, gilt "" = gleiche Herkunft. Liegt die Seite woanders (GitHub Pages unter
+     feibeitsblatt.janrickmer.de), ruft sie den Worker unter dieser Adresse auf – dieselbe Adresse steht in der
+     Content-Security-Policy darüber (connect-src). */
+  window.FEIBEITSBLATT_WORKER = "https://feibeitsblatt.feindt.workers.dev";
+  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || (/\.workers\.dev$|^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? "" : window.FEIBEITSBLATT_WORKER);
 </script>
 <style>
   /* ---------- Grundlagen (Tokens wie im Feiditor) ---------- */
@@ -149,10 +155,53 @@
   .sheet-title{font-family:var(--serif); font-weight:700; font-size:1.45em; line-height:1.3; margin:0; overflow-wrap:anywhere}
   .sheet-meta{font-family:var(--sans); font-size:13px; color:var(--muted); margin:6px 0 0; line-height:1.5}
   /* Jede Aufgabe ist ein Block; zwischen Antwortblock und nächster Aufgabenstellung genau eine Leerzeile (1 Zeilenhöhe). */
-  .task{display:flow-root; margin:0}
+  /* Aufgabe als Raster: Frage, Antwortteil und – falls vorhanden – Miniaturbilder rechts daneben (auf schmalen
+     Bildschirmen zwischen Frage und Antwortfeld). Ohne Bilder bleibt die Höhe exakt wie ein normaler Block. */
+  .task{display:grid; grid-template-columns:minmax(0,1fr); grid-template-areas:"q" "body"; margin:0}
+  .task.has-thumbs{grid-template-columns:minmax(0,1fr) 112px; grid-template-rows:auto 1fr; grid-template-areas:"q thumbs" "body thumbs"; column-gap:16px}
+  .task-q{grid-area:q; align-self:start}
+  .task-body{grid-area:body; min-width:0}
+  .task-thumbs{grid-area:thumbs; display:flex; flex-direction:column; gap:8px; align-self:start; padding-top:4px}
+  .thumbbtn,.figbtn{display:block; padding:0; margin:0; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:zoom-in; overflow:hidden; line-height:0; font:inherit; color:inherit; box-sizing:border-box}
+  .thumbbtn{width:112px; flex:0 0 auto}
+  .thumbbtn.small{width:72px}
+  .thumbbtn:hover,.figbtn:hover{border-color:var(--accent2)}
+  .thumbbtn.loading,.figbtn.loading{background:var(--soft); cursor:progress; min-height:40px; display:flex; align-items:center; justify-content:center}
+  .thumbbtn.loading img,.figbtn.loading img{display:none}
+  .thumbbtn.loading .spinner,.figbtn.loading .spinner{margin:0}
+  .thumbbtn.failed,.figbtn.failed{cursor:pointer; font:12px var(--sans); line-height:1.35; padding:6px; color:var(--muted); white-space:normal; text-align:center; max-width:220px}
+  .thumbbtn.failed:hover,.figbtn.failed:hover{color:var(--ink)}
+  .thumbbtn img{display:block; width:100%; height:auto; max-height:112px; object-fit:contain}
+  .thumbbtn.small img{max-height:72px}
+  .task-figs{display:flex; flex-wrap:wrap; gap:10px; margin:0 0 10px}
+  .figbtn img{display:block; width:auto; height:auto; max-width:min(100%, 420px); max-height:300px}
+  .timgs{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 0}
+  /* Material zur Aufgabe: Text der Lehrkraft mit Fett/Kursiv/Unterstrichen und Links (neuer Tab) */
+  .task-material{margin:0 0 12px; padding:10px 14px 4px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px; font-size:17px; line-height:1.65}
+  .task-material > .sublabel{display:block; margin:0 0 4px}
+  .material p{margin:0 0 .55em; overflow-wrap:anywhere}
+  .material a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
+  .material a:hover{color:var(--accent2)}
+  .material a::after{content:"\00a0↗" / ""; font-size:.75em; color:var(--muted)}   /* nur sichtbar, nicht vorgelesen */
+  .si .material{font-family:var(--serif); font-size:15.5px; margin:4px 0 0; padding:6px 12px 2px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px}
+  .solist .si .material p{margin:0 0 .45em; white-space:normal}
+  /* Material-Editor der Lehrkraft */
+  .bmat{margin:8px 0 0; font-family:var(--sans)}
+  .bmat-bar{display:flex; flex-wrap:wrap; gap:4px; margin:0 0 4px}
+  .fmtbtn{min-width:34px; height:30px; padding:0 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper2); font:14px var(--sans); color:var(--ink); cursor:pointer}
+  .fmtbtn:hover{background:var(--soft)}
+  .bmat-edit{position:relative; min-height:64px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--paper); font-family:var(--serif); font-size:17px; line-height:1.6; outline:none; overflow-wrap:anywhere; white-space:pre-wrap}
+  .bmat-edit:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
+  .bmat-edit.is-empty::before{content:attr(data-placeholder); position:absolute; left:13px; right:13px; top:9px; color:#756c60; font-family:var(--serif); pointer-events:none}
+  .bmat-edit a{color:var(--accent); text-decoration:underline}
+  .bmat .fhint{margin:4px 0 0}
+  #linkdlg .field{margin:0 0 12px}
+  #linkdlg p.err{margin:0 0 10px; min-height:1.3em}
+  #linkdlg p.fhint{margin:5px 0 0; font-size:12.5px; line-height:1.45}
+  .fmtbtn[aria-pressed="true"]{background:var(--soft); border-color:var(--accent2)}
   .task + .task{margin-top:1.78em}
   .task-q{font-weight:700; padding:2px 0 0; margin:0 0 6px}
-  .task-label{
+  .task-label,.sublabel{
     display:block; font-family:var(--sans); font-size:12px; font-weight:700; line-height:1.5;
     letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 2px;
   }
@@ -178,6 +227,26 @@
   .ltstat.bad{color:var(--red)}
   .ltstat:empty{display:none}
   .lt-off{font-style:italic}
+  /* Bild vergrößert (Klick auf Miniatur) */
+  .lightbox{position:fixed; inset:0; z-index:40; background:rgba(20,16,10,.88); display:none; align-items:center; justify-content:center; padding:48px 20px 40px}
+  .lightbox.open{display:flex}
+  .lightbox img{display:block; max-width:min(96vw, 1600px); max-height:calc(100vh - 88px); width:auto; height:auto; background:#fff; border-radius:4px; box-shadow:0 30px 80px -20px rgba(0,0,0,.6)}
+  .lb-close{position:absolute; top:10px; right:14px; width:40px; height:40px; border-radius:50%; border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.35); color:#fff; font:20px/1 var(--sans); cursor:pointer}
+  .lb-close:hover{background:rgba(0,0,0,.6)}
+  .lb-hint{position:absolute; left:0; right:0; bottom:10px; margin:0; padding:0 60px; text-align:center; color:#e6e0d4; font:13px/1.45 var(--sans)}
+  .lb-hint b{font-weight:600; color:#fff}
+  /* Bilder im Blatt-Editor der Lehrkraft */
+  .bimgs{margin:8px 0 0; font-family:var(--sans)}
+  .bimg-list{display:flex; flex-direction:column; gap:8px; margin:0 0 8px}
+  .bimg{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--paper)}
+  .bimg img{display:block; width:72px; height:auto; max-height:72px; object-fit:contain; border-radius:4px; background:#fff}
+  .bimg-ctl{display:flex; flex-direction:column; gap:4px; min-width:0}
+  .bimg-ctl select{width:100%; font-size:13.5px; padding:6px 8px; border-radius:7px}
+  .bimg-meta{font-size:12px; color:var(--muted)}
+  .bimg-ctl input[type=text]{font-size:13.5px; padding:6px 8px; border-radius:7px; font-family:var(--sans)}
+  .bimg-row{display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center}
+  .bimg-stat{margin:0; font-size:12.5px}
+  @media (max-width:1000px){ .bimg{grid-template-columns:auto auto} .bimg-ctl{grid-column:1 / -1} }
   /* Ausgabe der Rechtschreibprüfung – klein unter dem Feld */
   .lt-out{margin:10px 0 0; padding:10px 14px 9px; background:var(--paper); border:1px solid var(--line); border-left:3px solid var(--accent2); border-radius:8px}
   .lt-head{font-family:var(--sans); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 4px; line-height:1.4}
@@ -337,6 +406,9 @@
   .btn:focus-visible,.linkbtn:focus-visible,.backlink:focus-visible,.iconbtn:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent2); outline-offset:2px}
   @media (prefers-reduced-motion: reduce){ .btn,.spinner,.arrow,textarea,input{transition:none; animation:none} }
   @media (max-width:640px){
+    .task.has-thumbs{grid-template-columns:minmax(0,1fr); grid-template-areas:"q" "thumbs" "body"; column-gap:0}
+    .task-thumbs{flex-direction:row; flex-wrap:wrap; padding-top:0; margin:0 0 10px}
+    .thumbbtn img{width:88px; max-height:88px}
     .start-wrap{padding:28px 16px 32px}
     .card{padding:30px 22px}
     .card h1{font-size:27px}
@@ -597,7 +669,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt).</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab.</p>
       <div id="b-form">
         <div class="field" style="max-width:640px">
           <label for="b-title">Titel</label>
@@ -629,8 +701,10 @@
           <span class="bigcode" id="b-res-code"></span>
           <button type="button" class="btn ghost small" id="b-res-copy">Kopieren</button>
         </div>
+        <p class="status" id="b-res-img" aria-live="polite"></p>
         <div class="row">
           <button type="button" class="btn" id="b-res-back">Zur Übersicht</button>
+          <button type="button" class="btn ghost small hidden" id="b-res-retry">Fehlende Bilder erneut hochladen</button>
         </div>
       </div>
     </div>
@@ -734,6 +808,35 @@
   </div>
 </div>
 
+<!-- Link im Material einfügen oder bearbeiten -->
+<div class="modal" id="linkdlg" role="dialog" aria-modal="true" aria-labelledby="ld-title">
+  <div class="box">
+    <h2 id="ld-title">Link einfügen</h2>
+    <div class="field">
+      <label for="ld-text">Linktext</label>
+      <input type="text" id="ld-text" maxlength="500" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="ld-url">Adresse (http:// oder https://; ohne Angabe wird https:// ergänzt)</label>
+      <input type="url" id="ld-url" maxlength="1000" autocomplete="off" spellcheck="false" placeholder="https://…">
+      <p class="fhint">Schüler:innen öffnen den Link immer in einem neuen Tab.</p>
+    </div>
+    <p class="err" id="ld-err" aria-live="polite"></p>
+    <div class="row">
+      <button type="button" class="linkbtn hidden" id="ld-remove">Link entfernen</button>
+      <button type="button" class="btn ghost" id="ld-cancel">Abbrechen</button>
+      <button type="button" class="btn" id="ld-ok">Einfügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bild vergrößert -->
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Bild vergrößert" hidden>
+  <button type="button" class="lb-close" id="lb-close" aria-label="Schließen">✕</button>
+  <img id="lb-img" alt="">
+  <p class="lb-hint"><b id="lb-cap"></b><span id="lb-sep"> · </span>Klicken oder Esc zum Schließen</p>
+</div>
+
 <div id="pagefoot" class="copyright">Copyright Jan-Rickmer Feindt</div>
 
 <script>
@@ -795,6 +898,13 @@ function setStatus(node, text, kind) {
   if (text) node.appendChild(document.createTextNode(text));
 }
 /* Button während einer Anfrage sperren (verhindert Doppelklicks); hatte er den Fokus, bekommt er ihn danach zurück */
+/* Fokus kurz nach einem Bildschirmwechsel setzen – aber nur, wenn die Person nicht schon selbst ein Feld gewählt hat */
+function focusSoon(id, ms = 30) {
+  setTimeout(() => {
+    const el = $(id), a = document.activeElement;
+    if (el && (!a || a === document.body)) { try { el.focus(); } catch (e) { /* egal */ } }
+  }, ms);
+}
 function busy(btn, on, text) {
   if (on) {
     if (btn._label == null) btn._label = btn.textContent;
@@ -842,7 +952,7 @@ async function api(method, path, opts) {
   let res, data = null;
   try {
     res = await fetch(API + path, { method, headers, body: o.body !== undefined ? JSON.stringify(o.body) : undefined,
-      signal: ac.signal, credentials: "omit", cache: "no-store" });
+      signal: ac.signal, credentials: "omit", cache: o.cache || "no-store" });   // Bilder sind unveränderlich → cache "default"
     try { data = await res.json(); } catch (e) { data = null; }
   } catch (e) {
     throw new ApiError(ac.signal.aborted ? "timeout" : "network");
@@ -1012,6 +1122,230 @@ async function copyText(text, btn) {
 }
 
 /* Mitwachsende Textfelder: Höhe = Texthöhe (gemessen an einem unsichtbaren Zwilling, damit nichts springt). */
+/* ---------- Material zu Aufgaben: Absätze aus Läufen {t, f ("b"/"i"/"u"), h (Link)} – nie innerHTML ---------- */
+const MAT_LIMITS = { chars: 8000, paragraphs: 200, runs: 600, links: 60, href: 1000 };   // wie LIMITS im Worker
+function cleanHref(raw) {   // → http(s)-Adresse oder "" (javascript:, data: usw. werden verworfen)
+  const s = String(raw == null ? "" : raw).trim();
+  if (!s || s.length > MAT_LIMITS.href || /[\u0000-\u0020\u007f]/.test(s)) return "";
+  let u; try { u = new URL(s); } catch (e) { return ""; }
+  return (u.protocol === "http:" || u.protocol === "https:") && u.href.length <= MAT_LIMITS.href ? u.href : "";
+}
+function cleanMaterial(raw) {   // Daten vom Server prüfen, bevor daraus DOM wird
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, MAT_LIMITS.paragraphs).map((p) => (Array.isArray(p) ? p : []).map((r) => (r && typeof r.t === "string"
+    ? { t: r.t.slice(0, MAT_LIMITS.chars), f: ["b", "i", "u"].filter((c) => String(r.f || "").includes(c)).join(""), h: cleanHref(r.h) } : null)).filter((r) => r && r.t));
+}
+const materialChars = (m) => m.reduce((n, p) => n + p.reduce((k, r) => k + r.t.length, 0), 0);
+// Modell → DOM: links = anklickbar in neuem Tab (Schüler:innen, Lehrkraft-Ansicht); editor = Zeilen als <div> für contenteditable
+function materialDom(material, opts) {
+  const o = opts || {}, root = h("div", { class: "material" });
+  cleanMaterial(material).forEach((runs) => {
+    const p = h(o.editor ? "div" : "p");
+    if (!runs.length) p.appendChild(h("br"));
+    runs.forEach((r) => {
+      let node = document.createTextNode(r.t);
+      if (r.f.includes("u")) node = h("u", null, [node]);
+      if (r.f.includes("i")) node = h("i", null, [node]);
+      if (r.f.includes("b")) node = h("b", null, [node]);
+      if (r.h) node = o.links ? h("a", { href: r.h, target: "_blank", rel: "noopener noreferrer" }, [node, h("span", { class: "sr-only", text: " (öffnet in neuem Tab)" })]) : h("a", { href: r.h }, [node]);
+      p.appendChild(node);
+    });
+    root.appendChild(p);
+  });
+  return root;
+}
+// DOM des Editors (oder eingefügtes HTML) → Modell. Nur b/i/u/Links bleiben; Blöcke und <br> trennen Absätze.
+const MAT_BLOCK_RE = /^(p|div|li|h[1-6]|tr|blockquote|pre|section|article|ul|ol|table|tbody|thead|tfoot|dd|dt|dl|figure|header|footer|nav|main|aside|address|details|summary|form|fieldset)$/;
+function serializeMaterial(root) {
+  const lines = []; let cur = [];
+  const flush = () => { lines.push(cur); cur = []; };
+  const push = (text, f, hr) => {
+    const t = text.replace(/[\u00a0\t\r\n]+/g, " ");
+    if (!t || (!cur.length && !t.trim())) return;
+    const prev = cur[cur.length - 1];
+    if (prev && prev.f === f && prev.h === hr) prev.t += t; else cur.push({ t, f, h: hr });
+  };
+  const walk = (node, b, i, u, hr, pre) => {
+    if (node.nodeType === 3) {
+      const f = (b ? "b" : "") + (i ? "i" : "") + (u ? "u" : "");
+      if (pre) (node.nodeValue || "").split("\n").forEach((part, k) => { if (k) flush(); push(part.replace(/\t/g, "    "), f, hr); });   // Zeilen in <pre> bleiben
+      else push(node.nodeValue || "", f, hr);
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName.toLowerCase();
+    if (tag === "br") { flush(); return; }
+    if (tag === "script" || tag === "style" || tag === "template" || tag === "img" || tag === "svg" || tag === "iframe" || tag === "object") return;
+    const st = node.style || {}, fw = String(st.fontWeight || ""), fs = String(st.fontStyle || "");
+    // Ein ausdrückliches Inline-Gewicht hebt vererbtes Fett auf (Google Docs hüllt alles in <b style="font-weight:normal">)
+    b = fw ? (fw === "bold" || fw === "bolder" || +fw >= 600) : (b || tag === "b" || tag === "strong");
+    i = fs ? (fs === "italic" || fs === "oblique") : (i || tag === "i" || tag === "em");
+    u = u || tag === "u" || /underline/.test(String(st.textDecoration || st.textDecorationLine || ""));
+    pre = pre || tag === "pre" || /^pre/.test(String(st.whiteSpace || ""));
+    if (tag === "a") { const x = cleanHref(node.getAttribute("href")); if (x) hr = x; }
+    const block = MAT_BLOCK_RE.test(tag);
+    if (block && cur.length) flush();
+    for (const c of Array.from(node.childNodes)) walk(c, b, i, u, hr, pre);
+    if (tag === "td" || tag === "th") push(" ", (b ? "b" : "") + (i ? "i" : "") + (u ? "u" : ""), hr);   // Zellen einer Zeile mit Abstand
+    if (block && cur.length) flush();
+  };
+  walk(root, false, false, false, "", false);
+  flush();
+  const out = lines.map((runs) => {
+    if (runs.length) { runs[0].t = runs[0].t.replace(/^\s+/, ""); runs[runs.length - 1].t = runs[runs.length - 1].t.replace(/\s+$/, ""); }
+    return runs.filter((r) => r.t).map((r) => { const o = { t: r.t }; if (r.f) o.f = r.f; if (r.h) o.h = r.h; return o; });
+  });
+  while (out.length && !out[out.length - 1].length) out.pop();
+  while (out.length && !out[0].length) out.shift();
+  return out;
+}
+// Eingefügtes HTML (Zwischenablage) bereinigt an der Cursorposition einfügen
+function insertMaterialHtml(ed, html) {
+  let doc; try { doc = new DOMParser().parseFromString(html, "text/html"); } catch (e) { return; }
+  const model = serializeMaterial(doc.body);
+  if (!model.length) return;
+  const dom = materialDom(model, { editor: true });
+  const sel = getSelection();
+  if (!sel.rangeCount || !ed.contains(sel.anchorNode)) { ed.focus(); sel.selectAllChildren(ed); sel.collapseToEnd(); }
+  const range = sel.getRangeAt(0); range.deleteContents();
+  const frag = document.createDocumentFragment();
+  (model.length === 1 ? Array.from(dom.firstChild.childNodes) : Array.from(dom.childNodes)).forEach((n) => frag.appendChild(n));
+  const last = frag.lastChild;
+  range.insertNode(frag);
+  if (last) { range.setStartAfter(last); range.collapse(true); sel.removeAllRanges(); sel.addRange(range); }
+}
+/* Link-Dialog für den Material-Editor */
+let ldState = null;
+function closestAnchor(node, ed) { let n = node && node.nodeType === 3 ? node.parentNode : node; while (n && n !== ed) { if (n.tagName === "A") return n; n = n.parentNode; } return null; }
+function linkDialog(ed) {
+  ed.focus();
+  const sel = getSelection();
+  if (!sel.rangeCount || !ed.contains(sel.anchorNode)) { sel.selectAllChildren(ed); sel.collapseToEnd(); }
+  const range = sel.getRangeAt(0).cloneRange(), anchor = closestAnchor(sel.anchorNode, ed);
+  ldState = { ed, range, anchor };
+  $("ld-title").textContent = anchor ? "Link bearbeiten" : "Link einfügen";
+  $("ld-text").value = anchor ? anchor.textContent : range.toString().replace(/\s+/g, " ").trim();
+  $("ld-url").value = anchor ? anchor.getAttribute("href") || "" : "";
+  $("ld-err").textContent = "";
+  $("ld-remove").classList.toggle("hidden", !anchor);
+  $("ld-ok").textContent = anchor ? "Übernehmen" : "Einfügen";
+  $("linkdlg").classList.add("open");
+  setTimeout(() => ($("ld-text").value && !$("ld-url").value ? $("ld-url") : $("ld-text")).focus(), 20);
+}
+function closeLinkDlg() {
+  $("linkdlg").classList.remove("open");
+  const st = ldState; ldState = null;
+  if (st && st.ed) { try { st.ed.focus(); } catch (e) { /* egal */ } }
+}
+function applyLink() {
+  const st = ldState; if (!st) return;
+  const text = $("ld-text").value.replace(/\s+/g, " ").trim();
+  const raw = $("ld-url").value.trim();
+  let url = cleanHref(raw);
+  if (!url && raw && !/^https?:\/\//i.test(raw)) url = cleanHref("https://" + raw);   // ohne Schema (auch host:port) → https://
+  if (!url) { $("ld-err").textContent = "Bitte eine gültige Adresse eingeben, z. B. https://www.beispiel.de"; $("ld-url").focus(); return; }
+  if (!text) { $("ld-err").textContent = "Bitte einen Linktext eingeben."; $("ld-text").focus(); return; }
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(st.range);
+  let a;
+  if (st.anchor) { a = st.anchor; a.setAttribute("href", url); if (a.textContent !== text) a.textContent = text; }
+  else if (!st.range.collapsed && st.range.toString().replace(/\s+/g, " ").trim() === text) {
+    document.execCommand("createLink", false, url);   // markierten Text verlinken (Formatierung bleibt)
+    a = closestAnchor(sel.anchorNode, st.ed);
+  } else { a = h("a", { href: url }, [document.createTextNode(text)]); st.range.deleteContents(); st.range.insertNode(a); }
+  if (a) { const r = document.createRange(); r.setStartAfter(a); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+  st.ed.dispatchEvent(new Event("input", { bubbles: true }));
+  closeLinkDlg();
+}
+$("ld-ok").addEventListener("click", applyLink);
+$("ld-cancel").addEventListener("click", closeLinkDlg);
+$("ld-remove").addEventListener("click", () => {
+  const st = ldState;
+  if (st && st.anchor) { st.anchor.replaceWith(...Array.from(st.anchor.childNodes)); st.ed.dispatchEvent(new Event("input", { bubbles: true })); }
+  closeLinkDlg();
+});
+$("linkdlg").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); closeLinkDlg(); }
+  else if (e.key === "Enter" && (e.target.id === "ld-text" || e.target.id === "ld-url")) { e.preventDefault(); applyLink(); }
+  else if (e.key === "Tab") {   // Fokus im Dialog halten
+    const f = Array.from($("linkdlg").querySelectorAll("input, button")).filter((x) => !x.classList.contains("hidden") && !x.disabled);
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+// Formatknöpfe spiegeln den Zustand an der Cursorposition (aria-pressed), wenn ein Material-Editor den Fokus hat
+function syncFmt(ed) {
+  if (!ed || !ed._fmtBtns) return;
+  for (const [cmd, b] of Object.entries(ed._fmtBtns)) { let on = false; try { on = document.queryCommandState(cmd); } catch (e) { on = false; } b.setAttribute("aria-pressed", on ? "true" : "false"); }
+}
+document.addEventListener("selectionchange", () => { const a = document.activeElement; if (a && a.classList && a.classList.contains("bmat-edit")) syncFmt(a); });
+$("linkdlg").addEventListener("click", (e) => { if (e.target === $("linkdlg")) closeLinkDlg(); });
+
+/* ---------- Bilder zu Aufgaben: Adresse und Vergrößerung ---------- */
+const IMAGE_ID_RE = /^[0-9a-f]{16}$/, IMAGE_MIME_RE = /^image\/(jpeg|png|webp)$/;
+const hexOf = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, "0")).join("");
+const imgCache = new Map();   // "code/id" → Promise<data:-URL> (Server liefert {mime, w, h, data: Base64}; Browser cacht die Antwort)
+function loadImage(code, id) {
+  const key = code + "/" + id;
+  if (imgCache.size > 60) imgCache.clear();   // Lehrkraft-Ansicht: nicht unbegrenzt Bilddaten im Speicher halten
+  if (!imgCache.has(key)) imgCache.set(key, api("GET", "/api/sheet/" + encodeURIComponent(code) + "/images/" + id, { cache: "default", timeout: 60000 })
+    .then((r) => { if (typeof r.data !== "string" || !IMAGE_MIME_RE.test(String(r.mime)) || !/^[A-Za-z0-9+/]*={0,2}$/.test(r.data)) throw new ApiError("server_error"); return "data:" + r.mime + ";base64," + r.data; })
+    .catch((e) => { imgCache.delete(key); throw e; }));
+  return imgCache.get(key);
+}
+const blobToB64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).replace(/^data:[^,]*,/, "")); r.onerror = () => rej(new Error("read")); r.readAsDataURL(blob); });
+function dataUrlToBlob(src) {   // "data:image/png;base64,…" → Blob (für die Vorlagen-Funktion; fetch(data:) ließe die CSP nicht zu)
+  const m = /^data:([^;,]+);base64,(.*)$/.exec(src); if (!m) return null;
+  const bin = atob(m[2]), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], { type: m[1] });
+}
+function cleanImages(list) {   // Metadaten vom Server prüfen (fremde Daten nie ungeprüft ins DOM)
+  return (Array.isArray(list) ? list : []).filter((m) => m && typeof m.id === "string" && IMAGE_ID_RE.test(m.id)).slice(0, 5)
+    .map((m) => ({ id: m.id, mode: m.mode === "inline" ? "inline" : "thumb", w: Number.isInteger(m.w) && m.w > 0 ? m.w : 0, h: Number.isInteger(m.h) && m.h > 0 ? m.h : 0,
+      alt: typeof m.alt === "string" ? m.alt.slice(0, 200) : "" }));
+}
+// Klickbares Bild (Miniatur oder größer); der Platz steht per width/height schon vor dem Laden fest. Klick vergrößert.
+// Während des Ladens ein Spinner (kein „kaputtes Bild“), bei einem Fehler ein Button „erneut versuchen“.
+function imgButton(code, m, label, cls) {
+  const alt = m.alt || label;
+  const img = h("img", { alt: "", width: m.w || null, height: m.h || null, decoding: "async" });
+  const btn = h("button", { type: "button", class: cls, "aria-label": alt + " – wird geladen" }, [img]);
+  btn._alt = alt;
+  const load = () => {
+    btn.classList.add("loading"); btn.classList.remove("failed"); btn.disabled = true; btn.setAttribute("aria-busy", "true");
+    btn.textContent = ""; btn.append(h("span", { class: "spinner", "aria-hidden": "true" }), img);
+    loadImage(code, m.id).then(
+      (src) => { img.src = src; img.alt = alt; btn._src = src; btn.disabled = false; btn.removeAttribute("aria-busy"); btn.classList.remove("loading"); btn.setAttribute("aria-label", alt + " – vergrößern"); btn.textContent = ""; btn.appendChild(img); },
+      () => { btn.classList.remove("loading"); btn.classList.add("failed"); btn.disabled = false; btn.removeAttribute("aria-busy"); btn.textContent = "Bild konnte nicht geladen werden – erneut versuchen"; btn.setAttribute("aria-label", alt + " – konnte nicht geladen werden, erneut versuchen"); });
+  };
+  btn.addEventListener("click", () => { if (btn._src) openLightbox(btn._src, alt, btn); else if (btn.classList.contains("failed")) load(); });
+  load();
+  return btn;
+}
+let lbOpener = null;
+function openLightbox(src, alt, opener) {
+  const lb = $("lightbox"), im = $("lb-img");
+  im.src = src; im.alt = alt || "";
+  $("lb-cap").textContent = alt || ""; $("lb-sep").hidden = !alt;
+  lbOpener = opener || document.activeElement;
+  lb.hidden = false; lb.classList.add("open");
+  $("lb-close").focus();
+}
+function closeLightbox() {
+  const lb = $("lightbox");
+  if (lb.hidden) return;
+  lb.classList.remove("open"); lb.hidden = true; $("lb-img").removeAttribute("src");
+  if (lbOpener && lbOpener.isConnected) { try { lbOpener.focus({ preventScroll: true }); } catch (e) { /* egal */ } }
+  lbOpener = null;
+}
+$("lightbox").addEventListener("click", closeLightbox);
+document.addEventListener("keydown", (e) => {
+  if ($("lightbox").hidden) return;
+  if (e.key === "Escape") { e.preventDefault(); closeLightbox(); }
+  else if (e.key === "Tab") { e.preventDefault(); $("lb-close").focus(); }   // Fokus bleibt in der Vergrößerung
+});
+
 function autoGrow(ta) {
   if (!ta.isConnected || ta.offsetWidth === 0) return;
   let m = ta._measure;
@@ -1065,6 +1399,8 @@ async function loadSheet(code) {
   S.sheet = {
     code, title: String(sh.title || "Feibeitsblatt"),
     tasks: sh.tasks.map((t) => String((t && t.text) || "")),
+    images: sh.tasks.map((t) => cleanImages(t && t.images)),   // je Aufgabe: Miniaturen (thumb) oder größer unter der Aufgabe (inline)
+    material: sh.tasks.map((t) => cleanMaterial(t && t.material)),   // je Aufgabe: formatierter Text der Lehrkraft mit Links
     aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null
   };
 }
@@ -1138,7 +1474,7 @@ function openPerson() {
   ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => $(id).classList.remove("invalid"));
   const t = new Date(); $("p-geb").max = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
   show("screen-person");
-  setTimeout(() => $("p-vorname").focus(), 30);
+  focusSoon("p-vorname", 30);
 }
 const LETTERS = /^[\p{L}\p{M}]+$/u;
 function nameCase(s) { const a = Array.from(s); return a.length ? a[0].toLocaleUpperCase("de-DE") + a.slice(1).join("").toLocaleLowerCase("de-DE") : ""; }
@@ -1186,7 +1522,7 @@ onEnter($("p-vorname"), () => $("p-nachname").focus());
 onEnter($("p-nachname"), () => $("p-geb").focus());
 onEnter($("p-geb"), () => $("p-klasse").focus());
 onEnter($("p-klasse"), personGo, $("p-btn"));
-$("p-back").addEventListener("click", () => { resetStudent(); show("screen-start"); showResume(); setTimeout(() => $("code-input").focus(), 30); });
+$("p-back").addEventListener("click", () => { resetStudent(); show("screen-start"); showResume(); focusSoon("code-input", 30); });
 
 /* ---------- 3. Schreibfläche ---------- */
 /* Schlüssel des Zwischenstands: nur ein Hash – Kürzel, Geburtsdatum und Klasse stehen nicht lesbar im Speicher */
@@ -1258,14 +1594,24 @@ function buildTasks() {
     const ltOff = S.ltAllowed ? null : h("span", { class: "ltstat lt-off", text: `Die Rechtschreibprüfung (LanguageTool) gibt es erst ab ${LT_MIN_AGE} Jahren.` });
     const out = h("div", { class: "lt-out hidden", "aria-live": "polite" });
     const fb = h("div", { class: "fbbox hidden" });
-    const sec = h("section", { class: "task", id: "t-" + n, "aria-labelledby": "l-" + n }, [
+    // Bilder der Lehrkraft: Miniaturen rechts neben Aufgabe und Antwort, größere Bilder zwischen Aufgabenstellung und Antwortfeld
+    const imgs = (S.sheet.images && S.sheet.images[i]) || [], mat = (S.sheet.material && S.sheet.material[i]) || [];
+    const mk = (m, k, cls) => imgButton(S.code, m, `Bild ${k + 1} zu Aufgabe ${n}`, cls);
+    const thumbs = imgs.map((m, k) => (m.mode === "thumb" ? mk(m, k, "thumbbtn") : null)).filter(Boolean);
+    const figs = imgs.map((m, k) => (m.mode === "inline" ? mk(m, k, "figbtn") : null)).filter(Boolean);
+    const sec = h("section", { class: "task" + (thumbs.length ? " has-thumbs" : ""), id: "t-" + n, "aria-labelledby": "l-" + n }, [
       h("div", { class: "task-q" }, [
         h("label", { class: "task-label", for: "a-" + n, id: "l-" + n, text: "Aufgabe " + n }),
         h("div", { class: "task-text", id: "q-" + n, text })
       ]),
-      ta, pe, cnt,
-      h("div", { class: "checkrow" }, [ltBtn, ltOff, ltStat]),
-      out, fb
+      thumbs.length ? h("div", { class: "task-thumbs" }, thumbs) : null,
+      h("div", { class: "task-body" }, [
+        mat.length ? h("div", { class: "task-material" }, [h("span", { class: "sublabel", text: "Material" }), materialDom(mat, { links: true })]) : null,
+        figs.length ? h("div", { class: "task-figs" }, figs) : null,
+        ta, pe, cnt,
+        h("div", { class: "checkrow" }, [ltBtn, ltOff, ltStat]),
+        out, fb
+      ])
     ]);
     ta._idx = i; ta._pe = pe; ta._cnt = cnt; ta._ltStat = ltStat; ta._ltBtn = ltBtn;
     ta.addEventListener("input", () => answerChanged(ta));
@@ -1332,7 +1678,7 @@ $("ed-cancel").addEventListener("click", async () => {
   S.submitted = true;   // nichts mehr speichern
   resetStudent(); $("code-input").value = "";
   show("screen-start"); showResume();
-  setTimeout(() => $("code-input").focus(), 30);
+  focusSoon("code-input", 30);
 });
 
 /* ---------- Einfügen sperren (in Schichten; nur in Antwortfeldern) ----------
@@ -1715,7 +2061,7 @@ async function submitAll() {
     $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;
     clearEditor();
     show("screen-done");
-    setTimeout(() => $("done-btn").focus(), 30);
+    focusSoon("done-btn", 30);
   } catch (e) {
     setStatus(st, (e.code === "crypto" ? "Deine Abgabe konnte nicht verschlüsselt werden." : errMsg(e, "s")) +
       " Deine Antworten sind noch da – versuche es gleich noch einmal.", "bad");
@@ -1735,12 +2081,23 @@ function resetStudent() {
   ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }
-$("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").value = ""; show("screen-start"); showResume(); setTimeout(() => $("code-input").focus(), 30); });
+$("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").value = ""; show("screen-start"); showResume(); focusSoon("code-input", 30); });
 
 /* =====================================================================
  *  Lehrkraft
  * ===================================================================== */
-const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false };
+const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false,
+  pendingUploads: [], doneUploads: 0, uploadRun: 0 };   // Bilder, die nach dem Anlegen eines Blattes noch hochzuladen sind
+// Bilder einer Aufgabe in der Lehrkraft-Ansicht (klein, Klick vergrößert; der Titel nennt die gewählte Anzeigeart)
+function teacherImgs(code, metas, n) {
+  const list = cleanImages(metas);
+  if (!list.length) return null;
+  return h("div", { class: "timgs" }, list.map((m, k) => {
+    const b = imgButton(code, m, `Bild ${k + 1} zu Aufgabe ${n}`, "thumbbtn small");
+    b.title = (m.mode === "inline" ? "Groß zwischen Aufgabe und Antwortfeld" : "Miniatur rechts (Klick vergrößert)") + (m.alt ? " – " + m.alt : "");
+    return b;
+  }));
+}
 const TA = (path, opts) => api(opts && opts.method || "GET", path, Object.assign({ auth: T.authKey }, opts || {}));
 
 /* ---------- Türcode ---------- */
@@ -1756,10 +2113,10 @@ async function teacherDoor(code) {
       if (!r.kdf || typeof r.kdf.salt !== "string") throw new ApiError("server_error");
       T.kdf = r.kdf;
       $("tl-pw").value = ""; $("tl-err").textContent = "";
-      show("screen-tlogin"); setTimeout(() => $("tl-pw").focus(), 30);
+      show("screen-tlogin"); focusSoon("tl-pw", 30);
     } else {
       $("ts-pw1").value = ""; $("ts-pw2").value = ""; $("ts-err").textContent = "";
-      show("screen-tsetup"); setTimeout(() => $("ts-pw1").focus(), 30);
+      show("screen-tsetup"); focusSoon("ts-pw1", 30);
     }
   } catch (e) { err.textContent = errMsg(e, e.code === "wrong_code" ? "s" : "t"); }
   finally { busy(btn, false); }
@@ -1928,6 +2285,9 @@ async function selectSheet(code) {
     r.sheet.tasks.forEach((t, i) => list.appendChild(h("div", { class: "si" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
       h("p", { text: String(t.text || "") }),
+      cleanMaterial(t.material).length ? h("span", { class: "task-label", style: "margin-top:6px", text: "Material" }) : null,
+      cleanMaterial(t.material).length ? materialDom(t.material, { links: true }) : null,
+      teacherImgs(code, t.images, i + 1),
       h("span", { class: "task-label", style: "margin-top:6px", text: "Musterlösung" }),
       h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keine –" })
     ])));
@@ -2036,6 +2396,7 @@ function buildDetail(s) {
     box.appendChild(h("div", { class: "dtask" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
       h("p", { class: "dtask-text", text: tasks[i] ? String(tasks[i].text || "") : "" }),
+      tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
       h("table", { class: "cmp" }, [
         h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
         h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null)])])
@@ -2056,9 +2417,27 @@ $("t-refresh").addEventListener("click", async () => {
   const b = $("t-refresh"); busy(b, true, "Wird aktualisiert …");
   try { await loadSheets(true); if (T.sel) { renderSheets(); await loadSubs(); } } finally { busy(b, false); }
 });
-$("t-template").addEventListener("click", () => {
+$("t-template").addEventListener("click", async () => {
   if (!T.selSheet) return;
-  openBuilder(T.selSheet.title, T.selSheet.tasks.map((t) => ({ text: String(t.text || ""), solution: String(t.solution || "") })));
+  const btn = $("t-template"), code = T.sel;
+  busy(btn, true, "Vorlage wird geladen …");
+  let lost = 0;
+  try {
+    // Bilder der Vorlage mitnehmen (werden beim Anlegen erneut hochgeladen); nicht ladbare Bilder werden ausgelassen
+    const rows = await Promise.all(T.selSheet.tasks.map(async (t) => {
+      const images = [];
+      for (const m of cleanImages(t.images)) {
+        try {
+          const blob = dataUrlToBlob(await loadImage(code, m.id));
+          if (!blob) throw new Error("decode");
+          images.push({ blob, mime: blob.type, w: m.w, h: m.h, mode: m.mode, alt: m.alt || "", url: URL.createObjectURL(blob) });
+        } catch (e) { lost++; }
+      }
+      return { text: String(t.text || ""), solution: String(t.solution || ""), images, material: cleanMaterial(t.material) };
+    }));
+    openBuilder(T.selSheet.title, rows);
+    if (lost) $("b-err").textContent = `${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`;
+  } finally { busy(btn, false); }
 });
 $("t-del-subs").addEventListener("click", async () => {
   const n = T.subs.length, title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-subs");
@@ -2103,14 +2482,86 @@ function openBuilder(title, rows) {
   $("b-err").textContent = "";
   const d = new Date(); $("b-today").textContent = fmtD(d);
   $("b-title").value = title || "";
+  Array.from($("b-rows").children).forEach((tr) => (tr._images || []).forEach((im) => URL.revokeObjectURL(im.url)));   // alte Vorschauen freigeben
   $("b-rows").textContent = "";
   const init = rows && rows.length ? rows : [{}, {}, {}];
-  init.forEach((r) => addRow(r.text, r.solution));
+  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material));
   T.builderDirty = false;
   growAll();
-  setTimeout(() => $("b-title").focus(), 30);
+  focusSoon("b-title", 30);
 }
-function addRow(text, solution) {
+/* ---------- Bilder im Blatt-Editor: im Browser verkleinern, Vorschau, Anzeigeart je Bild ---------- */
+const IMG_PER_TASK = 5, IMG_MAX_SIDE = 1600, IMG_MAX_BYTES = 500 * 1024, IMG_SHEET_BYTES = 12 * 1024 * 1024;   // wie LIMITS im Worker
+const fmtKB = (n) => (n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+async function decodeImage(file) {   // ImageBitmap (mit EXIF-Drehung) oder <img> als Rückfall (z. B. SVG)
+  if (window.createImageBitmap) { try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch (e) { /* Rückfall */ } }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img._url = url;
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("decode")); }; img.src = url; });
+  return img;
+}
+// → {blob, mime, w, h, mode, url}: längste Seite ≤ 1600 px, ≤ 500 KB (PNG für Grafiken, sonst JPEG; Transparenz wird weiß)
+async function prepareImage(file) {
+  if (file.size > 40 * 1024 * 1024) throw new Error("Die Datei ist zu groß (höchstens 40 MB).");
+  let src;
+  try { src = await decodeImage(file); } catch (e) { throw new Error("Das Bild kann der Browser nicht lesen (z. B. HEIC). Bitte als JPG oder PNG speichern."); }
+  try {
+    const sw = src.naturalWidth || src.width, sh = src.naturalHeight || src.height;
+    if (!(sw > 0 && sh > 0)) throw new Error("Das Bild kann der Browser nicht lesen.");
+    const graphic = /png|gif|bmp|svg/i.test(file.type) || /\.(png|gif|bmp|svg)$/i.test(file.name);
+    const tries = (graphic ? [[IMG_MAX_SIDE, "image/png", undefined]] : []).concat(
+      [[IMG_MAX_SIDE, "image/jpeg", 0.85], [IMG_MAX_SIDE, "image/jpeg", 0.7], [1200, "image/jpeg", 0.7], [900, "image/jpeg", 0.6]]);
+    for (const [maxSide, type, q] of tries) {
+      const scale = Math.min(1, maxSide / Math.max(sw, sh));
+      const w = Math.max(1, Math.round(sw * scale)), hh = Math.max(1, Math.round(sh * scale));
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = hh;
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh);
+      ctx.drawImage(src, 0, 0, w, hh);
+      const blob = await new Promise((res) => cv.toBlob(res, type, q));
+      if (blob && blob.size <= IMG_MAX_BYTES) return { blob, mime: blob.type || type, w, h: hh, mode: "thumb", alt: "", url: URL.createObjectURL(blob) };
+    }
+    throw new Error("Das Bild lässt sich nicht klein genug verkleinern (höchstens 500 KB).");
+  } finally {
+    if (src.close) { try { src.close(); } catch (e) { /* egal */ } }
+    if (src._url) URL.revokeObjectURL(src._url);
+  }
+}
+function renderImages(tr) {
+  const list = tr._imgList; list.textContent = "";
+  tr._images.forEach((im, k) => {
+    const sel = h("select", { class: "bimg-mode", "aria-label": `Anzeige von Bild ${k + 1}` }, [
+      h("option", { value: "thumb", text: "Miniatur rechts (Klick vergrößert)" }),
+      h("option", { value: "inline", text: "Groß zwischen Aufgabe und Antwortfeld" })
+    ]);
+    sel.value = im.mode;
+    sel.addEventListener("change", () => { im.mode = sel.value === "inline" ? "inline" : "thumb"; T.builderDirty = true; });
+    const alt = h("input", { type: "text", class: "bimg-alt", maxlength: "200", value: im.alt || "", placeholder: "Bildbeschreibung (optional, wird vorgelesen)", "aria-label": `Beschreibung von Bild ${k + 1}`, autocomplete: "off" });
+    alt.addEventListener("input", () => { im.alt = alt.value; T.builderDirty = true; });
+    const del = h("button", { type: "button", class: "iconbtn x", text: "✕", title: "Bild entfernen", "aria-label": `Bild ${k + 1} entfernen` });
+    del.addEventListener("click", () => { URL.revokeObjectURL(im.url); tr._images.splice(k, 1); renderImages(tr); T.builderDirty = true; tr._imgAdd.focus(); });
+    list.appendChild(h("div", { class: "bimg" }, [
+      h("img", { src: im.url, alt: `Bild ${k + 1}`, width: im.w, height: im.h }),
+      h("div", { class: "bimg-ctl" }, [sel, alt, h("span", { class: "bimg-meta", text: `${im.w} × ${im.h} px · ${fmtKB(im.blob.size)}` })]),
+      del
+    ]));
+  });
+  tr._imgAdd.disabled = tr._images.length >= IMG_PER_TASK;
+}
+async function addImages(tr, files) {
+  const free = IMG_PER_TASK - tr._images.length, stat = tr._imgStat;
+  setStatus(stat, "", "");
+  if (files.length > free) setStatus(stat, free > 0 ? `Nur noch ${free} ${free === 1 ? "Bild" : "Bilder"} möglich (höchstens ${IMG_PER_TASK} je Aufgabe) – die weiteren wurden ausgelassen.` : `Höchstens ${IMG_PER_TASK} Bilder je Aufgabe.`, "bad");
+  busy(tr._imgAdd, true, "Wird verkleinert …");
+  try {
+    for (const f of files.slice(0, Math.max(0, free))) {
+      try { tr._images.push(await prepareImage(f)); T.builderDirty = true; }
+      catch (e) { setStatus(stat, `„${f.name}“: ${(e && e.message) || "Das Bild konnte nicht gelesen werden."}`, "bad"); }
+    }
+  } finally { busy(tr._imgAdd, false); renderImages(tr); }
+}
+function addRow(text, solution, images, material) {
   const tb = $("b-rows");
   const ta1 = h("textarea", { class: "grow q", rows: "3", maxlength: "4000", placeholder: "Aufgabenstellung …", spellcheck: "true" });
   const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Kernpunkte der Musterlösung, je Zeile einer …", spellcheck: "true" });
@@ -2119,17 +2570,87 @@ function addRow(text, solution) {
   const up = h("button", { type: "button", class: "iconbtn up", text: "↑" });
   const down = h("button", { type: "button", class: "iconbtn down", text: "↓" });
   const del = h("button", { type: "button", class: "iconbtn x", text: "✕" });
+  // Bilder zur Aufgabe (bis zu 5): Vorschau, Anzeigeart, Entfernen
+  const imgList = h("div", { class: "bimg-list" });
+  const file = h("input", { type: "file", accept: "image/*", multiple: true, class: "sr-only", tabindex: "-1", "aria-hidden": "true" });
+  const imgAdd = h("button", { type: "button", class: "btn ghost small bimg-add", text: "+ Bild hinzufügen" });
+  const imgStat = h("span", { class: "fhint bimg-stat", role: "status", "aria-live": "polite" });
+  // Material: formatierbarer Text (fett/kursiv/unterstrichen) mit Links – als contenteditable, gespeichert als Modell
+  const MAT_PLACEHOLDER = "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …";
+  const matEd = h("div", { class: "bmat-edit is-empty", contenteditable: "true", role: "textbox", "aria-multiline": "true", spellcheck: "true",
+    "data-placeholder": MAT_PLACEHOLDER, "aria-placeholder": MAT_PLACEHOLDER });
+  const matInput = (e) => {
+    const empty = !matEd.textContent.trim() && !matEd.querySelector("a");
+    if (empty && matEd.childNodes.length && !(e && e.isComposing)) matEd.textContent = "";   // Rest-<br> nach dem Leeren weg, Caret bleibt oben
+    matEd.classList.toggle("is-empty", empty); T.builderDirty = true;
+  };
+  const fmt = (cmd, title, kid) => {
+    const b = h("button", { type: "button", class: "fmtbtn", title, "aria-label": title, "aria-pressed": "false" }, [kid]);
+    b.addEventListener("mousedown", (e) => e.preventDefault());   // Markierung im Editor behalten
+    b.addEventListener("click", () => { matEd.focus(); document.execCommand(cmd); matInput(); syncFmt(matEd); });
+    return b;
+  };
+  const linkBtn = h("button", { type: "button", class: "fmtbtn", title: "Link einfügen oder bearbeiten", text: "Link" });
+  linkBtn.addEventListener("mousedown", (e) => e.preventDefault());
+  linkBtn.addEventListener("click", () => linkDialog(matEd));
+  const matLbl = h("span", { class: "rowlbl", style: "margin-top:10px" });
+  const fmtBtns = { bold: fmt("bold", "Fett (Strg+B)", h("b", { text: "F" })), italic: fmt("italic", "Kursiv (Strg+I)", h("i", { text: "K" })), underline: fmt("underline", "Unterstrichen (Strg+U)", h("u", { text: "U" })) };
+  matEd._fmtBtns = fmtBtns;
+  const barBtns = [fmtBtns.bold, fmtBtns.italic, fmtBtns.underline, linkBtn];
+  barBtns.forEach((b, k) => { b.tabIndex = k ? -1 : 0; });   // Werkzeugleiste: ein Tab-Stopp, Pfeiltasten wechseln
+  const matBar = h("div", { class: "bmat-bar", role: "toolbar", "aria-label": "Formatierung des Materials" }, barBtns);
+  matBar.addEventListener("keydown", (e) => {
+    const k = barBtns.indexOf(document.activeElement); if (k < 0) return;
+    const n = e.key === "ArrowRight" ? (k + 1) % barBtns.length : e.key === "ArrowLeft" ? (k + barBtns.length - 1) % barBtns.length : e.key === "Home" ? 0 : e.key === "End" ? barBtns.length - 1 : -1;
+    if (n < 0) return;
+    e.preventDefault(); barBtns.forEach((b, j) => { b.tabIndex = j === n ? 0 : -1; }); barBtns[n].focus();
+  });
+  matEd.addEventListener("input", matInput);
+  matEd.addEventListener("paste", (e) => {   // eingefügtes HTML wird auf fett/kursiv/unterstrichen/Links reduziert
+    e.preventDefault();
+    const dt = e.clipboardData; if (!dt) return;
+    const html = dt.getData("text/html");
+    if (html) insertMaterialHtml(matEd, html); else document.execCommand("insertText", false, dt.getData("text/plain") || "");
+    matInput();
+  });
+  matEd.addEventListener("dragstart", () => { matEd._dragInside = true; });
+  matEd.addEventListener("dragend", () => { matEd._dragInside = false; });
+  matEd.addEventListener("drop", (e) => {   // nur Text, an der Stelle des Mauszeigers; Ziehen innerhalb des Editors verschiebt
+    e.preventDefault();
+    const t = e.dataTransfer && e.dataTransfer.getData("text/plain");
+    const sel = getSelection(), inside = matEd._dragInside; matEd._dragInside = false;
+    if (!t) return;
+    if (inside && sel.rangeCount && matEd.contains(sel.anchorNode) && !sel.isCollapsed) sel.deleteFromDocument();
+    let r = null;
+    try {
+      if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(e.clientX, e.clientY);
+      else if (document.caretPositionFromPoint) { const pos = document.caretPositionFromPoint(e.clientX, e.clientY); if (pos) { r = document.createRange(); r.setStart(pos.offsetNode, pos.offset); r.collapse(true); } }
+    } catch (x) { r = null; }
+    matEd.focus();
+    if (r && matEd.contains(r.startContainer)) { sel.removeAllRanges(); sel.addRange(r); }
+    document.execCommand("insertText", false, t); matInput();
+  });
+  if (material && material.length) { Array.from(materialDom(material, { editor: true }).childNodes).forEach((n) => matEd.appendChild(n)); matEd.classList.remove("is-empty"); }
   const tr = h("tr", null, [
-    h("td", { class: "c1" }, [l1, ta1]),
+    h("td", { class: "c1" }, [l1, ta1, h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
+      h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])])]),
     h("td", { class: "c2" }, [l2, ta2]),
     h("td", { class: "act" }, [h("div", { class: "acts" }, [up, down, del])])
   ]);
+  tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl;
+  imgAdd.addEventListener("click", () => { file.value = ""; file.click(); });
+  file.addEventListener("change", () => addImages(tr, Array.from(file.files || [])));
+  (images || []).forEach((im) => { if (tr._images.length < IMG_PER_TASK) tr._images.push(im); });
+  renderImages(tr);
   [ta1, ta2].forEach((t) => t.addEventListener("input", () => { autoGrow(t); t.classList.remove("invalid"); T.builderDirty = true; }));
   up.addEventListener("click", () => { const p = tr.previousElementSibling; if (p) { tb.insertBefore(tr, p); renumber(); up.focus(); T.builderDirty = true; } });
   down.addEventListener("click", () => { const n = tr.nextElementSibling; if (n) { tb.insertBefore(n, tr); renumber(); down.focus(); T.builderDirty = true; } });
   del.addEventListener("click", async () => {
-    if (tb.children.length <= 1) { ta1.value = ""; ta2.value = ""; growAll(); return; }
-    if ((ta1.value.trim() || ta2.value.trim()) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung und Musterlösung dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    const hasMat = !!matEd.textContent.trim();
+    if (tb.children.length <= 1 && !tr._images.length && !hasMat) { ta1.value = ""; ta2.value = ""; growAll(); return; }
+    if ((ta1.value.trim() || ta2.value.trim() || tr._images.length || hasMat) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Musterlösung, Material und Bilder dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    tr._images.forEach((im) => URL.revokeObjectURL(im.url));
+    if (tb.children.length <= 1) { ta1.value = ""; ta2.value = ""; matEd.textContent = ""; matInput(); tr._images = []; renderImages(tr); growAll(); T.builderDirty = true; return; }
     tr.remove(); renumber(); T.builderDirty = true;
   });
   tb.appendChild(tr);
@@ -2149,6 +2670,9 @@ function renumber() {
     tr.querySelector(".up").setAttribute("aria-label", `Aufgabe ${n} nach oben verschieben`);
     tr.querySelector(".down").setAttribute("aria-label", `Aufgabe ${n} nach unten verschieben`);
     tr.querySelector(".x").setAttribute("aria-label", `Aufgabe ${n} entfernen`);
+    tr.querySelector(".bimg-add").setAttribute("aria-label", `Bild zu Aufgabe ${n} hinzufügen`);
+    tr._matLbl.textContent = `Material ${n} (optional)`;
+    tr._matEd.setAttribute("aria-label", `Material zu Aufgabe ${n}`);
     tr.querySelector(".up").title = "Nach oben"; tr.querySelector(".down").title = "Nach unten"; tr.querySelector(".x").title = "Zeile entfernen";
   });
   $("b-add").disabled = rows.length >= 30;
@@ -2169,16 +2693,27 @@ $("b-back").addEventListener("click", leaveBuilder);
 $("b-gen").addEventListener("click", async () => {
   const err = $("b-err"), btn = $("b-gen");
   err.textContent = "";
-  const tasks = [];
+  const tasks = [], uploads = [];
   let bad = null;
   Array.from($("b-rows").children).forEach((tr, i) => {
     const q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)");
-    const text = q.value.trim(), solution = s.value.trim();
-    if (!text && !solution) return;                     // leere Zeilen weglassen
+    const text = q.value.trim(), solution = s.value.trim(), imgs = tr._images || [], material = serializeMaterial(tr._matEd);
+    if (!text && !solution && !imgs.length && !material.length) return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
-    tasks.push({ text, solution });
+    const mRuns = material.reduce((n, p) => n + p.length, 0), mLinks = material.reduce((n, p) => n + p.filter((r) => r.h).length, 0);
+    const mErr = materialChars(material) > MAT_LIMITS.chars ? `Das Material ist zu lang (höchstens ${MAT_LIMITS.chars.toLocaleString("de-DE")} Zeichen).`
+      : material.length > MAT_LIMITS.paragraphs ? `Das Material hat zu viele Absätze (höchstens ${MAT_LIMITS.paragraphs}).`
+      : mRuns > MAT_LIMITS.runs ? `Das Material ist zu kleinteilig formatiert (höchstens ${MAT_LIMITS.runs} Abschnitte).`
+      : mLinks > MAT_LIMITS.links ? `Zu viele Links im Material (höchstens ${MAT_LIMITS.links}).` : "";
+    if (mErr && !bad) { bad = tr._matEd; err.textContent = `Zeile ${i + 1}: ${mErr}`; }
+    const task = { text, solution };
+    if (material.length) task.material = material;
+    tasks.push(task);
+    imgs.forEach((im, k) => uploads.push({ task: tasks.length, im, id: hexOf(crypto.getRandomValues(new Uint8Array(8))), label: `Aufgabe ${tasks.length}, Bild ${k + 1}` }));
   });
   if (bad) { bad.focus(); return; }
+  const imgTotal = uploads.reduce((n, u) => n + u.im.blob.size, 0);
+  if (imgTotal > IMG_SHEET_BYTES) { err.textContent = `Die Bilder sind zusammen zu groß (${fmtKB(imgTotal)}, höchstens ${fmtKB(IMG_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Bilder entfernen.`; return; }
   if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector("textarea.q"); if (f) f.focus(); return; }
   if (tasks.length > 30) { err.textContent = "Ein Feibeitsblatt kann höchstens 30 Aufgaben haben."; return; }
   const title = $("b-title").value.trim().slice(0, 200);
@@ -2190,11 +2725,55 @@ $("b-gen").addEventListener("click", async () => {
     $("b-res-code").textContent = fmtCode(r.code);
     $("b-form").classList.add("hidden"); $("b-result").classList.remove("hidden");
     T.sel = r.code;
+    T.pendingUploads = uploads.map((u) => Object.assign({ code: r.code }, u)); T.doneUploads = 0;
     window.scrollTo(0, 0);
-    setTimeout(() => $("b-res-copy").focus(), 30);
+    focusSoon("b-res-copy", 30);
+    await runUploads();
   } catch (e) { if (!handleAuthError(e)) err.textContent = errMsg(e, "t"); }
   finally { busy(btn, false); }
 });
+/* Bilder nacheinander hochladen (die Reihenfolge je Aufgabe ergibt sich aus der Reihenfolge der Uploads; jede Datei hat
+   eine feste id, Wiederholungen speichern nichts doppelt). Schlägt ein Bild vorübergehend fehl (Netz, Server), werden
+   die weiteren Bilder derselben Aufgabe zurückgestellt und „erneut hochladen“ holt sie nach; endgültige Ablehnungen
+   (zu groß, zu viele, unlesbar) werden gemeldet und nicht wiederholt. Während des Laufs bleibt die Seite im
+   Ergebnisbereich; eine Abmeldung beendet den Lauf. */
+const PERMANENT_CODES = new Set(["too_large", "too_many_images", "bad_image", "bad_request", "not_found"]);
+async function runUploads() {
+  const st = $("b-res-img"), retry = $("b-res-retry"), run = ++T.uploadRun;
+  retry.classList.add("hidden");
+  const list = T.pendingUploads;
+  if (!list.length) { setStatus(st, "", ""); return; }
+  const total = list.length + T.doneUploads, failed = [], skipTask = new Set();
+  busy($("b-res-back"), true, "Bilder werden hochgeladen …"); $("b-back").disabled = true;
+  try {
+    for (const u of list) {
+      if (run !== T.uploadRun || !T.authKey) return;   // abgemeldet oder neuer Lauf
+      if (skipTask.has(u.task)) { failed.push({ u, msg: "zurückgestellt", retry: true }); continue; }
+      setStatus(st, `Bild ${T.doneUploads + 1} von ${total} wird hochgeladen …`, "busy");
+      try {
+        await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/images", { method: "POST", timeout: 120000,
+          body: { id: u.id, task: u.task, mode: u.im.mode, alt: u.im.alt || "", data: await blobToB64(u.im.blob) } });
+        T.doneUploads++;
+      } catch (e) {
+        if (run !== T.uploadRun || !T.authKey) return;
+        if (handleAuthError(e)) return;
+        const permanent = PERMANENT_CODES.has(e.code);
+        failed.push({ u, msg: errMsg(e, "t"), retry: !permanent });
+        if (!permanent) skipTask.add(u.task);
+      }
+    }
+    if (run !== T.uploadRun) return;
+    T.pendingUploads = failed.filter((f) => f.retry).map((f) => f.u);
+    if (!failed.length) setStatus(st, total === 1 ? "Das Bild ist gespeichert." : `Alle ${total} Bilder sind gespeichert.`, "ok");
+    else {
+      setStatus(st, `${failed.length === 1 ? "1 Bild konnte" : failed.length + " Bilder konnten"} nicht gespeichert werden (${failed.map((f) => f.u.label + ": " + f.msg).join("; ")}). Das Feibeitsblatt selbst ist angelegt.`, "bad");
+      if (T.pendingUploads.length) retry.classList.remove("hidden");
+    }
+  } finally {
+    if (run === T.uploadRun) { busy($("b-res-back"), false); $("b-back").disabled = false; }
+  }
+}
+$("b-res-retry").addEventListener("click", async () => { const b = $("b-res-retry"); busy(b, true, "Wird hochgeladen …"); try { await runUploads(); } finally { busy(b, false); } });
 $("b-res-copy").addEventListener("click", () => copyText($("b-res-code").textContent, $("b-res-copy")));
 $("b-res-back").addEventListener("click", async () => {
   teacherView("tv-overview");
@@ -2303,7 +2882,7 @@ $("ai-test").addEventListener("click", async () => {
 $("t-pw").addEventListener("click", () => {
   teacherView("tv-pw");
   $("pw-1").value = ""; $("pw-2").value = ""; $("pw-err").textContent = ""; setStatus($("pw-status"), "", "");
-  setTimeout(() => $("pw-1").focus(), 30);
+  focusSoon("pw-1", 30);
 });
 $("pw-back").addEventListener("click", () => teacherView("tv-overview"));
 async function changePassword() {

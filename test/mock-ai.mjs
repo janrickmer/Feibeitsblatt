@@ -28,8 +28,9 @@ export function parseFeedbackPrompt(text) {
   const parts = String(text || "").split(/^### Aufgabe (\d+)[ \t]*$/m);
   const out = [];
   for (let i = 1; i < parts.length; i += 2) {
-    const blocks = [...parts[i + 1].matchAll(/<<<\n([\s\S]*?)\n?>>>/g)].map((m) => m[1]);
-    out.push({ nr: Number(parts[i]), task: blocks[0] || "", solution: blocks[1] || "", answer: blocks[2] || "" });
+    const seg = parts[i + 1];   // Blöcke anhand ihrer Beschriftung (das Material ist optional)
+    const grab = (label) => { const m = new RegExp(label + "[^\\n]*\\n<<<\\n([\\s\\S]*?)\\n?>>>").exec(seg); return m ? m[1] : ""; };
+    out.push({ nr: Number(parts[i]), task: grab("Aufgabenstellung:"), material: grab("Material zur Aufgabe"), solution: grab("Musterlösung der Lehrkraft:"), answer: grab("Antwort der Schülerin bzw\\. des Schülers:") });
   }
   return out;
 }
