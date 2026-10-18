@@ -198,6 +198,47 @@ test("sheet images: Grenzen je Aufgabe und je Blatt (12 MB), wiederholbarer Uplo
   assert.equal(r.status, 404);
 });
 
+test("reserve AI: stored separately (encrypted), tested via ?which=reserve, used when the first provider fails", async () => {
+  // Reserve speichern, ohne den ersten Anbieter anzufassen
+  let r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-reserve-SECRET-9876" } } });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual({ p: r.json.provider, k: r.json.hasKey, h: r.json.keyHint }, { p: "custom", k: true, h: "…1234" });   // unverändert
+  assert.deepEqual({ p: r.json.reserve.provider, k: r.json.reserve.hasKey, h: r.json.reserve.keyHint, m: r.json.reserve.model }, { p: "custom", k: true, h: "…9876", m: "" });
+  assert.equal(r.text.includes("SECRET"), false);
+  let s = settingsRow("ai");
+  assert.ok(s.apiKeyEnc && s.reserve.apiKeyEnc); assert.equal(s.reserve.apiKey, undefined);
+  assert.equal(JSON.stringify(s).includes("SECRET"), false);
+  assert.deepEqual(s.reserve.fallbacks, ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "qwen/qwen3-32b"]);
+  r = await call("POST", "/api/teacher/ai/test?which=reserve", { auth });
+  assert.equal(r.status, 200, r.text); assert.equal(r.json.which, "reserve"); assert.equal(r.json.sample, "Verbindung steht.");
+  r = await call("GET", "/api/teacher/ai", { auth });
+  assert.equal(r.json.reserve.hasKey, true); assert.equal(r.json.hasKey, true);
+  // Schüler:innen erfahren beide Anbieter (Datenschutzhinweis)
+  r = await call("GET", "/api/sheet/" + code);
+  assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + mock.port); assert.equal(r.json.sheet.aiReserve, "127.0.0.1:" + mock.port);
+  // Reserve ohne Schlüssel für einen anderen Dienst → 400, nichts geändert
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: { provider: "groq", model: "" } } });
+  assert.equal(r.status, 400); assert.match(r.json.error, /neuen Anbieter/);
+  assert.equal(settingsRow("ai").reserve.provider, "custom");
+  // Erster Anbieter nicht erreichbar (geschlossener Port) → die Reserve antwortet
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "tot", baseUrl: "http://127.0.0.1:9/v1", apiKey: "sk-dead" } });
+  assert.equal(r.status, 200, r.text); assert.ok(r.json.warning, "Verbindung nicht prüfbar → Warnung, trotzdem gespeichert");
+  assert.equal(r.json.reserve.hasKey, true);   // Reserve blieb erhalten
+  mock.reset();
+  r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] } });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(mock.state.requests.length, 1, "genau eine Anfrage – bei der Reserve");
+  assert.deepEqual(r.json.results, expectedResults(tasks, ["Licht", ""]));
+  // Erster Anbieter wieder der Mock; Reserve entfernen → auch der Hinweis für Schüler:innen verschwindet
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-SECRET-1234", reserve: null } });
+  assert.equal(r.status, 200, r.text); assert.equal(r.json.reserve, null);
+  s = settingsRow("ai"); assert.equal(s.reserve, undefined); assert.ok(s.apiKeyEnc);
+  r = await call("GET", "/api/sheet/" + code);
+  assert.equal("aiReserve" in r.json.sheet, false);
+  r = await call("POST", "/api/teacher/ai/test?which=reserve", { auth });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Es ist keine Reserve-KI mit API-Schlüssel gespeichert.");
+});
+
 test("feedback: one AI call, expected covered/missing, ≤ 50 D1 queries", async () => {
   mock.reset();
   const answers = ["Licht ist wichtig für die photosynthese", ""];

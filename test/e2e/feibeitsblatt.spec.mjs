@@ -172,6 +172,33 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.click("#ai-test");
   await expect(page.locator("#ai-status")).toHaveText(/^Verbindung erfolgreich: Eigener Dienst, Modell „openai\/gpt-oss-120b“\. Testantwort: „Verbindung steht\.“/, { timeout: 60_000 });
   expect((await mockState()).count).toBeGreaterThanOrEqual(1);
+
+  // Reserve-KI: eigener Block mit eigenem Schlüssel, Test über ?which=reserve, „entfernen“ räumt wieder auf
+  await expect(page.locator("#ai2-key-hint")).toHaveText("Keine Reserve-KI eingerichtet.");
+  await expect(page.locator("#ai2-test")).toBeDisabled();
+  await expect(page.locator("#ai2-remove")).toBeDisabled();
+  await page.selectOption("#ai2-prov", "custom");
+  await expect(page.locator("#ai2-base-field")).toBeVisible();
+  await page.fill("#ai2-base", MOCK_URL + "/v1");
+  await page.fill("#ai2-model", AI_MODEL);
+  await page.click("#ai2-save");
+  await expect(page.locator("#ai2-status")).toHaveText("Bitte den API-Schlüssel der Reserve eintragen.");
+  await page.fill("#ai2-key", "e2e-reserve-key-5555");
+  await page.click("#ai2-save");
+  await expect(page.locator("#ai2-status")).toHaveText(/^Reserve gespeichert\. \d+ passende Modelle gefunden\./, { timeout: 30_000 });
+  await expect(page.locator("#ai2-key")).toHaveValue("");
+  await expect(page.locator("#ai2-key-hint")).toHaveText("Gespeichert: …5555 – leer lassen, um ihn zu behalten.");
+  await expect(page.locator("#ai-key-hint")).toHaveText("Gespeichert: …" + AI_KEY.slice(-4) + " – leer lassen, um ihn zu behalten.");   // erster Anbieter unberührt
+  await page.click("#ai2-test");
+  await expect(page.locator("#ai2-status")).toHaveText(/^Reserve erfolgreich: Eigener Dienst, Modell „openai\/gpt-oss-120b“\. Testantwort: „Verbindung steht\.“/, { timeout: 60_000 });
+  await page.click("#ai-back");
+  await expect(page.locator("#t-aiinfo")).toHaveText(/^KI-Feedback über Eigener Dienst \(Modell: openai\/gpt-oss-120b\)\. Reserve: Eigener Dienst \(Modell: openai\/gpt-oss-120b\)\.$/);
+  await page.click("#t-ai");
+  await expect(page.locator("#ai2-prov")).toHaveValue("custom");
+  await page.click("#ai2-remove");
+  await confirmDialog(page, "Reserve-KI entfernen?");
+  await expect(page.locator("#ai2-status")).toHaveText("Reserve-KI entfernt.");
+  await expect(page.locator("#ai2-key-hint")).toHaveText("Keine Reserve-KI eingerichtet.");
   await page.click("#ai-back");
   await expect(page.locator("#t-aiinfo")).toHaveText(/^KI-Feedback über Eigener Dienst \(Modell: openai\/gpt-oss-120b\)\.$/);
   await expect(page.locator("#t-aiwarn")).toBeHidden();

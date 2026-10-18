@@ -25,12 +25,16 @@ const STOP = new Set(("aber alle allem allen aller alles also auch auf aus bei b
 
 /* ---------- Prompt lesen (Format aus worker/ai.js buildFeedbackMessages) ---------- */
 export function parseFeedbackPrompt(text) {
-  const parts = String(text || "").split(/^### Aufgabe (\d+)[ \t]*$/m);
+  const s = String(text || "");
+  const grab = (seg, label) => { const m = new RegExp(label + "[^\\n]*\\n<<<\\n([\\s\\S]*?)\\n?>>>").exec(seg); return m ? m[1] : ""; };
+  // Antworten stehen gesammelt am Ende (Präfix-Caching); davor Aufgaben, Material (optional) und Musterlösungen
+  const ap = s.split(/^### Antwort zu Aufgabe (\d+)[ \t]*$/m), answers = new Map();
+  for (let i = 1; i < ap.length; i += 2) { const m = /^<<<\n([\s\S]*?)\n?>>>/m.exec(ap[i + 1]); answers.set(Number(ap[i]), m ? m[1] : ""); }
+  const parts = ap[0].split(/^### Aufgabe (\d+)[ \t]*$/m);
   const out = [];
   for (let i = 1; i < parts.length; i += 2) {
-    const seg = parts[i + 1];   // Blöcke anhand ihrer Beschriftung (das Material ist optional)
-    const grab = (label) => { const m = new RegExp(label + "[^\\n]*\\n<<<\\n([\\s\\S]*?)\\n?>>>").exec(seg); return m ? m[1] : ""; };
-    out.push({ nr: Number(parts[i]), task: grab("Aufgabenstellung:"), material: grab("Material zur Aufgabe"), solution: grab("Musterlösung der Lehrkraft:"), answer: grab("Antwort der Schülerin bzw\\. des Schülers:") });
+    const seg = parts[i + 1], nr = Number(parts[i]);
+    out.push({ nr, task: grab(seg, "Aufgabenstellung:"), material: grab(seg, "Material zur Aufgabe"), solution: grab(seg, "Musterlösung der Lehrkraft:"), answer: answers.has(nr) ? answers.get(nr) : "" });
   }
   return out;
 }

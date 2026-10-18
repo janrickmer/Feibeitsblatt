@@ -300,7 +300,7 @@ Vorankündigung.
 
 | Anbieter | Schlüssel | Limits (Stand Oktober 2026, nicht bestätigt – bitte beim Anbieter prüfen) | Datenschutz und Hinweise |
 |---|---|---|---|
-| **Groq** (Vorgabe, für Klassen empfohlen) | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Tageslimits je Modell**: etwa 200 000 Token pro Tag bei gpt-oss-120b (grob geschätzt 40–60 Feedback-Anfragen, je nach Länge der Texte), etwa 100 000 bei Llama 3.3 70B. Außerdem ein Minutenlimit je Modell; sehr lange Blätter können daran scheitern – der Server wechselt dann das Modell. Ist ein Modell erschöpft, wechselt der Server automatisch zum nächsten. | Sehr schnell. Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden. |
+| **Groq** (Vorgabe, für Klassen empfohlen) | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Limits je Modell**: bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag, etwa 100 000 pro Tag bei Llama 3.3 70B (Angaben Dritter, Stand Oktober 2026; die für Ihr Konto gültigen Werte stehen in der Groq-Konsole unter „Limits“). Gecachte Token zählen bei Groq nicht gegen diese Limits – Feibeitsblatt stellt die Anfrage so, dass Aufgaben, Material und Musterlösungen ab der zweiten Anfrage zum selben Blatt aus dem Cache kommen (siehe [Kapazität](#kapazität-und-grenzen)). Ist ein Modell erschöpft oder ausgelastet, wechselt der Server automatisch zum nächsten. | Sehr schnell. Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden. |
 | **OpenRouter** | kostenloses Konto, <https://openrouter.ai/settings/keys> | nur kostenlose Modelle (`:free`). **Ohne einmaligen Guthabenkauf nur 50 kostenlose Anfragen pro Tag für das ganze Konto** – das reicht nicht für eine Klasse. Nach einem einmaligen Kauf von 10 US-$ Guthaben 1000 pro Tag. | Die kostenlosen Modelle laufen bei Drittanbietern, die Eingaben protokollieren oder zum Training verwenden dürfen. Das muss im Konto unter <https://openrouter.ai/settings/privacy> erlaubt sein, sonst antwortet die API „No endpoints found matching your data policy“. |
 | **Google Gemini** | Google AI Studio, <https://aistudio.google.com/app/apikey> | kostenloses Kontingent mit Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus. | Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Googles Bedingungen nur die bezahlten Dienste; dafür verlangt Google ein **hinterlegtes Abrechnungskonto**. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage. |
 | **Cerebras** | Konsole von Cerebras, <https://cloud.cerebras.ai> | **nicht bestätigt** – die Angaben Dritter widersprechen sich; bitte in der Konsole prüfen. | Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden. |
@@ -320,6 +320,19 @@ Hinweise:
 - Das Feedback gibt es einmal je Gerät und Angaben; der Server kann das nicht erzwingen (wer andere Angaben
   eingibt oder ein zweites Gerät nutzt, kann es erneut anfordern). Je Feibeitsblatt sind höchstens 300
   KI-Anfragen pro Tag möglich – das schützt Ihr Kontingent vor Missbrauch.
+
+### Reserve-KI (zweiter Anbieter)
+
+Unter „KI-Einstellungen“ gibt es den Block **„Reserve-KI (optional)“**: ein zweiter Anbieter mit eigenem
+API-Schlüssel (Anbieter, Modell, Schlüssel, „Reserve speichern“, „Reserve testen“, „Reserve entfernen“). Der Server
+fragt immer zuerst den ersten Anbieter – mit allen seinen Ausweichmodellen – und erst, wenn dieser ausgelastet ist
+(HTTP 429), sein Tageskontingent erreicht hat, nicht antwortet oder die Anfrage ablehnt, die Reserve. Am sinnvollsten
+ist ein **anderer** Anbieter (z. B. Groq als erster, dazu ein zweiter Dienst, für den Sie einen Schlüssel haben):
+Dann addieren sich zwei Kontingente, und ein Ausfall eines Anbieters trifft die Klasse nicht. Ein zweites kostenloses
+Konto beim **selben** Anbieter ist keine Lösung – die Limits gelten dort je Organisation, und mehrere Gratis-Konten
+verstoßen meist gegen die Bedingungen. Die Schüler:innen sehen beide Anbieter im Datenschutzhinweis („… oder, wenn
+dieser gerade ausgelastet ist, an …“); prüfen Sie deshalb auch die Bedingungen der Reserve. Beide Schlüssel liegen
+nur verschlüsselt auf dem Server. Ohne Reserve ändert sich nichts.
 
 ## Sicherheit
 
@@ -492,11 +505,39 @@ viele gleichzeitig. Bitte warte eine Minute und versuche es dann noch einmal.“
 Ablehnung ohne die nötigen Browser-Freigaben sendet (nicht geprüft), „LanguageTool ist gerade nicht erreichbar …“.
 Tipp: Nicht alle gleichzeitig prüfen lassen.
 
+Rechenbeispiel: 60 Schüler:innen am Tag mit je etwa 600 Wörtern (≈ 4 000 Zeichen = 4 KB je Prüfung) – selbst drei
+Prüfungen je Person (180 am Tag) liegen weit unter jeder Grenze; ein Tageslimit nennt LanguageTool nicht. Eng wird
+es nur, wenn mehr als 20 Personen **in derselben Minute** aus demselben Schulnetz prüfen – dann hilft Warten.
+
 **KI-Anbieter:** siehe [Tabelle oben](#ki-anbieter). Zusätzlich hält der Server je Anbieter einen Mindestabstand
 zwischen Anfragen ein (Groq 2,5 s, OpenRouter 3,5 s, Gemini 4 s, Cerebras 2 s, andere 1 s) und lässt höchstens etwa
-eine Minute Wartezeit zu. Bei Groq passen so etwa 24 Feedback-Anfragen in eine Minute; fordern mehr Schüler:innen
-gleichzeitig ein Feedback an, erhalten einige „Gerade fragen sehr viele gleichzeitig. Bitte versuche es in einer
-Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage bis zu etwa 100 Sekunden dauern.
+eine Minute Wartezeit zu. Fordern viele Schüler:innen gleichzeitig ein Feedback an, erhalten einige „Gerade fragen
+sehr viele gleichzeitig. Bitte versuche es in einer Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage
+bis zu etwa 100 Sekunden dauern.
+
+Rechenbeispiel für **60 Schüler:innen am Tag mit je etwa 600 Wörtern** bei Groq (Vorgabe gpt-oss-120b; die
+Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole prüfen):
+
+- Eine Feedback-Anfrage besteht aus den Anweisungen (≈ 500 Token), Aufgaben und Musterlösungen (≈ 300–800),
+  ggf. Material (bis ≈ 1 200 je Aufgabe), den Antworten (600 deutsche Wörter ≈ 1 200–1 600 Token) und der Ausgabe
+  (≈ 200–500). Ohne Material also grob **2 500–4 000 Token je Anfrage**, mit viel Material mehr.
+- 60 solche Anfragen wären 150 000–250 000 Token – an oder über dem Tageslimit von etwa 200 000 Token des
+  Vorgabe-Modells. Deshalb macht Feibeitsblatt zwei Dinge:
+  1. **Anfrage in Cache-freundlicher Reihenfolge.** Der für alle Schüler:innen eines Blattes gleiche Teil (Anweisungen,
+     Aufgaben, Material, Musterlösungen) steht vorn, die Antworten stehen hinten. Groq cacht solche Präfixe
+     automatisch (für die gpt-oss-Modelle, laut Groq „best effort“, Cache einige Stunden gültig), und **gecachte
+     Token zählen nicht gegen die Minuten- und Tageslimits**. Ab der zweiten Anfrage zum selben Blatt kosten dann im
+     Wesentlichen nur noch Antworten und Ausgabe, grob 1 500–2 000 Token: 60 Anfragen ≈ 100 000–120 000 Token,
+     also innerhalb des Tageslimits des Vorgabe-Modells, und je Minute etwa 4–5 statt 2 Anfragen.
+  2. **Ausweichmodelle und Reserve-KI.** Ist das Vorgabe-Modell erschöpft oder ausgelastet, nimmt der Server
+     automatisch das nächste Modell desselben Anbieters (bei Groq z. B. gpt-oss-20b, Llama 3.3 70B, Llama 3.1 8B,
+     Qwen 3 32B – zusammen deutlich über 1 Million Token am Tag, allerdings mit schwächeren Modellen am Ende der
+     Liste) und danach die [Reserve-KI](#reserve-ki-zweiter-anbieter), falls eingerichtet.
+- **Fazit:** 60 Schüler:innen am Tag mit je 600 Wörtern sind mit einem kostenlosen Groq-Schlüssel machbar. Der
+  Engpass ist nicht der Tag, sondern die **Minute**: etwa 8 000 Token pro Minute beim Vorgabe-Modell. Holt sich eine
+  ganze Klasse innerhalb von zwei, drei Minuten ihr Feedback, bekommen die Letzten die Wartemeldung und klicken
+  nach einer Minute erneut (die Antworten bleiben erhalten). Wer das vermeiden will: Feedback gestaffelt anfordern
+  lassen und eine Reserve-KI eintragen.
 
 **Cloudflare, kostenloser Tarif (Workers Free):**
 

@@ -446,7 +446,7 @@ export const FEEDBACK_SCHEMA_GEMINI = {
  */
 const MATERIAL_CAP = 4000;   // Zeichen Material je Aufgabe im Prompt
 export function buildFeedbackMessages(tasks, answers) {
-  const nrs = [], blocks = [];
+  const nrs = [], blocks = [], replies = [];
   tasks.forEach((t, i) => {
     const solution = str(t.solution).trim();
     if (!solution) return;
@@ -455,10 +455,14 @@ export function buildFeedbackMessages(tasks, answers) {
     if (material.length > MATERIAL_CAP) material = material.slice(0, MATERIAL_CAP).trimEnd() + " …";
     blocks.push("### Aufgabe " + nr + "\nAufgabenstellung:\n<<<\n" + safeData(str(t.text).trim()) + "\n>>>\n" +
       (material ? "Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\n" + safeData(material) + "\n>>>\n" : "") +
-      "Musterlösung der Lehrkraft:\n<<<\n" + safeData(solution) + "\n>>>\n" +
-      "Antwort der Schülerin bzw. des Schülers:\n<<<\n" + safeData(str(answers[i]).trim()) + "\n>>>");
+      "Musterlösung der Lehrkraft:\n<<<\n" + safeData(solution) + "\n>>>");
+    replies.push("### Antwort zu Aufgabe " + nr + "\n<<<\n" + safeData(str(answers[i]).trim()) + "\n>>>");
   });
-  const user = "Aufgaben, Musterlösungen und Antworten:\n\n" + blocks.join("\n\n") +
+  // Der für alle Schüler:innen eines Blattes gleiche Teil (Aufgaben, Material, Musterlösungen) steht zuerst, die Antworten
+  // zuletzt: So greift das automatische Präfix-Caching der Anbieter (Groq: gecachte Token zählen nicht gegen die
+  // Minuten-/Tageslimits) ab der zweiten Anfrage zum selben Blatt – nur die Antworten und die Ausgabe kosten Kontingent.
+  const user = "Aufgaben, Material und Musterlösungen (Nummern: " + nrs.join(", ") + "):\n\n" + blocks.join("\n\n") +
+    "\n\nAntworten der Schülerin bzw. des Schülers:\n\n" + replies.join("\n\n") +
     "\n\nGib für jede der " + nrs.length + " Aufgaben (Nummern: " + nrs.join(", ") + ") die angesprochenen und die fehlenden Kernpunkte als JSON zurück.";
   return { messages: [{ role: "system", content: FEEDBACK_SYSTEM }, { role: "user", content: user }], nrs };
 }
