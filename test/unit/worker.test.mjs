@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults } from "../mock-ai.mjs";
-import { RATE, LIMITS } from "../../worker/lib.js";
+import { RATE, LIMITS, cleanFileName } from "../../worker/lib.js";
 import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
 
@@ -130,7 +130,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, material: [], images: [] })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, material: [], images: [], files: [] })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
     aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }] });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
@@ -146,7 +146,7 @@ test("sheet material: gespeichert, öffentlich und für die Lehrkraft geliefert,
   assert.deepEqual(r.json.sheet.tasks.map((t) => t.material), [material, []]);
   assert.equal(/solution|musterl/i.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets/" + c, { auth });
-  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", solution: "k", material, images: [] });
+  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", solution: "k", material, images: [], files: [] });
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: [[{ t: "x", h: "javascript:alert(1)" }]] }] } });
   assert.equal(r.status, 400); assert.match(r.json.error, /^Aufgabe 1: Ein Link im Material ist ungültig/);
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: "fett" }] } });
@@ -198,6 +198,90 @@ test("sheet images: Grenzen je Aufgabe und je Blatt (12 MB), wiederholbarer Uplo
   assert.equal(r.status, 200);
   assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_images WHERE sheet_code=?").get(c).n, 0);
   r = await call("GET", "/api/sheet/" + c + "/images/" + id);
+  assert.equal(r.status, 404);
+});
+
+test("sheet files (PDF): chunked upload, only complete files listed, part-wise download, limits, sanitized names", async () => {
+  assert.deepEqual(["Arbeits/blatt Zelle.PDF", "Skript", "", "..\\..\\x.pdf", "a\u0000b\u200b.pdf", "x".repeat(200) + ".pdf"].map(cleanFileName),
+    ["Arbeits-blatt Zelle.PDF", "Skript.pdf", "Datei.pdf", "-..-x.pdf", "ab.pdf", "x".repeat(116) + ".pdf"]);
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "PDFs", tasks: [{ text: "A" }, { text: "B" }] } });
+  const c = r.json.code;
+  const pdf = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(700 * 1024 - 9, 0x41)]);   // 700 KB → 2 Teile
+  const CH = LIMITS.fileChunk, chunks = Math.ceil(pdf.length / CH);
+  assert.equal(chunks, 2);
+  const part = (n) => pdf.subarray(n * CH, Math.min(pdf.length, (n + 1) * CH)).toString("base64");
+  const up = (body) => call("POST", "/api/teacher/sheets/" + c + "/files", { auth, body });
+  const id = "00000000000000a1";
+  const meta = { id, task: 1, name: "Arbeits/blatt Zelle.PDF", bytes: pdf.length, chunks };
+  r = await call("POST", "/api/teacher/sheets/" + c + "/files", { body: { ...meta, n: 0, data: part(0) } });
+  assert.equal(r.status, 401);
+  // Teil 1 vor Teil 0 → 400 (erster Teil fehlt)
+  r = await up({ ...meta, n: 1, data: part(1) });
+  assert.equal(r.status, 400, r.text); assert.equal(r.json.code, "bad_request");
+  // Teil 0 → angelegt, aber unvollständig: nicht gelistet, kein Download
+  r = await up({ ...meta, n: 0, data: part(0) });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.json.file, { id, task: 1, pos: 0, name: "Arbeits-blatt Zelle.PDF", bytes: pdf.length, chunks: 2, n: 0, complete: false });
+  r = await call("GET", "/api/sheet/" + c);
+  assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], []]);
+  r = await call("GET", "/api/sheet/" + c + "/files/" + id);
+  assert.equal(r.status, 404);
+  // Teil 1 → vollständig; Wiederholungen (nach Timeout) speichern nichts doppelt
+  r = await up({ ...meta, n: 1, data: part(1) });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual([r.json.existing, r.json.file], [undefined, { id, task: 1, n: 1, chunks: 2, complete: true }]);
+  r = await up({ ...meta, n: 1, data: part(1) });
+  assert.deepEqual([r.status, r.json.existing, r.json.file.complete], [200, true, true]);
+  r = await up({ ...meta, n: 0, data: part(0) });
+  assert.deepEqual([r.status, r.json.existing, r.json.file.pos, r.json.file.complete], [200, true, 0, true]);
+  assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_files WHERE sheet_code=?").get(c).n, 2);
+  // gelistet ohne Dateidaten – öffentlich und für die Lehrkraft
+  r = await call("GET", "/api/sheet/" + c);
+  assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[{ id, name: "Arbeits-blatt Zelle.PDF", bytes: pdf.length }], []]);
+  assert.equal(r.text.includes('"data"'), false);
+  r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+  assert.deepEqual(r.json.sheet.tasks[0].files, [{ id, name: "Arbeits-blatt Zelle.PDF", bytes: pdf.length }]);
+  // Download in Teilen (?part=0 ist die Vorgabe), zusammen ergeben sie die Datei; part=2 oder Unsinn → 404
+  r = await call("GET", "/api/sheet/" + c + "/files/" + id);
+  assert.equal(r.status, 200, r.text); assert.equal(r.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.deepEqual([r.json.name, r.json.mime, r.json.bytes, r.json.chunks, r.json.n], ["Arbeits-blatt Zelle.PDF", "application/pdf", pdf.length, 2, 0]);
+  const r1 = await call("GET", "/api/sheet/" + c + "/files/" + id + "?part=1");
+  assert.equal(r1.status, 200, r1.text); assert.equal(r1.json.n, 1);
+  assert.equal(Buffer.concat([Buffer.from(r.json.data, "base64"), Buffer.from(r1.json.data, "base64")]).equals(pdf), true);
+  for (const q of ["?part=2", "?part=-1", "?part=x"]) { r = await call("GET", "/api/sheet/" + c + "/files/" + id + q); assert.equal(r.status, 404, q); }
+  r = await call("GET", "/api/sheet/" + code + "/files/" + id); assert.equal(r.status, 404);   // Datei eines anderen Blattes
+  // keine PDF, falsche Teilgröße, falsche Stückelung, über 6 MB, Teil zu einer Datei eines anderen Blattes
+  r = await up({ id: "00000000000000a2", task: 1, name: "x.pdf", bytes: 10, chunks: 1, n: 0, data: Buffer.from("kein PDF!!").toString("base64") });
+  assert.equal(r.status, 400); assert.equal(r.json.code, "bad_file");
+  r = await up({ ...meta, id: "00000000000000a3", n: 0, data: part(1) });
+  assert.equal(r.status, 400); assert.equal(r.json.code, "bad_file");
+  r = await up({ ...meta, id: "00000000000000a3", chunks: 3, n: 0, data: part(0) });
+  assert.equal(r.status, 400); assert.equal(r.json.code, "bad_request");
+  r = await up({ ...meta, id: "00000000000000a3", bytes: LIMITS.fileBytes + 1, chunks: Math.ceil((LIMITS.fileBytes + 1) / CH), n: 0, data: part(0) });
+  assert.equal(r.status, 413); assert.equal(r.json.code, "too_large");
+  r = await call("POST", "/api/teacher/sheets/" + code + "/files", { auth, body: { ...meta, n: 1, data: part(1) } });
+  assert.equal(r.status, 400);
+  assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_files").get().n, 2);
+  // kleine PDFs: Name ohne Endung bekommt .pdf, leerer Name → Datei.pdf, höchstens 3 je Aufgabe, Aufgabe 3 gibt es nicht
+  const small = Buffer.from("%PDF-1.4\n%klein\n");
+  const sm = (id, task, name) => up({ id, task, name, bytes: small.length, chunks: 1, n: 0, data: small.toString("base64") });
+  r = await sm("00000000000000b1", 1, "Skript"); assert.equal(r.status, 200, r.text); assert.deepEqual([r.json.file.pos, r.json.file.name, r.json.file.complete], [1, "Skript.pdf", true]);
+  r = await sm("00000000000000b2", 1, ""); assert.equal(r.status, 200, r.text); assert.deepEqual([r.json.file.pos, r.json.file.name], [2, "Datei.pdf"]);
+  r = await sm("00000000000000b3", 1, "vier.pdf"); assert.equal(r.status, 400); assert.equal(r.json.code, "too_many_files");
+  r = await sm("00000000000000b3", 3, "drei.pdf"); assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 3 gibt es in diesem Feibeitsblatt nicht.");
+  // 20 MB je Blatt: Summe direkt in die Datenbank schreiben → 413 mit Meldung
+  d1.db.prepare("INSERT INTO sheet_files(id,n,sheet_code,task,pos,name,mime,bytes,chunks,created_at,data) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+    .run("ffffffffffffff02", 0, c, 2, 0, "gross.pdf", "application/pdf", LIMITS.sheetFileBytes - 100, 1, 0, "x");
+  r = await sm("00000000000000b4", 2, "noch.pdf");
+  assert.equal(r.status, 413, r.text); assert.deepEqual([r.json.code, r.json.error], ["too_large", "Die PDF-Dateien dieses Feibeitsblattes sind zusammen zu groß (höchstens 20 MB)."]);
+  d1.db.prepare("DELETE FROM sheet_files WHERE id='ffffffffffffff02'").run();
+  r = await call("GET", "/api/sheet/" + c);
+  assert.deepEqual(r.json.sheet.tasks[0].files.map((f) => f.name), ["Arbeits-blatt Zelle.PDF", "Skript.pdf", "Datei.pdf"]);
+  // Blatt löschen → Dateien weg
+  r = await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  assert.equal(r.status, 200);
+  assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_files WHERE sheet_code=?").get(c).n, 0);
+  r = await call("GET", "/api/sheet/" + c + "/files/" + id);
   assert.equal(r.status, 404);
 });
 

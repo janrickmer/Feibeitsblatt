@@ -195,6 +195,21 @@
   /* Material zur Aufgabe: Text der Lehrkraft mit Fett/Kursiv/Unterstrichen und Links (neuer Tab) */
   .task-material{margin:0 0 12px; padding:10px 14px 4px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px; font-size:17px; line-height:1.65}
   .task-material > .sublabel{display:block; margin:0 0 4px}
+  /* PDF-Dateien der Lehrkraft: Klick lädt die Datei herunter */
+  .task-files{margin:0 0 12px}
+  .task-files > .sublabel{display:block; margin:0 0 6px}
+  .filelist,.tfiles{display:flex; flex-wrap:wrap; gap:8px}
+  .tfiles{margin:6px 0 0}
+  .filebtn{display:inline-flex; align-items:center; gap:8px; max-width:100%; padding:7px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:14px/1.35 var(--sans); cursor:pointer; text-align:left}
+  .filebtn:hover{border-color:var(--accent2); background:var(--paper)}
+  .filebtn.loading{cursor:progress}
+  .filebtn.failed{border-color:var(--red); color:var(--red)}
+  .filebtn-icon{flex:0 0 auto; font-size:10.5px; font-weight:700; letter-spacing:.04em; padding:2px 5px; border-radius:4px; background:var(--red); color:#fff}
+  .filebtn-name{min-width:0; overflow-wrap:anywhere; font-weight:600}
+  .filebtn-meta{flex:0 0 auto; font-size:12.5px; color:var(--muted)}
+  .filebtn.failed .filebtn-meta{color:inherit}
+  .filebtn .spinner{display:none; margin:0}
+  .filebtn.loading .spinner{display:inline-block}
   .material p{margin:0 0 .55em; overflow-wrap:anywhere}
   .material a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
   .material a:hover{color:var(--accent2)}
@@ -263,6 +278,9 @@
   .bimg-row{display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center}
   .bimg-stat{margin:0; font-size:12.5px}
   @media (max-width:1000px){ .bimg{grid-template-columns:auto auto} .bimg-ctl{grid-column:1 / -1} }
+  .bfile-list{display:flex; flex-direction:column; gap:6px; margin:0 0 8px}
+  .bfile{display:flex; align-items:center; gap:10px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--paper); font-family:var(--sans); font-size:13.5px}
+  .bfile-name{min-width:0; flex:1 1 auto; overflow-wrap:anywhere}
   /* Ausgabe der Rechtschreibprüfung – klein unter dem Feld */
   .lt-out{margin:10px 0 0; padding:10px 14px 9px; background:var(--paper); border:1px solid var(--line); border-left:3px solid var(--accent2); border-radius:8px}
   .lt-head{font-family:var(--sans); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 4px; line-height:1.4}
@@ -701,7 +719,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab.</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
       <div id="b-form">
         <div class="field" style="max-width:640px">
           <label for="b-title">Titel</label>
@@ -736,7 +754,7 @@
         <p class="status" id="b-res-img" aria-live="polite"></p>
         <div class="row">
           <button type="button" class="btn" id="b-res-back">Zur Übersicht</button>
-          <button type="button" class="btn ghost small hidden" id="b-res-retry">Fehlende Bilder erneut hochladen</button>
+          <button type="button" class="btn ghost small hidden" id="b-res-retry">Fehlende Dateien erneut hochladen</button>
         </div>
       </div>
     </div>
@@ -1376,6 +1394,60 @@ function dataUrlToBlob(src) {   // "data:image/png;base64,…" → Blob (für di
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
   return new Blob([u], { type: m[1] });
 }
+/* ---------- PDF-Dateien zu Aufgaben: Herunterladen in Teilen ---------- */
+const FILE_ID_RE = IMAGE_ID_RE, FILE_B64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+const FILE_MAX_BYTES = 6 * 1024 * 1024, FILES_PER_TASK = 3, FILE_SHEET_BYTES = 20 * 1024 * 1024, FILE_CHUNK = 512 * 1024;   // wie LIMITS im Worker
+function safeFileName(name) {   // nur für Anzeige und Download: keine Steuer- und Pfadzeichen, endet auf .pdf
+  let s = String(name == null ? "" : name).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/g, "").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().replace(/^\.+/, "").slice(0, 120);
+  if (!/\.pdf$/i.test(s)) s = s.slice(0, 116).trim() + ".pdf";
+  return s === ".pdf" ? "Datei.pdf" : s;
+}
+function cleanFiles(list) {   // Metadaten vom Server prüfen (fremde Daten nie ungeprüft ins DOM)
+  return (Array.isArray(list) ? list : []).filter((f) => f && typeof f.id === "string" && FILE_ID_RE.test(f.id)).slice(0, FILES_PER_TASK)
+    .map((f) => ({ id: f.id, name: safeFileName(f.name), bytes: Number.isInteger(f.bytes) && f.bytes > 0 ? f.bytes : 0 }));
+}
+function b64ToBytes(b64) {
+  const bin = atob(b64), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+const fileCache = new Map();   // "code/id" → Promise<{blob, name}> – der Server liefert je Aufruf einen Teil (≤ 512 KB), der Browser cacht die Antworten
+function loadFile(code, id) {
+  const key = code + "/" + id;
+  if (fileCache.size > 6) fileCache.clear();   // nicht unbegrenzt Dateien im Speicher halten
+  if (!fileCache.has(key)) fileCache.set(key, (async () => {
+    const parts = [];
+    let name = "", bytes = 0, chunks = 1;
+    for (let n = 0; n < chunks; n++) {
+      const r = await api("GET", "/api/sheet/" + encodeURIComponent(code) + "/files/" + id + (n ? "?part=" + n : ""), { cache: "default", timeout: 90000 });
+      if (typeof r.data !== "string" || r.mime !== "application/pdf" || !FILE_B64_RE.test(r.data) || !Number.isInteger(r.chunks) || r.chunks < 1 || r.chunks > 64) throw new ApiError("server_error");
+      if (!n) { name = safeFileName(r.name); bytes = Number(r.bytes) || 0; chunks = r.chunks; }
+      parts.push(b64ToBytes(r.data));
+    }
+    const blob = new Blob(parts, { type: "application/pdf" });
+    if (!blob.size || (bytes && blob.size !== bytes)) throw new ApiError("server_error");
+    return { blob, name };
+  })().catch((e) => { fileCache.delete(key); throw e; }));
+  return fileCache.get(key);
+}
+// Download-Button für eine PDF-Datei der Lehrkraft: Klick holt die Teile und speichert die Datei unter ihrem Namen (kein
+// Öffnen im Tab). Während des Ladens ein Spinner, bei einem Fehler „erneut versuchen“ – ein zweiter Klick lädt neu.
+function fileButton(code, f, n) {
+  const size = f.bytes ? `PDF, ${fmtKB(f.bytes)}` : "PDF";
+  const meta = h("span", { class: "filebtn-meta", text: size + " · herunterladen" });
+  const btn = h("button", { type: "button", class: "filebtn", "aria-label": `${f.name} (${size}) herunterladen – Datei zu Aufgabe ${n}` }, [
+    h("span", { class: "spinner", "aria-hidden": "true" }), h("span", { class: "filebtn-icon", "aria-hidden": "true", text: "PDF" }), h("span", { class: "filebtn-name", text: f.name }), meta
+  ]);
+  let running = false;
+  btn.addEventListener("click", async () => {
+    if (running) return;
+    running = true; btn.classList.add("loading"); btn.classList.remove("failed"); btn.setAttribute("aria-busy", "true"); meta.textContent = "wird geladen …";
+    try { const r = await loadFile(code, f.id); downloadBlob(r.blob, f.name || r.name); meta.textContent = size + " · herunterladen"; }
+    catch (e) { btn.classList.add("failed"); meta.textContent = "konnte nicht geladen werden – erneut versuchen"; }
+    finally { running = false; btn.classList.remove("loading"); btn.removeAttribute("aria-busy"); }
+  });
+  return btn;
+}
 function cleanImages(list) {   // Metadaten vom Server prüfen (fremde Daten nie ungeprüft ins DOM)
   return (Array.isArray(list) ? list : []).filter((m) => m && typeof m.id === "string" && IMAGE_ID_RE.test(m.id)).slice(0, 5)
     .map((m) => ({ id: m.id, mode: m.mode === "inline" ? "inline" : "thumb", w: Number.isInteger(m.w) && m.w > 0 ? m.w : 0, h: Number.isInteger(m.h) && m.h > 0 ? m.h : 0,
@@ -1480,6 +1552,7 @@ async function loadSheet(code) {
     tasks: sh.tasks.map((t) => String((t && t.text) || "")),
     images: sh.tasks.map((t) => cleanImages(t && t.images)),   // je Aufgabe: Miniaturen (thumb) oder größer unter der Aufgabe (inline)
     material: sh.tasks.map((t) => cleanMaterial(t && t.material)),   // je Aufgabe: formatierter Text der Lehrkraft mit Links
+    files: sh.tasks.map((t) => cleanFiles(t && t.files)),   // je Aufgabe: PDF-Dateien der Lehrkraft zum Herunterladen
     aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null,
     aiRecipients: recipientsOf(sh)   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
   };
@@ -1759,7 +1832,7 @@ function buildTasks() {
     const out = h("div", { class: "lt-out hidden", "aria-live": "polite" });
     const fb = h("div", { class: "fbbox hidden" });
     // Bilder der Lehrkraft: Miniaturen rechts neben Aufgabe und Antwort, größere Bilder zwischen Aufgabenstellung und Antwortfeld
-    const imgs = (S.sheet.images && S.sheet.images[i]) || [], mat = (S.sheet.material && S.sheet.material[i]) || [];
+    const imgs = (S.sheet.images && S.sheet.images[i]) || [], mat = (S.sheet.material && S.sheet.material[i]) || [], files = (S.sheet.files && S.sheet.files[i]) || [];
     const mk = (m, k, cls) => imgButton(S.code, m, `Bild ${k + 1} zu Aufgabe ${n}`, cls);
     const thumbs = imgs.map((m, k) => (m.mode === "thumb" ? mk(m, k, "thumbbtn") : null)).filter(Boolean);
     const figs = imgs.map((m, k) => (m.mode === "inline" ? mk(m, k, "figbtn") : null)).filter(Boolean);
@@ -1771,6 +1844,7 @@ function buildTasks() {
       thumbs.length ? h("div", { class: "task-thumbs" }, thumbs) : null,
       h("div", { class: "task-body" }, [
         mat.length ? h("div", { class: "task-material" }, [h("span", { class: "sublabel", text: "Material" }), materialDom(mat, { links: true })]) : null,
+        files.length ? h("div", { class: "task-files" }, [h("span", { class: "sublabel", text: "Material zum Herunterladen" }), h("div", { class: "filelist" }, files.map((f) => fileButton(S.code, f, n)))]) : null,
         figs.length ? h("div", { class: "task-figs" }, figs) : null,
         ta, pe, cnt,
         h("div", { class: "checkrow" }, [ltBtn, ltOff, ltStat]),
@@ -2647,6 +2721,11 @@ function teacherImgs(code, metas, n) {
     return b;
   }));
 }
+function teacherFiles(code, metas, n) {
+  const list = cleanFiles(metas);
+  if (!list.length) return null;
+  return h("div", { class: "tfiles" }, list.map((f) => fileButton(code, f, n)));
+}
 const TA = (path, opts) => api(opts && opts.method || "GET", path, Object.assign({ auth: T.authKey }, opts || {}));
 
 /* ---------- Türcode ---------- */
@@ -2839,6 +2918,7 @@ async function selectSheet(code) {
       cleanMaterial(t.material).length ? h("span", { class: "task-label", style: "margin-top:6px", text: "Material" }) : null,
       cleanMaterial(t.material).length ? materialDom(t.material, { links: true }) : null,
       teacherImgs(code, t.images, i + 1),
+      teacherFiles(code, t.files, i + 1),
       h("span", { class: "task-label", style: "margin-top:6px", text: "Musterlösung" }),
       h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keine –" })
     ])));
@@ -2966,6 +3046,7 @@ function buildDetail(s) {
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
       h("p", { class: "dtask-text", text: tasks[i] ? String(tasks[i].text || "") : "" }),
       tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
+      tasks[i] ? teacherFiles(T.sel, tasks[i].files, i + 1) : null,
       h("table", { class: "cmp" }, [
         h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
         h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, !isFirst && first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null, isFirst)])])
@@ -2990,11 +3071,11 @@ $("t-template").addEventListener("click", async () => {
   if (!T.selSheet) return;
   const btn = $("t-template"), code = T.sel;
   busy(btn, true, "Vorlage wird geladen …");
-  let lost = 0;
+  let lost = 0, lostF = 0;
   try {
-    // Bilder der Vorlage mitnehmen (werden beim Anlegen erneut hochgeladen); nicht ladbare Bilder werden ausgelassen
+    // Bilder und PDF-Dateien der Vorlage mitnehmen (werden beim Anlegen erneut hochgeladen); nicht ladbare werden ausgelassen
     const rows = await Promise.all(T.selSheet.tasks.map(async (t) => {
-      const images = [];
+      const images = [], files = [];
       for (const m of cleanImages(t.images)) {
         try {
           const blob = dataUrlToBlob(await loadImage(code, m.id));
@@ -3002,10 +3083,16 @@ $("t-template").addEventListener("click", async () => {
           images.push({ blob, mime: blob.type, w: m.w, h: m.h, mode: m.mode, alt: m.alt || "", url: URL.createObjectURL(blob) });
         } catch (e) { lost++; }
       }
-      return { text: String(t.text || ""), solution: String(t.solution || ""), images, material: cleanMaterial(t.material) };
+      for (const f of cleanFiles(t.files)) {
+        try { const r = await loadFile(code, f.id); files.push({ blob: r.blob, name: f.name, size: r.blob.size }); } catch (e) { lostF++; }
+      }
+      return { text: String(t.text || ""), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files };
     }));
     openBuilder(T.selSheet.title, rows);
-    if (lost) $("b-err").textContent = `${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`;
+    const msgs = [];
+    if (lost) msgs.push(`${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
+    if (lostF) msgs.push(`${lostF === 1 ? "Eine PDF-Datei der Vorlage konnte" : lostF + " PDF-Dateien der Vorlage konnten"} nicht geladen werden und ${lostF === 1 ? "fehlt" : "fehlen"} hier.`);
+    if (msgs.length) $("b-err").textContent = msgs.join(" ");
   } finally { busy(btn, false); }
 });
 /* „Die eine Abgabe“, „Alle 4 Abgaben und Erstversuche“ … (Subjekt für Lösch-Dialoge) */
@@ -3061,7 +3148,7 @@ function openBuilder(title, rows) {
   Array.from($("b-rows").children).forEach((tr) => (tr._images || []).forEach((im) => URL.revokeObjectURL(im.url)));   // alte Vorschauen freigeben
   $("b-rows").textContent = "";
   const init = rows && rows.length ? rows : [{}, {}, {}];
-  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material));
+  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material, r.files));
   T.builderDirty = false;
   growAll();
   focusSoon("b-title", 30);
@@ -3137,7 +3224,36 @@ async function addImages(tr, files) {
     }
   } finally { busy(tr._imgAdd, false); renderImages(tr); }
 }
-function addRow(text, solution, images, material) {
+/* PDF-Dateien im Blatt-Editor: nur echte PDFs (Kennung „%PDF-“), je ≤ 6 MB, höchstens 3 je Aufgabe; hochgeladen wird in Teilen */
+async function addPdfFiles(tr, files) {
+  const free = FILES_PER_TASK - tr._files.length, stat = tr._fileStat;
+  setStatus(stat, "", "");
+  if (files.length > free) setStatus(stat, free > 0 ? `Nur noch ${free} ${free === 1 ? "PDF-Datei" : "PDF-Dateien"} möglich (höchstens ${FILES_PER_TASK} je Aufgabe) – die weiteren wurden ausgelassen.` : `Höchstens ${FILES_PER_TASK} PDF-Dateien je Aufgabe.`, "bad");
+  for (const f of files.slice(0, Math.max(0, free))) {
+    try {
+      if (f.size < 1) throw new Error("Die Datei ist leer.");
+      if (f.size > FILE_MAX_BYTES) throw new Error(`Die Datei ist zu groß (${fmtKB(f.size)}, höchstens ${fmtKB(FILE_MAX_BYTES)} je PDF-Datei).`);
+      if (await f.slice(0, 5).text() !== "%PDF-") throw new Error("Das ist keine PDF-Datei (erlaubt sind nur PDF-Dateien).");
+      tr._files.push({ blob: f, name: safeFileName(f.name), size: f.size }); T.builderDirty = true;
+    } catch (e) { setStatus(stat, `„${f.name}“: ${(e && e.message) || "Die Datei konnte nicht gelesen werden."}`, "bad"); }
+  }
+  renderFiles(tr);
+}
+function renderFiles(tr) {
+  const list = tr._fileList; list.textContent = "";
+  tr._files.forEach((f, k) => {
+    const del = h("button", { type: "button", class: "iconbtn x", text: "✕", title: "PDF-Datei entfernen", "aria-label": `PDF-Datei ${k + 1} entfernen` });
+    del.addEventListener("click", () => { tr._files.splice(k, 1); renderFiles(tr); T.builderDirty = true; tr._fileAdd.focus(); });
+    list.appendChild(h("div", { class: "bfile" }, [
+      h("span", { class: "filebtn-icon", "aria-hidden": "true", text: "PDF" }),
+      h("span", { class: "bfile-name", text: f.name }),
+      h("span", { class: "bimg-meta", text: fmtKB(f.size) }),
+      del
+    ]));
+  });
+  tr._fileAdd.disabled = tr._files.length >= FILES_PER_TASK;
+}
+function addRow(text, solution, images, material, files) {
   const tb = $("b-rows");
   const ta1 = h("textarea", { class: "grow q", rows: "3", maxlength: "4000", placeholder: "Aufgabenstellung …", spellcheck: "true" });
   const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Kernpunkte der Musterlösung, je Zeile einer …", spellcheck: "true" });
@@ -3148,9 +3264,14 @@ function addRow(text, solution, images, material) {
   const del = h("button", { type: "button", class: "iconbtn x", text: "✕" });
   // Bilder zur Aufgabe (bis zu 5): Vorschau, Anzeigeart, Entfernen
   const imgList = h("div", { class: "bimg-list" });
-  const file = h("input", { type: "file", accept: "image/*", multiple: true, class: "sr-only", tabindex: "-1", "aria-hidden": "true" });
+  const file = h("input", { type: "file", accept: "image/*", multiple: true, class: "sr-only bimg-input", tabindex: "-1", "aria-hidden": "true" });
   const imgAdd = h("button", { type: "button", class: "btn ghost small bimg-add", text: "+ Bild hinzufügen" });
   const imgStat = h("span", { class: "fhint bimg-stat", role: "status", "aria-live": "polite" });
+  // PDF-Dateien zur Aufgabe (bis zu 3, je ≤ 6 MB): Schüler:innen laden sie per Klick herunter
+  const fileList = h("div", { class: "bfile-list" });
+  const pdfIn = h("input", { type: "file", accept: "application/pdf,.pdf", multiple: true, class: "sr-only bfile-input", tabindex: "-1", "aria-hidden": "true" });
+  const pdfAdd = h("button", { type: "button", class: "btn ghost small bfile-add", text: "+ PDF-Datei hinzufügen" });
+  const pdfStat = h("span", { class: "fhint bfile-stat", role: "status", "aria-live": "polite" });
   // Material: formatierbarer Text (fett/kursiv/unterstrichen) mit Links – als contenteditable, gespeichert als Modell
   const MAT_PLACEHOLDER = "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …";
   const matEd = h("div", { class: "bmat-edit is-empty", contenteditable: "true", role: "textbox", "aria-multiline": "true", spellcheck: "true",
@@ -3209,24 +3330,30 @@ function addRow(text, solution, images, material) {
   if (material && material.length) { Array.from(materialDom(material, { editor: true }).childNodes).forEach((n) => matEd.appendChild(n)); matEd.classList.remove("is-empty"); }
   const tr = h("tr", null, [
     h("td", { class: "c1" }, [l1, ta1, h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
-      h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])])]),
+      h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])]),
+      h("div", { class: "bimgs bfiles" }, [fileList, h("div", { class: "bimg-row" }, [pdfAdd, pdfIn, pdfStat])])]),
     h("td", { class: "c2" }, [l2, ta2]),
     h("td", { class: "act" }, [h("div", { class: "acts" }, [up, down, del])])
   ]);
   tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl;
+  tr._files = []; tr._fileList = fileList; tr._fileAdd = pdfAdd; tr._fileStat = pdfStat;
   imgAdd.addEventListener("click", () => { file.value = ""; file.click(); });
   file.addEventListener("change", () => addImages(tr, Array.from(file.files || [])));
+  pdfAdd.addEventListener("click", () => { pdfIn.value = ""; pdfIn.click(); });
+  pdfIn.addEventListener("change", () => addPdfFiles(tr, Array.from(pdfIn.files || [])));
   (images || []).forEach((im) => { if (tr._images.length < IMG_PER_TASK) tr._images.push(im); });
   renderImages(tr);
+  (files || []).forEach((f) => { if (tr._files.length < FILES_PER_TASK) tr._files.push(f); });
+  renderFiles(tr);
   [ta1, ta2].forEach((t) => t.addEventListener("input", () => { autoGrow(t); t.classList.remove("invalid"); T.builderDirty = true; }));
   up.addEventListener("click", () => { const p = tr.previousElementSibling; if (p) { tb.insertBefore(tr, p); renumber(); up.focus(); T.builderDirty = true; } });
   down.addEventListener("click", () => { const n = tr.nextElementSibling; if (n) { tb.insertBefore(n, tr); renumber(); down.focus(); T.builderDirty = true; } });
   del.addEventListener("click", async () => {
-    const hasMat = !!matEd.textContent.trim();
-    if (tb.children.length <= 1 && !tr._images.length && !hasMat) { ta1.value = ""; ta2.value = ""; growAll(); return; }
-    if ((ta1.value.trim() || ta2.value.trim() || tr._images.length || hasMat) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Musterlösung, Material und Bilder dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    const hasMat = !!matEd.textContent.trim(), hasFiles = tr._images.length || tr._files.length;
+    if (tb.children.length <= 1 && !hasFiles && !hasMat) { ta1.value = ""; ta2.value = ""; growAll(); return; }
+    if ((ta1.value.trim() || ta2.value.trim() || hasFiles || hasMat) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Musterlösung, Material, Bilder und PDF-Dateien dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
     tr._images.forEach((im) => URL.revokeObjectURL(im.url));
-    if (tb.children.length <= 1) { ta1.value = ""; ta2.value = ""; matEd.textContent = ""; matInput(); tr._images = []; renderImages(tr); growAll(); T.builderDirty = true; return; }
+    if (tb.children.length <= 1) { ta1.value = ""; ta2.value = ""; matEd.textContent = ""; matInput(); tr._images = []; renderImages(tr); tr._files = []; renderFiles(tr); growAll(); T.builderDirty = true; return; }
     tr.remove(); renumber(); T.builderDirty = true;
   });
   tb.appendChild(tr);
@@ -3247,6 +3374,7 @@ function renumber() {
     tr.querySelector(".down").setAttribute("aria-label", `Aufgabe ${n} nach unten verschieben`);
     tr.querySelector(".x").setAttribute("aria-label", `Aufgabe ${n} entfernen`);
     tr.querySelector(".bimg-add").setAttribute("aria-label", `Bild zu Aufgabe ${n} hinzufügen`);
+    tr.querySelector(".bfile-add").setAttribute("aria-label", `PDF-Datei zu Aufgabe ${n} hinzufügen`);
     tr._matLbl.textContent = `Material ${n} (optional)`;
     tr._matEd.setAttribute("aria-label", `Material zu Aufgabe ${n}`);
     tr.querySelector(".up").title = "Nach oben"; tr.querySelector(".down").title = "Nach unten"; tr.querySelector(".x").title = "Zeile entfernen";
@@ -3273,8 +3401,8 @@ $("b-gen").addEventListener("click", async () => {
   let bad = null;
   Array.from($("b-rows").children).forEach((tr, i) => {
     const q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)");
-    const text = q.value.trim(), solution = s.value.trim(), imgs = tr._images || [], material = serializeMaterial(tr._matEd);
-    if (!text && !solution && !imgs.length && !material.length) return;     // leere Zeilen weglassen
+    const text = q.value.trim(), solution = s.value.trim(), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
+    if (!text && !solution && !imgs.length && !pdfs.length && !material.length) return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
     const mRuns = material.reduce((n, p) => n + p.length, 0), mLinks = material.reduce((n, p) => n + p.filter((r) => r.h).length, 0);
     const mErr = materialChars(material) > MAT_LIMITS.chars ? `Das Material ist zu lang (höchstens ${MAT_LIMITS.chars.toLocaleString("de-DE")} Zeichen).`
@@ -3285,11 +3413,13 @@ $("b-gen").addEventListener("click", async () => {
     const task = { text, solution };
     if (material.length) task.material = material;
     tasks.push(task);
-    imgs.forEach((im, k) => uploads.push({ task: tasks.length, im, id: hexOf(crypto.getRandomValues(new Uint8Array(8))), label: `Aufgabe ${tasks.length}, Bild ${k + 1}` }));
+    imgs.forEach((im, k) => uploads.push({ kind: "image", task: tasks.length, im, id: hexOf(crypto.getRandomValues(new Uint8Array(8))), label: `Aufgabe ${tasks.length}, Bild ${k + 1}` }));
+    pdfs.forEach((f, k) => uploads.push({ kind: "file", task: tasks.length, f, id: hexOf(crypto.getRandomValues(new Uint8Array(8))), label: `Aufgabe ${tasks.length}, PDF-Datei ${k + 1}` }));
   });
   if (bad) { bad.focus(); return; }
-  const imgTotal = uploads.reduce((n, u) => n + u.im.blob.size, 0);
+  const imgTotal = uploads.reduce((n, u) => n + (u.kind === "image" ? u.im.blob.size : 0), 0), fileTotal = uploads.reduce((n, u) => n + (u.kind === "file" ? u.f.size : 0), 0);
   if (imgTotal > IMG_SHEET_BYTES) { err.textContent = `Die Bilder sind zusammen zu groß (${fmtKB(imgTotal)}, höchstens ${fmtKB(IMG_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Bilder entfernen.`; return; }
+  if (fileTotal > FILE_SHEET_BYTES) { err.textContent = `Die PDF-Dateien sind zusammen zu groß (${fmtKB(fileTotal)}, höchstens ${fmtKB(FILE_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Dateien entfernen.`; return; }
   if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector("textarea.q"); if (f) f.focus(); return; }
   if (tasks.length > 30) { err.textContent = "Ein Feibeitsblatt kann höchstens 30 Aufgaben haben."; return; }
   const title = $("b-title").value.trim().slice(0, 200);
@@ -3302,33 +3432,48 @@ $("b-gen").addEventListener("click", async () => {
     $("b-form").classList.add("hidden"); $("b-result").classList.remove("hidden");
     T.sel = r.code;
     T.pendingUploads = uploads.map((u) => Object.assign({ code: r.code }, u)); T.doneUploads = 0;
+    T.uploadKinds = { images: uploads.filter((u) => u.kind === "image").length, files: uploads.filter((u) => u.kind === "file").length };
     window.scrollTo(0, 0);
     focusSoon("b-res-copy", 30);
     await runUploads();
   } catch (e) { if (!handleAuthError(e)) err.textContent = errMsg(e, "t"); }
   finally { busy(btn, false); }
 });
-/* Bilder nacheinander hochladen (die Reihenfolge je Aufgabe ergibt sich aus der Reihenfolge der Uploads; jede Datei hat
-   eine feste id, Wiederholungen speichern nichts doppelt). Schlägt ein Bild vorübergehend fehl (Netz, Server), werden
-   die weiteren Bilder derselben Aufgabe zurückgestellt und „erneut hochladen“ holt sie nach; endgültige Ablehnungen
-   (zu groß, zu viele, unlesbar) werden gemeldet und nicht wiederholt. Während des Laufs bleibt die Seite im
-   Ergebnisbereich; eine Abmeldung beendet den Lauf. */
-const PERMANENT_CODES = new Set(["too_large", "too_many_images", "bad_image", "bad_request", "not_found"]);
+/* Bilder und PDF-Dateien nacheinander hochladen (die Reihenfolge je Aufgabe ergibt sich aus der Reihenfolge der Uploads;
+   jede Datei hat eine feste id, Wiederholungen speichern nichts doppelt). PDF-Dateien gehen in Teilen zu je 512 KB an den
+   Server (Teil 0 trägt die Metadaten); nach einem Abbruch geht es beim fehlenden Teil weiter. Schlägt ein Upload
+   vorübergehend fehl (Netz, Server), werden die weiteren Dateien derselben Aufgabe zurückgestellt und „erneut hochladen“
+   holt sie nach; endgültige Ablehnungen (zu groß, zu viele, unlesbar) werden gemeldet und nicht wiederholt. Während des
+   Laufs bleibt die Seite im Ergebnisbereich; eine Abmeldung beendet den Lauf. */
+const PERMANENT_CODES = new Set(["too_large", "too_many_images", "too_many_files", "bad_image", "bad_file", "bad_request", "not_found"]);
+const uploadNoun = (n, kinds) => (kinds.files && !kinds.images ? (n === 1 ? "PDF-Datei" : "PDF-Dateien") : kinds.files ? (n === 1 ? "Datei" : "Dateien") : (n === 1 ? "Bild" : "Bilder"));
 async function runUploads() {
   const st = $("b-res-img"), retry = $("b-res-retry"), run = ++T.uploadRun;
   retry.classList.add("hidden");
-  const list = T.pendingUploads;
+  const list = T.pendingUploads, kinds = T.uploadKinds || { images: list.length, files: 0 };
   if (!list.length) { setStatus(st, "", ""); return; }
   const total = list.length + T.doneUploads, failed = [], skipTask = new Set();
-  busy($("b-res-back"), true, "Bilder werden hochgeladen …"); $("b-back").disabled = true;
+  busy($("b-res-back"), true, (kinds.files ? "Dateien" : "Bilder") + " werden hochgeladen …"); $("b-back").disabled = true;
   try {
     for (const u of list) {
       if (run !== T.uploadRun || !T.authKey) return;   // abgemeldet oder neuer Lauf
       if (skipTask.has(u.task)) { failed.push({ u, msg: "zurückgestellt", retry: true }); continue; }
-      setStatus(st, `Bild ${T.doneUploads + 1} von ${total} wird hochgeladen …`, "busy");
+      const what = u.kind === "file" ? "PDF-Datei" : "Bild";
+      setStatus(st, `${what} ${T.doneUploads + 1} von ${total} wird hochgeladen …`, "busy");
       try {
-        await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/images", { method: "POST", timeout: 120000,
-          body: { id: u.id, task: u.task, mode: u.im.mode, alt: u.im.alt || "", data: await blobToB64(u.im.blob) } });
+        if (u.kind === "file") {
+          const chunks = Math.ceil(u.f.size / FILE_CHUNK);
+          for (let n = u.part || 0; n < chunks; n++) {
+            if (run !== T.uploadRun || !T.authKey) return;
+            if (chunks > 1) setStatus(st, `${what} ${T.doneUploads + 1} von ${total} wird hochgeladen … (Teil ${n + 1} von ${chunks})`, "busy");
+            await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/files", { method: "POST", timeout: 120000,
+              body: { id: u.id, task: u.task, name: u.f.name, bytes: u.f.size, chunks, n, data: await blobToB64(u.f.blob.slice(n * FILE_CHUNK, Math.min(u.f.size, (n + 1) * FILE_CHUNK))) } });
+            u.part = n + 1;   // bei einer Wiederholung hier weitermachen
+          }
+        } else {
+          await TA("/api/teacher/sheets/" + encodeURIComponent(u.code) + "/images", { method: "POST", timeout: 120000,
+            body: { id: u.id, task: u.task, mode: u.im.mode, alt: u.im.alt || "", data: await blobToB64(u.im.blob) } });
+        }
         T.doneUploads++;
       } catch (e) {
         if (run !== T.uploadRun || !T.authKey) return;
@@ -3340,9 +3485,13 @@ async function runUploads() {
     }
     if (run !== T.uploadRun) return;
     T.pendingUploads = failed.filter((f) => f.retry).map((f) => f.u);
-    if (!failed.length) setStatus(st, total === 1 ? "Das Bild ist gespeichert." : `Alle ${total} Bilder sind gespeichert.`, "ok");
-    else {
-      setStatus(st, `${failed.length === 1 ? "1 Bild konnte" : failed.length + " Bilder konnten"} nicht gespeichert werden (${failed.map((f) => f.u.label + ": " + f.msg).join("; ")}). Das Feibeitsblatt selbst ist angelegt.`, "bad");
+    if (!failed.length) {
+      const cnt = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+      setStatus(st, kinds.images && kinds.files ? `${cnt(kinds.images, "Bild", "Bilder")} und ${cnt(kinds.files, "PDF-Datei", "PDF-Dateien")} sind gespeichert.`
+        : total === 1 ? `${kinds.files ? "Die PDF-Datei" : "Das Bild"} ist gespeichert.` : `Alle ${total} ${uploadNoun(total, kinds)} sind gespeichert.`, "ok");
+    } else {
+      const fk = { images: failed.filter((f) => f.u.kind !== "file").length, files: failed.filter((f) => f.u.kind === "file").length };
+      setStatus(st, `${failed.length} ${uploadNoun(failed.length, fk)} ${failed.length === 1 ? "konnte" : "konnten"} nicht gespeichert werden (${failed.map((f) => f.u.label + ": " + f.msg).join("; ")}). Das Feibeitsblatt selbst ist angelegt.`, "bad");
       if (T.pendingUploads.length) retry.classList.remove("hidden");
     }
   } finally {

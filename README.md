@@ -54,7 +54,10 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    schmalen Bildschirmen zwischen Aufgabenstellung und Antwortfeld) oder etwas größer unter der Aufgabenstellung.
    Ein Klick auf ein Bild zeigt es groß; ein weiterer Klick oder die Esc-Taste schließt die Ansicht. Hat die
    Lehrkraft „Material“ hinterlegt (einen Text mit Hervorhebungen oder Links), steht es unter der Aufgabenstellung;
-   Links darin öffnen sich immer in einem neuen Tab, das Feibeitsblatt bleibt geöffnet.
+   Links darin öffnen sich immer in einem neuen Tab, das Feibeitsblatt bleibt geöffnet. Hat die Lehrkraft
+   PDF-Dateien zu einer Aufgabe hinterlegt, stehen sie als „Material zum Herunterladen“ unter der Aufgabenstellung:
+   Ein Klick auf eine Datei lädt sie herunter (sie landet im Download-Ordner und wird nicht im Tab geöffnet); dabei
+   wird nichts gesendet außer der Anfrage nach der Datei.
 4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button – aber nur, wenn
    die Schülerin oder der Schüler laut Geburtsdatum mindestens 16 Jahre alt ist (darunter steht an seiner Stelle der
    Hinweis „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“). Beim ersten Klick erklärt ein
@@ -135,13 +138,22 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    und steht unter dem vergrößerten Bild. Alle Bilder eines Blattes dürfen zusammen höchstens 12 MB haben; die Seite
    prüft das vor dem Anlegen. Die Bilder sehen alle, die den Code kennen; sie sind nicht
    verschlüsselt und gehen nicht an die KI – laden Sie deshalb keine Bilder mit personenbezogenen Daten hoch.
-4. **Code generieren.** Der Code erscheint groß (z. B. `K7Q-M4X`) mit „Kopieren“. Die Bilder werden dabei
-   nacheinander hochgeladen („Alle 3 Bilder sind gespeichert.“); so lange bleibt „Zur Übersicht“ gesperrt. Schlägt
-   eines fehl, sagt die Seite welches, und „Fehlende Bilder erneut hochladen“ holt es nach (eine Wiederholung legt
-   nie ein Bild doppelt an). Geben Sie den Code an die Klasse weiter. Ein erstelltes
+   **PDF-Dateien:** Mit „+ PDF-Datei hinzufügen“ laden Sie zu jeder Aufgabe bis zu drei PDF-Dateien als Material
+   hoch (je höchstens 6 MB, alle PDF-Dateien eines Blattes zusammen höchstens 20 MB; die Seite prüft beides vor dem
+   Anlegen). Andere Dateiformate nimmt die Seite nicht an. Schüler:innen sehen die Dateien unter der
+   Aufgabenstellung als „Material zum Herunterladen“ und laden eine Datei mit einem Klick herunter; der Dateiname
+   bleibt erhalten (Zeichen wie `/`, `:` oder `?` werden durch `-` ersetzt). Wie Bilder sind die PDF-Dateien für
+   alle abrufbar, die den Code kennen, nicht verschlüsselt und gehen nie an die KI – laden Sie keine Dateien mit
+   personenbezogenen Daten hoch.
+4. **Code generieren.** Der Code erscheint groß (z. B. `K7Q-M4X`) mit „Kopieren“. Bilder und PDF-Dateien werden
+   dabei nacheinander hochgeladen („Alle 3 Bilder sind gespeichert.“, „2 Bilder und 1 PDF-Datei sind
+   gespeichert.“; größere PDF-Dateien gehen in Teilen zu je 512 KB an den Server); so lange bleibt „Zur Übersicht“
+   gesperrt. Schlägt eines fehl, sagt die Seite welches, und „Fehlende Dateien erneut hochladen“ holt es nach (eine
+   Wiederholung legt nie etwas doppelt an; eine unterbrochene PDF-Datei wird ab dem fehlenden Teil fortgesetzt und
+   erscheint erst vollständig bei den Schüler:innen). Geben Sie den Code an die Klasse weiter. Ein erstelltes
    Feibeitsblatt lässt sich nicht mehr ändern; für eine geänderte Fassung wählen Sie es aus und klicken „Als
-   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Musterlösungen und Bilder und
-   ergibt einen neuen Code.
+   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Musterlösungen, Bilder und
+   PDF-Dateien und ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
    Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ und „Klasse“,
@@ -461,6 +473,7 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 |---|---|---|---|
 | Feibeitsblätter: Titel, Aufgaben, Material, **Musterlösungen** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
+| PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
 | Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt oder Sie löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
@@ -616,7 +629,9 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
   Mitternacht UTC fehl; gespeicherte Daten bleiben erhalten.
 - Für Schulklassen reicht das in aller Regel bei Weitem. Eine Abgabe belegt je nach Textlänge grob einige bis
   einige Dutzend Kilobyte (Schätzung); Bilder zu Aufgaben belegen bis zu etwa 700 KB je Bild (Base64) und werden
-  beim Öffnen eines Blattes je einmal gelesen – auch das zählt zu den gelesenen Zeilen.
+  beim Öffnen eines Blattes je einmal gelesen – auch das zählt zu den gelesenen Zeilen. PDF-Dateien liegen in Teilen
+  zu je 512 KB (als Base64 etwa 700 KB) in der Datenbank; eine 6-MB-Datei belegt also 12 Zeilen, die beim
+  Herunterladen je einmal gelesen werden – der Browser cacht die Teile, ein zweiter Klick lädt nichts neu.
 
 **Grenzen in Feibeitsblatt:**
 
@@ -626,6 +641,7 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Aufgabenstellung / Musterlösung / Titel | 4000 / 8000 / 200 Zeichen |
 | Material je Aufgabe | 8000 Zeichen, 60 Links; nur fett, kursiv, unterstrichen und Links (http/https) |
 | Bilder je Aufgabe | 5; je Bild höchstens 500 KB nach dem Verkleinern (längste Seite 1600 Pixel); alle Bilder eines Blattes zusammen 12 MB |
+| PDF-Dateien je Aufgabe | 3; je Datei höchstens 6 MB; alle PDF-Dateien eines Blattes zusammen 20 MB; Dateiname bis 120 Zeichen |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
 | KI-Feedback-Anfragen je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 400 000 Zeichen pro Stunde; nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
@@ -656,7 +672,8 @@ gespeichert.
 | „Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich.“ | Die Anfrage überschreitet das Limit aller verfügbaren Modelle. Musterlösungen und Aufgaben kürzen oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen. |
 | „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
 | „Das Bild kann der Browser nicht lesen (z. B. HEIC). Bitte als JPG oder PNG speichern.“ | Das Format kann der Browser nicht öffnen – meist HEIC-Fotos vom iPhone. Das Foto als JPG sichern (iOS: Einstellungen → Kamera → Formate → „Maximale Kompatibilität“, oder aus der Fotos-App als JPG teilen) oder ein anderes Bild wählen. |
-| „1 Bild konnte nicht gespeichert werden … Das Feibeitsblatt selbst ist angelegt.“ | Das Hochladen ist unterbrochen worden (Netz) oder der Server hat das Bild abgelehnt (Meldung in Klammern). Bei Netzfehlern „Fehlende Bilder erneut hochladen“ klicken; bei einer Ablehnung (zu groß, zu viele) das Blatt löschen und mit weniger oder kleineren Bildern neu anlegen. |
+| „1 Bild konnte nicht gespeichert werden … Das Feibeitsblatt selbst ist angelegt.“ (ebenso für PDF-Dateien) | Das Hochladen ist unterbrochen worden (Netz) oder der Server hat die Datei abgelehnt (Meldung in Klammern). Bei Netzfehlern „Fehlende Dateien erneut hochladen“ klicken; bei einer Ablehnung (zu groß, zu viele, keine PDF) das Blatt löschen und mit weniger oder kleineren Dateien neu anlegen. |
+| „konnte nicht geladen werden – erneut versuchen“ an einer PDF-Datei | Die Verbindung ist beim Herunterladen abgerissen. Noch einmal auf die Datei klicken. |
 | „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
 | „Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in …“ | Kein Fehler: Die Minutenlimits aller Modelle sind gerade ausgeschöpft; die Seite wiederholt von selbst (bis zu fünf Versuche in etwa vier Minuten). Weiterschreiben ist möglich; „Nicht länger warten“ bricht ab. Kommt das ständig vor, Feedback gestaffelt anfordern lassen oder eine Reserve-KI eintragen. |
 | „Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis …“ | Sie haben den ersten Anbieter geändert oder eine Reserve eingetragen, während das Blatt geöffnet war. Die Seite hat den Hinweis neu geladen; die Schülerin bzw. der Schüler liest ihn und klickt erneut. Nichts ging verloren. |
@@ -702,8 +719,8 @@ Zu beachten:
   gegen das Einbetten in fremde Seiten (`frame-ancestors`) fehlt dort.
 - Die Seite selbst kommt dann von GitHub (USA); Daten fließen weiterhin nur zum Worker (Cloudflare, Datenbank in der
   EU), zum KI-Anbieter und bei der Rechtschreibprüfung zu LanguageTool – daran ändert sich nichts.
-- Die Bilder zu Aufgaben kommen weiterhin vom Worker; die Seite bettet sie als `data:`-Adressen ein, ein eigener
-  Eintrag in der CSP ist dafür nicht nötig.
+- Die Bilder und PDF-Dateien zu Aufgaben kommen weiterhin vom Worker; die Seite bettet Bilder als `data:`-Adressen
+  ein und baut PDF-Dateien im Browser zusammen (`blob:`), ein eigener Eintrag in der CSP ist dafür nicht nötig.
 - Eine eigene Domain lässt sich alternativ direkt beim Worker einrichten („Workers & Pages“ → `feibeitsblatt` →
   „Settings“ → „Domains & Routes“ → „Add“ → „Custom domain“). Das setzt voraus, dass die Domain bei Cloudflare
   verwaltet wird, also ihre Nameserver auf Cloudflare zeigen (vorher alle vorhandenen DNS-Einträge wie E-Mail bei

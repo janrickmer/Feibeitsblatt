@@ -74,7 +74,10 @@ const RECIPIENT_SUFFIX = " (Betreiber und Sitz: von der Lehrkraft zu prüfen)"; 
 const ORANGE = "rgb(184, 92, 0)";   // .st-first
 const ATTEMPT = /^[0-9a-f]{16}$/;
 
-const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [] };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe)
+const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [], pdf: null };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe, pdf: PDF-Datei zu Aufgabe 2)
+// PDF-Datei der Lehrkraft zu Aufgabe 2 (600 KB → zwei Teile beim Hochladen und Herunterladen)
+const PDF_BUF = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(600 * 1024, 0x41), Buffer.from("\n%%EOF\n")]);
+const PDF_NAME = "Arbeitsblatt- Zelle.pdf";   // aus „Arbeitsblatt: Zelle.pdf“ – Doppelpunkt ist in Dateinamen nicht erlaubt
 // Material, das Test 1 im Editor erzeugt (Aufgabe 1 getippt und formatiert, Aufgabe 2 als HTML eingefügt)
 const LINK_URL = BASE_URL + "/api/health";
 const LINK_URL2 = LINK_URL + "?v=2";
@@ -315,7 +318,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   // Bilder zu Aufgabe 1: ein großes PNG wird auf 1600 px verkleinert, ein „Foto“ wird als JPEG neu kodiert; je Bild die Anzeigeart
   const row1 = page.locator("#b-rows > tr").nth(0);
   await expect(row1.locator(".bimg-add")).toHaveText("+ Bild hinzufügen");
-  await row1.locator('input[type="file"]').setInputFiles([
+  await row1.locator("input.bimg-input").setInputFiles([
     { name: "skizze.png", mimeType: "image/png", buffer: makePng(2400, 1200, (x, y) => [x & 255, (y >> 2) & 255, 60]) },
     { name: "foto.jpg", mimeType: "image/jpeg", buffer: makePng(300, 450, [30, 90, 160]) },
   ]);
@@ -327,10 +330,10 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await row1.locator(".bimg-mode").nth(1).selectOption("inline");
   await row1.locator(".bimg-alt").nth(0).fill("Skizze: Zelle mit Zellkern");
   // unlesbare Datei → Meldung, kein Eintrag; Grenze: höchstens 5 je Aufgabe
-  await row1.locator('input[type="file"]').setInputFiles([{ name: "text.heic", mimeType: "image/heic", buffer: Buffer.from("kein Bild") }]);
+  await row1.locator("input.bimg-input").setInputFiles([{ name: "text.heic", mimeType: "image/heic", buffer: Buffer.from("kein Bild") }]);
   await expect(row1.locator(".bimg-stat")).toContainText("„text.heic“: Das Bild kann der Browser nicht lesen");
   await expect(row1.locator(".bimg")).toHaveCount(2);
-  await row1.locator('input[type="file"]').setInputFiles(Array.from({ length: 4 }, (_, i) => ({ name: `b${i}.png`, mimeType: "image/png", buffer: makePng(8, 8, [i * 40, 0, 0]) })));
+  await row1.locator("input.bimg-input").setInputFiles(Array.from({ length: 4 }, (_, i) => ({ name: `b${i}.png`, mimeType: "image/png", buffer: makePng(8, 8, [i * 40, 0, 0]) })));
   await expect(row1.locator(".bimg")).toHaveCount(5, { timeout: 30_000 });
   await expect(row1.locator(".bimg-stat")).toContainText("Nur noch 3 Bilder möglich (höchstens 5 je Aufgabe)");
   await expect(row1.locator(".bimg-add")).toBeDisabled();
@@ -338,6 +341,24 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(row1.locator(".bimg")).toHaveCount(2);
   await expect(row1.locator(".bimg-add")).toBeEnabled();
   await expect(page.locator("#b-rows > tr").nth(1).locator(".bimg")).toHaveCount(0);
+  // PDF-Datei zu Aufgabe 2: keine PDF → Meldung; eine echte PDF wird angenommen (Name ohne Doppelpunkt); höchstens 3 je Aufgabe
+  const row2 = page.locator("#b-rows > tr").nth(1);
+  await expect(row2.locator(".bfile-add")).toHaveText("+ PDF-Datei hinzufügen");
+  await row2.locator("input.bfile-input").setInputFiles([{ name: "text.pdf", mimeType: "application/pdf", buffer: Buffer.from("kein PDF") }]);
+  await expect(row2.locator(".bfile-stat")).toContainText("„text.pdf“: Das ist keine PDF-Datei");
+  await expect(row2.locator(".bfile")).toHaveCount(0);
+  await row2.locator("input.bfile-input").setInputFiles([{ name: "Arbeitsblatt: Zelle.pdf", mimeType: "application/pdf", buffer: PDF_BUF }]);
+  await expect(row2.locator(".bfile")).toHaveCount(1);
+  await expect(row2.locator(".bfile-name")).toHaveText(PDF_NAME);
+  await expect(row2.locator(".bfile .bimg-meta")).toHaveText("600 KB");
+  await row2.locator("input.bfile-input").setInputFiles(Array.from({ length: 3 }, (_, i) => ({ name: `k${i}.pdf`, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%k\n") })));
+  await expect(row2.locator(".bfile")).toHaveCount(3);
+  await expect(row2.locator(".bfile-stat")).toContainText("Nur noch 2 PDF-Dateien möglich (höchstens 3 je Aufgabe)");
+  await expect(row2.locator(".bfile-add")).toBeDisabled();
+  for (let i = 0; i < 2; i++) await row2.locator(".bfile .iconbtn.x").nth(1).click();   // die zwei kleinen wieder entfernen
+  await expect(row2.locator(".bfile")).toHaveCount(1);
+  await expect(row2.locator(".bfile-add")).toBeEnabled();
+  await expect(row1.locator(".bfile")).toHaveCount(0);
   // der erste Bild-Upload scheitert (simulierter Serverfehler) → das zweite Bild derselben Aufgabe wird zurückgestellt,
   // das Blatt ist trotzdem angelegt, „Fehlende Bilder erneut hochladen“ holt beide in der richtigen Reihenfolge nach
   let failOnce = true;
@@ -362,7 +383,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   expect(sentTasks.map((x) => x.material)).toEqual([MATERIAL_1, MATERIAL_2, undefined]);   // Modell statt HTML
   expect(created.reqBody).not.toContain("<");
   S.material = [MATERIAL_1, MATERIAL_2, []];
-  await expect(page.locator("#b-res-img")).toHaveText("Alle 2 Bilder sind gespeichert.", { timeout: 60_000 });
+  await expect(page.locator("#b-res-img")).toHaveText("2 Bilder und 1 PDF-Datei sind gespeichert.", { timeout: 60_000 });
   await expect(page.locator("#b-res-retry")).toBeHidden();
   await page.unroute("**/api/teacher/sheets/*/images");
   const allUps = await t.calls((r) => r.method === "POST" && r.path.endsWith("/images"));
@@ -380,6 +401,20 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
     S.imgs.push(res.image);
   }
   expect(S.imgs[1].mime).toBe("image/jpeg");
+  // die PDF-Datei ging in zwei Teilen (je ≤ 512 KB) an den Server; erst der zweite Teil macht sie vollständig
+  const fUps = await t.calls((r) => r.method === "POST" && r.path.endsWith("/files"));
+  expect(fUps.map((r) => r.status)).toEqual([200, 200]);
+  for (const [n, u] of fUps.entries()) {
+    const req = JSON.parse(u.reqBody), res = JSON.parse(u.body);
+    expect(Object.keys(req).sort()).toEqual(["bytes", "chunks", "data", "id", "n", "name", "task"]);
+    expect(req).toMatchObject({ task: 2, name: PDF_NAME, bytes: PDF_BUF.length, chunks: 2, n });
+    expect(req.id).toMatch(/^[0-9a-f]{16}$/);
+    expect(Buffer.from(req.data, "base64").length).toBe(n === 0 ? 512 * 1024 : PDF_BUF.length - 512 * 1024);
+    expect(res.file).toMatchObject({ id: req.id, task: 2, n, chunks: 2, complete: n === 1 });
+    expect(res.existing).toBeUndefined();
+    if (n === 0) S.pdf = { id: res.file.id, name: res.file.name, bytes: res.file.bytes };
+  }
+  expect(S.pdf).toEqual({ id: expect.stringMatching(/^[0-9a-f]{16}$/), name: PDF_NAME, bytes: PDF_BUF.length });
   await page.click("#b-res-back");
   await expect(page.locator("#t-sel")).toBeVisible();
   await expect(page.locator("#t-sel-code")).toHaveText(S.shown);
@@ -399,6 +434,13 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(si0.locator(".timgs .thumbbtn").nth(0)).toHaveAttribute("title", "Miniatur rechts (Klick vergrößert) – Skizze: Zelle mit Zellkern");
   await expect(si0.locator(".timgs .thumbbtn").nth(1)).toHaveAttribute("title", "Groß zwischen Aufgabe und Antwortfeld");
   await expect(page.locator("#t-sel-tasks .si").nth(1).locator(".timgs")).toHaveCount(0);
+  // die PDF-Datei erscheint bei Aufgabe 2 als Download-Button (Name und Größe), sonst nirgends
+  const si1 = page.locator("#t-sel-tasks .si").nth(1);
+  await expect(si1.locator(".tfiles .filebtn")).toHaveCount(1);
+  await expect(si1.locator(".tfiles .filebtn .filebtn-name")).toHaveText(PDF_NAME);
+  await expect(si1.locator(".tfiles .filebtn .filebtn-meta")).toHaveText("PDF, 600 KB · herunterladen");
+  await expect(page.locator("#t-sel-tasks .si").nth(0).locator(".tfiles")).toHaveCount(0);
+  await expect(page.locator("#t-sel-tasks .si").nth(2).locator(".tfiles")).toHaveCount(0);
 
   // Der API-Schlüssel verlässt den Server nie
   for (const r of await t.calls()) expect(r.body, r.method + " " + r.path).not.toContain(AI_KEY);
@@ -476,6 +518,23 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#t-3 .task-material")).toHaveCount(0);
   expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.material)).toEqual(S.material);
   expect(lookup.body).not.toContain("<b>");
+
+  // PDF-Datei der Lehrkraft unter Aufgabe 2: Klick lädt sie in zwei Teilen und speichert sie unter ihrem Namen (Inhalt gleich)
+  await expect(page.locator("#t-1 .task-files, #t-3 .task-files")).toHaveCount(0);
+  const fileBtn = page.locator("#t-2 .task-files .filebtn");
+  await expect(fileBtn).toHaveCount(1);
+  await expect(page.locator("#t-2 .task-files .sublabel")).toHaveText("Material zum Herunterladen");
+  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) herunterladen – Datei zu Aufgabe 2`);
+  await expect(fileBtn.locator(".filebtn-name")).toHaveText(PDF_NAME);
+  expect(await s.calls((r) => r.path.includes("/files/"))).toEqual([]);   // vor dem Klick wird nichts geladen
+  const [fdl] = await Promise.all([page.waitForEvent("download"), fileBtn.click()]);
+  expect(fdl.suggestedFilename()).toBe(PDF_NAME);
+  expect(Buffer.compare(await readFile(await fdl.path()), PDF_BUF)).toBe(0);
+  await expect(fileBtn).not.toHaveClass(/loading|failed/);
+  await expect(fileBtn.locator(".filebtn-meta")).toHaveText("PDF, 600 KB · herunterladen");
+  const fGets = await s.calls((r) => r.path.includes("/files/"));
+  expect(fGets.map((r) => [r.method, r.status, r.path.endsWith("/files/" + S.pdf.id), r.query])).toEqual([["GET", 200, true, ""], ["GET", 200, true, "?part=1"]]);
+  expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.files)).toEqual([[], [S.pdf], []]);
 
   // Bilder der Lehrkraft: Miniatur rechts neben Aufgabe 1 und Antwortfeld, das zweite größer zwischen Aufgabenstellung und Antwortfeld
   const t1 = page.locator("#t-1");
@@ -1005,6 +1064,7 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
     await expect(dt.locator(".task-label")).toHaveText("Aufgabe " + (i + 1));
     expect(await dt.locator(".dtask-text").textContent()).toBe(TASKS[i].text);
     await expect(dt.locator(".timgs .thumbbtn")).toHaveCount(i === 0 ? 2 : 0);   // Bilder der Aufgabe auch in der Detailansicht
+    await expect(dt.locator(".tfiles .filebtn")).toHaveCount(i === 1 ? 1 : 0);   // … und die PDF-Datei
     await expect(dt.locator("table.cmp thead th")).toHaveText(["Erste Eingabe (vor dem KI-Feedback)", "Eingabe nach dem KI-Feedback"]);
     const td = dt.locator("table.cmp tbody td");
     await expect(td).toHaveCount(2);
@@ -1065,11 +1125,15 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(vRow.locator(".bimg-alt").nth(0)).toHaveValue("Skizze: Zelle mit Zellkern");
   await expect(vRow.locator(".bmat-edit b")).toHaveText("Textauszug");
   await expect(vRow.locator(".bmat-edit a")).toHaveAttribute("href", LINK_URL2);
+  const vRow2 = page.locator("#b-rows > tr").nth(1);   // … und die PDF-Datei (vom Server geladen)
+  await expect(vRow2.locator(".bfile")).toHaveCount(1);
+  await expect(vRow2.locator(".bfile-name")).toHaveText(PDF_NAME);
+  await expect(vRow2.locator(".bfile .bimg-meta")).toHaveText("600 KB");
   await expect(page.locator("#b-err")).toHaveText("");
-  // … und bis zum neuen Blatt: die Bilder werden erneut hochgeladen (Reihenfolge, Art und Beschreibung bleiben)
+  // … und bis zum neuen Blatt: Bilder und PDF-Datei werden erneut hochgeladen (Reihenfolge, Art und Beschreibung bleiben)
   await page.click("#b-gen");
   await expect(page.locator("#b-result")).toBeVisible();
-  await expect(page.locator("#b-res-img")).toHaveText("Alle 2 Bilder sind gespeichert.", { timeout: 60_000 });
+  await expect(page.locator("#b-res-img")).toHaveText("2 Bilder und 1 PDF-Datei sind gespeichert.", { timeout: 60_000 });
   const newCode = (await page.locator("#b-res-code").textContent()).trim().replace("-", "");
   expect(newCode).not.toBe(S.code);
   const tUps = (await t.calls((r) => r.method === "POST" && r.path.endsWith("/images"))).map((r) => JSON.parse(r.body).image);
@@ -1077,6 +1141,10 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   const pub = await (await t.page.request.get("/api/sheet/" + newCode)).json();
   expect(pub.sheet.tasks[0].images.map((m) => [m.mode, m.w, m.h, m.alt])).toEqual([["thumb", 1600, 800, "Skizze: Zelle mit Zellkern"], ["inline", 300, 450, ""]]);
   expect(pub.sheet.tasks.map((x) => x.material)).toEqual(S.material);   // Material der Vorlage unverändert übernommen
+  expect(pub.sheet.tasks.map((x) => x.files)).toEqual([[], [{ id: expect.stringMatching(/^[0-9a-f]{16}$/), name: PDF_NAME, bytes: PDF_BUF.length }], []]);
+  expect(pub.sheet.tasks[1].files[0].id).not.toBe(S.pdf.id);
+  const copied = await (await t.page.request.get("/api/sheet/" + newCode + "/files/" + pub.sheet.tasks[1].files[0].id + "?part=1")).json();
+  expect(Buffer.from(copied.data, "base64").equals(PDF_BUF.subarray(512 * 1024))).toBe(true);
   // das Vorlagen-Blatt wieder löschen (die späteren Tests rechnen mit genau einem Blatt)
   await page.click("#b-res-back");
   await expect(page.locator("#t-sel-code")).toHaveText(newCode.slice(0, 3) + "-" + newCode.slice(3));
@@ -1131,7 +1199,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie M
     const j = JSON.parse(body);
     expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "aiRecipients", "code", "publicKey", "tasks", "title"]);
     expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX }]);
-    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [] })));
+    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [] })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
   }
@@ -1201,6 +1269,9 @@ test("7 Alle Abgaben löschen → Tabelle leer; Feibeitsblatt löschen → Code 
   // die Bilder des Blattes sind mit gelöscht
   expect((await request.get("/api/sheet/" + S.code + "/images/" + S.imgs[0].id)).status()).toBe(404);
   expect(await d1Query("SELECT COUNT(*) AS n FROM sheet_images")).toEqual([{ n: 0 }]);
+  // … die PDF-Dateien ebenso
+  expect((await request.get("/api/sheet/" + S.code + "/files/" + S.pdf.id)).status()).toBe(404);
+  expect(await d1Query("SELECT COUNT(*) AS n FROM sheet_files")).toEqual([{ n: 0 }]);
 });
 
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {
