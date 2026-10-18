@@ -630,8 +630,12 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 - Für Schulklassen reicht das in aller Regel bei Weitem. Eine Abgabe belegt je nach Textlänge grob einige bis
   einige Dutzend Kilobyte (Schätzung); Bilder zu Aufgaben belegen bis zu etwa 700 KB je Bild (Base64) und werden
   beim Öffnen eines Blattes je einmal gelesen – auch das zählt zu den gelesenen Zeilen. PDF-Dateien liegen in Teilen
-  zu je 512 KB (als Base64 etwa 700 KB) in der Datenbank; eine 6-MB-Datei belegt also 12 Zeilen, die beim
-  Herunterladen je einmal gelesen werden – der Browser cacht die Teile, ein zweiter Klick lädt nichts neu.
+  zu je 512 KB (als Base64 etwa 700 KB) in der Datenbank; eine 6-MB-Datei belegt also 12 Zeilen. Jeder der 12 Abrufe
+  beim Herunterladen zählt dabei die Teile der Datei mit, eine 6-MB-Datei kostet also rund 170 gelesene Zeilen je
+  Download (30 Schüler:innen: rund 5 000 von 5 Millionen am Tag) – der Browser cacht die Teile, ein zweiter Klick
+  lädt nichts neu. Bilder und PDF-Dateien aller Feibeitsblätter zusammen dürfen höchstens 200 MB belegen (als
+  Base64 rund 270 MB); so bleibt in der 500-MB-Datenbank genug Platz für Abgaben. Die Lehrkräfte-Übersicht zeigt
+  den belegten Speicher an.
 
 **Grenzen in Feibeitsblatt:**
 

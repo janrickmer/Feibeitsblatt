@@ -161,17 +161,28 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   „erneut versuchen“; `alt` = Bildbeschreibung oder „Bild k zu Aufgabe n“; Klick → `#lightbox` mit Bildunterschrift
   (Esc/Klick schließt, Tab bleibt drin, Fokus zurück). Bilder gehen nie an die KI und sind unverschlüsselt
   (Lehrkraft-Inhalte). Test-Helfer `test/png.mjs` (PNG/JPEG-/WebP-Köpfe).
+- **Gemeinsame Speichergrenze:** Bilder und PDF-Dateien **aller** Blätter zusammen ≤ `LIMITS.storageBytes` (200 MB roh,
+  als Base64 ≈ 267 MB; D1 Free = 500 MB je Datenbank, der Rest bleibt für Abgaben). `STORAGE_SQL` (Summe über
+  `idx_sheet_files_bytes(n, bytes)` und `idx_sheet_images_bytes(bytes)`) steht in den bedingten INSERTs von Bildern und
+  Teil 0 der Dateien → 413 `storage_full` (`MSG.storageFull`, nennt „Als PDF-Datei herunterladen“ zum Sichern vor dem
+  Löschen); `GET /api/teacher/sheets` liefert `storage: {used, limit}`, die Übersicht zeigt es in `#t-storage` (ab 80 %
+  rot). D1 „Exceeded maximum DB size“ / „database or disk is full“ → 503 `db_full` (nach der `db_limit`-Prüfung).
 - **PDF-Dateien zu Aufgaben (Material zum Herunterladen):** je Aufgabe ≤ `LIMITS.filesPerTask` (3) PDF-Dateien, `fileBytes`
-  6 MB je Datei, `sheetFileBytes` 20 MB je Blatt, Name ≤ `fileName` 120 Zeichen (`cleanFileName`: `cleanText`, NFC,
-  Nullbreite-Zeichen weg, `\/:*?"<>|` → `-`, endet auf `.pdf`, leer → „Datei.pdf“). Tabelle `sheet_files(id, n,
+  6 MB je Datei, `sheetFileBytes` 20 MB je Blatt, Name ≤ `fileName` 120 Zeichen (`cleanFileName` = `safeFileName` im
+  Browser: NFC, Leerraum → Leerzeichen, `\p{Cc}`/`\p{Cf}` weg (Bidi-Steuerung/-Isolate, Nullbreite), `\/:*?"<>|` → `-`,
+  endet auf `.pdf`, gekürzt ohne halbes Ersatzzeichen-Paar, leer → „Datei.pdf“). Tabelle `sheet_files(id, n,
   sheet_code, task, pos, name, mime, bytes, chunks, created_at, data TEXT = Base64, PRIMARY KEY(id, n))` + Index
   `(sheet_code, n, task, pos)`: **eine Zeile je Teil** (`fileChunk` 512 KB roh ≈ 683 KB Base64, Body ≤ 1 MB, D1-Zeile
   ≤ 1 MB), Teil 0 trägt die Metadaten und muss mit `%PDF-` beginnen (`validateFileUpload`: Größe, `chunks ===
   ceil(bytes/fileChunk)`, Teil-Länge exakt, `strictB64`). `POST /api/teacher/sheets/:code/files` JSON `{id (16 Hex,
   vom Browser), task, name, bytes, chunks, n, data}`: n = 0 → bedingter `INSERT … SELECT … RETURNING pos` (Blatt,
-  Aufgabe, Anzahl je Aufgabe, Summe je Blatt atomar; Wiederholung → `existing:true`; Fehler `too_many_files`, 413
-  `too_large`), n > 0 → `INSERT OR IGNORE … SELECT … FROM sheet_files WHERE id AND n=0 AND sheet_code AND task AND
-  bytes AND chunks>n` (ohne Teil 0 → 400); Antwort `file:{…, complete}`. Listen (`filesStmt`, nur `n=0`, Spalten vor
+  Aufgabe, Anzahl je Aufgabe, Summe je Blatt und gemeinsame Speichergrenze atomar; Wiederholung derselben Datei (gleiche
+  Aufgabe/Größe/Stückelung) → `existing:true`, sonst und bei einer Kennung eines anderen Blattes 400 „Diese
+  Datei-Kennung ist schon vergeben.“; Fehler `too_many_files`, 413 `too_large`/`storage_full`), n > 0 → `INSERT OR
+  IGNORE … SELECT … FROM sheet_files WHERE id AND n=0 AND sheet_code AND task AND bytes AND chunks>n` (ohne Teil 0 →
+  400; passt der Teil nicht zu Teil 0 → 400 „Dieser Teil passt nicht …“, nie `existing`); Antwort `file:{…, complete}`.
+  Zählabfragen je Datei mit `WHERE id=?1 AND +sheet_code=?2` (das `+` zwingt SQLite auf den Primärschlüssel statt den
+  Blatt-Index – sonst zählt jeder Teilabruf alle Teile des Blattes). Listen (`filesStmt`, nur `n=0`, Spalten vor
   `data`, `have` = COUNT je id) liefern nur **vollständige** Dateien (`filesForTask`: `have >= chunks`) als
   `files: [{id, name, bytes}]` in `GET /api/sheet/:code` und `GET /api/teacher/sheets/:code`. Öffentlich `GET
   /api/sheet/:code/files/:id?part=n` → `{name, mime:"application/pdf", bytes, chunks, n, data}` – **ein Teil je
@@ -182,9 +193,12 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   name)` – nie im Tab öffnen) unter der Aufgabe als `.task-files` mit Sublabel „Material zum Herunterladen“;
   Lehrkraft: `teacherFiles` (`.tfiles`) in Blattdetails und Abgaben-Details. Editor: je Zeile `tr._files`
   (`{blob, name, size}`), `input.bfile-input` (Bild-Input heißt `input.bimg-input`), `.bfile-add`, `.bfile-stat`,
-  `addPdfFiles` prüft Größe und Kennung `%PDF-` (`f.slice(0,5).text()`), `renderFiles` (`.bfile`); `b-gen` sammelt
+  `addPdfFiles` liest die Datei **sofort** in den Arbeitsspeicher (`arrayBuffer` → neuer `Blob`; eine danach auf dem Gerät
+  geänderte Datei ließe sich sonst nicht mehr lesen), prüft Größe, Summe je Blatt und Kennung `%PDF-`, `renderFiles`
+  (`.bfile`); der Entfernen-Knopf der Zeile ist `.acts .x` (nicht `.x` – Bilder und Dateien haben eigene); `b-gen` sammelt
   `uploads` mit `kind:"image"|"file"` und `T.uploadKinds`, `runUploads` lädt Dateien in Teilen (`u.part` = nächster
-  Teil bei Wiederholung, Status „(Teil n von N)“), Erfolgstexte: nur Bilder „Alle N Bilder sind gespeichert.“, nur
+  Teil bei Wiederholung, Status „(Teil n von N)“; meldet der letzte Teil nicht `complete:true`, beginnt die Wiederholung
+  bei Teil 0; Fehler ohne `ApiError` = im Browser nicht lesbar → endgültig), Erfolgstexte: nur Bilder „Alle N Bilder sind gespeichert.“, nur
   PDFs „Alle N PDF-Dateien sind gespeichert.“, gemischt „2 Bilder und 1 PDF-Datei sind gespeichert.“;
   `PERMANENT_CODES` + `too_many_files`/`bad_file`; „Als Vorlage verwenden“ lädt die Dateien per `loadFile` und
   wieder hoch. Dateien sind unverschlüsselt (Lehrkraft-Inhalte) und gehen nie an die KI; `DELETE` des Blattes

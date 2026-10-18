@@ -359,18 +359,26 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(row2.locator(".bfile")).toHaveCount(1);
   await expect(row2.locator(".bfile-add")).toBeEnabled();
   await expect(row1.locator(".bfile")).toHaveCount(0);
-  // der erste Bild-Upload scheitert (simulierter Serverfehler) → das zweite Bild derselben Aufgabe wird zurückgestellt,
-  // das Blatt ist trotzdem angelegt, „Fehlende Bilder erneut hochladen“ holt beide in der richtigen Reihenfolge nach
+  // der erste Bild-Upload scheitert (simulierter Serverfehler) → das zweite Bild derselben Aufgabe wird zurückgestellt;
+  // von der PDF-Datei kommt Teil 1 an, Teil 2 scheitert. Das Blatt ist trotzdem angelegt, „Fehlende Dateien erneut
+  // hochladen“ holt beide Bilder in der richtigen Reihenfolge nach und setzt die PDF-Datei beim fehlenden Teil fort
   let failOnce = true;
   await page.route("**/api/teacher/sheets/*/images", (route) => {
     if (!failOnce) return route.continue();
     failOnce = false;
     return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Testfehler", code: "server_error" }) });
   });
+  let failPartOnce = true;
+  await page.route("**/api/teacher/sheets/*/files", (route) => {
+    if (!failPartOnce || JSON.parse(route.request().postData() || "{}").n !== 1) return route.continue();
+    failPartOnce = false;
+    return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Testfehler", code: "server_error" }) });
+  });
   await page.click("#b-gen");
   await expect(page.locator("#b-result")).toBeVisible();
-  await expect(page.locator("#b-res-img")).toHaveText("2 Bilder konnten nicht gespeichert werden (Aufgabe 1, Bild 1: Testfehler; Aufgabe 1, Bild 2: zurückgestellt). Das Feibeitsblatt selbst ist angelegt.", { timeout: 60_000 });
+  await expect(page.locator("#b-res-img")).toHaveText("3 Dateien konnten nicht gespeichert werden (Aufgabe 1, Bild 1: Testfehler; Aufgabe 1, Bild 2: zurückgestellt; Aufgabe 2, PDF-Datei 1: Testfehler). Das Feibeitsblatt selbst ist angelegt.", { timeout: 60_000 });
   await expect(page.locator("#b-res-retry")).toBeVisible();
+  await expect(page.locator("#b-res-retry")).toHaveText("Fehlende Dateien erneut hochladen");
   await expect(page.locator("#b-res-back")).toBeEnabled();
   await page.click("#b-res-retry");
   S.shown = (await page.locator("#b-res-code").textContent()).trim();
@@ -386,6 +394,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#b-res-img")).toHaveText("2 Bilder und 1 PDF-Datei sind gespeichert.", { timeout: 60_000 });
   await expect(page.locator("#b-res-retry")).toBeHidden();
   await page.unroute("**/api/teacher/sheets/*/images");
+  await page.unroute("**/api/teacher/sheets/*/files");
   const allUps = await t.calls((r) => r.method === "POST" && r.path.endsWith("/images"));
   expect(allUps.map((r) => r.status)).toEqual([500, 200, 200]);
   const ups = allUps.filter((r) => r.status === 200);
@@ -401,9 +410,11 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
     S.imgs.push(res.image);
   }
   expect(S.imgs[1].mime).toBe("image/jpeg");
-  // die PDF-Datei ging in zwei Teilen (je ≤ 512 KB) an den Server; erst der zweite Teil macht sie vollständig
-  const fUps = await t.calls((r) => r.method === "POST" && r.path.endsWith("/files"));
-  expect(fUps.map((r) => r.status)).toEqual([200, 200]);
+  // die PDF-Datei ging in zwei Teilen (je ≤ 512 KB) an den Server; nach dem Fehler bei Teil 2 setzt die Wiederholung genau
+  // dort fort (Teil 1 wird nicht noch einmal gesendet); erst der zweite Teil macht die Datei vollständig
+  const fAll = await t.calls((r) => r.method === "POST" && r.path.endsWith("/files"));
+  expect(fAll.map((r) => [JSON.parse(r.reqBody).n, r.status])).toEqual([[0, 200], [1, 500], [1, 200]]);
+  const fUps = fAll.filter((r) => r.status === 200);
   for (const [n, u] of fUps.entries()) {
     const req = JSON.parse(u.reqBody), res = JSON.parse(u.body);
     expect(Object.keys(req).sort()).toEqual(["bytes", "chunks", "data", "id", "n", "name", "task"]);
@@ -527,13 +538,21 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) herunterladen – Datei zu Aufgabe 2`);
   await expect(fileBtn.locator(".filebtn-name")).toHaveText(PDF_NAME);
   expect(await s.calls((r) => r.path.includes("/files/"))).toEqual([]);   // vor dem Klick wird nichts geladen
+  // erster Klick scheitert (simulierter Serverfehler) → „erneut versuchen“, auch für Screenreader; der zweite Klick lädt
+  await page.route("**/api/sheet/*/files/**", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Testfehler", code: "server_error" }) }));
+  await fileBtn.click();
+  await expect(fileBtn).toHaveClass(/failed/);
+  await expect(fileBtn.locator(".filebtn-meta")).toHaveText("konnte nicht geladen werden – erneut versuchen");
+  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} konnte nicht geladen werden, erneut versuchen – Datei zu Aufgabe 2`);
+  await page.unroute("**/api/sheet/*/files/**");
   const [fdl] = await Promise.all([page.waitForEvent("download"), fileBtn.click()]);
   expect(fdl.suggestedFilename()).toBe(PDF_NAME);
   expect(Buffer.compare(await readFile(await fdl.path()), PDF_BUF)).toBe(0);
   await expect(fileBtn).not.toHaveClass(/loading|failed/);
   await expect(fileBtn.locator(".filebtn-meta")).toHaveText("PDF, 600 KB · herunterladen");
+  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) herunterladen – Datei zu Aufgabe 2`);
   const fGets = await s.calls((r) => r.path.includes("/files/"));
-  expect(fGets.map((r) => [r.method, r.status, r.path.endsWith("/files/" + S.pdf.id), r.query])).toEqual([["GET", 200, true, ""], ["GET", 200, true, "?part=1"]]);
+  expect(fGets.map((r) => [r.method, r.status, r.path.endsWith("/files/" + S.pdf.id), r.query])).toEqual([["GET", 500, true, ""], ["GET", 200, true, ""], ["GET", 200, true, "?part=1"]]);
   expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.files)).toEqual([[], [S.pdf], []]);
 
   // Bilder der Lehrkraft: Miniatur rechts neben Aufgabe 1 und Antwortfeld, das zweite größer zwischen Aufgabenstellung und Antwortfeld
