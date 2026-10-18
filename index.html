@@ -3575,6 +3575,7 @@ function openBuilder(title, rows) {
   teacherView("tv-builder");
   $("b-form").classList.remove("hidden"); $("b-result").classList.add("hidden");
   $("b-err").textContent = ""; $("b-import").classList.add("hidden"); $("b-import").textContent = "";
+  setStatus($("t-import-status"), "", "");   // eine alte Meldung zu einer abgelehnten Datei gilt nicht mehr
   const d = new Date(); $("b-today").textContent = fmtD(d);
   $("b-title").value = title || "";
   Array.from($("b-rows").children).forEach((tr) => (tr._images || []).forEach((im) => URL.revokeObjectURL(im.url)));   // alte Vorschauen freigeben
