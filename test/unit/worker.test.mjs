@@ -261,6 +261,8 @@ test("sheet files (PDF): chunked upload, only complete files listed, part-wise d
   assert.equal(r.status, 413); assert.equal(r.json.code, "too_large");
   r = await call("POST", "/api/teacher/sheets/" + code + "/files", { auth, body: { ...meta, n: 1, data: part(1) } });
   assert.equal(r.status, 400);
+  r = await call("POST", "/api/teacher/sheets/" + code + "/files", { auth, body: { ...meta, n: 0, data: part(0) } });   // Kennung eines anderen Blattes
+  assert.equal(r.status, 400, r.text); assert.equal(r.json.error, "Diese Datei-Kennung ist schon vergeben.");
   assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_files").get().n, 2);
   // kleine PDFs: Name ohne Endung bekommt .pdf, leerer Name → Datei.pdf, höchstens 3 je Aufgabe, Aufgabe 3 gibt es nicht
   const small = Buffer.from("%PDF-1.4\n%klein\n");

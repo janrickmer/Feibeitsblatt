@@ -1435,15 +1435,17 @@ function loadFile(code, id) {
 function fileButton(code, f, n) {
   const size = f.bytes ? `PDF, ${fmtKB(f.bytes)}` : "PDF";
   const meta = h("span", { class: "filebtn-meta", text: size + " · herunterladen" });
-  const btn = h("button", { type: "button", class: "filebtn", "aria-label": `${f.name} (${size}) herunterladen – Datei zu Aufgabe ${n}` }, [
+  const label = `${f.name} (${size}) herunterladen – Datei zu Aufgabe ${n}`;
+  const btn = h("button", { type: "button", class: "filebtn", "aria-label": label }, [
     h("span", { class: "spinner", "aria-hidden": "true" }), h("span", { class: "filebtn-icon", "aria-hidden": "true", text: "PDF" }), h("span", { class: "filebtn-name", text: f.name }), meta
   ]);
   let running = false;
   btn.addEventListener("click", async () => {
     if (running) return;
     running = true; btn.classList.add("loading"); btn.classList.remove("failed"); btn.setAttribute("aria-busy", "true"); meta.textContent = "wird geladen …";
-    try { const r = await loadFile(code, f.id); downloadBlob(r.blob, f.name || r.name); meta.textContent = size + " · herunterladen"; }
-    catch (e) { btn.classList.add("failed"); meta.textContent = "konnte nicht geladen werden – erneut versuchen"; }
+    btn.setAttribute("aria-label", `${f.name} wird geladen – Datei zu Aufgabe ${n}`);
+    try { const r = await loadFile(code, f.id); downloadBlob(r.blob, f.name || r.name); meta.textContent = size + " · herunterladen"; btn.setAttribute("aria-label", label); }
+    catch (e) { btn.classList.add("failed"); meta.textContent = "konnte nicht geladen werden – erneut versuchen"; btn.setAttribute("aria-label", `${f.name} konnte nicht geladen werden, erneut versuchen – Datei zu Aufgabe ${n}`); }
     finally { running = false; btn.classList.remove("loading"); btn.removeAttribute("aria-busy"); }
   });
   return btn;

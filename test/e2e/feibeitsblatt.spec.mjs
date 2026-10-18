@@ -527,13 +527,21 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) herunterladen – Datei zu Aufgabe 2`);
   await expect(fileBtn.locator(".filebtn-name")).toHaveText(PDF_NAME);
   expect(await s.calls((r) => r.path.includes("/files/"))).toEqual([]);   // vor dem Klick wird nichts geladen
+  // erster Klick scheitert (simulierter Serverfehler) → „erneut versuchen“, auch für Screenreader; der zweite Klick lädt
+  await page.route("**/api/sheet/*/files/**", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Testfehler", code: "server_error" }) }));
+  await fileBtn.click();
+  await expect(fileBtn).toHaveClass(/failed/);
+  await expect(fileBtn.locator(".filebtn-meta")).toHaveText("konnte nicht geladen werden – erneut versuchen");
+  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} konnte nicht geladen werden, erneut versuchen – Datei zu Aufgabe 2`);
+  await page.unroute("**/api/sheet/*/files/**");
   const [fdl] = await Promise.all([page.waitForEvent("download"), fileBtn.click()]);
   expect(fdl.suggestedFilename()).toBe(PDF_NAME);
   expect(Buffer.compare(await readFile(await fdl.path()), PDF_BUF)).toBe(0);
   await expect(fileBtn).not.toHaveClass(/loading|failed/);
   await expect(fileBtn.locator(".filebtn-meta")).toHaveText("PDF, 600 KB · herunterladen");
+  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) herunterladen – Datei zu Aufgabe 2`);
   const fGets = await s.calls((r) => r.path.includes("/files/"));
-  expect(fGets.map((r) => [r.method, r.status, r.path.endsWith("/files/" + S.pdf.id), r.query])).toEqual([["GET", 200, true, ""], ["GET", 200, true, "?part=1"]]);
+  expect(fGets.map((r) => [r.method, r.status, r.path.endsWith("/files/" + S.pdf.id), r.query])).toEqual([["GET", 500, true, ""], ["GET", 200, true, ""], ["GET", 200, true, "?part=1"]]);
   expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.files)).toEqual([[], [S.pdf], []]);
 
   // Bilder der Lehrkraft: Miniatur rechts neben Aufgabe 1 und Antwortfeld, das zweite größer zwischen Aufgabenstellung und Antwortfeld

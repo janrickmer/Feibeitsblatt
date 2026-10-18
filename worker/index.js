@@ -416,13 +416,15 @@ async function routeFileUpload(c, codeRaw) {
       "AND (SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE sheet_code=?2 AND n=0)+?6<=?11 RETURNING pos")
       .bind(id, code, task, name, FILE_MIME, bytes, chunks, c.now, data, LIMITS.filesPerTask, LIMITS.sheetFileBytes).first();
     if (!row) {   // Grund ermitteln (nur im Fehlerfall ein zweiter Lesezugriff)
-      const [ex, sh, cnt] = await c.db.batch([
+      const [ex, sh, cnt, taken] = await c.db.batch([
         c.db.prepare("SELECT task, pos, name, bytes, chunks, (SELECT COUNT(*) FROM sheet_files c WHERE c.id=?1) AS have FROM sheet_files WHERE id=?1 AND n=0 AND sheet_code=?2").bind(id, code),
         c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code),
         c.db.prepare("SELECT COUNT(*) AS n FROM sheet_files WHERE sheet_code=?1 AND task=?2 AND n=0").bind(code, task),
+        c.db.prepare("SELECT 1 AS x FROM sheet_files WHERE id=?1 LIMIT 1").bind(id),
       ]);
       const e = firstRow(ex);
       if (e) return json({ ok: true, existing: true, file: { id, task: Number(e.task), pos: Number(e.pos), name: String(e.name), bytes: Number(e.bytes), chunks: Number(e.chunks), n: 0, complete: Number(e.have) >= Number(e.chunks) } });
+      if (firstRow(taken)) throw new InputError("Diese Datei-Kennung ist schon vergeben.");   // Kennung gehört zu einem anderen Blatt
       const s = firstRow(sh);
       if (!s) throw sheetGone();
       if (task > Number(s.n)) throw new InputError("Aufgabe " + task + " gibt es in diesem Feibeitsblatt nicht.");
