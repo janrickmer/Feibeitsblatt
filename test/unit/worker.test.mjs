@@ -229,7 +229,8 @@ test("submit and list submissions (decryptable), counts", async () => {
   assert.deepEqual(await openEnvelope(T.privateKey, r.json.submissions[0].envelope), payload);
   assert.equal(typeof r.json.submissions[0].receivedAt, "number");
   const rows = d1.db.prepare("SELECT * FROM submissions").all();
-  assert.deepEqual(Object.keys(rows[0]).sort(), ["envelope", "id", "received_at", "sheet_code"]);
+  assert.deepEqual(Object.keys(rows[0]).sort(), ["attempt", "envelope", "id", "received_at", "sheet_code", "stage"]);
+  assert.equal(rows[0].stage, "final"); assert.equal(rows[0].attempt, null);   // ohne Angabe: Abgabe ohne Kennung
   assert.equal(rows[0].envelope.includes("Max"), false);
   // Seitenweise: 52 weitere Abgaben → Seite 1 hat 50 + next, Seite 2 den Rest; Kappung je Blatt (Anzahl und Bytes)
   for (let i = 0; i < 52; i++) await call("POST", "/api/submit", { body: { code, envelope }, ip: "198.51.100." + (2 + (i % 100)) });
@@ -245,6 +246,70 @@ test("submit and list submissions (decryptable), counts", async () => {
     assert.equal(full.status, 409); assert.equal(full.json.code, "too_many_submissions");
   } finally { LIMITS.submissionsPerSheet = savedMax; }
   d1.db.prepare("DELETE FROM submissions WHERE id > ?").run(rows[0].id);
+});
+
+test("first attempt (stage first) is replaced by the final submission of the same attempt; never the other way round", async () => {
+  const mk = (stage) => makeEnvelope(T.publicKey, { v: 1, stage, sheetCode: code, person: { vorname: "Tom", nachname: "Ze", geburtsdatum: "2010-02-02", klasse: "9c" }, answers: [{ first: "a", final: stage === "first" ? null : "b" }] });
+  const attempt = "0123456789ABCDEF";   // wird klein geschrieben gespeichert
+  const before = (await call("GET", "/api/teacher/sheets", { auth })).json.sheets[0];
+  // ungültige Angaben → 400, nichts gespeichert
+  let r = await call("POST", "/api/submit", { body: { code, envelope: await mk("first"), stage: "first" } });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Ein Erstversuch braucht eine Kennung der Bearbeitung.");
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk("first"), stage: "draft", attempt } });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Unbekannte Art der Abgabe.");
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk("final"), attempt: "zz" } });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Ungültige Kennung der Bearbeitung.");
+  // Erstversuch → zählt als firstCount, Liste liefert stage "first"
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk("first"), stage: "first", attempt } });
+  assert.equal(r.status, 200, r.text); const id = r.json.id;
+  let sheets = (await call("GET", "/api/teacher/sheets", { auth })).json.sheets[0];
+  assert.deepEqual([sheets.submissionCount, sheets.firstCount], [before.submissionCount, 1]);
+  let list = (await call("GET", "/api/teacher/sheets/" + code + "/submissions", { auth })).json.submissions;
+  assert.deepEqual(list.filter((s) => s.id === id).map((s) => s.stage), ["first"]);
+  assert.ok(list.every((s) => s.stage === "first" || s.stage === "final"));
+  assert.equal(d1.db.prepare("SELECT attempt FROM submissions WHERE id=?").get(id).attempt, attempt.toLowerCase());
+  // zweiter Erstversuch derselben Bearbeitung ersetzt den ersten (gleiche id, keine zweite Zeile)
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk("first"), stage: "first", attempt } });
+  assert.equal(r.status, 200); assert.equal(r.json.id, id); assert.equal(r.json.replaced, "first");
+  // Abgabe derselben Bearbeitung ersetzt den Erstversuch in derselben Zeile
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk("final"), stage: "final", attempt: attempt.toLowerCase() } });
+  assert.equal(r.status, 200); assert.equal(r.json.id, id); assert.equal(r.json.replaced, "first");
+  sheets = (await call("GET", "/api/teacher/sheets", { auth })).json.sheets[0];
+  assert.deepEqual([sheets.submissionCount, sheets.firstCount], [before.submissionCount + 1, 0]);
+  list = (await call("GET", "/api/teacher/sheets/" + code + "/submissions", { auth })).json.submissions;
+  assert.deepEqual(list.filter((s) => s.id === id).map((s) => s.stage), ["final"]);
+  assert.deepEqual((await openEnvelope(T.privateKey, list.find((s) => s.id === id).envelope)).answers, [{ first: "a", final: "b" }]);
+  // ein später eintreffender Erstversuch überschreibt die Abgabe nicht
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk("first"), stage: "first", attempt } });
+  assert.equal(r.status, 200); assert.equal(r.json.id, id); assert.equal(r.json.kept, true);
+  list = (await call("GET", "/api/teacher/sheets/" + code + "/submissions", { auth })).json.submissions;
+  assert.deepEqual(list.filter((s) => s.id === id).map((s) => s.stage), ["final"]);
+  assert.deepEqual((await openEnvelope(T.privateKey, list.find((s) => s.id === id).envelope)).answers, [{ first: "a", final: "b" }]);
+  // andere Kennung → eigene Zeile; Abgabe ohne Kennung ebenfalls
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk("first"), stage: "first", attempt: "fedcba9876543210" } });
+  assert.equal(r.status, 200); assert.notEqual(r.json.id, id);
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk("final"), stage: "final" } });
+  assert.equal(r.status, 200);
+  sheets = (await call("GET", "/api/teacher/sheets", { auth })).json.sheets[0];
+  assert.deepEqual([sheets.submissionCount, sheets.firstCount], [before.submissionCount + 2, 1]);
+  d1.db.prepare("DELETE FROM submissions WHERE id >= ?").run(id);
+});
+
+test("schema upgrade: an old submissions table without stage/attempt gets the columns added (idempotent)", async () => {
+  const { ensureSubmissionColumns } = await import("../../worker/index.js");
+  d1.db.exec("CREATE TABLE old_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT, sheet_code TEXT NOT NULL, received_at INTEGER NOT NULL, envelope TEXT NOT NULL)");
+  d1.db.exec("ALTER TABLE submissions RENAME TO submissions_new; ALTER TABLE old_submissions RENAME TO submissions");
+  try {
+    d1.db.prepare("INSERT INTO submissions(sheet_code, received_at, envelope) VALUES (?, ?, ?)").run(code, 1, "{}");
+    for (let i = 0; i < 2; i++) await ensureSubmissionColumns(d1);   // zweimal: nichts doppelt
+    const cols = d1.db.prepare("PRAGMA table_info(submissions)").all().map((c) => c.name);
+    assert.deepEqual(cols, ["id", "sheet_code", "received_at", "envelope", "stage", "attempt"]);
+    const row = d1.db.prepare("SELECT stage, attempt FROM submissions").get();
+    assert.deepEqual({ ...row }, { stage: "final", attempt: null });   // alte Zeilen gelten als Abgaben
+    assert.ok(d1.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_submissions_attempt'").get());
+  } finally {
+    d1.db.exec("DROP TABLE submissions; ALTER TABLE submissions_new RENAME TO submissions");
+  }
 });
 
 test("key at rest: changed secret → hasKey false + hint, feedback 503; no secret → never plaintext (503)", async () => {

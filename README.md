@@ -39,7 +39,17 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    laufend auf dem Gerät gespeichert („Zwischenstand auf diesem Gerät gespeichert“). Wird die Seite neu geladen
    oder versehentlich geschlossen, bietet die Startseite an, mit den gespeicherten Angaben weiterzuschreiben
    („Weiterschreiben“); mit „Abbrechen und Zwischenstand von diesem Gerät löschen“ oben rechts lässt sich ein
-   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten). Hat die Lehrkraft Bilder zu einer Aufgabe
+   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten). Wer seine Browserdaten regelmäßig löscht
+   oder das Gerät wechselt, klickt oben rechts auf **„Zwischenstand als PDF-Datei sichern“**: Der Browser lädt eine
+   PDF-Datei herunter (`Feibeitsblatt-Zwischenstand-<Code>-<Datum>.pdf`). In einem PDF-Programm geöffnet zeigt sie
+   eine einzige Seite mit dem Hinweis, dass es sich um einen Zwischenstand für ein Feibeitsblatt handelt, und einen
+   orangen Kasten: Genau diese PDF-Datei (kein Screenshot davon) kann auf <https://feibeitsblatt.janrickmer.de/>
+   hochgeladen werden, um weiterzuarbeiten – der Link darin öffnet sich im Browser. Der eigentliche Zwischenstand
+   (Antworten, Angaben, ggf. KI-Feedback) steckt unsichtbar als eingebettete Datei in der PDF. Auf der Startseite
+   stellt **„Zwischenstand-PDF hochladen“** aus genau dieser Datei alles wieder her (ein Screenshot oder Ausdruck
+   enthält die Daten nicht). Die Datei enthält die Antworten lesbar – sie gehört nicht in fremde Hände. Liegt auf
+   dem Gerät schon ein neuerer Zwischenstand derselben Person, fragt die Seite, welcher Stand gelten soll. Hat die
+   Lehrkraft Bilder zu einer Aufgabe
    hinterlegt, stehen sie je nach Einstellung als kleine Miniaturen rechts neben Aufgabe und Antwortfeld (auf
    schmalen Bildschirmen zwischen Aufgabenstellung und Antwortfeld) oder etwas größer unter der Aufgabenstellung.
    Ein Klick auf ein Bild zeigt es groß; ein weiterer Klick oder die Esc-Taste schließt die Ansicht. Hat die
@@ -60,7 +70,9 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Je Aufgabe erscheint in Stichpunkten in **grüner** Schrift, welche Punkte der Musterlösung richtig angesprochen
    wurden, und in **roter** Schrift, welche noch fehlen (dazu zählen auch falsch wiedergegebene Punkte). Das
    Feedback gibt es **nur einmal**; die Antworten zu diesem Zeitpunkt werden als „erste Fassung“ festgehalten.
-   Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
+   Mit dem Feedback geht diese erste Fassung samt Feedback außerdem verschlüsselt an die Lehrkraft – als
+   **„Erstversuch“**. So sehen Sie auch, wer sich ein Feedback geholt, aber nicht abgegeben hat; die spätere Abgabe
+   ersetzt den Erstversuch. Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
    [Datenschutz](#datenschutz)).
 6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Der Button
    „Abgeben“ ist bis dahin ausgegraut. Nach einer Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet:
@@ -120,17 +132,23 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Musterlösungen und Bilder und
    ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
-   Abgaben. Ein Klick wählt ein Blatt aus. Die Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“,
-   „Kürzel Vorname“, „Geburtstag“ und „Klasse“, sortiert nach Klasse und Namen. Aufgeklappt sehen Sie je Aufgabe
-   eine Tabelle mit Spalte 1 „Erste Eingabe (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“,
-   darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Abgaben ohne KI-Feedback
-   (siehe oben) sind entsprechend gekennzeichnet. „Alle aufklappen“ öffnet alle Zeilen, „Aktualisieren“ lädt neu
-   eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser. Beachten Sie: Kürzel, Geburtsdatum,
-   Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der Server prüft sie nicht, und abgeben
-   kann jede Person, die den Code kennt.
-6. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl). Ohne diesen
-   Klick bleiben die Abgaben verschlüsselt gespeichert. Darunter: „Feibeitsblatt selbst löschen (Code wird
-   ungültig)“ – das löscht das Blatt und alle Abgaben dazu.
+   Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
+   Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ und „Klasse“,
+   sortiert nach Klasse und Namen. Die Kürzel sind farbig: **grün** = Abgabe nach der Überarbeitung, **orange** =
+   „Erstversuch ohne Überarbeitung“ – diese Person hat sich nur das KI-Feedback geholt und (noch) nicht abgegeben;
+   eine Legende über der Tabelle erklärt die Farben, und die Zusammenfassung lautet dann z. B. „3 Abgaben ·
+   1 Erstversuch ohne Überarbeitung“. Aufgeklappt sehen Sie je Aufgabe eine Tabelle mit Spalte 1 „Erste Eingabe
+   (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“ (bei einem Erstversuch steht dort „(noch
+   nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Gibt die
+   Person später ab, ersetzt die Abgabe ihren Erstversuch; gibt sie von einem anderen Gerät oder nach einem
+   neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
+   die Zahl). Abgaben ohne KI-Feedback (siehe oben) sind entsprechend gekennzeichnet. „Alle aufklappen“ öffnet
+   alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
+   Beachten Sie: Kürzel, Geburtsdatum, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
+   Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt.
+6. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche
+   werden mitgelöscht). Ohne diesen Klick bleiben die Abgaben verschlüsselt gespeichert. Darunter: „Feibeitsblatt
+   selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu.
 7. **Weitere Schaltflächen** oben: „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und
    „Abmelden“.
 
@@ -409,11 +427,13 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 |---|---|---|---|
 | Feibeitsblätter: Titel, Aufgaben, Material, **Musterlösungen** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code und der Eingangszeitpunkt | bis Sie die Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
+| Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt oder Sie löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
 | KI-Einstellungen: Anbieter, Modell, API-Schlüssel | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach gelegentlich gelöscht |
 | Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtsdatum, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| Zwischenstand als PDF-Datei (dieselben Angaben), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten, und er protokolliert keine Schülertexte
 und keine Schlüssel. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage in der
@@ -501,7 +521,8 @@ Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage bis zu etwa 100
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
 | KI-Feedback-Anfragen je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 400 000 Zeichen pro Stunde; nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
 | KI-Feedback-Anfragen je Feibeitsblatt | 300 pro Tag |
-| Abgaben je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 30 MB pro Stunde |
+| Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
+| Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
 
 Diese Zähler gelten je Netzwerkadresse, im Schulnetz also meist für die ganze Schule zusammen; mehrere Klassen
 parallel können die Stundenlimits erreichen. Die Meldungen lauten dann „Gerade wurden von diesem Netzwerk sehr
@@ -528,6 +549,7 @@ gespeichert.
 | „Das Bild kann der Browser nicht lesen (z. B. HEIC). Bitte als JPG oder PNG speichern.“ | Das Format kann der Browser nicht öffnen – meist HEIC-Fotos vom iPhone. Das Foto als JPG sichern (iOS: Einstellungen → Kamera → Formate → „Maximale Kompatibilität“, oder aus der Fotos-App als JPG teilen) oder ein anderes Bild wählen. |
 | „1 Bild konnte nicht gespeichert werden … Das Feibeitsblatt selbst ist angelegt.“ | Das Hochladen ist unterbrochen worden (Netz) oder der Server hat das Bild abgelehnt (Meldung in Klammern). Bei Netzfehlern „Fehlende Bilder erneut hochladen“ klicken; bei einer Ablehnung (zu groß, zu viele) das Blatt löschen und mit weniger oder kleineren Bildern neu anlegen. |
 | „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
+| „In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.“ beim Hochladen einer PDF | Es wurde nicht die Original-PDF aus „Zwischenstand als PDF-Datei sichern“ hochgeladen, sondern z. B. ein Screenshot, ein Ausdruck oder eine „Drucken als PDF“-Kopie – die enthalten die eingebetteten Daten nicht. Nur die heruntergeladene Datei selbst (unverändert) funktioniert; ein Neuspeichern in einem PDF-Programm, das die eingebettete Datei behält, ist unproblematisch. |
 | „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“ (statt des Buttons) | Kein Fehler: Laut eingegebenem Geburtsdatum ist die Schülerin oder der Schüler jünger als 16; die Prüfung wird dann nicht angeboten (Altersgrenze `LT_MIN_AGE` in `index.html`). Bei einem Tippfehler im Geburtsdatum oben „Abbrechen und Zwischenstand löschen“ wählen und den Code neu eingeben. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |

@@ -16,6 +16,7 @@
      feibeitsblatt.janrickmer.de), ruft sie den Worker unter dieser Adresse auf – dieselbe Adresse steht in der
      Content-Security-Policy darüber (connect-src). */
   window.FEIBEITSBLATT_WORKER = "https://feibeitsblatt.feindt.workers.dev";
+  window.FEIBEITSBLATT_PUBLIC = "https://feibeitsblatt.janrickmer.de/";   // Adresse in der Zwischenstand-PDF (Schüler:innen laden sie dort wieder hoch)
   window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || (/\.workers\.dev$|^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? "" : window.FEIBEITSBLATT_WORKER);
 </script>
 <style>
@@ -119,6 +120,11 @@
   .resumebox{margin:0 0 18px; padding:12px 14px; background:var(--soft); border:1px solid var(--line); border-radius:9px; font-size:13.5px; line-height:1.5}
   .resumebox b{font-weight:600}
   .resumebox .row{margin-top:8px}
+  .pdfrow{margin:14px 0 0; text-align:center}
+  .pdfrow .fhint{margin:6px 0 0}
+  .st-first{color:#b85c00; font-weight:600}   /* Erstversuch ohne Überarbeitung */
+  .st-final{color:var(--green); font-weight:600}   /* Abgabe nach der Überarbeitung */
+  .legend{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:4px 0 8px}
   .notebox{margin:12px 0 0; padding:12px 16px; background:var(--soft); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; font-size:14px; line-height:1.5}
 
   /* ---------- Schreibfläche (Topbar, Papier, Aufgaben) ----------
@@ -467,6 +473,11 @@
       </div>
       <p class="err" id="start-err" aria-live="polite"></p>
       <button type="button" class="btn block" id="start-btn">Weiter</button>
+      <div class="pdfrow">
+        <button type="button" class="btn ghost small" id="start-pdf">Zwischenstand-PDF hochladen</button>
+        <input type="file" id="start-pdf-file" class="sr-only" accept="application/pdf,.pdf" tabindex="-1" aria-hidden="true">
+        <p class="fhint">Hast du deinen Zwischenstand als PDF-Datei gesichert, kannst du ihn hier hochladen und weiterarbeiten.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -511,6 +522,7 @@
     <div class="right">
       <div class="stitle" id="ed-title"></div>
       <div class="count" id="save-state"></div>
+      <button type="button" class="linkbtn" id="ed-pdf">Zwischenstand als PDF-Datei sichern</button>
       <button type="button" class="linkbtn" id="ed-cancel">Abbrechen und Zwischenstand von diesem Gerät löschen</button>
     </div>
   </div>
@@ -645,6 +657,7 @@
           <button type="button" class="btn ghost small" id="t-expand-all">Alle aufklappen</button>
         </div>
         <p class="batchsum" id="t-subs-sum"></p>
+        <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
         <p class="status" id="t-subs-status" aria-live="polite"></p>
         <div class="tablewrap" style="margin-top:10px">
           <table class="batch subs" id="t-subs">
@@ -855,6 +868,9 @@ const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;   // Blatt-Code (ohne 
 /* Türcode für den Lehrkräfte-Zugang: geprüft nur auf dem Server (TEACHER_DOOR_CODE, Vorgabe 1104). Blatt-Codes enthalten
    immer Buchstaben – rein numerische Eingaben (4–12 Ziffern) gehen deshalb an /api/teacher/door. */
 const DOOR_RE = /^[0-9]{4,12}$/;
+const ATTEMPT_RE = /^[0-9a-f]{16}$/;                         // Kennung einer Bearbeitung (Erstversuch ↔ Abgabe), vom Browser erzeugt
+const PUBLIC_URL = String(window.FEIBEITSBLATT_PUBLIC || "https://feibeitsblatt.janrickmer.de/");   // steht in der Zwischenstand-PDF
+const PDF_MAX_BYTES = 5 * 1024 * 1024;                       // hochgeladene Zwischenstand-PDF (unsere sind < 100 KB; neu gespeicherte größer)
 const MAX_ANSWER = 8000;                                     // wie die Grenze des Servers je Antwort
 const MAX_ANSWERS_TOTAL = 40000;                             // … und für alle Antworten zusammen (KI-Feedback)
 const DRAFT_DAYS = 7;                                        // Zwischenstände bleiben so lange auf dem Gerät
@@ -1382,7 +1398,8 @@ const S = {
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
   fbFails: 0, fbUnavailable: "",   // KI-Feedback nicht erreichbar → Abgabe ohne Feedback erlaubt (Grund als Text)
   submitted: false, busyFeedback: false, ltCache: new Map(),
-  ltAllowed: false, ltConsent: false   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
+  ltAllowed: false, ltConsent: false,   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
+  attempt: "", firstSent: false, importDraft: null   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
 };
 const LAST_KEY = "feibeitsblatt:last";   // zuletzt geöffnetes Blatt + Angaben: „Weiterschreiben?“ nach Neuladen
 
@@ -1465,6 +1482,40 @@ $("resume-del").addEventListener("click", async () => {
   $("code-input").focus();
 });
 
+/* ---------- Zwischenstand-PDF hochladen (Startseite) ---------- */
+const PDF_NOT_DRAFT = "In dieser Datei steckt kein Feibeitsblatt-Zwischenstand. Lade genau die PDF-Datei hoch, die du mit „Zwischenstand als PDF-Datei sichern“ gespeichert hast – kein Screenshot und kein Ausdruck davon.";
+async function importDraftPdf(file) {
+  const err = $("start-err"), btn = $("start-pdf");
+  err.textContent = "";
+  if (!subtle) { err.textContent = "Dieser Browser unterstützt die nötige Verschlüsselung nicht (Seite bitte über https öffnen)."; return; }
+  if (!file) return;
+  if (file.size > PDF_MAX_BYTES) { err.textContent = "Diese Datei ist zu groß für einen Zwischenstand. " + PDF_NOT_DRAFT; return; }
+  busy(btn, true, "Datei wird gelesen …");
+  try {
+    let d = null;
+    try { d = cleanDraft(await readDraftPdf(await file.arrayBuffer())); } catch (e) { d = null; }
+    if (!d) { err.textContent = PDF_NOT_DRAFT; return; }
+    await loadSheet(d.code);
+    if (S.sheet.tasks.length !== d.answers.length) { resetStudent(); err.textContent = "Der Zwischenstand passt nicht zu diesem Feibeitsblatt (andere Anzahl Aufgaben). Bitte frag deine Lehrkraft."; return; }
+    // Liegt auf diesem Gerät schon ein neuerer Zwischenstand derselben Person? Dann nachfragen, welcher gelten soll.
+    const person = d.person;
+    let local = null;
+    try { local = JSON.parse(store.get(await draftKeyFor(d.code, person)) || "null"); } catch (e) { local = null; }
+    if (local && local.v === 1 && local.t > d.t && Array.isArray(local.answers) && local.answers.some((a) => String(a || "").trim())) {
+      const usePdf = await askConfirm({ title: "Neuerer Zwischenstand auf diesem Gerät",
+        text: `Auf diesem Gerät liegt schon ein Zwischenstand von ${fmtDT(local.t)} Uhr; die PDF-Datei ist von ${fmtDT(d.t)} Uhr. Welchen Stand möchtest du verwenden?`,
+        ok: "Stand aus der PDF-Datei", cancel: "Neueren Stand von diesem Gerät", safeFirst: true });
+      if (!usePdf) d = null;
+    }
+    S.person = person; S.importDraft = d;
+    $("code-input").value = "";
+    await openEditor();
+  } catch (e) { resetStudent(); err.textContent = startErr(e); }
+  finally { busy(btn, false); }
+}
+$("start-pdf").addEventListener("click", () => { const f = $("start-pdf-file"); f.value = ""; f.click(); });
+$("start-pdf-file").addEventListener("change", () => { const f = $("start-pdf-file").files && $("start-pdf-file").files[0]; if (f) importDraftPdf(f); });
+
 /* ---------- 2. Angaben ---------- */
 function openPerson() {
   const sl = $("p-sheet"); sl.textContent = "";
@@ -1532,6 +1583,7 @@ async function draftKeyFor(code, p) {
 async function openEditor() {
   const p = S.person, sh = S.sheet;
   S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.ltCache = new Map();
+  S.attempt = ""; S.firstSent = false;
   S.ltAllowed = ageOf(p.geburtsdatum) >= LT_MIN_AGE; S.ltConsent = false;   // Bestätigung gilt nur für diese Sitzung
   S.draftKey = await draftKeyFor(S.code, p);
   $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`;
@@ -1546,32 +1598,36 @@ async function openEditor() {
     `Die Rechtschreibprüfung gibt es erst ab ${LT_MIN_AGE} Jahren und nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
     h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
     `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
-    `Bei der Abgabe werden dein Namenskürzel, Geburtsdatum, Klasse und deine Antworten verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert; ` +
-    `nur deine Lehrkraft kann sie lesen und löscht sie nach der Durchsicht. Bis zur Abgabe liegt dein Zwischenstand nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
-    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen. Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
+    `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
+    `Deine Abgabe nach der Überarbeitung ersetzt ihn. Die Lehrkraft löscht alles nach der Durchsicht. Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
+    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter). Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
   buildTasks();
-  // Zwischenstand dieses Geräts wiederherstellen
+  // Zwischenstand wiederherstellen: aus einer hochgeladenen PDF-Datei oder von diesem Gerät
   let restored = false;
-  const raw = store.get(S.draftKey);
-  if (raw) {
-    try {
-      const d = JSON.parse(raw);
-      if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
-        d.answers.forEach((a, i) => { S.tas[i].value = String(a || "").slice(0, MAX_ANSWER); S.tas[i]._ok = S.tas[i].value; });
-        if (Array.isArray(d.first) && d.first.length === sh.tasks.length && Array.isArray(d.feedback) && d.feedback.length === sh.tasks.length) {
-          S.first = d.first.map((x) => String(x || ""));
-          S.feedback = d.feedback.map(normFb);
-          S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
-        }
-        if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
-        restored = d.answers.some((a) => String(a || "").trim());
+  const imported = S.importDraft; S.importDraft = null;
+  let d = imported;
+  if (!d) { const raw = store.get(S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
+  try {
+    if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
+      d.answers.forEach((a, i) => { S.tas[i].value = String(a || "").slice(0, MAX_ANSWER); S.tas[i]._ok = S.tas[i].value; });
+      if (Array.isArray(d.first) && d.first.length === sh.tasks.length && Array.isArray(d.feedback) && d.feedback.length === sh.tasks.length) {
+        S.first = d.first.map((x) => String(x || ""));
+        S.feedback = d.feedback.map(normFb);
+        S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
       }
-    } catch (e) { /* kaputter Entwurf: ignorieren */ }
-  }
+      if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
+      if (typeof d.attempt === "string" && ATTEMPT_RE.test(d.attempt)) S.attempt = d.attempt;
+      S.firstSent = !!d.firstSent;
+      restored = d.answers.some((a) => String(a || "").trim());
+    }
+  } catch (e) { /* kaputter Entwurf: ignorieren */ }
+  if (!S.attempt) S.attempt = hexOf(crypto.getRandomValues(new Uint8Array(8)));   // Kennung dieser Bearbeitung (Erstversuch ↔ Abgabe)
   store.set(LAST_KEY, JSON.stringify({ v: 1, t: Date.now(), code: S.code, person: p }));
+  if (imported) saveDraft();   // aus der PDF auch auf diesem Gerät weiterführen
   S.tas.forEach(updateCounter);
   renderFeedbackState();
-  setSaveState(restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", false);
+  setSaveState(imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", false);
+  if (S.feedback && !S.firstSent) sendFirstAttempt();   // Erstversuch nachholen, falls die Übermittlung damals scheiterte
   setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
   show("screen-editor");
   $("paperwrap").scrollTop = 0;
@@ -1647,11 +1703,14 @@ function answerChanged(ta) {
 /* ---------- Zwischenstand auf diesem Gerät ---------- */
 let saveTimer = 0;
 function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
+/* Zwischenstand als Datensatz (für localStorage und die PDF-Datei) */
+function draftRecord() {
+  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", attempt: S.attempt, firstSent: S.firstSent };
+}
 function saveDraft() {
   clearTimeout(saveTimer);
   if (!S.draftKey || S.submitted) return;
-  const d = { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "" };
-  const ok = store.set(S.draftKey, JSON.stringify(d));
+  const ok = store.set(S.draftKey, JSON.stringify(draftRecord()));
   setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden", !ok);
 }
 function setSaveState(text, bad) {   // nur bei Änderung schreiben (sonst würde ein Screenreader es bei jeder Pause erneut vorlesen)
@@ -1659,6 +1718,190 @@ function setSaveState(text, bad) {   // nur bei Änderung schreiben (sonst würd
   if (s.textContent !== text) s.textContent = text;
   s.classList.toggle("bad", !!bad);
 }
+/* ---------- Zwischenstand als PDF-Datei (mitnehmen, falls die Browserdaten gelöscht werden) ----------
+ * Eine sichtbare Seite (Helvetica, WinAnsi) mit orangem Hinweiskasten und anklickbarem Link; der Zwischenstand selbst
+ * liegt als eingebettete Datei (JSON, UTF-8) in einem Stream-Objekt mit dem Kennzeichen /FbDraft 1 – ohne Bibliothek.
+ * Beim Hochladen wird dieser Stream gesucht (auch wenn ein PDF-Programm die Datei neu gespeichert und komprimiert hat). */
+const PDF_W_REG = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const PDF_W_BOLD = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
+const WINANSI = { "€": 0x80, "‚": 0x82, "ƒ": 0x83, "„": 0x84, "…": 0x85, "†": 0x86, "‡": 0x87, "ˆ": 0x88, "‰": 0x89, "Š": 0x8A, "‹": 0x8B, "Œ": 0x8C, "Ž": 0x8E, "‘": 0x91, "’": 0x92, "“": 0x93, "”": 0x94, "•": 0x95, "–": 0x96, "—": 0x97, "˜": 0x98, "™": 0x99, "š": 0x9A, "›": 0x9B, "œ": 0x9C, "ž": 0x9E, "Ÿ": 0x9F };
+function pdfBytes(str) {   // Text → WinAnsi-Bytes (Zeichen außerhalb → „?“)
+  const out = [];
+  for (const ch of String(str).normalize("NFC")) {
+    const c = ch.codePointAt(0);
+    out.push(c < 0x80 || (c >= 0xA0 && c <= 0xFF) ? c : WINANSI[ch] || 0x3F);
+  }
+  return out;
+}
+function pdfStr(str) {   // PDF-Zeichenkette in Klammern; Klammern/Backslash maskiert, Bytes außerhalb ASCII oktal
+  return "(" + pdfBytes(str).map((b) => b === 0x28 || b === 0x29 || b === 0x5C ? "\\" + String.fromCharCode(b) : b < 0x20 || b > 0x7E ? "\\" + b.toString(8).padStart(3, "0") : String.fromCharCode(b)).join("") + ")";
+}
+function pdfWidth(str, size, bold) {   // Textbreite in pt nach den Helvetica-Metriken (Umlaute über den Grundbuchstaben)
+  const tab = bold ? PDF_W_BOLD : PDF_W_REG;
+  let w = 0;
+  for (const ch of String(str).normalize("NFC")) {
+    let c = ch.codePointAt(0);
+    if (c < 0x20 || c > 0x7E) { const base = ch.normalize("NFD").codePointAt(0); c = base >= 0x20 && base <= 0x7E ? base : 0; }
+    w += c ? tab[c - 0x20] : ch === "ß" ? (bold ? 611 : 556) : "„“”‚‘’".indexOf(ch) >= 0 ? (bold ? 500 : 333) : ch === "·" ? 278 : 556;
+  }
+  return w * size / 1000;
+}
+function pdfWrap(str, size, bold, maxW) {   // Zeilenumbruch an Leerzeichen
+  const lines = [];
+  for (const para of String(str).split("\n")) {
+    let line = "";
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const t = line ? line + " " + word : word;
+      if (!line || pdfWidth(t, size, bold) <= maxW) line = t; else { lines.push(line); line = word; }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+const pdfUtf16 = (str) => { let x = "<FEFF"; for (let i = 0; i < str.length; i++) x += str.charCodeAt(i).toString(16).padStart(4, "0"); return x + ">"; };   // Info-Texte (PDFDocEncoding ≠ WinAnsi)
+const latin1 = (str) => { const u = new Uint8Array(str.length); for (let i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 0xFF; return u; };
+/* Zwischenstand d (siehe draftRecord + kind/code/sheetTitle/person) → PDF-Bytes */
+function makeDraftPdf(d) {
+  const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M;   // A4, Ränder
+  const ops = [];
+  const put = (x, yTop, str, size, bold, color) => ops.push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - yTop).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
+  const para = (x, yTop, str, size, bold, maxW, lh, color) => { const ls = pdfWrap(str, size, bold, maxW); ls.forEach((l, i) => put(x, yTop + i * lh, l, size, bold, color)); return yTop + ls.length * lh; };
+  const p = d.person || {}, answers = Array.isArray(d.answers) ? d.answers : [];
+  const done = answers.filter((a) => String(a || "").trim()).length;
+  const when = toDate(d.t) || new Date();
+  let y = 96;
+  put(M, y, "Zwischenstand für ein Feibeitsblatt", 21, true, "0.1 0.1 0.1"); y += 24;
+  y = para(M, y, "Diese Datei ist kein fertiges Arbeitsblatt und keine Abgabe, sondern ein gesicherter Zwischenstand: Die Antworten stecken als Daten in der Datei, damit du später weiterschreiben kannst.", 11, false, TW, 15, "0.3 0.3 0.3") + 12;
+  const row = (label, val) => { put(M, y, label, 11, true); y = para(M + 100, y, val, 11, false, TW - 100, 15); };
+  row("Feibeitsblatt:", `${d.sheetTitle || "Feibeitsblatt"} (Code ${fmtCode(d.code)})`);
+  row("Gesichert am:", fmtDT(when) + " Uhr");
+  row("Angaben:", `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`);
+  row("Stand:", `${done} von ${answers.length} ${answers.length === 1 ? "Aufgabe" : "Aufgaben"} mit Text · KI-Feedback ${Array.isArray(d.feedback) ? "schon erhalten" : "noch nicht angefordert"}`);
+  y += 14;
+  // Orangener Hinweiskasten: erst die Zeilen setzen, dann Höhe, Rahmen und Text
+  const pad = 16, bsz = 11.5, lh = 16, url = PUBLIC_URL, items = [];
+  let cur = pad + 14;
+  items.push({ dy: cur, text: "So arbeitest du weiter:", size: 12.5, bold: true, color: "0.72 0.36 0" }); cur += 20;
+  pdfWrap("Genau diese PDF-Datei (kein Screenshot und kein Ausdruck davon) kannst du auf", bsz, false, TW - 2 * pad).forEach((l) => { items.push({ dy: cur, text: l, size: bsz, color: "0.15 0.1 0" }); cur += lh; });
+  cur += 4; const urlDy = cur, uw = pdfWidth(url, 13, true);
+  items.push({ dy: cur, text: url, size: 13, bold: true, color: "0 0.29 0.6" }); cur += 22;
+  pdfWrap("hochladen, um weiter an dem Feibeitsblatt zu arbeiten: Klicke dort auf „Zwischenstand-PDF hochladen“ und wähle diese Datei aus. Dein Zwischenstand erscheint dann wieder auf dem Gerät.", bsz, false, TW - 2 * pad).forEach((l) => { items.push({ dy: cur, text: l, size: bsz, color: "0.15 0.1 0" }); cur += lh; });
+  const bh = cur - lh + pad;
+  ops.push(`1 0.93 0.82 rg 0.86 0.45 0 RG 1.5 w ${M.toFixed(2)} ${(H - y - bh).toFixed(2)} ${TW.toFixed(2)} ${bh.toFixed(2)} re B`);
+  items.forEach((it) => put(M + pad, y + it.dy, it.text, it.size, it.bold, it.color));
+  ops.push(`0 0.29 0.6 RG 0.8 w ${(M + pad).toFixed(2)} ${(H - y - urlDy - 2.5).toFixed(2)} m ${(M + pad + uw).toFixed(2)} ${(H - y - urlDy - 2.5).toFixed(2)} l S`);   // Unterstreichung
+  const linkRect = [M + pad - 2, H - y - urlDy - 5, M + pad + uw + 2, H - y - urlDy + 12];
+  y += bh + 28;
+  put(M, y, "Bitte beachte", 12.5, true); y += 18;
+  ["Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
+    "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
+    "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites Feedback gibt es nicht."
+  ].forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
+  put(M, H - 40, "Erstellt mit Feibeitsblatt · " + url, 9, false, "0.45 0.45 0.45");
+  // Objekte zusammensetzen
+  const content = ops.join("\n"), json = te.encode(JSON.stringify(d)), parts = [], offsets = [];
+  let pos = 0;
+  const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
+  const obj = (n, body) => { offsets[n] = pos; push(`${n} 0 obj\n`); (Array.isArray(body) ? body : [body]).forEach(push); push("\nendobj\n"); };
+  const t = new Date(), stamp = `${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}${pad2(t.getHours())}${pad2(t.getMinutes())}${pad2(t.getSeconds())}`;
+  push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(zwischenstand.json) 7 0 R] >> >> /AF [7 0 R] >>");
+  obj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R /Annots [8 0 R] >>`);
+  obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  obj(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  obj(6, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  obj(7, "<< /Type /Filespec /F (zwischenstand.json) /UF (zwischenstand.json) /Desc (Feibeitsblatt-Zwischenstand) /AFRelationship /Data /EF << /F 9 0 R /UF 9 0 R >> >>");
+  obj(8, `<< /Type /Annot /Subtype /Link /Rect [${linkRect.map((v) => v.toFixed(2)).join(" ")}] /Border [0 0 0] /A << /S /URI /URI ${pdfStr(url)} >> >>`);
+  obj(9, [`<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbDraft 1 /Params << /Size ${json.length} >> /Length ${json.length} >>\nstream\n`, json, "\nendstream"]);
+  obj(10, `<< /Title ${pdfUtf16("Feibeitsblatt – Zwischenstand " + fmtCode(d.code))} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  const xref = pos;
+  let x = "xref\n0 11\n0000000000 65535 f \n";
+  for (let i = 1; i <= 10; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  push(x + `trailer\n<< /Size 11 /Root 1 0 R /Info 10 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const out = new Uint8Array(pos); let o = 0;
+  for (const b of parts) { out.set(b, o); o += b.length; }
+  return out;
+}
+/* PDF-Bytes → eingebetteter Zwischenstand (Objekt) oder Fehler. Sucht das Kennzeichen /FbDraft 1 bzw. eingebettete
+   Dateien (/Type /EmbeddedFile), liest den Stream (Länge direkt oder als Verweis), entpackt FlateDecode bei Bedarf. */
+async function readDraftPdf(buf) {
+  const u = new Uint8Array(buf);
+  let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  if (s.slice(0, 5) !== "%PDF-") throw new Error("nopdf");
+  const starts = [];
+  for (const mark of ["/FbDraft 1", "/Type /EmbeddedFile", "/Type/EmbeddedFile"]) { let i = -1; while ((i = s.indexOf(mark, i + 1)) >= 0 && starts.length < 60) starts.push(i); }
+  const tried = new Set();
+  for (const i of starts) {
+    const st = s.indexOf("stream", i); if (st < 0) continue;
+    const objStart = s.lastIndexOf(" obj", i);
+    if (objStart < 0 || tried.has(objStart)) continue; tried.add(objStart);
+    const dict = s.slice(objStart, st);
+    if (/\/Filter/.test(dict) && !/\/Filter\s*(\/FlateDecode\b|\[\s*\/FlateDecode\s*\])/.test(dict)) continue;   // andere Filter: nicht lesbar
+    let len = null, m;
+    if ((m = /\/Length\s+(\d+)(\s+0\s+R)?/.exec(dict))) {
+      if (m[2]) { const r = new RegExp("(?:^|\\s)" + m[1] + "\\s+0\\s+obj\\s*(\\d+)").exec(s); len = r ? +r[1] : null; } else len = +m[1];
+    }
+    let a = st + 6; if (s[a] === "\r") a++; if (s[a] === "\n") a++;
+    let end = len != null ? a + len : -1;
+    if (end < a || end > u.length || s.indexOf("endstream", end) < 0) {   // Länge unbrauchbar: bis „endstream“
+      end = s.indexOf("endstream", a); if (end < 0) continue;
+      while (end > a && (s[end - 1] === "\n" || s[end - 1] === "\r")) end--;
+    }
+    let data = u.subarray(a, end);
+    try {
+      if (/\/FlateDecode/.test(dict)) data = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer());
+      const o = JSON.parse(td.decode(data));
+      if (o && o.kind === "feibeitsblatt-draft") return o;
+    } catch (e) { /* nächster Kandidat */ }
+  }
+  throw new Error("nodraft");
+}
+/* Zwischenstand aus einer Datei prüfen und normalisieren (wie die Eingabefelder) → Objekt oder null */
+function cleanDraft(o) {
+  if (!o || typeof o !== "object" || o.v !== 1 || o.kind !== "feibeitsblatt-draft") return null;
+  const code = normCode(o.code);
+  if (!CODE_RE.test(code) || !/[A-Z]/.test(code) || !/[0-9]/.test(code)) return null;
+  const pr = o.person && typeof o.person === "object" ? o.person : null;
+  if (!pr) return null;
+  const v = String(pr.vorname || "").trim().normalize("NFC"), n = String(pr.nachname || "").trim().normalize("NFC");
+  const vl = Array.from(v).length, nl = Array.from(n).length;
+  if (!LETTERS.test(v) || vl < 2 || vl > 3 || !LETTERS.test(n) || nl < 1 || nl > 2) return null;
+  const b = parseBirth(pr.geburtsdatum);
+  if (!b || b.date > new Date() || b.date < new Date(1950, 0, 2)) return null;
+  const k = String(pr.klasse || "").replace(/[\s.]+/g, "");
+  if (!/^[\p{L}\p{N}/-]{1,10}$/u.test(k)) return null;
+  if (!Array.isArray(o.answers) || !o.answers.length || o.answers.length > 30) return null;
+  const answers = o.answers.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER));
+  let first = null, feedback = null;
+  if (Array.isArray(o.first) && Array.isArray(o.feedback) && o.first.length === answers.length && o.feedback.length === answers.length) {
+    first = o.first.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER)); feedback = o.feedback.map(normFb);
+  }
+  return {
+    v: 1, code, sheetTitle: String(o.sheetTitle || "").slice(0, 200), t: Number.isFinite(o.t) ? o.t : 0,
+    person: { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k },
+    answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
+    fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
+    attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true
+  };
+}
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = h("a", { href: url, download: name, class: "sr-only", text: name });
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
+}
+$("ed-pdf").addEventListener("click", () => {
+  if (S.submitted || !S.sheet || !S.person) return;
+  try {
+    saveDraft();
+    const d = Object.assign(draftRecord(), { kind: "feibeitsblatt-draft", code: S.code, sheetTitle: S.sheet.title,
+      person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse } });
+    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
+    downloadBlob(new Blob([makeDraftPdf(d)], { type: "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
+    setSaveState("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf", false);
+  } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
+});
 /* Alte Entwürfe entfernen – gemeinsam genutzte Geräte */
 function cleanupDrafts() {
   const limit = Date.now() - DRAFT_DAYS * 864e5;
@@ -1983,7 +2226,7 @@ async function requestFeedback() {
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
-    text: "Das KI-Feedback gibt es nur einmal. Deine jetzigen Antworten werden als erste Fassung gespeichert und später mit abgegeben.",
+    text: "Das KI-Feedback gibt es nur einmal. Deine jetzigen Antworten werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.",
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok) return;
@@ -2002,6 +2245,7 @@ async function requestFeedback() {
     setStatus(st, "", "");
     S.busyFeedback = false;
     renderFeedbackState();
+    sendFirstAttempt();   // im Hintergrund; die Abgabe enthält die erste Fassung ohnehin
     const rh = $("revise-hint");
     rh.scrollIntoView({ block: "nearest", behavior: "smooth" });
     setTimeout(() => { try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ } }, 50);
@@ -2025,6 +2269,26 @@ async function requestFeedback() {
 }
 $("fb-btn").addEventListener("click", requestFeedback);
 
+/* Feedback-Einträge in der gespeicherten Form (ohne Darstellungsfelder) */
+const fbOut = (f) => (f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing });
+/* Erstversuch: erste Fassung + KI-Feedback verschlüsselt an die Lehrkraft übermitteln. Die spätere Abgabe (gleiche Kennung)
+   ersetzt ihn auf dem Server. Schlägt die Übermittlung fehl, wird sie beim nächsten Öffnen nachgeholt. */
+async function sendFirstAttempt() {
+  if (!S.feedback || !S.first || S.firstSent || S.submitted || !S.attempt || !S.pub) return;
+  try {
+    const payload = {
+      v: 1, stage: "first", sheetCode: S.code, sheetTitle: S.sheet.title,
+      person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse },
+      answers: S.first.map((a) => ({ first: a, final: null })),
+      feedback: S.feedback.map(fbOut), feedbackAt: S.feedbackAt, submittedAt: null
+    };
+    const envelope = await Crypto.seal(S.pub, payload);
+    await api("POST", "/api/submit", { body: { code: S.code, envelope, stage: "first", attempt: S.attempt }, timeout: 60000 });
+    S.firstSent = true;
+    if (!S.submitted) saveDraft();
+  } catch (e) { /* kein Drama: beim nächsten Öffnen erneut, und die Abgabe enthält die erste Fassung */ }
+}
+
 /* ---------- Abgabe ---------- */
 async function submitAll() {
   if (!(S.feedback || S.fbUnavailable) || S.submitted) return;
@@ -2043,17 +2307,17 @@ async function submitAll() {
   setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
   try {
     const payload = {
-      v: 1, sheetCode: S.code, sheetTitle: S.sheet.title,
+      v: 1, stage: "final", sheetCode: S.code, sheetTitle: S.sheet.title,
       person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse },
       answers: S.tas.map((t, i) => ({ first: withFb ? S.first[i] : t.value, final: t.value })),
-      feedback: withFb ? S.feedback.map((f) => f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing }) : null,
+      feedback: withFb ? S.feedback.map(fbOut) : null,
       feedbackAt: withFb ? S.feedbackAt : null, submittedAt: new Date().toISOString()
     };
     if (!withFb) payload.feedbackError = S.fbUnavailable;
     saveDraft();
     let envelope;
     try { envelope = await Crypto.seal(S.pub, payload); } catch (e) { throw new ApiError("crypto"); }
-    const r = await api("POST", "/api/submit", { body: { code: S.code, envelope }, timeout: 60000 });
+    const r = await api("POST", "/api/submit", { body: { code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }, timeout: 60000 });
     S.submitted = true;
     store.del(S.draftKey); store.del(LAST_KEY);
     const d = toDate(r.receivedAt) || new Date();
@@ -2077,7 +2341,7 @@ function clearEditor() {
 }
 function resetStudent() {
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false, attempt: "", firstSent: false, importDraft: null });
   ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }
@@ -2086,7 +2350,7 @@ $("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").
 /* =====================================================================
  *  Lehrkraft
  * ===================================================================== */
-const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, builderDirty: false,
+const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], subsHidden: 0, ai: null, builderDirty: false,
   pendingUploads: [], doneUploads: 0, uploadRun: 0 };   // Bilder, die nach dem Anlegen eines Blattes noch hochzuladen sind
 // Bilder einer Aufgabe in der Lehrkraft-Ansicht (klein, Klick vergrößert; der Titel nennt die gewählte Anzeigeart)
 function teacherImgs(code, metas, n) {
@@ -2255,7 +2519,8 @@ function renderSheets() {
       h("td", { class: "code", text: fmtCode(s.code) }),
       h("td", { class: "nowrap hide-s", text: fmtDT(s.createdAt) }),
       h("td", { class: "num hide-s", text: String(s.taskCount ?? "–") }),
-      h("td", { class: "num", text: String(s.submissionCount ?? "–") })
+      h("td", { class: "num" }, [String(s.submissionCount ?? "–"),
+        s.firstCount > 0 ? h("span", { class: "st-first", title: `${s.firstCount === 1 ? "1 Erstversuch" : s.firstCount + " Erstversuche"} ohne Überarbeitung (nur KI-Feedback angefordert)` }, [" +" + s.firstCount, h("span", { class: "sr-only", text: s.firstCount === 1 ? " Erstversuch ohne Überarbeitung" : " Erstversuche ohne Überarbeitung" })]) : null])
     ]);
     const pick = () => selectSheet(s.code);
     tr.addEventListener("click", pick);
@@ -2273,7 +2538,7 @@ async function selectSheet(code) {
   $("t-sel-tasks").textContent = ""; $("t-sel-det").open = false;
   $("t-subs-body").textContent = ""; $("t-subs-sum").textContent = "";
   setStatus($("t-del-status"), "", "");
-  T.selSheet = null; T.subs = [];
+  T.selSheet = null; T.subs = []; T.subsHidden = 0; $("t-subs-legend").classList.add("hidden");
   setStatus($("t-subs-status"), "Abgaben werden geladen und entschlüsselt …", "busy");
   try {
     const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code));
@@ -2322,34 +2587,49 @@ async function loadSubs() {
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
         }
       } catch (e) { p = null; }
-      out.push({ id: s.id, receivedAt: s.receivedAt, p });
+      out.push({ id: s.id, receivedAt: s.receivedAt, stage: s.stage === "first" ? "first" : "final", p });
     }
+    // Erstversuche von Schüler:innen, die (z. B. von einem anderen Gerät aus) inzwischen abgegeben haben, sind überholt
+    const who = (x) => x.p ? [x.p.person.klasse, x.p.person.nachname, x.p.person.vorname, x.p.person.geburtsdatum].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|") : "";
+    const finals = new Set(out.filter((x) => x.stage === "final" && x.p).map(who));
+    const shown = out.filter((x) => !(x.stage === "first" && x.p && finals.has(who(x))));
+    T.subsHidden = out.length - shown.length;
     const key = (x) => x.p ? [String(x.p.person.klasse || ""), String(x.p.person.nachname || ""), String(x.p.person.vorname || "")] : ["￿", "", ""];
     const coll = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
-    out.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
-    T.subs = out;
+    shown.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
+    T.subs = shown;
     setStatus(st, "", "");
     renderSubs();
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
 }
+/* Zählung der Einträge in Worten: „3 Abgaben · 1 Erstversuch ohne Überarbeitung“ */
+function subsSummary(finals, firsts) {
+  const parts = [];
+  if (finals || !firsts) parts.push(finals === 0 ? "Noch keine Abgabe" : finals === 1 ? "1 Abgabe" : finals + " Abgaben");
+  if (firsts) parts.push(firsts === 1 ? "1 Erstversuch ohne Überarbeitung" : firsts + " Erstversuche ohne Überarbeitung");
+  return parts.join(" · ");
+}
 function renderSubs() {
   const tb = $("t-subs-body"); tb.textContent = "";
-  const n = T.subs.length;
-  $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : n === 1 ? "1 Abgabe" : n + " Abgaben";
+  const n = T.subs.length, firsts = T.subs.filter((s) => s.stage === "first").length, finals = n - firsts;
+  $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : subsSummary(finals, firsts) +
+    (T.subsHidden ? ` · ${T.subsHidden === 1 ? "1 älterer Erstversuch" : T.subsHidden + " ältere Erstversuche"} von Schüler:innen, die inzwischen abgegeben haben, ${T.subsHidden === 1 ? "wird" : "werden"} nicht angezeigt` : "");
+  $("t-subs-legend").classList.toggle("hidden", n === 0);
   $("t-expand-all").textContent = "Alle aufklappen";
   $("t-expand-all").disabled = n === 0;
-  $("t-del-subs").disabled = n === 0;
+  $("t-del-subs").disabled = n === 0 && !T.subsHidden;
   if (!n) { tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: "Zu diesem Feibeitsblatt ist noch nichts abgegeben worden." })])); return; }
   T.subs.forEach((s, idx) => {
+    const isFirst = s.stage === "first";
     if (!s.p) {
-      tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: `Abgabe vom ${fmtDT(s.receivedAt)} konnte nicht entschlüsselt werden (beschädigt oder mit einem anderen Schlüssel verschlüsselt).` })]));
+      tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: `${isFirst ? "Erstversuch" : "Abgabe"} vom ${fmtDT(s.receivedAt)} konnte nicht entschlüsselt werden (beschädigt oder mit einem anderen Schlüssel verschlüsselt).` })]));
       return;
     }
-    const pr = s.p.person;
-    const main = h("tr", { class: "clickable main", tabindex: "0", "aria-expanded": "false", "aria-controls": "sd-" + idx }, [
-      h("td", { class: "arrowcol" }, [h("span", { class: "arrow", "aria-hidden": "true", text: "▸" })]),
-      h("td", { text: String(pr.nachname || "") }),
-      h("td", { text: String(pr.vorname || "") }),
+    const pr = s.p.person, cls = isFirst ? "st-first" : "st-final";
+    const main = h("tr", { class: "clickable main " + (isFirst ? "row-first" : "row-final"), tabindex: "0", "aria-expanded": "false", "aria-controls": "sd-" + idx }, [
+      h("td", { class: "arrowcol" }, [h("span", { class: "arrow", "aria-hidden": "true", text: "▸" }), h("span", { class: "sr-only", text: isFirst ? "Erstversuch ohne Überarbeitung" : "Abgabe nach der Überarbeitung" })]),
+      h("td", { class: cls, text: String(pr.nachname || "") }),
+      h("td", { class: cls, text: String(pr.vorname || "") }),
       h("td", { class: "nowrap", text: fmtIsoDate(pr.geburtsdatum) }),
       h("td", { text: String(pr.klasse || "") })
     ]);
@@ -2366,21 +2646,24 @@ function renderSubs() {
   });
 }
 function buildDetail(s) {
-  const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [];
+  const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [], isFirst = s.stage === "first";
   const box = h("div", { class: "detbox" });
-  const meta = [`Abgegeben am ${fmtDT(s.receivedAt)}`];
+  const meta = [isFirst ? "Erstversuch ohne Überarbeitung – noch nicht abgegeben" : `Abgegeben am ${fmtDT(s.receivedAt)}`];
   if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
-  box.appendChild(h("p", { class: "dmeta", text: meta.join(" · ") }));
-  if (!Array.isArray(p.feedback)) {
+  box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
+  if (isFirst) {
+    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Diese Schülerin oder dieser Schüler hat das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
+  } else if (!Array.isArray(p.feedback)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Ohne KI-Feedback abgegeben (KI war nicht erreichbar" + (p.feedbackError ? ": " + String(p.feedbackError).slice(0, 100) : "") + "). Beide Spalten zeigen deshalb denselben Text." }));
   }
   const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
   const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback";
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
-    const cell = (txt, label, extra) => {
+    const cell = (txt, label, extra, pending) => {
       const td = h("td", { "data-label": label });
-      if (txt.trim()) td.appendChild(document.createTextNode(txt)); else td.appendChild(h("span", { class: "empty", text: "(leer)" }));
+      if (pending) td.appendChild(h("span", { class: "empty", text: "(noch nicht überarbeitet)" }));
+      else if (txt.trim()) td.appendChild(document.createTextNode(txt)); else td.appendChild(h("span", { class: "empty", text: "(leer)" }));
       if (extra) td.appendChild(extra);
       return td;
     };
@@ -2399,7 +2682,7 @@ function buildDetail(s) {
       tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
       h("table", { class: "cmp" }, [
         h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
-        h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null)])])
+        h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, !isFirst && first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null, isFirst)])])
       ]),
       f ? fbEl : null
     ]));
@@ -2439,35 +2722,42 @@ $("t-template").addEventListener("click", async () => {
     if (lost) $("b-err").textContent = `${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`;
   } finally { busy(btn, false); }
 });
+/* „Die eine Abgabe“, „Alle 4 Abgaben und Erstversuche“ … (Subjekt für Lösch-Dialoge) */
+function subsNoun(n, firsts) {
+  if (n === 1) return firsts ? "Der eine Erstversuch" : "Die eine Abgabe";
+  return `Alle ${n} ${firsts === 0 ? "Abgaben" : firsts === n ? "Erstversuche" : "Abgaben und Erstversuche"}`;
+}
 $("t-del-subs").addEventListener("click", async () => {
-  const n = T.subs.length, title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-subs");
+  const firsts = T.subs.filter((s) => s.stage === "first").length + (T.subsHidden || 0), n = T.subs.length + (T.subsHidden || 0);
+  const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-subs");
   if (!n) return;
   const ok = await askConfirm({
     title: "Alle Abgaben löschen?",
-    text: `${n === 1 ? "Die eine Abgabe zu „" + title + "“ wird" : "Alle " + n + " Abgaben zu „" + title + "“ werden"} endgültig aus der Datenbank gelöscht. Das lässt sich nicht rückgängig machen.`,
-    ok: n === 1 ? "Abgabe löschen" : `${n} Abgaben löschen`, cancel: "Abbrechen", danger: true
+    text: `${subsNoun(n, firsts)} zu „${title}“ ${n === 1 ? "wird" : "werden"} endgültig aus der Datenbank gelöscht. Das lässt sich nicht rückgängig machen.`,
+    ok: n === 1 ? (firsts ? "Erstversuch löschen" : "Abgabe löschen") : `${n} ${firsts === n ? "Erstversuche" : "Abgaben"} löschen`, cancel: "Abbrechen", danger: true
   });
   if (!ok) return;
   busy(btn, true, "Wird gelöscht …");
   try {
     const r = await TA("/api/teacher/sheets/" + encodeURIComponent(T.sel) + "/submissions", { method: "DELETE" });
     setStatus(st, `${r.deleted === 1 ? "1 Abgabe" : (r.deleted ?? n) + " Abgaben"} gelöscht.`, "ok");
-    T.subs = []; renderSubs(); loadSheets(true);
+    T.subs = []; T.subsHidden = 0; renderSubs(); loadSheets(true);
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
-  finally { busy(btn, false); $("t-del-subs").disabled = T.subs.length === 0; }
+  finally { busy(btn, false); $("t-del-subs").disabled = T.subs.length === 0 && !T.subsHidden; }
 });
 $("t-del-sheet").addEventListener("click", async () => {
   const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-sheet");
   const ok = await askConfirm({
     title: "Feibeitsblatt löschen?",
-    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${T.subs.length === 0 ? "" : T.subs.length === 1 ? "mitsamt der einen Abgabe " : "mitsamt allen " + T.subs.length + " Abgaben "}endgültig gelöscht. Der Code wird ungültig.`,
+    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${(() => { const n = T.subs.length + (T.subsHidden || 0), f = T.subs.filter((s) => s.stage === "first").length + (T.subsHidden || 0);
+      return n === 0 ? "" : n === 1 ? (f ? "mitsamt dem einen Erstversuch " : "mitsamt der einen Abgabe ") : `mitsamt allen ${n} ${f === 0 ? "Abgaben" : f === n ? "Erstversuchen" : "Abgaben und Erstversuchen"} `; })()}endgültig gelöscht. Der Code wird ungültig.`,
     ok: "Feibeitsblatt löschen", cancel: "Abbrechen", danger: true
   });
   if (!ok) return;
   busy(btn, true);
   try {
     await TA("/api/teacher/sheets/" + encodeURIComponent(T.sel), { method: "DELETE" });
-    T.sel = null; T.selSheet = null; T.subs = [];
+    T.sel = null; T.selSheet = null; T.subs = []; T.subsHidden = 0;
     $("t-sel").classList.add("hidden");
     await loadSheets();
     setStatus($("t-list-status"), "Feibeitsblatt gelöscht.", "ok");

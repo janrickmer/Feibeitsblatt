@@ -5,7 +5,7 @@ import {
   normalizeCode, isValidCode, generateCode, sha256Hex, timingSafeEqualStr, decodeAuthKey, importPublicKey,
   validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateAiInput,
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
-  validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE,
+  validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -75,7 +75,22 @@ let schemaReady = false;   // kein geteiltes Promise: workerd erlaubt kein I/O �
 async function ensureSchema(db) {
   if (schemaReady) return;
   await db.batch(SCHEMA.map((s) => db.prepare(s)));
+  await ensureSubmissionColumns(db);
   schemaReady = true;
+}
+// Nachträgliche Spalten für Erstversuche (stage, attempt): ALTER TABLE ist nicht idempotent, deshalb vorher nachsehen.
+// Kommt ein paralleler Isolate zuvor, schlägt das ALTER fehl – dann genügt es, dass die Spalten jetzt da sind.
+export async function ensureSubmissionColumns(db) {
+  const have = async () => new Set((((await db.prepare("PRAGMA table_info(submissions)").all()) || {}).results || []).map((r) => String(r.name)));
+  let cols = await have();
+  const stmts = [];
+  if (!cols.has("stage")) stmts.push(db.prepare("ALTER TABLE submissions ADD COLUMN stage TEXT NOT NULL DEFAULT 'final'"));
+  if (!cols.has("attempt")) stmts.push(db.prepare("ALTER TABLE submissions ADD COLUMN attempt TEXT"));
+  if (stmts.length) {
+    try { await db.batch(stmts); }
+    catch (e) { cols = await have(); if (!cols.has("stage") || !cols.has("attempt")) throw e; }
+  }
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON submissions(sheet_code, attempt)").run();
 }
 
 /* ---------- Body lesen (≤ 1 MB) ---------- */
@@ -244,10 +259,11 @@ async function routeSheetsList(c) {
   await requireTeacher(c);
   const { results } = await c.db.prepare(
     "SELECT s.code, s.title, s.created_at, json_array_length(s.tasks) AS task_count, " +
-    "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code) AS submission_count " +
+    "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code AND stage='final') AS submission_count, " +
+    "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code AND stage='first') AS first_count " +
     "FROM sheets s ORDER BY s.created_at DESC, s.code LIMIT 1000").all();
   return json({ ok: true, sheets: (results || []).map((r) => ({ code: r.code, title: r.title, createdAt: r.created_at,
-    taskCount: r.task_count || 0, submissionCount: r.submission_count || 0 })) });
+    taskCount: r.task_count || 0, submissionCount: r.submission_count || 0, firstCount: r.first_count || 0 })) });
 }
 
 async function routeSheetCreate(c) {
@@ -359,7 +375,7 @@ async function routeSubmissionsList(c, codeRaw) {
   const after = Math.max(0, parseInt(new URL(c.request.url).searchParams.get("after") || "0", 10) || 0);
   const [sh, subs] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("SELECT id, received_at, envelope FROM submissions WHERE sheet_code=?1 AND id>?2 ORDER BY id LIMIT ?3")
+    c.db.prepare("SELECT id, received_at, envelope, stage FROM submissions WHERE sheet_code=?1 AND id>?2 ORDER BY id LIMIT ?3")
       .bind(code, after, LIMITS.submissionsPage + 1),
   ]);
   if (!firstRow(sh)) throw sheetGone();
@@ -368,7 +384,7 @@ async function routeSubmissionsList(c, codeRaw) {
   const items = []; let bytes = 0, next = null;
   for (const r of rows) {
     if (items.length >= LIMITS.submissionsPage || (items.length && bytes + r.envelope.length > LIMITS.pageBytes)) { next = items.length ? Number(rows[items.length - 1].id) : after; break; }
-    items.push('{"id":' + Number(r.id) + ',"receivedAt":' + Number(r.received_at) + ',"envelope":' + r.envelope + "}");
+    items.push('{"id":' + Number(r.id) + ',"receivedAt":' + Number(r.received_at) + ',"stage":"' + (r.stage === "first" ? "first" : "final") + '","envelope":' + r.envelope + "}");
     bytes += r.envelope.length;
   }
   return respond('{"ok":true,"submissions":[' + items.join(",") + '],"next":' + (next == null ? "null" : next) + "}");
@@ -540,21 +556,32 @@ async function routeFeedback(c) {
   return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs)) });
 }
 
+// Abgabe (stage "final") oder Erstversuch (stage "first", nach dem KI-Feedback). Mit derselben attempt-Kennung ersetzt die
+// Abgabe den Erstversuch derselben Bearbeitung; ein Erstversuch überschreibt nie eine Abgabe. Der Server sieht nur den Umschlag.
 async function routeSubmit(c) {
   const body = await readJson(c.request);
   const code = normalizeCode(body.code);
   if (!isValidCode(code)) throw sheetNotFound();
   const envelope = validateEnvelope(body.envelope);
-  const [sh, cnt] = await c.db.batch([
+  const { stage, attempt } = validateSubmitMeta(body);
+  const [sh, cnt, ex] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
+    attempt ? c.db.prepare("SELECT id, stage FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
+      : c.db.prepare("SELECT 1 AS x WHERE 0"),
   ]);
   if (!firstRow(sh)) throw sheetNotFound();
   await countAll(c, [{ kind: "submit" }, { kind: "submit_bytes", weight: envelope.length }]);   // nur gültige Abgaben zählen
+  const prev = attempt ? firstRow(ex) : null;
+  if (prev) {
+    if (prev.stage === "final" && stage === "first") return json({ ok: true, id: Number(prev.id), receivedAt: c.now, kept: true });   // Abgabe bleibt
+    await c.db.prepare("UPDATE submissions SET envelope=?1, received_at=?2, stage=?3 WHERE id=?4").bind(envelope, c.now, stage, prev.id).run();
+    return json({ ok: true, id: Number(prev.id), receivedAt: c.now, replaced: prev.stage });
+  }
   const use = firstRow(cnt) || {};
   if ((use.n || 0) >= LIMITS.submissionsPerSheet || (use.bytes || 0) + envelope.length > LIMITS.sheetBytes)
     throw new HttpError(409, "too_many_submissions", MSG.tooMany);
-  const r = await c.db.prepare("INSERT INTO submissions(sheet_code,received_at,envelope) VALUES(?1,?2,?3)").bind(code, c.now, envelope).run();
+  const r = await c.db.prepare("INSERT INTO submissions(sheet_code,received_at,envelope,stage,attempt) VALUES(?1,?2,?3,?4,?5)").bind(code, c.now, envelope, stage, attempt).run();
   return json({ ok: true, id: r.meta ? r.meta.last_row_id : null, receivedAt: c.now });
 }
 
