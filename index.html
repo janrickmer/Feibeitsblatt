@@ -655,11 +655,14 @@
       <p class="sub">Hier erstellen Sie Feibeitsblätter und sehen die Abgaben Ihrer Schüler:innen.</p>
       <div class="toolrow">
         <button type="button" class="btn" id="t-new">Neues Feibeitsblatt erstellen</button>
+        <button type="button" class="btn ghost" id="t-import">Feibeitsblatt aus PDF-Datei laden</button>
+        <input type="file" id="t-import-file" accept="application/pdf,.pdf" class="sr-only" tabindex="-1" aria-hidden="true">
         <span class="spacer"></span>
         <button type="button" class="btn ghost small" id="t-ai">KI-Einstellungen</button>
         <button type="button" class="btn ghost small" id="t-pw">Passwort ändern</button>
         <button type="button" class="btn ghost small" id="t-logout">Abmelden</button>
       </div>
+      <p class="status" id="t-import-status" aria-live="polite"></p>
       <p class="aiinfo hidden" id="t-aiinfo"></p>
       <div class="moodle-hint aiwarn hidden" id="t-aiwarn"></div>
 
@@ -689,7 +692,10 @@
         <div class="row">
           <button type="button" class="btn ghost small" id="t-refresh">Aktualisieren</button>
           <button type="button" class="btn ghost small" id="t-template">Als Vorlage für ein neues Feibeitsblatt verwenden</button>
+          <button type="button" class="btn ghost small" id="t-export">Als PDF-Datei herunterladen</button>
         </div>
+        <p class="status" id="t-export-status" aria-live="polite"></p>
+        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Musterlösungen und PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.</p>
 
         <div class="subhead">
           <h3>Abgaben</h3>
@@ -723,6 +729,7 @@
       <h1>Neues Feibeitsblatt</h1>
       <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
       <div id="b-form">
+        <p class="note hidden" id="b-import" style="margin:0 0 14px"></p>
         <div class="field" style="max-width:640px">
           <label for="b-title">Titel</label>
           <input type="text" id="b-title" maxlength="200" placeholder="z. B. Das Gewissen – Klasse 8b" autocomplete="off">
@@ -1937,13 +1944,17 @@ function pdfWidth(str, size, bold) {   // Textbreite in pt nach den Helvetica-Me
   }
   return w * size / 1000;
 }
-function pdfWrap(str, size, bold, maxW) {   // Zeilenumbruch an Leerzeichen
+function pdfWrap(str, size, bold, maxW) {   // Zeilenumbruch an Leerzeichen; ein Wort länger als die Zeile (z. B. eine Adresse) wird hart getrennt
   const lines = [];
   for (const para of String(str).split("\n")) {
     let line = "";
     for (const word of para.split(/\s+/).filter(Boolean)) {
       const t = line ? line + " " + word : word;
-      if (!line || pdfWidth(t, size, bold) <= maxW) line = t; else { lines.push(line); line = word; }
+      if (!line || pdfWidth(t, size, bold) <= maxW) { line = t; if (pdfWidth(line, size, bold) <= maxW) continue; }
+      else { lines.push(line); line = word; if (pdfWidth(word, size, bold) <= maxW) continue; }
+      let part = "";   // überlanges Wort (steht allein in `line`) zeichenweise aufteilen
+      for (const ch of line) { if (part && pdfWidth(part + ch, size, bold) > maxW) { lines.push(part); part = ch; } else part += ch; }
+      line = part;
     }
     lines.push(line);
   }
@@ -2016,33 +2027,43 @@ function makeDraftPdf(d) {
 }
 /* PDF-Bytes → eingebetteter Zwischenstand (Objekt) oder Fehler. Sucht das Kennzeichen /FbDraft 1 bzw. eingebettete
    Dateien (/Type /EmbeddedFile), liest den Stream (Länge direkt oder als Verweis), entpackt FlateDecode bei Bedarf. */
+// PDF-Bytes als Latin-1-Zeichenkette (ein Zeichen je Byte): Offsets in der Zeichenkette = Offsets in den Bytes
+function pdfLatin1(u) { let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return s; }
+// Stream-Objekt, in dessen Wörterbuch die Stelle i liegt → {obj, dict, start, end} (Datenbereich) oder null. Die Länge
+// steht direkt oder als Verweis („/Length 12 0 R“); ist sie unbrauchbar, gilt alles bis „endstream“. Nur ohne Filter
+// oder FlateDecode (so speichern PDF-Programme eingebettete Dateien neu); andere Filter sind nicht lesbar.
+function pdfStreamAt(s, u, i) {
+  const st = s.indexOf("stream", i); if (st < 0) return null;
+  const obj = s.lastIndexOf(" obj", i); if (obj < 0) return null;
+  const dict = s.slice(obj, st);
+  if (/\/Filter/.test(dict) && !/\/Filter\s*(\/FlateDecode\b|\[\s*\/FlateDecode\s*\])/.test(dict)) return null;
+  let len = null, m;
+  if ((m = /\/Length\s+(\d+)(\s+0\s+R)?/.exec(dict))) {
+    if (m[2]) { const r = new RegExp("(?:^|\\s)" + m[1] + "\\s+0\\s+obj\\s*(\\d+)").exec(s); len = r ? +r[1] : null; } else len = +m[1];
+  }
+  let a = st + 6; if (s[a] === "\r") a++; if (s[a] === "\n") a++;
+  let end = len != null ? a + len : -1;
+  if (end < a || end > u.length || s.indexOf("endstream", end) < 0) {   // Länge unbrauchbar: bis „endstream“
+    end = s.indexOf("endstream", a); if (end < 0) return null;
+    while (end > a && (s[end - 1] === "\n" || s[end - 1] === "\r")) end--;
+  }
+  return { obj, dict, start: a, end };
+}
+async function pdfStreamData(u, x) {   // Datenbereich eines Streams, FlateDecode entpackt
+  const data = u.subarray(x.start, x.end);
+  return /\/FlateDecode/.test(x.dict) ? new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer()) : data;
+}
 async function readDraftPdf(buf) {
-  const u = new Uint8Array(buf);
-  let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  const u = new Uint8Array(buf), s = pdfLatin1(u);
   if (s.slice(0, 5) !== "%PDF-") throw new Error("nopdf");
   const starts = [];
   for (const mark of ["/FbDraft 1", "/Type /EmbeddedFile", "/Type/EmbeddedFile"]) { let i = -1; while ((i = s.indexOf(mark, i + 1)) >= 0 && starts.length < 60) starts.push(i); }
   const tried = new Set();
   for (const i of starts) {
-    const st = s.indexOf("stream", i); if (st < 0) continue;
-    const objStart = s.lastIndexOf(" obj", i);
-    if (objStart < 0 || tried.has(objStart)) continue; tried.add(objStart);
-    const dict = s.slice(objStart, st);
-    if (/\/Filter/.test(dict) && !/\/Filter\s*(\/FlateDecode\b|\[\s*\/FlateDecode\s*\])/.test(dict)) continue;   // andere Filter: nicht lesbar
-    let len = null, m;
-    if ((m = /\/Length\s+(\d+)(\s+0\s+R)?/.exec(dict))) {
-      if (m[2]) { const r = new RegExp("(?:^|\\s)" + m[1] + "\\s+0\\s+obj\\s*(\\d+)").exec(s); len = r ? +r[1] : null; } else len = +m[1];
-    }
-    let a = st + 6; if (s[a] === "\r") a++; if (s[a] === "\n") a++;
-    let end = len != null ? a + len : -1;
-    if (end < a || end > u.length || s.indexOf("endstream", end) < 0) {   // Länge unbrauchbar: bis „endstream“
-      end = s.indexOf("endstream", a); if (end < 0) continue;
-      while (end > a && (s[end - 1] === "\n" || s[end - 1] === "\r")) end--;
-    }
-    let data = u.subarray(a, end);
+    const x = pdfStreamAt(s, u, i);
+    if (!x || tried.has(x.obj)) continue; tried.add(x.obj);
     try {
-      if (/\/FlateDecode/.test(dict)) data = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer());
-      const o = JSON.parse(td.decode(data));
+      const o = JSON.parse(td.decode(await pdfStreamData(u, x)));
       if (o && o.kind === "feibeitsblatt-draft") return o;
     } catch (e) { /* nächster Kandidat */ }
   }
@@ -2921,7 +2942,7 @@ async function selectSheet(code) {
   $("t-sel-code").textContent = fmtCode(code);
   $("t-sel-tasks").textContent = ""; $("t-sel-det").open = false;
   $("t-subs-body").textContent = ""; $("t-subs-sum").textContent = "";
-  setStatus($("t-del-status"), "", "");
+  setStatus($("t-del-status"), "", ""); setStatus($("t-export-status"), "", "");
   T.selSheet = null; T.subs = []; T.subsHidden = 0; $("t-subs-legend").classList.add("hidden");
   setStatus($("t-subs-status"), "Abgaben werden geladen und entschlüsselt …", "busy");
   try {
@@ -3114,6 +3135,306 @@ $("t-template").addEventListener("click", async () => {
     if (msgs.length) $("b-err").textContent = msgs.join(" ");
   } finally { busy(btn, false); }
 });
+/* ---------- Feibeitsblatt als PDF-Datei sichern und wieder laden (Lehrkraft) ----------
+ * Sichtbar: Titel, Hinweis, je Aufgabe Aufgabenstellung, Material (als Text), Bilder (als JPEG) und die Namen der
+ * PDF-Dateien. Im Hintergrund (eingebettete Dateien, im PDF-Programm unter „Anhänge“): der Datensatz feibeitsblatt.json
+ * (Kennzeichen /FbSheet 1, FlateDecode) mit Titel, Aufgaben, Musterlösungen, Material und den Angaben zu Bildern und
+ * Dateien samt Größe und SHA-256, dazu jede Bilddatei und jede PDF-Datei unverändert als eigener Stream (Kennzeichen
+ * /FbBlob (<exportId>-<k>)). Abgaben gehören nicht dazu. Beim Laden wird daraus der Blatt-Editor gefüllt; „Code
+ * generieren“ legt ein neues Blatt mit neuem Code an (die Bilder und Dateien werden wie bei „Als Vorlage“ hochgeladen). */
+const SHEET_PDF_MAX_BYTES = 80 * 1024 * 1024;   // Bilder ≤ 12 MB + PDF-Dateien ≤ 20 MB + Ansicht passen weit hinein
+const SHEET_REF_RE = /^[0-9a-f]{16}-\d{1,3}$/, SHA256_RE = /^[0-9a-f]{64}$/;
+const SHEET_PDF_HINT = "Bitte wählen Sie eine Datei, die Sie mit „Als PDF-Datei herunterladen“ gesichert haben.";
+const bytesSha256 = async (u8) => hexOf(new Uint8Array(await subtle.digest("SHA-256", u8)));
+async function deflateBytes(u8) {   // zlib-Format = FlateDecode; ohne CompressionStream bleibt der Datensatz unkomprimiert
+  if (typeof CompressionStream !== "function") return null;
+  try { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer()); } catch (e) { return null; }
+}
+// Bild → JPEG für die sichtbare Seite (weißer Hintergrund, längste Seite ≤ 1400 px); das Original steckt unverändert im Anhang
+async function pdfJpeg(blob) {
+  const src = await decodeImage(blob);
+  try {
+    const sw = src.naturalWidth || src.width, sh = src.naturalHeight || src.height;
+    if (!(sw > 0 && sh > 0)) throw new Error("decode");
+    const sc = Math.min(1, 1400 / Math.max(sw, sh)), w = Math.max(1, Math.round(sw * sc)), hh = Math.max(1, Math.round(sh * sc));
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = hh;
+    const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh); ctx.drawImage(src, 0, 0, w, hh);
+    const out = await new Promise((res) => cv.toBlob(res, "image/jpeg", 0.85));
+    if (!out) throw new Error("jpeg");
+    return { data: new Uint8Array(await out.arrayBuffer()), w, h: hh, sw, sh };
+  } finally {
+    if (src.close) { try { src.close(); } catch (e) { /* egal */ } }
+    if (src._url) URL.revokeObjectURL(src._url);
+  }
+}
+// Material für die sichtbare Seite: Absätze als reiner Text, Links mit ihrer Adresse in Klammern
+const materialPlain = (m) => cleanMaterial(m).map((runs) => runs.map((r) => (r.h && r.h !== r.t ? `${r.t} (${r.h})` : r.t)).join(""));
+// Nur ASCII (Umlaute umschrieben): für Dateinamen von Anhängen und Downloads – manche Systeme verwerfen sonst den Namen
+const UMLAUTS = { "ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss" };
+const pdfAscii = (str) => String(str).normalize("NFC").replace(/[äöüÄÖÜß]/g, (c) => UMLAUTS[c]).replace(/[–—]/g, "-")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]/g, "_");
+const IMG_EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+// Alles für die Sicherung zusammentragen: Datensatz + Original-Bytes jedes Bildes und jeder PDF-Datei (fehlt eines → Abbruch,
+// eine unvollständige Sicherung wäre schlimmer als keine)
+async function sheetPdfData(code, sheet, onStep) {
+  const exportId = hexOf(crypto.getRandomValues(new Uint8Array(8))), blobs = [], shows = new Map(), tasks = [];
+  let k = 0;
+  for (const [i, t] of (Array.isArray(sheet.tasks) ? sheet.tasks : []).entries()) {
+    const images = [], files = [], n = i + 1, key = String(n).padStart(2, "0");
+    for (const [j, m] of cleanImages(t.images).entries()) {
+      onStep(`Bild ${j + 1} zu Aufgabe ${n} wird geladen …`);
+      let blob;
+      try { blob = dataUrlToBlob(await loadImage(code, m.id)); if (!blob) throw new Error("decode"); }
+      catch (e) { throw new Error(`Bild ${j + 1} zu Aufgabe ${n} konnte nicht geladen werden`); }
+      const bytes = new Uint8Array(await blob.arrayBuffer()), ref = exportId + "-" + (++k);
+      try { shows.set(ref, await pdfJpeg(blob)); } catch (e) { /* nur die Ansicht fehlt – das Original steckt trotzdem in der Datei */ }
+      blobs.push({ ref, bytes, mime: blob.type, key: `${key}-bild${j + 1}`, name: `Aufgabe ${n} – Bild ${j + 1}.${IMG_EXT[blob.type] || "bin"}` });
+      images.push({ ref, mime: blob.type, w: m.w, h: m.h, mode: m.mode, alt: m.alt || "", bytes: bytes.length, sha256: await bytesSha256(bytes) });
+    }
+    for (const [j, f] of cleanFiles(t.files).entries()) {
+      onStep(`PDF-Datei ${j + 1} zu Aufgabe ${n} wird geladen …`);
+      let r;
+      try { r = await loadFile(code, f.id); } catch (e) { throw new Error(`PDF-Datei „${f.name}“ zu Aufgabe ${n} konnte nicht geladen werden`); }
+      const bytes = new Uint8Array(await r.blob.arrayBuffer()), ref = exportId + "-" + (++k);
+      blobs.push({ ref, bytes, mime: "application/pdf", key: `${key}-pdf${j + 1}`, name: `Aufgabe ${n} – ${f.name}` });
+      files.push({ ref, name: f.name, bytes: bytes.length, sha256: await bytesSha256(bytes) });
+    }
+    // Material in der Form des Servers ({t, f?, h?}) – genau wie gespeichert
+    const material = cleanMaterial(t.material).map((p) => p.map((r) => Object.assign({ t: r.t }, r.f ? { f: r.f } : null, r.h ? { h: r.h } : null)));
+    tasks.push({ text: String(t.text || ""), solution: String(t.solution || ""), material, images, files });
+  }
+  const rec = { kind: "feibeitsblatt-sheet", v: 1, app: "Feibeitsblatt", exportId, exportedAt: Date.now(), code, title: String(sheet.title || ""),
+    createdAt: Number.isFinite(sheet.createdAt) ? sheet.createdAt : null, tasks };
+  return { rec, blobs, shows };
+}
+// Datensatz + Dateien → PDF-Bytes (A4, mehrseitig, Helvetica/WinAnsi wie die anderen PDF-Dateien; ohne Bibliothek)
+async function makeSheetPdf(rec, blobs, shows) {
+  const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M, TOP = 64, BOTTOM = 60;
+  const pages = [{ ops: [], ims: new Set() }];
+  let y = TOP;
+  const cur = () => pages[pages.length - 1];
+  const newPage = () => { pages.push({ ops: [], ims: new Set() }); y = TOP; };
+  const text = (x, yy, str, size, bold, color) => cur().ops.push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - yy).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
+  const para = (str, size, bold, opts = {}) => {   // umbrechen, Seitenumbruch bei Bedarf
+    const lh = opts.lh || Math.round(size * 1.38), x = M + (opts.indent || 0);
+    for (const l of pdfWrap(str, size, bold, TW - (opts.indent || 0))) {
+      if (y + lh > H - BOTTOM) newPage();
+      y += lh; text(x, y, l, size, bold, opts.color);
+    }
+  };
+  const gap = (n) => { y += n; if (y > H - BOTTOM) newPage(); };
+  const tasks = rec.tasks, title = rec.title || "ohne Titel";
+  para("Feibeitsblatt: " + title, 17, true);
+  gap(4);
+  para(`Code ${fmtCode(rec.code)} · erstellt am ${fmtDT(rec.createdAt)} · ${tasks.length} ${tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · gesichert am ${fmtDT(rec.exportedAt)} Uhr`, 10.5, false, { color: "0.35 0.35 0.35" });
+  gap(14);
+  // Hinweiskasten: erst die Zeilen setzen, dann Rahmen und Text
+  const pad = 14, bsz = 10.5, blh = 14.5, items = [];
+  let dy = pad + 12;
+  items.push({ dy, str: "Diese PDF-Datei enthält das ganze Feibeitsblatt", size: 12, bold: true, color: "0 0.29 0.6" }); dy += 18;
+  pdfWrap("Im Hintergrund stecken Aufgaben, Material, Musterlösungen, Bilder und PDF-Dateien. Laden Sie genau diese Datei in der Lehrkräfte-Übersicht mit „Feibeitsblatt aus PDF-Datei laden“ hoch: Das Feibeitsblatt erscheint wieder zum Prüfen und bekommt beim Speichern einen neuen Code – zum Beispiel für eine Parallelklasse. Abgaben enthält die Datei nicht.", bsz, false, TW - 2 * pad)
+    .forEach((l) => { items.push({ dy, str: l, size: bsz, color: "0.1 0.15 0.25" }); dy += blh; });
+  dy += 4;
+  pdfWrap("Nicht an Schüler:innen weitergeben – die Datei enthält die Musterlösungen.", bsz, true, TW - 2 * pad)
+    .forEach((l) => { items.push({ dy, str: l, size: bsz, bold: true, color: "0.7 0.15 0.12" }); dy += blh; });
+  const bh = dy - blh + pad;
+  cur().ops.push(`0.93 0.96 1 rg 0 0.29 0.6 RG 1.2 w ${M.toFixed(2)} ${(H - y - bh).toFixed(2)} ${TW.toFixed(2)} ${bh.toFixed(2)} re B`);
+  items.forEach((it) => text(M + pad, y + it.dy, it.str, it.size, it.bold, it.color));
+  y += bh + 22;
+  const imgNames = new Map();
+  tasks.forEach((t, i) => {
+    if (y > H - BOTTOM - 90) newPage();   // Aufgabenkopf nicht ganz unten beginnen
+    para("Aufgabe " + (i + 1), 13, true);
+    gap(2);
+    para(t.text || "", 11, false, { color: "0.15 0.15 0.15" });
+    const mat = materialPlain(t.material);
+    if (mat.length) {
+      gap(6);
+      para("Material", 10.5, true, { color: "0.35 0.35 0.35" });
+      mat.forEach((pp) => { if (pp.trim()) para(pp, 10.5, false, { color: "0.2 0.2 0.2" }); else gap(7); });
+    }
+    t.images.forEach((im, j) => {
+      const sh = shows.get(im.ref), cap = `Bild ${j + 1}${im.alt ? ": " + im.alt : ""}${im.mode === "inline" ? "" : " (bei den Schüler:innen als Miniatur rechts)"}`;
+      gap(8);
+      if (!sh) { para(cap + " – kann hier nicht angezeigt werden, steckt aber in der Datei", 9.5, false, { color: "0.45 0.45 0.45" }); return; }
+      const inline = im.mode === "inline", maxW = inline ? TW : Math.min(TW, 220), maxH = inline ? 330 : 190;
+      const pw = sh.sw * 0.75, ph = sh.sh * 0.75, sc = Math.min(1, maxW / pw, maxH / ph), dw = pw * sc, dh = ph * sc;   // 96 dpi → pt
+      if (y + dh > H - BOTTOM) newPage();
+      if (!imgNames.has(im.ref)) imgNames.set(im.ref, "Im" + (imgNames.size + 1));
+      cur().ims.add(im.ref);
+      const yb = (H - y - dh).toFixed(2);
+      cur().ops.push(`q ${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${M.toFixed(2)} ${yb} cm /${imgNames.get(im.ref)} Do Q`);
+      cur().ops.push(`q 0.78 0.78 0.78 RG 0.5 w ${M.toFixed(2)} ${yb} ${dw.toFixed(2)} ${dh.toFixed(2)} re S Q`);
+      y += dh;
+      para(cap, 9.5, false, { color: "0.45 0.45 0.45" });
+    });
+    if (t.files.length) {
+      gap(8);
+      para(t.files.length === 1 ? "PDF-Datei zum Herunterladen (als Anhang in dieser Datei):" : "PDF-Dateien zum Herunterladen (als Anhänge in dieser Datei):", 10.5, true, { color: "0.35 0.35 0.35" });
+      t.files.forEach((f) => para(`• ${f.name} (${fmtKB(f.bytes)})`, 10.5, false, { indent: 10, color: "0.2 0.2 0.2" }));
+    }
+    gap(18);
+  });
+  const total = pages.length, short = title.length > 60 ? title.slice(0, 59) + "…" : title;
+  pages.forEach((pg, i) => pg.ops.push(`BT 0.45 0.45 0.45 rg /F1 9 Tf ${M.toFixed(2)} 36 Td ${pdfStr(`Feibeitsblatt · ${short} · Code ${fmtCode(rec.code)} · Seite ${i + 1} von ${total}`)} Tj ET`));
+  // Objekte: 1 Katalog, 2 Seitenbaum, 3/4 Schriften, 5 Info, 6/7 Datensatz (vorn, damit er vor allen Anhängen steht),
+  // dann je Anhang Stream + Dateibeschreibung, die Bildansichten und je Seite Seite + Inhalt
+  const json = te.encode(JSON.stringify(rec)), packed = await deflateBytes(json), data = packed || json;
+  let next = 6;
+  const dataObj = next++, dataSpec = next++;
+  const bl = blobs.map((b) => ({ ...b, obj: next++, spec: next++ }));
+  const xo = [...imgNames.keys()].map((ref) => ({ ref, name: imgNames.get(ref), obj: next++ }));
+  const pg = pages.map((p) => ({ ...p, obj: next++, content: next++ }));
+  const count = next, parts = [], offsets = [];
+  let pos = 0;
+  const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
+  const obj = (num, body) => { offsets[num] = pos; push(`${num} 0 obj\n`); (Array.isArray(body) ? body : [body]).forEach(push); push("\nendobj\n"); };
+  const t0 = new Date(rec.exportedAt), stamp = `${t0.getFullYear()}${pad2(t0.getMonth() + 1)}${pad2(t0.getDate())}${pad2(t0.getHours())}${pad2(t0.getMinutes())}${pad2(t0.getSeconds())}`;
+  const names = [["0-feibeitsblatt.json", dataSpec], ...bl.map((b) => [b.key, b.spec])].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
+  obj(1, `<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [${names.map(([k, n]) => `${pdfStr(k)} ${n} 0 R`).join(" ")}] >> >> /AF [${[dataSpec, ...bl.map((b) => b.spec)].map((n) => n + " 0 R").join(" ")}] >>`);
+  obj(2, `<< /Type /Pages /Kids [${pg.map((p) => p.obj + " 0 R").join(" ")}] /Count ${pg.length} >>`);
+  obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  obj(5, `<< /Title ${pdfUtf16("Feibeitsblatt – " + title)} /Subject ${pdfUtf16("Gesichertes Feibeitsblatt zum Wiederverwenden – enthält die Musterlösungen")} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  obj(dataObj, [`<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbSheet 1 /Params << /Size ${json.length} >>${packed ? " /Filter /FlateDecode" : ""} /Length ${data.length} >>\nstream\n`, data, "\nendstream"]);
+  obj(dataSpec, `<< /Type /Filespec /F (feibeitsblatt.json) /UF (feibeitsblatt.json) /Desc ${pdfUtf16("Feibeitsblatt: Aufgaben, Musterlösungen, Material, Angaben zu Bildern und Dateien")} /AFRelationship /Data /EF << /F ${dataObj} 0 R /UF ${dataObj} 0 R >> >>`);
+  for (const b of bl) {
+    obj(b.obj, [`<< /Type /EmbeddedFile /Subtype /${b.mime.replace("/", "#2F")} /FbBlob (${b.ref}) /Params << /Size ${b.bytes.length} >> /Length ${b.bytes.length} >>\nstream\n`, b.bytes, "\nendstream"]);
+    obj(b.spec, `<< /Type /Filespec /F ${pdfStr(pdfAscii(b.name))} /UF ${pdfUtf16(b.name)} /AFRelationship /Source /EF << /F ${b.obj} 0 R /UF ${b.obj} 0 R >> >>`);
+  }
+  for (const x of xo) {
+    const sh = shows.get(x.ref);
+    obj(x.obj, [`<< /Type /XObject /Subtype /Image /Width ${sh.w} /Height ${sh.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${sh.data.length} >>\nstream\n`, sh.data, "\nendstream"]);
+  }
+  for (const p of pg) {
+    const content = p.ops.join("\n"), xs = xo.filter((x) => p.ims.has(x.ref)).map((x) => `/${x.name} ${x.obj} 0 R`).join(" ");
+    obj(p.obj, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xs ? ` /XObject << ${xs} >>` : ""} >> /Contents ${p.content} 0 R >>`);
+    obj(p.content, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  }
+  const xref = pos;
+  let x = `xref\n0 ${count}\n0000000000 65535 f \n`;
+  for (let i = 1; i < count; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  push(x + `trailer\n<< /Size ${count} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const out = new Uint8Array(pos); let o = 0;
+  for (const b of parts) { out.set(b, o); o += b.length; }
+  return out;
+}
+const sheetPdfName = (rec) => {   // „Feibeitsblatt-K7Q-M4X-Titel.pdf“ – Titel nur ASCII (wie „Feibeitsblatt-Loesungen-…“), ohne Pfadzeichen, gekürzt
+  const t = pdfAscii(rec.title || "").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 60).trim().replace(/^\.+/, "");
+  return `Feibeitsblatt-${fmtCode(rec.code)}${t ? "-" + t : ""}.pdf`;
+};
+$("t-export").addEventListener("click", async () => {
+  if (!T.selSheet) return;
+  const btn = $("t-export"), st = $("t-export-status"), code = T.sel, sheet = T.selSheet;
+  busy(btn, true, "PDF-Datei wird erstellt …");
+  setStatus(st, "PDF-Datei wird erstellt …", "busy");
+  try {
+    const { rec, blobs, shows } = await sheetPdfData(code, sheet, (msg) => { if (T.sel === code) setStatus(st, msg, "busy"); });
+    const pdf = await makeSheetPdf(rec, blobs, shows);
+    downloadBlob(new Blob([pdf], { type: "application/pdf" }), sheetPdfName(rec));
+    if (T.sel === code) setStatus(st, `Die PDF-Datei (${fmtKB(pdf.length)}) wird heruntergeladen. Bewahren Sie sie gut auf – sie enthält auch die Musterlösungen.`, "ok");
+  } catch (e) {
+    if (T.sel === code) setStatus(st, `Die PDF-Datei konnte nicht erstellt werden${e && e.message && !(e instanceof ApiError) ? " (" + e.message + ")" : ""}. Bitte versuchen Sie es erneut.`, "bad");
+  } finally { busy(btn, false); }
+});
+/* Gesicherte Feibeitsblatt-PDF lesen. Steckt in einer angehängten PDF-Datei selbst eine Sicherung (Sicherung als Material),
+   liegt deren Datensatz innerhalb eines Anhangs der äußeren Sicherung – dann gilt die äußere. */
+function cleanSheetRecord(o) {   // fremde Daten prüfen und kappen (wie die Eingabefelder), sonst null
+  if (!o || typeof o !== "object" || o.kind !== "feibeitsblatt-sheet" || o.v !== 1 || !Array.isArray(o.tasks)) return null;
+  const str = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+  const size = (v) => (Number.isInteger(v) && v >= 0 ? v : -1), sha = (v) => (typeof v === "string" && SHA256_RE.test(v) ? v : "");
+  const tasks = o.tasks.slice(0, 30).filter((t) => t && typeof t === "object").map((t) => ({
+    text: str(t.text, 4000), solution: str(t.solution, 8000), material: cleanMaterial(t.material),
+    images: (Array.isArray(t.images) ? t.images : []).filter((m) => m && typeof m.ref === "string" && SHEET_REF_RE.test(m.ref) && IMAGE_MIME_RE.test(String(m.mime))).slice(0, IMG_PER_TASK)
+      .map((m) => ({ ref: m.ref, mime: m.mime, mode: m.mode === "inline" ? "inline" : "thumb", alt: str(m.alt, 200), bytes: size(m.bytes), sha256: sha(m.sha256) })),
+    files: (Array.isArray(t.files) ? t.files : []).filter((f) => f && typeof f.ref === "string" && SHEET_REF_RE.test(f.ref)).slice(0, FILES_PER_TASK)
+      .map((f) => ({ ref: f.ref, name: safeFileName(f.name), bytes: size(f.bytes), sha256: sha(f.sha256) }))
+  }));
+  if (!tasks.length) return null;
+  return { title: str(o.title, 200).replace(/\s+/g, " ").trim(), code: normCode(o.code).slice(0, 6), tasks,
+    createdAt: Number.isFinite(o.createdAt) ? o.createdAt : null, exportedAt: Number.isFinite(o.exportedAt) ? o.exportedAt : null };
+}
+async function readSheetPdf(buf) {
+  const u = new Uint8Array(buf), s = pdfLatin1(u);
+  if (s.slice(0, 5) !== "%PDF-") throw new Error("nopdf");
+  const recs = [];
+  for (let i = s.indexOf("/FbSheet 1"), tries = 0; i >= 0 && tries < 20; i = s.indexOf("/FbSheet 1", i + 1), tries++) {
+    const x = pdfStreamAt(s, u, i); if (!x) continue;
+    let o = null;
+    try { o = cleanSheetRecord(JSON.parse(td.decode(await pdfStreamData(u, x)))); } catch (e) { o = null; }
+    if (!o) continue;
+    const blobs = new Map(), ranges = [];
+    for (const ref of o.tasks.flatMap((t) => [...t.images.map((m) => m.ref), ...t.files.map((f) => f.ref)])) {
+      const j = s.indexOf("/FbBlob (" + ref + ")"); if (j < 0) continue;
+      const y = pdfStreamAt(s, u, j); if (!y) continue;
+      try { blobs.set(ref, await pdfStreamData(u, y)); ranges.push([y.start, y.end]); } catch (e) { /* fehlt – wird beim Laden gemeldet */ }
+    }
+    recs.push({ o, at: x.start, blobs, ranges });
+  }
+  if (!recs.length) throw new Error(s.indexOf("/FbDraft 1") >= 0 ? "draft" : "nosheet");
+  return recs.find((r) => !recs.some((q) => q !== r && q.ranges.some(([a, b]) => r.at >= a && r.at < b))) || recs[0];
+}
+async function sheetBlobOk(b, meta, max) {   // Größe und Prüfsumme wie im Datensatz
+  if (!b || !b.length || b.length > max) return false;
+  if (meta.bytes >= 0 && b.length !== meta.bytes) return false;
+  return !meta.sha256 || (await bytesSha256(b)) === meta.sha256;
+}
+async function sheetPdfImage(m, b) {   // Bild aus der Sicherung → Eintrag für den Blatt-Editor (nur, wenn der Browser es lesen kann)
+  if (!(await sheetBlobOk(b, m, IMG_MAX_BYTES))) return null;
+  const blob = new Blob([b], { type: m.mime });
+  let src;
+  try { src = await decodeImage(blob); } catch (e) { return null; }
+  const w = src.naturalWidth || src.width, hh = src.naturalHeight || src.height;
+  if (src.close) { try { src.close(); } catch (e) { /* egal */ } }
+  if (src._url) URL.revokeObjectURL(src._url);
+  if (!(w > 0 && hh > 0) || w > 4096 || hh > 4096) return null;
+  return { blob, mime: m.mime, w, h: hh, mode: m.mode, alt: m.alt, url: URL.createObjectURL(blob) };
+}
+async function importSheetPdf(file) {
+  const st = $("t-import-status"), btn = $("t-import");
+  if (btn.disabled) return;
+  if (file.size > SHEET_PDF_MAX_BYTES) { setStatus(st, `Die Datei ist zu groß (höchstens ${Math.round(SHEET_PDF_MAX_BYTES / 1024 / 1024)} MB). ` + SHEET_PDF_HINT, "bad"); return; }
+  busy(btn, true, "PDF-Datei wird gelesen …");
+  setStatus(st, "Die PDF-Datei wird gelesen …", "busy");
+  try {
+    let r;
+    try { r = await readSheetPdf(await file.arrayBuffer()); }
+    catch (e) {
+      const m = e && e.message;
+      setStatus(st, (m === "draft" ? "Das ist ein Zwischenstand von Schüler:innen, kein gesichertes Feibeitsblatt. " : m === "nopdf" ? "Das ist keine PDF-Datei. "
+        : m === "nosheet" ? "In dieser PDF-Datei steckt kein Feibeitsblatt. " : "Die PDF-Datei konnte nicht gelesen werden. ") + SHEET_PDF_HINT, "bad");
+      return;
+    }
+    const o = r.o, rows = [];
+    let lostImg = 0, lostFile = 0;
+    for (const t of o.tasks) {
+      const images = [], files = [];
+      for (const m of t.images) { const im = await sheetPdfImage(m, r.blobs.get(m.ref)); if (im) images.push(im); else lostImg++; }
+      for (const f of t.files) {
+        const b = r.blobs.get(f.ref);
+        if (await sheetBlobOk(b, f, FILE_MAX_BYTES) && String.fromCharCode.apply(null, b.subarray(0, 5)) === "%PDF-") files.push({ blob: new Blob([b], { type: "application/pdf" }), name: f.name, size: b.length });
+        else lostFile++;
+      }
+      rows.push({ text: t.text, solution: t.solution, material: t.material, images, files });
+    }
+    setStatus(st, "", "");
+    openBuilder(o.title, rows);
+    const note = $("b-import");
+    note.textContent = `„${o.title || "Feibeitsblatt"}“ wurde aus der PDF-Datei geladen` +
+      (o.code ? ` (bisheriger Code ${fmtCode(o.code)}${o.exportedAt ? ", gesichert am " + fmtDT(o.exportedAt) + " Uhr" : ""})` : "") +
+      ". Prüfen oder ändern Sie Titel und Aufgaben – etwa die Klasse im Titel – und klicken Sie dann auf „Code generieren“. Das Feibeitsblatt bekommt einen neuen Code; seine Abgaben erscheinen in der Übersicht getrennt vom bisherigen Blatt.";
+    note.classList.remove("hidden");
+    const lost = [];
+    if (lostImg) lost.push(`${lostImg === 1 ? "Ein Bild" : lostImg + " Bilder"}`);
+    if (lostFile) lost.push(`${lostFile === 1 ? "eine PDF-Datei" : lostFile + " PDF-Dateien"}`);
+    if (lost.length) $("b-err").textContent = `${lost.join(" und ")} aus der PDF-Datei ${lostImg + lostFile === 1 ? "war" : "waren"} beschädigt oder nicht lesbar und ${lostImg + lostFile === 1 ? "fehlt" : "fehlen"} hier.`;
+  } catch (e) {
+    setStatus(st, "Die PDF-Datei konnte nicht gelesen werden. " + SHEET_PDF_HINT, "bad");
+  } finally { busy(btn, false); }
+}
+$("t-import").addEventListener("click", () => { const f = $("t-import-file"); f.value = ""; f.click(); });
+$("t-import-file").addEventListener("change", () => { const f = $("t-import-file").files; if (f && f[0]) importSheetPdf(f[0]); });
 /* „Die eine Abgabe“, „Alle 4 Abgaben und Erstversuche“ … (Subjekt für Lösch-Dialoge) */
 function subsNoun(n, firsts) {
   if (n === 1) return firsts ? "Der eine Erstversuch" : "Die eine Abgabe";
@@ -3161,7 +3482,7 @@ $("t-del-sheet").addEventListener("click", async () => {
 function openBuilder(title, rows) {
   teacherView("tv-builder");
   $("b-form").classList.remove("hidden"); $("b-result").classList.add("hidden");
-  $("b-err").textContent = "";
+  $("b-err").textContent = ""; $("b-import").classList.add("hidden"); $("b-import").textContent = "";
   const d = new Date(); $("b-today").textContent = fmtD(d);
   $("b-title").value = title || "";
   Array.from($("b-rows").children).forEach((tr) => (tr._images || []).forEach((im) => URL.revokeObjectURL(im.url)));   // alte Vorschauen freigeben
