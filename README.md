@@ -169,11 +169,32 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
    Beachten Sie: Kürzel, Geburtsdatum, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
    Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt.
-6. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche
+6. **Als PDF-Datei sichern und wiederverwenden.** Bei einem ausgewählten Feibeitsblatt lädt „Als PDF-Datei
+   herunterladen“ eine PDF-Datei herunter (`Feibeitsblatt-<Code>-<Titel>.pdf`, Umlaute im Namen umschrieben). Sie zeigt Titel, Aufgabenstellungen,
+   Material (als Text, Links mit Adresse) und die Bilder; die Namen angehängter PDF-Dateien stehen darunter. Im
+   Hintergrund enthält sie **alles**, was zum Wiederherstellen nötig ist: Aufgaben, **Musterlösungen**, Material mit
+   Formatierung und Links, jedes Bild in Originalqualität mit Anzeigeart und Bildbeschreibung und jede PDF-Datei
+   unverändert – jeweils mit Prüfsumme. Im PDF-Programm erscheinen diese Daten als Anhänge. Abgaben der Schüler:innen
+   enthält die Datei nicht. Weil die Musterlösungen darin stecken, geben Sie die Datei bitte nicht an Schüler:innen
+   weiter; auf der ersten Seite steht dazu ein Hinweis. Mit **„Feibeitsblatt aus PDF-Datei laden“** (oben neben
+   „Neues Feibeitsblatt erstellen“) wählen Sie eine solche Datei aus. Der Editor öffnet sich mit allen Aufgaben,
+   Musterlösungen, Materialien, Bildern und PDF-Dateien. Sie können dort noch etwas ändern, etwa die Klasse im
+   Titel, und klicken dann „Code generieren“: Das Feibeitsblatt bekommt einen **neuen Code**. So bearbeiten zwei
+   Klassen desselben Jahrgangs dasselbe Feibeitsblatt mit verschiedenen Codes, und die Übersicht zeigt ihre Abgaben
+   getrennt. Das funktioniert auch, nachdem Sie das ursprüngliche Blatt gelöscht haben. Auch eine Datei, die ein
+   PDF-Programm neu gespeichert hat, lässt sich in der Regel laden. Ein Ausdruck oder Screenshot enthält die Daten
+   aber nicht. Bilder oder Dateien, die in der Datei fehlen oder beschädigt sind (Prüfsumme falsch), lässt die Seite
+   mit einem Hinweis weg. Eine solche Sicherung und ein Zwischenstand von Schüler:innen lassen sich nicht als
+   PDF-Material an eine Aufgabe hängen – sonst bekämen Schüler:innen die Musterlösungen bzw. fremde Angaben. Sichtbar in
+   der PDF sind nur Zeichen des Zeichensatzes Windows-1252; andere Zeichen, z. B. griechische Buchstaben oder Emoji,
+   erscheinen dort als „?“. In den Hintergrunddaten bleiben sie erhalten.
+7. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche
    werden mitgelöscht). Ohne diesen Klick bleiben die Abgaben verschlüsselt gespeichert. Darunter: „Feibeitsblatt
-   selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu.
-7. **Weitere Schaltflächen** oben: „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und
-   „Abmelden“.
+   selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu. Wollen Sie ein Blatt später
+   wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6).
+8. **Weitere Schaltflächen** oben: „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und
+   „Abmelden“. Unter der Tabelle zeigt die Übersicht, wie viel Speicher Bilder und PDF-Dateien aller
+   Feibeitsblätter zusammen belegen (höchstens 200 MB).
 
 ## Einrichtung (einmalig)
 
@@ -652,6 +673,8 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | KI-Feedback-Anfragen je Feibeitsblatt | 300 pro Tag |
 | Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
+| Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
+| Bilder und PDF-Dateien aller Feibeitsblätter zusammen | 200 MB (die Übersicht zeigt den belegten Speicher) |
 
 Diese Zähler gelten je Netzwerkadresse, im Schulnetz also meist für die ganze Schule zusammen; mehrere Klassen
 parallel können die Stundenlimits erreichen. Die Meldungen lauten dann „Gerade wurden von diesem Netzwerk sehr

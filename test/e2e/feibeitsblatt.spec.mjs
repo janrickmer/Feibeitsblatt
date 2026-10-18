@@ -3,6 +3,8 @@
 // die Oberfläche). Die Tests bauen aufeinander auf (eine Datenbank, eine Lehrkraft) → seriell, ein Worker.
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { inflateSync, deflateSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { expectedResults } from "../mock-ai.mjs";
 import { deriveTeacherKeys, makeEnvelope } from "../smoke.mjs";
 import { makePng } from "../png.mjs";
@@ -1171,6 +1173,163 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await confirmDialog(page, "Feibeitsblatt löschen?");
   await expect(page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   await expect(page.locator("#t-sheets-body tr", { hasText: S.shown })).toHaveCount(1);
+  await closePage(t);
+});
+
+// Stream mit Kennzeichen (z. B. „/FbBlob (…)“) aus einer von Feibeitsblatt erzeugten PDF: {start, len, dict}
+function pdfStream(pdf, mark) {
+  const s = pdf.toString("latin1"), j = s.indexOf(mark);
+  expect(j, mark).toBeGreaterThan(0);
+  const obj = s.lastIndexOf(" obj", j) + 4, st = s.indexOf("stream\n", j);
+  const dict = s.slice(obj, st);
+  return { obj, dict, start: st + 7, len: +/\/Length (\d+)/.exec(dict)[1] };
+}
+// Wie ein PDF-Programm, das neu speichert: Wörterbuch und Daten eines Streams ändern; lenRef = Länge als Verweis ans Dateiende
+function editStream(pdf, mark, { dict = (d) => d, data = (b) => b, lenRef = 0 } = {}) {
+  const x = pdfStream(pdf, mark), body = data(Buffer.from(pdf.subarray(x.start, x.start + x.len)));
+  const d = dict(x.dict).replace(/\/Length \d+/, lenRef ? `/Length ${lenRef} 0 R` : "/Length " + body.length);
+  const eof = pdf.toString("latin1").lastIndexOf("%%EOF");
+  return Buffer.concat([pdf.subarray(0, x.obj), Buffer.from(d + "stream\n", "latin1"), body, pdf.subarray(x.start + x.len, eof),
+    Buffer.from((lenRef ? `${lenRef} 0 obj\n${body.length}\nendobj\n` : "") + "%%EOF\n", "latin1")]);
+}
+
+test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen → neuer Code mit denselben Aufgaben, Musterlösungen, Material, Bildern und PDF-Dateien", async ({ browser }) => {
+  const t = await openPage(browser);
+  const { page } = t;
+  await teacherLogin(page, PW);
+  await expect(page.locator("#t-storage")).toHaveText(/^Bilder und PDF-Dateien aller Feibeitsblätter belegen \d+(,\d)? (KB|MB) von 200 MB\.$/);
+  await expect(page.locator("#t-storage")).not.toHaveClass(/bad/);
+  await page.locator("#t-sheets-body tr", { hasText: S.shown }).click();
+  await expect(page.locator("#t-sel-meta")).toContainText("3 Aufgaben");
+
+  // Sichern: Dateiname mit Code und Titel; sichtbar Aufgaben, Bilder (als JPEG) und Hinweis; im Hintergrund alles
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#t-export")]);
+  expect(dl.suggestedFilename()).toBe(`Feibeitsblatt-${S.shown}-Das Gewissen - Ethik.pdf`);   // Titel nur ASCII („–“ → „-“)
+  await expect(page.locator("#t-export-status")).toHaveText(/^Die PDF-Datei \(\d+(,\d)? (KB|MB)\) wird heruntergeladen\. Bewahren Sie sie gut auf – sie enthält auch die Musterlösungen\.$/);
+  const pdf = await readFile(await dl.path()), text = pdf.toString("latin1");
+  expect(text.startsWith("%PDF-1.7")).toBe(true);
+  expect((text.match(/\/Subtype \/Image /g) || []).length).toBe(2);   // beide Bilder sichtbar
+  expect(text).toContain("/Filter /DCTDecode");
+  expect(text).toContain("(Aufgabe 1) Tj");
+  expect(text).toContain("(Nicht an Sch\\374ler:innen weitergeben");   // Warnung (fett, rot) – Umbruch je nach Breite
+  const dx = pdfStream(pdf, "/FbSheet 1");
+  expect(dx.dict).toContain("/Filter /FlateDecode");
+  const rec = JSON.parse(inflateSync(pdf.subarray(dx.start, dx.start + dx.len)).toString("utf8"));
+  expect(rec).toMatchObject({ kind: "feibeitsblatt-sheet", v: 1, code: S.code, title: TITLE });
+  expect(rec.exportId).toMatch(/^[0-9a-f]{16}$/);
+  expect(rec.tasks.map((x) => [x.text, x.solution])).toEqual(TASKS.map((x) => [x.text, x.solution]));
+  expect(rec.tasks.map((x) => x.material)).toEqual(S.material);
+  expect(rec.tasks[0].images.map((m) => [m.mode, m.alt, m.mime, m.w, m.h])).toEqual(S.imgs.map((m) => [m.mode, m.alt, m.mime, m.w, m.h]));
+  expect(rec.tasks.map((x) => x.images.length)).toEqual([2, 0, 0]);
+  const sha = (b) => createHash("sha256").update(b).digest("hex");
+  expect(rec.tasks.map((x) => x.files)).toEqual([[], [{ ref: rec.exportId + "-3", name: PDF_NAME, bytes: PDF_BUF.length, sha256: sha(PDF_BUF) }], []]);
+  const blob = (ref) => { const x = pdfStream(pdf, "/FbBlob (" + ref + ")"); return pdf.subarray(x.start, x.start + x.len); };
+  expect(blob(rec.tasks[1].files[0].ref).equals(PDF_BUF)).toBe(true);   // PDF-Datei unverändert angehängt
+  for (const [k, m] of rec.tasks[0].images.entries()) {   // Bilder: Original-Bytes wie auf dem Server, Prüfsumme stimmt
+    const srv = Buffer.from((await (await page.request.get("/api/sheet/" + S.code + "/images/" + S.imgs[k].id)).json()).data, "base64");
+    expect(blob(m.ref).equals(srv)).toBe(true);
+    expect([m.bytes, m.sha256]).toEqual([srv.length, sha(srv)]);
+  }
+  for (const p of [...A.first, ...A.final, A.person.vorname, "2009-05-04"]) expect(JSON.stringify(rec)).not.toContain(p);   // keine Abgaben
+
+  // eine fremde PDF und ein Zwischenstand von Schüler:innen → Meldung, der Editor öffnet sich nicht
+  await page.setInputFiles("#t-import-file", { name: "fremd.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n") });
+  await expect(page.locator("#t-import-status")).toHaveText("In dieser PDF-Datei steckt kein Feibeitsblatt. Bitte wählen Sie eine Datei, die Sie mit „Als PDF-Datei herunterladen“ gesichert haben.");
+  await page.setInputFiles("#t-import-file", { name: "z.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n9 0 obj\n<< /Type /EmbeddedFile /FbDraft 1 /Length 2 >>\nstream\n{}\nendstream\nendobj\n%%EOF\n") });
+  await expect(page.locator("#t-import-status")).toHaveText(/^Das ist ein Zwischenstand von Schüler:innen, kein gesichertes Feibeitsblatt\./);
+  await expect(page.locator("#tv-overview")).toBeVisible();
+
+  // ein beschädigtes Bild (Prüfsumme falsch) wird mit Hinweis weggelassen, der Rest geladen; zurück zur Übersicht
+  const [img1, img2] = rec.tasks[0].images.map((m) => m.ref), fileRef = rec.tasks[1].files[0].ref;
+  const damaged = editStream(pdf, "/FbBlob (" + img2 + ")", { data: (b) => { b[b.length - 10] ^= 0xff; return b; } });
+  await page.setInputFiles("#t-import-file", { name: "beschaedigt.pdf", mimeType: "application/pdf", buffer: damaged });
+  await expect(page.locator("#tv-builder")).toBeVisible();
+  await expect(page.locator("#b-err")).toHaveText("Ein Bild aus der PDF-Datei war beschädigt oder nicht lesbar und fehlt hier.");
+  await expect(page.locator("#b-rows > tr").nth(0).locator(".bimg")).toHaveCount(1);
+  await expect(page.locator("#b-rows > tr").nth(1).locator(".bfile")).toHaveCount(1);
+  await page.click("#b-back");
+  await expect(page.locator("#tv-overview")).toBeVisible();
+  await expect(page.locator("#t-import-status")).toHaveText("");
+
+  // Laden einer „neu gespeicherten“ Fassung, wie sie PDF-Programme schreiben: die angehängte PDF-Datei komprimiert, das
+  // Kennzeichen kompakt („/FbBlob(…)“, Bindestrich oktal maskiert), Länge als Verweis; bei Bild 1 fehlt das Kennzeichen
+  // ganz (wird über Größe und Prüfsumme gefunden) – der Editor wird trotzdem vollständig gefüllt
+  let resaved = editStream(pdf, "/FbBlob (" + fileRef + ")", { lenRef: 999, data: (b) => deflateSync(b),
+    dict: (d) => d.replace("/FbBlob (" + fileRef + ")", "/FbBlob(" + fileRef.replace("-", "\\055") + ")").replace("/Length", "/Filter/FlateDecode/Length") });
+  resaved = editStream(resaved, "/FbBlob (" + img1 + ")", { dict: (d) => d.replace("/FbBlob (", "/XxBlob (") });
+  // dieselbe Objektnummer der Länge kommt vorher noch einmal mit anderem Wert vor (wie in einer angehängten PDF-Datei)
+  const hdr = resaved.indexOf("\n", 9) + 1;
+  resaved = Buffer.concat([resaved.subarray(0, hdr), Buffer.from("999 0 obj\n43\nendobj\n", "latin1"), resaved.subarray(hdr)]);
+  expect(resaved.toString("latin1")).toContain("/FbBlob(" + fileRef.slice(0, 16) + "\\0553)");
+  expect(resaved.toString("latin1")).toContain("/Filter/FlateDecode/Length 999 0 R");
+  expect(resaved.toString("latin1")).not.toContain("/FbBlob (" + img1 + ")");
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("#t-import")]);   // Button öffnet die Dateiauswahl
+  await chooser.setFiles({ name: "Feibeitsblatt.pdf", mimeType: "application/pdf", buffer: resaved });
+  await expect(page.locator("#tv-builder")).toBeVisible();
+  await expect(page.locator("#t-import-status")).toHaveText("");
+  await expect(page.locator("#b-import")).toBeVisible();
+  await expect(page.locator("#b-import")).toContainText(`„${TITLE}“ wurde aus der PDF-Datei geladen (bisheriger Code ${S.shown}, gesichert am `);
+  await expect(page.locator("#b-import")).toContainText("bekommt einen neuen Code");
+  await expect(page.locator("#b-err")).toHaveText("");
+  await expect(page.locator("#b-title")).toHaveValue(TITLE);
+  const rows = page.locator("#b-rows > tr");
+  await expect(rows).toHaveCount(3);
+  for (let i = 0; i < 3; i++) {
+    await expect(rows.nth(i).locator("textarea.q:not(.measure)")).toHaveValue(TASKS[i].text);
+    await expect(rows.nth(i).locator("textarea.s:not(.measure)")).toHaveValue(TASKS[i].solution);
+  }
+  await expect(rows.nth(0).locator(".bmat-edit b")).toHaveText("Textauszug");
+  await expect(rows.nth(0).locator(".bimg")).toHaveCount(2);
+  await expect(rows.nth(0).locator(".bimg-mode").nth(0)).toHaveValue("thumb");
+  await expect(rows.nth(0).locator(".bimg-mode").nth(1)).toHaveValue("inline");
+  await expect(rows.nth(0).locator(".bimg-alt").nth(0)).toHaveValue("Skizze: Zelle mit Zellkern");
+  await expect(rows.nth(0).locator(".bimg").nth(0).locator(".bimg-meta")).toHaveText(/^1600 × 800 px · \d+ KB$/);
+  await expect(rows.nth(1).locator(".bfile-name")).toHaveText(PDF_NAME);
+  await expect(rows.nth(2).locator(".bimg, .bfile")).toHaveCount(0);
+  // die Sicherung selbst (mit Musterlösungen) lässt sich nicht als Material für Schüler:innen anhängen
+  await rows.nth(2).locator("input.bfile-input").setInputFiles({ name: "Sicherung.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(rows.nth(2).locator(".bfile-stat")).toHaveText("„Sicherung.pdf“: Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Musterlösungen und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
+  await expect(rows.nth(2).locator(".bfile")).toHaveCount(0);
+  // … auch dann nicht, wenn ein PDF-Programm das Kennzeichen /FbSheet entfernt hat (erkannt am eingebetteten Datensatz)
+  const unmarked = editStream(pdf, "/FbSheet 1", { dict: (d) => d.replace("/FbSheet 1", "/XxSheet 1") });
+  expect(unmarked.toString("latin1")).not.toContain("/FbSheet");
+  await rows.nth(2).locator("input.bfile-input").setInputFiles({ name: "Sicherung2.pdf", mimeType: "application/pdf", buffer: unmarked });
+  await expect(rows.nth(2).locator(".bfile-stat")).toContainText("„Sicherung2.pdf“: Das ist eine gesicherte Feibeitsblatt-Datei");
+  await expect(rows.nth(2).locator(".bfile")).toHaveCount(0);
+
+  // neuer Titel für die Parallelgruppe → neues Blatt mit neuem Code; Bilder und PDF-Datei werden hochgeladen
+  // (nicht „…klasse“: Test 5 sucht dieses Wort als Klartext-Feldnamen im Datenbankordner)
+  const TITLE2 = TITLE + " – Kurs B";
+  await page.fill("#b-title", TITLE2);
+  await page.click("#b-gen");
+  await expect(page.locator("#b-result")).toBeVisible();
+  await expect(page.locator("#b-res-img")).toHaveText("2 Bilder und 1 PDF-Datei sind gespeichert.", { timeout: 60_000 });
+  const newCode = (await page.locator("#b-res-code").textContent()).trim().replace("-", "");
+  expect(newCode).not.toBe(S.code);
+  const [row] = await d1Query(`SELECT title, tasks FROM sheets WHERE code='${newCode}'`);
+  expect(row.title).toBe(TITLE2);
+  expect(JSON.parse(row.tasks).map((x) => [x.text, x.solution, x.material || []])).toEqual(rec.tasks.map((x) => [x.text, x.solution, x.material]));
+  const pub = await (await page.request.get("/api/sheet/" + newCode)).json();
+  expect(pub.sheet.tasks[0].images.map((m) => [m.mode, m.alt, m.w, m.h])).toEqual(S.imgs.map((m) => [m.mode, m.alt, m.w, m.h]));
+  for (const [k, m] of pub.sheet.tasks[0].images.entries()) {
+    const a = await (await page.request.get("/api/sheet/" + newCode + "/images/" + m.id)).json(), b = await (await page.request.get("/api/sheet/" + S.code + "/images/" + S.imgs[k].id)).json();
+    expect(a.data).toBe(b.data);   // byte-genau dasselbe Bild
+  }
+  const f = pub.sheet.tasks[1].files[0];
+  expect([pub.sheet.tasks[1].files.length, f.name, f.bytes]).toEqual([1, PDF_NAME, PDF_BUF.length]);
+  const p0 = await (await page.request.get(`/api/sheet/${newCode}/files/${f.id}`)).json(), p1 = await (await page.request.get(`/api/sheet/${newCode}/files/${f.id}?part=1`)).json();
+  expect(Buffer.concat([Buffer.from(p0.data, "base64"), Buffer.from(p1.data, "base64")]).equals(PDF_BUF)).toBe(true);
+
+  // Übersicht: zwei getrennte Blätter, das neue ohne Abgaben; das alte bleibt unverändert. Danach das neue wieder löschen
+  await page.click("#b-res-back");
+  const fmt = (c) => c.slice(0, 3) + "-" + c.slice(3);
+  await expect(page.locator("#t-sel-code")).toHaveText(fmt(newCode));
+  await expect(page.locator("#t-sheets-body tr", { hasText: fmt(newCode) }).locator("td").nth(4)).toHaveText("0");
+  await expect(page.locator("#t-sheets-body tr", { hasText: S.shown }).locator("td").nth(4)).toHaveText(/^3 \+1/);
+  await page.click("#t-del-sheet");
+  await confirmDialog(page, "Feibeitsblatt löschen?");
+  await expect(page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await expect(page.locator("#t-sheets-body tr")).toHaveCount(1);
   await closePage(t);
 });
 
