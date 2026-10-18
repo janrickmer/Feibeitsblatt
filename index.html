@@ -125,6 +125,16 @@
   .st-first{color:#b85c00; font-weight:600}   /* Erstversuch ohne Überarbeitung */
   .st-final{color:var(--green); font-weight:600}   /* Abgabe nach der Überarbeitung */
   .legend{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:4px 0 8px}
+  .fbwait{font-family:var(--sans); font-size:13px; color:var(--muted); margin:4px 0 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+  .done-check{width:104px; height:104px; margin:6px auto 2px; display:block}
+  .done-check circle{fill:var(--green)}
+  .done-check path{fill:none; stroke:#fff; stroke-width:7; stroke-linecap:round; stroke-linejoin:round}
+  .donehint{font-family:var(--sans); font-size:13.5px; color:var(--ink); margin:14px 0 4px; text-align:left}
+  .donelist{font-family:var(--sans); font-size:13.5px; color:var(--muted); margin:0 0 14px; padding-left:22px; text-align:left}
+  .donelist li{margin:4px 0}
+  .provinfo2{margin-top:8px}
+  .checkrow{display:flex; gap:8px; align-items:flex-start; font-family:var(--sans); font-size:13.5px}
+  .checkrow input{margin-top:3px}
   .notebox{margin:12px 0 0; padding:12px 16px; background:var(--soft); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; font-size:14px; line-height:1.5}
 
   /* ---------- Schreibfläche (Topbar, Papier, Aufgaben) ----------
@@ -540,6 +550,7 @@
         <button type="button" class="btn" id="fb-btn">KI um ein Feedback bitten</button>
         <p class="privacy" id="privacy"></p>
         <p class="status" id="fb-status" aria-live="polite"></p>
+        <div class="fbwait hidden" id="fb-wait"><span id="fb-wait-num" aria-hidden="true"></span><button type="button" class="linkbtn" id="fb-wait-stop">Nicht länger warten</button></div>
         <div class="notebox hidden" id="fb-fallback" role="status"></div>
         <div class="moodle-hint hidden" id="revise-hint" role="status" tabindex="-1"></div>
         <div class="submitrow">
@@ -557,10 +568,18 @@
   <div class="start-wrap">
     <div class="card">
       <p class="brand">Feibeitsblatt</p>
-      <h1 id="done-h">Abgegeben</h1>
+      <svg class="done-check" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="31"/><path d="M18 33.5 L27.5 43 L46 22"/></svg>
+      <h1 id="done-h">Abgabe erfolgreich</h1>
       <p class="sub">Deine Lösung ist bei deiner Lehrkraft angekommen.</p>
       <p class="donetime" id="done-time"></p>
-      <button type="button" class="btn block" id="done-btn">Neues Feibeitsblatt öffnen</button>
+      <button type="button" class="btn block" id="done-pdf">Meine Lösungen als PDF herunterladen</button>
+      <p class="donehint">Lade dir zur Sicherheit deine Lösungen als PDF-Datei herunter und speichere sie in deinen Unterlagen – aus zwei Gründen:</p>
+      <ol class="donelist">
+        <li>Falls es doch zu technischen Problemen kommt und deine Abgabe die Lehrkraft nicht erreicht, kannst du deine Lösungen vorzeigen.</li>
+        <li>Alle Lösungen brauchst du zum Lernen für die Klausur, die Klassenarbeit bzw. den schriftlichen Leistungsnachweis – darum gehören sie in deine Unterlagen.</li>
+      </ol>
+      <p class="status" id="done-status" aria-live="polite"></p>
+      <button type="button" class="btn ghost block" id="done-btn">Neues Feibeitsblatt öffnen</button>
     </div>
   </div>
 </section>
@@ -740,7 +759,7 @@
         </div>
         <div class="provinfo note" data-prov="groq">
           <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
-          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Musterlösungen ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI unten. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Musterlösungen ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
           <p><b>Datenschutz:</b> Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="openrouter">
@@ -766,6 +785,9 @@
           <label for="ai-base">Basis-URL</label>
           <input type="url" id="ai-base" placeholder="https://…/v1" autocomplete="off" spellcheck="false">
         </div>
+        <div class="field hidden" id="ai-gemini-field">
+          <label class="checkrow"><input type="checkbox" id="ai-gemini-ok"> <span>Für diesen Google-Schlüssel ist ein Abrechnungskonto hinterlegt. Nur dann gelten im EWR die Bedingungen der bezahlten Dienste (keine Nutzung der Eingaben zur Produktverbesserung) – ohne Abrechnungskonto kommt Gemini für Schulen nicht infrage.</span></label>
+        </div>
         <div class="field">
           <label for="ai-model">Modell (leer = Vorgabe)</label>
           <input type="text" id="ai-model" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="200">
@@ -784,7 +806,7 @@
       </div>
       <div class="pbox" style="max-width:760px; margin-top:16px">
         <h3 style="margin:0 0 6px">Reserve-KI (optional)</h3>
-        <p class="note" style="margin:0 0 12px">Ein zweiter Anbieter mit eigenem API-Schlüssel, der automatisch einspringt, wenn der erste ausgelastet ist, sein Tageskontingent erreicht hat oder nicht antwortet. Am besten ein <b>anderer</b> Anbieter – dann addieren sich die beiden Kontingente. Die Schüler:innen sehen beide Anbieter im Datenschutzhinweis; prüfen Sie also auch dessen Bedingungen.</p>
+        <p class="note" style="margin:0 0 12px">Ein zweiter Anbieter mit eigenem API-Schlüssel, der automatisch einspringt, wenn der erste ausgelastet ist, sein Tageskontingent erreicht hat, nicht antwortet oder keine verwertbare Antwort liefert – nie bei Inhaltsfiltern oder Fehlkonfiguration, und nie parallel. Am besten ein <b>anderer</b> Anbieter – dann addieren sich die beiden Kontingente. <b>Datenschutz:</b> Jede Reserve ist ein weiterer Empfänger der Schülertexte. Die Schüler:innen sehen beide Empfänger (mit Sitz) im Datenschutzhinweis und im Dialog vor dem Senden; informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern, bevor Sie eine Reserve nutzen.</p>
         <div class="field">
           <label for="ai2-prov">Anbieter der Reserve</label>
           <select id="ai2-prov">
@@ -795,9 +817,13 @@
             <option value="custom">Anderer OpenAI-kompatibler Dienst</option>
           </select>
         </div>
+        <div id="ai2-info"></div>
         <div class="field hidden" id="ai2-base-field">
           <label for="ai2-base">Basis-URL</label>
           <input type="url" id="ai2-base" placeholder="https://…/v1" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field hidden" id="ai2-gemini-field">
+          <label class="checkrow"><input type="checkbox" id="ai2-gemini-ok"> <span>Für diesen Google-Schlüssel ist ein Abrechnungskonto hinterlegt (nur dann gelten im EWR die Bedingungen der bezahlten Dienste).</span></label>
         </div>
         <div class="field">
           <label for="ai2-model">Modell (leer = Vorgabe)</label>
@@ -995,6 +1021,7 @@ async function api(method, path, opts) {
   const o = opts || {};
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), o.timeout || 30000);
+  if (o.signal) { if (o.signal.aborted) ac.abort(); else o.signal.addEventListener("abort", () => ac.abort(), { once: true }); }   // Abbruch von außen
   const headers = {};
   if (o.body !== undefined) headers["Content-Type"] = "application/json";
   if (o.auth) headers["Authorization"] = "Bearer " + o.auth;
@@ -1004,9 +1031,9 @@ async function api(method, path, opts) {
       signal: ac.signal, credentials: "omit", cache: o.cache || "no-store" });   // Bilder sind unveränderlich → cache "default"
     try { data = await res.json(); } catch (e) { data = null; }
   } catch (e) {
-    throw new ApiError(ac.signal.aborted ? "timeout" : "network");
+    throw new ApiError(ac.signal.aborted ? (o.signal && o.signal.aborted ? "aborted" : "timeout") : "network");
   } finally { clearTimeout(timer); }
-  if (!data && ac.signal.aborted) throw new ApiError("timeout");
+  if (!data && ac.signal.aborted) throw new ApiError(o.signal && o.signal.aborted ? "aborted" : "timeout");
   if (res.ok && data && data.ok === true) return data;
   const code = data && typeof data.code === "string" ? data.code : "http_" + res.status;
   const msg = data && typeof data.error === "string" ? data.error.trim().slice(0, 500) : "";
@@ -1432,7 +1459,9 @@ const S = {
   fbFails: 0, fbUnavailable: "",   // KI-Feedback nicht erreichbar → Abgabe ohne Feedback erlaubt (Grund als Text)
   submitted: false, busyFeedback: false, ltCache: new Map(),
   ltAllowed: false, ltConsent: false,   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
-  attempt: "", firstSent: false, importDraft: null   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
+  attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
+  fbRun: 0, fbStop: null, fbAbort: null,   // laufende Feedback-Anfrage: Lauf-Kennung (gegen späte Antworten nach Abbruch/Wechsel), Warten abbrechen, Anfrage abbrechen
+  lastSubmission: null   // die soeben abgegebene Lösung (nur im Arbeitsspeicher, bis „Neues Feibeitsblatt öffnen“) – für die PDF der Lösungen
 };
 const LAST_KEY = "feibeitsblatt:last";   // zuletzt geöffnetes Blatt + Angaben: „Weiterschreiben?“ nach Neuladen
 
@@ -1452,8 +1481,61 @@ async function loadSheet(code) {
     images: sh.tasks.map((t) => cleanImages(t && t.images)),   // je Aufgabe: Miniaturen (thumb) oder größer unter der Aufgabe (inline)
     material: sh.tasks.map((t) => cleanMaterial(t && t.material)),   // je Aufgabe: formatierter Text der Lehrkraft mit Links
     aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null,
-    aiReserve: typeof sh.aiReserve === "string" && sh.aiReserve.trim() ? sh.aiReserve.trim() : null   // Reserve-KI (springt bei Auslastung ein)
+    aiRecipients: recipientsOf(sh)   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
   };
+}
+// Empfänger aus der Antwort; eine ältere Worker-Version liefert nur aiProvider/aiReserve → daraus ableiten (ids leer → der neue
+// Worker antwortet dann 409 und die Seite lädt den Hinweis neu)
+function recipientsOf(sh) {
+  const list = cleanRecipients(sh.aiRecipients);
+  if (list.length) return list;
+  const out = [];
+  if (typeof sh.aiProvider === "string" && sh.aiProvider.trim()) out.push({ id: "", label: sh.aiProvider.trim().slice(0, 200) });
+  if (typeof sh.aiReserve === "string" && sh.aiReserve.trim()) out.push({ id: "", label: sh.aiReserve.trim().slice(0, 200) });
+  return out;
+}
+function cleanRecipients(v) {
+  return Array.isArray(v) ? v.filter((x) => x && typeof x.id === "string" && typeof x.label === "string").slice(0, 5)
+    .map((x) => ({ id: x.id.slice(0, 200), label: x.label.trim().slice(0, 200) })) : [];
+}
+// Empfängerliste nach dem Hinweis neu laden (die Lehrkraft hat die KI-Einstellungen geändert → 409 ai_changed)
+async function reloadRecipients() {
+  const r = await api("GET", "/api/sheet/" + encodeURIComponent(S.code));
+  const sh = r.sheet || {};
+  S.sheet.aiProvider = typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null;
+  S.sheet.aiRecipients = recipientsOf(sh);
+  renderPrivacy();
+}
+/* Satz über die Empfänger (erster Anbieter, dann die Reserve) – für Hinweis und Dialog; derselbe Wortlaut, dedupliziert */
+function recipientParts() {
+  const list = (S.sheet && S.sheet.aiRecipients) || [], q = (t) => "„" + t + "“";
+  const first = list.length ? q(list[0].label) : (S.sheet && S.sheet.aiProvider ? q(S.sheet.aiProvider) : "deiner Lehrkraft");
+  const rest = list.slice(1).map((x) => x.label).filter((l, i, a) => l !== (list[0] && list[0].label) && a.indexOf(l) === i).map(q);
+  const usa = list.some((x) => /USA/.test(x.label));
+  return { first, rest, usa, any: list.length > 0 };
+}
+function recipientSentence() {
+  const r = recipientParts();
+  return `Deine Antworten gehen – ohne Namenskürzel, Geburtsdatum und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
+    (r.rest.length ? ` Nur wenn dieser Dienst nicht antwortet oder ausgelastet ist, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
+    (r.usa ? " Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU." : "");
+}
+function renderPrivacy() {
+  const r = recipientParts();
+  $("privacy").textContent = "";
+  $("privacy").append(h("b", { text: "Datenschutz: " }),
+    `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
+    `Er leitet sie zusammen mit den Aufgaben, dem Material und der Musterlösung deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
+    (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
+    ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen${r.usa ? ", bei Sitz in den USA außerhalb der EU" : ""}. ` +
+    `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
+    `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. ` +
+    `Die Rechtschreibprüfung gibt es erst ab ${LT_MIN_AGE} Jahren und nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
+    h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
+    `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
+    `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
+    `Deine Abgabe nach der Überarbeitung ersetzt ihn. Die Lehrkraft löscht alles nach der Durchsicht. Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
+    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter). Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -1618,23 +1700,14 @@ async function openEditor() {
   const p = S.person, sh = S.sheet;
   S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.ltCache = new Map();
   S.attempt = ""; S.firstSent = false;
+  stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltAllowed = ageOf(p.geburtsdatum) >= LT_MIN_AGE; S.ltConsent = false;   // Bestätigung gilt nur für diese Sitzung
   S.draftKey = await draftKeyFor(S.code, p);
   $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`;
   $("ed-title").textContent = sh.title;
   $("sheet-title").textContent = sh.title;
   $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.`;
-  $("privacy").textContent = "";
-  $("privacy").append(h("b", { text: "Datenschutz: " }),
-    `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
-    `Er leitet sie zusammen mit den Aufgaben und der Musterlösung deiner Lehrkraft an den KI-Dienst ${sh.aiProvider ? "„" + sh.aiProvider + "“" : "der Lehrkraft"}${sh.aiReserve ? " – oder, wenn dieser gerade ausgelastet ist, an „" + sh.aiReserve + "“ –" : ""} weiter und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen. ` +
-    `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. ` +
-    `Die Rechtschreibprüfung gibt es erst ab ${LT_MIN_AGE} Jahren und nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
-    h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
-    `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
-    `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
-    `Deine Abgabe nach der Überarbeitung ersetzt ihn. Die Lehrkraft löscht alles nach der Durchsicht. Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
-    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter). Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
+  renderPrivacy();
   buildTasks();
   // Zwischenstand wiederherstellen: aus einer hochgeladenen PDF-Datei oder von diesem Gerät
   let restored = false;
@@ -1650,6 +1723,7 @@ async function openEditor() {
         S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
       }
       if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
+      if (Number.isInteger(d.fbFails)) S.fbFails = Math.max(0, Math.min(9, d.fbFails));   // Fehlversuche überdauern ein Neuladen
       if (typeof d.attempt === "string" && ATTEMPT_RE.test(d.attempt)) S.attempt = d.attempt;
       S.firstSent = !!d.firstSent;
       restored = d.answers.some((a) => String(a || "").trim());
@@ -1739,7 +1813,7 @@ let saveTimer = 0;
 function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
 /* Zwischenstand als Datensatz (für localStorage und die PDF-Datei) */
 function draftRecord() {
-  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", attempt: S.attempt, firstSent: S.firstSent };
+  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", fbFails: S.fbFails || 0, attempt: S.attempt, firstSent: S.firstSent };
 }
 function saveDraft() {
   clearTimeout(saveTimer);
@@ -1916,6 +1990,7 @@ function cleanDraft(o) {
     person: { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k },
     answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
+    fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0,
     attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true
   };
 }
@@ -1936,6 +2011,95 @@ $("ed-pdf").addEventListener("click", () => {
     setSaveState("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf", false);
   } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
 });
+/* ---------- „Meine Lösungen“ als PDF nach der Abgabe (mehrseitig, zum Aufbewahren und Lernen) ----------
+ * Inhalt: Blatt, Angaben, Abgabezeitpunkt, je Aufgabe die Aufgabenstellung, die abgegebene Lösung, bei Überarbeitung auch
+ * die erste Fassung und das KI-Feedback. Gleiche Bausteine wie die Zwischenstand-PDF (Helvetica, WinAnsi), ohne Bibliothek. */
+function makeSolutionsPdf(sub) {
+  const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M, TOP = 64, BOTTOM = 60;
+  const pages = [[]];
+  let y = TOP;
+  const newPage = () => { pages.push([]); y = TOP; };
+  const line = (x, str, size, bold, color) => pages[pages.length - 1].push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - y).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
+  const para = (str, size, bold, opts = {}) => {   // Absätze umbrechen, Zeilenumbrüche des Textes erhalten, Seitenumbruch bei Bedarf
+    const lh = opts.lh || Math.round(size * 1.38), x = M + (opts.indent || 0);
+    for (const l of pdfWrap(str, size, bold, TW - (opts.indent || 0))) {
+      if (y + lh > H - BOTTOM) newPage();
+      y += lh; line(x, l, size, bold, opts.color);
+    }
+  };
+  const gap = (n) => { y += n; if (y > H - BOTTOM) newPage(); };
+  const p = sub.person || {}, when = toDate(sub.receivedAt) || new Date();
+  para("Meine Lösungen – " + (sub.title || "Feibeitsblatt"), 17, true);
+  gap(4);
+  para(`${p.vorname} · ${p.nachname} · Klasse ${p.klasse} · abgegeben am ${fmtDT(when)} Uhr · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
+  gap(14);
+  const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
+  const n = Math.max(tasks.length, answers.length);
+  for (let i = 0; i < n; i++) {
+    const a = answers[i] || {}, fin = typeof a.final === "string" ? a.final : "", first = typeof a.first === "string" ? a.first : "";
+    const fb = Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
+    if (y > H - BOTTOM - 80) newPage();   // Aufgabenkopf nicht ganz unten beginnen
+    para("Aufgabe " + (i + 1), 13, true);
+    gap(2);
+    if (tasks[i]) para(String(tasks[i]), 11, false, { color: "0.25 0.25 0.25" });
+    gap(6);
+    para("Meine Lösung (abgegebene Fassung):", 10.5, true);
+    para(fin.trim() ? fin : "(leer)", 11, false);
+    if (fb && first.trim() && first !== fin) {
+      gap(6);
+      para("Erste Fassung (vor dem KI-Feedback):", 10.5, true, { color: "0.35 0.35 0.35" });
+      para(first, 10.5, false, { color: "0.35 0.35 0.35" });
+    }
+    if (fb && (fb.covered.length || fb.missing.length || fb.note)) {
+      gap(6);
+      para("KI-Feedback zur ersten Fassung:", 10.5, true, { color: "0.35 0.35 0.35" });
+      for (const c of fb.covered) para("• angesprochen: " + c, 10.5, false, { indent: 10, color: "0.12 0.42 0.16" });
+      for (const m of fb.missing) para("– fehlt: " + m, 10.5, false, { indent: 10, color: "0.7 0.15 0.12" });
+      if (fb.note) para(fb.note, 10.5, false, { indent: 10, color: "0.35 0.35 0.35" });
+    } else if (sub.feedbackError && i === 0) {
+      gap(4);
+      para("Ohne KI-Feedback abgegeben (" + sub.feedbackError + ").", 10.5, false, { color: "0.35 0.35 0.35" });
+    }
+    gap(16);
+  }
+  // Fußzeile je Seite, dann Objekte zusammensetzen (Kopf, Katalog, Seitenbaum, Schriften, je Seite Seite + Inhalt, Info)
+  const total = pages.length;
+  pages.forEach((ops, i) => ops.push(`BT 0.45 0.45 0.45 rg /F1 9 Tf ${M.toFixed(2)} 36 Td ${pdfStr("Feibeitsblatt · " + (sub.title || "") + " · " + p.vorname + " " + p.nachname + " · Seite " + (i + 1) + " von " + total)} Tj ET`));
+  const parts = [], offsets = [];
+  let pos = 0;
+  const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
+  const obj = (num, body) => { offsets[num] = pos; push(`${num} 0 obj\n`); push(body); push("\nendobj\n"); };
+  const kids = pages.map((_, i) => `${6 + 2 * i} 0 R`).join(" ");
+  const t = new Date(), stamp = `${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}${pad2(t.getHours())}${pad2(t.getMinutes())}${pad2(t.getSeconds())}`;
+  push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${total} >>`);
+  obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  obj(5, `<< /Title ${pdfUtf16("Meine Lösungen – " + (sub.title || "Feibeitsblatt"))} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  pages.forEach((ops, i) => {
+    const content = ops.join("\n");
+    obj(6 + 2 * i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${7 + 2 * i} 0 R >>`);
+    obj(7 + 2 * i, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+  const count = 6 + 2 * total, xref = pos;
+  let x = `xref\n0 ${count}\n0000000000 65535 f \n`;
+  for (let i = 1; i < count; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  push(x + `trailer\n<< /Size ${count} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const out = new Uint8Array(pos); let o = 0;
+  for (const b of parts) { out.set(b, o); o += b.length; }
+  return out;
+}
+$("done-pdf").addEventListener("click", () => {
+  const sub = S.lastSubmission, st = $("done-status");
+  if (!sub) { setStatus(st, "Die Lösungen sind auf diesem Gerät nicht mehr verfügbar.", "bad"); return; }
+  try {
+    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+    downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/pdf" }), `Feibeitsblatt-Loesungen-${fmtCode(sub.code)}-${stamp}.pdf`);
+    setStatus(st, "Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.", "ok");
+  } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuche es noch einmal.", "bad"); }
+});
+
 /* Alte Entwürfe entfernen – gemeinsam genutzte Geräte */
 function cleanupDrafts() {
   const limit = Date.now() - DRAFT_DAYS * 864e5;
@@ -1948,7 +2112,7 @@ function cleanupDrafts() {
 /* Abbrechen: Zwischenstand und Angaben von diesem Gerät löschen */
 $("ed-cancel").addEventListener("click", async () => {
   if (S.submitted) return;
-  const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen.", ok: "Löschen", cancel: "Weiterschreiben", danger: true });
+  const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." + (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
   if (!ok) return;
   clearTimeout(saveTimer);
   store.del(S.draftKey); store.del(LAST_KEY);
@@ -2245,60 +2409,133 @@ function tooLongTotal(answers) {
   const longest = answers.map((a, i) => ({ i: i + 1, n: a.length })).sort((a, b) => b.n - a.n).slice(0, 3).map((x) => x.i);
   return `Deine Antworten sind zusammen zu lang für das KI-Feedback (${total.toLocaleString("de-DE")} Zeichen, höchstens ${MAX_ANSWERS_TOTAL.toLocaleString("de-DE")}). Bitte kürze vor allem ${longest.length === 1 ? "Aufgabe " + longest[0] : "die Aufgaben " + listNums(longest)}.`;
 }
+const FB_TRIES = 5;            // Versuche je Klick bei ausgelasteter KI (1 + 4 automatische Wiederholungen)
+const FB_MAX_MS = 4 * 60e3;    // … und höchstens etwa vier Minuten seit dem Klick
+const roughTime = (ms) => ms < 20000 ? "einer Viertelminute" : ms < 45000 ? "einer halben Minute" : ms < 80000 ? "einer Minute" : "zwei Minuten";
+const jitterMs = (max) => { const u = new Uint32Array(1); crypto.getRandomValues(u); return (u[0] / 4294967296) * max; };
+/* Warten bis zur Fälligkeit (absoluter Zeitpunkt, ein Timer – Hintergrund-Tabs drosseln Timer, deshalb auch bei Rückkehr prüfen);
+   der sichtbare Sekundenzähler steht außerhalb der Live-Region (sonst liest ein Screenreader jede Sekunde vor) */
+function waitBeforeRetry(run, ms, nextTry) {
+  return new Promise((resolve) => {
+    const due = Date.now() + ms, box = $("fb-wait"), num = $("fb-wait-num"), st = $("fb-status");
+    setStatus(st, `Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in etwa ${roughTime(ms)} (Versuch ${nextTry} von ${FB_TRIES}). Du kannst so lange weiterschreiben; beim nächsten Versuch wird dein aktueller Text geschickt. Lass diese Seite geöffnet.`, "busy");
+    box.classList.remove("hidden");
+    const tick = () => { num.textContent = `Nächster Versuch in ${Math.max(0, Math.ceil((due - Date.now()) / 1000))} s`; };
+    tick();
+    const iv = setInterval(tick, 1000);
+    let timer = 0, cancelled = false;
+    const done = () => {
+      clearInterval(iv); clearTimeout(timer); document.removeEventListener("visibilitychange", onVis);
+      if (document.activeElement === $("fb-wait-stop")) { try { $("fb-wait-stop").blur(); } catch (e) { /* egal */ } }   // der Button verschwindet; failed() setzt den Fokus
+      box.classList.add("hidden"); num.textContent = ""; S.fbStop = null;
+      resolve(cancelled);
+    };
+    const onVis = () => { if (document.visibilityState === "visible") { tick(); if (Date.now() >= due) done(); } };
+    document.addEventListener("visibilitychange", onVis);
+    timer = setTimeout(done, ms);
+    S.fbStop = () => { cancelled = true; done(); };
+  });
+}
+$("fb-wait-stop").addEventListener("click", () => { if (S.fbStop) S.fbStop(); });
+
 async function requestFeedback() {
   if (S.feedback || S.busyFeedback) return;
   const st = $("fb-status"), btn = $("fb-btn");
   setStatus(st, "", "");
-  const answers = S.tas.map((t) => t.value);
-  const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
+  const snapshot = () => {   // Antworten jetzt lesen – vor jedem Versuch neu, damit Feedback und erste Fassung zum gesendeten Text passen
+    const answers = S.tas.map((t) => t.value);
+    const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
+    return { answers, empty, tooLong: tooLongTotal(answers) };
+  };
+  let { answers, empty, tooLong } = snapshot();
   if (empty.length === answers.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
-  const tooLong = tooLongTotal(answers);
   if (tooLong) { setStatus(st, tooLong, "bad"); return; }
+  const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
-    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\nDas KI-Feedback gibt es nur einmal. Möchtest du es trotzdem jetzt anfordern?`,
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${who}\nDas KI-Feedback gibt es nur einmal. Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
-    text: "Das KI-Feedback gibt es nur einmal. Deine jetzigen Antworten werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.",
+    text: `${who}\nDas KI-Feedback gibt es nur einmal. Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok) return;
+  const run = ++S.fbRun, t0 = Date.now();
   S.busyFeedback = true; btn.disabled = true;
-  S.tas.forEach((t) => { t.readOnly = true; });
-  setStatus(st, "Die KI arbeitet … das kann bis zu einer Minute dauern.", "busy");
-  const slow = setTimeout(() => setStatus(st, "Die KI arbeitet … das dauert gerade etwas länger. Bitte warte noch.", "busy"), 60000);
-  try {
-    const r = await api("POST", "/api/feedback", { body: { code: S.code, answers }, timeout: 150000 });
-    if (!Array.isArray(r.results) || r.results.length !== answers.length) throw new ApiError("bad_result");
-    S.first = answers.slice();
+  let tries = 0, busySeen = 0;
+  const unlock = () => { S.busyFeedback = false; btn.disabled = !!S.feedback; S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; };
+  const failed = (e, count, msg) => {   // Fehlversuch(e) zählen; nach zweien darf ohne KI-Feedback abgegeben werden (niemand sitzt fest)
+    unlock();
+    if (document.activeElement === document.body) { try { btn.focus({ preventScroll: true }); } catch (x) { /* egal */ } }   // Fokus nach „Nicht länger warten“
+    setStatus(st, msg, "bad");
+    S.fbFails += count;
+    const serverSide = e instanceof ApiError && e.code !== "bad_answers" && e.code !== "too_long" && e.code !== "bad_request" && e.code !== "not_found";
+    if (serverSide && (e.code === "ai_not_configured" || S.fbFails >= 2)) {
+      S.fbUnavailable = e.code === "ai_not_configured" ? "noch nicht eingerichtet" : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
+      renderFeedbackState();
+    }
+    saveDraft();
+  };
+  for (;;) {
+    if (run !== S.fbRun) return;
+    tries++;
+    S.tas.forEach((t) => { t.readOnly = true; });   // nur während eine Anfrage wirklich läuft
+    setStatus(st, tries === 1 ? "Die KI arbeitet … das kann bis zu einer Minute dauern." : `Neuer Versuch – die KI arbeitet (Versuch ${tries} von ${FB_TRIES}).`, "busy");
+    const slow = setTimeout(() => { if (run === S.fbRun) setStatus(st, "Die KI arbeitet … das dauert gerade etwas länger. Bitte warte noch.", "busy"); }, 60000);
+    S.fbAbort = new AbortController();
+    let r;
+    try {
+      r = await api("POST", "/api/feedback", { body: { code: S.code, answers, recipients: (S.sheet.aiRecipients || []).map((x) => x.id) }, timeout: 150000, signal: S.fbAbort.signal });
+    } catch (e) {
+      clearTimeout(slow);
+      if (run !== S.fbRun || (e instanceof ApiError && e.code === "aborted")) return;
+      S.tas.forEach((t) => { t.readOnly = false; });
+      if (e instanceof ApiError && e.code === "ai_busy") {
+        busySeen++;
+        if (tries < FB_TRIES && Date.now() - t0 < FB_MAX_MS) {
+          // Automatisch erneut – mit Zufallsanteil, damit nicht alle Browser einer Klasse in derselben Sekunde wiederkommen
+          const base = Math.max(3, Math.min(60, e.retryAfter || 30)) * 1000;
+          const cancelled = await waitBeforeRetry(run, Math.round(base * (1 + jitterMs(0.3)) + jitterMs(3000)), tries + 1);
+          if (run !== S.fbRun || S.submitted) return;
+          if (cancelled) {
+            failed(e, 1, "Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
+            return;
+          }
+          ({ answers, empty, tooLong } = snapshot());
+          if (tooLong) { unlock(); setStatus(st, tooLong, "bad"); return; }
+          continue;
+        }
+        failed(e, 2, "Die KI ist gerade sehr stark ausgelastet – auch nach mehreren Versuchen hat es nicht geklappt. Du kannst es in ein paar Minuten noch einmal versuchen.");
+        return;
+      }
+      if (e instanceof ApiError && e.code === "ai_changed") {   // Lehrkraft hat die KI-Einstellungen geändert: erst neu informieren, nichts gesendet
+        setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – der Datenschutzhinweis wird neu geladen …", "busy");
+        try { await reloadRecipients(); } catch (x) { /* Hinweis bleibt der alte */ }
+        if (run !== S.fbRun) return;
+        unlock();
+        setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis unter dem Button noch einmal und fordere das Feedback dann erneut an.", "bad");
+        return;
+      }
+      const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s");
+      failed(e, 1, msg);
+      return;
+    } finally { clearTimeout(slow); }
+    if (run !== S.fbRun) return;
+    if (!Array.isArray(r.results) || r.results.length !== answers.length) { failed(new ApiError("bad_result"), 1, "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal."); return; }
+    S.first = answers.slice();   // genau die gesendete Fassung
     S.feedback = r.results.map(normFb);
     S.feedbackAt = new Date().toISOString();
     S.fbUnavailable = ""; S.fbFails = 0;
     saveDraft();
     setStatus(st, "", "");
-    S.busyFeedback = false;
+    unlock();
     renderFeedbackState();
     sendFirstAttempt();   // im Hintergrund; die Abgabe enthält die erste Fassung ohnehin
     const rh = $("revise-hint");
     rh.scrollIntoView({ block: "nearest", behavior: "smooth" });
     setTimeout(() => { try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ } }, 50);
-  } catch (e) {
-    S.busyFeedback = false;
-    btn.disabled = false;
-    const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s");
-    setStatus(st, msg, "bad");
-    // KI nicht eingerichtet oder wiederholt nicht erreichbar → Abgabe ohne Feedback erlauben (niemand darf festsitzen)
-    S.fbFails++;
-    const serverSide = e instanceof ApiError && e.code !== "bad_answers" && e.code !== "too_long" && e.code !== "bad_request" && e.code !== "not_found";
-    if (serverSide && (e.code === "ai_not_configured" || S.fbFails >= 2)) {
-      S.fbUnavailable = e.code === "ai_not_configured" ? "noch nicht eingerichtet" : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
-      saveDraft();
-      renderFeedbackState();
-    }
-  } finally {
-    clearTimeout(slow);
-    S.tas.forEach((t) => { t.readOnly = false; });
+    return;
   }
 }
 $("fb-btn").addEventListener("click", requestFeedback);
@@ -2337,6 +2574,7 @@ async function submitAll() {
     ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true
   });
   if (!ok) return;
+  stopFeedbackRun();   // eine noch wartende Feedback-Anfrage wird mit der Abgabe hinfällig
   busy(btn, true, "Wird abgegeben …");
   setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
   try {
@@ -2357,6 +2595,10 @@ async function submitAll() {
     const d = toDate(r.receivedAt) || new Date();
     const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
     $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;
+    // Für „Meine Lösungen als PDF herunterladen“ auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
+    S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
+      feedback: payload.feedback, feedbackError: payload.feedbackError || "", receivedAt: d.getTime() };
+    setStatus($("done-status"), "", "");
     clearEditor();
     show("screen-done");
     focusSoon("done-btn", 30);
@@ -2373,9 +2615,18 @@ function clearEditor() {
   S.tas = []; S.outs = []; S.fbs = [];
   $("who-name").textContent = ""; $("ed-title").textContent = ""; $("sheet-title").textContent = "";
 }
+/* Laufende Feedback-Anfrage samt Warten beenden: späte Antworten werden anhand der Lauf-Kennung verworfen */
+function stopFeedbackRun() {
+  S.fbRun++;
+  if (S.fbStop) { try { S.fbStop(); } catch (e) { /* egal */ } }
+  if (S.fbAbort) { try { S.fbAbort.abort(); } catch (e) { /* egal */ } }
+  S.fbStop = null; S.fbAbort = null; S.busyFeedback = false;
+  $("fb-wait").classList.add("hidden");
+}
 function resetStudent() {
+  stopFeedbackRun();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false, attempt: "", firstSent: false, importDraft: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
   ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }
@@ -3107,19 +3358,25 @@ $("b-res-back").addEventListener("click", async () => {
 });
 
 /* ---------- KI-Einstellungen ---------- */
-const PROVIDERS = {
-  groq: { label: "Groq", model: "openai/gpt-oss-120b", key: "gsk_…" },
-  openrouter: { label: "OpenRouter", model: "openai/gpt-oss-120b:free", key: "sk-or-v1-…" },
-  gemini: { label: "Google Gemini", model: "gemini-flash-latest", key: "AIza…" },
-  cerebras: { label: "Cerebras", model: "gpt-oss-120b", key: "csk-…" },
-  custom: { label: "anderer OpenAI-kompatibler Dienst", model: "", key: "API-Schlüssel" }
+const PROVIDERS = {   // recipient = Rechtsträger und Sitz, wie der Server ihn den Schüler:innen nennt (worker/ai.js)
+  groq: { label: "Groq", model: "openai/gpt-oss-120b", key: "gsk_…", recipient: "Groq, Inc. (USA)" },
+  openrouter: { label: "OpenRouter", model: "openai/gpt-oss-120b:free", key: "sk-or-v1-…", recipient: "OpenRouter, Inc. (USA) – leitet die Anfrage an wechselnde Rechenzentren anderer Anbieter weiter" },
+  gemini: { label: "Google Gemini", model: "gemini-flash-latest", key: "AIza…", recipient: "Google (Gemini-API; Verarbeitung auch in den USA möglich)" },
+  cerebras: { label: "Cerebras", model: "gpt-oss-120b", key: "csk-…", recipient: "Cerebras Systems Inc. (USA)" },
+  custom: { label: "anderer OpenAI-kompatibler Dienst", model: "", key: "API-Schlüssel", recipient: "" }
 };
+function recipientOf(provider, baseUrl) {
+  if (provider !== "custom") return (PROVIDERS[provider] || {}).recipient || provider;
+  let host = ""; try { host = new URL(baseUrl).host; } catch (e) { host = String(baseUrl || ""); }
+  return host + " (Betreiber und Sitz: von Ihnen zu prüfen)";
+}
 function provLabel(p, serverLabel) { return typeof serverLabel === "string" && serverLabel ? serverLabel : PROVIDERS[p] ? PROVIDERS[p].label : String(p || "–"); }
 let aiDirty = false;
 function aiSyncForm() {
   const p = $("ai-prov").value, def = PROVIDERS[p] || PROVIDERS.custom;
   document.querySelectorAll(".provinfo").forEach((n) => n.classList.toggle("hidden", n.getAttribute("data-prov") !== p));
   $("ai-base-field").classList.toggle("hidden", p !== "custom");
+  $("ai-gemini-field").classList.toggle("hidden", p !== "gemini");
   $("ai-model").placeholder = def.model ? def.model : "Modell-ID, z. B. mistral-small-latest";
   $("ai-model-hint").textContent = def.model ? `Leer lassen für die Vorgabe (${def.model}). Bei erschöpftem Kontingent weicht der Server auf andere Modelle aus.` : "Bei einem anderen Dienst bitte die Modell-ID angeben.";
   $("ai-key").placeholder = def.key;
@@ -3175,8 +3432,10 @@ async function aiSave(quiet) {
   // Der gespeicherte Schlüssel bleibt nur für denselben Dienst (Anbieter und Adresse) – er geht nie an einen anderen Host
   const sameProv = T.ai && T.ai.hasKey && T.ai.provider === provider && (provider !== "custom" || String(T.ai.baseUrl || "") === baseUrl);
   if (!key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel eintragen.", "bad"); $("ai-key").focus(); return false; }
+  if (provider === "gemini" && !$("ai-gemini-ok").checked) { setStatus(st, "Bitte bestätigen Sie, dass für diesen Google-Schlüssel ein Abrechnungskonto hinterlegt ist – ohne gilt Gemini im EWR nicht als zulässig.", "bad"); $("ai-gemini-ok").focus(); return false; }
   const body = { provider, model };
   if (provider === "custom") body.baseUrl = baseUrl;
+  if (provider === "gemini") body.confirmBilling = true;
   if (key) body.apiKey = key;
   setStatus(st, "Wird gespeichert …", "busy");
   try {
@@ -3213,6 +3472,10 @@ let ai2Dirty = false;
 function ai2SyncForm() {
   const p = $("ai2-prov").value, def = PROVIDERS[p] || PROVIDERS.custom, rs = T.ai && T.ai.reserve;
   $("ai2-base-field").classList.toggle("hidden", p !== "custom");
+  $("ai2-gemini-field").classList.toggle("hidden", p !== "gemini");
+  const info = $("ai2-info"), src = document.querySelector('.provinfo[data-prov="' + p + '"]');   // dieselben Anbieter-Hinweise wie oben
+  info.textContent = "";
+  if (src) { const cl = src.cloneNode(true); cl.classList.remove("hidden", "provinfo"); cl.classList.add("provinfo2"); info.appendChild(cl); }
   $("ai2-model").placeholder = def.model ? def.model : "Modell-ID, z. B. mistral-small-latest";
   $("ai2-key").placeholder = def.key;
   let hint;
@@ -3238,8 +3501,17 @@ async function ai2Save(quiet) {
   const rs = T.ai && T.ai.reserve;
   const sameProv = rs && rs.hasKey && rs.provider === provider && (provider !== "custom" || String(rs.baseUrl || "") === baseUrl);
   if (!key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel der Reserve eintragen.", "bad"); $("ai2-key").focus(); return false; }
+  if (provider === "gemini" && !$("ai2-gemini-ok").checked) { setStatus(st, "Bitte bestätigen Sie, dass für diesen Google-Schlüssel ein Abrechnungskonto hinterlegt ist – ohne gilt Gemini im EWR nicht als zulässig.", "bad"); $("ai2-gemini-ok").focus(); return false; }
+  // Jede Reserve ist ein weiterer Empfänger der Schülertexte – das bestätigt die Lehrkraft ausdrücklich
+  const confirmed = await askConfirm({
+    title: "Weiteren KI-Empfänger hinzufügen?",
+    text: `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ausgelastet ist oder nicht antwortet. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
+    ok: "Reserve speichern", cancel: "Abbrechen", safeFirst: true
+  });
+  if (!confirmed) { setStatus(st, "", ""); return false; }
   const reserve = { provider, model };
   if (provider === "custom") reserve.baseUrl = baseUrl;
+  if (provider === "gemini") reserve.confirmBilling = true;
   if (key) reserve.apiKey = key;
   setStatus(st, "Wird gespeichert …", "busy");
   try {

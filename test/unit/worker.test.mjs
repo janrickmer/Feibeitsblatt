@@ -45,7 +45,7 @@ const ASSETS = { fetch: async () => { assetsCalls++; return new Response("<!doct
 const ENV = { DB: d1, ASSETS, SETTINGS_SECRET: SECRET };
 let mock, maxQueries = 0;
 
-async function call(method, path, { body, auth, ip = "198.51.100.1", env = ENV, raw } = {}) {
+async function call(method, path, { body, auth, ip = "198.51.100.1", env = ENV, raw, nocount } = {}) {
   const headers = { "CF-Connecting-IP": ip };
   if (body !== undefined || raw !== undefined) headers["content-type"] = "application/json";
   if (auth) headers.authorization = "Bearer " + auth;
@@ -56,8 +56,10 @@ async function call(method, path, { body, auth, ip = "198.51.100.1", env = ENV, 
   const res = await worker.fetch(req, env, { waitUntil: (p) => waits.push(p) });
   await Promise.all(waits);
   const text = await res.text();
-  maxQueries = Math.max(maxQueries, d1.queries);
-  assert.ok(d1.queries <= 50, path + ": " + d1.queries + " D1-Abfragen");
+  if (!nocount) {   // nocount: parallele Aufrufe teilen sich den Zähler (nur je Aufruf aussagekräftig)
+    maxQueries = Math.max(maxQueries, d1.queries);
+    assert.ok(d1.queries <= 50, path + ": " + d1.queries + " D1-Abfragen");
+  }
   let json = null; try { json = JSON.parse(text); } catch {}
   return { status: res.status, headers: res.headers, text, json, queries: d1.queries };
 }
@@ -128,7 +130,8 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, material: [], images: [] })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port });
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, material: [], images: [] })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
+    aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }] });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
   assert.deepEqual(r.json.sheets.map((s) => [s.code, s.title, s.taskCount, s.submissionCount]), [[code, "Bio", 2, 0]]);
@@ -213,9 +216,11 @@ test("reserve AI: stored separately (encrypted), tested via ?which=reserve, used
   assert.equal(r.status, 200, r.text); assert.equal(r.json.which, "reserve"); assert.equal(r.json.sample, "Verbindung steht.");
   r = await call("GET", "/api/teacher/ai", { auth });
   assert.equal(r.json.reserve.hasKey, true); assert.equal(r.json.hasKey, true);
-  // Schüler:innen erfahren beide Anbieter (Datenschutzhinweis)
+  // Schüler:innen erfahren beide Empfänger (Datenschutzhinweis), erster Anbieter zuerst
   r = await call("GET", "/api/sheet/" + code);
-  assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + mock.port); assert.equal(r.json.sheet.aiReserve, "127.0.0.1:" + mock.port);
+  const rcpt = "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";
+  assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + mock.port);
+  assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + mock.port, label: rcpt }, { id: "custom:127.0.0.1:" + mock.port, label: rcpt }]);
   // Reserve ohne Schlüssel für einen anderen Dienst → 400, nichts geändert
   r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: { provider: "groq", model: "" } } });
   assert.equal(r.status, 400); assert.match(r.json.error, /neuen Anbieter/);
@@ -224,19 +229,88 @@ test("reserve AI: stored separately (encrypted), tested via ?which=reserve, used
   r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "tot", baseUrl: "http://127.0.0.1:9/v1", apiKey: "sk-dead" } });
   assert.equal(r.status, 200, r.text); assert.ok(r.json.warning, "Verbindung nicht prüfbar → Warnung, trotzdem gespeichert");
   assert.equal(r.json.reserve.hasKey, true);   // Reserve blieb erhalten
+  r = await call("GET", "/api/sheet/" + code);
+  assert.deepEqual(r.json.sheet.aiRecipients.map((x) => x.id), ["custom:127.0.0.1:9", "custom:127.0.0.1:" + mock.port]);
   mock.reset();
   r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] } });
   assert.equal(r.status, 200, r.text);
   assert.equal(mock.state.requests.length, 1, "genau eine Anfrage – bei der Reserve");
   assert.deepEqual(r.json.results, expectedResults(tasks, ["Licht", ""]));
+  // Transparenz: Der Browser nennt die Empfänger, über die informiert wurde – fehlt der erste Anbieter → 409, fehlt die Reserve → sie bleibt außen vor
+  r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: ["custom:127.0.0.1:" + mock.port] } });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "ai_changed"); assert.match(r.json.error, /Datenschutzhinweis/);
+  mock.reset();
+  r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: ["custom:127.0.0.1:9"] } });
+  assert.equal(r.status, 502); assert.equal(mock.state.requests.length, 0, "Reserve ohne Information nie");
+  r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: ["custom:127.0.0.1:9", "custom:127.0.0.1:" + mock.port] } });
+  assert.equal(r.status, 200); assert.equal(mock.state.requests.length, 1);
   // Erster Anbieter wieder der Mock; Reserve entfernen → auch der Hinweis für Schüler:innen verschwindet
   r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-SECRET-1234", reserve: null } });
   assert.equal(r.status, 200, r.text); assert.equal(r.json.reserve, null);
   s = settingsRow("ai"); assert.equal(s.reserve, undefined); assert.ok(s.apiKeyEnc);
   r = await call("GET", "/api/sheet/" + code);
-  assert.equal("aiReserve" in r.json.sheet, false);
+  assert.equal(r.json.sheet.aiRecipients.length, 1);
   r = await call("POST", "/api/teacher/ai/test?which=reserve", { auth });
   assert.equal(r.status, 400); assert.equal(r.json.error, "Es ist keine Reserve-KI mit API-Schlüssel gespeichert.");
+});
+
+test("reserve only on availability failures: a moderation refusal (403) never reaches the reserve; a server error does", async () => {
+  const mock2 = await startMockAI({ port: 0 });
+  try {
+    let r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: { provider: "custom", model: "", baseUrl: mock2.url, apiKey: "sk-reserve-two" } } });
+    assert.equal(r.status, 200, r.text);
+    mock.setMode("403flag"); mock.reset(); mock2.reset();
+    r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.40" });
+    assert.equal(r.status, 502); assert.equal(r.json.aiCode, "FILTERED"); assert.equal(r.json.error, "Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.");
+    assert.equal(mock2.state.requests.length, 0, "Inhaltsfilter: nichts an die Reserve");
+    mock.setMode("500"); mock.reset(); mock2.reset();
+    r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.41" });
+    assert.equal(r.status, 200, r.text); assert.equal(mock2.state.requests.length, 1, "Serverfehler: Reserve springt ein");
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM ai_skip WHERE provider='custom'").get().n > 0, true, "Sperren des ersten Anbieters liegen unter seinem Schlüssel");
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM ai_skip WHERE provider='custom#r'").get().n, 0, "Reserve ohne Sperren");
+  } finally {
+    mock.setMode("ok");
+    await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } });
+    d1.db.prepare("DELETE FROM ai_skip").run();
+    await mock2.close();
+  }
+});
+
+test("burst: parallel feedback requests spread over the provider's models (mock: 2 per model, 3 models = 6 slots); locks are written at once", async () => {
+  mock.setMode("tpm", null, 2); mock.reset();
+  d1.db.prepare("DELETE FROM ai_skip").run(); d1.db.prepare("DELETE FROM ai_gate").run();
+  try {
+    const t0 = Date.now();
+    // 6 gleichzeitige Anfragen (der Mock-Anbieter „custom“ hat ein Gate je Anbieter mit 1 s Abstand – mehr wäre hier nur Wartezeit)
+    const rs = await Promise.all(Array.from({ length: 6 }, (_, i) => call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113." + (50 + i), nocount: true })));
+    const took = Date.now() - t0;
+    assert.deepEqual(rs.map((r) => r.status), Array(6).fill(200), rs.map((r) => r.text).join("\n"));
+    const okModels = new Set(mock.state.requests.map((q) => q.model));
+    assert.equal(okModels.size, 3, "6 Erfolge bei 2 je Modell → alle drei Modelle genutzt: " + [...okModels].join(", "));
+    assert.ok(took < 40000, "6 Anfragen in unter 40 s (" + took + " ms)");   // großzügig: parallele Testprozesse bremsen
+    const locks = d1.db.prepare("SELECT model, until, reason FROM ai_skip WHERE provider='custom'").all();
+    assert.ok(locks.length >= 1, "Minutenlimit-Sperren geschrieben");
+    for (const l of locks) { assert.match(l.reason, /Minutenlimit/); assert.ok(l.until - Date.now() <= 5000 && l.until > Date.now() - 20000, "kurze Sperre (retry-after 2 s → min 5 s)"); }
+    // Kontingent aller Modelle erschöpft (1 je Modell, höchstens 7 Modelle) → 429 ai_busy mit kurzem retryAfter (kein Fehlversuch)
+    mock.setMode("tpm", null, 1);
+    const more = await Promise.all(Array.from({ length: 8 }, (_, i) => call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113." + (70 + i), nocount: true })));
+    const busy = more.filter((r) => r.status === 429);
+    assert.ok(busy.length >= 1, "mindestens eine Anfrage wartet: " + more.map((r) => r.status).join(","));
+    for (const r of busy) { assert.equal(r.json.code, "ai_busy"); assert.ok(r.json.retryAfter >= 5 && r.json.retryAfter <= 60, "retryAfter " + r.json.retryAfter); assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter)); }
+    assert.ok(more.every((r) => r.status === 200 || r.status === 429));
+    // ein einzelner Aufruf bei erschöpftem Kontingent läuft alle Modelle ab und bleibt unter 50 D1-Abfragen (der Zähler gilt je Aufruf)
+    const one = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.80" });
+    assert.ok(one.status === 200 || one.status === 429, one.text);
+  } finally { mock.setMode("ok"); d1.db.prepare("DELETE FROM ai_skip").run(); d1.db.prepare("DELETE FROM ai_gate").run(); }
+});
+
+test("gemini needs the billing confirmation (EEA terms) before a key is stored", async () => {
+  let r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: { provider: "gemini", model: "", apiKey: "AIza-test" } } });
+  assert.equal(r.status, 400); assert.match(r.json.error, /Abrechnungskonto/);
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: { provider: "gemini", model: "", apiKey: "AIza-test", confirmBilling: true } } });
+  assert.equal(r.status, 200, r.text); assert.equal(settingsRow("ai").reserve.billingConfirmed, true);
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } });
+  assert.equal(r.status, 200);
 });
 
 test("feedback: one AI call, expected covered/missing, ≤ 50 D1 queries", async () => {
@@ -438,7 +512,7 @@ test("feedback counts only valid AI calls (per IP, chars, per sheet/day); BUSY/R
     RATE.sheet_feedback.max = saved.s;
     mock.setMode("429soft");   // kurzzeitiges Limit → nach Wartezeit wieder ok; ein Modell, Mock antwortet weiter 429 → BUSY/RATE_LIMIT
     r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""] }, ip: "203.0.113.7" });
-    assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy"); assert.ok(r.json.retryAfter >= 30);
+    assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy"); assert.ok(r.json.retryAfter >= 5 && r.json.retryAfter <= 60, "retryAfter " + r.json.retryAfter);
     assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
   } finally { RATE.feedback.max = saved.f; RATE.sheet_feedback.max = saved.s; mock.setMode("ok"); }
 });

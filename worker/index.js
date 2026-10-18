@@ -10,7 +10,7 @@ import {
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI,
-  TEST_MESSAGES, reserveSlot, skipQuery, skipStatements,
+  TEST_MESSAGES, reserveSlot, skipQuery, skipStatements, gateKey, recipientLabel,
 } from "./ai.js";
 
 const MSG = {
@@ -29,6 +29,8 @@ const MSG = {
   aiNotConfigured: "Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.",
   aiNoKey: "Bitte zuerst einen API-Schlüssel speichern.",
   aiNoReserve: "Es ist keine Reserve-KI mit API-Schlüssel gespeichert.",
+  aiChanged: "Die Lehrkraft hat die KI-Einstellungen geändert. Die Seite lädt das Feibeitsblatt neu – lies dann bitte den Datenschutzhinweis noch einmal.",
+  geminiBilling: "Für Google Gemini bitte bestätigen, dass für diesen Schlüssel ein Abrechnungskonto hinterlegt ist – nur dann gelten im EWR die Bedingungen der bezahlten Dienste (keine Nutzung der Eingaben zur Produktverbesserung).",
   aiKeyLost: "Bitte den API-Schlüssel neu eintragen.",
   aiKeyForNew: "Bitte für den neuen Anbieter bzw. die neue Adresse einen API-Schlüssel eintragen – der gespeicherte Schlüssel wird nie an einen anderen Dienst gesendet.",
   noSecret: "Der Server ist noch nicht vollständig eingerichtet (Secret SETTINGS_SECRET fehlt). Bitte den Workflow „Deploy“ erneut ausführen; erst danach lässt sich ein API-Schlüssel speichern.",
@@ -143,9 +145,16 @@ async function aiEntry(env, s) {
 async function aiConfig(env, row) {
   const s = parseSetting(row) || {};
   const ai = await aiEntry(env, s);
+  ai.key = ai.provider;   // Schlüssel für ai_gate/ai_skip (die Reserve hat eigene Kontingente → eigener Schlüssel)
   ai.reserve = s.reserve && typeof s.reserve === "object" && PROVIDERS[s.reserve.provider] ? await aiEntry(env, s.reserve) : null;
+  if (ai.reserve) ai.reserve.key = ai.reserve.provider + "#r";
   ai.raw = row ? row.value : null;
   return ai;
+}
+// Kennung eines Eintrags für die Empfängerliste der Schüler:innen (beim eigenen Dienst zählt der Host)
+function entryId(e) {
+  if (e.provider !== "custom") return e.provider;
+  try { return "custom:" + new URL(e.baseUrl).host; } catch { return "custom:" + String(e.baseUrl || ""); }
 }
 const hasStoredKey = (s) => !!(s && s.apiKeyEnc);
 function entryView(e) {
@@ -156,7 +165,7 @@ function entryView(e) {
   return out;
 }
 const aiPublicView = (ai) => ({ ...entryView(ai), reserve: ai.reserve ? entryView(ai.reserve) : null });
-const cfgOf = (e, skip = []) => ({ provider: e.provider, apiKey: e.apiKey, model: e.model, fallbacks: e.fallbacks, skip, base: e.baseUrl });
+const cfgOf = (e, skip = []) => ({ provider: e.provider, apiKey: e.apiKey, model: e.model, fallbacks: e.fallbacks, skip, base: e.baseUrl, key: e.key || e.provider });
 
 /* ---------- Rate-Limits (festes Zeitfenster, IP nur gehasht) ----------
  * rlHit zählt atomar (Upsert … RETURNING): auch parallele Anfragen kommen nicht am Zähler vorbei. */
@@ -414,8 +423,13 @@ async function routeSubmissionsDelete(c, codeRaw) {
 }
 
 /* ---------- KI-Einstellungen (Lehrkraft) ---------- */
-// Globaler Mindestabstand je Anbieter: höchstens 60 s warten und nur so lange, dass danach noch ~20 s für die KI bleiben
-const gate = (c) => (provider, gapMs, remainingMs = 100000) => reserveSlot(c.db, provider, gapMs, Math.max(0, Math.min(60000, remainingMs - 20000)));
+// Mindestabstand je Anbieter-Eintrag und (wo der Anbieter je Modell begrenzt) je Modell: höchstens 10 s warten – längeres
+// Warten übernimmt der Browser per automatischer Wiederholung; die Reservierung gilt nur, wenn das Modell nicht gesperrt ist
+// (lastResort: ein schon beim Start als gesperrt bekanntes Modell wird als letzte Möglichkeit trotzdem versucht)
+const gate = (c) => (provider, gapMs, remainingMs = 100000, model = "", key = provider, opts = {}) =>
+  reserveSlot(c.db, gateKey(provider, key, model), gapMs, Math.max(0, Math.min(10000, remainingMs - 20000)), opts && opts.lastResort ? null : key, model || null);
+// Sperre eines Modells sofort schreiben (nicht erst nach Ende des Aufrufs), damit parallel laufende Anfragen sie sehen
+const onRotate = (c) => (key, model, reason, until) => c.waitUntil(c.db.batch(skipStatements(c.db, key, [{ model, reason, until }], Date.now())).catch(() => {}));
 
 async function routeAiGet(c) {
   await requireTeacher(c);
@@ -428,6 +442,8 @@ async function routeAiGet(c) {
 // Leerer Schlüssel → der alte bleibt, aber nur für denselben Dienst (ein Schlüssel geht nie an einen anderen Anbieter/Host).
 async function prepareAiEntry(c, bodyPart, cur) {
   const input = validateAiInput(bodyPart, PROVIDERS);
+  if (input.provider === "gemini" && bodyPart.confirmBilling !== true && !(cur && cur.provider === "gemini" && cur.stored && cur.stored.billingConfirmed))
+    throw new InputError(MSG.geminiBilling);
   const sameService = !!cur && cur.provider === input.provider && cur.baseUrl === input.baseUrl;
   if (!input.apiKey && cur && cur.apiKey && !sameService) throw new InputError(MSG.aiKeyForNew);
   const apiKey = input.apiKey || (sameService ? cur.apiKey : "");
@@ -444,6 +460,7 @@ async function prepareAiEntry(c, bodyPart, cur) {
     }
   }
   const stored = { provider: input.provider, model: input.model, baseUrl: input.baseUrl, keyHint: keyHintOf(apiKey), fallbacks, updatedAt: c.now };
+  if (input.provider === "gemini") stored.billingConfirmed = true;
   if (apiKey) stored.apiKeyEnc = await sealSecret(apiKey, c.env.SETTINGS_SECRET);
   return { stored, warning, tierNote, modelCount };
 }
@@ -472,7 +489,7 @@ async function routeAiPut(c) {
     else {
       if (!body.reserve || typeof body.reserve !== "object") throw new InputError("Ungültige Einstellungen für die Reserve-KI.");
       const r = await prepareAiEntry(c, body.reserve, cur.reserve);
-      reserve = r.stored; clear.push(reserve.provider);
+      reserve = r.stored; clear.push(reserve.provider + "#r");   // Sperren der Reserve liegen unter ihrem eigenen Schlüssel
       if (r.modelCount != null) out.reserveModelCount = r.modelCount;
       if (r.tierNote) out.reserveTierNote = r.tierNote;
       if (r.warning) out.reserveWarning = r.warning;
@@ -498,21 +515,18 @@ async function routeAiTest(c) {
   try { t = await testKey(cfgOf(e)); }
   catch (x) { if (x instanceof AIError) throw new HttpError(502, "ai_error", x.message, { aiCode: x.code }); throw x; }
   e.fallbacks = pickFallbacks(t.models);
-  const skip = ((await skipQuery(c.db, e.provider, c.now).all()).results || []).map((r) => r.model);
+  const skip = ((await skipQuery(c.db, e.key, c.now).all()).results || []).map((r) => r.model);
   let out;
   try {
     out = await callAI(cfgOf(e, skip), TEST_MESSAGES, { temperature: 0.1, maxAttempts: 4, timeoutMs: 30000, deadlineMs: 60000, maxWaitMs: 10000,
-      beforeAttempt: gate(c) });
+      beforeAttempt: gate(c), onRotate: onRotate(c) });
   } catch (x) {
     if (!(x instanceof AIError)) throw x;
-    rememberRotated(c, e.provider, x.rotated);
     throw new HttpError(502, "ai_error", x.message, { aiCode: x.code });
   }
   const stored = which === "reserve" ? { ...ai.stored, reserve: { ...ai.stored.reserve, fallbacks: e.fallbacks, testedAt: c.now } }
     : { ...ai.stored, fallbacks: e.fallbacks, testedAt: c.now };
-  const stmts = [c.db.prepare("UPDATE settings SET value=?1 WHERE key='ai' AND value=?2").bind(JSON.stringify(stored), ai.raw),
-    ...skipStatements(c.db, e.provider, out.rotated, c.now)];
-  await c.db.batch(stmts);
+  await c.db.prepare("UPDATE settings SET value=?1 WHERE key='ai' AND value=?2").bind(JSON.stringify(stored), ai.raw).run();
   const sample = String(out.json && typeof out.json.antwort === "string" ? out.json.antwort : out.text).slice(0, 200);
   const res = { ok: true, which, provider: e.provider, label: PROVIDERS[e.provider].label, model: out.model, sample, fallbacks: e.fallbacks,
     modelCount: t.models.length, rotated: out.rotated.map((r) => ({ model: r.model, reason: r.reason })) };
@@ -520,10 +534,6 @@ async function routeAiTest(c) {
   return json(res);
 }
 
-function rememberRotated(c, provider, rotated) {
-  const stmts = skipStatements(c.db, provider, rotated, Date.now());
-  if (stmts.length) c.waitUntil(c.db.batch(stmts).catch(() => {}));
-}
 
 /* ---------- Öffentlich (Schüler:innen) ---------- */
 // Gültige Codes gehen immer durch; nur unbekannte Codes zählen (887 Mio. mögliche Codes – Raten lohnt nicht,
@@ -539,18 +549,27 @@ async function routePublicSheet(c, codeRaw) {
   const s = firstRow(sh);
   if (!s) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
   const rows = Object.fromEntries((st.results || []).map((r) => [r.key, r]));
-  const teacher = parseSetting(rows.teacher), ai = parseSetting(rows.ai);
-  const aiProvider = ai && PROVIDERS[ai.provider] && hasStoredKey(ai) ? providerLabel(ai.provider, ai.baseUrl) : null;
-  const rs = ai && ai.reserve;   // Reserve-KI: für den Datenschutzhinweis der Schüler:innen (Daten können auch dorthin gehen)
-  const aiReserve = rs && PROVIDERS[rs.provider] && hasStoredKey(rs) ? providerLabel(rs.provider, rs.baseUrl) : null;
+  const teacher = parseSetting(rows.teacher);
+  // Empfänger für den Datenschutzhinweis: erster Anbieter, dann die Reserve – nur Einträge mit nutzbarem Schlüssel
+  // (ein nicht entschlüsselbarer Schlüssel bekommt nie Daten); id = Anbieter bzw. custom:Host, label = Rechtsträger und Sitz
+  const ai = await aiConfig(c.env, rows.ai || null);
+  const usable = [ai, ai.reserve].filter((e) => e && e.apiKey);
+  const aiProvider = usable.length && usable[0] === ai ? providerLabel(ai.provider, ai.baseUrl) : null;
+  const aiRecipients = usable.map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl) }));
+  const aiReserve = usable.length > 1 ? providerLabel(usable[1].provider, usable[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
   // Niemals Musterlösungen ausliefern: nur Aufgabentext und Bild-Metadaten verlassen den Server
   const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1) }));
-  return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiProvider, ...(aiReserve ? { aiReserve } : {}) } });
+  return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}) } });
 }
 
-// KI-Fehler, bei denen Warten hilft → 429 mit Retry-After (das Frontend zeigt die Wartezeit); sonst 502
-const AI_WAIT = { BUSY: 30, RATE_LIMIT: 60, TIMEOUT: 30 };
+// KI-Fehler, bei denen Warten hilft → 429 mit Retry-After (der Browser wiederholt automatisch); sonst 502
+const AI_WAIT = { BUSY: 30, RATE_LIMIT: 45, TIMEOUT: 30 };
 const AI_REFUND = new Set(["BUSY", "RATE_LIMIT", "TIMEOUT", "SERVER", "NETWORK", "DAILY_LIMIT"]);   // nicht die Schuld der Schüler:innen
+// Nur bei diesen Fehlern des ersten Anbieters geht dieselbe Anfrage an die Reserve-KI (Verfügbarkeit, zu lang, unbrauchbare
+// Antwort). Nie bei Inhaltsfiltern (FILTERED) und nie bei Fehlkonfiguration (AUTH, CONFIG, PRIVACY_POLICY, REGION, PAYMENT):
+// Datenminimierung – die Reserve bekommt Schülertexte nur, wenn der erste Anbieter nicht verfügbar ist.
+const RESERVE_ON = new Set(["BUSY", "RATE_LIMIT", "DAILY_LIMIT", "TIMEOUT", "SERVER", "NETWORK", "NOT_FOUND", "NO_MODEL", "TOO_LARGE", "EMPTY", "BAD_JSON", "TRUNCATED", "HTTP"]);
+const retryAfterOfErr = (e) => { const s = Math.ceil((e.retryAfterMs || 0) / 1000); return s > 0 ? Math.max(5, Math.min(60, s)) : (AI_WAIT[e.code] || 30); };
 
 async function routeFeedback(c) {
   const body = await readJson(c.request);
@@ -567,27 +586,36 @@ async function routeFeedback(c) {
   const { messages, nrs } = buildFeedbackMessages(tasks, answers);
   if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()) });   // keine Musterlösung: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
-  const entries = [ai, ai.reserve].filter((e) => e && e.apiKey);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
+  let entries = [ai, ai.reserve].filter((e) => e && e.apiKey);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
   if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
+  // Transparenz: Der Browser schickt mit, über welche Empfänger die Schülerin bzw. der Schüler vor dem Klick informiert war
+  // (ids aus GET /api/sheet). Nur diese dürfen Daten bekommen; hat die Lehrkraft inzwischen den ersten Anbieter geändert
+  // oder eine Reserve ergänzt, bekommt der Browser 409 und zeigt den neuen Hinweis, bevor etwas gesendet wird.
+  if (Array.isArray(body.recipients)) {
+    const allowed = new Set(body.recipients.filter((x) => typeof x === "string").slice(0, 10));
+    if (!allowed.has(entryId(entries[0]))) throw new HttpError(409, "ai_changed", MSG.aiChanged);
+    entries = entries.filter((e) => allowed.has(entryId(e)));
+  }
   // Erst zählen, wenn die Anfrage gültig ist und wirklich zur KI geht: je IP (Anzahl und Zeichen) und je Blatt und Tag
   const chars = answers.reduce((n, a) => n + a.length, 0);
   const refund = await countAll(c, [{ kind: "feedback" }, { kind: "feedback_chars", weight: Math.max(1, chars) }, { kind: "sheet_feedback", key: code }]);
-  const t0 = Date.now(), BUDGET = 100000;   // Zeitbudget insgesamt (das Frontend wartet bis 150 s)
+  // Zeitbudget: insgesamt 100 s (der Browser wartet bis 150 s); mit Reserve bekommt der erste Anbieter 45 s, die Reserve den
+  // Rest – aber nur, wenn noch ≥ 35 s bleiben (sonst ein nutzloser Abbruch). Langes Warten erledigt der Browser (Wiederholung).
+  const t0 = Date.now(), BUDGET = 100000, startAt = Math.floor(Math.random() * 64);
   let out = null, err = null;
   for (let i = 0; i < entries.length && !out; i++) {
     const e = entries[i], left = BUDGET - (Date.now() - t0);
-    if (i > 0 && left < 25000) break;   // für die Reserve bleibt keine Zeit mehr
-    const skip = ((await skipQuery(c.db, e.provider, c.now).all()).results || []).map((r) => r.model);
+    if (i > 0 && (left < 35000 || !(err && RESERVE_ON.has(err.code)))) break;   // Reserve nur bei Verfügbarkeitsproblemen
+    const skip = ((await skipQuery(c.db, e.key, c.now).all()).results || []).map((r) => r.model);
     try {
       out = await callAI(cfgOf(e, skip), messages, {
         temperature: 0.1, geminiSchema: FEEDBACK_SCHEMA_GEMINI, accept: feedbackAcceptor(nrs),
-        timeoutMs: 45000, deadlineMs: entries.length > 1 && i === 0 ? 60000 : left, maxWaitMs: 20000,   // mit Reserve: dem ersten Anbieter 60 s
-        beforeAttempt: gate(c),
+        timeoutMs: 45000, deadlineMs: i === 0 ? (entries.length > 1 ? 45000 : left) : Math.min(40000, left), maxWaitMs: 15000,
+        maxAttempts: i === 0 ? 6 : 3, startAt: startAt + i,
+        beforeAttempt: gate(c), onRotate: onRotate(c),
       });
-      rememberRotated(c, e.provider, out.rotated);
     } catch (x) {
       if (!(x instanceof AIError)) throw x;
-      rememberRotated(c, e.provider, x.rotated);
       // Es zählt der letzte Fehler – außer die Reserve ist selbst falsch eingerichtet, dann bleibt der des ersten Anbieters
       if (!err || !(x.code === "NO_KEY" || x.code === "CONFIG" || x.code === "NO_MODEL")) err = x;
     }
@@ -595,8 +623,7 @@ async function routeFeedback(c) {
   if (!out) {
     if (AI_REFUND.has(err.code)) refund();
     if (err.code === "NO_KEY" || err.code === "CONFIG" || err.code === "NO_MODEL") throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
-    const retryAfter = AI_WAIT[err.code];
-    if (retryAfter) throw new HttpError(429, "ai_busy", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code, retryAfter });
+    if (AI_WAIT[err.code]) throw new HttpError(429, "ai_busy", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code, retryAfter: retryAfterOfErr(err) });
     throw new HttpError(502, "ai_error", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code });
   }
   return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs)) });

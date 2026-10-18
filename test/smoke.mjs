@@ -311,6 +311,7 @@ async function main() {
     assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["images,material,text", "images,material,text", "images,material,text"]);
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
+    assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }]);   // Empfänger für den Datenschutzhinweis
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
     for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Musterlösung im öffentlichen JSON!");
     assert.equal(/solution|musterl/i.test(r.text), false);

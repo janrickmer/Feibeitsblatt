@@ -65,6 +65,12 @@ const D = {
   person: { vorname: "Tom", nachname: "Ze", geburtsdatum: "2010-02-02", klasse: "9c" },
   first: ["Das Gewissen ist so etwas wie ein innerer Richter.", "Ich habe beim Test abgeschrieben und mich danach mies gefühlt.", "Ich will es dann wiedergutmachen."],
 };
+// Schüler:in E: die KI bleibt ausgelastet → bricht das Warten zweimal ab, darf dann ohne KI-Feedback abgeben (gibt nicht ab)
+const E = {
+  input: { vorname: "ida", nachname: "kr", geb: "2011-09-09", klasse: "8b" },
+  first: ["Das Gewissen ist wie eine innere Stimme.", "Ich habe gelogen.", "Nicht gut."],
+};
+const RECIPIENT_SUFFIX = " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";   // Empfänger-Label des eigenen Dienstes
 const ORANGE = "rgb(184, 92, 0)";   // .st-first
 const ATTEMPT = /^[0-9a-f]{16}$/;
 
@@ -185,6 +191,8 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#ai2-status")).toHaveText("Bitte den API-Schlüssel der Reserve eintragen.");
   await page.fill("#ai2-key", "e2e-reserve-key-5555");
   await page.click("#ai2-save");
+  const rtext = await confirmDialog(page, "Weiteren KI-Empfänger hinzufügen?");   // jede Reserve = weiterer Empfänger: ausdrückliche Bestätigung
+  expect(rtext).toContain("„127.0.0.1:"); expect(rtext).toContain("Datenschutzbeauftragte");
   await expect(page.locator("#ai2-status")).toHaveText(/^Reserve gespeichert\. \d+ passende Modelle gefunden\./, { timeout: 30_000 });
   await expect(page.locator("#ai2-key")).toHaveValue("");
   await expect(page.locator("#ai2-key-hint")).toHaveText("Gespeichert: …5555 – leer lassen, um ihn zu behalten.");
@@ -528,7 +536,8 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(aiProvider).toMatch(/^127\.0\.0\.1:\d+$/);
   const privacy = page.locator("#privacy");
   await expect(privacy).toContainText("ohne Namenskürzel, Geburtsdatum und Klasse");
-  await expect(privacy).toContainText("„" + aiProvider + "“");
+  await expect(privacy).toContainText("„" + aiProvider + RECIPIENT_SUFFIX + "“");   // Empfänger mit Betreiber-Hinweis
+  await expect(privacy).toContainText("wiederholt diese Seite die Anfrage automatisch (bis zu 5 Versuche");
   await expect(privacy).toContainText("speichert selbst nichts davon");
   await expect(privacy).toContainText("LanguageTool");
   expect(await privacy.evaluate((e) => getComputedStyle(e).color)).toBe("rgb(111, 103, 90)");
@@ -652,8 +661,8 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(fbReq).toHaveLength(1);
   expect(fbReq[0].status).toBe(200);
   const sent = JSON.parse(fbReq[0].reqBody);
-  expect(Object.keys(sent).sort()).toEqual(["answers", "code"]);
-  expect(sent).toEqual({ code: S.code, answers: A.first });
+  expect(Object.keys(sent).sort()).toEqual(["answers", "code", "recipients"]);   // recipients = Empfänger, über die informiert wurde
+  expect(sent).toEqual({ code: S.code, answers: A.first, recipients: ["custom:" + aiProvider] });
   const ms = await mockState();
   expect(ms.count).toBe(1);
   const prompt = JSON.stringify(ms.requests[0].messages);
@@ -740,6 +749,27 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
 
   // Abgabe: nur {code, envelope, stage, attempt}, alles verschlüsselt; Entwurf auf dem Gerät gelöscht
   await submit(page);
+  // Bestätigung: großer grüner Haken, Hinweis mit zwei Gründen, „Meine Lösungen als PDF herunterladen“ (mehrseitig möglich)
+  await expect(page.locator("#done-h")).toHaveText("Abgabe erfolgreich");
+  await expect(page.locator("#screen-done .done-check")).toBeVisible();
+  expect(await page.locator("#screen-done .done-check circle").evaluate((e) => getComputedStyle(e).fill)).toBe(GREEN);
+  expect((await page.locator("#screen-done .done-check").boundingBox()).width).toBeGreaterThanOrEqual(96);
+  await expect(page.locator("#screen-done .donehint")).toContainText("aus zwei Gründen");
+  await expect(page.locator("#screen-done .donelist li")).toHaveCount(2);
+  await expect(page.locator("#screen-done .donelist li").nth(0)).toContainText("technischen Problemen");
+  await expect(page.locator("#screen-done .donelist li").nth(1)).toContainText("Klassenarbeit");
+  const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  expect(sdl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Loesungen-" + S.shown + "-\\d{4}-\\d\\d-\\d\\d\\.pdf$"));
+  await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
+  const sol = (await readFile(await sdl.path())).toString("latin1");
+  expect(sol.startsWith("%PDF-1.7")).toBe(true);
+  expect(sol).toMatch(/\/Type \/Pages \/Kids \[[^\]]+\] \/Count [1-9]/);
+  expect(sol).toContain("(Meine L\\366sungen \\226 " + TITLE.replace("–", "\\226") + ") Tj");   // Titel (WinAnsi: ö = \366, – = \226)
+  expect(sol).toContain("(Aufgabe 1) Tj"); expect(sol).toContain("(Aufgabe 3) Tj");
+  expect(sol).toContain("(Meine L\\366sung \\(abgegebene Fassung\\):) Tj");
+  expect(sol).toContain("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj");   // A hat überarbeitet
+  expect(sol).toContain("Max \\267 Mu \\267 Klasse 8b");
+  expect(sol).not.toContain("2009-05-04"); expect(sol).not.toContain("04.05.2009");   // kein Geburtsdatum in der Datei
   const sub = await s.calls((r) => r.path === "/api/submit");
   expect(sub).toHaveLength(2);                                   // Erstversuch (beim Feedback) + Abgabe
   expect(sub.map((r) => r.status)).toEqual([200, 200]);
@@ -848,7 +878,35 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   await fillPerson(page, D.input);
   await expect(page.locator("#who-name")).toHaveText("Tom · Ze · 02.02.2010 · Klasse 9c");
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), D.first[i]);
-  await requestFeedback(page);
+  // Ausgelastete KI: zweimal 429 ai_busy (Attrappe über route, retryAfter 5 s) → die Seite wartet mit Countdown und wiederholt
+  // von selbst; währenddessen darf weitergeschrieben werden, der dritte Versuch schickt den aktuellen Text und geht durch
+  let busy = 0;
+  await page.route("**/api/feedback", async (route) => {
+    if (busy < 2) { busy++; await route.fulfill({ status: 429, contentType: "application/json", headers: { "retry-after": "5" }, body: JSON.stringify({ ok: false, error: "Die KI ist gerade ausgelastet.", code: "ai_busy", aiCode: "RATE_LIMIT", retryAfter: 5 }) }); return; }
+    await route.continue();
+  });
+  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await page.click("#fb-btn");
+  const dlgText = await confirmDialog(page, "KI-Feedback anfordern?");
+  expect(dlgText).toContain("an den KI-Dienst „127.0.0.1:");                       // der Empfänger steht im Dialog, nicht nur im Kleingedruckten
+  expect(dlgText).toContain(RECIPIENT_SUFFIX + "“");
+  expect(dlgText).toContain("ohne Namenskürzel, Geburtsdatum und Klasse");
+  await expect(page.locator("#fb-status")).toContainText("Versuch 2 von 5", { timeout: 20_000 });
+  await expect(page.locator("#fb-status")).toContainText("die KI ist ausgelastet");
+  await expect(page.locator("#fb-wait")).toBeVisible();
+  await expect(page.locator("#fb-wait-num")).toHaveText(/^Nächster Versuch in \d+ s$/);
+  await expect(page.locator("#fb-btn")).toBeDisabled();
+  expect(await page.$eval("#a-1", (e) => e.readOnly)).toBe(false);                 // im Wartefenster schreibbar …
+  await typeAt(page, "#a-3", " Nachtrag.");                                         // … und der nächste Versuch schickt den aktuellen Text
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await page.unroute("**/api/feedback");
+  const fbCalls = await s.calls((r) => r.path === "/api/feedback");
+  expect(fbCalls.map((r) => r.status)).toEqual([429, 429, 200]);
+  const lastBody = JSON.parse(fbCalls[2].reqBody);
+  expect(lastBody.answers[2]).toBe(D.first[2] + " Nachtrag.");
+  expect(lastBody.recipients).toEqual([expect.stringMatching(/^custom:127\.0\.0\.1:\d+$/)]);   // worüber informiert wurde
+  await expect(page.locator("#fb-wait")).toBeHidden();
+  await expect(page.locator("#fb-fallback")).toBeHidden();
   await expect.poll(async () => (await s.calls((r) => r.path === "/api/submit")).length, { timeout: 30_000 }).toBe(1);
   const [post] = await s.calls((r) => r.path === "/api/submit");
   expect(post.status).toBe(200);
@@ -857,6 +915,36 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   expect(body.attempt).toMatch(ATTEMPT);
   for (const p of ["Richter", "Tom", "2010-02-02", "vorname", "klasse"]) expect(post.reqBody).not.toContain(p);   // („9c“ wäre als Base64-Zufallstreffer möglich)
   await expect(page.locator("#submit-btn")).toBeEnabled();   // … gibt aber nicht ab
+  await closePage(s);
+});
+
+test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zählt als Fehlversuch; nach dem zweiten Abbruch ist Abgeben ohne KI möglich", async ({ browser }) => {
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, S.shown);
+  await fillPerson(page, E.input);
+  for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), E.first[i]);
+  let n = 0;
+  await page.route("**/api/feedback", (route) => { n++; return route.fulfill({ status: 429, contentType: "application/json", headers: { "retry-after": "30" }, body: JSON.stringify({ ok: false, error: "Gerade fragen sehr viele gleichzeitig.", code: "ai_busy", aiCode: "BUSY", retryAfter: 30 }) }); });
+  for (let cycle = 1; cycle <= 2; cycle++) {
+    await page.click("#fb-btn");
+    await confirmDialog(page, "KI-Feedback anfordern?");
+    await expect(page.locator("#fb-wait")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#fb-status")).toContainText("Versuch 2 von 5");
+    await expect(page.locator("#fb-status")).not.toContainText("in einer Minute noch einmal");   // kein Servertext während des automatischen Wartens
+    await page.click("#fb-wait-stop");
+    await expect(page.locator("#fb-status")).toHaveText("Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
+    await expect(page.locator("#fb-wait")).toBeHidden();
+    await expect(page.locator("#fb-btn")).toBeEnabled();
+    if (cycle === 1) { await expect(page.locator("#fb-fallback")).toBeHidden(); await expect(page.locator("#submit-btn")).toBeDisabled(); }
+  }
+  expect(n).toBe(2);   // je Zyklus genau eine Anfrage – nach dem Abbruch wird nichts mehr gesendet
+  await expect(page.locator("#fb-fallback")).toBeVisible();
+  await expect(page.locator("#fb-fallback")).toContainText("KI ausgelastet");
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  const draft = JSON.parse(await page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))));
+  expect(draft).toMatchObject({ fbFails: 2, fbUnavailable: "KI ausgelastet" });   // Fehlversuche überdauern ein Neuladen
+  expect(await s.calls((r) => r.path === "/api/submit")).toEqual([]);           // nichts beim Server (E gibt nicht ab)
   await closePage(s);
 });
 
@@ -1041,7 +1129,8 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie M
     expect(res.status()).toBe(200);
     const body = await res.text();
     const j = JSON.parse(body);
-    expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "code", "publicKey", "tasks", "title"]);
+    expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "aiRecipients", "code", "publicKey", "tasks", "title"]);
+    expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX }]);
     expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [] })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
