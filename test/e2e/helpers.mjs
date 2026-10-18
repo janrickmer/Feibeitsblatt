@@ -73,7 +73,7 @@ export async function openPage(browser, { clipboard = false } = {}) {
   page.on("response", (r) => {
     const u = new URL(r.url());
     if (!u.pathname.startsWith("/api/")) return;
-    const entry = { method: r.request().method(), path: u.pathname, status: r.status(), body: "", reqBody: r.request().postData() || "" };
+    const entry = { method: r.request().method(), path: u.pathname, query: u.search, status: r.status(), body: "", reqBody: r.request().postData() || "" };
     entry.ready = r.text().then((b) => { entry.body = b; }, () => {});
     api.push(entry);
   });

@@ -82,6 +82,11 @@ export const LIMITS = {
   sheetImageBytes: 12 * 1024 * 1024, // Summe aller Bilder je Blatt (D1-Speicher)
   imageSide: 4096,                 // größte erlaubte Kantenlänge laut Kopfdaten
   imageAlt: 200,                   // Bildbeschreibung (wird vorgelesen)
+  fileBytes: 6 * 1024 * 1024,      // eine PDF-Datei zu einer Aufgabe
+  filesPerTask: 3,                 // PDF-Dateien je Aufgabe
+  sheetFileBytes: 20 * 1024 * 1024, // Summe aller PDF-Dateien je Blatt (D1-Speicher)
+  fileChunk: 512 * 1024,           // Dateien werden in Teilen hochgeladen (Body ≤ 1 MB, D1-Zeile klein halten)
+  fileName: 120,                   // Dateiname (Anzeige und Download)
   material: 8000,                  // Material je Aufgabe (Zeichen), formatiert als Absätze aus Läufen
   materialParagraphs: 200, materialRuns: 600, materialLinks: 60, href: 1000,
 };
@@ -304,6 +309,45 @@ export function validateImageUpload(body) {
   const info = imageInfo(head);
   if (!info) throw new InputError("Das Bild konnte nicht gelesen werden (erlaubt sind JPG, PNG und WebP).", "bad_image");
   return { task, mode, data, bytes, info, id, alt };
+}
+/* ---------- PDF-Dateien zu Aufgaben (gestückelt, Base64 je Teil wie bei Bildern) ---------- */
+export const FILE_ID_RE = IMAGE_ID_RE;
+export const FILE_MIME = "application/pdf";
+// Dateiname für Anzeige und Download: keine Steuerzeichen, keine Pfadzeichen, endet auf .pdf
+export function cleanFileName(name) {
+  let s = cleanText(String(name == null ? "" : name)).normalize("NFC").replace(/[\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/g, "")
+    .replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().replace(/^\.+/, "");
+  if (!/\.pdf$/i.test(s)) s += ".pdf";
+  if (s.length > LIMITS.fileName) s = s.slice(0, LIMITS.fileName - 4).trim() + ".pdf";
+  return s === ".pdf" ? "Datei.pdf" : s;
+}
+// Upload-Body {id, task, name, bytes, chunks, n, data}: Teil n (0-basiert) einer PDF-Datei als Base64; Teil 0 muss mit
+// „%PDF-“ beginnen. Alle Teile außer dem letzten sind genau LIMITS.fileChunk Bytes lang, so passt die Summe zur Größe.
+export function validateFileUpload(body) {
+  if (!isObj(body)) throw new InputError("Ungültige Anfrage.");
+  const task = body.task;
+  if (typeof task !== "number" || !Number.isInteger(task) || task < 1 || task > LIMITS.tasks) throw new InputError("Ungültige Aufgabennummer für die Datei.");
+  const id = String(body.id == null ? "" : body.id).toLowerCase();
+  if (!FILE_ID_RE.test(id)) throw new InputError("Ungültige Datei-Kennung.");
+  const bytes = body.bytes;
+  if (typeof bytes !== "number" || !Number.isInteger(bytes) || bytes < 1) throw new InputError("Ungültige Dateigröße.");
+  if (bytes > LIMITS.fileBytes) throw new InputError("Die Datei ist zu groß (höchstens " + Math.round(LIMITS.fileBytes / 1024 / 1024) + " MB je PDF-Datei).", "too_large", 413);
+  const chunks = Math.ceil(bytes / LIMITS.fileChunk);
+  if (body.chunks !== chunks) throw new InputError("Die Stückelung der Datei passt nicht zur Größe.");
+  const n = body.n;
+  if (typeof n !== "number" || !Number.isInteger(n) || n < 0 || n >= chunks) throw new InputError("Ungültiger Teil der Datei.");
+  const name = cleanFileName(body.name);
+  const data = body.data, bin = strictB64(data);
+  if (!bin) throw new InputError("Die Datei konnte nicht gelesen werden (erlaubt sind PDF-Dateien).", "bad_file");
+  const expect = n < chunks - 1 ? LIMITS.fileChunk : bytes - n * LIMITS.fileChunk;
+  if (bin.length !== expect) throw new InputError("Teil " + (n + 1) + " der Datei hat nicht die erwartete Größe.", "bad_file");
+  if (n === 0 && !bin.startsWith("%PDF-")) throw new InputError("Das ist keine PDF-Datei (erlaubt sind nur PDF-Dateien).", "bad_file");
+  return { task, id, name, bytes, chunks, n, data };
+}
+// Datei-Metadaten aus D1-Zeilen (nur Teil 0, nur vollständige Dateien) für eine Aufgabe – ohne Dateidaten
+export function filesForTask(rows, task) {
+  return (rows || []).filter((r) => Number(r.task) === task && Number(r.have) >= Number(r.chunks))
+    .map((r) => ({ id: String(r.id), name: cleanFileName(r.name), bytes: Number(r.bytes) || 0 }));
 }
 // Bild-Metadaten aus D1-Zeilen für eine Aufgabe (ohne Bilddaten)
 export function imagesForTask(rows, task) {

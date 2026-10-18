@@ -257,7 +257,7 @@ async function main() {
     assert.equal(r.json.sheets.find((s) => s.code === code).taskCount, 3);
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 0);
     r = await api("GET", "/api/teacher/sheets/" + code.toLowerCase(), undefined, { auth });
-    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, material: [], images: [] })));
+    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, material: [], images: [], files: [] })));
     ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Musterlösungen");
 
     step = "Bilder zu Aufgaben";
@@ -303,13 +303,46 @@ async function main() {
     r = await api("GET", "/api/sheet/ZZZZZ9/images/" + img2.id); misses++; expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);   // unbekannter Code zählt als Fehlgriff
     ok("Bilder: Upload-Prüfungen (Auth, Aufgabe, Art, Base64, Format, Größe, höchstens 5 je Aufgabe), Reihenfolge, Metadaten ohne Bilddaten, öffentlicher Abruf (Base64, cachebar)");
 
+    step = "PDF-Dateien zu Aufgaben";
+    const pdf = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(600 * 1024, 0x20), Buffer.from("\n%%EOF\n")]);   // 2 Teile
+    const CH = 512 * 1024, pdfChunks = Math.ceil(pdf.length / CH);
+    const pdfPart = (n) => pdf.subarray(n * CH, Math.min(pdf.length, (n + 1) * CH)).toString("base64");
+    const fileId = "0123456789abcd01";
+    const fup = (n, extra) => api("POST", "/api/teacher/sheets/" + code + "/files", { id: fileId, task: 2, name: "Arbeitsblatt: Zelle.pdf", bytes: pdf.length, chunks: pdfChunks, n, data: pdfPart(n), ...(extra || {}) }, { auth });
+    expectErr(await api("POST", "/api/teacher/sheets/" + code + "/files", { id: fileId, task: 2, name: "x.pdf", bytes: pdf.length, chunks: pdfChunks, n: 0, data: pdfPart(0) }), 401, "unauthorized");
+    expectErr(await fup(1), 400, "bad_request");                                   // Teil 1 vor Teil 0
+    expectErr(await fup(0, { task: 4 }), 400, "bad_request");                      // Aufgabe 4 gibt es nicht
+    expectErr(await fup(0, { data: Buffer.from("kein PDF" + " ".repeat(CH - 8)).toString("base64") }), 400, "bad_file");
+    expectErr(await fup(0, { chunks: 1 }), 400, "bad_request");
+    expectErr(await api("POST", "/api/teacher/sheets/" + code + "/files", { id: "0123456789abcd02", task: 1, name: "g.pdf", bytes: 7 * 1024 * 1024, chunks: 14, n: 0, data: pdfPart(0) }, { auth }), 413, "too_large");
+    r = await fup(0); assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.file, { id: fileId, task: 2, pos: 0, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length, chunks: 2, n: 0, complete: false });
+    r = await api("GET", "/api/sheet/" + code + "/files/" + fileId); expectErr(r, 404, "not_found");   // unvollständig: kein Download, nicht gelistet
+    r = await api("GET", "/api/sheet/" + code); assert.deepEqual(r.json.sheet.tasks[1].files, []);
+    r = await fup(1); assert.equal(r.status, 200, r.text); assert.deepEqual(r.json.file, { id: fileId, task: 2, n: 1, chunks: 2, complete: true });
+    r = await fup(1); assert.equal(r.status, 200, r.text); assert.equal(r.json.existing, true);   // Wiederholung → kein Duplikat
+    r = await fup(0); assert.equal(r.status, 200, r.text); assert.deepEqual([r.json.existing, r.json.file.complete], [true, true]);
+    r = await api("GET", "/api/teacher/sheets/" + code, undefined, { auth });
+    assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], [{ id: fileId, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length }], []]);
+    assert.equal(r.text.includes('"data"'), false);
+    r = await api("GET", "/api/sheet/" + code.toLowerCase() + "/files/" + fileId);
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.headers.get("cache-control"), "public, max-age=31536000, immutable");
+    assert.deepEqual([r.json.id, r.json.name, r.json.mime, r.json.bytes, r.json.chunks, r.json.n], [fileId, "Arbeitsblatt- Zelle.pdf", "application/pdf", pdf.length, 2, 0]);
+    const r2 = await api("GET", "/api/sheet/" + code + "/files/" + fileId + "?part=1"); assert.equal(r2.status, 200, r2.text);
+    assert.equal(Buffer.compare(Buffer.concat([Buffer.from(r.json.data, "base64"), Buffer.from(r2.json.data, "base64")]), pdf), 0);
+    r = await api("GET", "/api/sheet/" + code + "/files/" + fileId + "?part=2"); expectErr(r, 404, "not_found", "Diese Adresse gibt es nicht.");
+    r = await api("GET", "/api/sheet/" + otherCode + "/files/" + fileId); expectErr(r, 404, "not_found", "Diese Adresse gibt es nicht.");   // Datei eines anderen Blattes
+    r = await api("GET", "/api/sheet/ZZZZZ9/files/" + fileId); misses++; expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);
+    ok("PDF-Dateien: gestückelter Upload (Auth, Reihenfolge, Kennung, Größe, Stückelung), erst vollständig gelistet, Download in Teilen (cachebar)");
+
     step = "Öffentlicher Abruf";
     const display = code.slice(0, 3) + "-" + code.slice(3);
     r = await api("GET", "/api/sheet/" + encodeURIComponent(" " + display.toLowerCase() + " "));
     assert.equal(r.status, 200, r.text);
     assert.deepEqual(r.json.sheet.tasks.map((t) => t.text), tasks.map((t) => t.text));
-    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["images,material,text", "images,material,text", "images,material,text"]);
-    assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]);
+    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["files,images,material,text", "files,images,material,text", "files,images,material,text"]);
+    assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]); assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], [{ id: fileId, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length }], []]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }]);   // Empfänger für den Datenschutzhinweis
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
@@ -444,6 +477,7 @@ async function main() {
     assert.equal(r.json.ok, true); assert.equal(r.json.deletedSubmissions, 1);
     expectErr(await api("GET", "/api/teacher/sheets/" + code, undefined, { auth }), 404, "not_found");
     r = await api("GET", "/api/sheet/" + code + "/images/" + img1.id); misses++; expectErr(r, 404, "not_found");   // Bilder mit dem Blatt gelöscht
+    r = await api("GET", "/api/sheet/" + code + "/files/" + fileId); misses++; expectErr(r, 404, "not_found");   // PDF-Dateien mit dem Blatt gelöscht
     expectErr(await api("DELETE", "/api/teacher/sheets/" + code, undefined, { auth }), 404, "not_found");
     r = await api("GET", "/api/sheet/" + code); misses++;
     expectErr(r, 404, "not_found");

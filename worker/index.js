@@ -5,7 +5,7 @@ import {
   normalizeCode, isValidCode, generateCode, sha256Hex, timingSafeEqualStr, decodeAuthKey, importPublicKey,
   validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateAiInput,
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
-  validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta,
+  validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -20,6 +20,7 @@ const MSG = {
   badJson: "Die Anfrage konnte nicht gelesen werden (ungültiges JSON).",
   tooLarge: "Die Anfrage ist zu groß.",
   imagesFull: "Die Bilder dieses Feibeitsblattes sind zusammen zu groß (höchstens " + Math.round(LIMITS.sheetImageBytes / 1024 / 1024) + " MB).",
+  filesFull: "Die PDF-Dateien dieses Feibeitsblattes sind zusammen zu groß (höchstens " + Math.round(LIMITS.sheetFileBytes / 1024 / 1024) + " MB).",
   server: "Auf dem Server ist ein Fehler aufgetreten. Bitte später erneut versuchen.",
   dbLimit: "Die Datenbank hat ihr kostenloses Tageskontingent erreicht. Bitte morgen erneut versuchen.",
   sheetGone: "Dieses Feibeitsblatt gibt es nicht mehr. Bitte laden Sie die Übersicht neu.",
@@ -73,6 +74,9 @@ const SCHEMA = [
   // Spalten vor `data` halten, was Listen brauchen: SQLite liest sonst für jede Zeile den ~700 KB langen Datenteil mit.
   "CREATE TABLE IF NOT EXISTS sheet_images (id TEXT PRIMARY KEY, sheet_code TEXT NOT NULL, task INTEGER NOT NULL, pos INTEGER NOT NULL, mode TEXT NOT NULL, mime TEXT NOT NULL, w INTEGER NOT NULL, h INTEGER NOT NULL, bytes INTEGER NOT NULL, created_at INTEGER NOT NULL, alt TEXT NOT NULL DEFAULT '', data TEXT NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_sheet_images_sheet ON sheet_images(sheet_code, task, pos)",
+  // PDF-Dateien zu Aufgaben: je Teil (n) eine Zeile mit Base64; Teil 0 trägt die Metadaten, `data` ist die letzte Spalte
+  "CREATE TABLE IF NOT EXISTS sheet_files (id TEXT NOT NULL, n INTEGER NOT NULL, sheet_code TEXT NOT NULL, task INTEGER NOT NULL, pos INTEGER NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, chunks INTEGER NOT NULL, created_at INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(id, n))",
+  "CREATE INDEX IF NOT EXISTS idx_sheet_files_sheet ON sheet_files(sheet_code, n, task, pos)",
 ];
 let schemaReady = false;   // kein geteiltes Promise: workerd erlaubt kein I/O über Request-Grenzen hinweg
 async function ensureSchema(db) {
@@ -303,14 +307,15 @@ async function routeSheetGet(c, codeRaw) {
   await requireTeacher(c);
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
-  const [sh, cnt, im] = await c.db.batch([
+  const [sh, cnt, im, fi] = await c.db.batch([
     c.db.prepare("SELECT code, title, tasks, created_at FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT COUNT(*) AS n FROM submissions WHERE sheet_code=?1").bind(code),
     imagesStmt(c.db, code),
+    filesStmt(c.db, code),
   ]);
   const s = firstRow(sh);
   if (!s) throw sheetGone();
-  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), solution: String(t.solution || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1) }));
+  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), solution: String(t.solution || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1), files: filesForTask(fi.results, i + 1) }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, createdAt: s.created_at, tasks, submissionCount: (firstRow(cnt) || {}).n || 0 } });
 }
 
@@ -322,6 +327,7 @@ async function routeSheetDelete(c, codeRaw) {
     c.db.prepare("DELETE FROM submissions WHERE sheet_code=?1").bind(code),
     c.db.prepare("DELETE FROM sheet_images WHERE sheet_code=?1").bind(code),
     c.db.prepare("DELETE FROM sheets WHERE code=?1").bind(code),
+    c.db.prepare("DELETE FROM sheet_files WHERE sheet_code=?1").bind(code),
   ]);
   if (!sh.meta || !sh.meta.changes) throw sheetGone();
   return json({ ok: true, deletedSubmissions: (subs.meta && subs.meta.changes) || 0 });
@@ -384,6 +390,84 @@ async function routePublicImage(c, codeRaw, idRaw) {
   }
   return json({ ok: true, id, mime: String(row.mime), w: Number(row.w), h: Number(row.h), data: String(row.data) },
     200, { "Cache-Control": "public, max-age=31536000, immutable" });
+}
+
+/* ---------- PDF-Dateien zu Aufgaben ---------- */
+// Nur Teil 0 (Metadaten) und nur Spalten vor `data`; `have` = vorhandene Teile (vollständig, wenn have = chunks)
+const filesStmt = (db, code) => db.prepare(
+  "SELECT f.id, f.task, f.pos, f.name, f.bytes, f.chunks, (SELECT COUNT(*) FROM sheet_files c WHERE c.id=f.id) AS have " +
+  "FROM sheet_files f WHERE f.sheet_code=?1 AND f.n=0 ORDER BY f.task, f.pos").bind(code);
+
+// POST …/sheets/:code/files – JSON {id, task, name, bytes, chunks, n, data}: Teil n einer PDF-Datei (Base64). Teil 0 legt
+// die Datei an (ein bedingter INSERT prüft Blatt, Aufgabe, Anzahl je Aufgabe und Gesamtgröße atomar); weitere Teile
+// hängen an Teil 0 (gleiches Blatt, gleiche Größe). Wiederholungen speichern nichts doppelt. Vollständig = alle Teile da.
+async function routeFileUpload(c, codeRaw) {
+  await requireTeacher(c);
+  const code = codeParam(codeRaw);
+  if (!isValidCode(code)) throw sheetGone();
+  const { task, id, name, bytes, chunks, n, data } = validateFileUpload(await readJson(c.request));
+  if (n === 0) {
+    const row = await c.db.prepare(
+      "INSERT INTO sheet_files(id,n,sheet_code,task,pos,name,mime,bytes,chunks,created_at,data) " +
+      "SELECT ?1,0,?2,?3,(SELECT COUNT(*) FROM sheet_files WHERE sheet_code=?2 AND task=?3 AND n=0),?4,?5,?6,?7,?8,?9 " +
+      "WHERE NOT EXISTS(SELECT 1 FROM sheet_files WHERE id=?1) " +
+      "AND EXISTS(SELECT 1 FROM sheets WHERE code=?2 AND json_array_length(tasks)>=?3) " +
+      "AND (SELECT COUNT(*) FROM sheet_files WHERE sheet_code=?2 AND task=?3 AND n=0)<?10 " +
+      "AND (SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE sheet_code=?2 AND n=0)+?6<=?11 RETURNING pos")
+      .bind(id, code, task, name, FILE_MIME, bytes, chunks, c.now, data, LIMITS.filesPerTask, LIMITS.sheetFileBytes).first();
+    if (!row) {   // Grund ermitteln (nur im Fehlerfall ein zweiter Lesezugriff)
+      const [ex, sh, cnt] = await c.db.batch([
+        c.db.prepare("SELECT task, pos, name, bytes, chunks, (SELECT COUNT(*) FROM sheet_files c WHERE c.id=?1) AS have FROM sheet_files WHERE id=?1 AND n=0 AND sheet_code=?2").bind(id, code),
+        c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code),
+        c.db.prepare("SELECT COUNT(*) AS n FROM sheet_files WHERE sheet_code=?1 AND task=?2 AND n=0").bind(code, task),
+      ]);
+      const e = firstRow(ex);
+      if (e) return json({ ok: true, existing: true, file: { id, task: Number(e.task), pos: Number(e.pos), name: String(e.name), bytes: Number(e.bytes), chunks: Number(e.chunks), n: 0, complete: Number(e.have) >= Number(e.chunks) } });
+      const s = firstRow(sh);
+      if (!s) throw sheetGone();
+      if (task > Number(s.n)) throw new InputError("Aufgabe " + task + " gibt es in diesem Feibeitsblatt nicht.");
+      if (Number((firstRow(cnt) || {}).n) >= LIMITS.filesPerTask) throw new InputError("Höchstens " + LIMITS.filesPerTask + " PDF-Dateien je Aufgabe.", "too_many_files");
+      throw new HttpError(413, "too_large", MSG.filesFull);
+    }
+    return json({ ok: true, file: { id, task, pos: Number(row.pos), name, bytes, chunks, n: 0, complete: chunks === 1 } });
+  }
+  const [ins, have] = await c.db.batch([
+    c.db.prepare("INSERT OR IGNORE INTO sheet_files(id,n,sheet_code,task,pos,name,mime,bytes,chunks,created_at,data) " +
+      "SELECT id,?2,sheet_code,task,pos,name,mime,bytes,chunks,?3,?4 FROM sheet_files WHERE id=?1 AND n=0 AND sheet_code=?5 AND task=?6 AND bytes=?7 AND chunks>?2")
+      .bind(id, n, c.now, data, code, task, bytes),
+    c.db.prepare("SELECT COUNT(*) AS have, MAX(chunks) AS chunks FROM sheet_files WHERE id=?1 AND sheet_code=?2").bind(id, code),
+  ]);
+  const h = firstRow(have);
+  if (!h || !Number(h.have)) throw new InputError("Zu dieser Datei fehlt der erste Teil – bitte den Upload neu beginnen.", "bad_request");
+  const existing = !(ins.meta && ins.meta.changes);
+  return json({ ok: true, ...(existing ? { existing: true } : {}), file: { id, task, n, chunks: Number(h.chunks), complete: Number(h.have) >= Number(h.chunks) } });
+}
+
+// GET /api/sheet/:code/files/:id?part=n – öffentlich (der Code ist der Zugang): Teil n (0-basiert, Vorgabe 0) einer
+// vollständigen PDF-Datei als {name, mime, bytes, chunks, n, data (Base64 des Teils)}. Je Aufruf nur eine D1-Zeile
+// (≤ 683 KB Base64) – eine 6-MB-Datei in einem Stück zu lesen und zu serialisieren würde die 10 ms CPU sprengen; der
+// Browser holt die Teile nacheinander und baut daraus die Datei. Unveränderlich → lange cachebar. Der Body wird ohne
+// JSON.stringify zusammengesetzt (Base64 braucht keine Maskierung). Unvollständige Dateien werden nie ausgeliefert.
+async function routePublicFile(c, codeRaw, idRaw) {
+  const code = codeParam(codeRaw);
+  if (!isValidCode(code)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
+  const id = String(idRaw || "").toLowerCase();
+  const part = new URL(c.request.url).searchParams.get("part");
+  const n = part == null || part === "" ? 0 : (/^\d{1,3}$/.test(part) ? Number(part) : -1);
+  if (!FILE_ID_RE.test(id) || n < 0) throw new HttpError(404, "not_found", MSG.notFound);
+  const [fi, have, sh] = await c.db.batch([
+    c.db.prepare("SELECT name, bytes, chunks, data FROM sheet_files WHERE id=?1 AND sheet_code=?2 AND n=?3").bind(id, code, n),
+    c.db.prepare("SELECT COUNT(*) AS have FROM sheet_files WHERE id=?1 AND sheet_code=?2").bind(id, code),
+    c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
+  ]);
+  const row = firstRow(fi), h = firstRow(have);
+  if (!row || !h || Number(h.have) < Number(row.chunks)) {   // nicht da oder noch unvollständig
+    if (!firstRow(sh)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
+    throw new HttpError(404, "not_found", MSG.notFound);
+  }
+  const body = '{"ok":true,"id":"' + id + '","name":' + JSON.stringify(cleanFileName(row.name)) + ',"mime":"' + FILE_MIME + '","bytes":' + Number(row.bytes) +
+    ',"chunks":' + Number(row.chunks) + ',"n":' + n + ',"data":"' + String(row.data) + '"}';
+  return respond(body, 200, { "Cache-Control": "public, max-age=31536000, immutable" });
 }
 
 // Seitenweise (?after=<id>): je Seite höchstens LIMITS.submissionsPage Abgaben bzw. LIMITS.pageBytes – eine Flut von
@@ -541,10 +625,11 @@ async function routeAiTest(c) {
 async function routePublicSheet(c, codeRaw) {
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
-  const [sh, st, im] = await c.db.batch([
+  const [sh, st, im, fi] = await c.db.batch([
     c.db.prepare("SELECT code, title, tasks FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT key, value FROM settings WHERE key IN ('teacher','ai')"),
     imagesStmt(c.db, code),
+    filesStmt(c.db, code),
   ]);
   const s = firstRow(sh);
   if (!s) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
@@ -558,7 +643,7 @@ async function routePublicSheet(c, codeRaw) {
   const aiRecipients = usable.map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl) }));
   const aiReserve = usable.length > 1 ? providerLabel(usable[1].provider, usable[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
   // Niemals Musterlösungen ausliefern: nur Aufgabentext und Bild-Metadaten verlassen den Server
-  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1) }));
+  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1), files: filesForTask(fi.results, i + 1) }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}) } });
 }
 
@@ -663,6 +748,7 @@ const ROUTES = [
   ["/api/health", { GET: async () => json({ ok: true, service: "feibeitsblatt" }) }, { noDb: true }],
   [/^\/api\/sheet\/([^/]+)$/, { GET: routePublicSheet }],
   [/^\/api\/sheet\/([^/]+)\/images\/([^/]+)$/, { GET: routePublicImage }],
+  [/^\/api\/sheet\/([^/]+)\/files\/([^/]+)$/, { GET: routePublicFile }],
   ["/api/feedback", { POST: routeFeedback }],
   ["/api/submit", { POST: routeSubmit }],
   ["/api/teacher/door", { POST: routeDoor }],
@@ -673,6 +759,7 @@ const ROUTES = [
   [/^\/api\/teacher\/sheets\/([^/]+)$/, { GET: routeSheetGet, DELETE: routeSheetDelete }],
   [/^\/api\/teacher\/sheets\/([^/]+)\/submissions$/, { GET: routeSubmissionsList, DELETE: routeSubmissionsDelete }],
   [/^\/api\/teacher\/sheets\/([^/]+)\/images$/, { POST: routeImageUpload }],
+  [/^\/api\/teacher\/sheets\/([^/]+)\/files$/, { POST: routeFileUpload }],
   ["/api/teacher/ai", { GET: routeAiGet, PUT: routeAiPut }],
   ["/api/teacher/ai/test", { POST: routeAiTest }],
 ];
