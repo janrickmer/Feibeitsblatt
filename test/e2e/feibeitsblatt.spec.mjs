@@ -986,9 +986,9 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   }
   // B hat nach dem Feedback nichts geändert: der Dialog sagt es, und es geht keine weitere Anfrage an die KI
   await page.click("#submit-btn");
-  expect(await confirmDialog(page, "Jetzt abgeben?")).toContain("Du hast nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet");
+  expect(await confirmDialog(page, "Jetzt abgeben?")).toContain("An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet");
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
-  await expect(page.locator("#done-fb-status")).toHaveText("Du hast deine Antworten nach dem ersten KI-Feedback nicht verändert – die Rückmeldung bleibt dieselbe:");
+  await expect(page.locator("#done-fb-status")).toHaveText("An den Aufgaben, die die KI beurteilt, hast du nach dem ersten Feedback nichts verändert – die Rückmeldung bleibt dieselbe:");
   await expect(page.locator("#done-fb .fbbox")).toHaveCount(3);
   await expect(page.locator("#done-fb .fb-sum").first()).toHaveText(/^Angesprochen: \d+ von \d+ Kernpunkt(en)?\.$/);   // ohne Vergleich
   expect((await s.calls((r) => r.path === "/api/feedback")).map((r) => r.status)).toEqual([502, 502, 200]);
@@ -1530,6 +1530,69 @@ test("7 Alle Abgaben löschen → Tabelle leer; Feibeitsblatt löschen → Code 
   // … die PDF-Dateien ebenso
   expect((await request.get("/api/sheet/" + S.code + "/files/" + S.pdf.id)).status()).toBe(404);
   expect(await d1Query("SELECT COUNT(*) AS n FROM sheet_files")).toEqual([{ n: 0 }]);
+});
+
+test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeichen → neu beurteilt wird nur Aufgabe 2", async ({ browser }) => {
+  // eigenes kleines Blatt mit zwei Aufgaben mit Musterlösung (das Blatt der früheren Tests ist gelöscht); am Ende wieder löschen
+  const t = await openPage(browser);
+  await teacherLogin(t.page, PW);
+  await t.page.click("#t-new");
+  await t.page.fill("#b-title", "Zweite Rückmeldung");
+  for (let i = 0; i < 2; i++) { await t.page.fill("#bq-" + (i + 1), TASKS[i].text); await t.page.fill("#bs-" + (i + 1), TASKS[i].solution); }
+  await t.page.click("#b-gen");
+  await expect(t.page.locator("#b-result")).toBeVisible();
+  const shownF = (await t.page.locator("#b-res-code").textContent()).trim();
+  const TASKS_F = TASKS.slice(0, 2);
+  const F = { first: ["Das Gewissen ist eine innere Instanz.", "Ich habe einmal gelogen."], rev2: " Die Begründung: Lügen ist unfair." };
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shownF);
+  await fillPerson(page, { vorname: "ina", nachname: "fe", geb: "2009-09-09", klasse: "8a" });
+  for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), F.first[i]);
+  await mockReset();
+  await requestFeedback(page);
+  const exp1 = expectedResults(TASKS_F, F.first);
+  // Aufgabe 1: nur ein Leerzeichen am Ende (für den Server derselbe Text), Aufgabe 2 inhaltlich überarbeitet
+  await typeAt(page, "#a-1", " ");
+  await typeAt(page, "#a-2", F.rev2);
+  const finals = [F.first[0] + " ", F.first[1] + F.rev2];
+  await page.click("#submit-btn");
+  expect(await confirmDialog(page, "Jetzt abgeben?")).toContain("Danach bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung.");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb .fbbox")).toHaveCount(2, { timeout: 60_000 });
+  await expect(page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");
+  const exp2 = expectedResults(TASKS_F, finals);
+  const read = async (n) => { const box = page.locator("#done-fb-" + n); return { covered: await box.locator("ul.fb-ok li").allTextContents(), missing: await box.locator("ul.fb-miss li").allTextContents() }; };
+  const word = (k) => (k === 1 ? "Kernpunkt" : "Kernpunkten");
+  // Aufgabe 1 bleibt bei der ersten Rückmeldung (nicht neu beurteilt) …
+  const t1 = exp1[0].covered.length + exp1[0].missing.length;
+  expect(await read(1)).toEqual({ covered: exp1[0].covered, missing: exp1[0].missing });
+  await expect(page.locator("#done-fb-1 .fb-sum")).toHaveText(`Angesprochen: ${exp1[0].covered.length} von ${t1} ${word(t1)} (unverändert abgegeben – wie beim ersten Feedback).`);
+  // … Aufgabe 2 zeigt die neue Rückmeldung mit dem Vergleich zum ersten Feedback
+  const t2 = exp2[1].covered.length + exp2[1].missing.length, t2a = exp1[1].covered.length + exp1[1].missing.length;
+  expect(exp2[1].covered.length).toBeGreaterThan(exp1[1].covered.length);   // Plausibilität: die Begründung ist neu angesprochen
+  expect(await read(2)).toEqual({ covered: exp2[1].covered, missing: exp2[1].missing });
+  await expect(page.locator("#done-fb-2 .fb-sum")).toHaveText(`Angesprochen: ${exp2[1].covered.length} von ${t2} ${word(t2)} (beim ersten Feedback: ${exp1[1].covered.length} von ${t2a}).`);
+  // genau eine weitere Anfrage an die KI, mit den abgegebenen Antworten
+  const fbCalls = await s.calls((r) => r.path === "/api/feedback");
+  expect(fbCalls.map((r) => r.status)).toEqual([200, 200]);
+  expect(JSON.parse(fbCalls[1].reqBody).answers).toEqual(finals);
+  expect((await mockState()).count).toBe(2);
+  // PDF: neue Rückmeldung nur bei Aufgabe 2; Aufgabe 1 „gilt auch für die abgegebene Fassung“, ohne „Erste Fassung“ (nur ein Leerzeichen)
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const sol = (await readFile(await dl.path())).toString("latin1");
+  expect(sol.split("(KI-R\\374ckmeldung zur abgegebenen Fassung").length - 1).toBe(1);
+  expect(sol).toContain("(KI-Feedback \\(gilt auch f\\374r die abgegebene Fassung\\):) Tj");
+  expect(sol).toContain("(KI-Feedback zur ersten Fassung:) Tj");
+  expect(sol.split("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj").length - 1).toBe(1);
+  await closePage(s);
+  // aufräumen: das Blatt samt Abgabe löschen (die Tests 8 und 9 legen ihre eigenen Blätter an)
+  await t.page.click("#b-res-back");
+  await expect(t.page.locator("#t-sel-code")).toHaveText(shownF);
+  await t.page.click("#t-del-sheet");
+  await confirmDialog(t.page, "Feibeitsblatt löschen?");
+  await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
 });
 
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {

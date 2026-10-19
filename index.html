@@ -2219,7 +2219,10 @@ function makeSolutionsPdf(sub) {
   gap(4);
   para(`${p.vorname} · ${p.nachname} · Klasse ${p.klasse} · abgegeben am ${fmtDT(when)} Uhr · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
   const fb2 = sub.feedback2 && Array.isArray(sub.feedback2.results) ? sub.feedback2 : null;
-  if (Array.isArray(sub.feedback) && !fb2) { gap(4); para("Die KI-Rückmeldung zu deiner abgegebenen Fassung lag beim Herunterladen noch nicht vor.", 10.5, false, { color: "0.35 0.35 0.35" }); }
+  if (Array.isArray(sub.feedback) && !fb2) {
+    gap(4);
+    para(sub.fb2Final ? "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gab es diesmal nicht." : "Die KI-Rückmeldung zu deiner abgegebenen Fassung lag beim Herunterladen noch nicht vor.", 10.5, false, { color: "0.35 0.35 0.35" });
+  }
   gap(14);
   const fbLines = (f) => {   // Rückmeldung: angesprochen (grün), fehlt (rot), Hinweis
     for (const c of f.covered) para("• angesprochen: " + c, 10.5, false, { indent: 10, color: "0.12 0.42 0.16" });
@@ -2238,21 +2241,22 @@ function makeSolutionsPdf(sub) {
     gap(6);
     para("Meine Lösung (abgegebene Fassung):", 10.5, true);
     para(fin.trim() ? fin : "(leer)", 11, false);
-    const f2 = fb2 && !fb2.same && fb2.results[i] ? normFb(fb2.results[i]) : null;
-    if (f2 && (f2.covered.length || f2.missing.length || f2.note)) {
+    const kept = !!fb2 && (fb2.same || !!(fb2.kept && fb2.kept[i]));   // unverändert: es gilt die erste Rückmeldung (steht weiter unten)
+    const f2 = fb2 && !kept && fb2.results[i] ? normFb(fb2.results[i]) : null;
+    if (f2 && (f2.covered.length || f2.missing.length)) {
       gap(6);
       const n2 = f2.covered.length + f2.missing.length;
       para("KI-Rückmeldung zur abgegebenen Fassung" + (n2 ? ` (${f2.covered.length} von ${n2} ${n2 === 1 ? "Kernpunkt" : "Kernpunkten"} angesprochen)` : "") + ":", 10.5, true);
       fbLines(f2);
     }
-    if (fb && first.trim() && first !== fin) {
+    if (fb && first.trim() && fbText(first) !== fbText(fin)) {   // nur bei inhaltlicher Änderung (nicht wegen Leerzeichen am Ende)
       gap(6);
       para("Erste Fassung (vor dem KI-Feedback):", 10.5, true, { color: "0.35 0.35 0.35" });
       para(first, 10.5, false, { color: "0.35 0.35 0.35" });
     }
     if (fb && (fb.covered.length || fb.missing.length || fb.note)) {
       gap(6);
-      para(fb2 && fb2.same ? "KI-Feedback (gilt auch für die abgegebene Fassung):" : "KI-Feedback zur ersten Fassung:", 10.5, true, { color: "0.35 0.35 0.35" });
+      para(kept ? "KI-Feedback (gilt auch für die abgegebene Fassung):" : "KI-Feedback zur ersten Fassung:", 10.5, true, { color: "0.35 0.35 0.35" });
       fbLines(fb);
     } else if (sub.feedbackError && i === 0) {
       gap(4);
@@ -2294,9 +2298,11 @@ $("done-pdf").addEventListener("click", () => {
   try {
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
     downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/pdf" }), `Feibeitsblatt-Loesungen-${fmtCode(sub.code)}-${stamp}.pdf`);
-    if (sub.fb2State === "loading") {   // die zweite Rückmeldung kommt noch: darauf hinweisen und später erinnern
+    if (Array.isArray(sub.feedback) && !sub.feedback2 && !sub.fb2Final) {   // die zweite Rückmeldung fehlt noch: hinweisen und später erinnern
       sub.pdfBeforeFb2 = true;
-      setStatus(st, "Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung ist noch nicht darin. Lade die Datei noch einmal herunter, sobald die Rückmeldung oben erscheint.", "ok");
+      setStatus(st, sub.fb2State === "loading"
+        ? "Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung ist noch nicht darin. Lade die Datei noch einmal herunter, sobald die Rückmeldung oben erscheint."
+        : "Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung fehlt darin noch. Wenn „Rückmeldung erneut anfordern“ klappt, lade die Datei danach noch einmal herunter.", "ok");
     } else setStatus(st, "Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.", "ok");
   } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuche es noch einmal.", "bad"); }
 });
@@ -2767,11 +2773,23 @@ async function sendFirstAttempt() {
 
 /* ---------- Zweite KI-Rückmeldung zur abgegebenen Fassung (auf der Bestätigungsseite) ----------
  * Erst wird abgegeben – die Abgabe hängt nie von der KI ab –, dann gehen die abgegebenen Antworten wie beim ersten Feedback
- * (ohne Namenskürzel, Geburtsdatum und Klasse, an dieselben Empfänger) noch einmal an die KI. Haben sich die Antworten seit
- * dem ersten Feedback nicht verändert, wird nicht erneut gefragt: die Rückmeldung bliebe dieselbe. Die Rückmeldung steht auf
- * der Bestätigungsseite und in „Meine Lösungen als PDF herunterladen“; sie bleibt nur im Arbeitsspeicher (nicht beim Server,
- * nicht bei der Lehrkraft). Ist die KI ausgelastet, wird automatisch wiederholt wie beim ersten Feedback. */
-const FB2_MANUAL = 3;   // „Erneut versuchen“ nach einem Fehler höchstens so oft
+ * (ohne Namenskürzel, Geburtsdatum und Klasse, an dieselben Empfänger) noch einmal an die KI. Neu beurteilt werden nur
+ * Aufgaben, die die KI beurteilt (Kernpunkte im ersten Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht
+ * (fbText); für alle anderen gilt die erste Rückmeldung weiter. Hat sich nichts davon geändert, wird gar nicht gefragt. Die
+ * Rückmeldung steht auf der Bestätigungsseite und in „Meine Lösungen als PDF herunterladen“; sie bleibt nur im
+ * Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Ist die KI ausgelastet, wird automatisch wiederholt. */
+const FB2_MANUAL = 3;   // „Rückmeldung erneut anfordern“ nach einem vorübergehenden Fehler höchstens so oft
+const FB2_TRANSIENT = new Set(["ai_busy", "ai_error", "network", "timeout", "server_error", "rate_limited", "bad_result", "db_limit"]);
+// Text so, wie der Server ihn prüft und an die KI gibt: Zeilenumbrüche vereinheitlicht, Steuerzeichen weg, außen getrimmt
+const fbText = (s) => String(s == null ? "" : s).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
+// je Aufgabe: beurteilt die KI sie (Kernpunkte im ersten Feedback) und hat sich ihr Text inhaltlich geändert?
+function fb2Changes(firsts, finals, feedback) {
+  return finals.map((fin, i) => {
+    const f = Array.isArray(feedback) && feedback[i] ? normFb(feedback[i]) : null;
+    return !!f && f.covered.length + f.missing.length > 0 && fbText(firsts[i]) !== fbText(fin);
+  });
+}
+const fb2TooLong = (finals) => finals.reduce((n, a) => n + String(a || "").length, 0) > MAX_ANSWERS_TOTAL;   // wie validateAnswers im Worker
 function resetFinalFeedback() {
   $("done-fb").classList.add("hidden"); $("done-fb-list").textContent = "";
   setStatus($("done-fb-status"), "", ""); $("done-fb-retry").classList.add("hidden");
@@ -2797,46 +2815,61 @@ function waitFinalFeedback(run, ms, nextTry) {
     timer = setTimeout(finish, ms);
   });
 }
-// Rückmeldung je Aufgabe: Zahl der angesprochenen Kernpunkte (mit dem Stand beim ersten Feedback), dann die Listen
+// Rückmeldung je Aufgabe: Zahl der angesprochenen Kernpunkte (mit dem Stand beim ersten Feedback bzw. „unverändert“), dann die Listen
 function renderFinalFeedback() {
   const sub = S.lastSubmission, list = $("done-fb-list");
   list.textContent = "";
   if (!sub || !sub.feedback2) return;
-  const same = sub.feedback2.same;
+  const { same, kept } = sub.feedback2;
   sub.feedback2.results.forEach((f, i) => {
-    const before = !same && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
+    const keep = same || !!(kept && kept[i]);
+    const before = !keep && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
     const total = f.covered.length + f.missing.length, totalBefore = before ? before.covered.length + before.missing.length : 0;
     const box = h("div", { class: "fbbox", id: "done-fb-" + (i + 1) }, [h("p", { class: "fb-head", text: "Aufgabe " + (i + 1) })]);
     if (total) box.appendChild(h("p", { class: "fb-sum", text: `Angesprochen: ${f.covered.length} von ${total} ${total === 1 ? "Kernpunkt" : "Kernpunkten"}` +
-      (totalBefore ? ` (beim ersten Feedback: ${before.covered.length} von ${totalBefore})` : "") + "." }));
+      (keep && !same ? " (unverändert abgegeben – wie beim ersten Feedback)" : totalBefore ? ` (beim ersten Feedback: ${before.covered.length} von ${totalBefore})` : "") + "." }));
     appendFbLists(box, f);
     list.appendChild(box);
   });
+}
+// Keine zweite Rückmeldung mehr möglich: eine schon geladene PDF-Datei enthält dann alles, was es gibt
+function finalFeedbackGone(sub) {
+  sub.fb2Final = true;
+  if (sub.pdfBeforeFb2) setStatus($("done-status"), "Deine PDF-Datei enthält schon alles, was es gibt – eine KI-Rückmeldung zu deiner abgegebenen Fassung kommt diesmal nicht.", "");
 }
 function finalFeedbackFailed(e) {
   const sub = S.lastSubmission;
   if (!sub) return;
   sub.fb2State = "failed";
   const code = e instanceof ApiError ? e.code : "";
+  const transient = !code || FB2_TRANSIENT.has(code) || e.status === 429 || e.status >= 500;   // nur dann hilft ein neuer Versuch
   const msg = code === "ai_changed" ? "Die Lehrkraft hat inzwischen die KI-Einstellungen geändert – deine Antworten wurden deshalb nicht noch einmal gesendet."
+    : code === "not_found" ? "Dieses Feibeitsblatt gibt es inzwischen nicht mehr – eine KI-Rückmeldung ist deshalb nicht möglich."
     : code === "ai_busy" ? "Die KI ist gerade sehr stark ausgelastet – auch nach mehreren Versuchen hat es nicht geklappt."
     : code === "bad_result" ? "Die Antwort der KI war unvollständig."
     : errMsg(e, "s");
-  const canRetry = code !== "ai_changed" && code !== "ai_not_configured" && (sub.fb2Manual || 0) < FB2_MANUAL;
+  const canRetry = transient && (sub.fb2Manual || 0) < FB2_MANUAL;
   setStatus($("done-fb-status"), msg + " Deine Abgabe ist davon nicht betroffen" + (canRetry ? " – du kannst die Rückmeldung noch einmal anfordern." : "."), "bad");
   $("done-fb-retry").classList.toggle("hidden", !canRetry);
+  if (!canRetry) finalFeedbackGone(sub);
 }
 async function requestFinalFeedback() {
   const sub = S.lastSubmission;
   if (!sub || !Array.isArray(sub.feedback)) return;   // ohne erstes Feedback (KI nicht eingerichtet oder ausgefallen) keine zweite Rückmeldung
   const st = $("done-fb-status"), retry = $("done-fb-retry");
   $("done-fb").classList.remove("hidden"); retry.classList.add("hidden");
-  const answers = sub.answers.map((a) => a.final);
-  if (sub.answers.every((a) => a.first === a.final)) {   // nichts überarbeitet: die erste Rückmeldung gilt weiter, nichts wird gesendet
-    sub.feedback2 = { results: sub.feedback.map(normFb), same: true, at: new Date().toISOString() };
+  const answers = sub.answers.map((a) => a.final), changed = fb2Changes(sub.answers.map((a) => a.first), answers, sub.feedback);
+  if (!changed.some(Boolean)) {   // nichts, was die KI neu beurteilen würde: die erste Rückmeldung gilt weiter, nichts wird gesendet
+    sub.feedback2 = { results: sub.feedback.map(normFb), same: true, kept: changed.map(() => true), at: new Date().toISOString() };
     sub.fb2State = "done";
-    setStatus(st, "Du hast deine Antworten nach dem ersten KI-Feedback nicht verändert – die Rückmeldung bleibt dieselbe:", "");
+    setStatus(st, "An den Aufgaben, die die KI beurteilt, hast du nach dem ersten Feedback nichts verändert – die Rückmeldung bleibt dieselbe:", "");
     renderFinalFeedback();
+    return;
+  }
+  if (fb2TooLong(answers)) {   // der Server nähme die Anfrage nicht an (Grenze für alle Antworten zusammen)
+    sub.fb2State = "failed";
+    setStatus(st, `Deine abgegebenen Antworten sind zusammen zu lang für eine KI-Rückmeldung (höchstens ${MAX_ANSWERS_TOTAL.toLocaleString("de-DE")} Zeichen). Deine Abgabe ist davon nicht betroffen.`, "bad");
+    finalFeedbackGone(sub);
     return;
   }
   const run = ++S.fbRun, t0 = Date.now();
@@ -2860,7 +2893,8 @@ async function requestFinalFeedback() {
     } finally { if (run === S.fbRun) S.fbAbort = null; }
     if (run !== S.fbRun) return;
     if (!Array.isArray(r.results) || r.results.length !== answers.length) { finalFeedbackFailed(new ApiError("bad_result")); return; }
-    sub.feedback2 = { results: r.results.map(normFb), same: false, at: new Date().toISOString() };
+    // neu beurteilt nur, was sich geändert hat – für unveränderte Aufgaben gilt die erste Rückmeldung (keine widersprüchlichen Urteile)
+    sub.feedback2 = { results: r.results.map((x, i) => (changed[i] ? normFb(x) : normFb(sub.feedback[i]))), same: false, kept: changed.map((c) => !c), at: new Date().toISOString() };
     sub.fb2State = "done";
     setStatus(st, "So sieht die KI deine abgegebene Fassung:", "");
     renderFinalFeedback();
@@ -2881,11 +2915,13 @@ async function submitAll() {
   const st = $("submit-status"), btn = $("submit-btn");
   if (btn.disabled) return;
   setStatus(st, "", "");
-  const withFb = !!S.feedback, unchanged = withFb && S.tas.every((t, i) => t.value === S.first[i]);
+  const finals = S.tas.map((t) => t.value), withFb = !!S.feedback;
+  const unchanged = withFb && !fb2Changes(S.first, finals, S.feedback).some(Boolean), tooLong = withFb && !unchanged && fb2TooLong(finals);
   const ok = await askConfirm({
     title: "Jetzt abgeben?",
     text: withFb ? "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" +
-        (unchanged ? "Du hast nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet; die Rückmeldung bleibt dieselbe."
+        (unchanged ? "An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet; die Rückmeldung bleibt dieselbe."
+          : tooLong ? "Deine Antworten sind zusammen zu lang für eine zweite KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet."
           : "Danach bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung. " + recipientSentence())
       : "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Du gibst ohne KI-Feedback ab; deine Lehrkraft sieht, dass die KI nicht erreichbar war.",
     ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true
@@ -2915,7 +2951,7 @@ async function submitAll() {
     // Für „Meine Lösungen als PDF herunterladen“ auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
     S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
       feedback: payload.feedback, feedbackError: payload.feedbackError || "", receivedAt: d.getTime(),
-      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, pdfBeforeFb2: false };
+      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false };
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
     clearEditor();

@@ -80,17 +80,24 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Zweite KI-Rückmeldung zur abgegebenen Fassung (nur im Browser, kein eigener Server-Endpunkt):** `submitAll`
   gibt **zuerst** ab (die Abgabe hängt nie von der KI ab), merkt sich in `S.lastSubmission` die Empfänger-ids
   (`recipients`) und ruft danach `requestFinalFeedback()` – nur mit erstem Feedback (`S.feedback`; ohne KI keine
-  zweite Rückmeldung, `#done-fb` bleibt verborgen). Unverändert abgegeben (`first === final` überall) → keine Anfrage,
-  `feedback2 = {results: erstes Feedback, same: true}`. Sonst `POST /api/feedback` mit `{code, answers: final,
+  zweite Rückmeldung, `#done-fb` bleibt verborgen). „Geändert“ entscheidet `fb2Changes(firsts, finals, feedback)`
+  genau wie der Server sieht: nur Aufgaben mit Kernpunkten im ersten Feedback und `fbText` (Zeilenumbrüche,
+  Steuerzeichen, trim wie `cleanText`) verschieden – derselbe Helfer im Abgabe-Dialog. Nichts geändert → keine Anfrage,
+  `feedback2 = {results: erstes Feedback, same: true}`; sonst werden nur geänderte Aufgaben übernommen, für die anderen
+  bleibt die erste Rückmeldung (`kept[i]`, Anzeige „unverändert abgegeben – wie beim ersten Feedback“, im PDF „gilt auch
+  für die abgegebene Fassung“) – nie zwei widersprüchliche Urteile für denselben Text. Zu lang (`fb2TooLong`, wie
+  `validateAnswers`) → keine Anfrage, Hinweis. Sonst `POST /api/feedback` mit `{code, answers: final,
   recipients}` (wie das erste: ohne Personendaten, 409 `ai_changed` → nichts gesendet, Hinweis), Lauf-Kennung
   `S.fbRun`/`S.fbAbort` (`resetStudent` → `stopFeedbackRun` bricht ab), bei `ai_busy` automatische Wiederholung wie beim
   ersten Feedback (`FB_TRIES`, `FB_MAX_MS`, Zufallsanteil, `waitFinalFeedback` mit Zähler `#done-fb-wait` außerhalb der
   Live-Region `#done-fb-status`), sonst `finalFeedbackFailed` + `#done-fb-retry` „Rückmeldung erneut anfordern“
-  (höchstens `FB2_MANUAL` 3, nicht bei `ai_changed`/`ai_not_configured`). Anzeige `renderFinalFeedback` in
+  (höchstens `FB2_MANUAL` 3, nur bei vorübergehenden Fehlern `FB2_TRANSIENT`/429/5xx; endgültig → `finalFeedbackGone`,
+  `fb2Final`). Anzeige `renderFinalFeedback` in
   `#done-fb-list` über dem PDF-Button: je Aufgabe `.fbbox#done-fb-n` mit `.fb-sum` „Angesprochen: x von y Kernpunkten
-  (beim ersten Feedback: z von y).“ und denselben Listen wie im Editor (`appendFbLists`). PDF vor der Rückmeldung
-  heruntergeladen (`fb2State === "loading"`) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`, erneut
-  herunterzuladen. `feedback2` bleibt nur im Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Abgabe-Dialog
+  (beim ersten Feedback: z von y).“ und denselben Listen wie im Editor (`appendFbLists`). PDF ohne zweite Rückmeldung
+  heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
+  erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
+  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu. `feedback2` bleibt nur im Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Abgabe-Dialog
   nennt die Empfänger (`recipientSentence`) bzw. „nichts geändert – nichts wird noch einmal gesendet“; Datenschutzhinweis
   und Feedback-Dialog nennen das zweite Senden. Je Schüler:in also bis zu zwei KI-Anfragen → Rate-Limits verdoppelt.
 - **Krypto (nur im Browser; Server sieht nie Passwort oder Klartext-Abgaben):** PBKDF2-HMAC-SHA256, 600 000

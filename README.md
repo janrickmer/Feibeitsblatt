@@ -97,9 +97,11 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    angesprochen ist und was noch fehlt, mit der Zahl der Kernpunkte im Vergleich zum ersten Feedback (z. B.
    „Angesprochen: 3 von 3 Kernpunkten (beim ersten Feedback: 2 von 3)“). Die Abgabe ist zu diesem Zeitpunkt schon
    angekommen und hängt nie von der KI ab. Ist die KI ausgelastet, wiederholt die Seite automatisch wie beim ersten
-   Feedback; klappt es nicht, gibt es „Rückmeldung erneut anfordern“. Wer nach dem ersten Feedback nichts geändert
-   hat, bekommt keine neue Anfrage – die erste Rückmeldung gilt weiter. Ohne erstes KI-Feedback (KI nicht eingerichtet
-   oder ausgefallen) gibt es auch keine zweite Rückmeldung. Die zweite Rückmeldung bleibt nur im Browser: Sie wird
+   Feedback; klappt es vorübergehend nicht, gibt es „Rückmeldung erneut anfordern“. Neu beurteilt werden nur Aufgaben
+   mit Musterlösung, deren Text sich inhaltlich geändert hat; für alle anderen gilt die erste Rückmeldung weiter
+   („unverändert abgegeben – wie beim ersten Feedback“). So bekommt eine unveränderte Antwort nie ein anderes Urteil.
+   Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (KI nicht
+   eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung. Die zweite Rückmeldung bleibt nur im Browser: Sie wird
    nicht gespeichert und geht nicht an Sie als Lehrkraft.
    Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
    Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
