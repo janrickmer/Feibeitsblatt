@@ -59,6 +59,22 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    PDF-Dateien zu einer Aufgabe hinterlegt, stehen sie als „Material zum Herunterladen“ unter der Aufgabenstellung:
    Ein Klick auf eine Datei lädt sie herunter (sie landet im Download-Ordner und wird nicht im Tab geöffnet); dabei
    wird nichts gesendet außer der Anfrage nach der Datei.
+   **Tabelle:** Hat die Lehrkraft als Antwort eine Tabelle vorgesehen, stehen unter der Aufgabe die Spaltenüberschriften
+   und leere Zellen. Mit der Tab-Taste geht es zur nächsten Zelle (Umschalt+Tab zurück), Enter springt in die Zelle
+   darunter und legt am Ende eine neue Zeile an; „+ Zeile“ ergänzt ebenfalls eine (höchstens 30). Auf schmalen
+   Bildschirmen lässt sich die Tabelle seitlich schieben. Auch in den Zellen ist Einfügen gesperrt.
+   **Weltkarten-Zuordnung:** Oben stehen Karten (mit Bild, Bezeichnung und ggf. einem Hinweis), darunter eine
+   Weltkarte. Zuerst eine Karte anklicken (ein zweiter Klick oder Esc hebt die Wahl auf), dann das passende Land.
+   Stimmt es nicht, werden Karte und Land drei Sekunden lang rot, und die Karte bleibt gewählt. Stimmt es, bekommen
+   Karte und Land dieselbe Farbe, ein Pfeil in dieser Farbe zeigt von der Karte auf das Land, der Ländername steht unter
+   der Karte („✓ Brasilien“), und die Karte ist erledigt; „x von n Karten zugeordnet“ zeigt den Stand.
+   Mit den Knöpfen „+“ und „−“ über der Karte, zwei Fingern oder dem Mausrad (nach einem Klick in die Karte oder mit
+   gedrückter Strg-Taste – sonst scrollt das Mausrad wie gewohnt die Seite) wird die Karte größer, Ziehen verschiebt sie,
+   „Ansicht zurücksetzen“ zeigt wieder die ganze Welt; der Mauszeiger (bzw. Tippen) zeigt den deutschen Namen eines Landes.
+   Ohne Maus: eine Karte mit der Tastatur wählen und im Feld „Land eingeben“ den Namen eintippen (mit
+   Vorschlagsliste), Enter prüft. „Alle Zuordnungen löschen“ fängt nach einer Rückfrage neu an. Ob eine Zuordnung
+   stimmt, prüft der Browser selbst; die richtigen Länder bekommt er nicht zu sehen, nur Prüfwerte. Zu dieser
+   Antwortart gibt es kein KI-Feedback.
 4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button – aber nur, wenn
    die Schülerin oder der Schüler laut Geburtsdatum mindestens 16 Jahre alt ist (darunter steht an seiner Stelle der
    Hinweis „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“). Beim ersten Klick erklärt ein
@@ -161,6 +177,20 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    bleibt erhalten (Zeichen wie `/`, `:` oder `?` werden durch `-` ersetzt). Wie Bilder sind die PDF-Dateien für
    alle abrufbar, die den Code kennen, nicht verschlüsselt und gehen nie an die KI – laden Sie keine Dateien mit
    personenbezogenen Daten hoch.
+   **Antwortart:** Unter „Antwortart“ wählen Sie je Aufgabe, wie die Schüler:innen antworten: **Textfeld** (Vorgabe),
+   **Tabelle** oder **Weltkarten-Zuordnung**. Bei der Tabelle tragen Sie die Spaltenüberschriften ein (eine je Zeile
+   oder durch „;“ getrennt, höchstens 8 mit je 60 Zeichen) und die Zahl der vorgegebenen Zeilen (1 bis 30); eine
+   Vorschau zeigt den Tabellenkopf. Die ausgefüllte Tabelle geht wie ein Text an die KI – mit dem Hinweis, welche
+   Spalten sie hat –, das KI-Feedback funktioniert also wie beim Textfeld. Bei der Weltkarten-Zuordnung legen Sie bis
+   zu 40 Karten an: je Karte eine Bezeichnung (z. B. „Kaffee“), auf Wunsch einen kurzen Hinweis und ein Bild, und ein
+   oder mehrere richtige Länder (höchstens 10, eines davon genügt), die Sie über die deutschen Ländernamen suchen; alle
+   Weltkarten-Aufgaben eines Blattes zusammen haben höchstens 400 richtige Länder. Karten lassen sich verschieben und
+   entfernen; jede Karte braucht eine eigene Bezeichnung und mindestens ein Land, das auf der Weltkarte anklickbar ist.
+   Diese Antwortart hat keine Musterlösung und geht nicht an die KI. Die Kartenbilder verkleinert der Browser
+   auf höchstens 400 Pixel; sie zählen nicht zu den fünf Bildern je Aufgabe, aber zur Speichergrenze von 12 MB je
+   Blatt. Die richtigen Länder gibt der Server den Schüler:innen nie im Klartext, sondern nur als Prüfwerte (SHA-256
+   aus Code, Karte und Land) – wer sich auskennt, kann diese mit etwas Aufwand allen Ländern zuordnen; geheim ist die
+   Lösung damit also nicht.
 4. **Code generieren.** Der Code erscheint groß (z. B. `K7Q-M4X`) mit „Kopieren“. Bilder und PDF-Dateien werden
    dabei nacheinander hochgeladen („Alle 3 Bilder sind gespeichert.“, „2 Bilder und 1 PDF-Datei sind
    gespeichert.“; größere PDF-Dateien gehen in Teilen zu je 512 KB an den Server); so lange bleibt „Zur Übersicht“
@@ -168,8 +198,8 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    Wiederholung legt nie etwas doppelt an; eine unterbrochene PDF-Datei wird ab dem fehlenden Teil fortgesetzt und
    erscheint erst vollständig bei den Schüler:innen). Geben Sie den Code an die Klasse weiter. Ein erstelltes
    Feibeitsblatt lässt sich nicht mehr ändern; für eine geänderte Fassung wählen Sie es aus und klicken „Als
-   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Musterlösungen, Bilder und
-   PDF-Dateien und ergibt einen neuen Code.
+   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Musterlösungen, Bilder,
+   PDF-Dateien und Antwortarten (samt Karten und Kartenbildern) und ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
    Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ und „Klasse“,
@@ -178,7 +208,10 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    eine Legende über der Tabelle erklärt die Farben, und die Zusammenfassung lautet dann z. B. „3 Abgaben ·
    1 Erstversuch ohne Überarbeitung“. Aufgeklappt sehen Sie je Aufgabe eine Tabelle mit Spalte 1 „Erste Eingabe
    (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“ (bei einem Erstversuch steht dort „(noch
-   nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Gibt die
+   nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Eine Tabelle
+   erscheint dort als Tabelle, eine Weltkarten-Zuordnung als Liste („Kaffee → Brasilien“) mit „Zugeordnet: x von n“.
+   In den aufgeklappten „Aufgaben und Musterlösungen“ eines Blattes steht je Aufgabe die Antwortart, bei der Weltkarte
+   mit allen Karten und ihren richtigen Ländern. Gibt die
    Person später ab, ersetzt die Abgabe ihren Erstversuch; gibt sie von einem anderen Gerät oder nach einem
    neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
    die Zahl). Abgaben ohne KI-Feedback (siehe oben) sind entsprechend gekennzeichnet. „Alle aufklappen“ öffnet
@@ -189,8 +222,9 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    herunterladen“ eine PDF-Datei herunter (`Feibeitsblatt-<Code>-<Titel>.pdf`, Umlaute im Namen umschrieben). Sie zeigt Titel, Aufgabenstellungen,
    Material (als Text, Links mit Adresse) und die Bilder; die Namen angehängter PDF-Dateien stehen darunter. Im
    Hintergrund enthält sie **alles**, was zum Wiederherstellen nötig ist: Aufgaben, **Musterlösungen**, Material mit
-   Formatierung und Links, jedes Bild in Originalqualität mit Anzeigeart und Bildbeschreibung und jede PDF-Datei
-   unverändert – jeweils mit Prüfsumme. Im PDF-Programm erscheinen diese Daten als Anhänge. Abgaben der Schüler:innen
+   Formatierung und Links, jedes Bild in Originalqualität mit Anzeigeart und Bildbeschreibung, jede PDF-Datei
+   unverändert und die Antwortarten (Tabellenspalten; Karten mit Bild und richtigen Ländern) – jeweils mit
+   Prüfsumme. Sichtbar steht die Antwortart unter jeder Aufgabe, bei der Weltkarte mit der Liste der Karten und Länder. Im PDF-Programm erscheinen diese Daten als Anhänge. Abgaben der Schüler:innen
    enthält die Datei nicht. Weil die Musterlösungen darin stecken, geben Sie die Datei bitte nicht an Schüler:innen
    weiter; auf der ersten Seite steht dazu ein Hinweis. Mit **„Feibeitsblatt aus PDF-Datei laden“** (oben neben
    „Neues Feibeitsblatt erstellen“) wählen Sie eine solche Datei aus. Der Editor öffnet sich mit allen Aufgaben,
@@ -692,6 +726,8 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Material je Aufgabe | 8000 Zeichen, 60 Links; nur fett, kursiv, unterstrichen und Links (http/https) |
 | Bilder je Aufgabe | 5; je Bild höchstens 500 KB nach dem Verkleinern (längste Seite 1600 Pixel); alle Bilder eines Blattes zusammen 12 MB |
 | PDF-Dateien je Aufgabe | 3; je Datei höchstens 6 MB; alle PDF-Dateien eines Blattes zusammen 20 MB; Dateiname bis 120 Zeichen |
+| Tabelle (Antwortart) | 1–8 Spalten mit je 60 Zeichen Überschrift, 1–30 Zeilen; die ganze Tabelle als Text höchstens 8000 Zeichen |
+| Weltkarten-Zuordnung (Antwortart) | 1–40 Karten je Aufgabe (Bezeichnung 120, Hinweis 400 Zeichen, ein Bild – zählt nicht zu den 5 Bildern), je Karte 1–10 richtige Länder, je Blatt höchstens 400 richtige Länder zusammen |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
 | KI-Anfragen je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 800 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
@@ -781,8 +817,8 @@ Zu beachten:
 
 ## Entwicklung
 
-Voraussetzungen: Node.js ab Version 22. Abhängigkeiten: `npm ci` (nur Entwicklungswerkzeuge: wrangler 4.145.0
-und @playwright/test 1.56.1).
+Voraussetzungen: Node.js ab Version 22. Abhängigkeiten: `npm ci` (nur Entwicklungswerkzeuge: wrangler 4.145.0,
+@playwright/test 1.56.1 sowie world-atlas 2.0.2, d3-geo 3.1.1 und topojson-client 3.1.0 für die Weltkarte).
 
 | Befehl | Zweck |
 |---|---|
@@ -791,6 +827,16 @@ und @playwright/test 1.56.1).
 | `npm test` | Unit-Tests (`node --test`, Dateien `test/unit/*.test.mjs`) |
 | `npm run test:e2e` | Browser-Tests mit Playwright (KI und LanguageTool werden dabei simuliert); braucht einmalig `npx playwright install chromium` und die freien Ports 8787/8790 – vorher `npm run dev` beenden |
 | `node test/smoke.mjs` | API-Durchlauf gegen einen echten `wrangler dev --local` mit Test-KI (Ports 8811/8812) |
+| `node scripts/worldmap.mjs` | erzeugt die Weltkarte neu und schreibt sie in `index.html` (`--check` prüft nur) |
+| `node test/fixtures/make-fixture.mjs` | erzeugt die Testdatei `test/fixtures/02_Feibeitsblatt_Ein-Auto-eine-Welt.pdf` neu |
+
+**Weltkarte:** Die Länderumrisse stammen aus [Natural Earth](https://www.naturalearthdata.com/) im Maßstab
+1:110 Millionen (gemeinfrei), verteilt als npm-Paket [world-atlas](https://github.com/topojson/world-atlas)
+(ISC-Lizenz). `scripts/worldmap.mjs` projiziert sie mit [d3-geo](https://github.com/d3/d3-geo) (ISC) in die
+flächentreue Equal-Earth-Projektion, ergänzt deutsche Ländernamen und einen Ankerpunkt je Land (dorthin zeigen die
+Pfeile) und bettet das Ergebnis (≈ 120 KB) in `index.html` ein – die Seite lädt zur Laufzeit nichts nach. Kosovo,
+Nordzypern und Somaliland haben in den Daten keine ISO-Kennung und sind nicht anklickbar. Natural Earth zeichnet
+tatsächliche Grenzverläufe („de facto“); abweichend davon gehört die Krim hier zur Ukraine.
 
 **Lokale Test-KI:** `node test/mock-ai.mjs --port 8812` startet einen OpenAI-kompatiblen Test-Server. In den
 KI-Einstellungen dann „Anderer OpenAI-kompatibler Dienst“ wählen, Basis-URL `http://127.0.0.1:8812/v1`, ein
@@ -815,6 +861,7 @@ außerhalb der EU (siehe Schritt 5).
 | `worker/ai.js` | KI-Anbieter, Prompt für das Feedback, Auswertung der Antworten, Ausweichmodelle |
 | `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, statische Seite aus `dist/`) |
 | `scripts/build.mjs` | Build-Skript für `dist/` |
+| `scripts/worldmap.mjs` | erzeugt die eingebettete Weltkarte (Natural Earth über world-atlas, Equal Earth, deutsche Namen) |
 | `test/` | Unit-Tests, API-Durchlauf, Test-KI, Browser-Tests |
 | `.github/workflows/deploy.yml` | Workflow „Deploy“ |
 | `CLAUDE.md` | technische Hinweise für die Weiterentwicklung |

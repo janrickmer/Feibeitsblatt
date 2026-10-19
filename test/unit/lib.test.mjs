@@ -6,6 +6,7 @@ import {
   sha256Hex, timingSafeEqualStr, validateKdf, validateEncPrivateKey, decodeAuthKey, importPublicKey, validateEnvelope,
   validateSheetInput, validateAnswers, normalizeBaseUrl, isAllowedBase, validateAiInput, keyHintOf, defaultTitle,
   bucketOf, ipKey, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
+  validateAnswerSpec, withMapChecks, publicAnswer, teacherAnswer, mapCheck,
 } from "../../worker/lib.js";
 import { PROVIDERS } from "../../worker/ai.js";
 
@@ -239,7 +240,7 @@ test("validateImageUpload: Aufgabennummer 1..LIMITS.tasks, Anzeigeart thumb|inli
   // JPEG mit großem Kommentarsegment: Frame-Kopf liegt jenseits der ersten Bytes, aber innerhalb der dekodierten 144 KB
   const jpg = jpegHeader(800, 600, { padding: 60000 });
   assert.deepEqual(validateImageUpload({ task: 2, mode: "inline", data: jpg.toString("base64") }).info, { mime: "image/jpeg", w: 800, h: 600 });
-  assert.deepEqual(IMAGE_MODES, ["thumb", "inline"]);
+  assert.deepEqual(IMAGE_MODES, ["thumb", "inline", "card"]);
 });
 
 test("strictB64: nur echtes Base64 mit passender Länge", () => {
@@ -299,4 +300,57 @@ test("validateSheetInput nimmt Material je Aufgabe mit (nur wenn vorhanden) und 
   assert.equal("material" in r.tasks[1], false); assert.equal("material" in r.tasks[2], false);
   assert.equal(materialText(r.tasks[0].material), "Hallo Welt\n\nLink");
   assert.equal(materialText(undefined), ""); assert.equal(materialText([[{ t: "  x " }]]), "x");
+});
+
+/* ---------- Antwortarten (Tabelle, Weltkarten-Zuordnung) ---------- */
+const MAP = { type: "map", map: "world", items: [
+  { id: "kaffee", label: " Kaffee  ", hint: "Bohnen\naus Übersee", image: "0123456789ABCDEF", countries: [{ id: "076", name: "Brasilien" }, { id: "704", name: "Vietnam" }, { id: "076", name: "Brasilien" }], extra: 1 },
+  { id: "kakao", label: "Kakao", countries: [{ id: "384", name: "Elfenbeinküste" }] },
+] };
+test("validateAnswerSpec: text, table and map are normalized; unknown fields dropped", () => {
+  assert.equal(validateAnswerSpec(undefined, 1), null);
+  assert.equal(validateAnswerSpec({ type: "text", columns: ["x"] }, 1), null);
+  assert.deepEqual(validateAnswerSpec({ type: "table", columns: [" Land ", "Grund | Beleg"], rows: 3, foo: 1 }, 2), { type: "table", columns: ["Land", "Grund / Beleg"], rows: 3 });
+  assert.deepEqual(validateAnswerSpec(MAP, 1), { type: "map", map: "world", items: [
+    { id: "kaffee", label: "Kaffee", hint: "Bohnen aus Übersee", image: "0123456789abcdef", countries: [{ id: "076", name: "Brasilien" }, { id: "704", name: "Vietnam" }] },
+    { id: "kakao", label: "Kakao", countries: [{ id: "384", name: "Elfenbeinküste" }] },
+  ] });
+});
+test("validateAnswerSpec: broken specs → 400 with task number", () => {
+  const bad = (a, re) => assert.throws(() => validateAnswerSpec(a, 3), (e) => e instanceof InputError && e.status === 400 && /^Aufgabe 3: /.test(e.message) && (!re || re.test(e.message)));
+  bad("table"); bad({ type: "essay" }, /Unbekannte Antwortart/);
+  bad({ type: "table", columns: [], rows: 1 }); bad({ type: "table", columns: ["a"], rows: 0 }); bad({ type: "table", columns: ["a"], rows: 31 });
+  bad({ type: "table", columns: Array(9).fill("a"), rows: 1 }); bad({ type: "table", columns: ["x".repeat(61)], rows: 1 }); bad({ type: "table", columns: ["  "], rows: 1 }, /Spalte 1/);
+  bad({ type: "table", columns: ["a"], rows: 1.5 }); bad({ type: "table", columns: [1], rows: 1 });
+  const item = { id: "a", label: "A", countries: [{ id: "276", name: "Deutschland" }] };
+  bad({ type: "map", map: "europe", items: [item] }); bad({ type: "map", items: [] }); bad({ type: "map", items: Array(41).fill(0).map((_, k) => ({ ...item, id: "a" + k })) });
+  bad({ type: "map", items: [item, item] }, /doppelt/); bad({ type: "map", items: [item, { ...item, id: "b" }] }, /Bezeichnung „A“ kommt doppelt vor/); bad({ type: "map", items: [{ ...item, id: "a b" }] }); bad({ type: "map", items: [{ ...item, id: "x".repeat(41) }] });
+  bad({ type: "map", items: [{ ...item, label: " " }] }); bad({ type: "map", items: [{ ...item, label: "x".repeat(121) }] }); bad({ type: "map", items: [{ ...item, hint: "x".repeat(401) }] });
+  bad({ type: "map", items: [{ ...item, image: "nope" }] }); bad({ type: "map", items: [{ ...item, countries: [] }] });
+  bad({ type: "map", items: [{ ...item, countries: Array(11).fill(0).map((_, k) => ({ id: String(100 + k), name: "x" })) }] });
+  bad({ type: "map", items: [{ ...item, countries: [{ id: "76", name: "Brasilien" }] }] }); bad({ type: "map", items: [{ ...item, countries: [{ id: "076", name: "" }] }] });
+});
+test("validateSheetInput: answer stored, map without solution, at most 400 checks per sheet", () => {
+  const r = validateSheetInput({ tasks: [{ text: "Ordne zu", solution: "geheim", answer: MAP }, { text: "Tabelle", solution: "k", answer: { type: "table", columns: ["A"], rows: 2 } }, { text: "Text", answer: { type: "text" } }] });
+  assert.equal(r.tasks[0].solution, "");
+  assert.deepEqual(r.tasks[1], { text: "Tabelle", solution: "k", answer: { type: "table", columns: ["A"], rows: 2 } });
+  assert.deepEqual(r.tasks[2], { text: "Text", solution: "" });
+  const items = (p) => Array(40).fill(0).map((_, k) => ({ id: p + k, label: "L" + k, countries: Array(10).fill(0).map((_, j) => ({ id: String(100 + j), name: "N" })) }));
+  assert.doesNotThrow(() => validateSheetInput({ tasks: [{ text: "a", answer: { type: "map", items: items("a") } }] }));   // 400 genau
+  assert.throws(() => validateSheetInput({ tasks: [{ text: "a", answer: { type: "map", items: items("a") } }, { text: "b", answer: { type: "map", items: items("b").slice(0, 1) } }] }), /höchstens 400/);
+  assert.throws(() => validateSheetInput({ tasks: [{ text: "a", answer: { type: "table", columns: ["A"] } }] }), /Aufgabe 1: Die Tabelle braucht/);
+});
+test("map checks: SHA-256 of code|item|country, never countries in public answer, card image only when stored", async () => {
+  const a = validateAnswerSpec(MAP, 1);
+  const [t] = await withMapChecks([{ text: "x", solution: "", answer: a }], "K7QM4X");
+  assert.deepEqual(t.answer.items[0].checks, [await sha256Hex("K7QM4X|kaffee|076"), await sha256Hex("K7QM4X|kaffee|704")]);
+  assert.equal(await mapCheck("K7QM4X", "kakao", "384"), t.answer.items[1].checks[0]);
+  const pub = await publicAnswer(t.answer, "K7QM4X", new Set());
+  assert.deepEqual(pub.items[0], { id: "kaffee", label: "Kaffee", hint: "Bohnen aus Übersee", checks: t.answer.items[0].checks });
+  assert.equal(/Brasilien|Vietnam|"076"|countries/.test(JSON.stringify(pub)), false);
+  assert.equal((await publicAnswer(t.answer, "K7QM4X", new Set(["0123456789abcdef"]))).items[0].image, "0123456789abcdef");
+  // ohne gespeicherte Prüfwerte (oder kaputte) werden sie berechnet
+  assert.deepEqual((await publicAnswer(a, "K7QM4X", null)).items[1].checks, [await sha256Hex("K7QM4X|kakao|384")]);
+  assert.deepEqual(teacherAnswer(t.answer).items[0], { id: "kaffee", label: "Kaffee", hint: "Bohnen aus Übersee", image: "0123456789abcdef", countries: [{ id: "076", name: "Brasilien" }, { id: "704", name: "Vietnam" }] });
+  assert.deepEqual([teacherAnswer(undefined), await publicAnswer({ type: "evil" }, "K7QM4X")], [{ type: "text" }, { type: "text" }]);
 });

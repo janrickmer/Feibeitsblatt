@@ -1,7 +1,7 @@
 # Feibeitsblatt – Hinweise für die Entwicklung
 
 Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit-Messung): Lehrkraft legt Aufgaben +
-Musterlösungen an → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback,
+Musterlösungen an (Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback,
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
@@ -23,7 +23,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie Musterlösungen**),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
   `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/ai`, `/ai/test` (Pfade unter `/api/teacher`).
-  Bilder: `POST /api/teacher/sheets/:code/images` (JSON `{task (1-basiert), mode: thumb|inline, data: Base64}` →
+  Bilder: `POST /api/teacher/sheets/:code/images` (JSON `{task (1-basiert), mode: thumb|inline|card, data: Base64}` →
   `{image:{id, task, pos, mode, mime, w, h, bytes}}`), öffentlich `GET /api/sheet/:code/images/:id` →
   `{mime, w, h, data: Base64}` mit `Cache-Control: public, max-age=31536000, immutable`; `GET /api/sheet/:code` und
   `GET /api/teacher/sheets/:code` liefern je Aufgabe `images: [{id, mode, w, h, alt}]` (nie Bilddaten) und
@@ -165,7 +165,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Groß-/Klein, Getrennt-/Zusammen, Zeichensetzung anwenden – nie Stil/Typografie/`Hint`. ≤ 20 000 UTF-8-Bytes.
   Sichtbarer Link auf https://languagetool.org ohne `rel="nofollow"` (Pflicht). Nicht über den Worker leiten
   (gemeinsame Cloudflare-IPs → ein Limit für alle). CSP `connect-src` muss `https://api.languagetool.org` erlauben.
-- **Bilder zu Aufgaben:** höchstens `LIMITS.imagesPerTask` (5) je Aufgabe, `imageBytes` 500 KB je Bild,
+- **Bilder zu Aufgaben:** höchstens `LIMITS.imagesPerTask` (5) je Aufgabe (Kartenbilder `mode:"card"` getrennt, siehe Antwortarten), `imageBytes` 500 KB je Bild,
   `sheetImageBytes` 12 MB je Blatt (das Frontend prüft die Summe vor dem Anlegen, `IMG_SHEET_BYTES`), `imageAlt`
   200 Zeichen Bildbeschreibung. Der Browser verkleinert vor dem Upload (`prepareImage`: längste Seite 1600 px,
   notfalls 1200/900 px, weißer Hintergrund, PNG für Grafiken sonst JPEG mit sinkender Qualität bis ≤ 500 KB;
@@ -267,6 +267,63 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   PDF „In dieser PDF-Datei steckt kein Feibeitsblatt.“, Zwischenstand (`/FbDraft 1`) eigene Meldung. `pdfWrap` trennt
   überlange Wörter hart. E2E-Test 4b prüft Export (Datensatz, Anhänge byte-genau, keine Abgaben), Import einer „neu
   gespeicherten“ Variante (`resavePdf`), neues Blatt byte-genau und löscht es wieder.
+- **Antwortarten je Aufgabe** (`answer` im `tasks`-JSON; fehlt = Textfeld): `{type:"table", columns:[1–8 × ≤ 60], rows:1–30}` bzw.
+  `{type:"map", map:"world", items:[1–40 × {id [a-z0-9-]{1,40} je Aufgabe eindeutig, label ≤ 120, hint? ≤ 400, image? (16 Hex,
+  Kartenbild), countries:[1–10 × {id: ISO 3166-1 numerisch "\d{3}" wie world-atlas, name ≤ 80}]}]}` – eine richtige Zuordnung
+  genügt. Grenzen in `LIMITS` (`tableColumns`, `columnName`, `tableRows`, `mapItems`, `itemId`, `itemLabel`, `itemHint`,
+  `itemCountries`, `countryName`, `mapChecks` 400 Länder je Blatt, `cardsPerTask` 40) = `ANS_LIMITS` im Browser; beide Seiten
+  prüfen (`validateAnswerSpec` in `validateSheetInput`, unbekannte Felder entfallen, „|“ in Spalten → „/“, Bezeichnungen je
+  Aufgabe eindeutig – sonst wäre die Textform mehrdeutig –, Fehler 400 „Aufgabe n: …“). Weltkarte: `solution` wird `""` (nie KI; `wantsFeedback` in ai.js für `buildFeedbackMessages` und
+  `feedbackResults`). Tabelle: im Prompt steht vor `<<<` der Antwort „Antwort als Tabelle mit den Spalten: …“ (Reihenfolge sonst
+  unverändert). **Prüfwerte:** `routeSheetCreate` speichert je Karte `checks` = SHA-256 hex von `Code|Karten-id|Länder-id`
+  (`withMapChecks`, Code ohne Bindestrich; 400 Hashes nur beim Anlegen, ≈ 3 ms CPU – `toHex` per Tabelle, ein `TextEncoder`;
+  nur ein Selbsttest, kein Geheimnis: wer `WORLD_MAP` durchprobiert, findet die Länder), `GET /api/sheet/:code` liefert per `publicAnswer`
+  **nie Länder**, nur `checks` (fehlen sie, werden sie berechnet) und `image` nur, wenn ein Kartenbild dieser Aufgabe gespeichert
+  ist; `GET /api/teacher/sheets/:code` liefert `teacherAnswer` (ganz, ohne `checks`), alle Aufgaben `answer:{type:"text"}`
+  mindestens. `/api/feedback` und `/api/submit` unverändert (Antworten bleiben Strings). **Kartenbilder:** Upload mit
+  `mode:"card"` nur bei Weltkarten-Aufgaben (`json_extract(tasks,'$[n-1].answer.type')='map'` im bedingten INSERT, sonst 400
+  „Kartenbilder gibt es nur bei Aufgaben mit Weltkarten-Zuordnung.“); der INSERT zählt `(mode='card')=(?4='card')` getrennt
+  (thumb+inline ≤ 5, card ≤ 40, Meldung „Höchstens 40 Kartenbilder je Aufgabe.“); Blatt- und Speichergrenzen gelten weiter. Der Browser verkleinert Kartenbilder auf
+  `CARD_MAX_SIDE` 400 px; `cleanImages(list)` liefert nie Kartenbilder, `cleanImages(list, true)` nur sie.
+  **Textform** (Zwischenstand, Erstversuch, Abgabe, Lösungs-PDF): Tabelle = erste Zeile Überschriften, dann je ausgefüllter Zeile
+  `Zelle | Zelle` (`tableText`, Zellen einzeilig, „|“ → „/“, Zeilenende ohne Leerzeichen; leere Zeilen entfallen; `tableRows`
+  liest zurück); Weltkarte = je Zuordnung `Bezeichnung → Land` (`MAP_ARROW`, Reihenfolge der Zuordnung), letzte Zeile
+  `Zugeordnet: x von n`; leer = `""`. **Schüler:innen:** `buildTasks` baut je Art; `S.tas[i]` hat immer dieselbe Schnittstelle
+  (`value` = Textform, `_idx`, `_kind`, `_pe`, `focus()`, `readOnly`), Textfelder bleiben `textarea.answer`. `tableWidget`:
+  `textarea.tcell` (einzeilig mitwachsend, `_w` = Baustein, Einfügesperre über `answerOf`, `answerChanged(el)` nimmt Zelle
+  oder Baustein), Enter → Zelle darunter (neue Zeile ≤ 30), „+ Zeile“, über `MAX_ANSWER` wird die Eingabe zurückgenommen;
+  kein LanguageTool und kein Zähler. `mapWidget`: Karten als `button.mcard` (`aria-pressed`, `.sel`, `.done` mit `--mc`,
+  `.wrong` 3 s = `MAP_WRONG_MS`), Klick aufs Land → `sha256hex(Code|id|Land)` gegen `checks`; falsch: Karte + Land `.wrong`,
+  Wahl bleibt; richtig: Farbe `MAP_COLORS[Zahl der Zuordnungen]` (12, kein Rot), ein Land behält die Farbe der ersten Karte,
+  Pfeil (`svg.mapw-arrows`, `g.arrow[data-item]`, Farbe der Karte, nur wenn der Anker im sichtbaren Ausschnitt liegt,
+  rAF + ResizeObserver) von der Kartenkante zum Anker, „✓ Land“ unter der Karte, Fortschritt `#mp-n` „x von n Karten
+  zugeordnet“, Live-Region. Zoom 1–12 (`wheel` erst nach einem Klick in die Karte oder mit Strg – sonst scrollt die Seite und
+  `.mapw-tip` sagt es; am Rand des Zooms scrollt die Seite; zwei Finger per Pointer Events, `touch-action:none`,
+  Safari `gesture*` gesperrt; „+“/„−“ ×1,6; „Ansicht zurücksetzen“), Ziehen verschiebt (ab `TAP_SLOP` 6 px kein Tippen),
+  Hover/Tippen zeigt den Namen (`.mapw-tip`); Zoom-Knöpfe in `.mapw-head` über der Karte, gesperrt per `aria-disabled`
+  (Fokus bleibt). Ohne Maus: Karte per Tastatur wählen → Fokus in `#mi-n` „Land eingeben“
+  (gemeinsame `datalist#world-dl` mit Namen und `aliases`), Enter prüft, ein falscher Name wird markiert. Esc hebt die Wahl
+  auf; „Alle Zuordnungen löschen“ mit Bestätigung. Wiederherstellen ist asynchron (jede Zeile erneut gegen `checks`), bis dahin
+  liefert `value` den gespeicherten Text und Klicks bleiben wirkungslos. Weltkarte ohne KI-Feedback-Box, auch nicht auf dem
+  Abschlussbildschirm und in der Lösungs-PDF (`S.lastSubmission.kinds`); „→“ druckt die PDF als „->“ (`pdfPlain`). **Lehrkraft:** `answerEditor` je Zeile (`tr._ans`,
+  Auswahl `#bt-n`, Spalten `#bc-n` je Zeile oder „;“, Zeilen `#br-n`, Vorschau; Karten-Editor mit Bezeichnung, Hinweis, einem
+  Bild, Länder-Chips über die deutschen Namen, ↑/↓/✕; Musterlösung ausgeblendet), Karten-id beim Anlegen aus der Bezeichnung
+  (`itemIds`/`slugId`), `b-gen` verlangt je Karte ein anklickbares Land und verschiedene Bezeichnungen, wartet auf das
+  Verkleinern (`T.preparing`) und erzeugt die Bild-ids vorab (Upload `kind:"image"`, `mode:"card"`). Vorlage, Sicherung
+  (`sheetPdfData`: Kartenbilder als `images` mit `mode:"card"`, die Karte zeigt per `image` auf die Ref; sichtbar nur als Liste
+  „Antwortart: …“) und Import (`cleanSheetRecord` mit `cleanAnswer(…, true, SHEET_REF_RE)`, ≤ 5 Bilder + ≤ 40 Kartenbilder,
+  `builderAnswer` setzt Ref → Bild-Eintrag) tragen `answer` mit. Blattdetails `answerSpecDom`, Abgaben `answerDom` (Tabelle als
+  `<table>`, Weltkarte als Liste; nur `textContent`). **Weltkarte:** `node scripts/worldmap.mjs` erzeugt aus world-atlas@2
+  (`countries-110m.json`, Natural Earth 1:110m, gemeinfrei; ISC) mit d3-geo (Equal Earth, `viewBox 0 0 1000 520`, eine
+  Nachkommastelle) die Konstante `WORLD_MAP = {w, h, aliases, countries:[[id, Name, Pfad, Anker x, y]]}` zwischen
+  `/* WORLDMAP:BEGIN … */` und `/* WORLDMAP:END */` am Ende des Skripts in `index.html` (`--check` prüft; Unit-Test
+  `worldmap.test.mjs`). 177 Gebiete, deutsche Namen in `NAMES_DE`; Kosovo, Nordzypern, Somaliland ohne Kennung (nicht
+  anklickbar); Anker = Punkt mit größtem Randabstand im größten Teilgebiet (Löcher beachtet); **die Krim gehört zur Ukraine**
+  (Natural Earth zeichnet sie de facto bei Russland). world-atlas, d3-geo, topojson-client nur als devDependencies (exakt
+  gepinnt). Testdatei `test/fixtures/02_Feibeitsblatt_Ein-Auto-eine-Welt.pdf` (erzeugt von `make-fixture.mjs`, frei
+  erfunden): E2E 7d liest ihren Datensatz selbst und vergleicht – eine andere Sicherung derselben Form lässt sich einsetzen.
+  E2E 7c: Weltkarte + Tabelle anlegen, zuordnen (falsch 3 s rot, richtig gleiche Farbe/Pfeil), Zoom, Tastatur, Tabelle,
+  Neuladen, Feedback-Prompt, Abgabe, Lehrkraft-Ansicht, Sicherung/Import.
 - **Material zu Aufgaben:** formatierter Lehrkraft-Text je Aufgabe, gespeichert im `tasks`-JSON als `material` =
   Absätze aus Läufen `{t, f?, h?}` (`f` ⊆ `"biu"` in dieser Reihenfolge, `h` = http(s)-Link). **Nie HTML**
   speichern oder rendern: `validateMaterial` (lib.js) normalisiert und prüft (`LIMITS.material` 8000 Zeichen,

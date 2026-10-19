@@ -9,6 +9,7 @@ import { readFile, rm, readdir, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { makePng } from "./png.mjs";
 
 const subtle = globalThis.crypto.subtle;
@@ -257,7 +258,7 @@ async function main() {
     assert.equal(r.json.sheets.find((s) => s.code === code).taskCount, 3);
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 0);
     r = await api("GET", "/api/teacher/sheets/" + code.toLowerCase(), undefined, { auth });
-    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, material: [], images: [], files: [] })));
+    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, material: [], images: [], files: [], answer: { type: "text" } })));
     ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Musterlösungen");
 
     step = "Bilder zu Aufgaben";
@@ -341,7 +342,7 @@ async function main() {
     r = await api("GET", "/api/sheet/" + encodeURIComponent(" " + display.toLowerCase() + " "));
     assert.equal(r.status, 200, r.text);
     assert.deepEqual(r.json.sheet.tasks.map((t) => t.text), tasks.map((t) => t.text));
-    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["files,images,material,text", "files,images,material,text", "files,images,material,text"]);
+    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["answer,files,images,material,text", "answer,files,images,material,text", "answer,files,images,material,text"]);
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]); assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], [{ id: fileId, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length }], []]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }]);   // Empfänger für den Datenschutzhinweis
@@ -353,6 +354,40 @@ async function main() {
     r = await api("GET", "/api/sheet/1104"); misses++;
     expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);
     ok("GET /api/sheet: nur Aufgabentexte (keine Musterlösung), Schlüssel, Anbieter; unbekannt → 404");
+
+    step = "Antwortarten";
+    {
+      const answer = { type: "map", map: "world", items: [
+        { id: "kaffee", label: "Kaffee", image: "00000000000000c1", countries: [{ id: "076", name: "Brasilien" }, { id: "704", name: "Vietnam" }] },
+        { id: "tee", label: "Tee", hint: "Blätter", countries: [{ id: "356", name: "Indien" }] }] };
+      expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: [{ text: "a", answer: { type: "map", items: [{ id: "A B", label: "x", countries: [{ id: "276", name: "Deutschland" }] }] } }] }, { auth }), 400, "bad_request");
+      expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: [{ text: "a", answer: { type: "table", columns: [], rows: 2 } }] }, { auth }), 400, "bad_request");
+      r = await api("POST", "/api/teacher/sheets", { title: "Smoke: Welt", tasks: [{ text: "Ordne zu.", solution: "verworfen", answer }, { text: "Tabelle", solution: "- Weizen", answer: { type: "table", columns: ["Produkt", "Land | Ort"], rows: 2 } }] }, { auth });
+      assert.equal(r.status, 200, r.text);
+      const wc = r.json.code;
+      r = await up(wc, 1, "card", png, undefined); assert.equal(r.status, 200, r.text);   // eigene Kennung bei Kartenbildern
+      r = await api("POST", "/api/teacher/sheets/" + wc + "/images", { id: "00000000000000c1", task: 1, mode: "card", data: png.toString("base64") }, { auth }); assert.equal(r.status, 200, r.text);
+      for (let i = 0; i < 5; i++) { r = await up(wc, 1, "thumb", png); assert.equal(r.status, 200, r.text); }   // Kartenbilder zählen nicht zu den 5 Bildern
+      expectErr(await up(wc, 1, "inline", png), 400, "too_many_images");
+      r = await api("GET", "/api/sheet/" + wc);
+      assert.equal(r.status, 200, r.text);
+      const pa = r.json.sheet.tasks[0].answer;
+      assert.deepEqual(pa.items.map((it) => [it.id, it.label, it.hint, it.image, it.checks.length]), [["kaffee", "Kaffee", undefined, "00000000000000c1", 2], ["tee", "Tee", "Blätter", undefined, 1]]);
+      assert.equal(pa.items[0].checks[0], createHash("sha256").update(wc + "|kaffee|076").digest("hex"));
+      assert.deepEqual(r.json.sheet.tasks[1].answer, { type: "table", columns: ["Produkt", "Land / Ort"], rows: 2 });
+      assert.equal(/Brasilien|Vietnam|Indien|countries|verworfen/.test(r.text), false, "Länder oder Musterlösung im öffentlichen JSON");
+      assert.equal(r.json.sheet.tasks[0].images.filter((m) => m.mode === "card").length, 2);
+      r = await api("GET", "/api/teacher/sheets/" + wc, undefined, { auth });
+      assert.deepEqual(r.json.sheet.tasks[0].answer, answer); assert.equal(r.json.sheet.tasks[0].solution, "");
+      mock.reset();
+      r = await api("POST", "/api/feedback", { code: wc, answers: ["Kaffee → Brasilien\nZugeordnet: 1 von 2", "Produkt | Land / Ort\nWeizen | Kanada"] }); feedbackCount++;
+      assert.equal(r.status, 200, r.text);
+      const msg = mock.state.requests.map((q) => q.messages.map((m) => m.content).join("\n")).join("\n");
+      assert.ok(msg.includes("### Antwort zu Aufgabe 2\nAntwort als Tabelle mit den Spalten: Produkt, Land / Ort\n<<<\nProdukt | Land / Ort\nWeizen | Kanada\n>>>"), msg);
+      assert.equal(/Kaffee|### Aufgabe 1\b/.test(msg), false);
+      r = await api("DELETE", "/api/teacher/sheets/" + wc, undefined, { auth }); assert.equal(r.status, 200, r.text);
+    }
+    ok("Antwortarten: Tabelle und Weltkarte gespeichert, öffentlich nur Prüfwerte (keine Länder), Kartenbilder getrennt gezählt, Tabellen-Hinweis im Prompt");
 
     step = "KI-Feedback";
     const answers = ["Die Photosynthese braucht LICHT. Zebrafink-Marker", "Die Pause.", ""];

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults } from "../mock-ai.mjs";
-import { RATE, LIMITS, cleanFileName } from "../../worker/lib.js";
+import { RATE, LIMITS, cleanFileName, sha256Hex } from "../../worker/lib.js";
 import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
 
@@ -130,7 +130,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, material: [], images: [], files: [] })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
     aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }] });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
@@ -146,7 +146,7 @@ test("sheet material: gespeichert, öffentlich und für die Lehrkraft geliefert,
   assert.deepEqual(r.json.sheet.tasks.map((t) => t.material), [material, []]);
   assert.equal(/solution|musterl/i.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets/" + c, { auth });
-  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", solution: "k", material, images: [], files: [] });
+  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", solution: "k", material, images: [], files: [], answer: { type: "text" } });
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: [[{ t: "x", h: "javascript:alert(1)" }]] }] } });
   assert.equal(r.status, 400); assert.match(r.json.error, /^Aufgabe 1: Ein Link im Material ist ungültig/);
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: "fett" }] } });
@@ -199,6 +199,49 @@ test("sheet images: Grenzen je Aufgabe und je Blatt (12 MB), wiederholbarer Uplo
   assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_images WHERE sheet_code=?").get(c).n, 0);
   r = await call("GET", "/api/sheet/" + c + "/images/" + id);
   assert.equal(r.status, 404);
+});
+
+test("answer types: table + map stored, public view has only checks, card images counted separately (≤ 40), table hint for the AI", async () => {
+  const answer = { type: "map", map: "world", items: [
+    { id: "kaffee", label: "Kaffee", hint: "Bohnen", image: "00000000000000c1", countries: [{ id: "076", name: "Brasilien" }, { id: "704", name: "Vietnam" }] },
+    { id: "kakao", label: "Kakao", countries: [{ id: "384", name: "Elfenbeinküste" }] }] };
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Welt", tasks: [{ text: "Ordne zu", solution: "geheime Lösung", answer }, { text: "Fülle aus", solution: "Weizen\nReis", answer: { type: "table", columns: ["Produkt", "Land"], rows: 2 } }] } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code, png = makePng(4, 4).toString("base64");
+  const up = (body) => call("POST", "/api/teacher/sheets/" + c + "/images", { auth, body });
+  r = await up({ id: "00000000000000c1", task: 1, mode: "card", data: png, alt: "Kaffeebohnen" });
+  assert.equal(r.status, 200, r.text); assert.equal(r.json.image.mode, "card");
+  for (let i = 0; i < 5; i++) { r = await up({ task: 1, mode: "thumb", data: png }); assert.equal(r.status, 200, r.text); }   // 5 Bilder trotz Kartenbild
+  r = await up({ task: 1, mode: "inline", data: png });
+  assert.equal(r.status, 400); assert.equal(r.json.code, "too_many_images");
+  for (let i = 1; i < LIMITS.cardsPerTask; i++) d1.db.prepare("INSERT INTO sheet_images(id,sheet_code,task,pos,mode,mime,w,h,bytes,created_at,alt,data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("ffffffffffff" + String(i).padStart(4, "0"), c, 1, 10 + i, "card", "image/png", 4, 4, 10, 0, "", "x");
+  r = await up({ task: 1, mode: "card", data: png });
+  assert.equal(r.status, 400); assert.deepEqual([r.json.code, r.json.error], ["too_many_images", "Höchstens 40 Kartenbilder je Aufgabe."]);
+  r = await up({ task: 2, mode: "card", data: png });   // Kartenbilder nur bei der Weltkarte
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Kartenbilder gibt es nur bei Aufgaben mit Weltkarten-Zuordnung.");
+  r = await call("GET", "/api/sheet/" + c);
+  assert.equal(r.status, 200);
+  const pub = r.json.sheet.tasks;
+  assert.deepEqual(pub[0].answer.items.map((it) => [it.id, it.label, it.hint, it.image, it.checks.length]), [["kaffee", "Kaffee", "Bohnen", "00000000000000c1", 2], ["kakao", "Kakao", undefined, undefined, 1]]);
+  assert.equal(pub[0].answer.items[0].checks[1], await sha256Hex(c + "|kaffee|704"));
+  assert.deepEqual(pub[1].answer, { type: "table", columns: ["Produkt", "Land"], rows: 2 });
+  assert.equal(/Brasilien|Vietnam|Elfenbein|countries|geheime|"076"/.test(r.text), false);
+  assert.equal(pub[0].images.filter((m) => m.mode === "card").length, 40);
+  r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+  assert.deepEqual(r.json.sheet.tasks[0].answer, answer);
+  assert.equal(r.json.sheet.tasks[0].solution, "");   // Weltkarte: keine Musterlösung
+  // KI: nur Aufgabe 2 (Tabelle) mit der Zeile zu den Spalten; die Weltkarte geht nie an die KI
+  const before = mock.state.requests.length;
+  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Kaffee → Brasilien\nZugeordnet: 1 von 2", "Produkt | Land\nWeizen | Indien"], recipients: ["custom:127.0.0.1:" + mock.port] } });
+  assert.equal(r.status, 200, r.text);
+  const prompt = mock.state.requests.slice(before).map((q) => JSON.stringify(q.body || q)).join("\n");
+  assert.match(prompt, /### Antwort zu Aufgabe 2\\nAntwort als Tabelle mit den Spalten: Produkt, Land\\n<<<\\nProdukt \| Land/);
+  assert.equal(/Aufgabe 1|Brasilien/.test(prompt), false);
+  assert.equal(r.json.results[0].note, "Zu dieser Aufgabe gibt es keine Musterlösung.");
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", answer: { type: "table", columns: ["A"], rows: 99 } }] } });
+  assert.equal(r.status, 400); assert.match(r.json.error, /^Aufgabe 1: Die Tabelle braucht 1 bis 30 Zeilen/);
+  await call("DELETE", "/api/teacher/sheets/" + c, { auth });
 });
 
 test("sheet files (PDF): chunked upload, only complete files listed, part-wise download, limits, sanitized names", async () => {

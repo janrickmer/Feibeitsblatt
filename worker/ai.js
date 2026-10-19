@@ -507,18 +507,23 @@ export const FEEDBACK_SCHEMA_GEMINI = {
  * → { messages, nrs } – nrs = 1-basierte Nummern der Aufgaben MIT Musterlösung (nur diese gehen an die KI)
  */
 const MATERIAL_CAP = 4000;   // Zeichen Material je Aufgabe im Prompt
+const answerType = (t) => (t && t.answer && typeof t.answer === "object" ? t.answer.type : "text");
+const wantsFeedback = (t) => !!str(t.solution).trim() && answerType(t) !== "map";   // Weltkarten-Zuordnung: nie an die KI
 export function buildFeedbackMessages(tasks, answers) {
   const nrs = [], blocks = [], replies = [];
   tasks.forEach((t, i) => {
     const solution = str(t.solution).trim();
-    if (!solution) return;
+    if (!wantsFeedback(t)) return;
     const nr = i + 1; nrs.push(nr);
     let material = materialText(t.material);   // Material der Lehrkraft (Text, Zitat, Hinweise) als Kontext – gekürzt
     if (material.length > MATERIAL_CAP) material = material.slice(0, MATERIAL_CAP).trimEnd() + " …";
     blocks.push("### Aufgabe " + nr + "\nAufgabenstellung:\n<<<\n" + safeData(str(t.text).trim()) + "\n>>>\n" +
       (material ? "Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\n" + safeData(material) + "\n>>>\n" : "") +
       "Musterlösung der Lehrkraft:\n<<<\n" + safeData(solution) + "\n>>>");
-    replies.push("### Antwort zu Aufgabe " + nr + "\n<<<\n" + safeData(str(answers[i]).trim()) + "\n>>>");
+    // Tabelle: Die Antwort ist ihre Textform (erste Zeile Überschriften, dann je Zeile „Zelle | Zelle“) – die Spalten davor nennen
+    const cols = answerType(t) === "table" && Array.isArray(t.answer.columns) ? t.answer.columns.map((c) => str(c).trim()).filter(Boolean) : [];
+    replies.push("### Antwort zu Aufgabe " + nr + "\n" + (cols.length ? "Antwort als Tabelle mit den Spalten: " + safeData(cols.join(", ")) + "\n" : "") +
+      "<<<\n" + safeData(str(answers[i]).trim()) + "\n>>>");
   });
   // Der für alle Schüler:innen eines Blattes gleiche Teil (Aufgaben, Material, Musterlösungen) steht zuerst, die Antworten
   // zuletzt: So greift das automatische Präfix-Caching der Anbieter (Groq: gecachte Token zählen nicht gegen die
@@ -588,7 +593,7 @@ export const feedbackAcceptor = (nrs) => (json) => {
 
 /** Ergebnis je Aufgabe (gleiche Länge wie tasks) */
 export function feedbackResults(tasks, map) {
-  return tasks.map((t, i) => str(t.solution).trim()
+  return tasks.map((t, i) => wantsFeedback(t)
     ? (map.get(i + 1) || { covered: [], missing: [] })
     : { covered: [], missing: [], note: NO_SOLUTION_NOTE });
 }
