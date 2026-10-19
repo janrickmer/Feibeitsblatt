@@ -1457,7 +1457,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie M
     const j = JSON.parse(body);
     expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "aiRecipients", "code", "publicKey", "tasks", "title"]);
     expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX }]);
-    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [] })));
+    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
   }
@@ -1594,6 +1594,314 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   await closePage(t);
 });
+
+/* ---------- Antwortarten: Tabelle und Weltkarten-Zuordnung ---------- */
+const FIXTURE = new URL("../fixtures/02_Feibeitsblatt_Ein-Auto-eine-Welt.pdf", import.meta.url);
+// Punkt im Inneren eines Landes (das Land muss dort auch oben liegen) in Bildschirmkoordinaten
+const countryPoint = (page, n, id) => page.evaluate(([n, id]) => {
+  const p = document.querySelector(`#a-${n} .mapw-svg path[data-id="${id}"]`);
+  const bb = p.getBBox(), m = p.getScreenCTM();
+  for (const f of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8]) for (const g of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8]) {
+    const pt = new DOMPoint(bb.x + bb.width * f, bb.y + bb.height * g);
+    if (!p.isPointInFill(pt)) continue;
+    const s = pt.matrixTransform(m);
+    if (document.elementFromPoint(s.x, s.y) === p) return { x: s.x, y: s.y };
+  }
+  return null;
+}, [n, id]);
+async function clickCountry(page, n, id) {
+  await page.locator(`#a-${n} .mapw-map`).scrollIntoViewIfNeeded();
+  const pt = await countryPoint(page, n, id);
+  expect(pt, "Land " + id + " sichtbar").not.toBeNull();
+  await page.mouse.click(pt.x, pt.y);
+}
+// Datensatz einer gesicherten Feibeitsblatt-PDF lesen (tolerant: Länge direkt oder als Verweis, komprimiert oder roh)
+function sheetRecordOf(pdf) {
+  const s = pdf.toString("latin1"), j = s.search(/\/FbSheet\s+1\b/);
+  expect(j).toBeGreaterThan(0);
+  const st = s.indexOf("stream", j), from = st + (s.slice(st, st + 8).startsWith("stream\r\n") ? 8 : 7), to = s.indexOf("endstream", from);
+  const raw = pdf.subarray(from, to).subarray(0, to - from), dict = s.slice(s.lastIndexOf(" obj", j), st);
+  let body = raw;
+  if (/FlateDecode/.test(dict)) { for (let cut = 0; cut <= 2; cut++) { try { body = inflateSync(raw.subarray(0, raw.length - cut)); break; } catch (e) { body = null; } } }
+  return JSON.parse(body.toString("utf8"));
+}
+
+test("7c Antwortarten: Lehrkraft legt Weltkarten-Zuordnung (mit Kartenbild) und Tabelle an → Schüler:in ordnet zu, füllt die Tabelle, lädt neu und gibt ab → Lehrkraft sieht Tabelle und Zuordnungen", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Welthandel");
+  await tp.fill("#bq-1", "Ordne die Produkte ihren Herkunftsländern zu.");
+  await tp.fill("#bs-1", "wird nicht gespeichert");
+  await tp.selectOption("#bt-1", "map");
+  await expect(tp.locator("#bs-1")).toBeHidden();   // keine Musterlösung bei der Weltkarte
+  const r1 = tp.locator("#b-rows > tr").nth(0);
+  const card = async (k, label, hint, countries) => {
+    if (k > 0) await r1.locator(".bitem-add").click();
+    const it = r1.locator(".bitem").nth(k);
+    await it.locator(".bitem-label").fill(label);
+    if (hint) await it.locator(".bitem-hint").fill(hint);
+    for (const c of countries) { await it.locator(".bitem-country").fill(c); await it.locator(".bitem-country").press("Enter"); }
+  };
+  await card(0, "Kaffee", "Bohnen aus dem Hochland", ["Brasilien", "Vietnam"]);
+  await r1.locator(".bitem").nth(0).locator(".bitem-file").setInputFiles({ name: "kaffee.png", mimeType: "image/png", buffer: makePng(60, 40, [120, 70, 20]) });
+  await expect(r1.locator(".bitem").nth(0).locator(".bitem-pic img")).toHaveCount(1);
+  await card(1, "Tee", "", ["Indien"]);
+  await card(2, "Kakao", "", ["Elfenbeinküste"]);
+  await card(3, "Auto", "Montage", ["Deutschland"]);
+  await expect(r1.locator(".bchip")).toHaveText(["Brasilien✕", "Vietnam✕", "Indien✕", "Elfenbeinküste✕", "Deutschland✕"]);
+  await r1.locator(".bitem").nth(3).locator(".bitem-country").fill("Atlantis");
+  await r1.locator(".bitem").nth(3).locator(".bitem-cadd").click();
+  await expect(r1.locator(".bitem-stat")).toHaveText("„Atlantis“ gibt es auf der Weltkarte nicht – bitte einen Namen aus der Vorschlagsliste wählen.");
+  await tp.fill("#bq-2", "Trage zwei Produkte und ihr Herkunftsland ein.");
+  await tp.fill("#bs-2", "- Weizen\n- Reis");
+  await tp.selectOption("#bt-2", "table");
+  await tp.fill("#bc-2", "Produkt; Land");
+  await expect(tp.locator("#b-rows > tr").nth(1).locator(".bans-prev th")).toHaveText(["Produkt", "Land"]);
+  await tp.fill("#br-2", "2");
+  await tp.fill("#bq-3", "Warum handeln Länder miteinander?");
+  await tp.fill("#bs-3", "- Spezialisierung");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#b-res-img")).toHaveText("Das Bild ist gespeichert.", { timeout: 30_000 });
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  // Gespeichert: Antwortarten vollständig für die Lehrkraft; öffentlich nie die Länder, nur Prüfwerte
+  const pub = await (await request.get("/api/sheet/" + code)).json();
+  expect(pub.sheet.tasks.map((x) => x.answer.type)).toEqual(["map", "table", "text"]);
+  expect(pub.sheet.tasks[1].answer).toEqual({ type: "table", columns: ["Produkt", "Land"], rows: 2 });
+  expect(pub.sheet.tasks[0].answer.items.map((x) => [x.id, x.label, x.checks.length])).toEqual([["kaffee", "Kaffee", 2], ["tee", "Tee", 1], ["kakao", "Kakao", 1], ["auto", "Auto", 1]]);
+  expect(pub.sheet.tasks[0].answer.items[0].checks).toContain(createHash("sha256").update(code + "|kaffee|076").digest("hex"));
+  expect(pub.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["card"]);
+  expect(JSON.stringify(pub)).not.toMatch(/Brasilien|Vietnam|Indien|Elfenbein|Deutschland|countries|"076"|wird nicht gespeichert/);
+
+  // Schüler:in
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "jo", nachname: "ka", geb: "2010-10-10", klasse: "8c" });
+  const cards = page.locator("#a-1 .mcard");
+  await expect(cards).toHaveCount(4);
+  await expect(cards.nth(0).locator(".mcard-img img")).toHaveCount(1);
+  await expect(cards.nth(0)).toContainText("Bohnen aus dem Hochland");
+  await expect(page.locator("#mp-1")).toHaveText("0 von 4 Karten zugeordnet");
+  await expect(page.locator("#t-1 .ltbtn, #t-2 .ltbtn")).toHaveCount(0);   // Rechtschreibprüfung nur für Textfelder
+  // ohne gewählte Karte passiert nichts
+  await clickCountry(page, 1, "076");
+  await expect(page.locator("#a-1 path.done")).toHaveCount(0);
+  // falsches Land: Karte und Land 3 s rot, die Wahl bleibt
+  await cards.nth(0).click();
+  await expect(cards.nth(0)).toHaveAttribute("aria-pressed", "true");
+  await clickCountry(page, 1, "124");
+  await expect(cards.nth(0)).toHaveClass(/wrong/);
+  await expect(page.locator('#a-1 path[data-id="124"]')).toHaveClass(/wrong/);
+  await expect(cards.nth(0).locator(".mcard-ans")).toHaveText("✗ Kanada passt nicht");
+  await expect(cards.nth(0)).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(1500);
+  await expect(cards.nth(0)).toHaveClass(/wrong/);   // noch rot …
+  await expect(cards.nth(0)).not.toHaveClass(/wrong/, { timeout: 3000 });   // … nach 3 s nicht mehr
+  await expect(page.locator('#a-1 path[data-id="124"]')).not.toHaveClass(/wrong/);
+  await expect(cards.nth(0)).toHaveAttribute("aria-pressed", "true");
+  // richtiges Land: gleiche Farbe für Karte, Land und Pfeil; Name unter der Karte; Karte erledigt
+  await clickCountry(page, 1, "076");
+  await expect(cards.nth(0)).toHaveClass(/done/);
+  await expect(cards.nth(0).locator(".mcard-ans")).toHaveText("✓ Brasilien");
+  await expect(cards.nth(0)).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("#mp-1")).toHaveText("1 von 4 Karten zugeordnet");
+  const colorOf = async (k, id) => page.evaluate(([k, id]) => {
+    const c = document.querySelectorAll("#a-1 .mcard")[k], p = document.querySelector(`#a-1 path[data-id="${id}"]`), a = document.querySelector(`#a-1 .mapw-arrows g.arrow[data-item="${["kaffee", "tee", "kakao", "auto"][k]}"] .shaft`);
+    const norm = (v) => { const d = document.createElement("i"); d.style.color = v; document.body.appendChild(d); const x = getComputedStyle(d).color; d.remove(); return x; };
+    return { card: norm(getComputedStyle(c).getPropertyValue("--mc").trim()), land: getComputedStyle(p).fill, arrow: a ? norm(a.getAttribute("stroke")) : null };
+  }, [k, id]);
+  const c1 = await colorOf(0, "076");
+  expect(c1.land).toBe(c1.card); expect(c1.arrow).toBe(c1.card);
+  expect(c1.card).not.toBe("rgb(217, 48, 37)");
+  await cards.nth(1).click();
+  await clickCountry(page, 1, "356");
+  await expect(cards.nth(1).locator(".mcard-ans")).toHaveText("✓ Indien");
+  const c2 = await colorOf(1, "356");
+  expect(c2.land).toBe(c2.card); expect(c2.arrow).toBe(c2.card); expect(c2.card).not.toBe(c1.card);
+  await expect(page.locator("#a-1 .mapw-arrows g.arrow")).toHaveCount(2);
+  // Zoomen: „+“ vergrößert, „−“ verkleinert; Mausrad zoomt um den Mauszeiger (Deutschland bleibt darunter); „Ansicht zurücksetzen“
+  const scale = () => page.$eval("#a-1 .vp", (g) => Number(/scale\(([\d.]+)\)/.exec(g.getAttribute("transform"))[1]));
+  expect(await scale()).toBe(1);
+  await expect(page.locator("#a-1 .mapw-zbtn[aria-label='Karte verkleinern']")).toBeDisabled();
+  await page.click("#a-1 .mapw-zbtn[aria-label='Karte vergrößern']");
+  expect(await scale()).toBeCloseTo(1.6, 3);
+  await page.click("#a-1 .mapw-zbtn[aria-label='Karte verkleinern']");
+  expect(await scale()).toBe(1);
+  await page.locator("#a-1 .mapw-map").scrollIntoViewIfNeeded();
+  const de = await countryPoint(page, 1, "276");
+  await page.mouse.move(de.x, de.y);
+  await page.mouse.wheel(0, -400);   // ohne Klick in die Karte scrollt das Mausrad die Seite (Hinweis), statt zu zoomen
+  await expect(page.locator("#a-1 .mapw-tip")).toHaveText("Zum Zoomen erst in die Karte klicken (oder Strg + Mausrad)");
+  expect(await scale()).toBe(1);
+  await page.locator("#a-1 .mapw-map").scrollIntoViewIfNeeded();
+  const deA = await countryPoint(page, 1, "276");
+  await page.mouse.move(deA.x, deA.y);
+  await page.keyboard.down("Control"); await page.mouse.wheel(0, -400); await page.keyboard.up("Control");
+  await expect.poll(scale).toBeGreaterThan(1.5);
+  const de2 = await countryPoint(page, 1, "276");
+  expect(Math.hypot(de2.x - deA.x, de2.y - deA.y)).toBeLessThan(60);   // Deutschland bleibt unter dem Mauszeiger
+  await cards.nth(3).click();
+  await clickCountry(page, 1, "276");
+  await expect(cards.nth(3).locator(".mcard-ans")).toHaveText("✓ Deutschland");
+  await page.click("#a-1 .mapw-zbtn:has-text('Ansicht zurücksetzen')");
+  expect(await scale()).toBe(1);
+  // ohne Maus: Karte per Tastatur wählen → Eingabefeld „Land eingeben“
+  await cards.nth(2).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#mi-1")).toBeFocused();
+  await page.keyboard.type("Ghana"); await page.keyboard.press("Enter");
+  await expect(cards.nth(2).locator(".mcard-ans")).toHaveText("✗ Ghana passt nicht");
+  await page.keyboard.type("Elfenbeinküste"); await page.keyboard.press("Enter");   // der falsche Name ist markiert und wird ersetzt
+  await expect(cards.nth(2).locator(".mcard-ans")).toHaveText("✓ Elfenbeinküste");
+  await expect(page.locator("#mp-1")).toHaveText("4 von 4 Karten zugeordnet");
+  await expect(page.locator("#a-1 .mapw-arrows g.arrow")).toHaveCount(4);
+  // Tabelle: Tab wandert durch die Zellen, Einfügen gesperrt, „+ Zeile“
+  const cells = page.locator("#a-2 textarea.tcell:not(.measure)");
+  await expect(page.locator("#a-2 th")).toHaveText(["Produkt", "Land"]);
+  await expect(cells).toHaveCount(4);
+  await cells.nth(0).click();
+  await page.keyboard.type("Weizen"); await page.keyboard.press("Tab"); await page.keyboard.type("Kanada");
+  await page.keyboard.press("Tab"); await page.keyboard.type("Reis");
+  await page.keyboard.press("Enter");   // Enter → Zelle darunter (neue Zeile)
+  await expect(cells).toHaveCount(6);
+  await page.keyboard.type("Tee"); await page.keyboard.press("Shift+Tab"); await page.keyboard.type("China");   // zurück in Zeile 2, Spalte „Land“
+  await cells.nth(1).dispatchEvent("paste");
+  await expect(page.locator("#pe-2")).toHaveText(PASTE_MSG);
+  await page.click("#a-2 .tbl-add");
+  await expect(cells).toHaveCount(8);
+  expect(await cells.evaluateAll((l) => l.map((x) => x.value))).toEqual(["Weizen", "Kanada", "Reis", "China", "Tee", "", "", ""]);
+  await typeAt(page, "#a-3", "Weil sich Länder spezialisieren.");
+  // Neu laden → „Weiterschreiben“: Tabelle und Zuordnungen kommen zurück (Zuordnungen erneut gegen die Prüfwerte geprüft)
+  await page.waitForTimeout(700);
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#mp-1")).toHaveText("4 von 4 Karten zugeordnet");
+  await expect(page.locator("#a-1 .mcard-ans")).toHaveText(["✓ Brasilien", "✓ Indien", "✓ Elfenbeinküste", "✓ Deutschland"]);
+  await expect(page.locator("#a-1 .mapw-arrows g.arrow")).toHaveCount(4);
+  expect(await cells.evaluateAll((l) => l.map((x) => x.value))).toEqual(["Weizen", "Kanada", "Reis", "China", "Tee", ""]);   // leere Zeilen entfallen
+  // „Alle Zuordnungen löschen“ mit Bestätigung (abgebrochen: alles bleibt)
+  await page.click("#a-1 .mapw-clear");
+  await confirmDialog(page, "Alle Zuordnungen löschen?", false);
+  await expect(page.locator("#mp-1")).toHaveText("4 von 4 Karten zugeordnet");
+  // KI-Feedback: die Weltkarte geht nicht an die KI, die Tabelle mit ihren Spalten
+  const mapText = "Kaffee → Brasilien\nTee → Indien\nAuto → Deutschland\nKakao → Elfenbeinküste\nZugeordnet: 4 von 4";
+  const tableText = "Produkt | Land\nWeizen | Kanada\nReis | China\nTee |";
+  await mockReset();
+  await page.click("#fb-btn");
+  await confirmDialog(page, "KI-Feedback anfordern?");
+  await expect(page.locator("#t-2 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#t-1 .fbbox")).toBeHidden();   // kein KI-Feedback zur Weltkarte
+  const prompt = (await mockState()).requests[0].messages.map((m) => m.content).join("\n");
+  expect(prompt).toContain("### Antwort zu Aufgabe 2\nAntwort als Tabelle mit den Spalten: Produkt, Land\n<<<\n" + tableText + "\n>>>");
+  expect(prompt).not.toMatch(/Brasilien|Kaffee|Aufgabe 1\b/);
+  const fbCall = (await s.calls((r) => r.path === "/api/feedback"))[0];
+  expect(JSON.parse(fbCall.reqBody).answers).toEqual([mapText, tableText, "Weil sich Länder spezialisieren."]);
+  await submit(page);
+  await closePage(s);
+
+  // Lehrkraft: Antwortart in den Blattdetails, Tabelle und Zuordnungen in den Abgaben
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-sel-tasks .ansinfo").nth(0)).toContainText("Antwortart: Weltkarten-Zuordnung (4 Karten)");
+  await expect(tp.locator("#t-sel-tasks .ansmap li").nth(0)).toHaveText("Kaffee – Bohnen aus dem Hochland: Brasilien, Vietnam");
+  await expect(tp.locator("#t-sel-tasks .ansinfo").nth(1)).toContainText("Spalten: Produkt · Land – 2 Zeilen vorgegeben");
+  await tp.locator("#t-subs-body tr.main").first().click();
+  const det = tp.locator("#t-subs-body tr.details").first();
+  await expect(det.locator(".dtask").nth(0).locator(".task-label").first()).toHaveText("Aufgabe 1 · Weltkarten-Zuordnung");
+  const finalCell = (k) => det.locator(".dtask").nth(k).locator("table.cmp > tbody > tr > td").nth(1);   // Spalte „Eingabe nach dem KI-Feedback“
+  await expect(finalCell(0).locator(".mapans-list li")).toHaveText(["Kaffee → zugeordnet zu Brasilien", "Tee → zugeordnet zu Indien", "Auto → zugeordnet zu Deutschland", "Kakao → zugeordnet zu Elfenbeinküste"]);
+  await expect(finalCell(0).locator(".mapans-sum")).toHaveText("Zugeordnet: 4 von 4");
+  await expect(det.locator(".dtask").nth(1).locator(".task-label").first()).toHaveText("Aufgabe 2 · Tabelle");
+  await expect(finalCell(1).locator("table.anstable th")).toHaveText(["Produkt", "Land"]);
+  await expect(finalCell(1).locator("table.anstable tbody tr")).toHaveCount(3);
+  await expect(finalCell(1).locator("table.anstable tbody td")).toHaveText(["Weizen", "Kanada", "Reis", "China", "Tee", ""]);
+
+  // Sichern und wieder laden: Antwortarten und Kartenbild reisen mit
+  const [dl] = await Promise.all([tp.waitForEvent("download"), tp.click("#t-export")]);
+  const pdf = await readFile(await dl.path());
+  const rec = sheetRecordOf(pdf);
+  expect(rec.tasks.map((x) => (x.answer || { type: "text" }).type)).toEqual(["map", "table", "text"]);
+  expect(rec.tasks[0].images).toEqual([expect.objectContaining({ mode: "card", ref: rec.tasks[0].answer.items[0].image })]);
+  expect(rec.tasks[0].answer.items.map((x) => x.countries.map((c) => c.id))).toEqual([["076", "704"], ["356"], ["384"], ["276"]]);
+  expect(pdf.toString("latin1")).toContain("(Antwortart: Weltkarten-Zuordnung mit 4 Karten");
+  await tp.setInputFiles("#t-import-file", { name: "w.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(tp.locator("#tv-builder")).toBeVisible({ timeout: 30_000 });
+  expect(await tp.$$eval(".bans-type", (l) => l.map((x) => x.value))).toEqual(["map", "table", "text"]);
+  expect(await tp.locator("#b-rows > tr").nth(0).locator(".bitem-label").evaluateAll((l) => l.map((x) => x.value))).toEqual(["Kaffee", "Tee", "Kakao", "Auto"]);
+  await expect(tp.locator("#b-rows > tr").nth(0).locator(".bitem-pic img")).toHaveCount(1);
+  await expect(tp.locator("#bc-2")).toHaveValue("Produkt\nLand");
+  await expect(tp.locator("#b-err")).toHaveText("");
+  // aufräumen
+  await tp.click("#b-back");   // frisch geladen, nichts geändert → ohne Rückfrage
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7d Testdatei „Ein Auto – eine Welt“: Import übernimmt alles (Weltkarte mit Kartenbildern, Tabelle, Textaufgaben) → neues Blatt erscheint bei den Schüler:innen richtig", async ({ browser }) => {
+  const pdf = await readFile(FIXTURE), rec = sheetRecordOf(pdf);
+  const types = rec.tasks.map((x) => (x.answer && x.answer.type) || "text");
+  expect(types).toEqual(["map", "table", "text", "text"]);
+  const map = rec.tasks[0].answer, cardImgs = rec.tasks[0].images.filter((m) => m.mode === "card");
+  expect(map.items).toHaveLength(12); expect(cardImgs).toHaveLength(12);
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.setInputFiles("#t-import-file", FIXTURE.pathname);
+  await expect(tp.locator("#tv-builder")).toBeVisible({ timeout: 30_000 });
+  await expect(tp.locator("#b-import")).toContainText(`„${rec.title}“ wurde aus der PDF-Datei geladen`);
+  await expect(tp.locator("#b-err")).toHaveText("");
+  expect(await tp.$$eval(".bans-type", (l) => l.map((x) => x.value))).toEqual(types);
+  const r1 = tp.locator("#b-rows > tr").nth(0);
+  expect(await r1.locator(".bitem-label").evaluateAll((l) => l.map((x) => x.value))).toEqual(map.items.map((x) => x.label));
+  await expect(r1.locator(".bitem-pic img")).toHaveCount(map.items.filter((x) => x.image).length);
+  await expect(r1.locator(".bchip")).toHaveCount(map.items.reduce((n, x) => n + x.countries.length, 0));
+  await expect(r1.locator(".bchip.bad")).toHaveCount(0);   // alle Länder sind auf der Weltkarte anklickbar
+  await expect(tp.locator("#bs-1")).toBeHidden();
+  await expect(tp.locator("#bc-2")).toHaveValue(rec.tasks[1].answer.columns.join("\n"));
+  await expect(tp.locator("#br-2")).toHaveValue(String(rec.tasks[1].answer.rows));
+  for (const [i, x] of rec.tasks.entries()) await expect(tp.locator("#bq-" + (i + 1))).toHaveValue(x.text);
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#b-res-img")).toHaveText(`Alle ${cardImgs.length} Bilder sind gespeichert.`, { timeout: 60_000 });
+  const shown = (await tp.locator("#b-res-code").textContent()).trim();
+  expect(shown).not.toBe(fmtCodeOf(rec.code));
+  // Schüler:innen: zwölf Karten mit Bild, Tabelle mit den Spalten, zwei Textfelder; eine Zuordnung klappt
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "mo", nachname: "si", geb: "2011-11-11", klasse: "7b" });
+  await expect(page.locator("#a-1 .mcard")).toHaveCount(12);
+  await expect(page.locator("#a-1 .mcard-label")).toHaveText(map.items.map((x) => x.label));
+  await expect(page.locator("#a-1 .mcard-img img")).toHaveCount(map.items.filter((x) => x.image).length);
+  await expect(page.locator("#a-2 th")).toHaveText(rec.tasks[1].answer.columns);
+  await expect(page.locator("#a-2 tbody tr")).toHaveCount(rec.tasks[1].answer.rows);
+  await expect(page.locator("textarea.answer:not(.measure)")).toHaveCount(2);
+  await expect(page.locator("#t-1 .task-material")).toHaveCount(rec.tasks[0].material.length ? 1 : 0);
+  const big = map.items.findIndex((x) => x.countries.some((c) => ["076", "036", "156", "643", "840", "124"].includes(c.id)));
+  const cid = map.items[big].countries.find((c) => ["076", "036", "156", "643", "840", "124"].includes(c.id)).id;
+  await page.locator("#a-1 .mcard").nth(big).click();
+  await clickCountry(page, 1, cid);
+  await expect(page.locator("#a-1 .mcard").nth(big)).toHaveClass(/done/);
+  await expect(page.locator("#mp-1")).toHaveText("1 von 12 Karten zugeordnet");
+  await closePage(s);
+  // aufräumen
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+const fmtCodeOf = (c) => String(c || "").slice(0, 3) + "-" + String(c || "").slice(3);
 
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {
   const t = await openPage(browser);

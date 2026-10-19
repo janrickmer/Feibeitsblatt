@@ -6,6 +6,7 @@ import {
   validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateAiInput,
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
+  withMapChecks, teacherAnswer, publicAnswer,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -304,9 +305,10 @@ async function routeSheetsList(c) {
 async function routeSheetCreate(c) {
   await requireTeacher(c);
   const { title, tasks } = validateSheetInput(await readJson(c.request), c.now);
-  const tasksJson = JSON.stringify(tasks);
+  const hasMap = tasks.some((t) => t.answer && t.answer.type === "map");
   for (let i = 0; i < 8; i++) {   // bei Kollision neu würfeln
     const code = generateCode();
+    const tasksJson = JSON.stringify(hasMap ? await withMapChecks(tasks, code) : tasks);   // Prüfwerte hängen vom Code ab
     const r = await c.db.prepare("INSERT INTO sheets(code,title,tasks,created_at) VALUES(?1,?2,?3,?4) ON CONFLICT(code) DO NOTHING")
       .bind(code, title, tasksJson, c.now).run();
     if (r.meta && r.meta.changes) return json({ ok: true, code, title, createdAt: c.now, taskCount: tasks.length });
@@ -326,7 +328,7 @@ async function routeSheetGet(c, codeRaw) {
   ]);
   const s = firstRow(sh);
   if (!s) throw sheetGone();
-  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), solution: String(t.solution || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1), files: filesForTask(fi.results, i + 1) }));
+  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), solution: String(t.solution || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1), files: filesForTask(fi.results, i + 1), answer: teacherAnswer(t.answer) }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, createdAt: s.created_at, tasks, submissionCount: (firstRow(cnt) || {}).n || 0 } });
 }
 
@@ -348,7 +350,8 @@ async function routeSheetDelete(c, codeRaw) {
 // Nur Spalten vor `data` und eine Sortierung, die der Index abdeckt (pos ist je Blatt und Aufgabe eindeutig)
 const imagesStmt = (db, code) => db.prepare("SELECT id, task, pos, mode, w, h, alt FROM sheet_images WHERE sheet_code=?1 ORDER BY task, pos").bind(code);
 
-// POST …/sheets/:code/images – JSON {task (1-basiert), mode (thumb|inline), data (Base64 von JPEG/PNG/WebP), id?, alt?}.
+// POST …/sheets/:code/images – JSON {task (1-basiert), mode (thumb|inline|card), data (Base64 von JPEG/PNG/WebP), id?, alt?}.
+// Kartenbilder (card, Weltkarten-Zuordnung) zählen getrennt: je Aufgabe ≤ cardsPerTask, die übrigen ≤ imagesPerTask.
 // Ein einziger bedingter INSERT prüft Blatt, Aufgabennummer, Anzahl je Aufgabe und Gesamtgröße atomar. Mit einer vom
 // Browser erzeugten id ist der Upload wiederholbar (Timeout nach erfolgreichem Speichern → kein Duplikat).
 async function routeImageUpload(c, codeRaw) {
@@ -357,20 +360,21 @@ async function routeImageUpload(c, codeRaw) {
   if (!isValidCode(code)) throw sheetGone();
   const v = validateImageUpload(await readJson(c.request));
   const { task, mode, data, bytes, info, alt } = v, id = v.id || generateImageId();
+  const card = mode === "card", perTask = card ? LIMITS.cardsPerTask : LIMITS.imagesPerTask;   // Kartenbilder zählen getrennt
   const row = await c.db.prepare(
     "INSERT INTO sheet_images(id,sheet_code,task,pos,mode,mime,w,h,bytes,created_at,alt,data) " +
     "SELECT ?1,?2,?3,(SELECT COUNT(*) FROM sheet_images WHERE sheet_code=?2 AND task=?3),?4,?5,?6,?7,?8,?10,?13,?9 " +
     "WHERE NOT EXISTS(SELECT 1 FROM sheet_images WHERE id=?1) " +
-    "AND EXISTS(SELECT 1 FROM sheets WHERE code=?2 AND json_array_length(tasks)>=?3) " +
-    "AND (SELECT COUNT(*) FROM sheet_images WHERE sheet_code=?2 AND task=?3)<?11 " +
+    "AND EXISTS(SELECT 1 FROM sheets WHERE code=?2 AND json_array_length(tasks)>=?3 AND (?4<>'card' OR json_extract(tasks,'$['||CAST(?3-1 AS INTEGER)||'].answer.type')='map')) " +
+    "AND (SELECT COUNT(*) FROM sheet_images WHERE sheet_code=?2 AND task=?3 AND (mode='card')=(?4='card'))<?11 " +
     "AND (SELECT COALESCE(SUM(bytes),0) FROM sheet_images WHERE sheet_code=?2)+?8<=?12 " +
     "AND " + STORAGE_SQL + "+?8<=?14 RETURNING pos")
-    .bind(id, code, task, mode, info.mime, info.w, info.h, bytes, data, c.now, LIMITS.imagesPerTask, LIMITS.sheetImageBytes, alt, LIMITS.storageBytes).first();
+    .bind(id, code, task, mode, info.mime, info.w, info.h, bytes, data, c.now, perTask, LIMITS.sheetImageBytes, alt, LIMITS.storageBytes).first();
   if (!row) {   // Grund ermitteln (nur im Fehlerfall ein zweiter Lesezugriff)
     const [ex, sh, cnt, sum] = await c.db.batch([
       c.db.prepare("SELECT task, pos, mode, mime, w, h, bytes, alt FROM sheet_images WHERE id=?1 AND sheet_code=?2").bind(id, code),
-      c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code),
-      c.db.prepare("SELECT COUNT(*) AS n FROM sheet_images WHERE sheet_code=?1 AND task=?2").bind(code, task),
+      c.db.prepare("SELECT json_array_length(tasks) AS n, json_extract(tasks,'$['||CAST(?2-1 AS INTEGER)||'].answer.type') AS t FROM sheets WHERE code=?1").bind(code, task),
+      c.db.prepare("SELECT COUNT(*) AS n FROM sheet_images WHERE sheet_code=?1 AND task=?2 AND (mode='card')=?3").bind(code, task, card ? 1 : 0),
       c.db.prepare("SELECT (SELECT COALESCE(SUM(bytes),0) FROM sheet_images WHERE sheet_code=?1) AS sheet, " + STORAGE_SQL + " AS used").bind(code),
     ]);
     const e = firstRow(ex);
@@ -379,7 +383,8 @@ async function routeImageUpload(c, codeRaw) {
     const s = firstRow(sh);
     if (!s) throw sheetGone();
     if (task > Number(s.n)) throw new InputError("Aufgabe " + task + " gibt es in diesem Feibeitsblatt nicht.");
-    if (Number((firstRow(cnt) || {}).n) >= LIMITS.imagesPerTask) throw new InputError("Höchstens " + LIMITS.imagesPerTask + " Bilder je Aufgabe.", "too_many_images");
+    if (card && s.t !== "map") throw new InputError("Kartenbilder gibt es nur bei Aufgaben mit Weltkarten-Zuordnung.");
+    if (Number((firstRow(cnt) || {}).n) >= perTask) throw new InputError(card ? "Höchstens " + perTask + " Kartenbilder je Aufgabe." : "Höchstens " + perTask + " Bilder je Aufgabe.", "too_many_images");
     const u = firstRow(sum) || {};
     if (Number(u.sheet) + bytes <= LIMITS.sheetImageBytes && Number(u.used) + bytes > LIMITS.storageBytes) throw new HttpError(413, "storage_full", MSG.storageFull);
     throw new HttpError(413, "too_large", MSG.imagesFull);
@@ -667,8 +672,13 @@ async function routePublicSheet(c, codeRaw) {
   const aiProvider = usable.length && usable[0] === ai ? providerLabel(ai.provider, ai.baseUrl) : null;
   const aiRecipients = usable.map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl) }));
   const aiReserve = usable.length > 1 ? providerLabel(usable[1].provider, usable[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
-  // Niemals Musterlösungen ausliefern: nur Aufgabentext und Bild-Metadaten verlassen den Server
-  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1), files: filesForTask(fi.results, i + 1) }));
+  // Niemals Musterlösungen ausliefern: nur Aufgabentext und Bild-Metadaten verlassen den Server; die Länder einer Weltkarten-
+  // Zuordnung nur als Prüfwerte (SHA-256 von Code|Karte|Land), Kartenbilder nur, wenn sie zu dieser Aufgabe gespeichert sind
+  const tasks = await Promise.all(parseTasks(s.tasks).map(async (t, i) => {
+    const images = imagesForTask(im.results, i + 1);
+    return { text: String(t.text || ""), material: Array.isArray(t.material) ? t.material : [], images, files: filesForTask(fi.results, i + 1),
+      answer: await publicAnswer(t.answer, code, new Set(images.filter((m) => m.mode === "card").map((m) => m.id))) };
+  }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}) } });
 }
 

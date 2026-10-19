@@ -51,11 +51,16 @@ export function bytesToB64(bytes) {
   for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
   return btoa(bin);
 }
+const HEX = Array.from({ length: 256 }, (_, i) => (i < 16 ? "0" : "") + i.toString(16));   // Tabelle statt padStart/join: bis zu 400 Prüfwerte beim Anlegen (10 ms CPU)
 export function toHex(buf) {
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const u = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < u.length; i++) s += HEX[u[i]];
+  return s;
 }
+const TE = new TextEncoder();
 export async function sha256Hex(data) {
-  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  const bytes = typeof data === "string" ? TE.encode(data) : data;
   return toHex(await crypto.subtle.digest("SHA-256", bytes));
 }
 // Vergleich in konstanter Zeit (Länge ist kein Geheimnis: Hashes haben feste Länge)
@@ -91,6 +96,11 @@ export const LIMITS = {
                                    // erlaubt 500 MB je Datenbank, der Rest bleibt für Abgaben, Blätter und Zähler
   material: 8000,                  // Material je Aufgabe (Zeichen), formatiert als Absätze aus Läufen
   materialParagraphs: 200, materialRuns: 600, materialLinks: 60, href: 1000,
+  // Antwortarten (answer je Aufgabe): Tabelle und Weltkarten-Zuordnung
+  tableColumns: 8, columnName: 60, tableRows: 30,
+  mapItems: 40, itemId: 40, itemLabel: 120, itemHint: 400, itemCountries: 10, countryName: 80,
+  mapChecks: 400,                  // Prüfwerte (Länder aller Karten) je Blatt – der Worker hasht sie beim Anlegen
+  cardsPerTask: 40,                // Kartenbilder (mode "card") je Aufgabe – zählen nicht zu imagesPerTask
 };
 
 export class InputError extends Error {
@@ -172,16 +182,131 @@ export function validateSheetInput(body, now = Date.now()) {
     const n = i + 1;
     if (!isObj(t) || typeof t.text !== "string") throw new InputError("Aufgabe " + n + ": Aufgabenstellung fehlt.");
     if (t.solution != null && typeof t.solution !== "string") throw new InputError("Aufgabe " + n + ": Die Musterlösung muss ein Text sein.");
-    const text = cleanText(t.text).trim(), solution = cleanText(t.solution || "").trim();
+    const answer = validateAnswerSpec(t.answer, n), isMap = !!answer && answer.type === "map";
+    const text = cleanText(t.text).trim(), solution = isMap ? "" : cleanText(t.solution || "").trim();   // Weltkarte: keine Musterlösung, kein KI-Feedback
     if (!text) throw new InputError("Aufgabe " + n + ": Bitte eine Aufgabenstellung eintragen.");
     if (text.length > LIMITS.taskText) throw new InputError("Aufgabe " + n + ": Die Aufgabenstellung ist zu lang (höchstens " + LIMITS.taskText + " Zeichen).");
     if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Die Musterlösung ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
     const material = validateMaterial(t.material, n);
     const task = { text, solution };
     if (material.length) task.material = material;
+    if (answer) task.answer = answer;
     return task;
   });
+  const checks = tasks.reduce((k, t) => k + (t.answer && t.answer.type === "map" ? t.answer.items.reduce((m, it) => m + it.countries.length, 0) : 0), 0);
+  if (checks > LIMITS.mapChecks) throw new InputError("Zu viele Länder in den Weltkarten-Aufgaben (höchstens " + LIMITS.mapChecks + " Zuordnungen je Feibeitsblatt zusammen).");
   return { title, tasks };
+}
+
+/* ---------- Antwortarten: answer je Aufgabe (fehlt = Textfeld). Unbekannte Felder entfallen, Fehlerhaftes → 400. ----------
+ * {type:"table", columns:[1–8 Überschriften], rows:1–30}
+ * {type:"map", map:"world", items:[1–40 × {id, label, hint?, image? (16 Hex, Kartenbild mode "card"), countries:[1–10 × {id (ISO 3166-1
+ *   numerisch, 3 Ziffern), name}]}]} – eine richtige Zuordnung genügt; Schüler:innen bekommen die Länder nur als Prüfwerte. */
+export const ITEM_ID_RE = /^[a-z0-9-]{1,40}$/;
+export const COUNTRY_ID_RE = /^\d{3}$/;
+const oneLine = (v) => cleanText(v).replace(/\s+/g, " ").trim();   // einzeilig: Leerraum und Zeilenumbrüche → ein Leerzeichen
+export function validateAnswerSpec(raw, n) {
+  if (raw == null) return null;
+  const where = n ? "Aufgabe " + n + ": " : "";
+  const bad = (msg) => new InputError(where + (msg || "Die Antwortart hat ein ungültiges Format."));
+  if (!isObj(raw)) throw bad();
+  if (raw.type === "text") return null;
+  if (raw.type === "table") {
+    const cols = raw.columns;
+    if (!Array.isArray(cols) || cols.length < 1) throw bad("Die Tabelle braucht mindestens eine Spalte.");
+    if (cols.length > LIMITS.tableColumns) throw bad("Die Tabelle hat zu viele Spalten (höchstens " + LIMITS.tableColumns + ").");
+    const columns = cols.map((c, k) => {
+      if (typeof c !== "string") throw bad();
+      const t = oneLine(c).replace(/\|/g, "/");   // „|“ trennt in der Textform der Antwort die Zellen
+      if (!t) throw bad("Spalte " + (k + 1) + " der Tabelle braucht eine Überschrift.");
+      if (t.length > LIMITS.columnName) throw bad("Die Überschrift von Spalte " + (k + 1) + " ist zu lang (höchstens " + LIMITS.columnName + " Zeichen).");
+      return t;
+    });
+    const rows = raw.rows;
+    if (!Number.isInteger(rows) || rows < 1 || rows > LIMITS.tableRows) throw bad("Die Tabelle braucht 1 bis " + LIMITS.tableRows + " Zeilen.");
+    return { type: "table", columns, rows };
+  }
+  if (raw.type === "map") {
+    if (raw.map != null && raw.map !== "world") throw bad("Unbekannte Karte (möglich ist nur die Weltkarte).");
+    const list = raw.items;
+    if (!Array.isArray(list) || list.length < 1) throw bad("Die Weltkarten-Zuordnung braucht mindestens eine Karte.");
+    if (list.length > LIMITS.mapItems) throw bad("Die Weltkarten-Zuordnung hat zu viele Karten (höchstens " + LIMITS.mapItems + ").");
+    const ids = new Set(), labels = new Set();
+    const items = list.map((it, k) => {
+      const c = "Karte " + (k + 1) + ": ";
+      if (!isObj(it)) throw bad();
+      const id = typeof it.id === "string" ? it.id.trim().toLowerCase() : "";
+      if (!ITEM_ID_RE.test(id)) throw bad(c + "Ungültige Kennung (nur a–z, 0–9 und Bindestrich, höchstens " + LIMITS.itemId + " Zeichen).");
+      if (ids.has(id)) throw bad(c + "Die Kennung „" + id + "“ kommt doppelt vor.");
+      ids.add(id);
+      if (typeof it.label !== "string" || (it.hint != null && typeof it.hint !== "string")) throw bad();
+      const label = oneLine(it.label), hint = oneLine(it.hint || "");
+      if (!label) throw bad(c + "Bitte eine Bezeichnung eintragen.");
+      if (label.length > LIMITS.itemLabel) throw bad(c + "Die Bezeichnung ist zu lang (höchstens " + LIMITS.itemLabel + " Zeichen).");
+      if (labels.has(label)) throw bad(c + "Die Bezeichnung „" + label + "“ kommt doppelt vor.");   // sonst ist die Textform der Antwort mehrdeutig
+      labels.add(label);
+      if (hint.length > LIMITS.itemHint) throw bad(c + "Der Hinweis ist zu lang (höchstens " + LIMITS.itemHint + " Zeichen).");
+      let image = "";
+      if (it.image != null && it.image !== "") {
+        image = typeof it.image === "string" ? it.image.toLowerCase() : "";
+        if (!IMAGE_ID_RE.test(image)) throw bad(c + "Ungültige Bild-Kennung.");
+      }
+      const cs = it.countries;
+      if (!Array.isArray(cs) || cs.length < 1) throw bad(c + "Bitte mindestens ein Land auswählen.");
+      if (cs.length > LIMITS.itemCountries) throw bad(c + "Zu viele Länder (höchstens " + LIMITS.itemCountries + ").");
+      const seen = new Set(), countries = [];
+      for (const x of cs) {
+        if (!isObj(x) || typeof x.id !== "string" || !COUNTRY_ID_RE.test(x.id) || typeof x.name !== "string") throw bad(c + "Ein Land hat ein ungültiges Format.");
+        const name = oneLine(x.name);
+        if (!name || name.length > LIMITS.countryName) throw bad(c + "Ein Ländername fehlt oder ist zu lang.");
+        if (!seen.has(x.id)) { seen.add(x.id); countries.push({ id: x.id, name }); }
+      }
+      const out = { id, label };
+      if (hint) out.hint = hint;
+      if (image) out.image = image;
+      out.countries = countries;
+      return out;
+    });
+    return { type: "map", map: "world", items };
+  }
+  throw bad("Unbekannte Antwortart (möglich: Textfeld, Tabelle, Weltkarten-Zuordnung).");
+}
+// Prüfwert einer Zuordnung: SHA-256 (hex) von „Code|Karten-Kennung|Länder-Kennung“ – der Browser vergleicht den angeklickten Staat
+export const mapCheck = (code, itemId, countryId) => sha256Hex(code + "|" + itemId + "|" + countryId);
+// Beim Anlegen (Code steht fest): Prüfwerte je Karte speichern, damit das öffentliche Blatt sie nicht bei jedem Abruf neu hasht
+export async function withMapChecks(tasks, code) {
+  return Promise.all(tasks.map(async (t) => {
+    if (!t.answer || t.answer.type !== "map") return t;
+    const items = await Promise.all(t.answer.items.map(async (it) => ({ ...it, checks: await Promise.all(it.countries.map((c) => mapCheck(code, it.id, c.id))) })));
+    return { ...t, answer: { ...t.answer, items } };
+  }));
+}
+// Antwortart aus D1 für die Lehrkraft (ganz, ohne Prüfwerte) bzw. für Schüler:innen (Länder NIE im Klartext, nur Prüfwerte;
+// ein Kartenbild nur, wenn es als Kartenbild dieser Aufgabe gespeichert ist)
+export function teacherAnswer(a) {
+  if (!isObj(a) || (a.type !== "table" && a.type !== "map")) return { type: "text" };
+  if (a.type === "table") return { type: "table", columns: Array.isArray(a.columns) ? a.columns.map(String) : [], rows: Number(a.rows) || 1 };
+  return { type: "map", map: "world", items: (Array.isArray(a.items) ? a.items : []).filter(isObj).map((it) => {
+    const o = { id: String(it.id), label: String(it.label || "") };
+    if (it.hint) o.hint = String(it.hint);
+    if (it.image) o.image = String(it.image);
+    o.countries = (Array.isArray(it.countries) ? it.countries : []).filter(isObj).map((c) => ({ id: String(c.id), name: String(c.name || "") }));
+    return o;
+  }) };
+}
+export async function publicAnswer(a, code, cardIds) {
+  if (!isObj(a) || (a.type !== "table" && a.type !== "map")) return { type: "text" };
+  if (a.type === "table") return teacherAnswer(a);
+  const items = await Promise.all((Array.isArray(a.items) ? a.items : []).filter(isObj).map(async (it) => {
+    const countries = (Array.isArray(it.countries) ? it.countries : []).filter(isObj);
+    const ok = Array.isArray(it.checks) && it.checks.length === countries.length && it.checks.every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h));
+    const o = { id: String(it.id), label: String(it.label || "") };
+    if (it.hint) o.hint = String(it.hint);
+    if (it.image && cardIds && cardIds.has(String(it.image))) o.image = String(it.image);
+    o.checks = ok ? it.checks : await Promise.all(countries.map((c) => mapCheck(code, String(it.id), String(c.id))));
+    return o;
+  }));
+  return { type: "map", map: "world", items };
 }
 
 /* ---------- Material zu Aufgaben: Absätze aus Läufen {t, f?, h?} – f ⊆ "biu" (fett/kursiv/unterstrichen), h = Link.
@@ -232,7 +357,7 @@ export function validateMaterial(raw, n) {
 export const materialText = (m) => (Array.isArray(m) ? m : []).map((p) => (Array.isArray(p) ? p : []).map((r) => (r && typeof r.t === "string" ? r.t : "")).join("")).join("\n").trim();
 
 /* ---------- Bilder zu Aufgaben: nur die Kopfdaten lesen (kein Dekodieren im Worker – 10 ms CPU) ---------- */
-export const IMAGE_MODES = ["thumb", "inline"];   // thumb = Miniatur rechts neben Aufgabe und Antwort, inline = größer unter der Aufgabenstellung
+export const IMAGE_MODES = ["thumb", "inline", "card"];   // thumb = Miniatur rechts neben Aufgabe und Antwort, inline = größer unter der Aufgabenstellung, card = Bild einer Karte der Weltkarten-Zuordnung
 export const IMAGE_ID_RE = /^[0-9a-f]{16}$/;
 export function generateImageId(rand = (n) => crypto.getRandomValues(new Uint8Array(n))) { return toHex(rand(8)); }
 const be16 = (b, i) => (b[i] << 8) | b[i + 1];
@@ -296,7 +421,7 @@ export function validateImageUpload(body) {
   const task = body.task;
   if (typeof task !== "number" || !Number.isInteger(task) || task < 1 || task > LIMITS.tasks) throw new InputError("Ungültige Aufgabennummer für das Bild.");
   const mode = String(body.mode || "").trim().toLowerCase();
-  if (!IMAGE_MODES.includes(mode)) throw new InputError("Ungültige Anzeigeart für das Bild (thumb oder inline).");
+  if (!IMAGE_MODES.includes(mode)) throw new InputError("Ungültige Anzeigeart für das Bild (thumb, inline oder card).");
   let id = null;
   if (body.id != null) { id = String(body.id).toLowerCase(); if (!IMAGE_ID_RE.test(id)) throw new InputError("Ungültige Bild-Kennung."); }
   if (body.alt != null && typeof body.alt !== "string") throw new InputError("Die Bildbeschreibung muss ein Text sein.");
@@ -356,7 +481,7 @@ export function filesForTask(rows, task) {
 }
 // Bild-Metadaten aus D1-Zeilen für eine Aufgabe (ohne Bilddaten)
 export function imagesForTask(rows, task) {
-  return (rows || []).filter((r) => Number(r.task) === task).map((r) => ({ id: String(r.id), mode: r.mode === "inline" ? "inline" : "thumb", w: Number(r.w) || 0, h: Number(r.h) || 0, alt: typeof r.alt === "string" ? r.alt : "" }));
+  return (rows || []).filter((r) => Number(r.task) === task).map((r) => ({ id: String(r.id), mode: r.mode === "inline" || r.mode === "card" ? r.mode : "thumb", w: Number(r.w) || 0, h: Number(r.h) || 0, alt: typeof r.alt === "string" ? r.alt : "" }));
 }
 
 export function validateAnswers(answers, taskCount) {
