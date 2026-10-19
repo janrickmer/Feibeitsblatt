@@ -619,6 +619,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(privacy).toContainText("„" + aiProvider + RECIPIENT_SUFFIX + "“");   // Empfänger mit Betreiber-Hinweis
   await expect(privacy).toContainText("wiederholt diese Seite die Anfrage automatisch (bis zu 5 Versuche");
   await expect(privacy).toContainText("speichert selbst nichts davon");
+  await expect(privacy).toContainText("Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI");
   await expect(privacy).toContainText("LanguageTool");
   expect(await privacy.evaluate((e) => getComputedStyle(e).color)).toBe("rgb(111, 103, 90)");
 
@@ -827,8 +828,25 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(JSON.parse(await fresh.page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))))).toMatchObject({ attempt: fp.attempt, firstSent: true });
   await closePage(fresh);
 
-  // Abgabe: nur {code, envelope, stage, attempt}, alles verschlüsselt; Entwurf auf dem Gerät gelöscht
-  await submit(page);
+  // Abgabe: nur {code, envelope, stage, attempt}, alles verschlüsselt; Entwurf auf dem Gerät gelöscht. Danach holt die Seite eine
+  // zweite KI-Rückmeldung zur abgegebenen Fassung – hier hält der Test sie zuerst an und lässt den ersten Versuch scheitern
+  let releaseFb2, fb2Calls = 0;
+  const fb2Gate = new Promise((r) => { releaseFb2 = r; });
+  await page.route("**/api/feedback", async (route) => {
+    if (++fb2Calls > 1) return route.continue();
+    await fb2Gate;
+    return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI-Rückmeldung ist gerade nicht verfügbar. Bitte versuche es später noch einmal oder frag deine Lehrkraft.", code: "ai_error" }) });
+  });
+  await expect(page.locator("#submit-hint")).toHaveText(/Nach der Abgabe bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung\.$/);
+  await page.click("#submit-btn");
+  const submitText = await confirmDialog(page, "Jetzt abgeben?");
+  expect(submitText).toContain("Danach bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung.");
+  expect(submitText).toContain("„" + aiProvider + RECIPIENT_SUFFIX + "“");   // Empfänger stehen im Entscheidungsmoment
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-time")).toHaveText(/^Abgegeben am [A-Za-z]+, \d\d\.\d\d\.\d{4} um \d\d:\d\d Uhr\.$/);
+  await expect(page.locator("#done-fb")).toBeVisible();
+  await expect(page.locator("#done-fb .donefb-h")).toHaveText("KI-Rückmeldung zu deiner abgegebenen Fassung");
+  await expect(page.locator("#done-fb-status")).toHaveText("Die KI sieht sich deine abgegebene Fassung an … das kann bis zu einer Minute dauern.");
   // Bestätigung: großer grüner Haken, Hinweis mit zwei Gründen, „Meine Lösungen als PDF herunterladen“ (mehrseitig möglich)
   await expect(page.locator("#done-h")).toHaveText("Abgabe erfolgreich");
   await expect(page.locator("#screen-done .done-check")).toBeVisible();
@@ -838,10 +856,13 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#screen-done .donelist li")).toHaveCount(2);
   await expect(page.locator("#screen-done .donelist li").nth(0)).toContainText("technischen Problemen");
   await expect(page.locator("#screen-done .donelist li").nth(1)).toContainText("Klassenarbeit");
+  // PDF schon während die zweite Rückmeldung lädt: Hinweis in der Datei und auf der Seite
   const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   expect(sdl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Loesungen-" + S.shown + "-\\d{4}-\\d\\d-\\d\\d\\.pdf$"));
-  await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
+  await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung ist noch nicht darin. Lade die Datei noch einmal herunter, sobald die Rückmeldung oben erscheint.");
   const sol = (await readFile(await sdl.path())).toString("latin1");
+  expect(sol).toContain("(Die KI-R\\374ckmeldung zu deiner abgegebenen Fassung lag");
+  expect(sol).not.toContain("(KI-R\\374ckmeldung zur abgegebenen Fassung");
   expect(sol.startsWith("%PDF-1.7")).toBe(true);
   expect(sol).toMatch(/\/Type \/Pages \/Kids \[[^\]]+\] \/Count [1-9]/);
   expect(sol).toContain("(Meine L\\366sungen \\226 " + TITLE.replace("–", "\\226") + ") Tj");   // Titel (WinAnsi: ö = \366, – = \226)
@@ -850,6 +871,51 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(sol).toContain("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj");   // A hat überarbeitet
   expect(sol).toContain("Max \\267 Mu \\267 Klasse 8b");
   expect(sol).not.toContain("2009-05-04"); expect(sol).not.toContain("04.05.2009");   // kein Geburtsdatum in der Datei
+
+  // der erste Versuch der zweiten Rückmeldung scheitert → Hinweis, Abgabe unberührt, „Rückmeldung erneut anfordern“
+  releaseFb2();
+  await expect(page.locator("#done-fb-status")).toHaveText("Die KI-Rückmeldung ist gerade nicht verfügbar. Bitte versuche es später noch einmal oder frag deine Lehrkraft. Deine Abgabe ist davon nicht betroffen – du kannst die Rückmeldung noch einmal anfordern.");
+  await expect(page.locator("#done-fb-status")).toHaveClass(/\bbad\b/);
+  await expect(page.locator("#done-fb-retry")).toBeVisible();
+  await page.click("#done-fb-retry");
+  // … dann klappt es: je Aufgabe die Rückmeldung zur abgegebenen Fassung, mit Zahl der angesprochenen Kernpunkte
+  await expect(page.locator("#done-fb .fbbox")).toHaveCount(3, { timeout: 60_000 });
+  await expect(page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");
+  await expect(page.locator("#done-fb-retry")).toBeHidden();
+  const exp1 = expectedResults(TASKS, A.first), exp2 = expectedResults(TASKS, A.final);
+  expect(exp2[0].covered.length).toBeGreaterThan(exp1[0].covered.length);   // Plausibilität: die Überarbeitung bringt einen Kernpunkt mehr
+  for (let n = 1; n <= 3; n++) {
+    const box = page.locator("#done-fb-" + n);
+    await expect(box.locator(".fb-head")).toHaveText("Aufgabe " + n);
+    const list = async (sel) => (await box.locator(sel + " li").allTextContents());
+    const f = { covered: await list("ul.fb-ok"), missing: await list("ul.fb-miss") };
+    if (await box.locator(".fb-note").count()) f.note = await box.locator(".fb-note").textContent();
+    expect(f, "Aufgabe " + n).toEqual(exp2[n - 1]);
+    const tot = exp2[n - 1].covered.length + exp2[n - 1].missing.length, tot1 = exp1[n - 1].covered.length + exp1[n - 1].missing.length;
+    if (tot) await expect(box.locator(".fb-sum")).toHaveText(`Angesprochen: ${exp2[n - 1].covered.length} von ${tot} ${tot === 1 ? "Kernpunkt" : "Kernpunkten"} (beim ersten Feedback: ${exp1[n - 1].covered.length} von ${tot1}).`);
+    else await expect(box.locator(".fb-sum")).toHaveCount(0);
+  }
+  await expect(page.locator("#done-fb-3 .fb-note")).toHaveText(NO_SOLUTION_NOTE);
+  await expect(page.locator("#done-status")).toHaveText("Die KI-Rückmeldung zu deiner abgegebenen Fassung ist jetzt da. Lade die PDF-Datei noch einmal herunter, damit sie darin steht.");
+  await page.unroute("**/api/feedback");
+  // gesendet wurden nur Code, die abgegebenen Antworten und die Empfänger – keine Personendaten; die KI bekam die neue Fassung
+  const fb2Reqs = (await s.calls((r) => r.path === "/api/feedback")).slice(1);
+  expect(fb2Reqs.map((r) => r.status)).toEqual([502, 200]);
+  for (const r of fb2Reqs) expect(JSON.parse(r.reqBody)).toEqual({ code: S.code, answers: A.final, recipients: ["custom:" + aiProvider] });
+  const ms2 = await mockState();
+  expect(ms2.count).toBe(2);   // erstes Feedback + zweite Rückmeldung (der gescheiterte Versuch kam nicht bei der KI an)
+  const prompt2 = JSON.stringify(ms2.requests[1].messages);
+  expect(prompt2).toContain("Es meldet sich als schlechtes Gewissen.");
+  for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt2).not.toContain(p);
+  // die PDF-Datei enthält jetzt beide Rückmeldungen
+  const [sdl2] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
+  const sol2 = (await readFile(await sdl2.path())).toString("latin1");
+  const n1 = exp2[0].covered.length + exp2[0].missing.length;
+  expect(sol2).toContain(`(KI-R\\374ckmeldung zur abgegebenen Fassung \\(${exp2[0].covered.length} von ${n1} ${n1 === 1 ? "Kernpunkt" : "Kernpunkten"} angesprochen\\):) Tj`);
+  expect(sol2).toContain("(KI-Feedback zur ersten Fassung:) Tj");
+  expect(sol2).not.toContain("lag beim Herunterladen noch nicht vor");
+  for (const c of exp2[0].covered) expect(sol2).toContain("angesprochen: " + c.slice(0, 20));
   const sub = await s.calls((r) => r.path === "/api/submit");
   expect(sub).toHaveLength(2);                                   // Erstversuch (beim Feedback) + Abgabe
   expect(sub.map((r) => r.status)).toEqual([200, 200]);
@@ -918,7 +984,18 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
     const f = await feedbackOf(page, n);
     expect({ covered: f.covered, missing: f.missing, ...noteOf(f) }, "Aufgabe " + n).toEqual(exp[n - 1]);
   }
-  await submit(page);
+  // B hat nach dem Feedback nichts geändert: der Dialog sagt es, und es geht keine weitere Anfrage an die KI
+  await page.click("#submit-btn");
+  expect(await confirmDialog(page, "Jetzt abgeben?")).toContain("An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb-status")).toHaveText("An den Aufgaben, die die KI beurteilt, hast du nach dem ersten Feedback nichts verändert – die Rückmeldung bleibt dieselbe:");
+  await expect(page.locator("#done-fb .fbbox")).toHaveCount(3);
+  await expect(page.locator("#done-fb .fb-sum").first()).toHaveText(/^Angesprochen: \d+ von \d+ Kernpunkt(en)?\.$/);   // ohne Vergleich
+  expect((await s.calls((r) => r.path === "/api/feedback")).map((r) => r.status)).toEqual([502, 502, 200]);
+  const [bdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const bsol = (await readFile(await bdl.path())).toString("latin1");
+  expect(bsol).toContain("(KI-Feedback \\(gilt auch f\\374r die abgegebene Fassung\\):) Tj");
+  expect(bsol).not.toContain("lag beim Herunterladen noch nicht vor");
   S.sheetBodies.push(...(await s.calls((r) => r.path.startsWith("/api/sheet/"))).map((r) => r.body));
   await closePage(s);
 });
@@ -945,9 +1022,12 @@ test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback", asyn
   await page.click("#submit-btn");
   const text = await confirmDialog(page, "Jetzt abgeben?");
   expect(text).toContain("ohne KI-Feedback");
+  expect(text).not.toContain("KI-Rückmeldung zu deiner abgegebenen Fassung");
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb")).toBeHidden();   // ohne erstes Feedback keine zweite Rückmeldung
   const sub = await s.calls((r) => r.path === "/api/submit");
   expect(sub.map((r) => r.status)).toEqual([200]);
+  expect((await s.calls((r) => r.path === "/api/feedback")).length).toBe(2);   // nur die zwei gescheiterten Versuche
   await closePage(s);
 });
 
@@ -1450,6 +1530,69 @@ test("7 Alle Abgaben löschen → Tabelle leer; Feibeitsblatt löschen → Code 
   // … die PDF-Dateien ebenso
   expect((await request.get("/api/sheet/" + S.code + "/files/" + S.pdf.id)).status()).toBe(404);
   expect(await d1Query("SELECT COUNT(*) AS n FROM sheet_files")).toEqual([{ n: 0 }]);
+});
+
+test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeichen → neu beurteilt wird nur Aufgabe 2", async ({ browser }) => {
+  // eigenes kleines Blatt mit zwei Aufgaben mit Musterlösung (das Blatt der früheren Tests ist gelöscht); am Ende wieder löschen
+  const t = await openPage(browser);
+  await teacherLogin(t.page, PW);
+  await t.page.click("#t-new");
+  await t.page.fill("#b-title", "Zweite Rückmeldung");
+  for (let i = 0; i < 2; i++) { await t.page.fill("#bq-" + (i + 1), TASKS[i].text); await t.page.fill("#bs-" + (i + 1), TASKS[i].solution); }
+  await t.page.click("#b-gen");
+  await expect(t.page.locator("#b-result")).toBeVisible();
+  const shownF = (await t.page.locator("#b-res-code").textContent()).trim();
+  const TASKS_F = TASKS.slice(0, 2);
+  const F = { first: ["Das Gewissen ist eine innere Instanz.", "Ich habe einmal gelogen."], rev2: " Die Begründung: Lügen ist unfair." };
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shownF);
+  await fillPerson(page, { vorname: "ina", nachname: "fe", geb: "2009-09-09", klasse: "8a" });
+  for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), F.first[i]);
+  await mockReset();
+  await requestFeedback(page);
+  const exp1 = expectedResults(TASKS_F, F.first);
+  // Aufgabe 1: nur ein Leerzeichen am Ende (für den Server derselbe Text), Aufgabe 2 inhaltlich überarbeitet
+  await typeAt(page, "#a-1", " ");
+  await typeAt(page, "#a-2", F.rev2);
+  const finals = [F.first[0] + " ", F.first[1] + F.rev2];
+  await page.click("#submit-btn");
+  expect(await confirmDialog(page, "Jetzt abgeben?")).toContain("Danach bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung.");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb .fbbox")).toHaveCount(2, { timeout: 60_000 });
+  await expect(page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");
+  const exp2 = expectedResults(TASKS_F, finals);
+  const read = async (n) => { const box = page.locator("#done-fb-" + n); return { covered: await box.locator("ul.fb-ok li").allTextContents(), missing: await box.locator("ul.fb-miss li").allTextContents() }; };
+  const word = (k) => (k === 1 ? "Kernpunkt" : "Kernpunkten");
+  // Aufgabe 1 bleibt bei der ersten Rückmeldung (nicht neu beurteilt) …
+  const t1 = exp1[0].covered.length + exp1[0].missing.length;
+  expect(await read(1)).toEqual({ covered: exp1[0].covered, missing: exp1[0].missing });
+  await expect(page.locator("#done-fb-1 .fb-sum")).toHaveText(`Angesprochen: ${exp1[0].covered.length} von ${t1} ${word(t1)} (unverändert abgegeben – wie beim ersten Feedback).`);
+  // … Aufgabe 2 zeigt die neue Rückmeldung mit dem Vergleich zum ersten Feedback
+  const t2 = exp2[1].covered.length + exp2[1].missing.length, t2a = exp1[1].covered.length + exp1[1].missing.length;
+  expect(exp2[1].covered.length).toBeGreaterThan(exp1[1].covered.length);   // Plausibilität: die Begründung ist neu angesprochen
+  expect(await read(2)).toEqual({ covered: exp2[1].covered, missing: exp2[1].missing });
+  await expect(page.locator("#done-fb-2 .fb-sum")).toHaveText(`Angesprochen: ${exp2[1].covered.length} von ${t2} ${word(t2)} (beim ersten Feedback: ${exp1[1].covered.length} von ${t2a}).`);
+  // genau eine weitere Anfrage an die KI, mit den abgegebenen Antworten
+  const fbCalls = await s.calls((r) => r.path === "/api/feedback");
+  expect(fbCalls.map((r) => r.status)).toEqual([200, 200]);
+  expect(JSON.parse(fbCalls[1].reqBody).answers).toEqual(finals);
+  expect((await mockState()).count).toBe(2);
+  // PDF: neue Rückmeldung nur bei Aufgabe 2; Aufgabe 1 „gilt auch für die abgegebene Fassung“, ohne „Erste Fassung“ (nur ein Leerzeichen)
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const sol = (await readFile(await dl.path())).toString("latin1");
+  expect(sol.split("(KI-R\\374ckmeldung zur abgegebenen Fassung").length - 1).toBe(1);
+  expect(sol).toContain("(KI-Feedback \\(gilt auch f\\374r die abgegebene Fassung\\):) Tj");
+  expect(sol).toContain("(KI-Feedback zur ersten Fassung:) Tj");
+  expect(sol.split("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj").length - 1).toBe(1);
+  await closePage(s);
+  // aufräumen: das Blatt samt Abgabe löschen (die Tests 8 und 9 legen ihre eigenen Blätter an)
+  await t.page.click("#b-res-back");
+  await expect(t.page.locator("#t-sel-code")).toHaveText(shownF);
+  await t.page.click("#t-del-sheet");
+  await confirmDialog(t.page, "Feibeitsblatt löschen?");
+  await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
 });
 
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {

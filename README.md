@@ -3,7 +3,8 @@
 Feibeitsblatt ist ein Schreibeditor für Arbeitsblätter im Stil des Feiditors. Sie als Lehrkraft legen Aufgaben
 mit Musterlösungen an und erhalten dafür einen kurzen Code. Mit diesem Code öffnen die Schüler:innen das
 Arbeitsblatt, tippen ihre Antworten selbst (Einfügen ist gesperrt), lassen Rechtschreibung und Grammatik prüfen,
-holen sich einmal ein KI-Feedback zum Inhalt, überarbeiten ihre Antworten und geben ab. In der
+holen sich einmal ein KI-Feedback zum Inhalt, überarbeiten ihre Antworten und geben ab; bei der Abgabe bekommen
+sie eine zweite KI-Rückmeldung zu ihrer abgegebenen Fassung. In der
 Lehrkräfte-Übersicht sehen Sie alle Abgaben – die erste Fassung und die überarbeitete Fassung nebeneinander.
 Anders als im Feiditor werden keine Tippzeiten gemessen.
 
@@ -72,7 +73,8 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
 5. **KI um ein Feedback bitten.** Am Ende des Blattes. Der Server vergleicht die Antworten mit Ihrer Musterlösung.
    Je Aufgabe erscheint in Stichpunkten in **grüner** Schrift, welche Punkte der Musterlösung richtig angesprochen
    wurden, und in **roter** Schrift, welche noch fehlen (dazu zählen auch falsch wiedergegebene Punkte). Das
-   Feedback gibt es **nur einmal**; die Antworten zu diesem Zeitpunkt werden als „erste Fassung“ festgehalten.
+   Feedback zum Überarbeiten gibt es **nur einmal**; die Antworten zu diesem Zeitpunkt werden als „erste Fassung“
+   festgehalten (eine zweite Rückmeldung folgt bei der Abgabe, siehe Schritt 6).
    Der Dialog vor dem Senden nennt den KI-Dienst (Betreiber und Sitz) und, falls eingerichtet, die Reserve-KI. Ist die
    KI ausgelastet (viele Anfragen in derselben Minute), wartet die Seite mit Countdown und wiederholt die Anfrage
    automatisch – bis zu fünf Versuche in etwa vier Minuten, jeweils mit dem aktuellen Text; währenddessen darf
@@ -88,9 +90,23 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    **„Meine Lösungen als PDF herunterladen“** mit dem Hinweis, die Datei zur Sicherheit in den eigenen Unterlagen zu
    speichern – erstens, um die Lösungen vorzeigen zu können, falls die Abgabe die Lehrkraft wegen technischer
    Probleme doch nicht erreicht, und zweitens, weil alle Lösungen zum Lernen für Klausur, Klassenarbeit bzw.
-   schriftlichen Leistungsnachweis gebraucht werden. Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene
-   Lösung, bei Überarbeitung auch die erste Fassung und das KI-Feedback (mehrere Seiten, falls nötig); sie entsteht
-   im Browser und enthält kein Geburtsdatum. Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
+   schriftlichen Leistungsnachweis gebraucht werden.
+   **Zweite KI-Rückmeldung:** Direkt nach der Abgabe gehen die abgegebenen Antworten auf demselben Weg wie beim
+   ersten Feedback noch einmal an die KI (ohne Kürzel, Geburtsdatum und Klasse; der Abgabe-Dialog nennt die
+   Empfänger). Über dem PDF-Button erscheint dann „KI-Rückmeldung zu deiner abgegebenen Fassung“: je Aufgabe, was jetzt
+   angesprochen ist und was noch fehlt, mit der Zahl der Kernpunkte im Vergleich zum ersten Feedback (z. B.
+   „Angesprochen: 3 von 3 Kernpunkten (beim ersten Feedback: 2 von 3)“). Die Abgabe ist zu diesem Zeitpunkt schon
+   angekommen und hängt nie von der KI ab. Ist die KI ausgelastet, wiederholt die Seite automatisch wie beim ersten
+   Feedback; klappt es vorübergehend nicht, gibt es „Rückmeldung erneut anfordern“. Neu beurteilt werden nur Aufgaben
+   mit Musterlösung, deren Text sich inhaltlich geändert hat; für alle anderen gilt die erste Rückmeldung weiter
+   („unverändert abgegeben – wie beim ersten Feedback“). So bekommt eine unveränderte Antwort nie ein anderes Urteil.
+   Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (KI nicht
+   eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung. Die zweite Rückmeldung bleibt nur im Browser: Sie wird
+   nicht gespeichert und geht nicht an Sie als Lehrkraft.
+   Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
+   Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
+   heruntergeladen, bevor die zweite Rückmeldung da ist, steht das in der Datei, und die Seite erinnert daran, sie
+   danach noch einmal herunterzuladen. Sie entsteht im Browser und enthält kein Geburtsdatum. Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
    Lösungen bleiben nur bis „Neues Feibeitsblatt öffnen“ für den Download im Arbeitsspeicher.
 
 > **Wichtig:** Abgeben ist normalerweise erst nach dem KI-Feedback möglich. Richten Sie deshalb die
@@ -361,8 +377,9 @@ Hinweise:
 - Die KI bekommt die Anweisung, nur zu vergleichen: die Kernpunkte Ihrer Musterlösung (bei mehr als 12 fasst sie
   zusammen), angesprochen nur, wenn der Punkt richtig wiedergegeben ist, keine Noten, keine eigenen Punkte, keine
   ausformulierten Lösungen. Auch eine KI kann sich dabei irren – das steht im Hinweis für die Schüler:innen.
-- Das Feedback gibt es einmal je Gerät und Angaben; der Server kann das nicht erzwingen (wer andere Angaben
-  eingibt oder ein zweites Gerät nutzt, kann es erneut anfordern). Je Feibeitsblatt sind höchstens 300
+- Das Feedback zum Überarbeiten gibt es einmal je Gerät und Angaben, dazu bei der Abgabe die Rückmeldung zur
+  abgegebenen Fassung – je Schüler:in also bis zu zwei KI-Anfragen. Der Server kann das nicht erzwingen (wer andere
+  Angaben eingibt oder ein zweites Gerät nutzt, kann erneut anfragen). Je Feibeitsblatt sind höchstens 600
   KI-Anfragen pro Tag möglich – das schützt Ihr Kontingent vor Missbrauch.
 
 ### Reserve-KI (zweiter Anbieter)
@@ -520,7 +537,9 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   Musterlösung. Nur wenn dieser ausgelastet ist, nicht antwortet, einen Serverfehler meldet, die Anfrage als zu lang
   ablehnt oder keine verwertbare Antwort liefert, geht dieselbe Anfrage danach an die eingetragene
   [Reserve-KI](#reserve-ki-zweiter-anbieter) – nie an beide gleichzeitig, nie nach einem Inhaltsfilter. Ein Dienst,
-  der erst nach dem Senden ausfällt (z. B. Zeitüberschreitung), hat die Texte trotzdem erhalten. Ist die KI
+  der erst nach dem Senden ausfällt (z. B. Zeitüberschreitung), hat die Texte trotzdem erhalten. **Bei der Abgabe**
+  geschieht dasselbe noch einmal mit den abgegebenen (überarbeiteten) Antworten für die zweite Rückmeldung – nicht,
+  wenn seit dem ersten Feedback nichts geändert wurde, und nur an die Empfänger, über die informiert wurde. Ist die KI
   ausgelastet, wiederholt der Browser die Anfrage bis zu viermal automatisch (jeweils mit dem aktuellen Text); im
   ungünstigsten Fall erhalten also beide Dienste dieselben Antworten mehrfach. **Nie** gesendet werden Kürzel,
   Geburtsdatum und Klasse; der Server bekommt sie dabei gar nicht. Groq (Groq, Inc.), Cerebras (Cerebras Systems
@@ -577,8 +596,9 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > Antworten mit der Musterlösung der Lehrkraft vergleicht; Rechtsgrundlage ist [§ … Schulgesetz / Art. 6 Abs. 1 lit. e
 > DSGVO]. Gespeichert werden Namenskürzel, Geburtsdatum, Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
 > lesbar – auf Servern von Cloudflare (Datenbank in der EU) bis zur Löschung nach der Durchsicht, spätestens [Frist].
-> Für die Rückmeldung werden nur die Antworttexte (ohne Namen und Angaben zur Person) zusammen mit den Aufgaben an
-> den KI-Dienst [z. B. Groq, Inc., USA] gesendet; nur wenn dieser nicht antwortet oder ausgelastet ist, an
+> Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
+> Namen und Angaben zur Person) zusammen mit den Aufgaben an den KI-Dienst [z. B. Groq, Inc., USA] gesendet; nur wenn
+> dieser nicht antwortet oder ausgelastet ist, an
 > [Reserve-Dienst mit Sitz]. Diese Dienste haben ihren Sitz in den USA; die Übermittlung stützt sich auf [EU-US
 > Data Privacy Framework / Standardvertragsklauseln]. Schülerinnen und Schüler ab 16 Jahren können auf Wunsch eine
 > Rechtschreibprüfung nutzen, die den Text der jeweiligen Antwort an LanguageTool (Learneo, Inc., USA) sendet. Es
@@ -611,14 +631,17 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 - Eine Feedback-Anfrage besteht aus den Anweisungen (≈ 500 Token), Aufgaben und Musterlösungen (≈ 300–800),
   ggf. Material (bis ≈ 1 200 je Aufgabe), den Antworten (600 deutsche Wörter ≈ 1 200–1 600 Token) und der Ausgabe
   (≈ 200–500). Ohne Material also grob **2 500–4 000 Token je Anfrage**, mit viel Material mehr.
-- 60 solche Anfragen wären 150 000–250 000 Token – an oder über dem Tageslimit von etwa 200 000 Token des
-  Vorgabe-Modells. Deshalb macht Feibeitsblatt zwei Dinge:
+- Jede Schülerin und jeder Schüler stellt bis zu **zwei** solche Anfragen: das Feedback zum Überarbeiten und bei der
+  Abgabe die Rückmeldung zur abgegebenen Fassung (die zweite entfällt, wenn nichts geändert wurde). 60 Schüler:innen
+  sind also bis zu 120 Anfragen, ohne Cache 300 000–500 000 Token – deutlich über dem Tageslimit von etwa 200 000
+  Token des Vorgabe-Modells. Deshalb macht Feibeitsblatt mehrere Dinge:
   1. **Anfrage in Cache-freundlicher Reihenfolge.** Der für alle Schüler:innen eines Blattes gleiche Teil (Anweisungen,
      Aufgaben, Material, Musterlösungen) steht vorn, die Antworten stehen hinten. Groq cacht solche Präfixe
      automatisch (für die gpt-oss-Modelle, laut Groq „best effort“, Cache einige Stunden gültig), und **gecachte
      Token zählen nicht gegen die Minuten- und Tageslimits**. Ab der zweiten Anfrage zum selben Blatt kosten dann im
-     Wesentlichen nur noch Antworten und Ausgabe, grob 1 500–2 000 Token: 60 Anfragen ≈ 100 000–120 000 Token,
-     also innerhalb des Tageslimits des Vorgabe-Modells, und je Minute etwa 4–5 statt 2 Anfragen.
+     Wesentlichen nur noch Antworten und Ausgabe, grob 1 500–2 000 Token: 120 Anfragen ≈ 180 000–240 000 Token, also
+     etwa das Tageslimit des Vorgabe-Modells; was darüber hinausgeht, übernehmen die weiteren Modelle (Punkt 2), die
+     jeweils ein eigenes Tageslimit haben. Je Minute gehen so etwa 4–5 statt 2 Anfragen durch ein Modell.
   2. **Alle Modelle gleichzeitig nutzen.** Bei Groq, Cerebras und Gemini gelten die Minutenlimits **je Modell**.
      Der Server verteilt gleichzeitige Anfragen deshalb von Anfang an auf alle Modelle des Anbieters (versetztes
      Startmodell, Mindestabstand je Modell statt je Anbieter), wechselt bei einem Minutenlimit (HTTP 429) sofort
@@ -633,7 +656,9 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
      ist währenddessen möglich. Erst danach – oder nach „Nicht länger warten“ – zählt ein Fehlversuch.
   4. **Reserve-KI.** Erst wenn der erste Anbieter mit allen Modellen ausgelastet ist oder ausfällt, geht die Anfrage
      an die [Reserve-KI](#reserve-ki-zweiter-anbieter), falls eingerichtet.
-- **Fazit:** 60 Schüler:innen am Tag mit je 600 Wörtern sind mit einem kostenlosen Groq-Schlüssel machbar. Auch
+- **Fazit:** 60 Schüler:innen am Tag mit je 600 Wörtern (bis zu 120 Anfragen) sind mit einem kostenlosen
+  Groq-Schlüssel machbar, weil der Server über mehrere Modelle ausweicht. Die Rückmeldungen zur abgegebenen Fassung
+  verteilen sich meist über die Zeit, in der abgegeben wird. Auch
   **30 Anfragen in derselben Minute** gehen durch: Bei grob 2 500–3 500 Token je Anfrage und 60 000–100 000 Token
   pro Minute über alle Groq-Modelle sind etwa 20–30 Anfragen in der ersten Minute möglich, der Rest folgt
   automatisch in der zweiten – ohne dass jemand klicken muss. Eine Reserve-KI macht das Ganze unabhängig von einem
@@ -669,8 +694,8 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | PDF-Dateien je Aufgabe | 3; je Datei höchstens 6 MB; alle PDF-Dateien eines Blattes zusammen 20 MB; Dateiname bis 120 Zeichen |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
-| KI-Feedback-Anfragen je Netzwerk (IP-Adresse) | 120 pro Stunde bzw. 400 000 Zeichen pro Stunde; nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
-| KI-Feedback-Anfragen je Feibeitsblatt | 300 pro Tag |
+| KI-Anfragen je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 800 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
+| KI-Anfragen je Feibeitsblatt | 600 pro Tag |
 | Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
