@@ -2,7 +2,7 @@
 
 Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit-Messung): Lehrkraft legt Aufgaben +
 Musterlösungen an → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback,
-überarbeiten, verschlüsselt abgeben → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
+überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
 
@@ -72,8 +72,27 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Klausur/Klassenarbeit/Leistungsnachweis). `S.lastSubmission` (Code, Titel, Aufgabentexte, person, answers
   first/final, feedback, receivedAt) bleibt nur im Arbeitsspeicher bis „Neues Feibeitsblatt öffnen“ (`resetStudent`);
   `makeSolutionsPdf` baut mehrseitig mit denselben Bausteinen (`pdfWrap`/`pdfStr`/`latin1`/`pdfUtf16`): je Aufgabe
-  Aufgabenstellung, abgegebene Fassung, bei Überarbeitung erste Fassung + KI-Feedback, Fußzeile „Seite n von N“;
+  Aufgabenstellung, abgegebene Fassung + „KI-Rückmeldung zur abgegebenen Fassung (x von y Kernpunkten angesprochen):“
+  (`sub.feedback2`), bei Überarbeitung erste Fassung + „KI-Feedback zur ersten Fassung:“ (unverändert abgegeben:
+  „KI-Feedback (gilt auch für die abgegebene Fassung):“), fehlt `feedback2` noch, ein Hinweis unter dem Kopf;
+  Fußzeile „Seite n von N“;
   Dateiname `Feibeitsblatt-Loesungen-<Code>-<Datum>.pdf`, ohne Geburtsdatum.
+- **Zweite KI-Rückmeldung zur abgegebenen Fassung (nur im Browser, kein eigener Server-Endpunkt):** `submitAll`
+  gibt **zuerst** ab (die Abgabe hängt nie von der KI ab), merkt sich in `S.lastSubmission` die Empfänger-ids
+  (`recipients`) und ruft danach `requestFinalFeedback()` – nur mit erstem Feedback (`S.feedback`; ohne KI keine
+  zweite Rückmeldung, `#done-fb` bleibt verborgen). Unverändert abgegeben (`first === final` überall) → keine Anfrage,
+  `feedback2 = {results: erstes Feedback, same: true}`. Sonst `POST /api/feedback` mit `{code, answers: final,
+  recipients}` (wie das erste: ohne Personendaten, 409 `ai_changed` → nichts gesendet, Hinweis), Lauf-Kennung
+  `S.fbRun`/`S.fbAbort` (`resetStudent` → `stopFeedbackRun` bricht ab), bei `ai_busy` automatische Wiederholung wie beim
+  ersten Feedback (`FB_TRIES`, `FB_MAX_MS`, Zufallsanteil, `waitFinalFeedback` mit Zähler `#done-fb-wait` außerhalb der
+  Live-Region `#done-fb-status`), sonst `finalFeedbackFailed` + `#done-fb-retry` „Rückmeldung erneut anfordern“
+  (höchstens `FB2_MANUAL` 3, nicht bei `ai_changed`/`ai_not_configured`). Anzeige `renderFinalFeedback` in
+  `#done-fb-list` über dem PDF-Button: je Aufgabe `.fbbox#done-fb-n` mit `.fb-sum` „Angesprochen: x von y Kernpunkten
+  (beim ersten Feedback: z von y).“ und denselben Listen wie im Editor (`appendFbLists`). PDF vor der Rückmeldung
+  heruntergeladen (`fb2State === "loading"`) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`, erneut
+  herunterzuladen. `feedback2` bleibt nur im Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Abgabe-Dialog
+  nennt die Empfänger (`recipientSentence`) bzw. „nichts geändert – nichts wird noch einmal gesendet“; Datenschutzhinweis
+  und Feedback-Dialog nennen das zweite Senden. Je Schüler:in also bis zu zwei KI-Anfragen → Rate-Limits verdoppelt.
 - **Krypto (nur im Browser; Server sieht nie Passwort oder Klartext-Abgaben):** PBKDF2-HMAC-SHA256, 600 000
   Iterationen, Salt 16 Byte → `master`; HKDF-SHA256 mit `info` `feibeitsblatt/enc/v1` (AES-GCM-256-Schlüssel) und
   `feibeitsblatt/auth/v1` (`authKey`; Server speichert nur SHA-256 hex, Vergleich in konstanter Zeit).
@@ -271,7 +290,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Rate-Limits** (`rate_limits`, festes Fenster, `rlHit` atomar per Upsert … RETURNING): `door`, `auth`
   10/15 min und `auth_all` 200/h (nur Fehlversuche – richtige Codes/Passwörter gehen **immer** durch, laufende
   Sitzungen ebenso; über dem Limit bremst `requireTeacher` Fehlversuche um 2 s), `lookup_miss` 30/10 min (gültige
-  Codes immer), `feedback` 120/h + `feedback_chars` 400 000/h je IP + `sheet_feedback` 300/Tag je Blatt (gezählt
+  Codes immer), `feedback` 240/h + `feedback_chars` 800 000/h je IP + `sheet_feedback` 600/Tag je Blatt (je Schüler:in bis zu zwei
+  KI-Anfragen) (gezählt
   erst, wenn die Anfrage gültig ist und zur KI geht; bei BUSY/RATE_LIMIT/TIMEOUT/SERVER/NETWORK/DAILY_LIMIT
   Rückerstattung), `submit` 240/h + `submit_bytes` 60 MB/h (nur gültige Abgaben/Erstversuche zu existierenden
   Blättern; je Schüler:in bis zu zwei Aufrufe).
