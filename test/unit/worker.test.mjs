@@ -402,7 +402,11 @@ test("burst: parallel feedback requests spread over the provider's models (mock:
     assert.equal(okModels.size, 3, "6 Erfolge bei 2 je Modell → alle drei Modelle genutzt: " + [...okModels].join(", "));
     assert.ok(took < 40000, "6 Anfragen in unter 40 s (" + took + " ms)");   // großzügig: parallele Testprozesse bremsen
     const locks = d1.db.prepare("SELECT model, until, reason FROM ai_skip WHERE provider='custom'").all();
-    assert.ok(locks.length >= 1, "Minutenlimit-Sperren geschrieben");
+    // Der Mock zählt auch die mit 429 abgelehnten Anfragen. Mehr als 6 → es gab ein Minutenlimit → die Sperre muss sofort
+    // geschrieben sein. Genau 6 → die zufälligen Startmodelle lagen genau 2/2/2 (etwa jeder 8. Lauf), kein 429, keine Sperre.
+    const rejected = mock.state.requests.length - 6;
+    if (rejected > 0) assert.ok(locks.length >= 1, "Minutenlimit-Sperren geschrieben (" + rejected + " × 429)");
+    else assert.equal(locks.length, 0, "ohne 429 keine Sperre");
     for (const l of locks) { assert.match(l.reason, /Minutenlimit/); assert.ok(l.until - Date.now() <= 5000 && l.until > Date.now() - 20000, "kurze Sperre (retry-after 2 s → min 5 s)"); }
     // Kontingent aller Modelle erschöpft (1 je Modell, höchstens 7 Modelle) → 429 ai_busy mit kurzem retryAfter (kein Fehlversuch)
     mock.setMode("tpm", null, 1);
