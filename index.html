@@ -837,7 +837,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung – am besten in Stichpunkten (siehe Hinweis unten). Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
       <div id="b-form">
         <p class="note hidden" id="b-import" style="margin:0 0 14px"></p>
         <div class="field" style="max-width:640px">
@@ -845,12 +845,12 @@
           <input type="text" id="b-title" maxlength="200" placeholder="z. B. Das Gewissen – Klasse 8b" autocomplete="off">
           <p class="fhint">Leer lassen: „Feibeitsblatt vom <span id="b-today"></span>“.</p>
         </div>
-        <p class="note" style="margin:0 0 14px"><b>Tipp:</b> Schreiben Sie die Musterlösung in Stichpunkten – ein inhaltlicher Kernpunkt je Zeile. Die KI meldet den Schüler:innen dann zu jedem Punkt zurück, ob er angesprochen wurde oder noch fehlt.</p>
+        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Musterlösung am besten in Stichpunkten:</b> je Zeile ein Punkt, den die Schüler:innen inhaltlich erfassen sollen. Jede Zeile wird ein Kernpunkt: Die KI prüft, ob die Antwort ihn inhaltlich trifft – eigene Worte genügen, auf den Wortlaut kommt es nicht an – und meldet ihn als angesprochen oder fehlend zurück. Nehmen Sie deshalb nur auf, was Sie wirklich von allen erwarten (meist 3 bis 8, höchstens 12 Punkte), und lassen Sie Zusatzwissen weg. Soll etwas erklärt oder begründet werden, schreiben Sie kurze Aussagen statt einzelner Schlagwörter (z. B. „Licht wird als Energiequelle benötigt“ statt „Licht“); soll nur etwas genannt oder aufgezählt werden, genügen die Begriffe (z. B. „Licht“, „Wasser“, „Kohlendioxid“). Bei Beispielen („z. B. …“) und Wahlmöglichkeiten („… oder …“) genügt eines; muss ein Fachbegriff fallen, schreiben Sie „(Fachbegriff nötig)“ dazu. Eine ausführliche Musterlösung als Fließtext verdichtet die KI selbst auf ihre zentralen Aussagen – welche Punkte dann zählen, entscheidet die KI, nicht Sie.</p>
         <div class="tablewrap">
           <table class="batch builder">
             <thead><tr>
               <th>Aufgabenstellung</th>
-              <th>Musterlösung (nur für das KI-Feedback; Kernpunkte erscheinen als Stichpunkte im Feedback)</th>
+              <th>Musterlösung in Stichpunkten (nur für das KI-Feedback; je Zeile ein Kernpunkt)</th>
               <th class="act"><span class="sr-only">Zeile verschieben oder entfernen</span></th>
             </tr></thead>
             <tbody id="b-rows"></tbody>
@@ -4642,7 +4642,7 @@ const renumberOf = (tr) => Array.prototype.indexOf.call($("b-rows").children, tr
 function addRow(text, solution, images, material, files, answer) {
   const tb = $("b-rows");
   const ta1 = h("textarea", { class: "grow q", rows: "3", maxlength: "4000", placeholder: "Aufgabenstellung …", spellcheck: "true" });
-  const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Kernpunkte der Musterlösung, je Zeile einer …", spellcheck: "true" });
+  const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Stichpunkte – je Zeile ein Punkt, den die Antwort inhaltlich treffen soll", spellcheck: "true" });
   ta1.value = text || ""; ta2.value = solution || "";
   const l1 = h("label", { class: "rowlbl" }), l2 = h("label", { class: "rowlbl" });
   const up = h("button", { type: "button", class: "iconbtn up", text: "↑" });

@@ -146,8 +146,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Lauf-Kennung `S.fbRun` + `stopFeedbackRun()` (resetStudent/openEditor) gegen späte Antworten, `api()` nimmt
   `signal`. Mock: `setMode("tpm", null, n)` = n Anfragen je Modell und 5-Minuten-Fenster, `"403flag"` = Moderation.
   `ai_skip` (erschöpfte Modelle), `fallbacks` aus `testKey` beim Speichern/Testen; `reasoning_effort: "low"` für
-  gpt-oss; HTTP 413 / „context length“ → anderes Modell (`TOO_LARGE`). Der Prompt verlangt „angesprochen“ nur bei
-  zutreffender Wiedergabe; `feedbackAcceptor` verlangt für jede Aufgabe mindestens einen Kernpunkt (sonst nächstes
+  gpt-oss; HTTP 413 / „context length“ → anderes Modell (`TOO_LARGE`). Der Prompt (`FEEDBACK_SYSTEM`, Leitsatz „Es zählt der Inhalt, nicht
+  der Wortlaut“; in vier Runden gegen Testfälle mit zwei Modellgrößen geprüft) übernimmt eine Stichpunkt-Musterlösung Zeile
+  für Zeile als Kernpunkte, verdichtet Fließtext auf zentrale Aussagen (ohne Beispiele/Einzelheiten), wertet eigene Worte,
+  andere passende Beispiele und Umschreibungen statt Fachbegriffen als „angesprochen“, falsche/verdrehte Aussagen als
+  „fehlt“, bloße Begriffe ohne Aussage nur bei Erklär-/Begründungs-/Zusammenhangsaufgaben als „fehlt“ – beim Nennen oder
+  Aufzählen genügt der zutreffende Begriff, auch wenn die Musterlösung ausführlicher ist (Beispielpaar „Abholzung“ aus einem
+  fremden Thema, als Erklär-Aufgabe gekennzeichnet); eine weitere Lockerung („folgt aus der Antwort“) ließ Wortlisten bei
+  Erklär-Aufgaben durch – nicht wieder einführen. Lehrkraft-Hinweis dazu: `#b-soltip` (Stichpunkte; beim Erklären/Begründen
+  kurze Aussagen statt Schlagwörter, beim Nennen die Begriffe; nur Erwartetes, „z. B.“/„oder“, „(Fachbegriff nötig)“);
+  `feedbackAcceptor` verlangt für jede Aufgabe mindestens einen Kernpunkt (sonst nächstes
   Modell). API-Schlüssel at rest **nur** AES-GCM mit `env.SETTINGS_SECRET` – fehlt es, lehnt der Server das
   Speichern ab (503, nie Klartext; `npm run dev` setzt ein festes Entwicklungs-Secret); der Schlüssel verlässt den
   Server nie (nur `keyHint`) und bleibt bei leerem Feld nur für denselben Anbieter + baseUrl erhalten. Schüler:innen

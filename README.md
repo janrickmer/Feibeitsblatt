@@ -148,9 +148,19 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    „Feibeitsblatt vom TT.MM.JJJJ“) und füllen eine Tabelle: Spalte 1 „Aufgabenstellung“, Spalte 2 „Musterlösung“.
    Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im
    KI-Feedback (grün: angesprochen, rot: fehlt). Verwenden Sie deshalb keine Musterlösung, die geheim bleiben
-   muss (z. B. für eine Klassenarbeit). Schreiben Sie sie am besten in Stichpunkten, ein Kernpunkt je Zeile
-   (höchstens etwa 12 Punkte je Aufgabe). Hier dürfen Sie Text einfügen. Zeilen lassen sich hinzufügen, entfernen
-   und verschieben (1 bis 30 Aufgaben). Eine Aufgabe ohne Musterlösung bekommt kein KI-Feedback, sondern den
+   muss (z. B. für eine Klassenarbeit). **Schreiben Sie die Musterlösung am besten in Stichpunkten:** je Zeile ein
+   Punkt, den die Schüler:innen inhaltlich erfassen sollen. Jede Zeile wird ein Kernpunkt; die KI prüft, ob die
+   Antwort ihn inhaltlich trifft – eigene Worte, Umschreibungen und ein anderes passendes Beispiel genügen, auf den
+   Wortlaut kommt es nicht an – und meldet ihn als angesprochen oder fehlend zurück. Nehmen Sie deshalb nur auf, was
+   Sie wirklich von allen erwarten (meist 3 bis 8, höchstens 12 Punkte), und lassen Sie Zusatzwissen weg. Soll etwas
+   erklärt oder begründet werden, schreiben Sie kurze Aussagen statt einzelner Schlagwörter (z. B. „Licht wird als
+   Energiequelle benötigt“ statt „Licht“) – eine bloße Aufzählung von Begriffen gilt dann als fehlend; soll nur etwas
+   genannt oder aufgezählt werden, genügen die Begriffe (z. B. „Licht“, „Wasser“, „Kohlendioxid“). Bei Beispielen
+   („z. B. …“) und Wahlmöglichkeiten („… oder …“) genügt den Schüler:innen eines; muss ein Fachbegriff fallen,
+   schreiben Sie „(Fachbegriff nötig)“ dazu. Eine ausführliche Musterlösung als Fließtext verdichtet die KI selbst auf
+   ihre zentralen Aussagen und lässt Beispiele und Einzelheiten dabei weg – welche Punkte zählen, entscheidet dann die
+   KI, nicht Sie, und es kann von Anfrage zu Anfrage etwas anders ausfallen. Hier dürfen Sie Text einfügen. Zeilen
+   lassen sich hinzufügen, entfernen und verschieben (1 bis 30 Aufgaben). Eine Aufgabe ohne Musterlösung bekommt kein KI-Feedback, sondern den
    Hinweis „Zu dieser Aufgabe gibt es keine Musterlösung.“
    **Material:** Unter jeder Aufgabenstellung gibt es das Feld „Material“ für einen Text, den die Schüler:innen zur
    Aufgabe sehen – etwa einen Auszug, ein Zitat, Arbeitshinweise oder Links. Mit den Knöpfen **F**, **K**, **U**
@@ -408,9 +418,14 @@ Hinweise:
 - Ist das Kontingent aufgebraucht, sehen die Schüler:innen „Das KI-Kontingent für heute ist aufgebraucht. Bitte
   frag deine Lehrkraft.“ Ihre Antworten bleiben auf dem Gerät gespeichert; nach dem zweiten Fehlschlag können sie
   ohne KI-Feedback abgeben oder es später auf demselben Gerät noch einmal versuchen.
-- Die KI bekommt die Anweisung, nur zu vergleichen: die Kernpunkte Ihrer Musterlösung (bei mehr als 12 fasst sie
-  zusammen), angesprochen nur, wenn der Punkt richtig wiedergegeben ist, keine Noten, keine eigenen Punkte, keine
-  ausformulierten Lösungen. Auch eine KI kann sich dabei irren – das steht im Hinweis für die Schüler:innen.
+- Die KI bekommt die Anweisung, nur den Inhalt zu prüfen, nicht den Wortlaut: Jeder Stichpunkt Ihrer Musterlösung ist
+  ein Kernpunkt (bei mehr als 12 fasst sie zusammen); aus Fließtext nimmt sie nur die zentralen Aussagen. Angesprochen
+  ist ein Punkt, wenn die Antwort ihn inhaltlich zutreffend wiedergibt – auch in eigenen Worten, mit einem anderen
+  passenden Beispiel oder ohne den Fachbegriff (außer er ist ausdrücklich verlangt). Falsch oder verdreht gilt er als
+  fehlend, ebenso ein bloßes Schlagwort ohne Aussage, wenn die Aufgabe eine Erklärung, Begründung oder einen
+  Zusammenhang verlangt; soll nur etwas genannt oder aufgezählt werden, genügt der zutreffende Begriff. Keine Noten,
+  keine eigenen Punkte, keine ausformulierten Lösungen. Auch eine KI kann sich dabei irren – das steht im Hinweis für
+  die Schüler:innen.
 - Das Feedback zum Überarbeiten gibt es einmal je Gerät und Angaben, dazu bei der Abgabe die Rückmeldung zur
   abgegebenen Fassung – je Schüler:in also bis zu zwei KI-Anfragen. Der Server kann das nicht erzwingen (wer andere
   Angaben eingibt oder ein zweites Gerät nutzt, kann erneut anfragen). Je Feibeitsblatt sind höchstens 600
