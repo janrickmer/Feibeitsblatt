@@ -218,21 +218,30 @@
   .filebtn .spinner{display:none; margin:0}
   .filebtn.loading .spinner{display:inline-block}
   .material p{margin:0 0 .55em; overflow-wrap:anywhere}
-  .material a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
-  .material a:hover{color:var(--accent2)}
-  .material a::after{content:"\00a0↗" / ""; font-size:.75em; color:var(--muted)}   /* nur sichtbar, nicht vorgelesen */
+  .material a,.qtext a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
+  .material a:hover,.qtext a:hover{color:var(--accent2)}
+  .material a::after,.qtext a::after{content:"\00a0↗" / ""; font-size:.75em; color:var(--muted)}   /* nur sichtbar, nicht vorgelesen */
   .si .material{font-family:var(--serif); font-size:15.5px; margin:4px 0 0; padding:6px 12px 2px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px}
   .solist .si .material p{margin:0 0 .45em; white-space:normal}
-  /* Material-Editor der Lehrkraft */
+  /* Formatierte Aufgabenstellung (textFmt): Absätze wie die Zeilen des reinen Textes (gleiche Schrift und Abstände). Die
+     Aufgabenstellung steht fett – enthält sie fett gesetzte Stellen, ist der übrige Text normal, sonst fiele Fett nicht auf. */
+  .qtext p{margin:0; overflow-wrap:anywhere}
+  .qtext.has-b{font-weight:400}
+  .qtext b{font-weight:700}
+  /* Formatierbarer Text der Lehrkraft: Aufgabenstellung und Material (derselbe Editor) */
   .bmat{margin:8px 0 0; font-family:var(--sans)}
-  .bmat-bar{display:flex; flex-wrap:wrap; gap:4px; margin:0 0 4px}
+  .fmt-bar{display:flex; flex-wrap:wrap; gap:4px; margin:0 0 4px}
   .fmtbtn{min-width:34px; height:30px; padding:0 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper2); font:14px var(--sans); color:var(--ink); cursor:pointer}
   .fmtbtn:hover{background:var(--soft)}
-  .bmat-edit{position:relative; min-height:64px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--paper); font-family:var(--serif); font-size:17px; line-height:1.6; outline:none; overflow-wrap:anywhere; white-space:pre-wrap}
-  .bmat-edit:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
-  .bmat-edit.is-empty::before{content:attr(data-placeholder); position:absolute; left:13px; right:13px; top:9px; color:#756c60; font-family:var(--serif); pointer-events:none}
-  .bmat-edit a{color:var(--accent); text-decoration:underline}
-  .bmat .fhint{margin:4px 0 0}
+  .fmt-edit{position:relative; border:1px solid var(--line); background:var(--paper); font-family:var(--serif); color:var(--ink); outline:none; overflow-wrap:anywhere; white-space:pre-wrap; transition:border-color .15s, box-shadow .15s}
+  .bmat-edit{min-height:64px; padding:9px 13px; border-radius:9px; font-size:17px; line-height:1.6}
+  .bq-edit{min-height:calc(3 * 1.5em + 18px); padding:8px 10px; border-radius:8px; font-size:16px; line-height:1.5}   /* wie das frühere Textfeld */
+  .fmt-edit:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
+  .fmt-edit.invalid{border-color:var(--red); box-shadow:0 0 0 3px rgba(179,38,30,.14)}
+  .fmt-edit.is-empty::before{content:attr(data-placeholder); position:absolute; left:13px; right:13px; top:9px; color:#756c60; font-family:var(--serif); pointer-events:none}
+  .bq-edit.is-empty::before{left:10px; right:10px; top:8px}
+  .fmt-edit a{color:var(--accent); text-decoration:underline}
+  .bmat .fhint,.bq .fhint{margin:4px 0 0}
   #linkdlg .field{margin:0 0 12px}
   #linkdlg p.err{margin:0 0 10px; min-height:1.3em}
   #linkdlg p.fhint{margin:5px 0 0; font-size:12.5px; line-height:1.45}
@@ -480,6 +489,8 @@
   .solist .si:last-child{border-bottom:0}
   .solist .si p{margin:2px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font-family:var(--serif); font-size:15.5px}
   .solist .si .sol{color:var(--muted)}
+  .solist .si .qtext{margin:2px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font-family:var(--serif); font-size:15.5px}
+  .solist .si .qtext p{margin:0}
   .subhead{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:26px 0 10px}
   .subhead h3{margin:0}
   .detbox{max-width:100%; contain:inline-size}
@@ -1339,6 +1350,7 @@ async function copyText(text, btn) {
 /* Mitwachsende Textfelder: Höhe = Texthöhe (gemessen an einem unsichtbaren Zwilling, damit nichts springt). */
 /* ---------- Material zu Aufgaben: Absätze aus Läufen {t, f ("b"/"i"/"u"), h (Link)} – nie innerHTML ---------- */
 const MAT_LIMITS = { chars: 8000, paragraphs: 200, runs: 600, links: 60, href: 1000 };   // wie LIMITS im Worker
+const TASK_TEXT_MAX = 4000;   // Aufgabenstellung (Zeichen, wie LIMITS.taskText im Worker) – auch formatiert (textFmt)
 function cleanHref(raw) {   // → http(s)-Adresse oder "" (javascript:, data: usw. werden verworfen)
   const s = String(raw == null ? "" : raw).trim();
   if (!s || s.length > MAT_LIMITS.href || /[\u0000-\u0020\u007f]/.test(s)) return "";
@@ -1351,6 +1363,32 @@ function cleanMaterial(raw) {   // Daten vom Server prüfen, bevor daraus DOM wi
     ? { t: r.t.slice(0, MAT_LIMITS.chars), f: ["b", "i", "u"].filter((c) => String(r.f || "").includes(c)).join(""), h: cleanHref(r.h) } : null)).filter((r) => r && r.t));
 }
 const materialChars = (m) => m.reduce((n, p) => n + p.reduce((k, r) => k + r.t.length, 0), 0);
+// Formatierte Aufgabenstellung aus fremden Daten (Sicherung) auf die Grenze des reinen Textes kappen – gezählt wie der Server:
+// Zeichen samt Zeilenumbrüchen zwischen den Absätzen
+function capFmt(m, max) {
+  let left = max; const out = [];
+  for (const runs of m) {
+    if (out.length) { if (left < 1) break; left--; }
+    const line = [];
+    for (const r of runs) {
+      if (left <= 0) break;
+      let t = r.t.slice(0, left); if (t.length < r.t.length && /[\uD800-\uDBFF]$/.test(t)) t = t.slice(0, -1);   // kein halbes Ersatzzeichen-Paar
+      left -= t.length; if (t) line.push(Object.assign({}, r, { t }));
+    }
+    out.push(line);
+  }
+  while (out.length && !out[out.length - 1].length) out.pop();
+  return out;
+}
+// Aufgabenstellung anzeigen: formatiert (textFmt; Links in neuem Tab) oder als reiner Text – dieselbe Schrift, dieselben Zeilen
+function taskTextDom(tag, props, text, fmt) {
+  const m = cleanMaterial(fmt);
+  if (!m.length) return h(tag, Object.assign({}, props, { text: String(text || "") }));
+  const cls = [props && props.class, "qtext", m.some((p) => p.some((r) => r.f.includes("b"))) ? "has-b" : ""].filter(Boolean).join(" ");
+  const el = h("div", Object.assign({}, props, { class: cls }));
+  Array.from(materialDom(m, { links: true }).childNodes).forEach((n) => el.appendChild(n));
+  return el;
+}
 // Modell → DOM: links = anklickbar in neuem Tab (Schüler:innen, Lehrkraft-Ansicht); editor = Zeilen als <div> für contenteditable
 function materialDom(material, opts) {
   const o = opts || {}, root = h("div", { class: "material" });
@@ -1488,13 +1526,91 @@ $("linkdlg").addEventListener("keydown", (e) => {
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 });
-// Formatknöpfe spiegeln den Zustand an der Cursorposition (aria-pressed), wenn ein Material-Editor den Fokus hat
+// Formatknöpfe spiegeln den Zustand an der Cursorposition (aria-pressed), wenn ein Editor (Aufgabenstellung, Material) den Fokus hat
 function syncFmt(ed) {
   if (!ed || !ed._fmtBtns) return;
   for (const [cmd, b] of Object.entries(ed._fmtBtns)) { let on = false; try { on = document.queryCommandState(cmd); } catch (e) { on = false; } b.setAttribute("aria-pressed", on ? "true" : "false"); }
 }
-document.addEventListener("selectionchange", () => { const a = document.activeElement; if (a && a.classList && a.classList.contains("bmat-edit")) syncFmt(a); });
+document.addEventListener("selectionchange", () => { const a = document.activeElement; if (a && a.classList && a.classList.contains("fmt-edit")) syncFmt(a); });
 $("linkdlg").addEventListener("click", (e) => { if (e.target === $("linkdlg")) closeLinkDlg(); });
+/* Formatierbarer Text der Lehrkraft (fett/kursiv/unterstrichen, Links) als contenteditable – derselbe Editor für die
+   Aufgabenstellung und das Material. Gespeichert wird nie HTML, sondern das Modell aus serializeMaterial.
+   o = { cls, barCls, placeholder, barLabel, model (Absätze aus Läufen) oder text (reiner Text), onInput } → { ed, bar };
+   ed._clear() leert den Editor ohne Eingabe-Ereignis. */
+function fmtEditor(o) {
+  const ed = h("div", { class: "fmt-edit " + o.cls + " is-empty", contenteditable: "true", role: "textbox", "aria-multiline": "true", spellcheck: "true",
+    "data-placeholder": o.placeholder, "aria-placeholder": o.placeholder });
+  const isEmpty = () => !ed.textContent.trim() && !ed.querySelector("a");
+  const input = (e) => {
+    const empty = isEmpty();
+    if (empty && ed.childNodes.length && !(e && e.isComposing)) ed.textContent = "";   // Rest-<br> nach dem Leeren weg, Caret bleibt oben
+    ed.classList.toggle("is-empty", empty); ed.classList.remove("invalid");
+    if (o.onInput) o.onInput();
+  };
+  const fmt = (cmd, title, kid) => {
+    const b = h("button", { type: "button", class: "fmtbtn", title, "aria-label": title, "aria-pressed": "false" }, [kid]);
+    b.addEventListener("mousedown", (e) => e.preventDefault());   // Markierung im Editor behalten
+    b.addEventListener("click", () => { ed.focus(); document.execCommand(cmd); input(); syncFmt(ed); });
+    return b;
+  };
+  const linkBtn = h("button", { type: "button", class: "fmtbtn", title: "Link einfügen oder bearbeiten", text: "Link" });
+  linkBtn.addEventListener("mousedown", (e) => e.preventDefault());
+  linkBtn.addEventListener("click", () => linkDialog(ed));
+  const fmtBtns = { bold: fmt("bold", "Fett (Strg+B)", h("b", { text: "F" })), italic: fmt("italic", "Kursiv (Strg+I)", h("i", { text: "K" })), underline: fmt("underline", "Unterstrichen (Strg+U)", h("u", { text: "U" })) };
+  ed._fmtBtns = fmtBtns;
+  const barBtns = [fmtBtns.bold, fmtBtns.italic, fmtBtns.underline, linkBtn];
+  barBtns.forEach((b, k) => { b.tabIndex = k ? -1 : 0; });   // Werkzeugleiste: ein Tab-Stopp, Pfeiltasten wechseln
+  const bar = h("div", { class: "fmt-bar " + o.barCls, role: "toolbar", "aria-label": o.barLabel }, barBtns);
+  bar.addEventListener("keydown", (e) => {
+    const k = barBtns.indexOf(document.activeElement); if (k < 0) return;
+    const n = e.key === "ArrowRight" ? (k + 1) % barBtns.length : e.key === "ArrowLeft" ? (k + barBtns.length - 1) % barBtns.length : e.key === "Home" ? 0 : e.key === "End" ? barBtns.length - 1 : -1;
+    if (n < 0) return;
+    e.preventDefault(); barBtns.forEach((b, j) => { b.tabIndex = j === n ? 0 : -1; }); barBtns[n].focus();
+  });
+  ed.addEventListener("input", input);
+  ed.addEventListener("paste", (e) => {   // eingefügtes HTML wird auf fett/kursiv/unterstrichen/Links reduziert
+    e.preventDefault();
+    const dt = e.clipboardData; if (!dt) return;
+    const html = dt.getData("text/html");
+    if (html) insertMaterialHtml(ed, html); else document.execCommand("insertText", false, dt.getData("text/plain") || "");
+    input();
+  });
+  ed.addEventListener("dragstart", () => { ed._dragInside = true; });
+  ed.addEventListener("dragend", () => { ed._dragInside = false; });
+  ed.addEventListener("drop", (e) => {   // nur Text, an der Stelle des Mauszeigers; Ziehen innerhalb des Editors verschiebt
+    e.preventDefault();
+    const t = e.dataTransfer && e.dataTransfer.getData("text/plain");
+    const sel = getSelection(), inside = ed._dragInside; ed._dragInside = false;
+    if (!t) return;
+    if (inside && sel.rangeCount && ed.contains(sel.anchorNode) && !sel.isCollapsed) sel.deleteFromDocument();
+    let r = null;
+    try {
+      if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(e.clientX, e.clientY);
+      else if (document.caretPositionFromPoint) { const pos = document.caretPositionFromPoint(e.clientX, e.clientY); if (pos) { r = document.createRange(); r.setStart(pos.offsetNode, pos.offset); r.collapse(true); } }
+    } catch (x) { r = null; }
+    ed.focus();
+    if (r && ed.contains(r.startContainer)) { sel.removeAllRanges(); sel.addRange(r); }
+    document.execCommand("insertText", false, t); input();
+  });
+  // Anfangsinhalt: Modell (formatiert) oder reiner Text – je Zeile ein Block wie nach der Eingabe
+  const m = cleanMaterial(o.model);
+  if (m.length) Array.from(materialDom(m, { editor: true }).childNodes).forEach((n) => ed.appendChild(n));
+  else if (o.text) String(o.text).split("\n").forEach((l) => ed.appendChild(h("div", null, [l ? document.createTextNode(l) : h("br")])));
+  ed.classList.toggle("is-empty", isEmpty());
+  ed._clear = () => { ed.textContent = ""; ed.classList.add("is-empty"); ed.classList.remove("invalid"); };
+  return { ed, bar };
+}
+// Modell → reiner Text (wie materialText im Worker): Absätze mit Zeilenumbruch, Links nur mit ihrem Text
+const fmtPlain = (m) => m.map((runs) => runs.map((r) => r.t).join("")).join("\n").trim();
+const isFormatted = (m) => m.some((runs) => runs.some((r) => r.f || r.h));   // etwas fett/kursiv/unterstrichen oder verlinkt
+// Grenzen wie validateMaterial im Worker – für das Material und die formatierte Aufgabenstellung (dort mit der Zeichengrenze des Textes)
+function fmtLimitError(m, maxChars, the, inThe) {
+  const runs = m.reduce((n, p) => n + p.length, 0), links = m.reduce((n, p) => n + p.filter((r) => r.h).length, 0);
+  return materialChars(m) > maxChars ? `${the} ist zu lang (höchstens ${maxChars.toLocaleString("de-DE")} Zeichen).`
+    : m.length > MAT_LIMITS.paragraphs ? `${the} hat zu viele Absätze (höchstens ${MAT_LIMITS.paragraphs}).`
+    : runs > MAT_LIMITS.runs ? `${the} ist zu kleinteilig formatiert (höchstens ${MAT_LIMITS.runs} Abschnitte).`
+    : links > MAT_LIMITS.links ? `Zu viele Links ${inThe} (höchstens ${MAT_LIMITS.links}).` : "";
+}
 
 /* ---------- Bilder zu Aufgaben: Adresse und Vergrößerung ---------- */
 const IMAGE_ID_RE = /^[0-9a-f]{16}$/, IMAGE_MIME_RE = /^image\/(jpeg|png|webp)$/;
@@ -1741,7 +1857,8 @@ async function loadSheet(code) {
   S.code = code; S.pub = pub;
   S.sheet = {
     code, title: String(sh.title || "Feibeitsblatt"),
-    tasks: sh.tasks.map((t) => String((t && t.text) || "")),
+    tasks: sh.tasks.map((t) => String((t && t.text) || "")),   // reiner Text (Lösungs-PDF, Abgabe)
+    textFmt: sh.tasks.map((t) => cleanMaterial(t && t.textFmt)),   // je Aufgabe: formatierte Aufgabenstellung (leer = nur reiner Text)
     images: sh.tasks.map((t) => cleanImages(t && t.images)),   // je Aufgabe: Miniaturen (thumb) oder größer unter der Aufgabe (inline)
     cards: sh.tasks.map((t) => cleanImages(t && t.images, true)),   // je Aufgabe: Kartenbilder der Weltkarten-Zuordnung
     answers: sh.tasks.map((t) => cleanAnswer(t && t.answer)),   // je Aufgabe: Antwortart (Textfeld, Tabelle, Weltkarte)
@@ -2038,7 +2155,7 @@ function buildTasks() {
     const sec = h("section", { class: "task" + (thumbs.length ? " has-thumbs" : "") + (isText ? "" : " task-" + spec.type), id: "t-" + n, "aria-labelledby": "l-" + n }, [
       h("div", { class: "task-q" }, [
         isText ? h("label", { class: "task-label", for: "a-" + n, id: "l-" + n, text: "Aufgabe " + n }) : h("span", { class: "task-label", id: "l-" + n, text: "Aufgabe " + n }),
-        h("div", { class: "task-text", id: "q-" + n, text })
+        taskTextDom("div", { class: "task-text", id: "q-" + n }, text, S.sheet.textFmt && S.sheet.textFmt[i])
       ]),
       thumbs.length ? h("div", { class: "task-thumbs" }, thumbs) : null,
       h("div", { class: "task-body" }, [
@@ -3761,7 +3878,7 @@ async function selectSheet(code) {
     const list = $("t-sel-tasks");
     r.sheet.tasks.forEach((t, i) => list.appendChild(h("div", { class: "si" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
-      h("p", { text: String(t.text || "") }),
+      taskTextDom("p", null, t.text, t.textFmt),
       cleanMaterial(t.material).length ? h("span", { class: "task-label", style: "margin-top:6px", text: "Material" }) : null,
       cleanMaterial(t.material).length ? materialDom(t.material, { links: true }) : null,
       teacherImgs(code, t.images, i + 1),
@@ -3893,7 +4010,7 @@ function buildDetail(s) {
     }
     box.appendChild(h("div", { class: "dtask" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) + (spec.type === "text" ? "" : " · " + ANSWER_TYPE_LABEL[spec.type]) }),
-      h("p", { class: "dtask-text", text: tasks[i] ? String(tasks[i].text || "") : "" }),
+      taskTextDom("p", { class: "dtask-text" }, tasks[i] ? tasks[i].text : "", tasks[i] && tasks[i].textFmt),
       tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
       tasks[i] ? teacherFiles(T.sel, tasks[i].files, i + 1) : null,
       h("table", { class: "cmp" }, [
@@ -3941,7 +4058,7 @@ $("t-template").addEventListener("click", async () => {
           files.push({ blob: r.blob, name: f.name, size: r.blob.size });
         } catch (e) { lostF++; }
       }
-      return { text: String(t.text || ""), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files, answer: builderAnswer(spec, cards) };
+      return { text: String(t.text || ""), textFmt: cleanMaterial(t.textFmt), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files, answer: builderAnswer(spec, cards) };
     }));
     openBuilder(T.selSheet.title, rows);
     const msgs = [];
@@ -4021,9 +4138,10 @@ async function sheetPdfData(code, sheet, onStep) {
       blobs.push({ ref, bytes, mime: "application/pdf", key: `${key}-pdf${j + 1}`, name: `Aufgabe ${n} – ${f.name}` });
       files.push({ ref, name: f.name, bytes: bytes.length, sha256: await bytesSha256(bytes) });
     }
-    // Material in der Form des Servers ({t, f?, h?}) – genau wie gespeichert
-    const material = cleanMaterial(t.material).map((p) => p.map((r) => Object.assign({ t: r.t }, r.f ? { f: r.f } : null, r.h ? { h: r.h } : null)));
-    const task = { text: String(t.text || ""), solution: String(t.solution || ""), material, images, files };
+    // Material und formatierte Aufgabenstellung in der Form des Servers ({t, f?, h?}) – genau wie gespeichert; textFmt nur, wenn vorhanden
+    const serverForm = (m) => cleanMaterial(m).map((p) => p.map((r) => Object.assign({ t: r.t }, r.f ? { f: r.f } : null, r.h ? { h: r.h } : null)));
+    const material = serverForm(t.material), textFmt = serverForm(t.textFmt);
+    const task = { text: String(t.text || ""), ...(textFmt.length ? { textFmt } : null), solution: String(t.solution || ""), material, images, files };
     if (spec.type === "table") task.answer = { type: "table", columns: spec.columns, rows: spec.rows };
     if (spec.type === "map") task.answer = { type: "map", map: "world", items: spec.items.map((it) => Object.assign({ id: it.id, label: it.label }, it.hint ? { hint: it.hint } : null,
       refOf.has(it.image) ? { image: refOf.get(it.image) } : null, { countries: it.countries })) };
@@ -4192,7 +4310,7 @@ function cleanSheetRecord(o) {   // fremde Daten prüfen und kappen (wie die Ein
   const imgs = (t, card) => (Array.isArray(t.images) ? t.images : []).filter((m) => m && typeof m.ref === "string" && SHEET_REF_RE.test(m.ref) && IMAGE_MIME_RE.test(String(m.mime)) && (m.mode === "card") === card)
     .slice(0, card ? ANS_LIMITS.cards : IMG_PER_TASK).map((m) => ({ ref: m.ref, mime: m.mime, mode: card ? "card" : m.mode === "inline" ? "inline" : "thumb", alt: str(m.alt, 200), bytes: size(m.bytes), sha256: sha(m.sha256), max: IMG_MAX_BYTES }));
   const tasks = o.tasks.slice(0, 30).filter((t) => t && typeof t === "object").map((t) => ({
-    text: str(t.text, 4000), solution: str(t.solution, 8000), material: cleanMaterial(t.material),
+    text: str(t.text, TASK_TEXT_MAX), textFmt: capFmt(cleanMaterial(t.textFmt), TASK_TEXT_MAX), solution: str(t.solution, 8000), material: cleanMaterial(t.material),
     images: imgs(t, false).concat(imgs(t, true)), answer: cleanAnswer(t.answer, true, SHEET_REF_RE),   // Kartenbilder (mode "card") zählen nicht zu den 5 Bildern
     files: (Array.isArray(t.files) ? t.files : []).filter((f) => f && typeof f.ref === "string" && SHEET_REF_RE.test(f.ref)).slice(0, FILES_PER_TASK)
       .map((f) => ({ ref: f.ref, name: safeFileName(f.name), bytes: size(f.bytes), sha256: sha(f.sha256), max: FILE_MAX_BYTES }))
@@ -4301,7 +4419,7 @@ async function importSheetPdf(file) {
         if (await feibeitsblattPdfKind(b)) { unsafe++; continue; }   // eine angehängte Sicherung oder ein Zwischenstand gehört nicht zu den Schüler:innen
         files.push({ blob: new Blob([b], { type: "application/pdf" }), name: f.name, size: b.length });
       }
-      rows.push({ text: t.text, solution: t.solution, material: t.material, images, files, answer: builderAnswer(t.answer, cards) });
+      rows.push({ text: t.text, textFmt: t.textFmt, solution: t.solution, material: t.material, images, files, answer: builderAnswer(t.answer, cards) });
       for (const im of cards.values()) if (!rows[rows.length - 1].answer.items || !rows[rows.length - 1].answer.items.some((it) => it.img === im)) URL.revokeObjectURL(im.url);   // ohne Karte: nicht gebraucht
     }
     if (!importStillWanted(run)) {
@@ -4382,7 +4500,7 @@ function openBuilder(title, rows) {
   });
   $("b-rows").textContent = "";
   const init = rows && rows.length ? rows : [{}, {}, {}];
-  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material, r.files, r.answer));
+  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material, r.files, r.answer, r.textFmt));
   T.builderDirty = false;
   growAll();
   focusSoon("b-title", 30);
@@ -4638,12 +4756,17 @@ function answerEditor(tr, init) {
   return box;
 }
 const renumberOf = (tr) => Array.prototype.indexOf.call($("b-rows").children, tr) + 1 || $("b-rows").children.length + 1;
-function addRow(text, solution, images, material, files, answer) {
+function addRow(text, solution, images, material, files, answer, textFmt) {
   const tb = $("b-rows");
-  const ta1 = h("textarea", { class: "grow q", rows: "3", maxlength: "4000", placeholder: "Aufgabenstellung …", spellcheck: "true" });
+  const dirty = () => { T.builderDirty = true; };
+  // Aufgabenstellung: formatierbar wie das Material (fett/kursiv/unterstrichen, Links); gesendet wird der reine Text und – nur
+  // wenn etwas formatiert oder verlinkt ist – das Modell als textFmt
+  const q = fmtEditor({ cls: "bq-edit", barCls: "bq-bar", placeholder: "Aufgabenstellung …", barLabel: "Formatierung der Aufgabenstellung", model: textFmt, text, onInput: dirty });
+  const qEd = q.ed;
   const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Worauf soll die KI beim Feedback achten? z. B. „Achte darauf, ob die Antwort begründet ist und die Fachbegriffe richtig verwendet.“", spellcheck: "true" });
-  ta1.value = text || ""; ta2.value = solution || "";
-  const l1 = h("label", { class: "rowlbl" }), l2 = h("label", { class: "rowlbl" });
+  ta2.value = solution || "";
+  const l1 = h("span", { class: "rowlbl" }), l2 = h("label", { class: "rowlbl" });
+  l1.addEventListener("click", () => qEd.focus());   // wie ein <label>: Klick setzt den Cursor in den Editor
   const up = h("button", { type: "button", class: "iconbtn up", text: "↑" });
   const down = h("button", { type: "button", class: "iconbtn down", text: "↓" });
   const del = h("button", { type: "button", class: "iconbtn x", text: "✕" });
@@ -4657,65 +4780,15 @@ function addRow(text, solution, images, material, files, answer) {
   const pdfIn = h("input", { type: "file", accept: "application/pdf,.pdf", multiple: true, class: "sr-only bfile-input", tabindex: "-1", "aria-hidden": "true" });
   const pdfAdd = h("button", { type: "button", class: "btn ghost small bfile-add", text: "+ PDF-Datei hinzufügen" });
   const pdfStat = h("span", { class: "fhint bfile-stat", role: "status", "aria-live": "polite" });
-  // Material: formatierbarer Text (fett/kursiv/unterstrichen) mit Links – als contenteditable, gespeichert als Modell
-  const MAT_PLACEHOLDER = "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …";
-  const matEd = h("div", { class: "bmat-edit is-empty", contenteditable: "true", role: "textbox", "aria-multiline": "true", spellcheck: "true",
-    "data-placeholder": MAT_PLACEHOLDER, "aria-placeholder": MAT_PLACEHOLDER });
-  const matInput = (e) => {
-    const empty = !matEd.textContent.trim() && !matEd.querySelector("a");
-    if (empty && matEd.childNodes.length && !(e && e.isComposing)) matEd.textContent = "";   // Rest-<br> nach dem Leeren weg, Caret bleibt oben
-    matEd.classList.toggle("is-empty", empty); T.builderDirty = true;
-  };
-  const fmt = (cmd, title, kid) => {
-    const b = h("button", { type: "button", class: "fmtbtn", title, "aria-label": title, "aria-pressed": "false" }, [kid]);
-    b.addEventListener("mousedown", (e) => e.preventDefault());   // Markierung im Editor behalten
-    b.addEventListener("click", () => { matEd.focus(); document.execCommand(cmd); matInput(); syncFmt(matEd); });
-    return b;
-  };
-  const linkBtn = h("button", { type: "button", class: "fmtbtn", title: "Link einfügen oder bearbeiten", text: "Link" });
-  linkBtn.addEventListener("mousedown", (e) => e.preventDefault());
-  linkBtn.addEventListener("click", () => linkDialog(matEd));
+  // Material: formatierbarer Text (fett/kursiv/unterstrichen) mit Links – derselbe Editor, gespeichert als Modell
+  const mat = fmtEditor({ cls: "bmat-edit", barCls: "bmat-bar", placeholder: "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …",
+    barLabel: "Formatierung des Materials", model: material, onInput: dirty });
+  const matEd = mat.ed, matBar = mat.bar;
   const matLbl = h("span", { class: "rowlbl", style: "margin-top:10px" });
-  const fmtBtns = { bold: fmt("bold", "Fett (Strg+B)", h("b", { text: "F" })), italic: fmt("italic", "Kursiv (Strg+I)", h("i", { text: "K" })), underline: fmt("underline", "Unterstrichen (Strg+U)", h("u", { text: "U" })) };
-  matEd._fmtBtns = fmtBtns;
-  const barBtns = [fmtBtns.bold, fmtBtns.italic, fmtBtns.underline, linkBtn];
-  barBtns.forEach((b, k) => { b.tabIndex = k ? -1 : 0; });   // Werkzeugleiste: ein Tab-Stopp, Pfeiltasten wechseln
-  const matBar = h("div", { class: "bmat-bar", role: "toolbar", "aria-label": "Formatierung des Materials" }, barBtns);
-  matBar.addEventListener("keydown", (e) => {
-    const k = barBtns.indexOf(document.activeElement); if (k < 0) return;
-    const n = e.key === "ArrowRight" ? (k + 1) % barBtns.length : e.key === "ArrowLeft" ? (k + barBtns.length - 1) % barBtns.length : e.key === "Home" ? 0 : e.key === "End" ? barBtns.length - 1 : -1;
-    if (n < 0) return;
-    e.preventDefault(); barBtns.forEach((b, j) => { b.tabIndex = j === n ? 0 : -1; }); barBtns[n].focus();
-  });
-  matEd.addEventListener("input", matInput);
-  matEd.addEventListener("paste", (e) => {   // eingefügtes HTML wird auf fett/kursiv/unterstrichen/Links reduziert
-    e.preventDefault();
-    const dt = e.clipboardData; if (!dt) return;
-    const html = dt.getData("text/html");
-    if (html) insertMaterialHtml(matEd, html); else document.execCommand("insertText", false, dt.getData("text/plain") || "");
-    matInput();
-  });
-  matEd.addEventListener("dragstart", () => { matEd._dragInside = true; });
-  matEd.addEventListener("dragend", () => { matEd._dragInside = false; });
-  matEd.addEventListener("drop", (e) => {   // nur Text, an der Stelle des Mauszeigers; Ziehen innerhalb des Editors verschiebt
-    e.preventDefault();
-    const t = e.dataTransfer && e.dataTransfer.getData("text/plain");
-    const sel = getSelection(), inside = matEd._dragInside; matEd._dragInside = false;
-    if (!t) return;
-    if (inside && sel.rangeCount && matEd.contains(sel.anchorNode) && !sel.isCollapsed) sel.deleteFromDocument();
-    let r = null;
-    try {
-      if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(e.clientX, e.clientY);
-      else if (document.caretPositionFromPoint) { const pos = document.caretPositionFromPoint(e.clientX, e.clientY); if (pos) { r = document.createRange(); r.setStart(pos.offsetNode, pos.offset); r.collapse(true); } }
-    } catch (x) { r = null; }
-    matEd.focus();
-    if (r && matEd.contains(r.startContainer)) { sel.removeAllRanges(); sel.addRange(r); }
-    document.execCommand("insertText", false, t); matInput();
-  });
-  if (material && material.length) { Array.from(materialDom(material, { editor: true }).childNodes).forEach((n) => matEd.appendChild(n)); matEd.classList.remove("is-empty"); }
   const noSol = h("p", { class: "fhint nosol hidden", text: "Für die Weltkarten-Zuordnung gibt es keinen Auftrag an die KI: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI." });
   const tr = h("tr", null, [
-    h("td", { class: "c1" }, [l1, ta1, h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
+    h("td", { class: "c1" }, [h("div", { class: "bq" }, [l1, q.bar, qEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab. Die KI bekommt nur den reinen Text." })]),
+      h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
       h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])]),
       h("div", { class: "bimgs bfiles" }, [fileList, h("div", { class: "bimg-row" }, [pdfAdd, pdfIn, pdfStat])])]),
     h("td", { class: "c2" }, [l2, ta2, noSol]),
@@ -4724,7 +4797,7 @@ function addRow(text, solution, images, material, files, answer) {
   tr._l1 = l1; tr._l2 = l2;
   tr._solSync = (isMap) => { ta2.classList.toggle("hidden", isMap); noSol.classList.toggle("hidden", !isMap); };
   tr.querySelector("td.c1").appendChild(answerEditor(tr, answer));
-  tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl;
+  tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl; tr._qEd = qEd;
   tr._files = []; tr._fileList = fileList; tr._fileAdd = pdfAdd; tr._fileStat = pdfStat;
   imgAdd.addEventListener("click", () => { file.value = ""; file.click(); });
   file.addEventListener("change", () => addImages(tr, Array.from(file.files || [])));
@@ -4734,17 +4807,17 @@ function addRow(text, solution, images, material, files, answer) {
   renderImages(tr);
   (files || []).forEach((f) => { if (tr._files.length < FILES_PER_TASK) tr._files.push(f); });
   renderFiles(tr);
-  [ta1, ta2].forEach((t) => t.addEventListener("input", () => { autoGrow(t); t.classList.remove("invalid"); T.builderDirty = true; }));
+  ta2.addEventListener("input", () => { autoGrow(ta2); ta2.classList.remove("invalid"); T.builderDirty = true; });
   up.addEventListener("click", () => { const p = tr.previousElementSibling; if (p) { tb.insertBefore(tr, p); renumber(); up.focus(); T.builderDirty = true; } });
   down.addEventListener("click", () => { const n = tr.nextElementSibling; if (n) { tb.insertBefore(n, tr); renumber(); down.focus(); T.builderDirty = true; } });
   del.addEventListener("click", async () => {
     const hasMat = !!matEd.textContent.trim(), hasFiles = tr._images.length || tr._files.length, hasAns = tr._ans.type !== "text";
-    if (tb.children.length <= 1 && !hasFiles && !hasMat && !hasAns) { ta1.value = ""; ta2.value = ""; growAll(); return; }
-    if ((ta1.value.trim() || ta2.value.trim() || hasFiles || hasMat || hasAns) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Auftrag an die KI, Material, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    if (tb.children.length <= 1 && !hasFiles && !hasMat && !hasAns) { qEd._clear(); ta2.value = ""; growAll(); return; }
+    if ((qEd.textContent.trim() || ta2.value.trim() || hasFiles || hasMat || hasAns) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Auftrag an die KI, Material, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
     tr._images.forEach((im) => URL.revokeObjectURL(im.url));
     tr._ans.items.forEach((it) => { if (it.img) URL.revokeObjectURL(it.img.url); });
     if (tb.children.length <= 1) {
-      ta1.value = ""; ta2.value = ""; matEd.textContent = ""; matInput(); tr._images = []; renderImages(tr); tr._files = []; renderFiles(tr);
+      qEd._clear(); ta2.value = ""; matEd._clear(); tr._images = []; renderImages(tr); tr._files = []; renderFiles(tr);
       Object.assign(tr._ans, { type: "text", columns: [], rows: 3, items: [] }); tr._ansSel.value = "text"; tr._colsIn.value = ""; tr._rowsIn.value = "3"; tr._ansSync();
       growAll(); T.builderDirty = true; return;
     }
@@ -4758,10 +4831,10 @@ function addRow(text, solution, images, material, files, answer) {
 function renumber() {
   const rows = Array.from($("b-rows").children);
   rows.forEach((tr, i) => {
-    const n = i + 1, q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)");
+    const n = i + 1, q = tr._qEd, s = tr.querySelector("textarea.s:not(.measure)");
     q.id = "bq-" + n; s.id = "bs-" + n;
     const l1 = tr._l1, l2 = tr._l2;
-    l1.htmlFor = q.id; l1.textContent = "Aufgabe " + n;
+    l1.id = "bql-" + n; l1.textContent = "Aufgabe " + n; q.setAttribute("aria-labelledby", l1.id);   // Editor ohne <label for>: Name per aria-labelledby
     l2.htmlFor = s.id; l2.textContent = "Auftrag an die KI " + n;
     tr._ansSel.id = "bt-" + n; tr._ansLbl.htmlFor = tr._ansSel.id; tr._ansLbl.textContent = `Antwortart ${n}`;
     tr._colsIn.id = "bc-" + n; tr._colsLbl.htmlFor = tr._colsIn.id; tr._colsLbl.textContent = "Spaltenüberschriften";
@@ -4783,7 +4856,7 @@ function renumber() {
 $("b-add").addEventListener("click", () => {
   if ($("b-rows").children.length >= 30) return;
   const tr = addRow("", ""); growAll(); T.builderDirty = true;
-  setTimeout(() => tr.querySelector("textarea.q").focus(), 20);
+  setTimeout(() => tr._qEd.focus(), 20);
 });
 $("b-title").addEventListener("input", () => { T.builderDirty = true; });
 $("t-new").addEventListener("click", () => openBuilder("", null));
@@ -4801,8 +4874,8 @@ $("b-gen").addEventListener("click", async () => {
   let bad = null;
   let checks = 0;
   Array.from($("b-rows").children).forEach((tr, i) => {
-    const q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)"), ans = tr._ans;
-    const text = q.value.trim(), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
+    const q = tr._qEd, s = tr.querySelector("textarea.s:not(.measure)"), ans = tr._ans;
+    const qModel = serializeMaterial(q), text = fmtPlain(qModel), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
     const solution = ans.type === "map" ? "" : s.value.trim();   // Auftrag an die KI (Weltkarte: keiner)
     if (!text && !solution && !imgs.length && !pdfs.length && !material.length && ans.type === "text") return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
@@ -4833,13 +4906,15 @@ $("b-gen").addEventListener("click", async () => {
         return o;
       }) };
     }
-    const mRuns = material.reduce((n, p) => n + p.length, 0), mLinks = material.reduce((n, p) => n + p.filter((r) => r.h).length, 0);
-    const mErr = materialChars(material) > MAT_LIMITS.chars ? `Das Material ist zu lang (höchstens ${MAT_LIMITS.chars.toLocaleString("de-DE")} Zeichen).`
-      : material.length > MAT_LIMITS.paragraphs ? `Das Material hat zu viele Absätze (höchstens ${MAT_LIMITS.paragraphs}).`
-      : mRuns > MAT_LIMITS.runs ? `Das Material ist zu kleinteilig formatiert (höchstens ${MAT_LIMITS.runs} Abschnitte).`
-      : mLinks > MAT_LIMITS.links ? `Zu viele Links im Material (höchstens ${MAT_LIMITS.links}).` : "";
+    // Aufgabenstellung und Material: dieselben Grenzen wie der Server (der reine Text zählt mit Zeilenumbrüchen)
+    const textFmt = isFormatted(qModel) ? qModel : null;
+    const qErr = text.length > TASK_TEXT_MAX ? `Die Aufgabenstellung ist zu lang (höchstens ${TASK_TEXT_MAX.toLocaleString("de-DE")} Zeichen).`
+      : textFmt ? fmtLimitError(textFmt, TASK_TEXT_MAX, "Die Aufgabenstellung", "in der Aufgabenstellung") : "";
+    if (qErr && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: ${qErr}`; q.classList.add("invalid"); }
+    const mErr = fmtLimitError(material, MAT_LIMITS.chars, "Das Material", "im Material");
     if (mErr && !bad) { bad = tr._matEd; err.textContent = `Zeile ${i + 1}: ${mErr}`; }
     const task = { text, solution };
+    if (textFmt) task.textFmt = textFmt;
     if (material.length) task.material = material;
     if (answer) task.answer = answer;
     tasks.push(task);
@@ -4852,7 +4927,7 @@ $("b-gen").addEventListener("click", async () => {
   const imgTotal = uploads.reduce((n, u) => n + (u.kind === "image" ? u.im.blob.size : 0), 0), fileTotal = uploads.reduce((n, u) => n + (u.kind === "file" ? u.f.size : 0), 0);
   if (imgTotal > IMG_SHEET_BYTES) { err.textContent = `Die Bilder sind zusammen zu groß (${fmtKB(imgTotal)}, höchstens ${fmtKB(IMG_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Bilder entfernen.`; return; }
   if (fileTotal > FILE_SHEET_BYTES) { err.textContent = `Die PDF-Dateien sind zusammen zu groß (${fmtKB(fileTotal)}, höchstens ${fmtKB(FILE_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Dateien entfernen.`; return; }
-  if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector("textarea.q"); if (f) f.focus(); return; }
+  if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector(".bq-edit"); if (f) f.focus(); return; }
   if (tasks.length > 30) { err.textContent = "Ein Feibeitsblatt kann höchstens 30 Aufgaben haben."; return; }
   const title = $("b-title").value.trim().slice(0, 200);
   busy(btn, true, "Code wird erzeugt …");

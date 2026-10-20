@@ -258,7 +258,7 @@ async function main() {
     assert.equal(r.json.sheets.find((s) => s.code === code).taskCount, 3);
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 0);
     r = await api("GET", "/api/teacher/sheets/" + code.toLowerCase(), undefined, { auth });
-    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, material: [], images: [], files: [], answer: { type: "text" } })));
+    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })));
     ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Aufträgen an die KI");
 
     step = "Bilder zu Aufgaben";
@@ -342,7 +342,7 @@ async function main() {
     r = await api("GET", "/api/sheet/" + encodeURIComponent(" " + display.toLowerCase() + " "));
     assert.equal(r.status, 200, r.text);
     assert.deepEqual(r.json.sheet.tasks.map((t) => t.text), tasks.map((t) => t.text));
-    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["answer,files,images,material,text", "answer,files,images,material,text", "answer,files,images,material,text"]);
+    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["answer,files,images,material,text,textFmt", "answer,files,images,material,text,textFmt", "answer,files,images,material,text,textFmt"]);
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]); assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], [{ id: fileId, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length }], []]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }]);   // Empfänger für den Datenschutzhinweis

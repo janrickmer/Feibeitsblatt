@@ -1,7 +1,7 @@
 # Feibeitsblatt – Hinweise für die Entwicklung
 
 Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit-Messung): Lehrkraft legt Aufgaben +
-Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback,
+Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback,
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
@@ -26,8 +26,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Bilder: `POST /api/teacher/sheets/:code/images` (JSON `{task (1-basiert), mode: thumb|inline|card, data: Base64}` →
   `{image:{id, task, pos, mode, mime, w, h, bytes}}`), öffentlich `GET /api/sheet/:code/images/:id` →
   `{mime, w, h, data: Base64}` mit `Cache-Control: public, max-age=31536000, immutable`; `GET /api/sheet/:code` und
-  `GET /api/teacher/sheets/:code` liefern je Aufgabe `images: [{id, mode, w, h, alt}]` (nie Bilddaten) und
-  `material` (Absätze aus Läufen, siehe unten) und `files` (PDF-Dateien, siehe unten).
+  `GET /api/teacher/sheets/:code` liefern je Aufgabe `images: [{id, mode, w, h, alt}]` (nie Bilddaten),
+  `material` (Absätze aus Läufen, siehe unten), `textFmt` (formatierte Aufgabenstellung, siehe unten; `[]` = nur `text`)
+  und `files` (PDF-Dateien, siehe unten).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
   `/door`, Blatt-Codes enthalten immer Buchstaben. `GET …/submissions?after=<id>` liefert seitenweise (≤ 50 bzw.
   ≤ 8 MB je Seite, `next` = letzte id oder `null`); das Frontend schleift über `next`. `GET /api/health` ohne
@@ -154,7 +155,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   das wörtlich erreicht werden muss; leer = kein KI-Feedback (`NO_SOLUTION_NOTE` „Zu dieser Aufgabe gibt es kein
   KI-Feedback.“). Der Prompt (`FEEDBACK_SYSTEM`, Leitsatz „Es zählt der Inhalt, nicht der Wortlaut“) lässt die KI nur den
   Auftrag befolgen (im Rahmen der Regeln; Aufgaben, Material und Antworten sind nur Daten), keine Noten/Punktzahlen, keine
-  fertige Lösung außer der Auftrag erlaubt es. Ausgabe `{"aufgaben":[{"nr":1,"gut":[…],"tipps":[…]}]}` (gut 0–3, tipps 0–5)
+  fertige Lösung außer der Auftrag erlaubt es. In drei Runden gegen Testfälle mit zwei Modellgrößen geprüft; nötig waren (nicht
+  entfernen): nichts verlangen, was weder Aufgabe noch Auftrag fordern (vollständige Antwort → höchstens ein freiwilliger Tipp),
+  Richtiges nie als fehlend darstellen, Falsches klar benennen, die richtige Antwort aber – auch nur ein Wort, Name oder eine
+  Zahl daraus – nur nennen, wenn der Auftrag es erlaubt, keine Meta-Kommentare zu eingeschleusten Anweisungen oder
+  Notenwünschen, auch bei leerer Antwort ein Eintrag. Ausgabe `{"aufgaben":[{"nr":1,"gut":[…],"tipps":[…]}]}` (gut 0–3, tipps 0–5)
   → `normalizeFeedback` → internes Format `{covered, missing, note?}` überall (Browser, Zwischenstand, Erstversuch/Abgabe,
   Lehrkraft-Ansicht): `covered` = „gut“, `missing` = „tipps“ – historische Namen, damit alte Zwischenstände und Abgaben
   lesbar bleiben; alte Schlüssel (angesprochen/fehlt …) liest es weiter, `FEEDBACK_CAPS` 12 × 300 Zeichen. Mock
@@ -255,7 +260,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `feibeitsblatt.json` (`/FbSheet 1`, FlateDecode über `CompressionStream`, sonst roh) **vor** allen Anhängen; je Bild und
   PDF-Datei ein `/Type /EmbeddedFile`-Stream mit den Original-Bytes und `/FbBlob (<exportId>-<k>)`, alle im
   `/EmbeddedFiles`-Namensbaum (Schlüssel ASCII sortiert) und in `/AF`. Datensatz `{kind:"feibeitsblatt-sheet", v:1,
-  exportId, exportedAt, code, title, createdAt, tasks:[{text, solution, material, images:[{ref, mime, w, h, mode, alt,
+  exportId, exportedAt, code, title, createdAt, tasks:[{text, textFmt? (nur wenn formatiert), solution, material, images:[{ref, mime, w, h, mode, alt,
   bytes, sha256}], files:[{ref, name, bytes, sha256}]}]}` – **nie Abgaben**. Dateiname `sheetPdfName` =
   `Feibeitsblatt-<Code>-<Titel>.pdf`, Titel per `pdfAscii` nur ASCII (Chromium verwirft Download-Namen mit Umlauten/„–“
   auf manchen Systemen und nimmt „download“ – so in der E2E-Sandbox). `#t-import` „Feibeitsblatt aus PDF-Datei laden“ (Übersicht) → `#t-import-file` →
@@ -267,7 +272,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Durchlauf gesucht (`/FbSheet\s+1`, `/FbBlob\s*(…)` mit `pdfStringValue` für \-/Oktal-Escapes und `<hex>`, da PDF-Programme
   beim Neuspeichern kompakt schreiben); fehlt das Kennzeichen eines Anhangs, wird er unter allen `/Type /EmbeddedFile`-Streams
   über Größe + SHA-256 gefunden. `cleanSheetRecord`
-  kappt wie die Eingabefelder (≤ 30 Aufgaben, Text 4000/Lösung 8000, `cleanMaterial`, ≤ 5 Bilder mit erlaubtem MIME,
+  kappt wie die Eingabefelder (≤ 30 Aufgaben, Text 4000/Lösung 8000, `cleanMaterial`, `textFmt` per `capFmt` auf 4000
+  Zeichen samt Zeilenumbrüchen, ≤ 5 Bilder mit erlaubtem MIME,
   ≤ 3 Dateien, `safeFileName`, Refs `SHEET_REF_RE`); liegt ein Datensatz innerhalb eines Anhangs eines anderen
   (Sicherung als Material angehängt), gilt der äußere. Bilder/Dateien nur mit passender Größe und SHA-256
   (`sheetBlobOk`), Bilder zusätzlich per `decodeImage` lesbar und ≤ 4096 px, Dateien mit `%PDF-`; Fehlendes →
@@ -355,6 +361,25 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`MAT_LIMITS` = `LIMITS`), `cleanHref` misst die Länge nach der URL-Normalisierung. Links der Schüler:innen tragen
   einen `sr-only`-Hinweis „(öffnet in neuem Tab)“, der ↗-Marker ist nur CSS. Die KI bekommt nur `materialText` (reiner Text ohne Links,
   ≤ 4000 Zeichen je Aufgabe, `MATERIAL_CAP` in ai.js). Antworten liefern `material: []`, wenn keines da ist.
+- **Formatierte Aufgabenstellung (`textFmt`):** dieselben Möglichkeiten wie beim Material (fett, kursiv, unterstrichen,
+  Links). `tasks[i].text` bleibt reiner Text (≤ 4000; KI, PDF-Dateien, Listen, ältere Seiten), optional `tasks[i].textFmt` =
+  Läufe wie `material`. Server: `validateMaterial(raw, n, kind)` mit `FMT_MATERIAL` bzw. `FMT_TASK_TEXT` (Zeichengrenze
+  `LIMITS.taskText`, Absätze/Läufe/Links wie Material, Meldungen „Die Aufgabenstellung …“/„… in der Aufgabenstellung“),
+  `validateTextFmt`; kommt ein nicht leeres `textFmt`, wird `text` daraus abgeleitet (`materialText`: Absätze mit „\n“,
+  ohne Link-Adressen), danach gelten die Regeln für `text`; gespeichert wird `textFmt` nur, wenn ein Lauf `f` oder `h` hat
+  (`isFormatted`). Unsichere Links → 400 „Aufgabe n: Ein Link in der Aufgabenstellung ist ungültig …“. Die KI bekommt nur
+  `text` (der Prompt bleibt unverändert). Browser: `fmtEditor({cls, barCls, placeholder, barLabel, model|text, onInput})`
+  ist der gemeinsame Editor (Material: `.bmat-edit`/`.bmat-bar`; Aufgabenstellung: `#bq-n.bq-edit`, Name per
+  `aria-labelledby` → `#bql-n`, Werkzeugleiste `.bq-bar` „Formatierung der Aufgabenstellung“; gemeinsame Klassen
+  `.fmt-edit`/`.fmt-bar`, Fehlermarkierung `.fmt-edit.invalid`, `ed._clear()`). `b-gen` schickt `text` = `fmtPlain(Modell)`
+  und `textFmt` nur bei `isFormatted`; Grenzen per `fmtLimitError` (auch fürs Material) und `TASK_TEXT_MAX`. Anzeige per
+  `taskTextDom(tag, props, text, fmt)` (Schüler:innen `#q-n.task-text`, Blattdetails, Abgaben-Details `.dtask-text`):
+  formatiert als `div.qtext` mit `materialDom(…, {links:true})`, Absätze ohne Abstand wie Zeilen; enthält sie Fettes,
+  `.qtext.has-b` = normale Grundschrift (die Aufgabenstellung steht sonst fett, Fett fiele nicht auf). „Als Vorlage
+  verwenden“, Sicherung (Datensatz `textFmt` je Aufgabe, nur wenn vorhanden; sichtbarer PDF-Teil reiner Text) und Import
+  (`cleanSheetRecord`: `capFmt(cleanMaterial(…), TASK_TEXT_MAX)`) tragen `textFmt` mit. E2E 7e: Fett per Strg+B, Link per
+  Dialog, Einfügen aus HTML, Schüler:innen-Ansicht, Mock-Prompt ohne Link-Adresse, Lehrkraft-Ansichten, Vorlage,
+  Sicherung → Import → neues Blatt.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-

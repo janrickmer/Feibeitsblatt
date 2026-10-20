@@ -55,7 +55,9 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    schmalen Bildschirmen zwischen Aufgabenstellung und Antwortfeld) oder etwas größer unter der Aufgabenstellung.
    Ein Klick auf ein Bild zeigt es groß; ein weiterer Klick oder die Esc-Taste schließt die Ansicht. Hat die
    Lehrkraft „Material“ hinterlegt (einen Text mit Hervorhebungen oder Links), steht es unter der Aufgabenstellung;
-   Links darin öffnen sich immer in einem neuen Tab, das Feibeitsblatt bleibt geöffnet. Hat die Lehrkraft
+   Links darin öffnen sich immer in einem neuen Tab, das Feibeitsblatt bleibt geöffnet. Auch die Aufgabenstellung
+   selbst kann Hervorhebungen (fett, kursiv, unterstrichen) und Links enthalten – diese Links öffnen sich ebenfalls in
+   einem neuen Tab. Hat die Lehrkraft
    PDF-Dateien zu einer Aufgabe hinterlegt, stehen sie als „Material zum Herunterladen“ unter der Aufgabenstellung:
    Ein Klick auf eine Datei lädt sie herunter (sie landet im Download-Ordner und wird nicht im Tab geöffnet); dabei
    wird nichts gesendet außer der Anfrage nach der Datei.
@@ -166,6 +168,13 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    Hier dürfen Sie Text einfügen. Zeilen lassen sich hinzufügen, entfernen und verschieben (1 bis 30 Aufgaben). Eine
    Aufgabe ohne Auftrag an die KI bekommt kein KI-Feedback, sondern den Hinweis „Zu dieser Aufgabe gibt es kein
    KI-Feedback.“
+   **Aufgabenstellung formatieren:** Die Aufgabenstellung formatieren Sie genau wie das Material (siehe unten): Knöpfe
+   **F**, **K**, **U** bzw. Strg+B, Strg+I, Strg+U für fett, kursiv und unterstrichen, „Link“ für Links (nur `http://`
+   und `https://`); eingefügter Text aus Word oder dem Browser behält Hervorhebungen und Links. Die Schüler:innen sehen
+   die Formatierung, Links öffnen sich bei ihnen in einem neuen Tab. Weil Aufgabenstellungen fett erscheinen, steht der
+   übrige Text einer Aufgabenstellung mit fett gesetzten Stellen normal da – sonst fiele die Hervorhebung nicht auf.
+   An die KI geht nur der reine Text (ohne Link-Adressen); auch die PDF-Dateien (Lösungen der Schüler:innen, sichtbarer
+   Teil der Sicherung) zeigen den reinen Text. Höchstens 4000 Zeichen und 60 Links je Aufgabenstellung.
    **Material:** Unter jeder Aufgabenstellung gibt es das Feld „Material“ für einen Text, den die Schüler:innen zur
    Aufgabe sehen – etwa einen Auszug, ein Zitat, Arbeitshinweise oder Links. Mit den Knöpfen **F**, **K**, **U**
    (oder Strg+B, Strg+I, Strg+U) formatieren Sie markierten Text fett, kursiv oder unterstrichen; „Link“ verlinkt
@@ -212,7 +221,7 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    Wiederholung legt nie etwas doppelt an; eine unterbrochene PDF-Datei wird ab dem fehlenden Teil fortgesetzt und
    erscheint erst vollständig bei den Schüler:innen). Geben Sie den Code an die Klasse weiter. Ein erstelltes
    Feibeitsblatt lässt sich nicht mehr ändern; für eine geänderte Fassung wählen Sie es aus und klicken „Als
-   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben, Material, Aufträge an die KI, Bilder,
+   Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben (samt Formatierung), Material, Aufträge an die KI, Bilder,
    PDF-Dateien und Antwortarten (samt Karten und Kartenbildern) und ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
@@ -235,7 +244,7 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
 6. **Als PDF-Datei sichern und wiederverwenden.** Bei einem ausgewählten Feibeitsblatt lädt „Als PDF-Datei
    herunterladen“ eine PDF-Datei herunter (`Feibeitsblatt-<Code>-<Titel>.pdf`, Umlaute im Namen umschrieben). Sie zeigt Titel, Aufgabenstellungen,
    Material (als Text, Links mit Adresse) und die Bilder; die Namen angehängter PDF-Dateien stehen darunter. Im
-   Hintergrund enthält sie **alles**, was zum Wiederherstellen nötig ist: Aufgaben, **Aufträge an die KI**, Material mit
+   Hintergrund enthält sie **alles**, was zum Wiederherstellen nötig ist: Aufgaben (mit Formatierung und Links), **Aufträge an die KI**, Material mit
    Formatierung und Links, jedes Bild in Originalqualität mit Anzeigeart und Bildbeschreibung, jede PDF-Datei
    unverändert und die Antwortarten (Tabellenspalten; Karten mit Bild und richtigen Ländern) – jeweils mit
    Prüfsumme. Sichtbar steht die Antwortart unter jeder Aufgabe, bei der Weltkarte mit der Liste der Karten und Länder. Im PDF-Programm erscheinen diese Daten als Anhänge. Abgaben der Schüler:innen
@@ -587,8 +596,8 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 ### Was wohin gesendet wird
 
 - **KI-Feedback:** Der Browser schickt den Blatt-Code, die Antworten und die Liste der Empfänger, über die
-  informiert wurde, an den Server dieser Seite (Cloudflare). Der Server leitet **Aufgabenstellungen, den Text des
-  Materials, Ihre Aufträge an die KI und die Antworten** an den ersten KI-Anbieter weiter – nur für Aufgaben mit
+  informiert wurde, an den Server dieser Seite (Cloudflare). Der Server leitet **Aufgabenstellungen und den Text des
+  Materials (jeweils als reinen Text ohne Link-Adressen), Ihre Aufträge an die KI und die Antworten** an den ersten KI-Anbieter weiter – nur für Aufgaben mit
   Auftrag an die KI. Nur wenn dieser ausgelastet ist, nicht antwortet, einen Serverfehler meldet, die Anfrage als zu lang
   ablehnt oder keine verwertbare Antwort liefert, geht dieselbe Anfrage danach an die eingetragene
   [Reserve-KI](#reserve-ki-zweiter-anbieter) – nie an beide gleichzeitig, nie nach einem Inhaltsfilter. Ein Dienst,
@@ -743,7 +752,7 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Was | Grenze |
 |---|---|
 | Aufgaben je Feibeitsblatt | 1 bis 30 |
-| Aufgabenstellung / Auftrag an die KI / Titel | 4000 / 8000 / 200 Zeichen |
+| Aufgabenstellung / Auftrag an die KI / Titel | 4000 / 8000 / 200 Zeichen; die Aufgabenstellung wie das Material formatierbar (höchstens 60 Links) |
 | Material je Aufgabe | 8000 Zeichen, 60 Links; nur fett, kursiv, unterstrichen und Links (http/https) |
 | Bilder je Aufgabe | 5; je Bild höchstens 500 KB nach dem Verkleinern (längste Seite 1600 Pixel); alle Bilder eines Blattes zusammen 12 MB |
 | PDF-Dateien je Aufgabe | 3; je Datei höchstens 6 MB; alle PDF-Dateien eines Blattes zusammen 20 MB; Dateiname bis 120 Zeichen |

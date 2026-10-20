@@ -231,6 +231,13 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#b-soltip b").nth(1)).toHaveText("Beispiel");
   for (const w of ["Musterlösung", "Kernpunkt", "angesprochen"]) await expect(page.locator("#tv-builder")).not.toContainText(w);
   await page.fill("#b-title", TITLE);
+  // Aufgabenstellung: derselbe formatierbare Editor wie beim Material (Name über aria-labelledby, eigene Werkzeugleiste)
+  await expect(page.locator("#bq-1")).toHaveAttribute("contenteditable", "true");
+  await expect(page.locator("#bq-1")).toHaveAttribute("role", "textbox");
+  await expect(page.locator("#bq-1")).toHaveAttribute("aria-placeholder", "Aufgabenstellung …");
+  await expect(page.locator("#bq-1")).toHaveAccessibleName("Aufgabe 1");
+  await expect(page.locator("#b-rows > tr").nth(0).locator('.bq-bar[role="toolbar"]')).toHaveAttribute("aria-label", "Formatierung der Aufgabenstellung");
+  await expect(page.locator("#b-rows > tr").nth(0).locator(".bq-bar .fmtbtn")).toHaveText(["F", "K", "U", "Link"]);
   await page.fill("#bq-1", TASKS[0].text);
   await page.evaluate((s) => navigator.clipboard.writeText(s), TASKS[0].solution);
   await page.click("#bs-1");
@@ -251,10 +258,10 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.keyboard.type(":");
   await page.keyboard.press("Enter");
   const row0 = page.locator("#b-rows > tr").nth(0);
-  await row0.locator(".fmtbtn", { hasText: "U" }).click(); await page.keyboard.type("Hinweis:"); await row0.locator(".fmtbtn", { hasText: "U" }).click();
+  await row0.locator(".bmat .fmtbtn", { hasText: "U" }).click(); await page.keyboard.type("Hinweis:"); await row0.locator(".bmat .fmtbtn", { hasText: "U" }).click();
   await page.keyboard.type(" Quelle");
   for (let i = 0; i < 6; i++) await page.keyboard.press("Shift+ArrowLeft");   // „Quelle“ markieren
-  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await row0.locator(".bmat .fmtbtn", { hasText: "Link" }).click();
   await expect(page.locator("#linkdlg")).toHaveClass(/open/);
   await expect(page.locator("#ld-title")).toHaveText("Link einfügen");
   await expect(page.locator("#ld-text")).toHaveValue("Quelle");
@@ -269,7 +276,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(ed1).not.toHaveClass(/is-empty/);
   // Link bearbeiten: Cursor im Link → Dialog zeigt die Adresse, „Link entfernen“ steht bereit; Abbrechen ändert nichts
   await ed1.locator("a").click();
-  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await row0.locator(".bmat .fmtbtn", { hasText: "Link" }).click();
   await expect(page.locator("#ld-title")).toHaveText("Link bearbeiten");
   await expect(page.locator("#ld-url")).toHaveValue(LINK_URL);
   await expect(page.locator("#ld-remove")).toBeVisible();
@@ -277,7 +284,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(ed1.locator("a")).toHaveCount(1);
   // Link bearbeiten („Übernehmen“): Text und Adresse ändern
   await ed1.locator("a").click();
-  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await row0.locator(".bmat .fmtbtn", { hasText: "Link" }).click();
   await expect(page.locator("#ld-ok")).toHaveText("Übernehmen");
   await page.fill("#ld-text", "Quelle 2"); await page.fill("#ld-url", LINK_URL2);
   await page.click("#ld-ok");
@@ -286,7 +293,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   // neuen Link ohne Markierung am Ende einfügen (Adresse ohne Schema → https://), dann wieder entfernen
   await ed1.click(); await page.keyboard.press("Control+End");
   await page.keyboard.type(" – ");
-  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await row0.locator(".bmat .fmtbtn", { hasText: "Link" }).click();
   await expect(page.locator("#ld-title")).toHaveText("Link einfügen");
   await expect(page.locator("#ld-text")).toHaveValue("");
   await page.fill("#ld-text", "Verlag"); await page.fill("#ld-url", "www.beispiel.de");
@@ -294,13 +301,13 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(ed1.locator("a")).toHaveCount(2);
   await expect(ed1.locator("a").nth(1)).toHaveAttribute("href", "https://www.beispiel.de/");
   await ed1.locator("a").nth(1).click();
-  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await row0.locator(".bmat .fmtbtn", { hasText: "Link" }).click();
   await expect(page.locator("#ld-url")).toHaveValue("https://www.beispiel.de/");
   await page.click("#ld-remove");
   await expect(ed1.locator("a")).toHaveCount(1);
   await expect(ed1).toContainText("Hinweis: Quelle 2 – Verlag");
   // Tab bleibt im Link-Dialog (erst den Anfangsfokus des Dialogs abwarten, dann vom letzten Knopf weiter)
-  await row0.locator(".fmtbtn", { hasText: "Link" }).click();
+  await row0.locator(".bmat .fmtbtn", { hasText: "Link" }).click();
   await expect(page.locator("#ld-text")).toBeFocused();
   await page.locator("#ld-ok").focus(); await page.keyboard.press("Tab");
   await expect(page.locator("#ld-text")).toBeFocused();
@@ -310,8 +317,8 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#linkdlg")).not.toHaveClass(/open/);
   // Werkzeugleiste: Zustand der Formatknöpfe folgt dem Cursor
   await ed1.locator("b").click();
-  await expect(row0.locator('.fmtbtn[aria-pressed="true"]')).toHaveCount(1);
-  await expect(row0.locator(".fmtbtn", { hasText: "F" })).toHaveAttribute("aria-pressed", "true");
+  await expect(row0.locator('.bmat .fmtbtn[aria-pressed="true"]')).toHaveCount(1);
+  await expect(row0.locator(".bmat .fmtbtn", { hasText: "F" })).toHaveAttribute("aria-pressed", "true");
   // Material zu Aufgabe 2 aus der Zwischenablage (HTML): nur fett/kursiv/unterstrichen und http(s)-Links bleiben
   const ed2 = page.locator("#b-rows > tr").nth(1).locator(".bmat-edit");
   await ed2.click();
@@ -1397,7 +1404,7 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
   const rows = page.locator("#b-rows > tr");
   await expect(rows).toHaveCount(3);
   for (let i = 0; i < 3; i++) {
-    await expect(rows.nth(i).locator("textarea.q:not(.measure)")).toHaveValue(TASKS[i].text);
+    await expect(rows.nth(i).locator(".bq-edit")).toHaveText(TASKS[i].text, { useInnerText: true });
     await expect(rows.nth(i).locator("textarea.s:not(.measure)")).toHaveValue(TASKS[i].solution);
   }
   await expect(rows.nth(0).locator(".bmat-edit b")).toHaveText("Textauszug");
@@ -1499,7 +1506,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     const j = JSON.parse(body);
     expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "aiRecipients", "code", "publicKey", "tasks", "title"]);
     expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX }]);
-    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
+    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, textFmt: [], material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
   }
@@ -1910,7 +1917,7 @@ test("7d Testdatei „Ein Auto – eine Welt“: Import übernimmt alles (Weltka
   await expect(tp.locator("#bs-1")).toBeHidden();
   await expect(tp.locator("#bc-2")).toHaveValue(rec.tasks[1].answer.columns.join("\n"));
   await expect(tp.locator("#br-2")).toHaveValue(String(rec.tasks[1].answer.rows));
-  for (const [i, x] of rec.tasks.entries()) await expect(tp.locator("#bq-" + (i + 1))).toHaveValue(x.text);
+  for (const [i, x] of rec.tasks.entries()) await expect(tp.locator("#bq-" + (i + 1))).toHaveText(x.text, { useInnerText: true });
   await tp.click("#b-gen");
   await expect(tp.locator("#b-result")).toBeVisible();
   await expect(tp.locator("#b-res-img")).toHaveText(`Alle ${cardImgs.length} Bilder sind gespeichert.`, { timeout: 60_000 });
@@ -1944,6 +1951,157 @@ test("7d Testdatei „Ein Auto – eine Welt“: Import übernimmt alles (Weltka
   await closePage(t);
 });
 const fmtCodeOf = (c) => String(c || "").slice(0, 3) + "-" + String(c || "").slice(3);
+
+test("7e Formatierte Aufgabenstellung: Lehrkraft setzt ein Wort fett und fügt einen Link ein → Schüler:in sieht beides (Link in neuem Tab), die KI nur den reinen Text; Vorlage und Sicherung → Import behalten die Formatierung", async ({ browser, request }) => {
+  const LINK = BASE_URL + "/api/health?q=aufgabe";
+  const PLAIN1 = "Erkläre den Wasserkreislauf.\nNutze die Grafik auf dieser Seite";
+  const FMT1 = [[{ t: "Erkläre den " }, { t: "Wasserkreislauf", f: "b" }, { t: "." }], [{ t: "Nutze die Grafik auf " }, { t: "dieser Seite", h: LINK }]];
+  const FMT2 = [[{ t: "Beschreibe " }, { t: "einen", f: "i" }, { t: " Regentag." }]];
+  const TEXT3 = "Was passiert mit Pfützen in der Sonne?";
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Formatierte Aufgaben");
+  const r0 = tp.locator("#b-rows > tr").nth(0), q1 = tp.locator("#bq-1");
+  await expect(q1).toHaveClass(/is-empty/);
+  // Aufgabe 1: tippen, ein Wort per Strg+B fett, Zeilenumbruch, Link über die Werkzeugleiste der Aufgabenstellung
+  await q1.click();
+  await tp.keyboard.type("Erkläre den ");
+  await tp.keyboard.press("Control+B"); await tp.keyboard.type("Wasserkreislauf"); await tp.keyboard.press("Control+B");
+  await tp.keyboard.type(".");
+  await tp.keyboard.press("Enter");
+  await tp.keyboard.type("Nutze die Grafik auf dieser Seite");
+  for (let i = 0; i < "dieser Seite".length; i++) await tp.keyboard.press("Shift+ArrowLeft");
+  await r0.locator(".bq-bar .fmtbtn", { hasText: "Link" }).click();
+  await expect(tp.locator("#linkdlg")).toHaveClass(/open/);
+  await expect(tp.locator("#ld-text")).toHaveValue("dieser Seite");
+  await tp.fill("#ld-url", "javascript:alert(1)");
+  await tp.click("#ld-ok");
+  await expect(tp.locator("#ld-err")).toHaveText("Bitte eine gültige Adresse eingeben, z. B. https://www.beispiel.de");
+  await tp.fill("#ld-url", LINK);
+  await tp.keyboard.press("Enter");
+  await expect(tp.locator("#linkdlg")).not.toHaveClass(/open/);
+  await expect(q1.locator("b")).toHaveText("Wasserkreislauf");
+  await expect(q1.locator("a")).toHaveText("dieser Seite");
+  await expect(q1.locator("a")).toHaveAttribute("href", LINK);
+  await expect(q1).not.toHaveClass(/is-empty/);
+  await expect(r0.locator(".bmat-edit a, .bmat-edit b")).toHaveCount(0);   // das Material bleibt unberührt
+  // die Knöpfe der Aufgabenstellung folgen dem Cursor, die des Materials nicht
+  await q1.locator("b").click();
+  await expect(r0.locator(".bq-bar .fmtbtn", { hasText: "F" })).toHaveAttribute("aria-pressed", "true");
+  await expect(r0.locator('.bmat .fmtbtn[aria-pressed="true"]')).toHaveCount(0);
+  await tp.fill("#bs-1", "Achte darauf, ob Verdunstung und Niederschlag erklärt werden.");
+  // Aufgabe 2: HTML aus der Zwischenablage – nur fett/kursiv/unterstrichen und http(s)-Links bleiben (wie beim Material)
+  await tp.locator("#bq-2").click();
+  await tp.locator("#bq-2").evaluate((el) => {
+    const dt = new DataTransfer();
+    dt.setData("text/html", '<p style="color:red">Beschreibe <i>einen</i> <a href="javascript:alert(1)">Regen</a>tag.</p><script>window.__q = 1</script><img src="https://example.org/t.png">');
+    dt.setData("text/plain", "Beschreibe einen Regentag.");
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  await expect(tp.locator("#bq-2 i")).toHaveText("einen");
+  await expect(tp.locator("#bq-2 a, #bq-2 img, #bq-2 script")).toHaveCount(0);
+  expect(await tp.evaluate(() => window.__q)).toBeUndefined();
+  // Aufgabe 3: reiner Text (bleibt ohne textFmt)
+  await tp.fill("#bq-3", TEXT3);
+  await tp.fill("#bs-3", "Achte auf das Wort Verdunstung.");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const [row] = await d1Query(`SELECT tasks FROM sheets WHERE code='${code}'`);
+  expect(JSON.parse(row.tasks).map((x) => [x.text, x.textFmt])).toEqual([[PLAIN1, FMT1], ["Beschreibe einen Regentag.", FMT2], [TEXT3, undefined]]);
+  const pub = await (await request.get("/api/sheet/" + code)).json();
+  expect(pub.sheet.tasks.map((x) => [x.text, x.textFmt])).toEqual([[PLAIN1, FMT1], ["Beschreibe einen Regentag.", FMT2], [TEXT3, []]]);
+  expect(JSON.stringify(pub)).not.toMatch(/Verdunstung und Niederschlag|solution/);
+
+  // Schüler:in: fettes Wort und Link (neuer Tab, ohne Opener/Referrer); der übrige Text ist dann normal, damit Fett auffällt
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "jo", nachname: "wa", geb: "2010-04-04", klasse: "7c" });
+  await expect(page.locator("#q-1 b")).toHaveText("Wasserkreislauf");
+  const a = page.locator("#q-1 a");
+  await expect(a).toHaveAttribute("href", LINK);
+  await expect(a).toHaveAttribute("target", "_blank");
+  await expect(a).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(a.locator(".sr-only")).toHaveText("(öffnet in neuem Tab)");
+  await expect(page.locator("#q-1 p")).toHaveCount(2);   // zwei Zeilen wie im Editor
+  await expect(page.locator("#q-1")).toHaveClass(/has-b/);
+  expect(await page.$eval("#q-1", (e) => getComputedStyle(e).fontWeight)).toBe("400");
+  expect(await page.$eval("#q-1 b", (e) => getComputedStyle(e).fontWeight)).toBe("700");
+  await expect(page.locator("#q-2 i")).toHaveText("einen");
+  expect(await page.$eval("#q-2", (e) => getComputedStyle(e).fontWeight)).toBe("700");   // ohne Fettes bleibt die Aufgabenstellung fett
+  await expect(page.locator("#q-3")).toHaveText(TEXT3);
+  await expect(page.locator("#q-3")).not.toHaveClass(/qtext/);
+  expect(await page.$eval("#q-1", (e) => getComputedStyle(e).fontFamily)).toBe(await page.$eval("#q-3", (e) => getComputedStyle(e).fontFamily));
+  // KI: die Aufgabenstellung nur als reiner Text – ohne Formatierung und ohne Link-Adresse
+  for (let i = 1; i <= 3; i++) await typeAt(page, "#a-" + i, "Wasser verdunstet in der Sonne.");
+  await mockReset();
+  await requestFeedback(page);
+  const prompt = (await mockState()).requests[0].messages.map((m) => m.content).join("\n");
+  expect(prompt).toContain("### Aufgabe 1\nAufgabenstellung:\n<<<\n" + PLAIN1 + "\n>>>");
+  expect(prompt).toContain("### Aufgabe 3\nAufgabenstellung:\n<<<\n" + TEXT3 + "\n>>>");
+  expect(prompt).not.toContain("/api/health");
+  expect(prompt).not.toMatch(/<b>|"f":|textFmt/);
+  await submit(page);
+  await closePage(s);
+
+  // Lehrkraft: Blattdetails und Abgaben-Details zeigen die Formatierung, Links in neuem Tab
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  const si0 = tp.locator("#t-sel-tasks .si").nth(0);
+  await expect(si0.locator(".qtext b")).toHaveText("Wasserkreislauf");
+  await expect(si0.locator(".qtext a")).toHaveAttribute("target", "_blank");
+  await expect(tp.locator("#t-sel-tasks .si").nth(2).locator(".qtext")).toHaveCount(0);
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(1);
+  await tp.locator("#t-subs-body tr.main").nth(0).click();
+  const dt0 = tp.locator("#t-subs-body tr.details:visible .dtask").nth(0);
+  await expect(dt0.locator(".dtask-text b")).toHaveText("Wasserkreislauf");
+  await expect(dt0.locator(".dtask-text a")).toHaveAttribute("rel", "noopener noreferrer");
+  expect(await tp.locator("#t-subs-body tr.details:visible .dtask").nth(2).locator(".dtask-text").textContent()).toBe(TEXT3);
+
+  // „Als Vorlage verwenden“ übernimmt die Formatierung in den Editor
+  await tp.click("#t-template");
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(tp.locator("#bq-1 b")).toHaveText("Wasserkreislauf");
+  await expect(tp.locator("#bq-1 a")).toHaveAttribute("href", LINK);
+  await expect(tp.locator("#bq-3")).toHaveText(TEXT3);
+  await tp.click("#b-back");   // nichts geändert → ohne Rückfrage
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+
+  // Sicherung: Datensatz mit textFmt (nur bei formatierten Aufgaben); Import → Editor formatiert → neues Blatt mit derselben Formatierung
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  const [dl] = await Promise.all([tp.waitForEvent("download"), tp.click("#t-export")]);
+  const pdf = await readFile(await dl.path()), rec = sheetRecordOf(pdf);
+  expect(rec.tasks.map((x) => [x.text, x.textFmt])).toEqual([[PLAIN1, FMT1], ["Beschreibe einen Regentag.", FMT2], [TEXT3, undefined]]);
+  await tp.setInputFiles("#t-import-file", { name: "Formatiert.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(tp.locator("#b-err")).toHaveText("");
+  await expect(tp.locator("#bq-1 b")).toHaveText("Wasserkreislauf");
+  await expect(tp.locator("#bq-1 a")).toHaveAttribute("href", LINK);
+  await expect(tp.locator("#bq-1")).toHaveText(PLAIN1, { useInnerText: true });
+  await expect(tp.locator("#bq-2 i")).toHaveText("einen");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown2 = (await tp.locator("#b-res-code").textContent()).trim();
+  expect(shown2).not.toBe(shown);
+  const pub2 = await (await request.get("/api/sheet/" + shown2.replace("-", ""))).json();
+  expect(pub2.sheet.tasks.map((x) => [x.text, x.textFmt])).toEqual(pub.sheet.tasks.map((x) => [x.text, x.textFmt]));
+
+  // aufräumen: beide Blätter löschen
+  await tp.click("#b-res-back");
+  for (const c of [shown2, shown]) {
+    await tp.locator("#t-sheets-body tr", { hasText: c }).click();
+    await expect(tp.locator("#t-sel-code")).toHaveText(c);
+    await tp.click("#t-del-sheet");
+    await confirmDialog(tp, "Feibeitsblatt löschen?");
+    await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  }
+  await closePage(t);
+});
 
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {
   const t = await openPage(browser);
