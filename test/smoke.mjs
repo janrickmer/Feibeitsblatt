@@ -239,7 +239,7 @@ async function main() {
     const tasks = [
       { text: "Erkläre, wie Pflanzen Energie gewinnen.", solution: "- Photosynthese findet in den Chloroplasten statt\n- Licht wird als Energiequelle benötigt\n- Sauerstoff entsteht als Nebenprodukt" },
       { text: "Was hat dir heute am besten gefallen?", solution: "" },
-      { text: "Warum trocknet eine Pfütze?", solution: "Wasser verdunstet durch Wärme" },
+      { text: "Warum trocknet eine Pfütze?", solution: "Achte darauf, ob die Verdunstung durch Wärme erklärt wird. Verrate die Lösung nicht." },   // Auftrag an die KI
     ];
     expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: [] }, { auth }), 400, "bad_request");
     expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: Array.from({ length: 31 }, () => ({ text: "a" })) }, { auth }), 400, "bad_request");
@@ -259,7 +259,7 @@ async function main() {
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 0);
     r = await api("GET", "/api/teacher/sheets/" + code.toLowerCase(), undefined, { auth });
     assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, material: [], images: [], files: [], answer: { type: "text" } })));
-    ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Musterlösungen");
+    ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Aufträgen an die KI");
 
     step = "Bilder zu Aufgaben";
     const png = makePng(640, 400), pngBig = makePng(1200, 900, (x, y) => [x & 255, (y >> 3) & 255, 90]);
@@ -347,13 +347,13 @@ async function main() {
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }]);   // Empfänger für den Datenschutzhinweis
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
-    for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Musterlösung im öffentlichen JSON!");
+    for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Auftrag an die KI im öffentlichen JSON!");
     assert.equal(/solution|musterl/i.test(r.text), false);
     r = await api("GET", "/api/sheet/ZZZZZ9"); misses++;
     expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);
     r = await api("GET", "/api/sheet/1104"); misses++;
     expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);
-    ok("GET /api/sheet: nur Aufgabentexte (keine Musterlösung), Schlüssel, Anbieter; unbekannt → 404");
+    ok("GET /api/sheet: nur Aufgabentexte (kein Auftrag an die KI), Schlüssel, Anbieter; unbekannt → 404");
 
     step = "Antwortarten";
     {
@@ -375,7 +375,7 @@ async function main() {
       assert.deepEqual(pa.items.map((it) => [it.id, it.label, it.hint, it.image, it.checks.length]), [["kaffee", "Kaffee", undefined, "00000000000000c1", 2], ["tee", "Tee", "Blätter", undefined, 1]]);
       assert.equal(pa.items[0].checks[0], createHash("sha256").update(wc + "|kaffee|076").digest("hex"));
       assert.deepEqual(r.json.sheet.tasks[1].answer, { type: "table", columns: ["Produkt", "Land / Ort"], rows: 2 });
-      assert.equal(/Brasilien|Vietnam|Indien|countries|verworfen/.test(r.text), false, "Länder oder Musterlösung im öffentlichen JSON");
+      assert.equal(/Brasilien|Vietnam|Indien|countries|verworfen/.test(r.text), false, "Länder oder Auftrag an die KI im öffentlichen JSON");
       assert.equal(r.json.sheet.tasks[0].images.filter((m) => m.mode === "card").length, 2);
       r = await api("GET", "/api/teacher/sheets/" + wc, undefined, { auth });
       assert.deepEqual(r.json.sheet.tasks[0].answer, answer); assert.equal(r.json.sheet.tasks[0].solution, "");
@@ -397,21 +397,27 @@ async function main() {
     assert.deepEqual(r.json.results, expectedResults(tasks, answers));
     assert.deepEqual(r.json.results, [
       { covered: ["Photosynthese findet in den Chloroplasten statt", "Licht wird als Energiequelle benötigt"], missing: ["Sauerstoff entsteht als Nebenprodukt"] },
-      { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es keine Musterlösung." },
-      { covered: [], missing: ["Wasser verdunstet durch Wärme"] },
+      { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." },
+      { covered: [], missing: ["Achte darauf, ob die Verdunstung durch Wärme erklärt wird", "Verrate die Lösung nicht"] },
     ]);
     assert.equal(mock.state.requests.length, 1, "eine KI-Anfrage je Blatt");
     const sent = mock.state.requests[0].messages.map((m) => m.content).join("\n");
     assert.match(sent, /### Aufgabe 1\n/); assert.match(sent, /### Aufgabe 3\n/); assert.doesNotMatch(sent, /### Aufgabe 2\n/);
-    assert.equal(sent.includes(tasks[1].text), false, "Aufgabe ohne Musterlösung geht nicht an die KI");
+    assert.equal(sent.includes(tasks[1].text), false, "Aufgabe ohne Auftrag an die KI geht nicht an die KI");
+    // Format: erst Aufgaben, Material und Aufträge der Lehrkraft, dann die Antworten, zuletzt der Schlusssatz
+    assert.ok(sent.includes("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 1, 3):\n\n### Aufgabe 1\n"), sent);
+    assert.ok(sent.includes("Auftrag der Lehrkraft für das Feedback:\n<<<\n" + tasks[2].solution + "\n>>>\n\nAntworten der Schülerin bzw. des Schülers:\n\n### Antwort zu Aufgabe 1\n"), sent);
+    assert.ok(sent.endsWith("\n\nGib für jede der 2 Aufgaben (Nummern: 1, 3) dein Feedback als JSON zurück."), sent);
+    assert.equal(/Musterlösung der Lehrkraft|Kernpunkte/.test(mock.state.requests[0].messages[1].content), false);
+    assert.match(mock.state.requests[0].messages[0].content, /"gut":\[.*"tipps":\[/);
     assert.deepEqual(mock.state.requests[0].response_format, { type: "json_object" });
     expectErr(await api("POST", "/api/feedback", { code, answers: ["a"] }), 400, "bad_answers"); feedbackCount++;
     expectErr(await api("POST", "/api/feedback", { code, answers: ["a".repeat(8001), "", ""] }), 400, "too_long"); feedbackCount++;
     expectErr(await api("POST", "/api/feedback", { code, answers: [1, "", ""] }), 400, "bad_answers"); feedbackCount++;
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found"); feedbackCount++;
     r = await api("POST", "/api/feedback", { code: otherCode, answers: ["egal"] }); feedbackCount++;
-    assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es keine Musterlösung." }] });
-    ok("Feedback: eine KI-Anfrage, grün/rot wie erwartet, Aufgabe ohne Musterlösung mit Hinweis; Längenprüfungen");
+    assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }] });
+    ok("Feedback: eine KI-Anfrage im neuen Format (Auftrag der Lehrkraft), gut/tipps wie erwartet, Aufgabe ohne Auftrag mit Hinweis; Längenprüfungen");
 
     mock.setMode("fenced");
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;

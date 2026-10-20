@@ -107,8 +107,10 @@ test("validateSheetInput: trimming, defaults, limits", () => {
   rejectsWith(() => validateSheetInput({ tasks: [{ text: "a".repeat(4001) }] }), "bad_request");
   assert.equal(validateSheetInput({ tasks: [{ text: "a".repeat(4000), solution: "b".repeat(8000) }] }).tasks[0].solution.length, 8000);
   rejectsWith(() => validateSheetInput({ tasks: [{ text: "a", solution: "b".repeat(8001) }] }), "bad_request");
+  assert.throws(() => validateSheetInput({ tasks: [{ text: "a", solution: "b".repeat(8001) }] }), { message: "Aufgabe 1: Der Auftrag an die KI ist zu lang (höchstens 8000 Zeichen)." });
   rejectsWith(() => validateSheetInput({ title: "t".repeat(201), tasks: [{ text: "a" }] }), "bad_request");
   rejectsWith(() => validateSheetInput({ tasks: [{ text: "a", solution: 5 }] }), "bad_request");
+  assert.throws(() => validateSheetInput({ tasks: [{ text: "a", solution: 5 }] }), { message: "Aufgabe 1: Der Auftrag an die KI muss ein Text sein." });
   rejectsWith(() => validateSheetInput({ tasks: "a" }), "bad_request");
   assert.equal(validateSheetInput({ tasks: [{ text: "a\u0000b\u0007" }] }).tasks[0].text, "ab");
 });

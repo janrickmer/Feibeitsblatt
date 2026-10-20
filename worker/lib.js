@@ -181,12 +181,12 @@ export function validateSheetInput(body, now = Date.now()) {
   const tasks = body.tasks.map((t, i) => {
     const n = i + 1;
     if (!isObj(t) || typeof t.text !== "string") throw new InputError("Aufgabe " + n + ": Aufgabenstellung fehlt.");
-    if (t.solution != null && typeof t.solution !== "string") throw new InputError("Aufgabe " + n + ": Die Musterlösung muss ein Text sein.");
+    if (t.solution != null && typeof t.solution !== "string") throw new InputError("Aufgabe " + n + ": Der Auftrag an die KI muss ein Text sein.");
     const answer = validateAnswerSpec(t.answer, n), isMap = !!answer && answer.type === "map";
-    const text = cleanText(t.text).trim(), solution = isMap ? "" : cleanText(t.solution || "").trim();   // Weltkarte: keine Musterlösung, kein KI-Feedback
+    const text = cleanText(t.text).trim(), solution = isMap ? "" : cleanText(t.solution || "").trim();   // solution = Auftrag an die KI; Weltkarte: keiner, kein KI-Feedback
     if (!text) throw new InputError("Aufgabe " + n + ": Bitte eine Aufgabenstellung eintragen.");
     if (text.length > LIMITS.taskText) throw new InputError("Aufgabe " + n + ": Die Aufgabenstellung ist zu lang (höchstens " + LIMITS.taskText + " Zeichen).");
-    if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Die Musterlösung ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
+    if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Der Auftrag an die KI ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
     const material = validateMaterial(t.material, n);
     const task = { text, solution };
     if (material.length) task.material = material;

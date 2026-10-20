@@ -230,7 +230,7 @@ test("answer types: table + map stored, public view has only checks, card images
   assert.equal(pub[0].images.filter((m) => m.mode === "card").length, 40);
   r = await call("GET", "/api/teacher/sheets/" + c, { auth });
   assert.deepEqual(r.json.sheet.tasks[0].answer, answer);
-  assert.equal(r.json.sheet.tasks[0].solution, "");   // Weltkarte: keine Musterlösung
+  assert.equal(r.json.sheet.tasks[0].solution, "");   // Weltkarte: kein Auftrag an die KI
   // KI: nur Aufgabe 2 (Tabelle) mit der Zeile zu den Spalten; die Weltkarte geht nie an die KI
   const before = mock.state.requests.length;
   r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Kaffee → Brasilien\nZugeordnet: 1 von 2", "Produkt | Land\nWeizen | Indien"], recipients: ["custom:127.0.0.1:" + mock.port] } });
@@ -238,7 +238,7 @@ test("answer types: table + map stored, public view has only checks, card images
   const prompt = mock.state.requests.slice(before).map((q) => JSON.stringify(q.body || q)).join("\n");
   assert.match(prompt, /### Antwort zu Aufgabe 2\\nAntwort als Tabelle mit den Spalten: Produkt, Land\\n<<<\\nProdukt \| Land/);
   assert.equal(/Aufgabe 1|Brasilien/.test(prompt), false);
-  assert.equal(r.json.results[0].note, "Zu dieser Aufgabe gibt es keine Musterlösung.");
+  assert.equal(r.json.results[0].note, "Zu dieser Aufgabe gibt es kein KI-Feedback.");
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", answer: { type: "table", columns: ["A"], rows: 99 } }] } });
   assert.equal(r.status, 400); assert.match(r.json.error, /^Aufgabe 1: Die Tabelle braucht 1 bis 30 Zeilen/);
   await call("DELETE", "/api/teacher/sheets/" + c, { auth });
@@ -473,7 +473,7 @@ test("gemini needs the billing confirmation (EEA terms) before a key is stored",
   assert.equal(r.status, 200);
 });
 
-test("feedback: one AI call, expected covered/missing, ≤ 50 D1 queries", async () => {
+test("feedback: one AI call, expected covered/missing (= gut/tipps of the mock), ≤ 50 D1 queries", async () => {
   mock.reset();
   const answers = ["Licht ist wichtig für die photosynthese", ""];
   const r = await call("POST", "/api/feedback", { body: { code, answers } });
@@ -616,7 +616,7 @@ test("stored key is never sent to another provider/host: new provider or base UR
   assert.equal(r.json.hasKey, true); assert.equal(r.json.provider, "custom");   // unverändert
 });
 
-test("feedback without configured AI → 503; sheet without solutions needs no AI", async () => {
+test("feedback without configured AI → 503; sheet without instructions for the AI needs no AI", async () => {
   d1.db.prepare("DELETE FROM settings WHERE key='ai'").run();
   let r = await call("GET", "/api/sheet/" + code);
   assert.equal(r.json.sheet.aiProvider, null);
@@ -624,7 +624,7 @@ test("feedback without configured AI → 503; sheet without solutions needs no A
   assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured");
   const c2 = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "", tasks: [{ text: "Frei" }] } })).json.code;
   r = await call("POST", "/api/feedback", { body: { code: c2, answers: ["egal"] } });
-  assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es keine Musterlösung." }] });
+  assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }] });
 });
 
 test("lockouts count only failures per (hashed) IP; correct door code and password always pass; IPv6 by /64", async () => {

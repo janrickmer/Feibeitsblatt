@@ -672,7 +672,7 @@ async function routePublicSheet(c, codeRaw) {
   const aiProvider = usable.length && usable[0] === ai ? providerLabel(ai.provider, ai.baseUrl) : null;
   const aiRecipients = usable.map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl) }));
   const aiReserve = usable.length > 1 ? providerLabel(usable[1].provider, usable[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
-  // Niemals Musterlösungen ausliefern: nur Aufgabentext und Bild-Metadaten verlassen den Server; die Länder einer Weltkarten-
+  // Niemals Aufträge an die KI (solution) ausliefern: nur Aufgabentext und Bild-Metadaten verlassen den Server; die Länder einer Weltkarten-
   // Zuordnung nur als Prüfwerte (SHA-256 von Code|Karte|Land), Kartenbilder nur, wenn sie zu dieser Aufgabe gespeichert sind
   const tasks = await Promise.all(parseTasks(s.tasks).map(async (t, i) => {
     const images = imagesForTask(im.results, i + 1);
@@ -704,7 +704,7 @@ async function routeFeedback(c) {
   const tasks = parseTasks(s.tasks);
   const answers = validateAnswers(body.answers, tasks.length);
   const { messages, nrs } = buildFeedbackMessages(tasks, answers);
-  if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()) });   // keine Musterlösung: keine KI nötig
+  if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()) });   // kein Auftrag an die KI: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
   let entries = [ai, ai.reserve].filter((e) => e && e.apiKey);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
   if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);

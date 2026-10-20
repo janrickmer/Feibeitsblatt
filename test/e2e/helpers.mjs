@@ -9,7 +9,7 @@ import { E2E_STATE, MOCK_URL, ROOT } from "./env.mjs";
 
 export const PASTE_MSG = "Einfügen aus der Zwischenablage ist hier nicht erlaubt – bitte selbst tippen.";
 export const UNKNOWN_CODE_MSG = "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code.";
-export const NO_SOLUTION_NOTE = "Zu dieser Aufgabe gibt es keine Musterlösung.";
+export const NO_SOLUTION_NOTE = "Zu dieser Aufgabe gibt es kein KI-Feedback.";
 export const GREEN = "rgb(31, 107, 42)", RED = "rgb(179, 38, 30)";
 
 /* ---------- LanguageTool-Attrappe (Antwortformat wie /v2/check) ---------- */

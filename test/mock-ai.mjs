@@ -4,8 +4,9 @@
 // Modul:  const mock = await startMockAI({ port: 8812 }); … mock.setMode("429"); … await mock.close();
 // Worker: KI-Anbieter „custom“, baseUrl http://127.0.0.1:<port>/v1, beliebiger API-Schlüssel („bad“ → HTTP 401).
 //
-// Feedback-Regel: Ein Kernpunkt (Zeile/Stichpunkt der Musterlösung) gilt als „angesprochen“, wenn die Antwort sein
-// erstes bedeutungstragendes Wort (≥ 4 Buchstaben, kein Füllwort) enthält – ohne Groß-/Kleinschreibung; sonst „fehlt“.
+// Feedback-Regel: Jede Zeile (jeder Stichpunkt) des Auftrags der Lehrkraft wird wörtlich zu einem Stichpunkt des Feedbacks –
+// unter „gut“, wenn die Antwort das erste bedeutungstragende Wort der Zeile (≥ 4 Buchstaben, kein Füllwort) enthält (ohne
+// Groß-/Kleinschreibung), sonst unter „tipps“. So lassen sich die Listen in Tests vorhersagen (expectedResults).
 //
 // Modi (MOCK_AI_MODE, POST /__mock/mode {"mode","delayMs"}):
 //   ok (Vorgabe) · fenced (<think> + ```json-Zaun) · badjson · 429 (Tageslimit, hart) · 429soft (RPM, Retry-After 1 s)
@@ -27,18 +28,19 @@ const STOP = new Set(("aber alle allem allen aller alles also auch auf aus bei b
 export function parseFeedbackPrompt(text) {
   const s = String(text || "");
   const grab = (seg, label) => { const m = new RegExp(label + "[^\\n]*\\n<<<\\n([\\s\\S]*?)\\n?>>>").exec(seg); return m ? m[1] : ""; };
-  // Antworten stehen gesammelt am Ende (Präfix-Caching); davor Aufgaben, Material (optional) und Musterlösungen
+  // Antworten stehen gesammelt am Ende (Präfix-Caching); davor Aufgaben, Material (optional) und Aufträge der Lehrkraft
   const ap = s.split(/^### Antwort zu Aufgabe (\d+)[ \t]*$/m), answers = new Map();
   for (let i = 1; i < ap.length; i += 2) { const m = /^<<<\n([\s\S]*?)\n?>>>/m.exec(ap[i + 1]); answers.set(Number(ap[i]), m ? m[1] : ""); }
   const parts = ap[0].split(/^### Aufgabe (\d+)[ \t]*$/m);
   const out = [];
   for (let i = 1; i < parts.length; i += 2) {
     const seg = parts[i + 1], nr = Number(parts[i]);
-    out.push({ nr, task: grab(seg, "Aufgabenstellung:"), material: grab(seg, "Material zur Aufgabe"), solution: grab(seg, "Musterlösung der Lehrkraft:"), answer: answers.has(nr) ? answers.get(nr) : "" });
+    out.push({ nr, task: grab(seg, "Aufgabenstellung:"), material: grab(seg, "Material zur Aufgabe"), solution: grab(seg, "Auftrag der Lehrkraft für das Feedback:"), answer: answers.has(nr) ? answers.get(nr) : "" });
   }
   return out;
 }
-export function keypointsOf(solution) {
+// Zeilen des Auftrags (ein einzeiliger Auftrag: seine Sätze) ohne Aufzählungszeichen, höchstens 8
+export function pointsOf(solution) {
   let lines = String(solution).split(/\n+/).map((l) => l.replace(/^\s*(?:[-–•*·]+|\d{1,2}[.)])\s*/, "").trim()).filter(Boolean);
   if (lines.length === 1) lines = lines[0].split(/(?<=[.!?;])\s+/).map((s) => s.trim()).filter(Boolean);
   return lines.map((l) => l.replace(/[.;]+$/, "")).slice(0, 8);
@@ -50,21 +52,22 @@ export function firstSignificantWord(point) {
 export function mockFeedback(blocks) {
   return {
     aufgaben: blocks.map((b) => {
-      const answer = b.answer.toLowerCase(), angesprochen = [], fehlt = [];
-      for (const p of keypointsOf(b.solution)) {
+      const answer = b.answer.toLowerCase(), gut = [], tipps = [];
+      for (const p of pointsOf(b.solution)) {
         const w = firstSignificantWord(p).toLowerCase();
-        (w && answer.includes(w) ? angesprochen : fehlt).push(p);
+        (w && answer.includes(w) ? gut : tipps).push(p);
       }
-      return { nr: b.nr, angesprochen, fehlt };
+      return { nr: b.nr, gut, tipps };
     }),
   };
 }
-// Erwartetes Ergebnis für Tests: tasks [{text, solution}], answers [string] → results wie /api/feedback
+// Erwartetes Ergebnis für Tests: tasks [{text, solution (= Auftrag an die KI)}], answers [string] → results wie /api/feedback
+// (covered = „gut“, missing = „tipps“)
 export function expectedResults(tasks, answers) {
   return tasks.map((t, i) => {
-    if (!String(t.solution || "").trim()) return { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es keine Musterlösung." };
+    if (!String(t.solution || "").trim()) return { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." };
     const fb = mockFeedback([{ nr: i + 1, solution: String(t.solution).trim(), answer: String(answers[i] || "").trim() }]).aufgaben[0];
-    return { covered: fb.angesprochen, missing: fb.fehlt };
+    return { covered: fb.gut, missing: fb.tipps };
   });
 }
 
@@ -120,7 +123,7 @@ export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs 
         const user = messages.filter((m) => m && m.role === "user").map((m) => String(m.content || "")).join("\n");
         const blocks = parseFeedbackPrompt(user);
         let content = blocks.length ? JSON.stringify(mockFeedback(blocks)) : JSON.stringify({ ok: true, antwort: "Verbindung steht." });
-        if (state.mode === "fenced") content = "<think>Ich prüfe die Kernpunkte.</think>\n```json\n" + content + "\n```";
+        if (state.mode === "fenced") content = "<think>Ich lese den Auftrag der Lehrkraft.</think>\n```json\n" + content + "\n```";
         if (state.mode === "badjson") content = "Das ist leider kein JSON.";
         return send(res, 200, { id: "mock-" + state.requests.length, object: "chat.completion", created: Math.floor(Date.now() / 1000), model: body.model || "mock",
           choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } });
