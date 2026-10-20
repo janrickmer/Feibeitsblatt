@@ -107,8 +107,10 @@ test("validateSheetInput: trimming, defaults, limits", () => {
   rejectsWith(() => validateSheetInput({ tasks: [{ text: "a".repeat(4001) }] }), "bad_request");
   assert.equal(validateSheetInput({ tasks: [{ text: "a".repeat(4000), solution: "b".repeat(8000) }] }).tasks[0].solution.length, 8000);
   rejectsWith(() => validateSheetInput({ tasks: [{ text: "a", solution: "b".repeat(8001) }] }), "bad_request");
+  assert.throws(() => validateSheetInput({ tasks: [{ text: "a", solution: "b".repeat(8001) }] }), { message: "Aufgabe 1: Der Auftrag an die KI ist zu lang (höchstens 8000 Zeichen)." });
   rejectsWith(() => validateSheetInput({ title: "t".repeat(201), tasks: [{ text: "a" }] }), "bad_request");
   rejectsWith(() => validateSheetInput({ tasks: [{ text: "a", solution: 5 }] }), "bad_request");
+  assert.throws(() => validateSheetInput({ tasks: [{ text: "a", solution: 5 }] }), { message: "Aufgabe 1: Der Auftrag an die KI muss ein Text sein." });
   rejectsWith(() => validateSheetInput({ tasks: "a" }), "bad_request");
   assert.equal(validateSheetInput({ tasks: [{ text: "a\u0000b\u0007" }] }).tasks[0].text, "ab");
 });
@@ -300,6 +302,34 @@ test("validateSheetInput nimmt Material je Aufgabe mit (nur wenn vorhanden) und 
   assert.equal("material" in r.tasks[1], false); assert.equal("material" in r.tasks[2], false);
   assert.equal(materialText(r.tasks[0].material), "Hallo Welt\n\nLink");
   assert.equal(materialText(undefined), ""); assert.equal(materialText([[{ t: "  x " }]]), "x");
+});
+
+test("validateSheetInput: formatierte Aufgabenstellung (textFmt) wie Material – text abgeleitet, nur Formatiertes gespeichert, Grenzen der Aufgabenstellung", () => {
+  const fmt = [[{ t: "Lies den " }, { t: "Text", f: "b" }, { t: " auf " }, { t: "dieser Seite", h: "HTTPS://Beispiel.de/x" }, { t: "." }], [], [{ t: "Antworte\tdann.", f: "ib" }], []];
+  const r = validateSheetInput({ tasks: [{ text: "veraltet", textFmt: fmt, solution: "k" }, { text: "egal", textFmt: [[{ t: " Nur " }, { t: "Text " }]] }, { text: " Drei " }, { textFmt: [[{ t: "Ohne text-Feld", f: "u" }]] }] });
+  assert.deepEqual(r.tasks[0], { text: "Lies den Text auf dieser Seite.\n\nAntworte dann.", solution: "k",
+    textFmt: [[{ t: "Lies den " }, { t: "Text", f: "b" }, { t: " auf " }, { t: "dieser Seite", h: "https://beispiel.de/x" }, { t: "." }], [], [{ t: "Antworte dann.", f: "bi" }]] });
+  assert.deepEqual(r.tasks[1], { text: "Nur Text", solution: "" });   // nichts formatiert oder verlinkt → nur der reine Text
+  assert.deepEqual(r.tasks[2], { text: "Drei", solution: "" });
+  assert.deepEqual(r.tasks[3], { text: "Ohne text-Feld", solution: "", textFmt: [[{ t: "Ohne text-Feld", f: "u" }]] });
+  assert.deepEqual(validateSheetInput({ tasks: [{ text: "A", textFmt: [] }] }).tasks[0], { text: "A", solution: "" });   // leeres textFmt → text gilt
+  assert.equal(validateSheetInput({ tasks: [{ text: "a", textFmt: [[{ t: "x".repeat(LIMITS.taskText), f: "b" }]] }] }).tasks[0].text.length, LIMITS.taskText);
+  const msg = (tasks, message) => assert.throws(() => validateSheetInput({ tasks }), (e) => e instanceof InputError && e.status === 400 && e.message === message);
+  msg([{ text: "A" }, { text: "B", textFmt: [[{ t: "B", h: "javascript:alert(1)" }]] }], "Aufgabe 2: Ein Link in der Aufgabenstellung ist ungültig (erlaubt sind nur Adressen mit http:// oder https://).");
+  msg([{ text: "B", textFmt: [[{ t: "B", h: "data:text/html,x" }]] }], "Aufgabe 1: Ein Link in der Aufgabenstellung ist ungültig (erlaubt sind nur Adressen mit http:// oder https://).");
+  msg([{ text: "A", textFmt: [[{ t: "x".repeat(LIMITS.taskText + 1), f: "b" }]] }], "Aufgabe 1: Die Aufgabenstellung ist zu lang (höchstens 4000 Zeichen).");
+  msg([{ text: "A", textFmt: [[{ t: "x".repeat(2000), f: "b" }], [{ t: "y".repeat(2000) }]] }], "Aufgabe 1: Die Aufgabenstellung ist zu lang (höchstens 4000 Zeichen).");   // mit Zeilenumbruch 4001
+  msg([{ text: "A", textFmt: "<b>A</b>" }], "Aufgabe 1: Die Aufgabenstellung hat ein ungültiges Format.");
+  msg([{ text: "A", textFmt: [[{ t: 5 }]] }], "Aufgabe 1: Die Aufgabenstellung hat ein ungültiges Format.");
+  msg([{ text: "A", textFmt: Array.from({ length: LIMITS.materialParagraphs + 1 }, () => [{ t: "a" }]) }], "Aufgabe 1: Die Aufgabenstellung hat zu viele Absätze (höchstens 200).");
+  msg([{ text: "A", textFmt: [Array.from({ length: LIMITS.materialRuns + 1 }, (_, i) => ({ t: "a", f: i % 2 ? "b" : "" }))] }], "Aufgabe 1: Die Aufgabenstellung ist zu kleinteilig formatiert (höchstens 600 Abschnitte).");
+  msg([{ text: "A", textFmt: [Array.from({ length: LIMITS.materialLinks + 1 }, (_, i) => ({ t: "a", h: "https://x.de/" + i }))] }], "Aufgabe 1: Zu viele Links in der Aufgabenstellung (höchstens 60).");
+  msg([{ text: "A", textFmt: [[{ t: " \n ", f: "b" }]] }], "Aufgabe 1: Bitte eine Aufgabenstellung eintragen.");
+  msg([{ solution: "x" }], "Aufgabe 1: Aufgabenstellung fehlt.");
+  msg([{ text: 5, textFmt: [] }], "Aufgabe 1: Bitte eine Aufgabenstellung eintragen.");
+  // das Material behält seine eigene Grenze und seinen Wortlaut
+  assert.throws(() => validateMaterial([[{ t: "x".repeat(LIMITS.material + 1) }]], 1), { message: "Aufgabe 1: Das Material ist zu lang (höchstens 8000 Zeichen)." });
+  assert.throws(() => validateMaterial([[{ t: "x", h: "ftp://x.de" }]], 2), { message: "Aufgabe 2: Ein Link im Material ist ungültig (erlaubt sind nur Adressen mit http:// oder https://)." });
 });
 
 /* ---------- Antwortarten (Tabelle, Weltkarten-Zuordnung) ---------- */

@@ -218,21 +218,30 @@
   .filebtn .spinner{display:none; margin:0}
   .filebtn.loading .spinner{display:inline-block}
   .material p{margin:0 0 .55em; overflow-wrap:anywhere}
-  .material a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
-  .material a:hover{color:var(--accent2)}
-  .material a::after{content:"\00a0↗" / ""; font-size:.75em; color:var(--muted)}   /* nur sichtbar, nicht vorgelesen */
+  .material a,.qtext a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
+  .material a:hover,.qtext a:hover{color:var(--accent2)}
+  .material a::after,.qtext a::after{content:"\00a0↗" / ""; font-size:.75em; color:var(--muted)}   /* nur sichtbar, nicht vorgelesen */
   .si .material{font-family:var(--serif); font-size:15.5px; margin:4px 0 0; padding:6px 12px 2px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px}
   .solist .si .material p{margin:0 0 .45em; white-space:normal}
-  /* Material-Editor der Lehrkraft */
+  /* Formatierte Aufgabenstellung (textFmt): Absätze wie die Zeilen des reinen Textes (gleiche Schrift und Abstände). Die
+     Aufgabenstellung steht fett – enthält sie fett gesetzte Stellen, ist der übrige Text normal, sonst fiele Fett nicht auf. */
+  .qtext p{margin:0; overflow-wrap:anywhere}
+  .qtext.has-b{font-weight:400}
+  .qtext b{font-weight:700}
+  /* Formatierbarer Text der Lehrkraft: Aufgabenstellung und Material (derselbe Editor) */
   .bmat{margin:8px 0 0; font-family:var(--sans)}
-  .bmat-bar{display:flex; flex-wrap:wrap; gap:4px; margin:0 0 4px}
+  .fmt-bar{display:flex; flex-wrap:wrap; gap:4px; margin:0 0 4px}
   .fmtbtn{min-width:34px; height:30px; padding:0 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper2); font:14px var(--sans); color:var(--ink); cursor:pointer}
   .fmtbtn:hover{background:var(--soft)}
-  .bmat-edit{position:relative; min-height:64px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--paper); font-family:var(--serif); font-size:17px; line-height:1.6; outline:none; overflow-wrap:anywhere; white-space:pre-wrap}
-  .bmat-edit:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
-  .bmat-edit.is-empty::before{content:attr(data-placeholder); position:absolute; left:13px; right:13px; top:9px; color:#756c60; font-family:var(--serif); pointer-events:none}
-  .bmat-edit a{color:var(--accent); text-decoration:underline}
-  .bmat .fhint{margin:4px 0 0}
+  .fmt-edit{position:relative; border:1px solid var(--line); background:var(--paper); font-family:var(--serif); color:var(--ink); outline:none; overflow-wrap:anywhere; white-space:pre-wrap; transition:border-color .15s, box-shadow .15s}
+  .bmat-edit{min-height:64px; padding:9px 13px; border-radius:9px; font-size:17px; line-height:1.6}
+  .bq-edit{min-height:calc(3 * 1.5em + 18px); padding:8px 10px; border-radius:8px; font-size:16px; line-height:1.5}   /* wie das frühere Textfeld */
+  .fmt-edit:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
+  .fmt-edit.invalid{border-color:var(--red); box-shadow:0 0 0 3px rgba(179,38,30,.14)}
+  .fmt-edit.is-empty::before{content:attr(data-placeholder); position:absolute; left:13px; right:13px; top:9px; color:#756c60; font-family:var(--serif); pointer-events:none}
+  .bq-edit.is-empty::before{left:10px; right:10px; top:8px}
+  .fmt-edit a{color:var(--accent); text-decoration:underline}
+  .bmat .fhint,.bq .fhint{margin:4px 0 0}
   #linkdlg .field{margin:0 0 12px}
   #linkdlg p.err{margin:0 0 10px; min-height:1.3em}
   #linkdlg p.fhint{margin:5px 0 0; font-size:12.5px; line-height:1.45}
@@ -480,6 +489,8 @@
   .solist .si:last-child{border-bottom:0}
   .solist .si p{margin:2px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font-family:var(--serif); font-size:15.5px}
   .solist .si .sol{color:var(--muted)}
+  .solist .si .qtext{margin:2px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font-family:var(--serif); font-size:15.5px}
+  .solist .si .qtext p{margin:0}
   .subhead{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:26px 0 10px}
   .subhead h3{margin:0}
   .detbox{max-width:100%; contain:inline-size}
@@ -499,7 +510,7 @@
   .dfb .fb-miss{color:var(--red)}
   .dfb ul{margin:0; padding-left:18px}
   .dangerzone{margin-top:34px; padding-top:20px; border-top:1px solid var(--line); display:flex; flex-direction:column; align-items:flex-start; gap:12px}
-  /* Neues Feibeitsblatt: Tabelle mit Aufgabenstellung | Musterlösung */
+  /* Neues Feibeitsblatt: Tabelle mit Aufgabenstellung | Auftrag an die KI (intern: solution) */
   table.builder td{padding:10px 12px}
   table.builder th:first-child, table.builder td.c1{width:44%}
   table.builder th.act, table.builder td.act{width:52px; padding-left:4px; padding-right:10px}
@@ -796,7 +807,7 @@
           <button type="button" class="btn ghost small" id="t-sel-copy">Kopieren</button>
         </div>
         <details class="tasksdet" id="t-sel-det">
-          <summary>Aufgaben und Musterlösungen</summary>
+          <summary>Aufgaben und Aufträge an die KI</summary>
           <div class="solist" id="t-sel-tasks"></div>
         </details>
         <div class="row">
@@ -805,7 +816,7 @@
           <button type="button" class="btn ghost small" id="t-export">Als PDF-Datei herunterladen</button>
         </div>
         <p class="status" id="t-export-status" aria-live="polite"></p>
-        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Musterlösungen und PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.</p>
+        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Ihre Aufträge an die KI und die PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.</p>
 
         <div class="subhead">
           <h3>Abgaben</h3>
@@ -837,7 +848,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung. Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils einen Auftrag an die KI: worauf sie beim Feedback zu dieser Aufgabe achten soll (siehe Hinweis unten). Den Auftrag sehen die Schüler:innen nicht; sie bekommen von der KI Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten. Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
       <div id="b-form">
         <p class="note hidden" id="b-import" style="margin:0 0 14px"></p>
         <div class="field" style="max-width:640px">
@@ -845,12 +856,12 @@
           <input type="text" id="b-title" maxlength="200" placeholder="z. B. Das Gewissen – Klasse 8b" autocomplete="off">
           <p class="fhint">Leer lassen: „Feibeitsblatt vom <span id="b-today"></span>“.</p>
         </div>
-        <p class="note" style="margin:0 0 14px"><b>Tipp:</b> Schreiben Sie die Musterlösung in Stichpunkten – ein inhaltlicher Kernpunkt je Zeile. Die KI meldet den Schüler:innen dann zu jedem Punkt zurück, ob er angesprochen wurde oder noch fehlt.</p>
+        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Sachliche Fehler benennt die KI, die richtige Lösung – auch einzelne Begriffe oder Zahlen daraus – verrät sie aber nur, wenn Ihr Auftrag es ausdrücklich erlaubt; Noten vergibt sie nicht. Sie sieht nur Texte (Aufgabenstellung, Material, Ihren Auftrag und die Antwort), keine Bilder, PDF-Dateien oder Inhalte verlinkter Seiten. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
         <div class="tablewrap">
           <table class="batch builder">
             <thead><tr>
               <th>Aufgabenstellung</th>
-              <th>Musterlösung (nur für das KI-Feedback; Kernpunkte erscheinen als Stichpunkte im Feedback)</th>
+              <th>Auftrag an die KI (nur für das KI-Feedback, für Schüler:innen unsichtbar)</th>
               <th class="act"><span class="sr-only">Zeile verschieben oder entfernen</span></th>
             </tr></thead>
             <tbody id="b-rows"></tbody>
@@ -896,7 +907,7 @@
         </div>
         <div class="provinfo note" data-prov="groq">
           <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
-          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Musterlösungen ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
           <p><b>Datenschutz:</b> Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="openrouter">
@@ -978,7 +989,7 @@
         </div>
         <p class="status" id="ai2-status" aria-live="polite"></p>
       </div>
-      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Musterlösungen und die Antworttexte – keine Kürzel, Geburtsdaten oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Musterlösungen) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits.</p>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtsdaten oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits.</p>
     </div>
 
     <!-- Passwort ändern -->
@@ -1339,6 +1350,7 @@ async function copyText(text, btn) {
 /* Mitwachsende Textfelder: Höhe = Texthöhe (gemessen an einem unsichtbaren Zwilling, damit nichts springt). */
 /* ---------- Material zu Aufgaben: Absätze aus Läufen {t, f ("b"/"i"/"u"), h (Link)} – nie innerHTML ---------- */
 const MAT_LIMITS = { chars: 8000, paragraphs: 200, runs: 600, links: 60, href: 1000 };   // wie LIMITS im Worker
+const TASK_TEXT_MAX = 4000;   // Aufgabenstellung (Zeichen, wie LIMITS.taskText im Worker) – auch formatiert (textFmt)
 function cleanHref(raw) {   // → http(s)-Adresse oder "" (javascript:, data: usw. werden verworfen)
   const s = String(raw == null ? "" : raw).trim();
   if (!s || s.length > MAT_LIMITS.href || /[\u0000-\u0020\u007f]/.test(s)) return "";
@@ -1351,6 +1363,32 @@ function cleanMaterial(raw) {   // Daten vom Server prüfen, bevor daraus DOM wi
     ? { t: r.t.slice(0, MAT_LIMITS.chars), f: ["b", "i", "u"].filter((c) => String(r.f || "").includes(c)).join(""), h: cleanHref(r.h) } : null)).filter((r) => r && r.t));
 }
 const materialChars = (m) => m.reduce((n, p) => n + p.reduce((k, r) => k + r.t.length, 0), 0);
+// Formatierte Aufgabenstellung aus fremden Daten (Sicherung) auf die Grenze des reinen Textes kappen – gezählt wie der Server:
+// Zeichen samt Zeilenumbrüchen zwischen den Absätzen
+function capFmt(m, max) {
+  let left = max; const out = [];
+  for (const runs of m) {
+    if (out.length) { if (left < 1) break; left--; }
+    const line = [];
+    for (const r of runs) {
+      if (left <= 0) break;
+      let t = r.t.slice(0, left); if (t.length < r.t.length && /[\uD800-\uDBFF]$/.test(t)) t = t.slice(0, -1);   // kein halbes Ersatzzeichen-Paar
+      left -= t.length; if (t) line.push(Object.assign({}, r, { t }));
+    }
+    out.push(line);
+  }
+  while (out.length && !out[out.length - 1].length) out.pop();
+  return out;
+}
+// Aufgabenstellung anzeigen: formatiert (textFmt; Links in neuem Tab) oder als reiner Text – dieselbe Schrift, dieselben Zeilen
+function taskTextDom(tag, props, text, fmt) {
+  const m = cleanMaterial(fmt);
+  if (!m.length) return h(tag, Object.assign({}, props, { text: String(text || "") }));
+  const cls = [props && props.class, "qtext", m.some((p) => p.some((r) => r.f.includes("b"))) ? "has-b" : ""].filter(Boolean).join(" ");
+  const el = h("div", Object.assign({}, props, { class: cls }));
+  Array.from(materialDom(m, { links: true }).childNodes).forEach((n) => el.appendChild(n));
+  return el;
+}
 // Modell → DOM: links = anklickbar in neuem Tab (Schüler:innen, Lehrkraft-Ansicht); editor = Zeilen als <div> für contenteditable
 function materialDom(material, opts) {
   const o = opts || {}, root = h("div", { class: "material" });
@@ -1370,20 +1408,23 @@ function materialDom(material, opts) {
   return root;
 }
 // DOM des Editors (oder eingefügtes HTML) → Modell. Nur b/i/u/Links bleiben; Blöcke und <br> trennen Absätze.
+// keepIndent (Aufgabenstellung): Leerzeichen am Zeilenanfang, Tabs (als vier Leerzeichen) und Zeilen nur aus Leerraum bleiben wie
+// früher in der Textarea (z. B. eingerückter Programmcode); sonst wird Leerraum wie in HTML zusammengefasst.
 const MAT_BLOCK_RE = /^(p|div|li|h[1-6]|tr|blockquote|pre|section|article|ul|ol|table|tbody|thead|tfoot|dd|dt|dl|figure|header|footer|nav|main|aside|address|details|summary|form|fieldset)$/;
-function serializeMaterial(root) {
+function serializeMaterial(root, opts) {
+  const keep = !!(opts && opts.keepIndent);
   const lines = []; let cur = [];
   const flush = () => { lines.push(cur); cur = []; };
   const push = (text, f, hr) => {
-    const t = text.replace(/[\u00a0\t\r\n]+/g, " ");
-    if (!t || (!cur.length && !t.trim())) return;
+    const t = keep ? text.replace(/\u00a0/g, " ").replace(/\t/g, "    ").replace(/\r/g, "") : text.replace(/[\u00a0\t\r\n]+/g, " ");
+    if (!t || (!keep && !cur.length && !t.trim())) return;
     const prev = cur[cur.length - 1];
     if (prev && prev.f === f && prev.h === hr) prev.t += t; else cur.push({ t, f, h: hr });
   };
   const walk = (node, b, i, u, hr, pre) => {
     if (node.nodeType === 3) {
       const f = (b ? "b" : "") + (i ? "i" : "") + (u ? "u" : "");
-      if (pre) (node.nodeValue || "").split("\n").forEach((part, k) => { if (k) flush(); push(part.replace(/\t/g, "    "), f, hr); });   // Zeilen in <pre> bleiben
+      if (pre || keep) (node.nodeValue || "").split("\n").forEach((part, k) => { if (k) flush(); push(part.replace(/\t/g, "    "), f, hr); });   // Zeilen in <pre> bleiben
       else push(node.nodeValue || "", f, hr);
       return;
     }
@@ -1407,7 +1448,7 @@ function serializeMaterial(root) {
   walk(root, false, false, false, "", false);
   flush();
   const out = lines.map((runs) => {
-    if (runs.length) { runs[0].t = runs[0].t.replace(/^\s+/, ""); runs[runs.length - 1].t = runs[runs.length - 1].t.replace(/\s+$/, ""); }
+    if (runs.length) { if (!keep) runs[0].t = runs[0].t.replace(/^\s+/, ""); runs[runs.length - 1].t = runs[runs.length - 1].t.replace(/\s+$/, ""); }
     return runs.filter((r) => r.t).map((r) => { const o = { t: r.t }; if (r.f) o.f = r.f; if (r.h) o.h = r.h; return o; });
   });
   while (out.length && !out[out.length - 1].length) out.pop();
@@ -1488,13 +1529,91 @@ $("linkdlg").addEventListener("keydown", (e) => {
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 });
-// Formatknöpfe spiegeln den Zustand an der Cursorposition (aria-pressed), wenn ein Material-Editor den Fokus hat
+// Formatknöpfe spiegeln den Zustand an der Cursorposition (aria-pressed), wenn ein Editor (Aufgabenstellung, Material) den Fokus hat
 function syncFmt(ed) {
   if (!ed || !ed._fmtBtns) return;
   for (const [cmd, b] of Object.entries(ed._fmtBtns)) { let on = false; try { on = document.queryCommandState(cmd); } catch (e) { on = false; } b.setAttribute("aria-pressed", on ? "true" : "false"); }
 }
-document.addEventListener("selectionchange", () => { const a = document.activeElement; if (a && a.classList && a.classList.contains("bmat-edit")) syncFmt(a); });
+document.addEventListener("selectionchange", () => { const a = document.activeElement; if (a && a.classList && a.classList.contains("fmt-edit")) syncFmt(a); });
 $("linkdlg").addEventListener("click", (e) => { if (e.target === $("linkdlg")) closeLinkDlg(); });
+/* Formatierbarer Text der Lehrkraft (fett/kursiv/unterstrichen, Links) als contenteditable – derselbe Editor für die
+   Aufgabenstellung und das Material. Gespeichert wird nie HTML, sondern das Modell aus serializeMaterial.
+   o = { cls, barCls, placeholder, barLabel, model (Absätze aus Läufen) oder text (reiner Text), onInput } → { ed, bar };
+   ed._clear() leert den Editor ohne Eingabe-Ereignis. */
+function fmtEditor(o) {
+  const ed = h("div", { class: "fmt-edit " + o.cls + " is-empty", contenteditable: "true", role: "textbox", "aria-multiline": "true", spellcheck: "true",
+    "data-placeholder": o.placeholder, "aria-placeholder": o.placeholder });
+  const isEmpty = () => !ed.textContent.trim() && !ed.querySelector("a");
+  const input = (e) => {
+    const empty = isEmpty();
+    if (empty && ed.childNodes.length && !(e && e.isComposing)) ed.textContent = "";   // Rest-<br> nach dem Leeren weg, Caret bleibt oben
+    ed.classList.toggle("is-empty", empty); ed.classList.remove("invalid");
+    if (o.onInput) o.onInput();
+  };
+  const fmt = (cmd, title, kid) => {
+    const b = h("button", { type: "button", class: "fmtbtn", title, "aria-label": title, "aria-pressed": "false" }, [kid]);
+    b.addEventListener("mousedown", (e) => e.preventDefault());   // Markierung im Editor behalten
+    b.addEventListener("click", () => { ed.focus(); document.execCommand(cmd); input(); syncFmt(ed); });
+    return b;
+  };
+  const linkBtn = h("button", { type: "button", class: "fmtbtn", title: "Link einfügen oder bearbeiten", text: "Link" });
+  linkBtn.addEventListener("mousedown", (e) => e.preventDefault());
+  linkBtn.addEventListener("click", () => linkDialog(ed));
+  const fmtBtns = { bold: fmt("bold", "Fett (Strg+B)", h("b", { text: "F" })), italic: fmt("italic", "Kursiv (Strg+I)", h("i", { text: "K" })), underline: fmt("underline", "Unterstrichen (Strg+U)", h("u", { text: "U" })) };
+  ed._fmtBtns = fmtBtns;
+  const barBtns = [fmtBtns.bold, fmtBtns.italic, fmtBtns.underline, linkBtn];
+  barBtns.forEach((b, k) => { b.tabIndex = k ? -1 : 0; });   // Werkzeugleiste: ein Tab-Stopp, Pfeiltasten wechseln
+  const bar = h("div", { class: "fmt-bar " + o.barCls, role: "toolbar", "aria-label": o.barLabel }, barBtns);
+  bar.addEventListener("keydown", (e) => {
+    const k = barBtns.indexOf(document.activeElement); if (k < 0) return;
+    const n = e.key === "ArrowRight" ? (k + 1) % barBtns.length : e.key === "ArrowLeft" ? (k + barBtns.length - 1) % barBtns.length : e.key === "Home" ? 0 : e.key === "End" ? barBtns.length - 1 : -1;
+    if (n < 0) return;
+    e.preventDefault(); barBtns.forEach((b, j) => { b.tabIndex = j === n ? 0 : -1; }); barBtns[n].focus();
+  });
+  ed.addEventListener("input", input);
+  ed.addEventListener("paste", (e) => {   // eingefügtes HTML wird auf fett/kursiv/unterstrichen/Links reduziert
+    e.preventDefault();
+    const dt = e.clipboardData; if (!dt) return;
+    const html = dt.getData("text/html");
+    if (html) insertMaterialHtml(ed, html); else document.execCommand("insertText", false, dt.getData("text/plain") || "");
+    input();
+  });
+  ed.addEventListener("dragstart", () => { ed._dragInside = true; });
+  ed.addEventListener("dragend", () => { ed._dragInside = false; });
+  ed.addEventListener("drop", (e) => {   // nur Text, an der Stelle des Mauszeigers; Ziehen innerhalb des Editors verschiebt
+    e.preventDefault();
+    const t = e.dataTransfer && e.dataTransfer.getData("text/plain");
+    const sel = getSelection(), inside = ed._dragInside; ed._dragInside = false;
+    if (!t) return;
+    if (inside && sel.rangeCount && ed.contains(sel.anchorNode) && !sel.isCollapsed) sel.deleteFromDocument();
+    let r = null;
+    try {
+      if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(e.clientX, e.clientY);
+      else if (document.caretPositionFromPoint) { const pos = document.caretPositionFromPoint(e.clientX, e.clientY); if (pos) { r = document.createRange(); r.setStart(pos.offsetNode, pos.offset); r.collapse(true); } }
+    } catch (x) { r = null; }
+    ed.focus();
+    if (r && ed.contains(r.startContainer)) { sel.removeAllRanges(); sel.addRange(r); }
+    document.execCommand("insertText", false, t); input();
+  });
+  // Anfangsinhalt: Modell (formatiert) oder reiner Text – je Zeile ein Block wie nach der Eingabe
+  const m = cleanMaterial(o.model);
+  if (m.length) Array.from(materialDom(m, { editor: true }).childNodes).forEach((n) => ed.appendChild(n));
+  else if (o.text) String(o.text).split("\n").forEach((l) => ed.appendChild(h("div", null, [l ? document.createTextNode(l) : h("br")])));
+  ed.classList.toggle("is-empty", isEmpty());
+  ed._clear = () => { ed.textContent = ""; ed.classList.add("is-empty"); ed.classList.remove("invalid"); };
+  return { ed, bar };
+}
+// Modell → reiner Text (wie materialText im Worker): Absätze mit Zeilenumbruch, Links nur mit ihrem Text
+const fmtPlain = (m) => m.map((runs) => runs.map((r) => r.t).join("")).join("\n").trim();
+const isFormatted = (m) => m.some((runs) => runs.some((r) => r.f || r.h));   // etwas fett/kursiv/unterstrichen oder verlinkt
+// Grenzen wie validateMaterial im Worker – für das Material und die formatierte Aufgabenstellung (dort mit der Zeichengrenze des Textes)
+function fmtLimitError(m, maxChars, the, inThe) {
+  const runs = m.reduce((n, p) => n + p.length, 0), links = m.reduce((n, p) => n + p.filter((r) => r.h).length, 0);
+  return materialChars(m) > maxChars ? `${the} ist zu lang (höchstens ${maxChars.toLocaleString("de-DE")} Zeichen).`
+    : m.length > MAT_LIMITS.paragraphs ? `${the} hat zu viele Absätze (höchstens ${MAT_LIMITS.paragraphs}).`
+    : runs > MAT_LIMITS.runs ? `${the} ist zu kleinteilig formatiert (höchstens ${MAT_LIMITS.runs} Abschnitte).`
+    : links > MAT_LIMITS.links ? `Zu viele Links ${inThe} (höchstens ${MAT_LIMITS.links}).` : "";
+}
 
 /* ---------- Bilder zu Aufgaben: Adresse und Vergrößerung ---------- */
 const IMAGE_ID_RE = /^[0-9a-f]{16}$/, IMAGE_MIME_RE = /^image\/(jpeg|png|webp)$/;
@@ -1741,7 +1860,8 @@ async function loadSheet(code) {
   S.code = code; S.pub = pub;
   S.sheet = {
     code, title: String(sh.title || "Feibeitsblatt"),
-    tasks: sh.tasks.map((t) => String((t && t.text) || "")),
+    tasks: sh.tasks.map((t) => String((t && t.text) || "")),   // reiner Text (Lösungs-PDF, Abgabe)
+    textFmt: sh.tasks.map((t) => cleanMaterial(t && t.textFmt)),   // je Aufgabe: formatierte Aufgabenstellung (leer = nur reiner Text)
     images: sh.tasks.map((t) => cleanImages(t && t.images)),   // je Aufgabe: Miniaturen (thumb) oder größer unter der Aufgabe (inline)
     cards: sh.tasks.map((t) => cleanImages(t && t.images, true)),   // je Aufgabe: Kartenbilder der Weltkarten-Zuordnung
     answers: sh.tasks.map((t) => cleanAnswer(t && t.answer)),   // je Aufgabe: Antwortart (Textfeld, Tabelle, Weltkarte)
@@ -1792,7 +1912,7 @@ function renderPrivacy() {
   $("privacy").textContent = "";
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
-    `Er leitet sie zusammen mit den Aufgaben, dem Material und der Musterlösung deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
+    `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
     (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
     ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen${r.usa ? ", bei Sitz in den USA außerhalb der EU" : ""}. ` +
     `Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI – dafür bekommst du eine zweite Rückmeldung zu deiner abgegebenen Fassung (nicht, wenn du nach dem ersten Feedback nichts geändert hast). ` +
@@ -2038,7 +2158,7 @@ function buildTasks() {
     const sec = h("section", { class: "task" + (thumbs.length ? " has-thumbs" : "") + (isText ? "" : " task-" + spec.type), id: "t-" + n, "aria-labelledby": "l-" + n }, [
       h("div", { class: "task-q" }, [
         isText ? h("label", { class: "task-label", for: "a-" + n, id: "l-" + n, text: "Aufgabe " + n }) : h("span", { class: "task-label", id: "l-" + n, text: "Aufgabe " + n }),
-        h("div", { class: "task-text", id: "q-" + n, text })
+        taskTextDom("div", { class: "task-text", id: "q-" + n }, text, S.sheet.textFmt && S.sheet.textFmt[i])
       ]),
       thumbs.length ? h("div", { class: "task-thumbs" }, thumbs) : null,
       h("div", { class: "task-body" }, [
@@ -2650,7 +2770,7 @@ function pdfStringValue(tok) {
   return tok.slice(1, -1).replace(/\\([0-7]{1,3}|[\s\S])/g, (m0, c) => (/^[0-7]/.test(c) ? String.fromCharCode(parseInt(c, 8) & 255)
     : c === "\n" || c === "\r" ? "" : ({ n: "\n", r: "\r", t: "\t", b: "\b", f: "\f" })[c] || c));
 }
-// Ist die Datei eine gesicherte Feibeitsblatt-PDF (Musterlösungen!) oder ein Zwischenstand (Personendaten)? → nie als Material.
+// Ist die Datei eine gesicherte Feibeitsblatt-PDF (Aufträge an die KI!) oder ein Zwischenstand (Personendaten)? → nie als Material.
 // Erkannt wie beim Laden: am Kennzeichen oder – falls ein PDF-Programm es beim Neuspeichern entfernt hat – am Inhalt der
 // eingebetteten JSON-Dateien.
 async function feibeitsblattPdfKind(u8) {
@@ -2758,9 +2878,9 @@ function makeSolutionsPdf(sub) {
     para(sub.fb2Final ? "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gab es diesmal nicht." : "Die KI-Rückmeldung zu deiner abgegebenen Fassung lag beim Herunterladen noch nicht vor.", 10.5, false, { color: "0.35 0.35 0.35" });
   }
   gap(14);
-  const fbLines = (f) => {   // Rückmeldung: angesprochen (grün), fehlt (rot), Hinweis
-    for (const c of f.covered) para("• angesprochen: " + c, 10.5, false, { indent: 10, color: "0.12 0.42 0.16" });
-    for (const m of f.missing) para("– fehlt: " + m, 10.5, false, { indent: 10, color: "0.7 0.15 0.12" });
+  const fbLines = (f) => {   // Rückmeldung: gelingt schon (grün), Tipps (rot), Hinweis
+    for (const c of f.covered) para("• Gelingt schon: " + c, 10.5, false, { indent: 10, color: "0.12 0.42 0.16" });
+    for (const m of f.missing) para("• Tipp: " + m, 10.5, false, { indent: 10, color: "0.7 0.15 0.12" });
     if (f.note) para(f.note, 10.5, false, { indent: 10, color: "0.35 0.35 0.35" });
   };
   const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
@@ -2780,8 +2900,7 @@ function makeSolutionsPdf(sub) {
     const f2 = fb2 && !kept && !isMap && fb2.results[i] ? normFb(fb2.results[i]) : null;
     if (f2 && (f2.covered.length || f2.missing.length)) {
       gap(6);
-      const n2 = f2.covered.length + f2.missing.length;
-      para("KI-Rückmeldung zur abgegebenen Fassung" + (n2 ? ` (${f2.covered.length} von ${n2} ${n2 === 1 ? "Kernpunkt" : "Kernpunkten"} angesprochen)` : "") + ":", 10.5, true);
+      para("KI-Rückmeldung zur abgegebenen Fassung:", 10.5, true);
       fbLines(f2);
     }
     if (fb && first.trim() && fbText(first) !== fbText(fin)) {   // nur bei inhaltlicher Änderung (nicht wegen Leerzeichen am Ende)
@@ -3101,20 +3220,23 @@ function renderLT(i, text, res) {
 }
 
 /* ---------- KI-Feedback ---------- */
+// Format je Aufgabe {covered, missing, note?}: covered = „gut“ (gelingt schon), missing = „tipps“ (zum Überarbeiten) – die
+// historischen Namen bleiben, damit ältere Zwischenstände, Erstversuche und Abgaben lesbar bleiben
 function normFb(r) {
   const arr = (x) => Array.isArray(x) ? x.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 300)).slice(0, 12) : [];
   const o = { covered: arr(r && r.covered), missing: arr(r && r.missing) };
   if (r && typeof r.note === "string" && r.note.trim()) o.note = r.note.trim().slice(0, 300);
   return o;
 }
-// Listen „Angesprochen“ / „Noch nicht angesprochen“ und Hinweis einer Rückmeldung an eine Box anhängen
-function appendFbLists(box, f) {
+// Listen „Das gelingt dir schon“ (covered = „gut“) / „Tipps zum Überarbeiten“ (missing = „tipps“) und Hinweis einer
+// Rückmeldung an eine Box anhängen
+function appendFbLists(box, f, tipsLabel) {
   if (f.covered.length) {
-    box.appendChild(h("p", { class: "fb-sub fb-ok", text: "Angesprochen" }));
+    box.appendChild(h("p", { class: "fb-sub fb-ok", text: "Das gelingt dir schon" }));
     box.appendChild(h("ul", { class: "fb-list fb-ok" }, f.covered.map((s) => h("li", { text: s }))));
   }
   if (f.missing.length) {
-    box.appendChild(h("p", { class: "fb-sub fb-miss", text: "Noch nicht angesprochen" }));
+    box.appendChild(h("p", { class: "fb-sub fb-miss", text: tipsLabel || "Tipps zum Überarbeiten" }));
     box.appendChild(h("ul", { class: "fb-list fb-miss" }, f.missing.map((s) => h("li", { text: s }))));
   }
   if (f.note) box.appendChild(h("p", { class: "fb-note", text: f.note }));
@@ -3143,7 +3265,7 @@ function renderFeedbackState() {
   fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es später noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass die KI nicht erreichbar war." : "";
   fbf.classList.toggle("hidden", !noAi);
   const rh = $("revise-hint"), eh = $("ed-hint");
-  const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
+  const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
   rh.textContent = reviseText; rh.classList.toggle("hidden", !has);
   eh.textContent = "Du hast das KI-Feedback erhalten. Überarbeite jetzt deine Antworten und gib danach ganz unten ab.";
   eh.classList.toggle("hidden", !has);
@@ -3310,7 +3432,7 @@ async function sendFirstAttempt() {
 /* ---------- Zweite KI-Rückmeldung zur abgegebenen Fassung (auf der Bestätigungsseite) ----------
  * Erst wird abgegeben – die Abgabe hängt nie von der KI ab –, dann gehen die abgegebenen Antworten wie beim ersten Feedback
  * (ohne Namenskürzel, Geburtsdatum und Klasse, an dieselben Empfänger) noch einmal an die KI. Neu beurteilt werden nur
- * Aufgaben, die die KI beurteilt (Kernpunkte im ersten Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht
+ * Aufgaben, die die KI beurteilt (Stichpunkte im ersten Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht
  * (fbText); für alle anderen gilt die erste Rückmeldung weiter. Hat sich nichts davon geändert, wird gar nicht gefragt. Die
  * Rückmeldung steht auf der Bestätigungsseite und in „Meine Lösungen als PDF herunterladen“; sie bleibt nur im
  * Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Ist die KI ausgelastet, wird automatisch wiederholt. */
@@ -3318,7 +3440,7 @@ const FB2_MANUAL = 3;   // „Rückmeldung erneut anfordern“ nach einem vorüb
 const FB2_TRANSIENT = new Set(["ai_busy", "ai_error", "network", "timeout", "server_error", "rate_limited", "bad_result", "db_limit"]);
 // Text so, wie der Server ihn prüft und an die KI gibt: Zeilenumbrüche vereinheitlicht, Steuerzeichen weg, außen getrimmt
 const fbText = (s) => String(s == null ? "" : s).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
-// je Aufgabe: beurteilt die KI sie (Kernpunkte im ersten Feedback) und hat sich ihr Text inhaltlich geändert?
+// je Aufgabe: beurteilt die KI sie (Stichpunkte im ersten Feedback) und hat sich ihr Text inhaltlich geändert?
 function fb2Changes(firsts, finals, feedback) {
   return finals.map((fin, i) => {
     const f = Array.isArray(feedback) && feedback[i] ? normFb(feedback[i]) : null;
@@ -3351,7 +3473,8 @@ function waitFinalFeedback(run, ms, nextTry) {
     timer = setTimeout(finish, ms);
   });
 }
-// Rückmeldung je Aufgabe: Zahl der angesprochenen Kernpunkte (mit dem Stand beim ersten Feedback bzw. „unverändert“), dann die Listen
+// Rückmeldung je Aufgabe: bei unverändert abgegebenen Aufgaben (einzeln) ein Hinweis darauf, dann die Listen – ohne Zählung,
+// denn die Stichpunkte sind Beratung, kein Abhaken einer festen Liste
 function renderFinalFeedback() {
   const sub = S.lastSubmission, list = $("done-fb-list");
   list.textContent = "";
@@ -3359,13 +3482,9 @@ function renderFinalFeedback() {
   const { same, kept } = sub.feedback2;
   sub.feedback2.results.forEach((f, i) => {
     if (sub.kinds && sub.kinds[i] === "map") return;   // Weltkarte: kein KI-Feedback
-    const keep = same || !!(kept && kept[i]);
-    const before = !keep && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
-    const total = f.covered.length + f.missing.length, totalBefore = before ? before.covered.length + before.missing.length : 0;
     const box = h("div", { class: "fbbox", id: "done-fb-" + (i + 1) }, [h("p", { class: "fb-head", text: "Aufgabe " + (i + 1) })]);
-    if (total) box.appendChild(h("p", { class: "fb-sum", text: `Angesprochen: ${f.covered.length} von ${total} ${total === 1 ? "Kernpunkt" : "Kernpunkten"}` +
-      (keep && !same ? " (unverändert abgegeben – wie beim ersten Feedback)" : totalBefore ? ` (beim ersten Feedback: ${before.covered.length} von ${totalBefore})` : "") + "." }));
-    appendFbLists(box, f);
+    if (!same && kept && kept[i] && f.covered.length + f.missing.length) box.appendChild(h("p", { class: "fb-sum", text: "Unverändert abgegeben – wie beim ersten Feedback." }));
+    appendFbLists(box, f, "Tipps zum Weiterlernen");   // nach der Abgabe wird nichts mehr überarbeitet
     list.appendChild(box);
   });
 }
@@ -3762,14 +3881,14 @@ async function selectSheet(code) {
     const list = $("t-sel-tasks");
     r.sheet.tasks.forEach((t, i) => list.appendChild(h("div", { class: "si" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
-      h("p", { text: String(t.text || "") }),
+      taskTextDom("p", null, t.text, t.textFmt),
       cleanMaterial(t.material).length ? h("span", { class: "task-label", style: "margin-top:6px", text: "Material" }) : null,
       cleanMaterial(t.material).length ? materialDom(t.material, { links: true }) : null,
       teacherImgs(code, t.images, i + 1),
       teacherFiles(code, t.files, i + 1),
       answerSpecDom(code, cleanAnswer(t.answer, true), cleanImages(t.images, true)),
-      cleanAnswer(t.answer).type === "map" ? null : h("span", { class: "task-label", style: "margin-top:6px", text: "Musterlösung" }),
-      cleanAnswer(t.answer).type === "map" ? null : h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keine –" })
+      cleanAnswer(t.answer).type === "map" ? null : h("span", { class: "task-label", style: "margin-top:6px", text: "Auftrag an die KI" }),
+      cleanAnswer(t.answer).type === "map" ? null : h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keiner (kein KI-Feedback) –" })
     ])));
     await loadSubs();
   } catch (e) { if (!handleAuthError(e)) setStatus($("t-subs-status"), errMsg(e, "t"), "bad"); }
@@ -3887,14 +4006,14 @@ function buildDetail(s) {
     const fbEl = h("div", { class: "dfb" });
     if (f) {
       fbEl.appendChild(h("p", { class: "fb-head", text: "Angezeigtes KI-Feedback" }));
-      if (f.covered.length) fbEl.append(h("p", { class: "fb-ok", text: "Angesprochen:" }), h("ul", { class: "fb-ok" }, f.covered.map((x) => h("li", { text: x }))));
-      if (f.missing.length) fbEl.append(h("p", { class: "fb-miss", text: "Noch nicht angesprochen:" }), h("ul", { class: "fb-miss" }, f.missing.map((x) => h("li", { text: x }))));
+      if (f.covered.length) fbEl.append(h("p", { class: "fb-ok", text: "Gelingt schon:" }), h("ul", { class: "fb-ok" }, f.covered.map((x) => h("li", { text: x }))));
+      if (f.missing.length) fbEl.append(h("p", { class: "fb-miss", text: "Tipps zum Überarbeiten:" }), h("ul", { class: "fb-miss" }, f.missing.map((x) => h("li", { text: x }))));
       if (f.note) fbEl.appendChild(h("p", { class: "fb-note", text: f.note }));
       else if (!f.covered.length && !f.missing.length) fbEl.appendChild(h("p", { class: "fb-note", text: "Keine Rückmeldung." }));
     }
     box.appendChild(h("div", { class: "dtask" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) + (spec.type === "text" ? "" : " · " + ANSWER_TYPE_LABEL[spec.type]) }),
-      h("p", { class: "dtask-text", text: tasks[i] ? String(tasks[i].text || "") : "" }),
+      taskTextDom("p", { class: "dtask-text" }, tasks[i] ? tasks[i].text : "", tasks[i] && tasks[i].textFmt),
       tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
       tasks[i] ? teacherFiles(T.sel, tasks[i].files, i + 1) : null,
       h("table", { class: "cmp" }, [
@@ -3942,20 +4061,20 @@ $("t-template").addEventListener("click", async () => {
           files.push({ blob: r.blob, name: f.name, size: r.blob.size });
         } catch (e) { lostF++; }
       }
-      return { text: String(t.text || ""), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files, answer: builderAnswer(spec, cards) };
+      return { text: String(t.text || ""), textFmt: cleanMaterial(t.textFmt), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files, answer: builderAnswer(spec, cards) };
     }));
     openBuilder(T.selSheet.title, rows);
     const msgs = [];
     if (lost) msgs.push(`${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
     if (lostF) msgs.push(`${lostF === 1 ? "Eine PDF-Datei der Vorlage konnte" : lostF + " PDF-Dateien der Vorlage konnten"} nicht geladen werden und ${lostF === 1 ? "fehlt" : "fehlen"} hier.`);
-    if (unsafeF) msgs.push(`${unsafeF === 1 ? "Eine PDF-Datei der Vorlage war" : unsafeF + " PDF-Dateien der Vorlage waren"} eine Feibeitsblatt-Sicherung (mit Musterlösungen) oder ein Zwischenstand von Schüler:innen und ${unsafeF === 1 ? "wurde" : "wurden"} weggelassen.`);
+    if (unsafeF) msgs.push(`${unsafeF === 1 ? "Eine PDF-Datei der Vorlage war" : unsafeF + " PDF-Dateien der Vorlage waren"} eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI) oder ein Zwischenstand von Schüler:innen und ${unsafeF === 1 ? "wurde" : "wurden"} weggelassen.`);
     if (msgs.length) $("b-err").textContent = msgs.join(" ");
   } finally { busy(btn, false); }
 });
 /* ---------- Feibeitsblatt als PDF-Datei sichern und wieder laden (Lehrkraft) ----------
  * Sichtbar: Titel, Hinweis, je Aufgabe Aufgabenstellung, Material (als Text), Bilder (als JPEG) und die Namen der
  * PDF-Dateien. Im Hintergrund (eingebettete Dateien, im PDF-Programm unter „Anhänge“): der Datensatz feibeitsblatt.json
- * (Kennzeichen /FbSheet 1, FlateDecode) mit Titel, Aufgaben, Musterlösungen, Material und den Angaben zu Bildern und
+ * (Kennzeichen /FbSheet 1, FlateDecode) mit Titel, Aufgaben, Aufträgen an die KI (solution), Material und den Angaben zu Bildern und
  * Dateien samt Größe und SHA-256, dazu jede Bilddatei und jede PDF-Datei unverändert als eigener Stream (Kennzeichen
  * /FbBlob (<exportId>-<k>)). Abgaben gehören nicht dazu. Beim Laden wird daraus der Blatt-Editor gefüllt; „Code
  * generieren“ legt ein neues Blatt mit neuem Code an (die Bilder und Dateien werden wie bei „Als Vorlage“ hochgeladen). */
@@ -4022,9 +4141,10 @@ async function sheetPdfData(code, sheet, onStep) {
       blobs.push({ ref, bytes, mime: "application/pdf", key: `${key}-pdf${j + 1}`, name: `Aufgabe ${n} – ${f.name}` });
       files.push({ ref, name: f.name, bytes: bytes.length, sha256: await bytesSha256(bytes) });
     }
-    // Material in der Form des Servers ({t, f?, h?}) – genau wie gespeichert
-    const material = cleanMaterial(t.material).map((p) => p.map((r) => Object.assign({ t: r.t }, r.f ? { f: r.f } : null, r.h ? { h: r.h } : null)));
-    const task = { text: String(t.text || ""), solution: String(t.solution || ""), material, images, files };
+    // Material und formatierte Aufgabenstellung in der Form des Servers ({t, f?, h?}) – genau wie gespeichert; textFmt nur, wenn vorhanden
+    const serverForm = (m) => cleanMaterial(m).map((p) => p.map((r) => Object.assign({ t: r.t }, r.f ? { f: r.f } : null, r.h ? { h: r.h } : null)));
+    const material = serverForm(t.material), textFmt = serverForm(t.textFmt);
+    const task = { text: String(t.text || ""), ...(textFmt.length ? { textFmt } : null), solution: String(t.solution || ""), material, images, files };
     if (spec.type === "table") task.answer = { type: "table", columns: spec.columns, rows: spec.rows };
     if (spec.type === "map") task.answer = { type: "map", map: "world", items: spec.items.map((it) => Object.assign({ id: it.id, label: it.label }, it.hint ? { hint: it.hint } : null,
       refOf.has(it.image) ? { image: refOf.get(it.image) } : null, { countries: it.countries })) };
@@ -4059,10 +4179,10 @@ async function makeSheetPdf(rec, blobs, shows) {
   const pad = 14, bsz = 10.5, blh = 14.5, items = [];
   let dy = pad + 12;
   items.push({ dy, str: "Diese PDF-Datei enthält das ganze Feibeitsblatt", size: 12, bold: true, color: "0 0.29 0.6" }); dy += 18;
-  pdfWrap("Im Hintergrund stecken Aufgaben, Material, Musterlösungen, Bilder und PDF-Dateien. Laden Sie genau diese Datei in der Lehrkräfte-Übersicht mit „Feibeitsblatt aus PDF-Datei laden“ hoch: Das Feibeitsblatt erscheint wieder zum Prüfen und bekommt beim Speichern einen neuen Code – zum Beispiel für eine Parallelklasse. Abgaben enthält die Datei nicht.", bsz, false, TW - 2 * pad)
+  pdfWrap("Im Hintergrund stecken Aufgaben, Material, Aufträge an die KI, Bilder und PDF-Dateien. Laden Sie genau diese Datei in der Lehrkräfte-Übersicht mit „Feibeitsblatt aus PDF-Datei laden“ hoch: Das Feibeitsblatt erscheint wieder zum Prüfen und bekommt beim Speichern einen neuen Code – zum Beispiel für eine Parallelklasse. Abgaben enthält die Datei nicht.", bsz, false, TW - 2 * pad)
     .forEach((l) => { items.push({ dy, str: l, size: bsz, color: "0.1 0.15 0.25" }); dy += blh; });
   dy += 4;
-  pdfWrap("Nicht an Schüler:innen weitergeben – die Datei enthält die Musterlösungen.", bsz, true, TW - 2 * pad)
+  pdfWrap("Nicht an Schüler:innen weitergeben – die Datei enthält die Aufträge an die KI.", bsz, true, TW - 2 * pad)
     .forEach((l) => { items.push({ dy, str: l, size: bsz, bold: true, color: "0.7 0.15 0.12" }); dy += blh; });
   const bh = dy - blh + pad;
   cur().ops.push(`0.93 0.96 1 rg 0 0.29 0.6 RG 1.2 w ${M.toFixed(2)} ${(H - y - bh).toFixed(2)} ${TW.toFixed(2)} ${bh.toFixed(2)} re B`);
@@ -4135,9 +4255,9 @@ async function makeSheetPdf(rec, blobs, shows) {
   obj(2, `<< /Type /Pages /Kids [${pg.map((p) => p.obj + " 0 R").join(" ")}] /Count ${pg.length} >>`);
   obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
   obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
-  obj(5, `<< /Title ${pdfUtf16("Feibeitsblatt – " + title)} /Subject ${pdfUtf16("Gesichertes Feibeitsblatt zum Wiederverwenden – enthält die Musterlösungen")} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  obj(5, `<< /Title ${pdfUtf16("Feibeitsblatt – " + title)} /Subject ${pdfUtf16("Gesichertes Feibeitsblatt zum Wiederverwenden – enthält die Aufträge an die KI")} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
   obj(dataObj, [`<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbSheet 1 /Params << /Size ${json.length} >>${packed ? " /Filter /FlateDecode" : ""} /Length ${data.length} >>\nstream\n`, data, "\nendstream"]);
-  obj(dataSpec, `<< /Type /Filespec /F (feibeitsblatt.json) /UF (feibeitsblatt.json) /Desc ${pdfUtf16("Feibeitsblatt: Aufgaben, Musterlösungen, Material, Angaben zu Bildern und Dateien")} /AFRelationship /Data /EF << /F ${dataObj} 0 R /UF ${dataObj} 0 R >> >>`);
+  obj(dataSpec, `<< /Type /Filespec /F (feibeitsblatt.json) /UF (feibeitsblatt.json) /Desc ${pdfUtf16("Feibeitsblatt: Aufgaben, Aufträge an die KI, Material, Angaben zu Bildern und Dateien")} /AFRelationship /Data /EF << /F ${dataObj} 0 R /UF ${dataObj} 0 R >> >>`);
   for (const b of bl) {
     obj(b.obj, [`<< /Type /EmbeddedFile /Subtype /${b.mime.replace("/", "#2F")} /FbBlob (${b.ref}) /Params << /Size ${b.bytes.length} >> /Length ${b.bytes.length} >>\nstream\n`, b.bytes, "\nendstream"]);
     obj(b.spec, `<< /Type /Filespec /F ${pdfStr(pdfAscii(b.name))} /UF ${pdfUtf16(b.name)} /AFRelationship /Source /EF << /F ${b.obj} 0 R /UF ${b.obj} 0 R >> >>`);
@@ -4174,9 +4294,9 @@ $("t-export").addEventListener("click", async () => {
       if (T.sel === code) setStatus(st, msg, "busy");
     });
     const pdf = await makeSheetPdf(rec, blobs, shows);
-    if (!exportStillWanted(run)) return;   // inzwischen abgemeldet: die Datei mit den Musterlösungen nicht mehr speichern
+    if (!exportStillWanted(run)) return;   // inzwischen abgemeldet: die Datei mit den Aufträgen an die KI nicht mehr speichern
     downloadBlob(new Blob([pdf], { type: "application/pdf" }), sheetPdfName(rec));
-    if (T.sel === code) setStatus(st, `Die PDF-Datei (${fmtKB(pdf.length)}) wird heruntergeladen. Bewahren Sie sie gut auf – sie enthält auch die Musterlösungen.`, "ok");
+    if (T.sel === code) setStatus(st, `Die PDF-Datei (${fmtKB(pdf.length)}) wird heruntergeladen. Bewahren Sie sie gut auf – sie enthält auch Ihre Aufträge an die KI.`, "ok");
   } catch (e) {
     if (T.sel === code) setStatus(st, `Die PDF-Datei konnte nicht erstellt werden${e && e.message && !(e instanceof ApiError) ? " (" + e.message + ")" : ""}. Bitte versuchen Sie es erneut.`, "bad");
   } finally { busy(btn, false); }
@@ -4193,7 +4313,7 @@ function cleanSheetRecord(o) {   // fremde Daten prüfen und kappen (wie die Ein
   const imgs = (t, card) => (Array.isArray(t.images) ? t.images : []).filter((m) => m && typeof m.ref === "string" && SHEET_REF_RE.test(m.ref) && IMAGE_MIME_RE.test(String(m.mime)) && (m.mode === "card") === card)
     .slice(0, card ? ANS_LIMITS.cards : IMG_PER_TASK).map((m) => ({ ref: m.ref, mime: m.mime, mode: card ? "card" : m.mode === "inline" ? "inline" : "thumb", alt: str(m.alt, 200), bytes: size(m.bytes), sha256: sha(m.sha256), max: IMG_MAX_BYTES }));
   const tasks = o.tasks.slice(0, 30).filter((t) => t && typeof t === "object").map((t) => ({
-    text: str(t.text, 4000), solution: str(t.solution, 8000), material: cleanMaterial(t.material),
+    text: str(t.text, TASK_TEXT_MAX), textFmt: capFmt(cleanMaterial(t.textFmt), TASK_TEXT_MAX), solution: str(t.solution, 8000), material: cleanMaterial(t.material),
     images: imgs(t, false).concat(imgs(t, true)), answer: cleanAnswer(t.answer, true, SHEET_REF_RE),   // Kartenbilder (mode "card") zählen nicht zu den 5 Bildern
     files: (Array.isArray(t.files) ? t.files : []).filter((f) => f && typeof f.ref === "string" && SHEET_REF_RE.test(f.ref)).slice(0, FILES_PER_TASK)
       .map((f) => ({ ref: f.ref, name: safeFileName(f.name), bytes: size(f.bytes), sha256: sha(f.sha256), max: FILE_MAX_BYTES }))
@@ -4302,7 +4422,7 @@ async function importSheetPdf(file) {
         if (await feibeitsblattPdfKind(b)) { unsafe++; continue; }   // eine angehängte Sicherung oder ein Zwischenstand gehört nicht zu den Schüler:innen
         files.push({ blob: new Blob([b], { type: "application/pdf" }), name: f.name, size: b.length });
       }
-      rows.push({ text: t.text, solution: t.solution, material: t.material, images, files, answer: builderAnswer(t.answer, cards) });
+      rows.push({ text: t.text, textFmt: t.textFmt, solution: t.solution, material: t.material, images, files, answer: builderAnswer(t.answer, cards) });
       for (const im of cards.values()) if (!rows[rows.length - 1].answer.items || !rows[rows.length - 1].answer.items.some((it) => it.img === im)) URL.revokeObjectURL(im.url);   // ohne Karte: nicht gebraucht
     }
     if (!importStillWanted(run)) {
@@ -4318,7 +4438,7 @@ async function importSheetPdf(file) {
     note.classList.remove("hidden");
     const msgs = [], lost = lostImg + lostFile;
     if (lost) msgs.push(`${[lostImg ? (lostImg === 1 ? "ein Bild" : lostImg + " Bilder") : "", lostFile ? (lostFile === 1 ? "eine PDF-Datei" : lostFile + " PDF-Dateien") : ""].filter(Boolean).join(" und ")} aus der PDF-Datei ${lost === 1 ? "war" : "waren"} beschädigt oder nicht lesbar und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
-    if (unsafe) msgs.push(`${unsafe === 1 ? "eine angehängte PDF-Datei war" : unsafe + " angehängte PDF-Dateien waren"} selbst eine Feibeitsblatt-Sicherung (mit Musterlösungen) oder ein Zwischenstand von Schüler:innen und ${unsafe === 1 ? "wurde" : "wurden"} weggelassen.`);
+    if (unsafe) msgs.push(`${unsafe === 1 ? "eine angehängte PDF-Datei war" : unsafe + " angehängte PDF-Dateien waren"} selbst eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI) oder ein Zwischenstand von Schüler:innen und ${unsafe === 1 ? "wurde" : "wurden"} weggelassen.`);
     if (msgs.length) $("b-err").textContent = msgs.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(" ");
   } catch (e) {
     if (importStillWanted(run)) setStatus(st, "Die PDF-Datei konnte nicht gelesen werden. " + SHEET_PDF_HINT, "bad");
@@ -4383,7 +4503,7 @@ function openBuilder(title, rows) {
   });
   $("b-rows").textContent = "";
   const init = rows && rows.length ? rows : [{}, {}, {}];
-  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material, r.files, r.answer));
+  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material, r.files, r.answer, r.textFmt));
   T.builderDirty = false;
   growAll();
   focusSoon("b-title", 30);
@@ -4480,8 +4600,8 @@ async function addPdfFiles(tr, files) {
         let buf;
         try { buf = new Uint8Array(await f.arrayBuffer()); } catch (e) { throw new Error("Die Datei konnte nicht gelesen werden."); }
         if (String.fromCharCode.apply(null, buf.subarray(0, 5)) !== "%PDF-") throw new Error("Das ist keine PDF-Datei (erlaubt sind nur PDF-Dateien).");
-        const kind = await feibeitsblattPdfKind(buf);   // Schüler:innen bekämen sonst Musterlösungen bzw. fremde Angaben
-        if (kind === "sheet") throw new Error("Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Musterlösungen und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
+        const kind = await feibeitsblattPdfKind(buf);   // Schüler:innen bekämen sonst die Aufträge an die KI bzw. fremde Angaben
+        if (kind === "sheet") throw new Error("Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Aufträge an die KI und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
         if (kind === "draft") throw new Error("Das ist ein Zwischenstand von Schüler:innen mit persönlichen Angaben – bitte nicht als Material anhängen.");
         tr._files.push({ blob: new Blob([buf], { type: "application/pdf" }), name: safeFileName(f.name), size: buf.length }); T.builderDirty = true;
       } catch (e) { setStatus(stat, `„${f.name}“: ${(e && e.message) || "Die Datei konnte nicht gelesen werden."}`, "bad"); }
@@ -4543,7 +4663,7 @@ function answerEditor(tr, init) {
   const addItem = h("button", { type: "button", class: "btn ghost small bitem-add", text: "+ Karte hinzufügen" });
   const stat = h("span", { class: "fhint bitem-stat", role: "status", "aria-live": "polite" });
   const map = h("div", { class: "bans-map" }, [
-    h("p", { class: "fhint", text: `Jede Karte bekommt eine Bezeichnung, auf Wunsch einen Hinweis und ein Bild, dazu ein oder mehrere richtige Länder (eines genügt). Höchstens ${ANS_LIMITS.items} Karten mit je ${ANS_LIMITS.countries} Ländern. Die Seite zeigt den Schüler:innen die Länder nicht (wer sich technisch auskennt, kann sie aber herausfinden) – nur, ob ihre Zuordnung stimmt. Diese Aufgabe hat keine Musterlösung und geht nicht an die KI.` }),
+    h("p", { class: "fhint", text: `Jede Karte bekommt eine Bezeichnung, auf Wunsch einen Hinweis und ein Bild, dazu ein oder mehrere richtige Länder (eines genügt). Höchstens ${ANS_LIMITS.items} Karten mit je ${ANS_LIMITS.countries} Ländern. Die Seite zeigt den Schüler:innen die Länder nicht (wer sich technisch auskennt, kann sie aber herausfinden) – nur, ob ihre Zuordnung stimmt. Diese Aufgabe geht nicht an die KI und braucht deshalb keinen Auftrag an die KI.` }),
     list, h("div", { class: "bimg-row" }, [addItem, stat])]);
   const box = h("div", { class: "bans" }, [lbl, sel, tbl, map]);
   tr._ansSel = sel; tr._ansLbl = lbl; tr._colsLbl = colsLbl; tr._rowsLbl = rowsLbl; tr._colsIn = cols; tr._rowsIn = rowsIn;
@@ -4639,12 +4759,17 @@ function answerEditor(tr, init) {
   return box;
 }
 const renumberOf = (tr) => Array.prototype.indexOf.call($("b-rows").children, tr) + 1 || $("b-rows").children.length + 1;
-function addRow(text, solution, images, material, files, answer) {
+function addRow(text, solution, images, material, files, answer, textFmt) {
   const tb = $("b-rows");
-  const ta1 = h("textarea", { class: "grow q", rows: "3", maxlength: "4000", placeholder: "Aufgabenstellung …", spellcheck: "true" });
-  const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Kernpunkte der Musterlösung, je Zeile einer …", spellcheck: "true" });
-  ta1.value = text || ""; ta2.value = solution || "";
-  const l1 = h("label", { class: "rowlbl" }), l2 = h("label", { class: "rowlbl" });
+  const dirty = () => { T.builderDirty = true; };
+  // Aufgabenstellung: formatierbar wie das Material (fett/kursiv/unterstrichen, Links); gesendet wird der reine Text und – nur
+  // wenn etwas formatiert oder verlinkt ist – das Modell als textFmt
+  const q = fmtEditor({ cls: "bq-edit", barCls: "bq-bar", placeholder: "Aufgabenstellung …", barLabel: "Formatierung der Aufgabenstellung", model: textFmt, text, onInput: dirty });
+  const qEd = q.ed;
+  const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Worauf soll die KI beim Feedback achten? z. B. „Achte darauf, ob die Antwort begründet ist und die Fachbegriffe richtig verwendet.“", spellcheck: "true" });
+  ta2.value = solution || "";
+  const l1 = h("span", { class: "rowlbl" }), l2 = h("label", { class: "rowlbl" });
+  l1.addEventListener("click", () => qEd.focus());   // wie ein <label>: Klick setzt den Cursor in den Editor
   const up = h("button", { type: "button", class: "iconbtn up", text: "↑" });
   const down = h("button", { type: "button", class: "iconbtn down", text: "↓" });
   const del = h("button", { type: "button", class: "iconbtn x", text: "✕" });
@@ -4658,65 +4783,15 @@ function addRow(text, solution, images, material, files, answer) {
   const pdfIn = h("input", { type: "file", accept: "application/pdf,.pdf", multiple: true, class: "sr-only bfile-input", tabindex: "-1", "aria-hidden": "true" });
   const pdfAdd = h("button", { type: "button", class: "btn ghost small bfile-add", text: "+ PDF-Datei hinzufügen" });
   const pdfStat = h("span", { class: "fhint bfile-stat", role: "status", "aria-live": "polite" });
-  // Material: formatierbarer Text (fett/kursiv/unterstrichen) mit Links – als contenteditable, gespeichert als Modell
-  const MAT_PLACEHOLDER = "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …";
-  const matEd = h("div", { class: "bmat-edit is-empty", contenteditable: "true", role: "textbox", "aria-multiline": "true", spellcheck: "true",
-    "data-placeholder": MAT_PLACEHOLDER, "aria-placeholder": MAT_PLACEHOLDER });
-  const matInput = (e) => {
-    const empty = !matEd.textContent.trim() && !matEd.querySelector("a");
-    if (empty && matEd.childNodes.length && !(e && e.isComposing)) matEd.textContent = "";   // Rest-<br> nach dem Leeren weg, Caret bleibt oben
-    matEd.classList.toggle("is-empty", empty); T.builderDirty = true;
-  };
-  const fmt = (cmd, title, kid) => {
-    const b = h("button", { type: "button", class: "fmtbtn", title, "aria-label": title, "aria-pressed": "false" }, [kid]);
-    b.addEventListener("mousedown", (e) => e.preventDefault());   // Markierung im Editor behalten
-    b.addEventListener("click", () => { matEd.focus(); document.execCommand(cmd); matInput(); syncFmt(matEd); });
-    return b;
-  };
-  const linkBtn = h("button", { type: "button", class: "fmtbtn", title: "Link einfügen oder bearbeiten", text: "Link" });
-  linkBtn.addEventListener("mousedown", (e) => e.preventDefault());
-  linkBtn.addEventListener("click", () => linkDialog(matEd));
+  // Material: formatierbarer Text (fett/kursiv/unterstrichen) mit Links – derselbe Editor, gespeichert als Modell
+  const mat = fmtEditor({ cls: "bmat-edit", barCls: "bmat-bar", placeholder: "Material (optional): Text, Zitat, Hinweise oder Links für die Schüler:innen …",
+    barLabel: "Formatierung des Materials", model: material, onInput: dirty });
+  const matEd = mat.ed, matBar = mat.bar;
   const matLbl = h("span", { class: "rowlbl", style: "margin-top:10px" });
-  const fmtBtns = { bold: fmt("bold", "Fett (Strg+B)", h("b", { text: "F" })), italic: fmt("italic", "Kursiv (Strg+I)", h("i", { text: "K" })), underline: fmt("underline", "Unterstrichen (Strg+U)", h("u", { text: "U" })) };
-  matEd._fmtBtns = fmtBtns;
-  const barBtns = [fmtBtns.bold, fmtBtns.italic, fmtBtns.underline, linkBtn];
-  barBtns.forEach((b, k) => { b.tabIndex = k ? -1 : 0; });   // Werkzeugleiste: ein Tab-Stopp, Pfeiltasten wechseln
-  const matBar = h("div", { class: "bmat-bar", role: "toolbar", "aria-label": "Formatierung des Materials" }, barBtns);
-  matBar.addEventListener("keydown", (e) => {
-    const k = barBtns.indexOf(document.activeElement); if (k < 0) return;
-    const n = e.key === "ArrowRight" ? (k + 1) % barBtns.length : e.key === "ArrowLeft" ? (k + barBtns.length - 1) % barBtns.length : e.key === "Home" ? 0 : e.key === "End" ? barBtns.length - 1 : -1;
-    if (n < 0) return;
-    e.preventDefault(); barBtns.forEach((b, j) => { b.tabIndex = j === n ? 0 : -1; }); barBtns[n].focus();
-  });
-  matEd.addEventListener("input", matInput);
-  matEd.addEventListener("paste", (e) => {   // eingefügtes HTML wird auf fett/kursiv/unterstrichen/Links reduziert
-    e.preventDefault();
-    const dt = e.clipboardData; if (!dt) return;
-    const html = dt.getData("text/html");
-    if (html) insertMaterialHtml(matEd, html); else document.execCommand("insertText", false, dt.getData("text/plain") || "");
-    matInput();
-  });
-  matEd.addEventListener("dragstart", () => { matEd._dragInside = true; });
-  matEd.addEventListener("dragend", () => { matEd._dragInside = false; });
-  matEd.addEventListener("drop", (e) => {   // nur Text, an der Stelle des Mauszeigers; Ziehen innerhalb des Editors verschiebt
-    e.preventDefault();
-    const t = e.dataTransfer && e.dataTransfer.getData("text/plain");
-    const sel = getSelection(), inside = matEd._dragInside; matEd._dragInside = false;
-    if (!t) return;
-    if (inside && sel.rangeCount && matEd.contains(sel.anchorNode) && !sel.isCollapsed) sel.deleteFromDocument();
-    let r = null;
-    try {
-      if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(e.clientX, e.clientY);
-      else if (document.caretPositionFromPoint) { const pos = document.caretPositionFromPoint(e.clientX, e.clientY); if (pos) { r = document.createRange(); r.setStart(pos.offsetNode, pos.offset); r.collapse(true); } }
-    } catch (x) { r = null; }
-    matEd.focus();
-    if (r && matEd.contains(r.startContainer)) { sel.removeAllRanges(); sel.addRange(r); }
-    document.execCommand("insertText", false, t); matInput();
-  });
-  if (material && material.length) { Array.from(materialDom(material, { editor: true }).childNodes).forEach((n) => matEd.appendChild(n)); matEd.classList.remove("is-empty"); }
-  const noSol = h("p", { class: "fhint nosol hidden", text: "Für die Weltkarten-Zuordnung gibt es keine Musterlösung: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI." });
+  const noSol = h("p", { class: "fhint nosol hidden", text: "Für die Weltkarten-Zuordnung gibt es keinen Auftrag an die KI: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI." });
   const tr = h("tr", null, [
-    h("td", { class: "c1" }, [l1, ta1, h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
+    h("td", { class: "c1" }, [h("div", { class: "bq" }, [l1, q.bar, qEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab. Die KI bekommt nur den reinen Text." })]),
+      h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
       h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])]),
       h("div", { class: "bimgs bfiles" }, [fileList, h("div", { class: "bimg-row" }, [pdfAdd, pdfIn, pdfStat])])]),
     h("td", { class: "c2" }, [l2, ta2, noSol]),
@@ -4725,7 +4800,7 @@ function addRow(text, solution, images, material, files, answer) {
   tr._l1 = l1; tr._l2 = l2;
   tr._solSync = (isMap) => { ta2.classList.toggle("hidden", isMap); noSol.classList.toggle("hidden", !isMap); };
   tr.querySelector("td.c1").appendChild(answerEditor(tr, answer));
-  tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl;
+  tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl; tr._qEd = qEd;
   tr._files = []; tr._fileList = fileList; tr._fileAdd = pdfAdd; tr._fileStat = pdfStat;
   imgAdd.addEventListener("click", () => { file.value = ""; file.click(); });
   file.addEventListener("change", () => addImages(tr, Array.from(file.files || [])));
@@ -4735,17 +4810,17 @@ function addRow(text, solution, images, material, files, answer) {
   renderImages(tr);
   (files || []).forEach((f) => { if (tr._files.length < FILES_PER_TASK) tr._files.push(f); });
   renderFiles(tr);
-  [ta1, ta2].forEach((t) => t.addEventListener("input", () => { autoGrow(t); t.classList.remove("invalid"); T.builderDirty = true; }));
+  ta2.addEventListener("input", () => { autoGrow(ta2); ta2.classList.remove("invalid"); T.builderDirty = true; });
   up.addEventListener("click", () => { const p = tr.previousElementSibling; if (p) { tb.insertBefore(tr, p); renumber(); up.focus(); T.builderDirty = true; } });
   down.addEventListener("click", () => { const n = tr.nextElementSibling; if (n) { tb.insertBefore(n, tr); renumber(); down.focus(); T.builderDirty = true; } });
   del.addEventListener("click", async () => {
     const hasMat = !!matEd.textContent.trim(), hasFiles = tr._images.length || tr._files.length, hasAns = tr._ans.type !== "text";
-    if (tb.children.length <= 1 && !hasFiles && !hasMat && !hasAns) { ta1.value = ""; ta2.value = ""; growAll(); return; }
-    if ((ta1.value.trim() || ta2.value.trim() || hasFiles || hasMat || hasAns) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Musterlösung, Material, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    if (tb.children.length <= 1 && !hasFiles && !hasMat && !hasAns) { qEd._clear(); ta2.value = ""; growAll(); return; }
+    if ((qEd.textContent.trim() || ta2.value.trim() || hasFiles || hasMat || hasAns) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Auftrag an die KI, Material, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
     tr._images.forEach((im) => URL.revokeObjectURL(im.url));
     tr._ans.items.forEach((it) => { if (it.img) URL.revokeObjectURL(it.img.url); });
     if (tb.children.length <= 1) {
-      ta1.value = ""; ta2.value = ""; matEd.textContent = ""; matInput(); tr._images = []; renderImages(tr); tr._files = []; renderFiles(tr);
+      qEd._clear(); ta2.value = ""; matEd._clear(); tr._images = []; renderImages(tr); tr._files = []; renderFiles(tr);
       Object.assign(tr._ans, { type: "text", columns: [], rows: 3, items: [] }); tr._ansSel.value = "text"; tr._colsIn.value = ""; tr._rowsIn.value = "3"; tr._ansSync();
       growAll(); T.builderDirty = true; return;
     }
@@ -4759,11 +4834,11 @@ function addRow(text, solution, images, material, files, answer) {
 function renumber() {
   const rows = Array.from($("b-rows").children);
   rows.forEach((tr, i) => {
-    const n = i + 1, q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)");
+    const n = i + 1, q = tr._qEd, s = tr.querySelector("textarea.s:not(.measure)");
     q.id = "bq-" + n; s.id = "bs-" + n;
     const l1 = tr._l1, l2 = tr._l2;
-    l1.htmlFor = q.id; l1.textContent = "Aufgabe " + n;
-    l2.htmlFor = s.id; l2.textContent = "Musterlösung " + n;
+    l1.id = "bql-" + n; l1.textContent = "Aufgabe " + n; q.setAttribute("aria-labelledby", l1.id);   // Editor ohne <label for>: Name per aria-labelledby
+    l2.htmlFor = s.id; l2.textContent = "Auftrag an die KI " + n;
     tr._ansSel.id = "bt-" + n; tr._ansLbl.htmlFor = tr._ansSel.id; tr._ansLbl.textContent = `Antwortart ${n}`;
     tr._colsIn.id = "bc-" + n; tr._colsLbl.htmlFor = tr._colsIn.id; tr._colsLbl.textContent = "Spaltenüberschriften";
     tr._rowsIn.id = "br-" + n; tr._rowsLbl.htmlFor = tr._rowsIn.id; tr._rowsLbl.textContent = "Zeilen";
@@ -4777,6 +4852,8 @@ function renumber() {
     tr.querySelector(".bfile-add").setAttribute("aria-label", `PDF-Datei zu Aufgabe ${n} hinzufügen`);
     tr._matLbl.textContent = `Material ${n} (optional)`;
     tr._matEd.setAttribute("aria-label", `Material zu Aufgabe ${n}`);
+    tr.querySelector(".bq-bar").setAttribute("aria-label", `Formatierung der Aufgabenstellung ${n}`);
+    tr.querySelector(".bmat-bar").setAttribute("aria-label", `Formatierung des Materials ${n}`);
     tr.querySelector(".up").title = "Nach oben"; tr.querySelector(".down").title = "Nach unten"; tr.querySelector(".acts .x").title = "Zeile entfernen";
   });
   $("b-add").disabled = rows.length >= 30;
@@ -4784,7 +4861,7 @@ function renumber() {
 $("b-add").addEventListener("click", () => {
   if ($("b-rows").children.length >= 30) return;
   const tr = addRow("", ""); growAll(); T.builderDirty = true;
-  setTimeout(() => tr.querySelector("textarea.q").focus(), 20);
+  setTimeout(() => tr._qEd.focus(), 20);
 });
 $("b-title").addEventListener("input", () => { T.builderDirty = true; });
 $("t-new").addEventListener("click", () => openBuilder("", null));
@@ -4802,9 +4879,9 @@ $("b-gen").addEventListener("click", async () => {
   let bad = null;
   let checks = 0;
   Array.from($("b-rows").children).forEach((tr, i) => {
-    const q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)"), ans = tr._ans;
-    const text = q.value.trim(), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
-    const solution = ans.type === "map" ? "" : s.value.trim();   // Weltkarte: keine Musterlösung
+    const q = tr._qEd, s = tr.querySelector("textarea.s:not(.measure)"), ans = tr._ans;
+    const qModel = serializeMaterial(q, { keepIndent: true }), text = fmtPlain(qModel), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
+    const solution = ans.type === "map" ? "" : s.value.trim();   // Auftrag an die KI (Weltkarte: keiner)
     if (!text && !solution && !imgs.length && !pdfs.length && !material.length && ans.type === "text") return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
     // Antwortart prüfen (dieselben Grenzen wie der Server)
@@ -4834,13 +4911,15 @@ $("b-gen").addEventListener("click", async () => {
         return o;
       }) };
     }
-    const mRuns = material.reduce((n, p) => n + p.length, 0), mLinks = material.reduce((n, p) => n + p.filter((r) => r.h).length, 0);
-    const mErr = materialChars(material) > MAT_LIMITS.chars ? `Das Material ist zu lang (höchstens ${MAT_LIMITS.chars.toLocaleString("de-DE")} Zeichen).`
-      : material.length > MAT_LIMITS.paragraphs ? `Das Material hat zu viele Absätze (höchstens ${MAT_LIMITS.paragraphs}).`
-      : mRuns > MAT_LIMITS.runs ? `Das Material ist zu kleinteilig formatiert (höchstens ${MAT_LIMITS.runs} Abschnitte).`
-      : mLinks > MAT_LIMITS.links ? `Zu viele Links im Material (höchstens ${MAT_LIMITS.links}).` : "";
+    // Aufgabenstellung und Material: dieselben Grenzen wie der Server (der reine Text zählt mit Zeilenumbrüchen)
+    const textFmt = isFormatted(qModel) ? qModel : null;
+    const qErr = text.length > TASK_TEXT_MAX ? `Die Aufgabenstellung ist zu lang (höchstens ${TASK_TEXT_MAX.toLocaleString("de-DE")} Zeichen).`
+      : textFmt ? fmtLimitError(textFmt, TASK_TEXT_MAX, "Die Aufgabenstellung", "in der Aufgabenstellung") : "";
+    if (qErr && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: ${qErr}`; q.classList.add("invalid"); }
+    const mErr = fmtLimitError(material, MAT_LIMITS.chars, "Das Material", "im Material");
     if (mErr && !bad) { bad = tr._matEd; err.textContent = `Zeile ${i + 1}: ${mErr}`; }
     const task = { text, solution };
+    if (textFmt) task.textFmt = textFmt;
     if (material.length) task.material = material;
     if (answer) task.answer = answer;
     tasks.push(task);
@@ -4853,7 +4932,7 @@ $("b-gen").addEventListener("click", async () => {
   const imgTotal = uploads.reduce((n, u) => n + (u.kind === "image" ? u.im.blob.size : 0), 0), fileTotal = uploads.reduce((n, u) => n + (u.kind === "file" ? u.f.size : 0), 0);
   if (imgTotal > IMG_SHEET_BYTES) { err.textContent = `Die Bilder sind zusammen zu groß (${fmtKB(imgTotal)}, höchstens ${fmtKB(IMG_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Bilder entfernen.`; return; }
   if (fileTotal > FILE_SHEET_BYTES) { err.textContent = `Die PDF-Dateien sind zusammen zu groß (${fmtKB(fileTotal)}, höchstens ${fmtKB(FILE_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Dateien entfernen.`; return; }
-  if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector("textarea.q"); if (f) f.focus(); return; }
+  if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector(".bq-edit"); if (f) f.focus(); return; }
   if (tasks.length > 30) { err.textContent = "Ein Feibeitsblatt kann höchstens 30 Aufgaben haben."; return; }
   const title = $("b-title").value.trim().slice(0, 200);
   busy(btn, true, "Code wird erzeugt …");

@@ -130,7 +130,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
     aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }] });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
@@ -146,11 +146,42 @@ test("sheet material: gespeichert, öffentlich und für die Lehrkraft geliefert,
   assert.deepEqual(r.json.sheet.tasks.map((t) => t.material), [material, []]);
   assert.equal(/solution|musterl/i.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets/" + c, { auth });
-  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", solution: "k", material, images: [], files: [], answer: { type: "text" } });
+  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", textFmt: [], solution: "k", material, images: [], files: [], answer: { type: "text" } });
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: [[{ t: "x", h: "javascript:alert(1)" }]] }] } });
   assert.equal(r.status, 400); assert.match(r.json.error, /^Aufgabe 1: Ein Link im Material ist ungültig/);
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: "fett" }] } });
   assert.equal(r.status, 400);
+  await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+});
+
+test("formatierte Aufgabenstellung (textFmt): nur mit Formatierung gespeichert, öffentlich und für die Lehrkraft geliefert, die KI bekommt nur den reinen Text", async () => {
+  const textFmt = [[{ t: "Erkläre mit " }, { t: "eigenen Worten", f: "b" }, { t: ", was auf " }, { t: "dieser Seite", h: "https://beispiel.de/fotosynthese" }, { t: " steht." }], [], [{ t: "Nutze das Material.", f: "iu" }]];
+  const plain = "Erkläre mit eigenen Worten, was auf dieser Seite steht.\n\nNutze das Material.";
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Formatiert", tasks: [{ text: "veraltet", textFmt, solution: "Achte auf Licht und Wasser." }, { text: "B", textFmt: [[{ t: "Nur " }, { t: "Text" }]] }] } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  const stored = JSON.parse(d1.db.prepare("SELECT tasks FROM sheets WHERE code=?").get(c).tasks);
+  assert.deepEqual(stored.map((t) => [t.text, "textFmt" in t]), [[plain, true], ["Nur Text", false]]);   // ohne Formatierung nur der reine Text
+  r = await call("GET", "/api/sheet/" + c);
+  assert.deepEqual(r.json.sheet.tasks.map((t) => [t.text, t.textFmt]), [[plain, textFmt], ["Nur Text", []]]);
+  assert.equal(/solution|Achte auf Licht/.test(r.text), false);
+  r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+  assert.deepEqual(r.json.sheet.tasks[0], { text: plain, textFmt, solution: "Achte auf Licht und Wasser.", material: [], images: [], files: [], answer: { type: "text" } });
+  assert.deepEqual(r.json.sheet.tasks[1].textFmt, []);
+  // KI: die Aufgabenstellung nur als reiner Text – ohne Formatierung und ohne Link-Adresse
+  const before = mock.state.requests.length;
+  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Pflanzen brauchen Licht.", "x"], recipients: ["custom:127.0.0.1:" + mock.port] } });
+  assert.equal(r.status, 200, r.text);
+  const prompt = mock.state.requests.slice(before).map((q) => q.messages.map((m) => m.content).join("\n")).join("\n");
+  assert.ok(prompt.includes("### Aufgabe 1\nAufgabenstellung:\n<<<\n" + plain + "\n>>>"), prompt);
+  assert.equal(/beispiel\.de|textFmt|"f":/.test(prompt), false);
+  // unsichere Links, Grenzen der Aufgabenstellung, falsches Format → 400 mit deutscher Meldung
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A" }, { text: "B", textFmt: [[{ t: "B", h: "javascript:alert(1)" }]] }] } });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 2: Ein Link in der Aufgabenstellung ist ungültig (erlaubt sind nur Adressen mit http:// oder https://).");
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", textFmt: [[{ t: "x".repeat(LIMITS.taskText + 1), f: "b" }]] }] } });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 1: Die Aufgabenstellung ist zu lang (höchstens 4000 Zeichen).");
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", textFmt: "<b>A</b>" }] } });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 1: Die Aufgabenstellung hat ein ungültiges Format.");
   await call("DELETE", "/api/teacher/sheets/" + c, { auth });
 });
 
@@ -230,7 +261,7 @@ test("answer types: table + map stored, public view has only checks, card images
   assert.equal(pub[0].images.filter((m) => m.mode === "card").length, 40);
   r = await call("GET", "/api/teacher/sheets/" + c, { auth });
   assert.deepEqual(r.json.sheet.tasks[0].answer, answer);
-  assert.equal(r.json.sheet.tasks[0].solution, "");   // Weltkarte: keine Musterlösung
+  assert.equal(r.json.sheet.tasks[0].solution, "");   // Weltkarte: kein Auftrag an die KI
   // KI: nur Aufgabe 2 (Tabelle) mit der Zeile zu den Spalten; die Weltkarte geht nie an die KI
   const before = mock.state.requests.length;
   r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Kaffee → Brasilien\nZugeordnet: 1 von 2", "Produkt | Land\nWeizen | Indien"], recipients: ["custom:127.0.0.1:" + mock.port] } });
@@ -238,7 +269,7 @@ test("answer types: table + map stored, public view has only checks, card images
   const prompt = mock.state.requests.slice(before).map((q) => JSON.stringify(q.body || q)).join("\n");
   assert.match(prompt, /### Antwort zu Aufgabe 2\\nAntwort als Tabelle mit den Spalten: Produkt, Land\\n<<<\\nProdukt \| Land/);
   assert.equal(/Aufgabe 1|Brasilien/.test(prompt), false);
-  assert.equal(r.json.results[0].note, "Zu dieser Aufgabe gibt es keine Musterlösung.");
+  assert.equal(r.json.results[0].note, "Zu dieser Aufgabe gibt es kein KI-Feedback.");
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", answer: { type: "table", columns: ["A"], rows: 99 } }] } });
   assert.equal(r.status, 400); assert.match(r.json.error, /^Aufgabe 1: Die Tabelle braucht 1 bis 30 Zeilen/);
   await call("DELETE", "/api/teacher/sheets/" + c, { auth });
@@ -473,7 +504,7 @@ test("gemini needs the billing confirmation (EEA terms) before a key is stored",
   assert.equal(r.status, 200);
 });
 
-test("feedback: one AI call, expected covered/missing, ≤ 50 D1 queries", async () => {
+test("feedback: one AI call, expected covered/missing (= gut/tipps of the mock), ≤ 50 D1 queries", async () => {
   mock.reset();
   const answers = ["Licht ist wichtig für die photosynthese", ""];
   const r = await call("POST", "/api/feedback", { body: { code, answers } });
@@ -616,7 +647,7 @@ test("stored key is never sent to another provider/host: new provider or base UR
   assert.equal(r.json.hasKey, true); assert.equal(r.json.provider, "custom");   // unverändert
 });
 
-test("feedback without configured AI → 503; sheet without solutions needs no AI", async () => {
+test("feedback without configured AI → 503; sheet without instructions for the AI needs no AI", async () => {
   d1.db.prepare("DELETE FROM settings WHERE key='ai'").run();
   let r = await call("GET", "/api/sheet/" + code);
   assert.equal(r.json.sheet.aiProvider, null);
@@ -624,7 +655,7 @@ test("feedback without configured AI → 503; sheet without solutions needs no A
   assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured");
   const c2 = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "", tasks: [{ text: "Frei" }] } })).json.code;
   r = await call("POST", "/api/feedback", { body: { code: c2, answers: ["egal"] } });
-  assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es keine Musterlösung." }] });
+  assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }] });
 });
 
 test("lockouts count only failures per (hashed) IP; correct door code and password always pass; IPv6 by /64", async () => {

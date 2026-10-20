@@ -1,7 +1,7 @@
 # Feibeitsblatt – Hinweise für die Entwicklung
 
 Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit-Messung): Lehrkraft legt Aufgaben +
-Musterlösungen an (Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback,
+Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback,
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
@@ -20,14 +20,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
     `.nojekyll`, Quelle Branch `main` Ordner `/`): dort gelten keine `_headers`, deshalb steht die CSP auch als
     `<meta http-equiv>` in `index.html` – Worker-Adresse dort (`connect-src`) und im Skript immer zusammen ändern.
 - **API:** JSON, `{ok:true, …}` bzw. `{ok:false, error:"deutsche Meldung", code}`; CORS `*`, keine Cookies, Auth nur
-  per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie Musterlösungen**),
+  per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie `solution`**, d. h. die Aufträge an die KI),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
   `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/ai`, `/ai/test` (Pfade unter `/api/teacher`).
   Bilder: `POST /api/teacher/sheets/:code/images` (JSON `{task (1-basiert), mode: thumb|inline|card, data: Base64}` →
   `{image:{id, task, pos, mode, mime, w, h, bytes}}`), öffentlich `GET /api/sheet/:code/images/:id` →
   `{mime, w, h, data: Base64}` mit `Cache-Control: public, max-age=31536000, immutable`; `GET /api/sheet/:code` und
-  `GET /api/teacher/sheets/:code` liefern je Aufgabe `images: [{id, mode, w, h, alt}]` (nie Bilddaten) und
-  `material` (Absätze aus Läufen, siehe unten) und `files` (PDF-Dateien, siehe unten).
+  `GET /api/teacher/sheets/:code` liefern je Aufgabe `images: [{id, mode, w, h, alt}]` (nie Bilddaten),
+  `material` (Absätze aus Läufen, siehe unten), `textFmt` (formatierte Aufgabenstellung, siehe unten; `[]` = nur `text`)
+  und `files` (PDF-Dateien, siehe unten).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
   `/door`, Blatt-Codes enthalten immer Buchstaben. `GET …/submissions?after=<id>` liefert seitenweise (≤ 50 bzw.
   ≤ 8 MB je Seite, `next` = letzte id oder `null`); das Frontend schleift über `next`. `GET /api/health` ohne
@@ -72,8 +73,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Klausur/Klassenarbeit/Leistungsnachweis). `S.lastSubmission` (Code, Titel, Aufgabentexte, person, answers
   first/final, feedback, receivedAt) bleibt nur im Arbeitsspeicher bis „Neues Feibeitsblatt öffnen“ (`resetStudent`);
   `makeSolutionsPdf` baut mehrseitig mit denselben Bausteinen (`pdfWrap`/`pdfStr`/`latin1`/`pdfUtf16`): je Aufgabe
-  Aufgabenstellung, abgegebene Fassung + „KI-Rückmeldung zur abgegebenen Fassung (x von y Kernpunkten angesprochen):“
-  (`sub.feedback2`), bei Überarbeitung erste Fassung + „KI-Feedback zur ersten Fassung:“ (unverändert abgegeben:
+  Aufgabenstellung, abgegebene Fassung + „KI-Rückmeldung zur abgegebenen Fassung:“ (`sub.feedback2`, ohne Zählung;
+  Punkte „• Gelingt schon: …“ grün, „• Tipp: …“ rot), bei Überarbeitung erste Fassung + „KI-Feedback zur ersten Fassung:“ (unverändert abgegeben:
   „KI-Feedback (gilt auch für die abgegebene Fassung):“), fehlt `feedback2` noch, ein Hinweis unter dem Kopf;
   Fußzeile „Seite n von N“;
   Dateiname `Feibeitsblatt-Loesungen-<Code>-<Datum>.pdf`, ohne Geburtsdatum.
@@ -81,10 +82,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   gibt **zuerst** ab (die Abgabe hängt nie von der KI ab), merkt sich in `S.lastSubmission` die Empfänger-ids
   (`recipients`) und ruft danach `requestFinalFeedback()` – nur mit erstem Feedback (`S.feedback`; ohne KI keine
   zweite Rückmeldung, `#done-fb` bleibt verborgen). „Geändert“ entscheidet `fb2Changes(firsts, finals, feedback)`
-  genau wie der Server sieht: nur Aufgaben mit Kernpunkten im ersten Feedback und `fbText` (Zeilenumbrüche,
+  genau wie der Server sieht: nur Aufgaben mit Stichpunkten im ersten Feedback und `fbText` (Zeilenumbrüche,
   Steuerzeichen, trim wie `cleanText`) verschieden – derselbe Helfer im Abgabe-Dialog. Nichts geändert → keine Anfrage,
   `feedback2 = {results: erstes Feedback, same: true}`; sonst werden nur geänderte Aufgaben übernommen, für die anderen
-  bleibt die erste Rückmeldung (`kept[i]`, Anzeige „unverändert abgegeben – wie beim ersten Feedback“, im PDF „gilt auch
+  bleibt die erste Rückmeldung (`kept[i]`, Anzeige „Unverändert abgegeben – wie beim ersten Feedback.“, im PDF „gilt auch
   für die abgegebene Fassung“) – nie zwei widersprüchliche Urteile für denselben Text. Zu lang (`fb2TooLong`, wie
   `validateAnswers`) → keine Anfrage, Hinweis. Sonst `POST /api/feedback` mit `{code, answers: final,
   recipients}` (wie das erste: ohne Personendaten, 409 `ai_changed` → nichts gesendet, Hinweis), Lauf-Kennung
@@ -93,8 +94,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Live-Region `#done-fb-status`), sonst `finalFeedbackFailed` + `#done-fb-retry` „Rückmeldung erneut anfordern“
   (höchstens `FB2_MANUAL` 3, nur bei vorübergehenden Fehlern `FB2_TRANSIENT`/429/5xx; endgültig → `finalFeedbackGone`,
   `fb2Final`). Anzeige `renderFinalFeedback` in
-  `#done-fb-list` über dem PDF-Button: je Aufgabe `.fbbox#done-fb-n` mit `.fb-sum` „Angesprochen: x von y Kernpunkten
-  (beim ersten Feedback: z von y).“ und denselben Listen wie im Editor (`appendFbLists`). PDF ohne zweite Rückmeldung
+  `#done-fb-list` über dem PDF-Button: je Aufgabe `.fbbox#done-fb-n` **ohne Zählung** (der Auftrag ist keine Liste zum
+  Abhaken; nur bei `kept[i]` ohne `same` ein `.fb-sum` „Unverändert abgegeben – wie beim ersten Feedback.“) und denselben
+  Listen wie im Editor (`appendFbLists`: „Das gelingt dir schon“ `.fb-sub.fb-ok` / `.fb-sub.fb-miss` – im Editor „Tipps zum
+  Überarbeiten“, nach der Abgabe „Tipps zum Weiterlernen“). PDF ohne zweite Rückmeldung
   heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
   erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
   7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu. `feedback2` bleibt nur im Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Abgabe-Dialog
@@ -112,10 +115,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Subrequests je Aufruf → `db.batch()`. D1: 5 Mio. gelesene / 100 000 geschriebene Zeilen pro Tag (seit 1.9.2026
   hart) → Indizes, `COUNT` über Index. Lange KI-Anfragen sind ok (keine Wall-Time-Grenze bei verbundenem Client).
 - **KI:** Nie Personendaten an die KI – `/api/feedback` bekommt nur `{code, answers}`. Der Worker baut die Nachrichten
-  **selbst** aus D1 (Aufgaben, reiner Text des Materials, Musterlösungen) und den Antworten (`buildFeedbackMessages`; nie `messages` vom
+  **selbst** aus D1 (Aufgaben, reiner Text des Materials, Aufträge an die KI) und den Antworten (`buildFeedbackMessages`; nie `messages` vom
   Browser annehmen, sonst offenes KI-Relay); Daten zwischen `<<<`/`>>>` über `safeData`. Nur Aufgaben mit
-  Musterlösung, eine Anfrage je Blatt. **Reihenfolge im Prompt nicht ändern:** erst der je Blatt gleiche Teil
-  (`### Aufgabe n` mit Aufgabenstellung, Material, Musterlösung), dann alle Antworten (`### Antwort zu Aufgabe n`) –
+  Auftrag an die KI, eine Anfrage je Blatt. **Reihenfolge im Prompt nicht ändern:** erst der je Blatt gleiche Teil
+  („Aufgaben, Material und Aufträge der Lehrkraft (Nummern: …):“, je `### Aufgabe n` mit Aufgabenstellung, Material,
+  „Auftrag der Lehrkraft für das Feedback:“), dann alle Antworten (`### Antwort zu Aufgabe n`) –
   so greift das Präfix-Caching (Groq: gecachte Token zählen nicht gegen die Limits); `parseFeedbackPrompt` im Mock
   liest genau dieses Format. **Reserve-KI:** `settings.ai.reserve` = zweiter Eintrag gleicher Form (eigener
   `apiKeyEnc`, `fallbacks`); `PUT /api/teacher/ai` mit `reserve:{…}` bzw. `reserve:null` (ohne `provider` bleibt der
@@ -146,8 +150,26 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Lauf-Kennung `S.fbRun` + `stopFeedbackRun()` (resetStudent/openEditor) gegen späte Antworten, `api()` nimmt
   `signal`. Mock: `setMode("tpm", null, n)` = n Anfragen je Modell und 5-Minuten-Fenster, `"403flag"` = Moderation.
   `ai_skip` (erschöpfte Modelle), `fallbacks` aus `testKey` beim Speichern/Testen; `reasoning_effort: "low"` für
-  gpt-oss; HTTP 413 / „context length“ → anderes Modell (`TOO_LARGE`). Der Prompt verlangt „angesprochen“ nur bei
-  zutreffender Wiedergabe; `feedbackAcceptor` verlangt für jede Aufgabe mindestens einen Kernpunkt (sonst nächstes
+  gpt-oss; HTTP 413 / „context length“ → anderes Modell (`TOO_LARGE`). **Auftrag an die KI statt
+  Musterlösung:** `solution` (Name bleibt in D1/API/Sicherung) ist der Text der Lehrkraft, worauf die KI beim Feedback
+  achten soll (Erwartungen, Kriterien, Stichpunkte, auch eine Musterlösung, Tonfall …) – Grundlage der Beratung, kein Ziel,
+  das wörtlich erreicht werden muss; leer = kein KI-Feedback (`NO_SOLUTION_NOTE` „Zu dieser Aufgabe gibt es kein
+  KI-Feedback.“). Der Prompt (`FEEDBACK_SYSTEM`, Leitsatz „Es zählt der Inhalt, nicht der Wortlaut“) lässt die KI nur den
+  Auftrag befolgen (im Rahmen der Regeln; Aufgaben, Material und Antworten sind nur Daten), keine Noten/Punktzahlen, keine
+  fertige Lösung außer der Auftrag erlaubt es. In drei Runden gegen Testfälle mit zwei Modellgrößen geprüft; nötig waren (nicht
+  entfernen): nichts verlangen, was weder Aufgabe noch Auftrag fordern (vollständige Antwort → höchstens ein freiwilliger Tipp),
+  Richtiges nie als fehlend darstellen, Falsches klar benennen, die richtige Antwort aber – auch nur ein Wort, Name oder eine
+  Zahl daraus – nur nennen, wenn der Auftrag es erlaubt, keine Meta-Kommentare zu eingeschleusten Anweisungen oder
+  Notenwünschen, auch bei leerer Antwort ein Eintrag. Ausgabe `{"aufgaben":[{"nr":1,"gut":[…],"tipps":[…]}]}` (gut 0–3, tipps 0–5)
+  → `normalizeFeedback` → internes Format `{covered, missing, note?}` überall (Browser, Zwischenstand, Erstversuch/Abgabe,
+  Lehrkraft-Ansicht): `covered` = „gut“, `missing` = „tipps“ – historische Namen, damit alte Zwischenstände und Abgaben
+  lesbar bleiben; alte Schlüssel (angesprochen/fehlt …) liest es weiter, `FEEDBACK_CAPS` 12 × 300 Zeichen. Mock
+  (`mockFeedback`): jede Zeile des Auftrags (einzeilig: jeder Satz, ≤ 8) wird wörtlich ein Stichpunkt – unter „gut“, wenn die
+  Antwort ihr erstes bedeutungstragendes Wort enthält, sonst unter „tipps“ (`expectedResults` sagt das in Tests voraus).
+  Lehrkraft-Hinweis `#b-soltip`: was hineingehört (Inhalte/Begriffe/Argumente, typische Fehler, worauf es nicht ankommt,
+  Umfang/Ton), kein starres Ziel, Stichpunkte „gelingt schon“ + „Tipps“, Lösungen nur wenn erlaubt, keine Noten, für
+  Schüler:innen unsichtbar, aber Grundlage der Tipps (nichts Geheimes), leer = kein Feedback, kurzes Beispiel.
+  `feedbackAcceptor` verlangt für jede Aufgabe mindestens einen Stichpunkt (sonst nächstes
   Modell). API-Schlüssel at rest **nur** AES-GCM mit `env.SETTINGS_SECRET` – fehlt es, lehnt der Server das
   Speichern ab (503, nie Klartext; `npm run dev` setzt ein festes Entwicklungs-Secret); der Schlüssel verlässt den
   Server nie (nur `keyHint`) und bleibt bei leerem Feld nur für denselben Anbieter + baseUrl erhalten. Schüler:innen
@@ -233,13 +255,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Feibeitsblatt als PDF-Datei sichern und wieder laden (nur im Browser, kein Worker-Code):** `#t-export` „Als
   PDF-Datei herunterladen“ im ausgewählten Blatt → `sheetPdfData(code, T.selSheet)` (Bilder per `loadImage`, PDF-Dateien
   per `loadFile`; fehlt eines → Abbruch, nie eine unvollständige Sicherung) → `makeSheetPdf(rec, blobs, shows)`:
-  mehrseitig A4 wie `makeSolutionsPdf` (Titel, blauer Hinweiskasten mit roter Warnung „enthält die Musterlösungen“, je
+  mehrseitig A4 wie `makeSolutionsPdf` (Titel, blauer Hinweiskasten mit roter Warnung „enthält die Aufträge an die KI“, je
   Aufgabe Text, `materialPlain`, Bilder als DCTDecode-JPEG aus `pdfJpeg` (Canvas, weiß, ≤ 1400 px; thumb ≤ 220×190 pt,
   inline ≤ Breite×330 pt), Dateinamen; Fußzeile „Seite n von N“). Hintergrund: Objekt 6 = Datensatz
   `feibeitsblatt.json` (`/FbSheet 1`, FlateDecode über `CompressionStream`, sonst roh) **vor** allen Anhängen; je Bild und
   PDF-Datei ein `/Type /EmbeddedFile`-Stream mit den Original-Bytes und `/FbBlob (<exportId>-<k>)`, alle im
   `/EmbeddedFiles`-Namensbaum (Schlüssel ASCII sortiert) und in `/AF`. Datensatz `{kind:"feibeitsblatt-sheet", v:1,
-  exportId, exportedAt, code, title, createdAt, tasks:[{text, solution, material, images:[{ref, mime, w, h, mode, alt,
+  exportId, exportedAt, code, title, createdAt, tasks:[{text, textFmt? (nur wenn formatiert), solution, material, images:[{ref, mime, w, h, mode, alt,
   bytes, sha256}], files:[{ref, name, bytes, sha256}]}]}` – **nie Abgaben**. Dateiname `sheetPdfName` =
   `Feibeitsblatt-<Code>-<Titel>.pdf`, Titel per `pdfAscii` nur ASCII (Chromium verwirft Download-Namen mit Umlauten/„–“
   auf manchen Systemen und nimmt „download“ – so in der E2E-Sandbox). `#t-import` „Feibeitsblatt aus PDF-Datei laden“ (Übersicht) → `#t-import-file` →
@@ -251,7 +273,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Durchlauf gesucht (`/FbSheet\s+1`, `/FbBlob\s*(…)` mit `pdfStringValue` für \-/Oktal-Escapes und `<hex>`, da PDF-Programme
   beim Neuspeichern kompakt schreiben); fehlt das Kennzeichen eines Anhangs, wird er unter allen `/Type /EmbeddedFile`-Streams
   über Größe + SHA-256 gefunden. `cleanSheetRecord`
-  kappt wie die Eingabefelder (≤ 30 Aufgaben, Text 4000/Lösung 8000, `cleanMaterial`, ≤ 5 Bilder mit erlaubtem MIME,
+  kappt wie die Eingabefelder (≤ 30 Aufgaben, Text 4000/Lösung 8000, `cleanMaterial`, `textFmt` per `capFmt` auf 4000
+  Zeichen samt Zeilenumbrüchen, ≤ 5 Bilder mit erlaubtem MIME,
   ≤ 3 Dateien, `safeFileName`, Refs `SHEET_REF_RE`); liegt ein Datensatz innerhalb eines Anhangs eines anderen
   (Sicherung als Material angehängt), gilt der äußere. Bilder/Dateien nur mit passender Größe und SHA-256
   (`sheetBlobOk`), Bilder zusätzlich per `decodeImage` lesbar und ≤ 4096 px, Dateien mit `%PDF-`; Fehlendes →
@@ -307,7 +330,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   liefert `value` den gespeicherten Text und Klicks bleiben wirkungslos. Weltkarte ohne KI-Feedback-Box, auch nicht auf dem
   Abschlussbildschirm und in der Lösungs-PDF (`S.lastSubmission.kinds`); „→“ druckt die PDF als „->“ (`pdfPlain`). **Lehrkraft:** `answerEditor` je Zeile (`tr._ans`,
   Auswahl `#bt-n`, Spalten `#bc-n` je Zeile oder „;“, Zeilen `#br-n`, Vorschau; Karten-Editor mit Bezeichnung, Hinweis, einem
-  Bild, Länder-Chips über die deutschen Namen, ↑/↓/✕; Musterlösung ausgeblendet), Karten-id beim Anlegen aus der Bezeichnung
+  Bild, Länder-Chips über die deutschen Namen, ↑/↓/✕; Auftrag an die KI ausgeblendet), Karten-id beim Anlegen aus der Bezeichnung
   (`itemIds`/`slugId`), `b-gen` verlangt je Karte ein anklickbares Land und verschiedene Bezeichnungen, wartet auf das
   Verkleinern (`T.preparing`) und erzeugt die Bild-ids vorab (Upload `kind:"image"`, `mode:"card"`). Vorlage, Sicherung
   (`sheetPdfData`: Kartenbilder als `images` mit `mode:"card"`, die Karte zeigt per `image` auf die Ref; sichtbar nur als Liste
@@ -339,6 +362,27 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`MAT_LIMITS` = `LIMITS`), `cleanHref` misst die Länge nach der URL-Normalisierung. Links der Schüler:innen tragen
   einen `sr-only`-Hinweis „(öffnet in neuem Tab)“, der ↗-Marker ist nur CSS. Die KI bekommt nur `materialText` (reiner Text ohne Links,
   ≤ 4000 Zeichen je Aufgabe, `MATERIAL_CAP` in ai.js). Antworten liefern `material: []`, wenn keines da ist.
+- **Formatierte Aufgabenstellung (`textFmt`):** dieselben Möglichkeiten wie beim Material (fett, kursiv, unterstrichen,
+  Links). `tasks[i].text` bleibt reiner Text (≤ 4000; KI, PDF-Dateien, Listen, ältere Seiten), optional `tasks[i].textFmt` =
+  Läufe wie `material`. Server: `validateMaterial(raw, n, kind)` mit `FMT_MATERIAL` bzw. `FMT_TASK_TEXT` (Zeichengrenze
+  `LIMITS.taskText`, Absätze/Läufe/Links wie Material, Meldungen „Die Aufgabenstellung …“/„… in der Aufgabenstellung“),
+  `validateTextFmt`; kommt ein nicht leeres `textFmt`, wird `text` daraus abgeleitet (`materialText`: Absätze mit „\n“,
+  ohne Link-Adressen), danach gelten die Regeln für `text`; gespeichert wird `textFmt` nur, wenn ein Lauf `f` oder `h` hat
+  (`isFormatted`). Unsichere Links → 400 „Aufgabe n: Ein Link in der Aufgabenstellung ist ungültig …“. Die KI bekommt nur
+  `text` (der Prompt bleibt unverändert). Browser: `fmtEditor({cls, barCls, placeholder, barLabel, model|text, onInput})`
+  ist der gemeinsame Editor (Material: `.bmat-edit`/`.bmat-bar`; Aufgabenstellung: `#bq-n.bq-edit`, Name per
+  `aria-labelledby` → `#bql-n`, Werkzeugleiste `.bq-bar` „Formatierung der Aufgabenstellung n“ (Material „Formatierung des
+  Materials n“, beides in `renumber`); gemeinsame Klassen `.fmt-edit`/`.fmt-bar`, Fehlermarkierung `.fmt-edit.invalid`,
+  `ed._clear()`). `b-gen` schickt `text` = `fmtPlain(serializeMaterial(q, {keepIndent:true}))` – Einrückungen, Tabs (als vier
+  Leerzeichen) und Leerzeilen bleiben wie früher in der Textarea (Programmcode!); beim Material und beim Einfügen von HTML wird
+  Leerraum weiter zusammengefasst – und `textFmt` nur bei `isFormatted`; Grenzen per `fmtLimitError` (auch fürs Material) und `TASK_TEXT_MAX`. Anzeige per
+  `taskTextDom(tag, props, text, fmt)` (Schüler:innen `#q-n.task-text`, Blattdetails, Abgaben-Details `.dtask-text`):
+  formatiert als `div.qtext` mit `materialDom(…, {links:true})`, Absätze ohne Abstand wie Zeilen; enthält sie Fettes,
+  `.qtext.has-b` = normale Grundschrift (die Aufgabenstellung steht sonst fett, Fett fiele nicht auf). „Als Vorlage
+  verwenden“, Sicherung (Datensatz `textFmt` je Aufgabe, nur wenn vorhanden; sichtbarer PDF-Teil reiner Text) und Import
+  (`cleanSheetRecord`: `capFmt(cleanMaterial(…), TASK_TEXT_MAX)`) tragen `textFmt` mit. E2E 7e: Fett per Strg+B, Link per
+  Dialog, Einfügen aus HTML, Schüler:innen-Ansicht, Mock-Prompt ohne Link-Adresse, Lehrkraft-Ansichten, Vorlage,
+  Sicherung → Import → neues Blatt.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-

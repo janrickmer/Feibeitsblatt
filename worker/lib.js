@@ -180,15 +180,19 @@ export function validateSheetInput(body, now = Date.now()) {
   if (body.tasks.length > LIMITS.tasks) throw new InputError("Höchstens " + LIMITS.tasks + " Aufgaben pro Feibeitsblatt.");
   const tasks = body.tasks.map((t, i) => {
     const n = i + 1;
-    if (!isObj(t) || typeof t.text !== "string") throw new InputError("Aufgabe " + n + ": Aufgabenstellung fehlt.");
-    if (t.solution != null && typeof t.solution !== "string") throw new InputError("Aufgabe " + n + ": Die Musterlösung muss ein Text sein.");
+    if (!isObj(t) || (typeof t.text !== "string" && t.textFmt == null)) throw new InputError("Aufgabe " + n + ": Aufgabenstellung fehlt.");
+    if (t.solution != null && typeof t.solution !== "string") throw new InputError("Aufgabe " + n + ": Der Auftrag an die KI muss ein Text sein.");
     const answer = validateAnswerSpec(t.answer, n), isMap = !!answer && answer.type === "map";
-    const text = cleanText(t.text).trim(), solution = isMap ? "" : cleanText(t.solution || "").trim();   // Weltkarte: keine Musterlösung, kein KI-Feedback
+    // textFmt = formatierte Aufgabenstellung (Läufe wie beim Material); der reine Text wird daraus abgeleitet – er geht an die KI
+    // (ohne Link-Adressen), in die PDF-Dateien und an ältere Seiten. Gespeichert wird textFmt nur, wenn etwas formatiert oder verlinkt ist.
+    const textFmt = validateTextFmt(t.textFmt, n);
+    const text = (textFmt.length ? materialText(textFmt) : cleanText(typeof t.text === "string" ? t.text : "")).trim(), solution = isMap ? "" : cleanText(t.solution || "").trim();   // solution = Auftrag an die KI; Weltkarte: keiner, kein KI-Feedback
     if (!text) throw new InputError("Aufgabe " + n + ": Bitte eine Aufgabenstellung eintragen.");
     if (text.length > LIMITS.taskText) throw new InputError("Aufgabe " + n + ": Die Aufgabenstellung ist zu lang (höchstens " + LIMITS.taskText + " Zeichen).");
-    if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Die Musterlösung ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
+    if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Der Auftrag an die KI ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
     const material = validateMaterial(t.material, n);
     const task = { text, solution };
+    if (isFormatted(textFmt)) task.textFmt = textFmt;
     if (material.length) task.material = material;
     if (answer) task.answer = answer;
     return task;
@@ -317,34 +321,38 @@ export function cleanHref(raw) {   // → normalisierte http(s)-Adresse oder "" 
   let u; try { u = new URL(s); } catch { return ""; }
   return (u.protocol === "http:" || u.protocol === "https:") && u.href.length <= LIMITS.href ? u.href : "";   // Länge nach der Normalisierung (Prozent-Kodierung)
 }
-export function validateMaterial(raw, n) {
+// Dieselben Läufe gibt es für das Material und für die formatierte Aufgabenstellung (textFmt): nur Zeichengrenze und Wortlaut
+// der Meldungen unterscheiden sich; Absätze, Abschnitte und Links haben dieselben Grenzen
+const FMT_MATERIAL = { chars: LIMITS.material, the: "Das Material", inThe: "im Material" };
+const FMT_TASK_TEXT = { chars: LIMITS.taskText, the: "Die Aufgabenstellung", inThe: "in der Aufgabenstellung" };
+export function validateMaterial(raw, n, kind = FMT_MATERIAL) {
   if (raw == null) return [];
   const where = n ? "Aufgabe " + n + ": " : "";
-  const bad = () => new InputError(where + "Das Material hat ein ungültiges Format.");
+  const bad = () => new InputError(where + kind.the + " hat ein ungültiges Format.");
   if (!Array.isArray(raw)) throw bad();
-  if (raw.length > LIMITS.materialParagraphs) throw new InputError(where + "Das Material hat zu viele Absätze (höchstens " + LIMITS.materialParagraphs + ").");
+  if (raw.length > LIMITS.materialParagraphs) throw new InputError(where + kind.the + " hat zu viele Absätze (höchstens " + LIMITS.materialParagraphs + ").");
   // Grenzen so früh wie möglich prüfen (10 ms CPU): Läufe zählen vor dem Verarbeiten, Zeichen und Links beim Zählen
-  const tooLong = () => new InputError(where + "Das Material ist zu lang (höchstens " + LIMITS.material + " Zeichen).");
+  const tooLong = () => new InputError(where + kind.the + " ist zu lang (höchstens " + kind.chars + " Zeichen).");
   let chars = 0, runs = 0, links = 0;
   const out = raw.map((para) => {
     if (!Array.isArray(para)) throw bad();
     runs += para.length;
-    if (runs > LIMITS.materialRuns) throw new InputError(where + "Das Material ist zu kleinteilig formatiert (höchstens " + LIMITS.materialRuns + " Abschnitte).");
+    if (runs > LIMITS.materialRuns) throw new InputError(where + kind.the + " ist zu kleinteilig formatiert (höchstens " + LIMITS.materialRuns + " Abschnitte).");
     const line = [];
     for (const r of para) {
       if (!isObj(r) || typeof r.t !== "string" || (r.f != null && typeof r.f !== "string") || (r.h != null && typeof r.h !== "string")) throw bad();
-      if (r.t.length > LIMITS.material) throw tooLong();
+      if (r.t.length > kind.chars) throw tooLong();
       const t = cleanText(r.t).replace(/[\t\n\r\u00a0]+/g, " ");   // innerhalb eines Laufs keine Zeilenumbrüche
       if (!t) continue;
       chars += t.length;
-      if (chars > LIMITS.material) throw tooLong();
+      if (chars > kind.chars) throw tooLong();
       const f = ["b", "i", "u"].filter((c) => String(r.f || "").includes(c)).join("");
       let h = "";
-      if (r.h) { h = cleanHref(r.h); if (!h) throw new InputError(where + "Ein Link im Material ist ungültig (erlaubt sind nur Adressen mit http:// oder https://)."); }
+      if (r.h) { h = cleanHref(r.h); if (!h) throw new InputError(where + "Ein Link " + kind.inThe + " ist ungültig (erlaubt sind nur Adressen mit http:// oder https://)."); }
       const prev = line[line.length - 1];
       if (prev && (prev.f || "") === f && (prev.h || "") === h) { prev.t += t; continue; }
       const run = { t }; if (f) run.f = f;
-      if (h) { run.h = h; links++; if (links > LIMITS.materialLinks) throw new InputError(where + "Zu viele Links im Material (höchstens " + LIMITS.materialLinks + ")."); }
+      if (h) { run.h = h; links++; if (links > LIMITS.materialLinks) throw new InputError(where + "Zu viele Links " + kind.inThe + " (höchstens " + LIMITS.materialLinks + ")."); }
       line.push(run);
     }
     return line;
@@ -355,6 +363,9 @@ export function validateMaterial(raw, n) {
 }
 // Material als reiner Text (für die KI: ohne Formatierung und ohne Links)
 export const materialText = (m) => (Array.isArray(m) ? m : []).map((p) => (Array.isArray(p) ? p : []).map((r) => (r && typeof r.t === "string" ? r.t : "")).join("")).join("\n").trim();
+// Formatierte Aufgabenstellung (textFmt): Läufe wie beim Material, aber mit der Zeichengrenze der Aufgabenstellung
+export const validateTextFmt = (raw, n) => validateMaterial(raw, n, FMT_TASK_TEXT);
+export const isFormatted = (m) => m.some((p) => p.some((r) => r.f || r.h));   // mindestens ein Lauf fett/kursiv/unterstrichen oder verlinkt
 
 /* ---------- Bilder zu Aufgaben: nur die Kopfdaten lesen (kein Dekodieren im Worker – 10 ms CPU) ---------- */
 export const IMAGE_MODES = ["thumb", "inline", "card"];   // thumb = Miniatur rechts neben Aufgabe und Antwort, inline = größer unter der Aufgabenstellung, card = Bild einer Karte der Weltkarten-Zuordnung
