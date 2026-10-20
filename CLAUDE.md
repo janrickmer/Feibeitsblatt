@@ -96,7 +96,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `fb2Final`). Anzeige `renderFinalFeedback` in
   `#done-fb-list` über dem PDF-Button: je Aufgabe `.fbbox#done-fb-n` **ohne Zählung** (der Auftrag ist keine Liste zum
   Abhaken; nur bei `kept[i]` ohne `same` ein `.fb-sum` „Unverändert abgegeben – wie beim ersten Feedback.“) und denselben
-  Listen wie im Editor (`appendFbLists`: „Das gelingt dir schon“ `.fb-sub.fb-ok` / „Tipps zum Überarbeiten“ `.fb-sub.fb-miss`). PDF ohne zweite Rückmeldung
+  Listen wie im Editor (`appendFbLists`: „Das gelingt dir schon“ `.fb-sub.fb-ok` / `.fb-sub.fb-miss` – im Editor „Tipps zum
+  Überarbeiten“, nach der Abgabe „Tipps zum Weiterlernen“). PDF ohne zweite Rückmeldung
   heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
   erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
   7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu. `feedback2` bleibt nur im Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Abgabe-Dialog
@@ -370,9 +371,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`isFormatted`). Unsichere Links → 400 „Aufgabe n: Ein Link in der Aufgabenstellung ist ungültig …“. Die KI bekommt nur
   `text` (der Prompt bleibt unverändert). Browser: `fmtEditor({cls, barCls, placeholder, barLabel, model|text, onInput})`
   ist der gemeinsame Editor (Material: `.bmat-edit`/`.bmat-bar`; Aufgabenstellung: `#bq-n.bq-edit`, Name per
-  `aria-labelledby` → `#bql-n`, Werkzeugleiste `.bq-bar` „Formatierung der Aufgabenstellung“; gemeinsame Klassen
-  `.fmt-edit`/`.fmt-bar`, Fehlermarkierung `.fmt-edit.invalid`, `ed._clear()`). `b-gen` schickt `text` = `fmtPlain(Modell)`
-  und `textFmt` nur bei `isFormatted`; Grenzen per `fmtLimitError` (auch fürs Material) und `TASK_TEXT_MAX`. Anzeige per
+  `aria-labelledby` → `#bql-n`, Werkzeugleiste `.bq-bar` „Formatierung der Aufgabenstellung n“ (Material „Formatierung des
+  Materials n“, beides in `renumber`); gemeinsame Klassen `.fmt-edit`/`.fmt-bar`, Fehlermarkierung `.fmt-edit.invalid`,
+  `ed._clear()`). `b-gen` schickt `text` = `fmtPlain(serializeMaterial(q, {keepIndent:true}))` – Einrückungen, Tabs (als vier
+  Leerzeichen) und Leerzeilen bleiben wie früher in der Textarea (Programmcode!); beim Material und beim Einfügen von HTML wird
+  Leerraum weiter zusammengefasst – und `textFmt` nur bei `isFormatted`; Grenzen per `fmtLimitError` (auch fürs Material) und `TASK_TEXT_MAX`. Anzeige per
   `taskTextDom(tag, props, text, fmt)` (Schüler:innen `#q-n.task-text`, Blattdetails, Abgaben-Details `.dtask-text`):
   formatiert als `div.qtext` mit `materialDom(…, {links:true})`, Absätze ohne Abstand wie Zeilen; enthält sie Fettes,
   `.qtext.has-b` = normale Grundschrift (die Aufgabenstellung steht sonst fett, Fett fiele nicht auf). „Als Vorlage

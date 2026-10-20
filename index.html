@@ -856,7 +856,7 @@
           <input type="text" id="b-title" maxlength="200" placeholder="z. B. Das Gewissen – Klasse 8b" autocomplete="off">
           <p class="fhint">Leer lassen: „Feibeitsblatt vom <span id="b-today"></span>“.</p>
         </div>
-        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Fertige Lösungen verrät die KI nur, wenn Ihr Auftrag es ausdrücklich erlaubt, und Noten vergibt sie nicht. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
+        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Sachliche Fehler benennt die KI, die richtige Lösung – auch einzelne Begriffe oder Zahlen daraus – verrät sie aber nur, wenn Ihr Auftrag es ausdrücklich erlaubt; Noten vergibt sie nicht. Sie sieht nur Texte (Aufgabenstellung, Material, Ihren Auftrag und die Antwort), keine Bilder, PDF-Dateien oder Inhalte verlinkter Seiten. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
         <div class="tablewrap">
           <table class="batch builder">
             <thead><tr>
@@ -1408,20 +1408,23 @@ function materialDom(material, opts) {
   return root;
 }
 // DOM des Editors (oder eingefügtes HTML) → Modell. Nur b/i/u/Links bleiben; Blöcke und <br> trennen Absätze.
+// keepIndent (Aufgabenstellung): Leerzeichen am Zeilenanfang, Tabs (als vier Leerzeichen) und Zeilen nur aus Leerraum bleiben wie
+// früher in der Textarea (z. B. eingerückter Programmcode); sonst wird Leerraum wie in HTML zusammengefasst.
 const MAT_BLOCK_RE = /^(p|div|li|h[1-6]|tr|blockquote|pre|section|article|ul|ol|table|tbody|thead|tfoot|dd|dt|dl|figure|header|footer|nav|main|aside|address|details|summary|form|fieldset)$/;
-function serializeMaterial(root) {
+function serializeMaterial(root, opts) {
+  const keep = !!(opts && opts.keepIndent);
   const lines = []; let cur = [];
   const flush = () => { lines.push(cur); cur = []; };
   const push = (text, f, hr) => {
-    const t = text.replace(/[\u00a0\t\r\n]+/g, " ");
-    if (!t || (!cur.length && !t.trim())) return;
+    const t = keep ? text.replace(/\u00a0/g, " ").replace(/\t/g, "    ").replace(/\r/g, "") : text.replace(/[\u00a0\t\r\n]+/g, " ");
+    if (!t || (!keep && !cur.length && !t.trim())) return;
     const prev = cur[cur.length - 1];
     if (prev && prev.f === f && prev.h === hr) prev.t += t; else cur.push({ t, f, h: hr });
   };
   const walk = (node, b, i, u, hr, pre) => {
     if (node.nodeType === 3) {
       const f = (b ? "b" : "") + (i ? "i" : "") + (u ? "u" : "");
-      if (pre) (node.nodeValue || "").split("\n").forEach((part, k) => { if (k) flush(); push(part.replace(/\t/g, "    "), f, hr); });   // Zeilen in <pre> bleiben
+      if (pre || keep) (node.nodeValue || "").split("\n").forEach((part, k) => { if (k) flush(); push(part.replace(/\t/g, "    "), f, hr); });   // Zeilen in <pre> bleiben
       else push(node.nodeValue || "", f, hr);
       return;
     }
@@ -1445,7 +1448,7 @@ function serializeMaterial(root) {
   walk(root, false, false, false, "", false);
   flush();
   const out = lines.map((runs) => {
-    if (runs.length) { runs[0].t = runs[0].t.replace(/^\s+/, ""); runs[runs.length - 1].t = runs[runs.length - 1].t.replace(/\s+$/, ""); }
+    if (runs.length) { if (!keep) runs[0].t = runs[0].t.replace(/^\s+/, ""); runs[runs.length - 1].t = runs[runs.length - 1].t.replace(/\s+$/, ""); }
     return runs.filter((r) => r.t).map((r) => { const o = { t: r.t }; if (r.f) o.f = r.f; if (r.h) o.h = r.h; return o; });
   });
   while (out.length && !out[out.length - 1].length) out.pop();
@@ -3227,13 +3230,13 @@ function normFb(r) {
 }
 // Listen „Das gelingt dir schon“ (covered = „gut“) / „Tipps zum Überarbeiten“ (missing = „tipps“) und Hinweis einer
 // Rückmeldung an eine Box anhängen
-function appendFbLists(box, f) {
+function appendFbLists(box, f, tipsLabel) {
   if (f.covered.length) {
     box.appendChild(h("p", { class: "fb-sub fb-ok", text: "Das gelingt dir schon" }));
     box.appendChild(h("ul", { class: "fb-list fb-ok" }, f.covered.map((s) => h("li", { text: s }))));
   }
   if (f.missing.length) {
-    box.appendChild(h("p", { class: "fb-sub fb-miss", text: "Tipps zum Überarbeiten" }));
+    box.appendChild(h("p", { class: "fb-sub fb-miss", text: tipsLabel || "Tipps zum Überarbeiten" }));
     box.appendChild(h("ul", { class: "fb-list fb-miss" }, f.missing.map((s) => h("li", { text: s }))));
   }
   if (f.note) box.appendChild(h("p", { class: "fb-note", text: f.note }));
@@ -3481,7 +3484,7 @@ function renderFinalFeedback() {
     if (sub.kinds && sub.kinds[i] === "map") return;   // Weltkarte: kein KI-Feedback
     const box = h("div", { class: "fbbox", id: "done-fb-" + (i + 1) }, [h("p", { class: "fb-head", text: "Aufgabe " + (i + 1) })]);
     if (!same && kept && kept[i] && f.covered.length + f.missing.length) box.appendChild(h("p", { class: "fb-sum", text: "Unverändert abgegeben – wie beim ersten Feedback." }));
-    appendFbLists(box, f);
+    appendFbLists(box, f, "Tipps zum Weiterlernen");   // nach der Abgabe wird nichts mehr überarbeitet
     list.appendChild(box);
   });
 }
@@ -4849,6 +4852,8 @@ function renumber() {
     tr.querySelector(".bfile-add").setAttribute("aria-label", `PDF-Datei zu Aufgabe ${n} hinzufügen`);
     tr._matLbl.textContent = `Material ${n} (optional)`;
     tr._matEd.setAttribute("aria-label", `Material zu Aufgabe ${n}`);
+    tr.querySelector(".bq-bar").setAttribute("aria-label", `Formatierung der Aufgabenstellung ${n}`);
+    tr.querySelector(".bmat-bar").setAttribute("aria-label", `Formatierung des Materials ${n}`);
     tr.querySelector(".up").title = "Nach oben"; tr.querySelector(".down").title = "Nach unten"; tr.querySelector(".acts .x").title = "Zeile entfernen";
   });
   $("b-add").disabled = rows.length >= 30;
@@ -4875,7 +4880,7 @@ $("b-gen").addEventListener("click", async () => {
   let checks = 0;
   Array.from($("b-rows").children).forEach((tr, i) => {
     const q = tr._qEd, s = tr.querySelector("textarea.s:not(.measure)"), ans = tr._ans;
-    const qModel = serializeMaterial(q), text = fmtPlain(qModel), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
+    const qModel = serializeMaterial(q, { keepIndent: true }), text = fmtPlain(qModel), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
     const solution = ans.type === "map" ? "" : s.value.trim();   // Auftrag an die KI (Weltkarte: keiner)
     if (!text && !solution && !imgs.length && !pdfs.length && !material.length && ans.type === "text") return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }

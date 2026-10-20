@@ -236,7 +236,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#bq-1")).toHaveAttribute("role", "textbox");
   await expect(page.locator("#bq-1")).toHaveAttribute("aria-placeholder", "Aufgabenstellung …");
   await expect(page.locator("#bq-1")).toHaveAccessibleName("Aufgabe 1");
-  await expect(page.locator("#b-rows > tr").nth(0).locator('.bq-bar[role="toolbar"]')).toHaveAttribute("aria-label", "Formatierung der Aufgabenstellung");
+  await expect(page.locator("#b-rows > tr").nth(0).locator('.bq-bar[role="toolbar"]')).toHaveAttribute("aria-label", "Formatierung der Aufgabenstellung 1");
   await expect(page.locator("#b-rows > tr").nth(0).locator(".bq-bar .fmtbtn")).toHaveText(["F", "K", "U", "Link"]);
   await page.fill("#bq-1", TASKS[0].text);
   await page.evaluate((s) => navigator.clipboard.writeText(s), TASKS[0].solution);
@@ -926,7 +926,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
     // A hat die Aufgaben 1 und 2 überarbeitet (neu beurteilt), Aufgabe 3 hat keinen Auftrag: nirgends „unverändert“, keine Zählung
     await expect(box.locator(".fb-sum")).toHaveCount(0);
     await expect(box.locator(".fb-sub.fb-ok")).toHaveText(exp2[n - 1].covered.length ? ["Das gelingt dir schon"] : []);
-    await expect(box.locator(".fb-sub.fb-miss")).toHaveText(exp2[n - 1].missing.length ? ["Tipps zum Überarbeiten"] : []);
+    await expect(box.locator(".fb-sub.fb-miss")).toHaveText(exp2[n - 1].missing.length ? ["Tipps zum Weiterlernen"] : []);   // nach der Abgabe
   }
   await expect(page.locator("#done-fb")).not.toContainText("Kernpunkt");
   await expect(page.locator("#done-fb")).not.toContainText("ngesprochen");
@@ -1034,7 +1034,7 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
     await expect(box.locator("ul.fb-miss li")).toHaveText(bexp[n - 1].missing);
   }
   expect(bexp[1].missing.length).toBeGreaterThan(0);   // Plausibilität: „Keine Ahnung“ bekommt Tipps
-  await expect(page.locator("#done-fb-2 .fb-sub.fb-miss")).toHaveText("Tipps zum Überarbeiten");
+  await expect(page.locator("#done-fb-2 .fb-sub.fb-miss")).toHaveText("Tipps zum Weiterlernen");
   expect((await s.calls((r) => r.path === "/api/feedback")).map((r) => r.status)).toEqual([502, 502, 200]);
   const [bdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   const bsol = (await readFile(await bdl.path())).toString("latin1");
@@ -1957,7 +1957,7 @@ test("7e Formatierte Aufgabenstellung: Lehrkraft setzt ein Wort fett und fügt e
   const PLAIN1 = "Erkläre den Wasserkreislauf.\nNutze die Grafik auf dieser Seite";
   const FMT1 = [[{ t: "Erkläre den " }, { t: "Wasserkreislauf", f: "b" }, { t: "." }], [{ t: "Nutze die Grafik auf " }, { t: "dieser Seite", h: LINK }]];
   const FMT2 = [[{ t: "Beschreibe " }, { t: "einen", f: "i" }, { t: " Regentag." }]];
-  const TEXT3 = "Was passiert mit Pfützen in der Sonne?";
+  const TEXT3 = "Was passiert mit Pfützen in der Sonne?\n\n    Tipp: Denk an die Wärme.";   // Leerzeile und Einrückung bleiben
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -2003,8 +2003,11 @@ test("7e Formatierte Aufgabenstellung: Lehrkraft setzt ein Wort fett und fügt e
   await expect(tp.locator("#bq-2 i")).toHaveText("einen");
   await expect(tp.locator("#bq-2 a, #bq-2 img, #bq-2 script")).toHaveCount(0);
   expect(await tp.evaluate(() => window.__q)).toBeUndefined();
-  // Aufgabe 3: reiner Text (bleibt ohne textFmt)
-  await tp.fill("#bq-3", TEXT3);
+  // Aufgabe 3: reiner Text (bleibt ohne textFmt), getippt mit Leerzeile und eingerückter Zeile
+  await tp.locator("#bq-3").click();
+  await tp.keyboard.type("Was passiert mit Pfützen in der Sonne?");
+  await tp.keyboard.press("Enter"); await tp.keyboard.press("Enter");
+  await tp.keyboard.type("    Tipp: Denk an die Wärme.");
   await tp.fill("#bs-3", "Achte auf das Wort Verdunstung.");
   await tp.click("#b-gen");
   await expect(tp.locator("#b-result")).toBeVisible();
