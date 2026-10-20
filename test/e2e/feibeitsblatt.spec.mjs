@@ -22,6 +22,7 @@ const NEW_PW = "Neues Passwort für 2027?";
 const AI_KEY = "e2e-test-key-WXYZ";
 const AI_MODEL = "openai/gpt-oss-120b";
 const TITLE = "Das Gewissen – Ethik";
+// solution = Auftrag an die KI (interner Feldname); hier als Stichpunkte – der Mock macht aus jeder Zeile einen Stichpunkt
 const TASKS = [
   { text: "Erkläre, was das Gewissen ist.",
     solution: "- Innere Instanz des Menschen\n- Unterscheidet zwischen gut und böse\n- Meldet sich als schlechtes Gewissen" },
@@ -216,10 +217,19 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#t-aiinfo")).toHaveText(/^KI-Feedback über Eigener Dienst \(Modell: openai\/gpt-oss-120b\)\.$/);
   await expect(page.locator("#t-aiwarn")).toBeHidden();
 
-  // Neues Feibeitsblatt: 3 Zeilen, Musterlösung 1 per Strg+V (für die Lehrkraft erlaubt = Gegenprobe zur Sperre)
+  // Neues Feibeitsblatt: 3 Zeilen, Auftrag an die KI 1 per Strg+V (für die Lehrkraft erlaubt = Gegenprobe zur Sperre)
   await page.click("#t-new");
   await expect(page.locator("#tv-builder")).toBeVisible();
   await expect(page.locator("#b-rows > tr")).toHaveCount(3);
+  // Spalte 2 ist der Auftrag an die KI (intern weiter „solution“): Kopf, Beschriftung, Platzhalter und Hinweis erklären ihn
+  await expect(page.locator("table.builder thead th").nth(1)).toHaveText("Auftrag an die KI (nur für das KI-Feedback, für Schüler:innen unsichtbar)");
+  await expect(page.locator('label[for="bs-1"]')).toHaveText("Auftrag an die KI 1");
+  await expect(page.locator("#bs-1")).toHaveAttribute("placeholder", /^Worauf soll die KI beim Feedback achten\? z\. B\. „/);
+  await expect(page.locator("#b-soltip")).toContainText("kein starres Ziel");
+  await expect(page.locator("#b-soltip")).toContainText("Tipps zum Überarbeiten");
+  await expect(page.locator("#b-soltip")).toContainText("Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.");
+  await expect(page.locator("#b-soltip b").nth(1)).toHaveText("Beispiel");
+  for (const w of ["Musterlösung", "Kernpunkt", "angesprochen"]) await expect(page.locator("#tv-builder")).not.toContainText(w);
   await page.fill("#b-title", TITLE);
   await page.fill("#bq-1", TASKS[0].text);
   await page.evaluate((s) => navigator.clipboard.writeText(s), TASKS[0].solution);
@@ -435,8 +445,11 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   const row = page.locator("#t-sheets-body tr", { hasText: S.shown });
   await expect(row.locator("td")).toHaveText([TITLE, S.shown, /\d\d\.\d\d\.\d{4}, \d\d:\d\d/, "3", "0"]);
   await page.locator("#t-sel-det summary").click();
+  await expect(page.locator("#t-sel-det summary")).toHaveText("Aufgaben und Aufträge an die KI");
   await expect(page.locator("#t-sel-tasks .si")).toHaveCount(3);
-  await expect(page.locator("#t-sel-tasks .si").nth(2)).toContainText("– keine –");
+  await expect(page.locator("#t-sel-tasks .si").nth(0).locator(".task-label").last()).toHaveText("Auftrag an die KI");
+  await expect(page.locator("#t-sel-tasks .si").nth(0).locator(".sol")).toHaveText(TASKS[0].solution);
+  await expect(page.locator("#t-sel-tasks .si").nth(2).locator(".sol")).toHaveText("– keiner (kein KI-Feedback) –");
   const si0 = page.locator("#t-sel-tasks .si").nth(0);
   await expect(si0.locator(".material p")).toHaveCount(2);
   await expect(si0.locator(".material a")).toHaveAttribute("target", "_blank");
@@ -734,7 +747,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(out).toBeVisible();
   expect(s.lt).toHaveLength(1);
 
-  // KI-Feedback (eine Anfrage an die KI, nur Aufgaben mit Musterlösung, keine Personendaten)
+  // KI-Feedback (eine Anfrage an die KI, nur Aufgaben mit Auftrag an die KI, keine Personendaten)
   await expect(page.locator("#submit-btn")).toBeDisabled();
   await mockReset();
   await requestFeedback(page);
@@ -748,8 +761,17 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(ms.count).toBe(1);
   const prompt = JSON.stringify(ms.requests[0].messages);
   expect(prompt).toContain("innere Instanz");
-  expect(prompt).not.toContain(A.a3);                                   // Aufgabe ohne Musterlösung geht nicht an die KI
+  expect(prompt).not.toContain(A.a3);                                   // Aufgabe ohne Auftrag geht nicht an die KI
   for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt).not.toContain(p);
+  // Format der Nachricht: erst Aufgaben, Material und Aufträge der Lehrkraft (je Blatt gleich → Präfix-Caching), dann die Antworten
+  const user = ms.requests[0].messages.find((m) => m.role === "user").content;
+  expect(user.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 1, 2):\n\n### Aufgabe 1\nAufgabenstellung:\n<<<\n" + TASKS[0].text + "\n>>>\n")).toBe(true);
+  for (const t of TASKS.slice(0, 2)) expect(user).toContain("Auftrag der Lehrkraft für das Feedback:\n<<<\n" + t.solution + "\n>>>");
+  expect(user.lastIndexOf("Auftrag der Lehrkraft für das Feedback:")).toBeLessThan(user.indexOf("Antworten der Schülerin bzw. des Schülers:\n\n### Antwort zu Aufgabe 1\n<<<\n" + A.first[0] + "\n>>>"));
+  expect(user.endsWith("\n\nGib für jede der 2 Aufgaben (Nummern: 1, 2) dein Feedback als JSON zurück.")).toBe(true);
+  expect(user).not.toContain("Musterlösung der Lehrkraft");
+  expect(ms.requests[0].messages[0].role).toBe("system");
+  expect(ms.requests[0].messages[0].content).toContain('{"aufgaben":[{"nr":1,"gut":["…"],"tipps":["…"]}]}');
   expect(prompt).toContain(JSON.stringify("Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\nLies zuerst den Textauszug und dann diese Seite:\nHinweis: Quelle 2 – Verlag\n>>>").slice(1, -1));   // prompt ist JSON-kodiert
   expect(prompt).not.toContain(LINK_URL);
 
@@ -761,8 +783,10 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
     if (f.covered.length) expect(f.okColor).toBe(GREEN);
     if (f.missing.length) expect(f.missColor).toBe(RED);
   }
-  await expect(page.locator("#t-1 .fb-sub.fb-ok")).toHaveText("Angesprochen");
-  await expect(page.locator("#t-1 .fb-sub.fb-miss")).toHaveText("Noch nicht angesprochen");
+  // Unterüberschriften: was schon gelingt (covered = „gut“), Tipps zum Überarbeiten (missing = „tipps“)
+  await expect(page.locator("#t-1 .fb-sub.fb-ok")).toHaveText("Das gelingt dir schon");
+  await expect(page.locator("#t-1 .fb-sub.fb-miss")).toHaveText("Tipps zum Überarbeiten");
+  await expect(page.locator("#t-1 .fb-sub + ul.fb-list")).toHaveCount(2);   // jede Überschrift steht direkt über ihrer Liste
   await expect(page.locator("#t-3 .fb-note")).toHaveText(NO_SOLUTION_NOTE);
   await expect(page.locator("#fb-btn")).toBeDisabled();
   await expect(page.locator("#fb-btn")).toHaveText("KI-Feedback erhalten");
@@ -878,12 +902,13 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#done-fb-status")).toHaveClass(/\bbad\b/);
   await expect(page.locator("#done-fb-retry")).toBeVisible();
   await page.click("#done-fb-retry");
-  // … dann klappt es: je Aufgabe die Rückmeldung zur abgegebenen Fassung, mit Zahl der angesprochenen Kernpunkte
+  // … dann klappt es: je Aufgabe die Rückmeldung zur abgegebenen Fassung (Stichpunkte wie im Editor, keine Zählung)
   await expect(page.locator("#done-fb .fbbox")).toHaveCount(3, { timeout: 60_000 });
   await expect(page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");
   await expect(page.locator("#done-fb-retry")).toBeHidden();
   const exp1 = expectedResults(TASKS, A.first), exp2 = expectedResults(TASKS, A.final);
-  expect(exp2[0].covered.length).toBeGreaterThan(exp1[0].covered.length);   // Plausibilität: die Überarbeitung bringt einen Kernpunkt mehr
+  expect(exp2[0].covered.length).toBeGreaterThan(exp1[0].covered.length);   // Plausibilität: die Überarbeitung bringt einen „gut“-Stichpunkt mehr
+  expect(exp2[0].missing.length).toBeLessThan(exp1[0].missing.length);      // … und einen Tipp weniger
   for (let n = 1; n <= 3; n++) {
     const box = page.locator("#done-fb-" + n);
     await expect(box.locator(".fb-head")).toHaveText("Aufgabe " + n);
@@ -891,10 +916,13 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
     const f = { covered: await list("ul.fb-ok"), missing: await list("ul.fb-miss") };
     if (await box.locator(".fb-note").count()) f.note = await box.locator(".fb-note").textContent();
     expect(f, "Aufgabe " + n).toEqual(exp2[n - 1]);
-    const tot = exp2[n - 1].covered.length + exp2[n - 1].missing.length, tot1 = exp1[n - 1].covered.length + exp1[n - 1].missing.length;
-    if (tot) await expect(box.locator(".fb-sum")).toHaveText(`Angesprochen: ${exp2[n - 1].covered.length} von ${tot} ${tot === 1 ? "Kernpunkt" : "Kernpunkten"} (beim ersten Feedback: ${exp1[n - 1].covered.length} von ${tot1}).`);
-    else await expect(box.locator(".fb-sum")).toHaveCount(0);
+    // A hat die Aufgaben 1 und 2 überarbeitet (neu beurteilt), Aufgabe 3 hat keinen Auftrag: nirgends „unverändert“, keine Zählung
+    await expect(box.locator(".fb-sum")).toHaveCount(0);
+    await expect(box.locator(".fb-sub.fb-ok")).toHaveText(exp2[n - 1].covered.length ? ["Das gelingt dir schon"] : []);
+    await expect(box.locator(".fb-sub.fb-miss")).toHaveText(exp2[n - 1].missing.length ? ["Tipps zum Überarbeiten"] : []);
   }
+  await expect(page.locator("#done-fb")).not.toContainText("Kernpunkt");
+  await expect(page.locator("#done-fb")).not.toContainText("ngesprochen");
   await expect(page.locator("#done-fb-3 .fb-note")).toHaveText(NO_SOLUTION_NOTE);
   await expect(page.locator("#done-status")).toHaveText("Die KI-Rückmeldung zu deiner abgegebenen Fassung ist jetzt da. Lade die PDF-Datei noch einmal herunter, damit sie darin steht.");
   await page.unroute("**/api/feedback");
@@ -911,11 +939,12 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   const [sdl2] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
   const sol2 = (await readFile(await sdl2.path())).toString("latin1");
-  const n1 = exp2[0].covered.length + exp2[0].missing.length;
-  expect(sol2).toContain(`(KI-R\\374ckmeldung zur abgegebenen Fassung \\(${exp2[0].covered.length} von ${n1} ${n1 === 1 ? "Kernpunkt" : "Kernpunkten"} angesprochen\\):) Tj`);
+  expect(sol2).toContain("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj");   // ohne Zählung
   expect(sol2).toContain("(KI-Feedback zur ersten Fassung:) Tj");
   expect(sol2).not.toContain("lag beim Herunterladen noch nicht vor");
-  for (const c of exp2[0].covered) expect(sol2).toContain("angesprochen: " + c.slice(0, 20));
+  for (const c of exp2[0].covered) expect(sol2).toContain("(\\225 Gelingt schon: " + c.slice(0, 20));   // • = \225 (WinAnsi)
+  for (const m of exp1[0].missing) expect(sol2).toContain("(\\225 Tipp: " + m.slice(0, 20));       // aus dem ersten Feedback
+  for (const w of ["Kernpunkt", "ngesprochen", "fehlt:"]) expect(sol2).not.toContain(w);
   const sub = await s.calls((r) => r.path === "/api/submit");
   expect(sub).toHaveLength(2);                                   // Erstversuch (beim Feedback) + Abgabe
   expect(sub.map((r) => r.status)).toEqual([200, 200]);
@@ -990,7 +1019,15 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#done-fb-status")).toHaveText("An den Aufgaben, die die KI beurteilt, hast du nach dem ersten Feedback nichts verändert – die Rückmeldung bleibt dieselbe:");
   await expect(page.locator("#done-fb .fbbox")).toHaveCount(3);
-  await expect(page.locator("#done-fb .fb-sum").first()).toHaveText(/^Angesprochen: \d+ von \d+ Kernpunkt(en)?\.$/);   // ohne Vergleich
+  await expect(page.locator("#done-fb .fb-sum")).toHaveCount(0);   // alles unverändert: der Status sagt es schon, keine Zählung
+  const bexp = expectedResults(TASKS, B.first);
+  for (let n = 1; n <= 3; n++) {   // es gilt die erste Rückmeldung
+    const box = page.locator("#done-fb-" + n);
+    await expect(box.locator("ul.fb-ok li")).toHaveText(bexp[n - 1].covered);
+    await expect(box.locator("ul.fb-miss li")).toHaveText(bexp[n - 1].missing);
+  }
+  expect(bexp[1].missing.length).toBeGreaterThan(0);   // Plausibilität: „Keine Ahnung“ bekommt Tipps
+  await expect(page.locator("#done-fb-2 .fb-sub.fb-miss")).toHaveText("Tipps zum Überarbeiten");
   expect((await s.calls((r) => r.path === "/api/feedback")).map((r) => r.status)).toEqual([502, 502, 200]);
   const [bdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   const bsol = (await readFile(await bdl.path())).toString("latin1");
@@ -1180,6 +1217,9 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   }
   expect(await tasks.nth(0).locator(".dfb ul.fb-ok").evaluate((e) => getComputedStyle(e).color)).toBe(GREEN);
   expect(await tasks.nth(0).locator(".dfb ul.fb-miss").evaluate((e) => getComputedStyle(e).color)).toBe(RED);
+  await expect(tasks.nth(0).locator(".dfb p.fb-ok")).toHaveText("Gelingt schon:");
+  await expect(tasks.nth(0).locator(".dfb p.fb-miss")).toHaveText("Tipps zum Überarbeiten:");
+  await expect(det).not.toContainText("ngesprochen");
 
   // C: ohne KI-Feedback abgegeben → Hinweis, beide Spalten gleich
   await mains.nth(2).click();
@@ -1273,7 +1313,7 @@ function editStream(pdf, mark, { dict = (d) => d, data = (b) => b, lenRef = 0 } 
     Buffer.from((lenRef ? `${lenRef} 0 obj\n${body.length}\nendobj\n` : "") + "%%EOF\n", "latin1")]);
 }
 
-test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen → neuer Code mit denselben Aufgaben, Musterlösungen, Material, Bildern und PDF-Dateien", async ({ browser }) => {
+test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen → neuer Code mit denselben Aufgaben, Aufträgen an die KI, Material, Bildern und PDF-Dateien", async ({ browser }) => {
   const t = await openPage(browser);
   const { page } = t;
   await teacherLogin(page, PW);
@@ -1285,13 +1325,15 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
   // Sichern: Dateiname mit Code und Titel; sichtbar Aufgaben, Bilder (als JPEG) und Hinweis; im Hintergrund alles
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#t-export")]);
   expect(dl.suggestedFilename()).toBe(`Feibeitsblatt-${S.shown}-Das Gewissen - Ethik.pdf`);   // Titel nur ASCII („–“ → „-“)
-  await expect(page.locator("#t-export-status")).toHaveText(/^Die PDF-Datei \(\d+(,\d)? (KB|MB)\) wird heruntergeladen\. Bewahren Sie sie gut auf – sie enthält auch die Musterlösungen\.$/);
+  await expect(page.locator("#t-export-status")).toHaveText(/^Die PDF-Datei \(\d+(,\d)? (KB|MB)\) wird heruntergeladen\. Bewahren Sie sie gut auf – sie enthält auch Ihre Aufträge an die KI\.$/);
   const pdf = await readFile(await dl.path()), text = pdf.toString("latin1");
   expect(text.startsWith("%PDF-1.7")).toBe(true);
   expect((text.match(/\/Subtype \/Image /g) || []).length).toBe(2);   // beide Bilder sichtbar
   expect(text).toContain("/Filter /DCTDecode");
   expect(text).toContain("(Aufgabe 1) Tj");
   expect(text).toContain("(Nicht an Sch\\374ler:innen weitergeben");   // Warnung (fett, rot) – Umbruch je nach Breite
+  expect(text).toContain("Auftr\\344ge");                              // … die Datei enthält die Aufträge an die KI (ä = \344)
+  expect(text).not.toContain("Musterl\\366sung");
   const dx = pdfStream(pdf, "/FbSheet 1");
   expect(dx.dict).toContain("/Filter /FlateDecode");
   const rec = JSON.parse(inflateSync(pdf.subarray(dx.start, dx.start + dx.len)).toString("utf8"));
@@ -1366,9 +1408,9 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
   await expect(rows.nth(0).locator(".bimg").nth(0).locator(".bimg-meta")).toHaveText(/^1600 × 800 px · \d+ KB$/);
   await expect(rows.nth(1).locator(".bfile-name")).toHaveText(PDF_NAME);
   await expect(rows.nth(2).locator(".bimg, .bfile")).toHaveCount(0);
-  // die Sicherung selbst (mit Musterlösungen) lässt sich nicht als Material für Schüler:innen anhängen
+  // die Sicherung selbst (mit den Aufträgen an die KI) lässt sich nicht als Material für Schüler:innen anhängen
   await rows.nth(2).locator("input.bfile-input").setInputFiles({ name: "Sicherung.pdf", mimeType: "application/pdf", buffer: pdf });
-  await expect(rows.nth(2).locator(".bfile-stat")).toHaveText("„Sicherung.pdf“: Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Musterlösungen und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
+  await expect(rows.nth(2).locator(".bfile-stat")).toHaveText("„Sicherung.pdf“: Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Aufträge an die KI und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
   await expect(rows.nth(2).locator(".bfile")).toHaveCount(0);
   // … auch dann nicht, wenn ein PDF-Programm das Kennzeichen /FbSheet entfernt hat (erkannt am eingebetteten Datensatz)
   const unmarked = editStream(pdf, "/FbSheet 1", { dict: (d) => d.replace("/FbSheet 1", "/XxSheet 1") });
@@ -1413,7 +1455,7 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
   await closePage(t);
 });
 
-test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie Musterlösungen", async ({ request }) => {
+test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie die Aufträge an die KI", async ({ request }) => {
   // gespeicherte Umschläge (wrangler d1 execute auf derselben lokalen D1)
   const rows = await d1Query("SELECT id, sheet_code, received_at, envelope, stage, attempt FROM submissions ORDER BY id");
   expect(rows).toHaveLength(4);
@@ -1449,7 +1491,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie M
   for (const c of control) expect(scan.count[c], "Gegenprobe „" + c + "“").toBeGreaterThan(0);
   for (const [needle, n] of Object.entries(scan.count)) if (!control.includes(needle)) expect(n, "Klartext „" + needle + "“ im Zustandsordner").toBe(0);
 
-  // öffentlicher Abruf (auch mit Kleinbuchstaben/Bindestrich): nur Aufgabentexte, nie Musterlösungen
+  // öffentlicher Abruf (auch mit Kleinbuchstaben/Bindestrich): nur Aufgabentexte, nie die Aufträge an die KI (solution)
   for (const c of [S.code, S.shown.toLowerCase(), S.shown]) {
     const res = await request.get("/api/sheet/" + encodeURIComponent(c));
     expect(res.status()).toBe(200);
@@ -1533,7 +1575,7 @@ test("7 Alle Abgaben löschen → Tabelle leer; Feibeitsblatt löschen → Code 
 });
 
 test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeichen → neu beurteilt wird nur Aufgabe 2", async ({ browser }) => {
-  // eigenes kleines Blatt mit zwei Aufgaben mit Musterlösung (das Blatt der früheren Tests ist gelöscht); am Ende wieder löschen
+  // eigenes kleines Blatt mit zwei Aufgaben mit Auftrag an die KI (das Blatt der früheren Tests ist gelöscht); am Ende wieder löschen
   const t = await openPage(browser);
   await teacherLogin(t.page, PW);
   await t.page.click("#t-new");
@@ -1563,16 +1605,15 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await expect(page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");
   const exp2 = expectedResults(TASKS_F, finals);
   const read = async (n) => { const box = page.locator("#done-fb-" + n); return { covered: await box.locator("ul.fb-ok li").allTextContents(), missing: await box.locator("ul.fb-miss li").allTextContents() }; };
-  const word = (k) => (k === 1 ? "Kernpunkt" : "Kernpunkten");
-  // Aufgabe 1 bleibt bei der ersten Rückmeldung (nicht neu beurteilt) …
-  const t1 = exp1[0].covered.length + exp1[0].missing.length;
+  // Aufgabe 1 bleibt bei der ersten Rückmeldung (nicht neu beurteilt) und sagt das …
+  expect(exp1[0].covered.length + exp1[0].missing.length).toBeGreaterThan(0);
   expect(await read(1)).toEqual({ covered: exp1[0].covered, missing: exp1[0].missing });
-  await expect(page.locator("#done-fb-1 .fb-sum")).toHaveText(`Angesprochen: ${exp1[0].covered.length} von ${t1} ${word(t1)} (unverändert abgegeben – wie beim ersten Feedback).`);
-  // … Aufgabe 2 zeigt die neue Rückmeldung mit dem Vergleich zum ersten Feedback
-  const t2 = exp2[1].covered.length + exp2[1].missing.length, t2a = exp1[1].covered.length + exp1[1].missing.length;
-  expect(exp2[1].covered.length).toBeGreaterThan(exp1[1].covered.length);   // Plausibilität: die Begründung ist neu angesprochen
+  await expect(page.locator("#done-fb-1 .fb-sum")).toHaveText("Unverändert abgegeben – wie beim ersten Feedback.");
+  // … Aufgabe 2 zeigt die neue Rückmeldung (ohne Hinweis und ohne Zählung)
+  expect(exp2[1].covered.length).toBeGreaterThan(exp1[1].covered.length);   // Plausibilität: die Begründung bringt einen „gut“-Stichpunkt mehr
   expect(await read(2)).toEqual({ covered: exp2[1].covered, missing: exp2[1].missing });
-  await expect(page.locator("#done-fb-2 .fb-sum")).toHaveText(`Angesprochen: ${exp2[1].covered.length} von ${t2} ${word(t2)} (beim ersten Feedback: ${exp1[1].covered.length} von ${t2a}).`);
+  await expect(page.locator("#done-fb-2 .fb-sum")).toHaveCount(0);
+  await expect(page.locator("#done-fb-2 .fb-sub.fb-ok")).toHaveText("Das gelingt dir schon");
   // genau eine weitere Anfrage an die KI, mit den abgegebenen Antworten
   const fbCalls = await s.calls((r) => r.path === "/api/feedback");
   expect(fbCalls.map((r) => r.status)).toEqual([200, 200]);
@@ -1635,7 +1676,8 @@ test("7c Antwortarten: Lehrkraft legt Weltkarten-Zuordnung (mit Kartenbild) und 
   await tp.fill("#bq-1", "Ordne die Produkte ihren Herkunftsländern zu.");
   await tp.fill("#bs-1", "wird nicht gespeichert");
   await tp.selectOption("#bt-1", "map");
-  await expect(tp.locator("#bs-1")).toBeHidden();   // keine Musterlösung bei der Weltkarte
+  await expect(tp.locator("#bs-1")).toBeHidden();   // kein Auftrag an die KI bei der Weltkarte
+  await expect(tp.locator("#b-rows > tr").nth(0).locator(".nosol")).toHaveText("Für die Weltkarten-Zuordnung gibt es keinen Auftrag an die KI: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI.");
   const r1 = tp.locator("#b-rows > tr").nth(0);
   const card = async (k, label, hint, countries) => {
     if (k > 0) await r1.locator(".bitem-add").click();
@@ -1910,7 +1952,7 @@ test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgab
 
   // neues Blatt (Titel leer → „Feibeitsblatt vom …“) und eine Abgabe vor dem Passwortwechsel
   await page.click("#t-new");
-  await page.fill("#bs-2", "Musterlösung ohne Aufgabe");
+  await page.fill("#bs-2", "Auftrag an die KI ohne Aufgabe");
   await page.click("#b-gen");
   await expect(page.locator("#b-err")).toHaveText("Zeile 2: Bitte eine Aufgabenstellung eintragen.");
   await expect(page.locator("#bq-2")).toHaveClass(/invalid/);

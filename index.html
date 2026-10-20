@@ -499,7 +499,7 @@
   .dfb .fb-miss{color:var(--red)}
   .dfb ul{margin:0; padding-left:18px}
   .dangerzone{margin-top:34px; padding-top:20px; border-top:1px solid var(--line); display:flex; flex-direction:column; align-items:flex-start; gap:12px}
-  /* Neues Feibeitsblatt: Tabelle mit Aufgabenstellung | Musterlösung */
+  /* Neues Feibeitsblatt: Tabelle mit Aufgabenstellung | Auftrag an die KI (intern: solution) */
   table.builder td{padding:10px 12px}
   table.builder th:first-child, table.builder td.c1{width:44%}
   table.builder th.act, table.builder td.act{width:52px; padding-left:4px; padding-right:10px}
@@ -796,7 +796,7 @@
           <button type="button" class="btn ghost small" id="t-sel-copy">Kopieren</button>
         </div>
         <details class="tasksdet" id="t-sel-det">
-          <summary>Aufgaben und Musterlösungen</summary>
+          <summary>Aufgaben und Aufträge an die KI</summary>
           <div class="solist" id="t-sel-tasks"></div>
         </details>
         <div class="row">
@@ -805,7 +805,7 @@
           <button type="button" class="btn ghost small" id="t-export">Als PDF-Datei herunterladen</button>
         </div>
         <p class="status" id="t-export-status" aria-live="polite"></p>
-        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Musterlösungen und PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.</p>
+        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Ihre Aufträge an die KI und die PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.</p>
 
         <div class="subhead">
           <h3>Abgaben</h3>
@@ -837,7 +837,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils eine Musterlösung – am besten in Stichpunkten (siehe Hinweis unten). Den Wortlaut der Musterlösung sehen die Schüler:innen nicht; ihre Kernpunkte erscheinen aber als Stichpunkte im KI-Feedback (angesprochen / fehlt). Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils einen Auftrag an die KI: worauf sie beim Feedback zu dieser Aufgabe achten soll (siehe Hinweis unten). Den Auftrag sehen die Schüler:innen nicht; sie bekommen von der KI Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten. Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
       <div id="b-form">
         <p class="note hidden" id="b-import" style="margin:0 0 14px"></p>
         <div class="field" style="max-width:640px">
@@ -845,12 +845,12 @@
           <input type="text" id="b-title" maxlength="200" placeholder="z. B. Das Gewissen – Klasse 8b" autocomplete="off">
           <p class="fhint">Leer lassen: „Feibeitsblatt vom <span id="b-today"></span>“.</p>
         </div>
-        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Musterlösung am besten in Stichpunkten:</b> je Zeile ein Punkt, den die Schüler:innen inhaltlich erfassen sollen. Jede Zeile wird ein Kernpunkt: Die KI prüft, ob die Antwort ihn inhaltlich trifft – eigene Worte genügen, auf den Wortlaut kommt es nicht an – und meldet ihn als angesprochen oder fehlend zurück. Nehmen Sie deshalb nur auf, was Sie wirklich von allen erwarten (meist 3 bis 8, höchstens 12 Punkte), und lassen Sie Zusatzwissen weg. Soll etwas erklärt oder begründet werden, schreiben Sie kurze Aussagen statt einzelner Schlagwörter (z. B. „Licht wird als Energiequelle benötigt“ statt „Licht“); soll nur etwas genannt oder aufgezählt werden, genügen die Begriffe (z. B. „Licht“, „Wasser“, „Kohlendioxid“). Bei Beispielen („z. B. …“) und Wahlmöglichkeiten („… oder …“) genügt eines; muss ein Fachbegriff fallen, schreiben Sie „(Fachbegriff nötig)“ dazu. Eine ausführliche Musterlösung als Fließtext verdichtet die KI selbst auf ihre zentralen Aussagen – welche Punkte dann zählen, entscheidet die KI, nicht Sie.</p>
+        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Fertige Lösungen verrät die KI nur, wenn Ihr Auftrag es ausdrücklich erlaubt, und Noten vergibt sie nicht. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
         <div class="tablewrap">
           <table class="batch builder">
             <thead><tr>
               <th>Aufgabenstellung</th>
-              <th>Musterlösung in Stichpunkten (nur für das KI-Feedback; je Zeile ein Kernpunkt)</th>
+              <th>Auftrag an die KI (nur für das KI-Feedback, für Schüler:innen unsichtbar)</th>
               <th class="act"><span class="sr-only">Zeile verschieben oder entfernen</span></th>
             </tr></thead>
             <tbody id="b-rows"></tbody>
@@ -896,7 +896,7 @@
         </div>
         <div class="provinfo note" data-prov="groq">
           <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
-          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Musterlösungen ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
           <p><b>Datenschutz:</b> Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="openrouter">
@@ -978,7 +978,7 @@
         </div>
         <p class="status" id="ai2-status" aria-live="polite"></p>
       </div>
-      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Musterlösungen und die Antworttexte – keine Kürzel, Geburtsdaten oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Musterlösungen) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits.</p>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtsdaten oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits.</p>
     </div>
 
     <!-- Passwort ändern -->
@@ -1792,7 +1792,7 @@ function renderPrivacy() {
   $("privacy").textContent = "";
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
-    `Er leitet sie zusammen mit den Aufgaben, dem Material und der Musterlösung deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
+    `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
     (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
     ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen${r.usa ? ", bei Sitz in den USA außerhalb der EU" : ""}. ` +
     `Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI – dafür bekommst du eine zweite Rückmeldung zu deiner abgegebenen Fassung (nicht, wenn du nach dem ersten Feedback nichts geändert hast). ` +
@@ -2650,7 +2650,7 @@ function pdfStringValue(tok) {
   return tok.slice(1, -1).replace(/\\([0-7]{1,3}|[\s\S])/g, (m0, c) => (/^[0-7]/.test(c) ? String.fromCharCode(parseInt(c, 8) & 255)
     : c === "\n" || c === "\r" ? "" : ({ n: "\n", r: "\r", t: "\t", b: "\b", f: "\f" })[c] || c));
 }
-// Ist die Datei eine gesicherte Feibeitsblatt-PDF (Musterlösungen!) oder ein Zwischenstand (Personendaten)? → nie als Material.
+// Ist die Datei eine gesicherte Feibeitsblatt-PDF (Aufträge an die KI!) oder ein Zwischenstand (Personendaten)? → nie als Material.
 // Erkannt wie beim Laden: am Kennzeichen oder – falls ein PDF-Programm es beim Neuspeichern entfernt hat – am Inhalt der
 // eingebetteten JSON-Dateien.
 async function feibeitsblattPdfKind(u8) {
@@ -2758,9 +2758,9 @@ function makeSolutionsPdf(sub) {
     para(sub.fb2Final ? "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gab es diesmal nicht." : "Die KI-Rückmeldung zu deiner abgegebenen Fassung lag beim Herunterladen noch nicht vor.", 10.5, false, { color: "0.35 0.35 0.35" });
   }
   gap(14);
-  const fbLines = (f) => {   // Rückmeldung: angesprochen (grün), fehlt (rot), Hinweis
-    for (const c of f.covered) para("• angesprochen: " + c, 10.5, false, { indent: 10, color: "0.12 0.42 0.16" });
-    for (const m of f.missing) para("– fehlt: " + m, 10.5, false, { indent: 10, color: "0.7 0.15 0.12" });
+  const fbLines = (f) => {   // Rückmeldung: gelingt schon (grün), Tipps (rot), Hinweis
+    for (const c of f.covered) para("• Gelingt schon: " + c, 10.5, false, { indent: 10, color: "0.12 0.42 0.16" });
+    for (const m of f.missing) para("• Tipp: " + m, 10.5, false, { indent: 10, color: "0.7 0.15 0.12" });
     if (f.note) para(f.note, 10.5, false, { indent: 10, color: "0.35 0.35 0.35" });
   };
   const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
@@ -2780,8 +2780,7 @@ function makeSolutionsPdf(sub) {
     const f2 = fb2 && !kept && !isMap && fb2.results[i] ? normFb(fb2.results[i]) : null;
     if (f2 && (f2.covered.length || f2.missing.length)) {
       gap(6);
-      const n2 = f2.covered.length + f2.missing.length;
-      para("KI-Rückmeldung zur abgegebenen Fassung" + (n2 ? ` (${f2.covered.length} von ${n2} ${n2 === 1 ? "Kernpunkt" : "Kernpunkten"} angesprochen)` : "") + ":", 10.5, true);
+      para("KI-Rückmeldung zur abgegebenen Fassung:", 10.5, true);
       fbLines(f2);
     }
     if (fb && first.trim() && fbText(first) !== fbText(fin)) {   // nur bei inhaltlicher Änderung (nicht wegen Leerzeichen am Ende)
@@ -3101,20 +3100,23 @@ function renderLT(i, text, res) {
 }
 
 /* ---------- KI-Feedback ---------- */
+// Format je Aufgabe {covered, missing, note?}: covered = „gut“ (gelingt schon), missing = „tipps“ (zum Überarbeiten) – die
+// historischen Namen bleiben, damit ältere Zwischenstände, Erstversuche und Abgaben lesbar bleiben
 function normFb(r) {
   const arr = (x) => Array.isArray(x) ? x.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 300)).slice(0, 12) : [];
   const o = { covered: arr(r && r.covered), missing: arr(r && r.missing) };
   if (r && typeof r.note === "string" && r.note.trim()) o.note = r.note.trim().slice(0, 300);
   return o;
 }
-// Listen „Angesprochen“ / „Noch nicht angesprochen“ und Hinweis einer Rückmeldung an eine Box anhängen
+// Listen „Das gelingt dir schon“ (covered = „gut“) / „Tipps zum Überarbeiten“ (missing = „tipps“) und Hinweis einer
+// Rückmeldung an eine Box anhängen
 function appendFbLists(box, f) {
   if (f.covered.length) {
-    box.appendChild(h("p", { class: "fb-sub fb-ok", text: "Angesprochen" }));
+    box.appendChild(h("p", { class: "fb-sub fb-ok", text: "Das gelingt dir schon" }));
     box.appendChild(h("ul", { class: "fb-list fb-ok" }, f.covered.map((s) => h("li", { text: s }))));
   }
   if (f.missing.length) {
-    box.appendChild(h("p", { class: "fb-sub fb-miss", text: "Noch nicht angesprochen" }));
+    box.appendChild(h("p", { class: "fb-sub fb-miss", text: "Tipps zum Überarbeiten" }));
     box.appendChild(h("ul", { class: "fb-list fb-miss" }, f.missing.map((s) => h("li", { text: s }))));
   }
   if (f.note) box.appendChild(h("p", { class: "fb-note", text: f.note }));
@@ -3143,7 +3145,7 @@ function renderFeedbackState() {
   fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es später noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass die KI nicht erreichbar war." : "";
   fbf.classList.toggle("hidden", !noAi);
   const rh = $("revise-hint"), eh = $("ed-hint");
-  const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
+  const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
   rh.textContent = reviseText; rh.classList.toggle("hidden", !has);
   eh.textContent = "Du hast das KI-Feedback erhalten. Überarbeite jetzt deine Antworten und gib danach ganz unten ab.";
   eh.classList.toggle("hidden", !has);
@@ -3310,7 +3312,7 @@ async function sendFirstAttempt() {
 /* ---------- Zweite KI-Rückmeldung zur abgegebenen Fassung (auf der Bestätigungsseite) ----------
  * Erst wird abgegeben – die Abgabe hängt nie von der KI ab –, dann gehen die abgegebenen Antworten wie beim ersten Feedback
  * (ohne Namenskürzel, Geburtsdatum und Klasse, an dieselben Empfänger) noch einmal an die KI. Neu beurteilt werden nur
- * Aufgaben, die die KI beurteilt (Kernpunkte im ersten Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht
+ * Aufgaben, die die KI beurteilt (Stichpunkte im ersten Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht
  * (fbText); für alle anderen gilt die erste Rückmeldung weiter. Hat sich nichts davon geändert, wird gar nicht gefragt. Die
  * Rückmeldung steht auf der Bestätigungsseite und in „Meine Lösungen als PDF herunterladen“; sie bleibt nur im
  * Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Ist die KI ausgelastet, wird automatisch wiederholt. */
@@ -3318,7 +3320,7 @@ const FB2_MANUAL = 3;   // „Rückmeldung erneut anfordern“ nach einem vorüb
 const FB2_TRANSIENT = new Set(["ai_busy", "ai_error", "network", "timeout", "server_error", "rate_limited", "bad_result", "db_limit"]);
 // Text so, wie der Server ihn prüft und an die KI gibt: Zeilenumbrüche vereinheitlicht, Steuerzeichen weg, außen getrimmt
 const fbText = (s) => String(s == null ? "" : s).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
-// je Aufgabe: beurteilt die KI sie (Kernpunkte im ersten Feedback) und hat sich ihr Text inhaltlich geändert?
+// je Aufgabe: beurteilt die KI sie (Stichpunkte im ersten Feedback) und hat sich ihr Text inhaltlich geändert?
 function fb2Changes(firsts, finals, feedback) {
   return finals.map((fin, i) => {
     const f = Array.isArray(feedback) && feedback[i] ? normFb(feedback[i]) : null;
@@ -3351,7 +3353,8 @@ function waitFinalFeedback(run, ms, nextTry) {
     timer = setTimeout(finish, ms);
   });
 }
-// Rückmeldung je Aufgabe: Zahl der angesprochenen Kernpunkte (mit dem Stand beim ersten Feedback bzw. „unverändert“), dann die Listen
+// Rückmeldung je Aufgabe: bei unverändert abgegebenen Aufgaben (einzeln) ein Hinweis darauf, dann die Listen – ohne Zählung,
+// denn die Stichpunkte sind Beratung, kein Abhaken einer festen Liste
 function renderFinalFeedback() {
   const sub = S.lastSubmission, list = $("done-fb-list");
   list.textContent = "";
@@ -3359,12 +3362,8 @@ function renderFinalFeedback() {
   const { same, kept } = sub.feedback2;
   sub.feedback2.results.forEach((f, i) => {
     if (sub.kinds && sub.kinds[i] === "map") return;   // Weltkarte: kein KI-Feedback
-    const keep = same || !!(kept && kept[i]);
-    const before = !keep && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
-    const total = f.covered.length + f.missing.length, totalBefore = before ? before.covered.length + before.missing.length : 0;
     const box = h("div", { class: "fbbox", id: "done-fb-" + (i + 1) }, [h("p", { class: "fb-head", text: "Aufgabe " + (i + 1) })]);
-    if (total) box.appendChild(h("p", { class: "fb-sum", text: `Angesprochen: ${f.covered.length} von ${total} ${total === 1 ? "Kernpunkt" : "Kernpunkten"}` +
-      (keep && !same ? " (unverändert abgegeben – wie beim ersten Feedback)" : totalBefore ? ` (beim ersten Feedback: ${before.covered.length} von ${totalBefore})` : "") + "." }));
+    if (!same && kept && kept[i] && f.covered.length + f.missing.length) box.appendChild(h("p", { class: "fb-sum", text: "Unverändert abgegeben – wie beim ersten Feedback." }));
     appendFbLists(box, f);
     list.appendChild(box);
   });
@@ -3768,8 +3767,8 @@ async function selectSheet(code) {
       teacherImgs(code, t.images, i + 1),
       teacherFiles(code, t.files, i + 1),
       answerSpecDom(code, cleanAnswer(t.answer, true), cleanImages(t.images, true)),
-      cleanAnswer(t.answer).type === "map" ? null : h("span", { class: "task-label", style: "margin-top:6px", text: "Musterlösung" }),
-      cleanAnswer(t.answer).type === "map" ? null : h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keine –" })
+      cleanAnswer(t.answer).type === "map" ? null : h("span", { class: "task-label", style: "margin-top:6px", text: "Auftrag an die KI" }),
+      cleanAnswer(t.answer).type === "map" ? null : h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keiner (kein KI-Feedback) –" })
     ])));
     await loadSubs();
   } catch (e) { if (!handleAuthError(e)) setStatus($("t-subs-status"), errMsg(e, "t"), "bad"); }
@@ -3887,8 +3886,8 @@ function buildDetail(s) {
     const fbEl = h("div", { class: "dfb" });
     if (f) {
       fbEl.appendChild(h("p", { class: "fb-head", text: "Angezeigtes KI-Feedback" }));
-      if (f.covered.length) fbEl.append(h("p", { class: "fb-ok", text: "Angesprochen:" }), h("ul", { class: "fb-ok" }, f.covered.map((x) => h("li", { text: x }))));
-      if (f.missing.length) fbEl.append(h("p", { class: "fb-miss", text: "Noch nicht angesprochen:" }), h("ul", { class: "fb-miss" }, f.missing.map((x) => h("li", { text: x }))));
+      if (f.covered.length) fbEl.append(h("p", { class: "fb-ok", text: "Gelingt schon:" }), h("ul", { class: "fb-ok" }, f.covered.map((x) => h("li", { text: x }))));
+      if (f.missing.length) fbEl.append(h("p", { class: "fb-miss", text: "Tipps zum Überarbeiten:" }), h("ul", { class: "fb-miss" }, f.missing.map((x) => h("li", { text: x }))));
       if (f.note) fbEl.appendChild(h("p", { class: "fb-note", text: f.note }));
       else if (!f.covered.length && !f.missing.length) fbEl.appendChild(h("p", { class: "fb-note", text: "Keine Rückmeldung." }));
     }
@@ -3948,14 +3947,14 @@ $("t-template").addEventListener("click", async () => {
     const msgs = [];
     if (lost) msgs.push(`${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
     if (lostF) msgs.push(`${lostF === 1 ? "Eine PDF-Datei der Vorlage konnte" : lostF + " PDF-Dateien der Vorlage konnten"} nicht geladen werden und ${lostF === 1 ? "fehlt" : "fehlen"} hier.`);
-    if (unsafeF) msgs.push(`${unsafeF === 1 ? "Eine PDF-Datei der Vorlage war" : unsafeF + " PDF-Dateien der Vorlage waren"} eine Feibeitsblatt-Sicherung (mit Musterlösungen) oder ein Zwischenstand von Schüler:innen und ${unsafeF === 1 ? "wurde" : "wurden"} weggelassen.`);
+    if (unsafeF) msgs.push(`${unsafeF === 1 ? "Eine PDF-Datei der Vorlage war" : unsafeF + " PDF-Dateien der Vorlage waren"} eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI) oder ein Zwischenstand von Schüler:innen und ${unsafeF === 1 ? "wurde" : "wurden"} weggelassen.`);
     if (msgs.length) $("b-err").textContent = msgs.join(" ");
   } finally { busy(btn, false); }
 });
 /* ---------- Feibeitsblatt als PDF-Datei sichern und wieder laden (Lehrkraft) ----------
  * Sichtbar: Titel, Hinweis, je Aufgabe Aufgabenstellung, Material (als Text), Bilder (als JPEG) und die Namen der
  * PDF-Dateien. Im Hintergrund (eingebettete Dateien, im PDF-Programm unter „Anhänge“): der Datensatz feibeitsblatt.json
- * (Kennzeichen /FbSheet 1, FlateDecode) mit Titel, Aufgaben, Musterlösungen, Material und den Angaben zu Bildern und
+ * (Kennzeichen /FbSheet 1, FlateDecode) mit Titel, Aufgaben, Aufträgen an die KI (solution), Material und den Angaben zu Bildern und
  * Dateien samt Größe und SHA-256, dazu jede Bilddatei und jede PDF-Datei unverändert als eigener Stream (Kennzeichen
  * /FbBlob (<exportId>-<k>)). Abgaben gehören nicht dazu. Beim Laden wird daraus der Blatt-Editor gefüllt; „Code
  * generieren“ legt ein neues Blatt mit neuem Code an (die Bilder und Dateien werden wie bei „Als Vorlage“ hochgeladen). */
@@ -4059,10 +4058,10 @@ async function makeSheetPdf(rec, blobs, shows) {
   const pad = 14, bsz = 10.5, blh = 14.5, items = [];
   let dy = pad + 12;
   items.push({ dy, str: "Diese PDF-Datei enthält das ganze Feibeitsblatt", size: 12, bold: true, color: "0 0.29 0.6" }); dy += 18;
-  pdfWrap("Im Hintergrund stecken Aufgaben, Material, Musterlösungen, Bilder und PDF-Dateien. Laden Sie genau diese Datei in der Lehrkräfte-Übersicht mit „Feibeitsblatt aus PDF-Datei laden“ hoch: Das Feibeitsblatt erscheint wieder zum Prüfen und bekommt beim Speichern einen neuen Code – zum Beispiel für eine Parallelklasse. Abgaben enthält die Datei nicht.", bsz, false, TW - 2 * pad)
+  pdfWrap("Im Hintergrund stecken Aufgaben, Material, Aufträge an die KI, Bilder und PDF-Dateien. Laden Sie genau diese Datei in der Lehrkräfte-Übersicht mit „Feibeitsblatt aus PDF-Datei laden“ hoch: Das Feibeitsblatt erscheint wieder zum Prüfen und bekommt beim Speichern einen neuen Code – zum Beispiel für eine Parallelklasse. Abgaben enthält die Datei nicht.", bsz, false, TW - 2 * pad)
     .forEach((l) => { items.push({ dy, str: l, size: bsz, color: "0.1 0.15 0.25" }); dy += blh; });
   dy += 4;
-  pdfWrap("Nicht an Schüler:innen weitergeben – die Datei enthält die Musterlösungen.", bsz, true, TW - 2 * pad)
+  pdfWrap("Nicht an Schüler:innen weitergeben – die Datei enthält die Aufträge an die KI.", bsz, true, TW - 2 * pad)
     .forEach((l) => { items.push({ dy, str: l, size: bsz, bold: true, color: "0.7 0.15 0.12" }); dy += blh; });
   const bh = dy - blh + pad;
   cur().ops.push(`0.93 0.96 1 rg 0 0.29 0.6 RG 1.2 w ${M.toFixed(2)} ${(H - y - bh).toFixed(2)} ${TW.toFixed(2)} ${bh.toFixed(2)} re B`);
@@ -4135,9 +4134,9 @@ async function makeSheetPdf(rec, blobs, shows) {
   obj(2, `<< /Type /Pages /Kids [${pg.map((p) => p.obj + " 0 R").join(" ")}] /Count ${pg.length} >>`);
   obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
   obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
-  obj(5, `<< /Title ${pdfUtf16("Feibeitsblatt – " + title)} /Subject ${pdfUtf16("Gesichertes Feibeitsblatt zum Wiederverwenden – enthält die Musterlösungen")} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  obj(5, `<< /Title ${pdfUtf16("Feibeitsblatt – " + title)} /Subject ${pdfUtf16("Gesichertes Feibeitsblatt zum Wiederverwenden – enthält die Aufträge an die KI")} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
   obj(dataObj, [`<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbSheet 1 /Params << /Size ${json.length} >>${packed ? " /Filter /FlateDecode" : ""} /Length ${data.length} >>\nstream\n`, data, "\nendstream"]);
-  obj(dataSpec, `<< /Type /Filespec /F (feibeitsblatt.json) /UF (feibeitsblatt.json) /Desc ${pdfUtf16("Feibeitsblatt: Aufgaben, Musterlösungen, Material, Angaben zu Bildern und Dateien")} /AFRelationship /Data /EF << /F ${dataObj} 0 R /UF ${dataObj} 0 R >> >>`);
+  obj(dataSpec, `<< /Type /Filespec /F (feibeitsblatt.json) /UF (feibeitsblatt.json) /Desc ${pdfUtf16("Feibeitsblatt: Aufgaben, Aufträge an die KI, Material, Angaben zu Bildern und Dateien")} /AFRelationship /Data /EF << /F ${dataObj} 0 R /UF ${dataObj} 0 R >> >>`);
   for (const b of bl) {
     obj(b.obj, [`<< /Type /EmbeddedFile /Subtype /${b.mime.replace("/", "#2F")} /FbBlob (${b.ref}) /Params << /Size ${b.bytes.length} >> /Length ${b.bytes.length} >>\nstream\n`, b.bytes, "\nendstream"]);
     obj(b.spec, `<< /Type /Filespec /F ${pdfStr(pdfAscii(b.name))} /UF ${pdfUtf16(b.name)} /AFRelationship /Source /EF << /F ${b.obj} 0 R /UF ${b.obj} 0 R >> >>`);
@@ -4174,9 +4173,9 @@ $("t-export").addEventListener("click", async () => {
       if (T.sel === code) setStatus(st, msg, "busy");
     });
     const pdf = await makeSheetPdf(rec, blobs, shows);
-    if (!exportStillWanted(run)) return;   // inzwischen abgemeldet: die Datei mit den Musterlösungen nicht mehr speichern
+    if (!exportStillWanted(run)) return;   // inzwischen abgemeldet: die Datei mit den Aufträgen an die KI nicht mehr speichern
     downloadBlob(new Blob([pdf], { type: "application/pdf" }), sheetPdfName(rec));
-    if (T.sel === code) setStatus(st, `Die PDF-Datei (${fmtKB(pdf.length)}) wird heruntergeladen. Bewahren Sie sie gut auf – sie enthält auch die Musterlösungen.`, "ok");
+    if (T.sel === code) setStatus(st, `Die PDF-Datei (${fmtKB(pdf.length)}) wird heruntergeladen. Bewahren Sie sie gut auf – sie enthält auch Ihre Aufträge an die KI.`, "ok");
   } catch (e) {
     if (T.sel === code) setStatus(st, `Die PDF-Datei konnte nicht erstellt werden${e && e.message && !(e instanceof ApiError) ? " (" + e.message + ")" : ""}. Bitte versuchen Sie es erneut.`, "bad");
   } finally { busy(btn, false); }
@@ -4318,7 +4317,7 @@ async function importSheetPdf(file) {
     note.classList.remove("hidden");
     const msgs = [], lost = lostImg + lostFile;
     if (lost) msgs.push(`${[lostImg ? (lostImg === 1 ? "ein Bild" : lostImg + " Bilder") : "", lostFile ? (lostFile === 1 ? "eine PDF-Datei" : lostFile + " PDF-Dateien") : ""].filter(Boolean).join(" und ")} aus der PDF-Datei ${lost === 1 ? "war" : "waren"} beschädigt oder nicht lesbar und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
-    if (unsafe) msgs.push(`${unsafe === 1 ? "eine angehängte PDF-Datei war" : unsafe + " angehängte PDF-Dateien waren"} selbst eine Feibeitsblatt-Sicherung (mit Musterlösungen) oder ein Zwischenstand von Schüler:innen und ${unsafe === 1 ? "wurde" : "wurden"} weggelassen.`);
+    if (unsafe) msgs.push(`${unsafe === 1 ? "eine angehängte PDF-Datei war" : unsafe + " angehängte PDF-Dateien waren"} selbst eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI) oder ein Zwischenstand von Schüler:innen und ${unsafe === 1 ? "wurde" : "wurden"} weggelassen.`);
     if (msgs.length) $("b-err").textContent = msgs.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(" ");
   } catch (e) {
     if (importStillWanted(run)) setStatus(st, "Die PDF-Datei konnte nicht gelesen werden. " + SHEET_PDF_HINT, "bad");
@@ -4480,8 +4479,8 @@ async function addPdfFiles(tr, files) {
         let buf;
         try { buf = new Uint8Array(await f.arrayBuffer()); } catch (e) { throw new Error("Die Datei konnte nicht gelesen werden."); }
         if (String.fromCharCode.apply(null, buf.subarray(0, 5)) !== "%PDF-") throw new Error("Das ist keine PDF-Datei (erlaubt sind nur PDF-Dateien).");
-        const kind = await feibeitsblattPdfKind(buf);   // Schüler:innen bekämen sonst Musterlösungen bzw. fremde Angaben
-        if (kind === "sheet") throw new Error("Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Musterlösungen und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
+        const kind = await feibeitsblattPdfKind(buf);   // Schüler:innen bekämen sonst die Aufträge an die KI bzw. fremde Angaben
+        if (kind === "sheet") throw new Error("Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Aufträge an die KI und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
         if (kind === "draft") throw new Error("Das ist ein Zwischenstand von Schüler:innen mit persönlichen Angaben – bitte nicht als Material anhängen.");
         tr._files.push({ blob: new Blob([buf], { type: "application/pdf" }), name: safeFileName(f.name), size: buf.length }); T.builderDirty = true;
       } catch (e) { setStatus(stat, `„${f.name}“: ${(e && e.message) || "Die Datei konnte nicht gelesen werden."}`, "bad"); }
@@ -4543,7 +4542,7 @@ function answerEditor(tr, init) {
   const addItem = h("button", { type: "button", class: "btn ghost small bitem-add", text: "+ Karte hinzufügen" });
   const stat = h("span", { class: "fhint bitem-stat", role: "status", "aria-live": "polite" });
   const map = h("div", { class: "bans-map" }, [
-    h("p", { class: "fhint", text: `Jede Karte bekommt eine Bezeichnung, auf Wunsch einen Hinweis und ein Bild, dazu ein oder mehrere richtige Länder (eines genügt). Höchstens ${ANS_LIMITS.items} Karten mit je ${ANS_LIMITS.countries} Ländern. Die Seite zeigt den Schüler:innen die Länder nicht (wer sich technisch auskennt, kann sie aber herausfinden) – nur, ob ihre Zuordnung stimmt. Diese Aufgabe hat keine Musterlösung und geht nicht an die KI.` }),
+    h("p", { class: "fhint", text: `Jede Karte bekommt eine Bezeichnung, auf Wunsch einen Hinweis und ein Bild, dazu ein oder mehrere richtige Länder (eines genügt). Höchstens ${ANS_LIMITS.items} Karten mit je ${ANS_LIMITS.countries} Ländern. Die Seite zeigt den Schüler:innen die Länder nicht (wer sich technisch auskennt, kann sie aber herausfinden) – nur, ob ihre Zuordnung stimmt. Diese Aufgabe geht nicht an die KI und braucht deshalb keinen Auftrag an die KI.` }),
     list, h("div", { class: "bimg-row" }, [addItem, stat])]);
   const box = h("div", { class: "bans" }, [lbl, sel, tbl, map]);
   tr._ansSel = sel; tr._ansLbl = lbl; tr._colsLbl = colsLbl; tr._rowsLbl = rowsLbl; tr._colsIn = cols; tr._rowsIn = rowsIn;
@@ -4642,7 +4641,7 @@ const renumberOf = (tr) => Array.prototype.indexOf.call($("b-rows").children, tr
 function addRow(text, solution, images, material, files, answer) {
   const tb = $("b-rows");
   const ta1 = h("textarea", { class: "grow q", rows: "3", maxlength: "4000", placeholder: "Aufgabenstellung …", spellcheck: "true" });
-  const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Stichpunkte – je Zeile ein Punkt, den die Antwort inhaltlich treffen soll", spellcheck: "true" });
+  const ta2 = h("textarea", { class: "grow s", rows: "3", maxlength: "8000", placeholder: "Worauf soll die KI beim Feedback achten? z. B. „Achte darauf, ob die Antwort begründet ist und die Fachbegriffe richtig verwendet.“", spellcheck: "true" });
   ta1.value = text || ""; ta2.value = solution || "";
   const l1 = h("label", { class: "rowlbl" }), l2 = h("label", { class: "rowlbl" });
   const up = h("button", { type: "button", class: "iconbtn up", text: "↑" });
@@ -4714,7 +4713,7 @@ function addRow(text, solution, images, material, files, answer) {
     document.execCommand("insertText", false, t); matInput();
   });
   if (material && material.length) { Array.from(materialDom(material, { editor: true }).childNodes).forEach((n) => matEd.appendChild(n)); matEd.classList.remove("is-empty"); }
-  const noSol = h("p", { class: "fhint nosol hidden", text: "Für die Weltkarten-Zuordnung gibt es keine Musterlösung: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI." });
+  const noSol = h("p", { class: "fhint nosol hidden", text: "Für die Weltkarten-Zuordnung gibt es keinen Auftrag an die KI: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI." });
   const tr = h("tr", null, [
     h("td", { class: "c1" }, [l1, ta1, h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
       h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])]),
@@ -4741,7 +4740,7 @@ function addRow(text, solution, images, material, files, answer) {
   del.addEventListener("click", async () => {
     const hasMat = !!matEd.textContent.trim(), hasFiles = tr._images.length || tr._files.length, hasAns = tr._ans.type !== "text";
     if (tb.children.length <= 1 && !hasFiles && !hasMat && !hasAns) { ta1.value = ""; ta2.value = ""; growAll(); return; }
-    if ((ta1.value.trim() || ta2.value.trim() || hasFiles || hasMat || hasAns) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Musterlösung, Material, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    if ((ta1.value.trim() || ta2.value.trim() || hasFiles || hasMat || hasAns) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Auftrag an die KI, Material, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
     tr._images.forEach((im) => URL.revokeObjectURL(im.url));
     tr._ans.items.forEach((it) => { if (it.img) URL.revokeObjectURL(it.img.url); });
     if (tb.children.length <= 1) {
@@ -4763,7 +4762,7 @@ function renumber() {
     q.id = "bq-" + n; s.id = "bs-" + n;
     const l1 = tr._l1, l2 = tr._l2;
     l1.htmlFor = q.id; l1.textContent = "Aufgabe " + n;
-    l2.htmlFor = s.id; l2.textContent = "Musterlösung " + n;
+    l2.htmlFor = s.id; l2.textContent = "Auftrag an die KI " + n;
     tr._ansSel.id = "bt-" + n; tr._ansLbl.htmlFor = tr._ansSel.id; tr._ansLbl.textContent = `Antwortart ${n}`;
     tr._colsIn.id = "bc-" + n; tr._colsLbl.htmlFor = tr._colsIn.id; tr._colsLbl.textContent = "Spaltenüberschriften";
     tr._rowsIn.id = "br-" + n; tr._rowsLbl.htmlFor = tr._rowsIn.id; tr._rowsLbl.textContent = "Zeilen";
@@ -4804,7 +4803,7 @@ $("b-gen").addEventListener("click", async () => {
   Array.from($("b-rows").children).forEach((tr, i) => {
     const q = tr.querySelector("textarea.q:not(.measure)"), s = tr.querySelector("textarea.s:not(.measure)"), ans = tr._ans;
     const text = q.value.trim(), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
-    const solution = ans.type === "map" ? "" : s.value.trim();   // Weltkarte: keine Musterlösung
+    const solution = ans.type === "map" ? "" : s.value.trim();   // Auftrag an die KI (Weltkarte: keiner)
     if (!text && !solution && !imgs.length && !pdfs.length && !material.length && ans.type === "text") return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
     // Antwortart prüfen (dieselben Grenzen wie der Server)
