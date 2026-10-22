@@ -9,7 +9,12 @@
   "workers_dev": true,
   // Statische Seite aus ./dist (npm run build); /api/* geht immer zuerst an den Worker
   "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
-  "d1_databases": [{ "binding": "DB", "database_name": "feibeitsblatt-db" }]
-  // Optional (Dashboard oder `wrangler secret put`): SETTINGS_SECRET (verschlüsselt den KI-Schlüssel),
-  // TEACHER_DOOR_CODE (Vorgabe "1104").
+  "d1_databases": [{ "binding": "DB", "database_name": "feibeitsblatt-db" }],
+  // Cloudflare Workers AI (KI-Anbieter „cloudflare“, ohne API-Schlüssel; aktiv erst, wenn die Lehrkraft ihn speichert).
+  // Kein AI Gateway: der Worker übergibt nie die Option `gateway`. "remote": true unterdrückt nur die Warnung von wrangler –
+  // unter `wrangler dev --local` (npm run dev, Tests) ist env.AI vorhanden, jeder Aufruf scheitert aber mit
+  // „Binding AI needs to be run remotely“ (dafür gibt es die Mock-KI als „Anderer OpenAI-kompatibler Dienst“).
+  "ai": { "binding": "AI", "remote": true }
+  // Optional (Dashboard oder `wrangler secret put`): SETTINGS_SECRET (verschlüsselt den KI-Schlüssel und ist der Pfeffer der
+  // Rate-Limit-Zähler – auch mit Workers AI nötig), TEACHER_DOOR_CODE (Vorgabe "1104").
 }

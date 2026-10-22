@@ -12,6 +12,7 @@
 //   ok (Vorgabe) · fenced (<think> + ```json-Zaun) · badjson · 429 (Tageslimit, hart) · 429soft (RPM, Retry-After 1 s)
 //   500 · 401 · slow (Verzögerung delayMs, Vorgabe 5000) · reasoning400 (400, wenn reasoning_effort/reasoning gesendet)
 // Hilfsrouten: GET /__mock/state → {mode, delayMs, count, requests:[{model, messages, …}]}, POST /__mock/reset
+// Workers AI: mockAIBinding(mock) ist ein gefälschtes Binding env.AI für Unit-Tests (lokal ist Workers AI nie erreichbar).
 import http from "node:http";
 import { pathToFileURL } from "node:url";
 
@@ -106,7 +107,8 @@ export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs 
         const body = JSON.parse((await readBody(req)) || "{}");
         const messages = Array.isArray(body.messages) ? body.messages : [];
         state.requests.push({ model: body.model, messages, response_format: body.response_format, temperature: body.temperature,
-          reasoning_effort: body.reasoning_effort, reasoning: body.reasoning, at: Date.now() });
+          reasoning_effort: body.reasoning_effort, reasoning: body.reasoning, chat_template_kwargs: body.chat_template_kwargs,
+          max_tokens: body.max_tokens, max_completion_tokens: body.max_completion_tokens, at: Date.now() });
         if (state.mode === "slow") await sleep(state.delayMs || 5000);
         else if (state.delayMs) await sleep(state.delayMs);
         if (state.mode === "429") return send(res, 429, { error: { message: "Rate limit reached for model `" + body.model + "` on tokens per day (TPD): Limit 200000, Used 200000. Please try again in 7m12s.", type: "tokens", code: "rate_limit_exceeded" } });
@@ -125,8 +127,11 @@ export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs 
         let content = blocks.length ? JSON.stringify(mockFeedback(blocks)) : JSON.stringify({ ok: true, antwort: "Verbindung steht." });
         if (state.mode === "fenced") content = "<think>Ich lese den Auftrag der Lehrkraft.</think>\n```json\n" + content + "\n```";
         if (state.mode === "badjson") content = "Das ist leider kein JSON.";
+        // Token grob wie echte Dienste (etwa 4 Zeichen je Token) – für die Verbrauchsschätzung von Workers AI in Tests
+        const pt = Math.ceil(messages.reduce((n, m) => n + String((m && m.content) || "").length, 0) / 4), ct = Math.ceil(content.length / 4);
         return send(res, 200, { id: "mock-" + state.requests.length, object: "chat.completion", created: Math.floor(Date.now() / 1000), model: body.model || "mock",
-          choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } });
+          choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+          usage: { prompt_tokens: pt, completion_tokens: ct, total_tokens: pt + ct, completion_tokens_details: { reasoning_tokens: 0 } } });
       }
       return send(res, 404, { error: { message: "Not found: " + path, code: 404 } });
     } catch (e) {
@@ -146,6 +151,30 @@ export async function startMockAI({ port = 0, host = "127.0.0.1", ...opts } = {}
     reset() { state.requests = []; },
     close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(() => r()); }),
   };
+}
+
+/* ---------- Gefälschtes Workers-AI-Binding (env.AI) ----------
+ * run(model, inputs, {returnRawResponse, signal}) schickt die Eingaben in OpenAI-Form ({model, ...inputs}) an die Mock-KI und
+ * gibt deren Response zurück – wie das echte Binding mit returnRawResponse (HTTP-Status wie fetch). binding.mode:
+ *   ok (Vorgabe) · cf3036 (Tageskontingent, 429) · cf3040 (Kapazität, 429) · cf400 (5006 „Bad input“, 400)
+ *   local (wirft wie unter `wrangler dev --local`: „Binding AI needs to be run remotely“)
+ * binding.calls merkt sich {model, inputs, opts} jedes Aufrufs. */
+export function mockAIBinding(mock) {
+  const cfError = (status, internalCode, description) =>
+    new Response(JSON.stringify({ internalCode, description, name: "AiError" }), { status, headers: { "content-type": "application/json" } });
+  const b = {
+    mode: "ok", calls: [],
+    async run(model, inputs, opts = {}) {
+      b.calls.push({ model, inputs, opts });
+      if (b.mode === "local") throw new Error("Binding AI needs to be run remotely");
+      if (b.mode === "cf3036") return cfError(429, 3036, "You have used up your daily free allocation of 10,000 neurons. Please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage.");
+      if (b.mode === "cf3040") return cfError(429, 3040, "Capacity temporarily exceeded, please try again.");
+      if (b.mode === "cf400") return cfError(400, 5006, "AiError: Bad input: Error: oneOf at '/' not met");
+      return fetch(mock.url + "/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer workers-ai" },
+        body: JSON.stringify({ model, ...inputs }), signal: opts.signal });
+    },
+  };
+  return b;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

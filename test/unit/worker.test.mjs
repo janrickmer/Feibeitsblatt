@@ -4,8 +4,9 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
-import { startMockAI, expectedResults } from "../mock-ai.mjs";
-import { RATE, LIMITS, cleanFileName, sha256Hex } from "../../worker/lib.js";
+import { startMockAI, expectedResults, mockAIBinding } from "../mock-ai.mjs";
+import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf } from "../../worker/lib.js";
+import { nextUtcMidnight } from "../../worker/ai.js";
 import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
 
@@ -111,9 +112,12 @@ test("custom door code via env.TEACHER_DOOR_CODE", async () => {
   assert.equal((await call("POST", "/api/teacher/door", { body: { doorCode: "7777" }, env, ip: "198.51.100.77" })).json.setup, true);
 });
 
-test("AI settings: default groq, encrypted at rest, key never returned", async () => {
+test("AI settings: preselected Workers AI is not active until saved; custom key encrypted at rest, key never returned", async () => {
   let r = await call("GET", "/api/teacher/ai", { auth });
-  assert.deepEqual({ p: r.json.provider, k: r.json.hasKey, h: r.json.keyHint, l: r.json.label }, { p: "groq", k: false, h: "", l: "Groq" });
+  assert.deepEqual({ p: r.json.provider, k: r.json.hasKey, h: r.json.keyHint, l: r.json.label, ready: r.json.ready, saved: r.json.saved, kl: r.json.keyless },
+    { p: "cloudflare", k: false, h: "", l: "Cloudflare Workers AI", ready: false, saved: false, kl: true });
+  assert.equal(r.json.keyError, "Noch nicht gespeichert – bitte Anbieter wählen und „Speichern“ klicken.");
+  assert.equal(r.json.quotaUntil, null); assert.deepEqual(r.json.usage, { day: new Date().toISOString().slice(0, 10), requests: 0, neurons: 0, limit: 10000 });
   r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-SECRET-1234" } });
   assert.equal(r.status, 200, r.text);
   assert.equal(r.json.keyHint, "…1234"); assert.equal(r.text.includes("SECRET"), false);
@@ -724,6 +728,148 @@ test("feedback counts only valid AI calls (per IP, chars, per sheet/day); BUSY/R
     assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy"); assert.ok(r.json.retryAfter >= 5 && r.json.retryAfter <= 60, "retryAfter " + r.json.retryAfter);
     assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
   } finally { RATE.feedback.max = saved.f; RATE.sheet_feedback.max = saved.s; mock.setMode("ok"); }
+});
+
+test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Empfänger; Feedback und Test über env.AI; lokal CONFIG; Tageskontingent mit Sperre bis 0:00 UTC, Reserve mit vollem Budget, sonst 503 ai_quota ohne Zählung", async () => {
+  const cf = mockAIBinding(mock), CFENV = { ...ENV, AI: cf };
+  const CF_LABEL = "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert";
+  const mockId = "custom:127.0.0.1:" + mock.port, GEMMA = "@cf/google/gemma-4-26b-a4b-it";
+  const lockRow = () => d1.db.prepare("SELECT until FROM ai_skip WHERE provider='cloudflare' AND model='*'").get();
+  const usageRow = () => d1.db.prepare("SELECT requests, neurons FROM ai_usage WHERE provider='cloudflare' AND day=?").get(new Date().toISOString().slice(0, 10));
+  d1.db.prepare("DELETE FROM settings WHERE key='ai'").run(); d1.db.prepare("DELETE FROM ai_skip").run(); d1.db.prepare("DELETE FROM ai_usage").run();
+  try {
+    // Frisch: Vorauswahl cloudflare, aber nicht gespeichert → nicht nutzbar, keine Empfänger, kein Feedback
+    let r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.deepEqual({ p: r.json.provider, k: r.json.hasKey, ready: r.json.ready, kl: r.json.keyless, saved: r.json.saved }, { p: "cloudflare", k: false, ready: false, kl: true, saved: false });
+    r = await call("POST", "/api/teacher/sheets", { auth, env: CFENV, body: { title: "CF", tasks } });
+    assert.equal(r.status, 200, r.text); const c = r.json.code;
+    r = await call("GET", "/api/sheet/" + c, { env: CFENV });
+    assert.equal(r.json.sheet.aiRecipients, undefined); assert.equal(r.json.sheet.aiProvider, null);
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured"); assert.equal(cf.calls.length, 0);
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 400); assert.match(r.json.error, /Noch nicht gespeichert/);
+    // Erst custom mit Schlüssel, dann Wechsel auf cloudflare ohne Schlüssel → erlaubt, der Schlüssel verschwindet
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-x-1234" } });
+    assert.equal(r.status, 200, r.text);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "", apiKey: "geheim" } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /kein API-Schlüssel nötig/);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "openai/gpt-oss-120b" } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /„@cf\/“/);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: { ...CFENV, SETTINGS_SECRET: undefined }, body: { provider: "cloudflare", model: "" } });
+    assert.equal(r.status, 200, r.text);   // ohne SETTINGS_SECRET speicherbar (kein Schlüssel)
+    assert.deepEqual({ ready: r.json.ready, k: r.json.hasKey, h: r.json.keyHint, saved: r.json.saved, w: r.json.warning, err: r.json.keyError }, { ready: true, k: true, h: "", saved: true, w: undefined, err: undefined });
+    assert.match(r.json.tierNote, /10 000 Neurons/); assert.equal(r.json.modelCount, undefined);
+    let s = settingsRow("ai"); assert.equal(s.apiKeyEnc, undefined); assert.equal(s.provider, "cloudflare"); assert.equal(JSON.stringify(s).includes("sk-x"), false);
+    assert.deepEqual(s.fallbacks, [GEMMA, "@cf/zai-org/glm-4.7-flash", "@cf/qwen/qwen3-30b-a3b-fp8"]);
+    // Empfänger: Rechtsträger und Sitz
+    r = await call("GET", "/api/sheet/" + c, { env: CFENV });
+    assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "cloudflare", label: CF_LABEL }]); assert.equal(r.json.sheet.aiProvider, "Cloudflare Workers AI");
+    // Ohne Binding (älterer Deploy): kein Empfänger, die Lehrkraft sieht den Grund; Speichern geht mit Warnung
+    r = await call("GET", "/api/sheet/" + c, { env: ENV });
+    assert.equal(r.json.sheet.aiRecipients, undefined);
+    r = await call("GET", "/api/teacher/ai", { auth, env: ENV });
+    assert.equal(r.json.ready, false); assert.equal(r.json.saved, true); assert.match(r.json.keyError, /Binding „AI“ fehlt/);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: ENV, body: { provider: "cloudflare", model: "" } });
+    assert.equal(r.status, 200); assert.match(r.json.warning, /^Gespeichert, aber: Workers AI ist für diesen Worker nicht eingerichtet/);
+    // Verbindungstest über das Binding: kurze Ausgabegrenze, Token-Zahlen (ohne Inhalt) für die Lehrkraft, Verbrauch gezählt
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.sample, "Verbindung steht."); assert.equal(r.json.modelCount, 3);
+    assert.equal(cf.calls.at(-1).inputs.max_completion_tokens, 200);
+    assert.ok(r.json.usage.prompt_tokens > 0 && r.json.usage.completion_tokens > 0); assert.equal(r.json.usage.reasoning_tokens, 0);
+    assert.equal(usageRow().requests, 1);
+    // Feedback über das Binding: Gemma mit Denkmodus aus und Ausgabegrenze 800 + 300 je Aufgabe, ≤ 18 D1-Abfragen
+    cf.calls = []; mock.reset();
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Pflanzen brauchen Licht.", "x"], recipients: ["cloudflare"] } });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, expectedResults(tasks, ["Pflanzen brauchen Licht.", "x"]));
+    assert.equal(cf.calls.length, 1); assert.equal(cf.calls[0].model, GEMMA);
+    assert.deepEqual(mock.state.requests[0].chat_template_kwargs, { enable_thinking: false }); assert.equal(mock.state.requests[0].max_completion_tokens, 1100);
+    assert.deepEqual(Object.keys(cf.calls[0].opts).sort(), ["returnRawResponse", "signal"]);
+    assert.ok(r.queries <= 18, "D1-Abfragen: " + r.queries);
+    assert.equal(usageRow().requests, 2); assert.ok(usageRow().neurons > 0);
+    r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.equal(r.json.usage.requests, 2); assert.equal(r.json.usage.limit, 10000); assert.equal(r.json.quotaUntil, null);
+    // Lokal (wrangler dev --local): Binding da, Aufruf scheitert → Feedback 503 ai_not_configured, Test 502 mit Hinweis
+    cf.mode = "local";
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured");
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 502); assert.equal(r.json.aiCode, "CONFIG"); assert.match(r.json.error, /lokalen Entwicklung/);
+    cf.mode = "ok";
+    // Eine Reserve im selben Cloudflare-Konto bringt nichts: abgelehnt – in beiden Reihenfolgen
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { reserve: { provider: "cloudflare", model: "" } } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /selben Cloudflare-Konto/);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-y-5678", reserve: { provider: "cloudflare", model: "" } } });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.reserve.ready, true);
+    r = await call("GET", "/api/sheet/" + c, { env: CFENV });
+    assert.deepEqual(r.json.sheet.aiRecipients.map((x) => x.id), [mockId, "cloudflare"]);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "" } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /selben Cloudflare-Konto/);
+    assert.equal(settingsRow("ai").provider, "custom");   // unverändert
+    // Workers AI zuerst, Reserve custom mit vier Modellen: Tageskontingent (3036) → die Reserve antwortet; danach fragt der
+    // Server Workers AI bis 0:00 UTC nicht mehr, und die Reserve bekommt das volle Budget (6 statt 3 Versuche)
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "", reserve: { provider: "custom", model: "mock-extra", baseUrl: mock.url, apiKey: "sk-r-5555" } } });
+    assert.equal(r.status, 200, r.text);
+    cf.mode = "cf3036"; cf.calls = []; mock.reset();
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""], recipients: ["cloudflare", mockId] }, ip: "203.0.113.90" });
+    assert.equal(r.status, 200, r.text); assert.equal(cf.calls.length, 1); assert.equal(mock.state.requests.length, 1);
+    assert.equal(lockRow().until, nextUtcMidnight());
+    r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.equal(r.json.quotaUntil, nextUtcMidnight());
+    cf.calls = []; mock.reset(); mock.setMode("badjson");
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""], recipients: ["cloudflare", mockId] }, ip: "203.0.113.91" });
+    assert.equal(r.status, 502); assert.equal(r.json.aiCode, "BAD_JSON");
+    assert.equal(cf.calls.length, 0, "keine Anfrage an Workers AI bis 0:00 UTC");
+    assert.deepEqual(mock.state.requests.map((q) => q.model).sort(), ["llama-3.3-70b-versatile", "mock-extra", "openai/gpt-oss-120b", "qwen/qwen3-32b"], "volles Budget: alle vier Modelle (Startmodell zufällig versetzt)");
+    mock.setMode("ok"); d1.db.prepare("DELETE FROM ai_skip WHERE provider='custom'").run();
+    // Erneutes Speichern hebt die Sperre nicht auf (sie gilt für das Konto); ohne Reserve: 503 ai_quota ohne Retry-After und ohne Zählung
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "", reserve: null } });
+    assert.equal(r.status, 200); assert.equal(r.json.quotaUntil, nextUtcMidnight()); assert.ok(lockRow());
+    const saved = RATE.feedback.max;
+    RATE.feedback.max = 1;
+    try {
+      for (let k = 0; k < 2; k++) {
+        r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] }, ip: "203.0.113.92" });
+        assert.equal(r.status, 503); assert.equal(r.json.code, "ai_quota"); assert.equal(r.json.error, "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.");
+        assert.equal(r.headers.get("retry-after"), null); assert.equal(r.json.retryAfter, undefined);
+      }
+      assert.equal(cf.calls.length, 0);
+      // Ohne Sperre trifft der Aufruf selbst auf 3036: gezählt wird erst, dann erstattet; die Sperre entsteht sofort
+      d1.db.prepare("DELETE FROM ai_skip").run();
+      r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] }, ip: "203.0.113.93" });
+      assert.equal(r.status, 503); assert.equal(r.json.code, "ai_quota"); assert.equal(cf.calls.length, 1); assert.ok(lockRow());
+      const b = await bucketOf("feedback", "203.0.113.93", SECRET);
+      assert.equal(d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(b).count, 0, "Zählung erstattet");
+    } finally { RATE.feedback.max = saved; }
+    // Ein erfolgreicher Verbindungstest (z. B. nach einem Wechsel auf Workers Paid) hebt die Sperre auf
+    cf.mode = "ok";
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 200, r.text); assert.equal(lockRow(), undefined);
+    r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.equal(r.json.quotaUntil, null);
+    // Der Verbindungstest selbst auf 3036: Sperre sofort (Schüler:innen bekommen dann gleich ai_quota)
+    cf.mode = "cf3036";
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 502); assert.equal(r.json.aiCode, "DAILY_LIMIT"); assert.match(r.json.error, /Tageskontingent von Workers AI/); assert.ok(lockRow());
+    // Unbekannte Ablehnung (400) bei allen Modellen → kein HTTP-Abbruch nach dem ersten Modell, sondern alle Modelle versucht
+    d1.db.prepare("DELETE FROM ai_skip").run(); cf.mode = "cf400"; cf.calls = [];
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] }, ip: "203.0.113.94" });
+    assert.equal(r.status, 502); assert.equal(r.json.code, "ai_error");
+    assert.deepEqual([...new Set(cf.calls.map((x) => x.model))], [GEMMA, "@cf/zai-org/glm-4.7-flash"], "6 Versuche: Gemma dreimal, GLM dreimal");
+    assert.equal(cf.calls.length, 6);
+    // Aufräumen: alte Verbrauchszeilen (älter als zwei Tage) verschwinden beim gelegentlichen Aufräumen
+    d1.db.prepare("INSERT INTO ai_usage VALUES('2000-01-01','cloudflare',5,10)").run();
+    const rnd = Math.random; Math.random = () => 0;
+    try { await call("GET", "/api/sheet/" + c, { env: CFENV }); } finally { Math.random = rnd; }
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM ai_usage WHERE day='2000-01-01'").get().n, 0);
+    assert.ok(usageRow(), "heutige Zeile bleibt");
+    assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
+  } finally {
+    cf.mode = "ok"; mock.setMode("ok");
+    d1.db.prepare("DELETE FROM ai_skip").run();
+    await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: null } });
+  }
 });
 
 test("password change keeps key pair; delete flow", async () => {

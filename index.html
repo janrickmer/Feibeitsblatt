@@ -541,6 +541,9 @@
   .resultbox p{margin:0 0 10px}
   /* KI-Einstellungen */
   .provinfo{margin:0 0 16px}
+  .provwarn{color:var(--red); font-weight:600}
+  .cfusage{margin:8px 0 0}
+  .cfusage.over{color:var(--red)}
   .provinfo p{margin:0 0 6px}
   .provinfo p:last-child{margin-bottom:0}
   #ai-model,#ai-key,#ai-base{font-family:var(--mono); font-size:16px; letter-spacing:.02em}
@@ -903,36 +906,45 @@
     <div id="tv-ai" class="hidden">
       <button type="button" class="backlink" id="ai-back">← zurück zur Übersicht</button>
       <h1>KI-Einstellungen</h1>
-      <p class="sub">Für das KI-Feedback an die Schüler:innen nutzt der Server Ihren eigenen API-Schlüssel. Der Schlüssel wird nur auf dem Server gespeichert und nie an die Browser der Schüler:innen übertragen.</p>
+      <p class="sub">Für das KI-Feedback empfiehlt sich Cloudflare Workers AI: Es läuft im selben Cloudflare-Konto wie der Server dieser Seite und braucht keinen API-Schlüssel. Andere Anbieter nutzen Ihren eigenen API-Schlüssel; er wird nur verschlüsselt auf dem Server gespeichert und nie an die Browser der Schüler:innen übertragen.</p>
       <div class="pbox" style="max-width:760px">
         <div class="field">
           <label for="ai-prov">Anbieter</label>
           <select id="ai-prov">
-            <option value="groq">Groq (Vorgabe)</option>
-            <option value="openrouter">OpenRouter – kostenlose Modelle</option>
-            <option value="gemini">Google Gemini</option>
-            <option value="cerebras">Cerebras</option>
+            <option value="cloudflare">Cloudflare Workers AI – Empfehlung (ohne API-Schlüssel)</option>
+            <option value="groq">Groq</option>
+            <option value="openrouter">OpenRouter – nicht für den Schuleinsatz geeignet</option>
+            <option value="gemini">Google Gemini – nicht für den Schuleinsatz geeignet</option>
+            <option value="cerebras">Cerebras – nicht für den Schuleinsatz geeignet</option>
             <option value="custom">Anderer OpenAI-kompatibler Dienst</option>
           </select>
         </div>
-        <div class="provinfo note" data-prov="groq">
+        <div class="provinfo note" data-prov="cloudflare">
+          <p><b>Cloudflare Workers AI</b> (Empfehlung) läuft im selben Cloudflare-Konto wie der Server dieser Seite – ohne API-Schlüssel und ohne weiteren KI-Dienstleister. Vorgabemodell ist Gemma 4 (26B, von Google, offen lizenziert); ist es ausgelastet, weicht der Server auf GLM-4.7-Flash und Qwen3-30B aus. Der Denkmodus der Modelle ist abgeschaltet, damit das Kontingent reicht. Aktiv wird Workers AI erst, wenn Sie den Anbieter speichern.</p>
+          <p><b>Limits:</b> kostenlos 10 000 „Neurons“ pro Tag für das ganze Cloudflare-Konto (alle Modelle zusammen; Neustart um 0:00 Uhr UTC, also 1:00 Uhr MEZ bzw. 2:00 Uhr MESZ), höchstens 300 Anfragen pro Minute. Eine Feedback-Anfrage kostet je nach Umfang etwa 20–50 Neurons – das reicht für etwa 200–450 Anfragen am Tag; je Schüler:in fallen bis zu zwei an. Viel Material, lange Aufträge an die KI und viele Aufgaben machen jede Anfrage teurer (bei Workers AI zählen alle Token, auch wiederkehrende): Ein großes Feibeitsblatt oder sehr viele Anfragen können das Kontingent für alle Klassen aufbrauchen. Ist es aufgebraucht, springt die Reserve-KI ein (falls eingerichtet); sonst können die Schüler:innen bis zum Neustart ohne KI-Feedback abgeben. Den geschätzten Verbrauch zeigt diese Seite; genau steht er im Cloudflare-Dashboard unter „Workers AI“. Mit dem kostenpflichtigen Plan „Workers Paid“ wird Verbrauch über 10 000 Neurons berechnet (0,011 US-$ je 1 000 Neurons).</p>
+          <p><b>Datenschutz:</b> Laut Cloudflare speichert Workers AI Ein- und Ausgaben nur so lange, wie es zur Beantwortung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare. Empfänger ist Cloudflare, Inc. (San Francisco, USA) – derselbe Anbieter, der den Server dieser Seite betreibt. Die Datenbank liegt in der EU, die KI-Verarbeitung durch Workers AI kann aber auch außerhalb der EU stattfinden (Cloudflare bietet für Workers AI keine Beschränkung auf die EU an); die Übermittlung stützt sich laut Cloudflare auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. Der Server nutzt kein AI Gateway, damit Anfragen nicht protokolliert werden.</p>
+        </div>
+        <div class="provinfo note hidden" data-prov="groq">
           <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
-          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Für ganze Klassen ist Groq deshalb die Vorgabe.</p>
-          <p><b>Datenschutz:</b> Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden.</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Groq eignet sich deshalb auch als Reserve-KI.</p>
+          <p><b>Datenschutz:</b> Rechtsträger ist Groq LLC (USA); Vertragspartner für Kund:innen im EWR ist Groq UK Limited (London). Kundendaten liegen laut Groq in Rechenzentren in den USA; verarbeitet wird auch in anderen Ländern. Prüfen Sie die Bedingungen, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="openrouter">
+          <p class="provwarn" data-warn="openrouter"></p>
           <p><b>OpenRouter</b> bündelt viele Sprachmodelle hinter einer gemeinsamen API. Modelle mit dem Zusatz <span class="kbd">:free</span> kosten nichts; dafür genügt ein kostenloses Konto mit API-Schlüssel (<a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai → Keys</a>).</p>
           <p><b>Limits:</b> Ohne Guthabenkauf gibt es nur <b>50 kostenlose Anfragen pro Tag für das ganze Konto</b> – das reicht nicht für eine Klasse. Nach einem einmaligen Guthabenkauf von 10 US-$ sind es 1000 pro Tag.</p>
-          <p><b>Datenschutz:</b> Die kostenlosen Modelle laufen bei Drittanbietern, die Eingaben protokollieren oder zum Training verwenden dürfen. Das muss im OpenRouter-Konto unter <a href="https://openrouter.ai/settings/privacy" target="_blank" rel="noopener">Settings → Privacy</a> erlaubt sein, sonst antwortet die API „No endpoints found matching your data policy“.</p>
+          <p><b>Datenschutz:</b> Die kostenlosen Modelle laufen oft bei Drittanbietern, die Eingaben protokollieren oder zum Training nutzen dürfen. Viele davon sind nur erreichbar, wenn das im OpenRouter-Konto unter <a href="https://openrouter.ai/settings/privacy" target="_blank" rel="noopener">Settings → Privacy</a> erlaubt ist, sonst antwortet die API „No endpoints found matching your data policy“.</p>
         </div>
         <div class="provinfo note hidden" data-prov="gemini">
+          <p class="provwarn" data-warn="gemini"></p>
           <p><b>Google Gemini</b> über die Gemini-API mit eigenem Schlüssel aus <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
           <p><b>Limits:</b> Das kostenlose Kontingent hat Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus.</p>
           <p><b>Datenschutz und Bedingungen:</b> Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Google die Bedingungen der bezahlten Dienste; dafür verlangt Google ein hinterlegtes Abrechnungskonto. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage.</p>
         </div>
         <div class="provinfo note hidden" data-prov="cerebras">
+          <p class="provwarn" data-warn="cerebras"></p>
           <p><b>Cerebras</b> bietet offene Modelle (z. B. gpt-oss-120b) über eine OpenAI-kompatible Schnittstelle an. Schlüssel in der <a href="https://cloud.cerebras.ai" target="_blank" rel="noopener">Cerebras-Cloud-Konsole</a>.</p>
-          <p><b>Limits:</b> Die Grenzen des kostenlosen Kontingents sind nicht offiziell bestätigt – bitte in der Konsole prüfen.</p>
+          <p><b>Limits:</b> Laut Cerebras gibt es nur ein einmaliges Startguthaben (siehe oben); die aktuellen Grenzen stehen in der Konsole.</p>
           <p><b>Datenschutz:</b> Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="custom">
@@ -951,11 +963,13 @@
           <input type="text" id="ai-model" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="200">
           <p class="fhint" id="ai-model-hint"></p>
         </div>
-        <div class="field">
+        <div class="field" id="ai-key-field">
           <label for="ai-key">API-Schlüssel</label>
           <input type="password" id="ai-key" autocomplete="off" spellcheck="false" maxlength="500">
           <p class="fhint" id="ai-key-hint"></p>
         </div>
+        <p class="fhint hidden" id="ai-keyless-hint"></p>
+        <p class="note cfusage hidden" id="ai-usage"></p>
         <div class="row" style="margin-top:4px">
           <button type="button" class="btn" id="ai-save">Speichern</button>
           <button type="button" class="btn ghost" id="ai-test">Verbindung testen</button>
@@ -964,14 +978,15 @@
       </div>
       <div class="pbox" style="max-width:760px; margin-top:16px">
         <h3 style="margin:0 0 6px">Reserve-KI (optional)</h3>
-        <p class="note" style="margin:0 0 12px">Ein zweiter Anbieter mit eigenem API-Schlüssel, der automatisch einspringt, wenn der erste ausgelastet ist, sein Tageskontingent erreicht hat, nicht antwortet oder keine verwertbare Antwort liefert – nie bei Inhaltsfiltern oder Fehlkonfiguration, und nie parallel. Am besten ein <b>anderer</b> Anbieter – dann addieren sich die beiden Kontingente. <b>Datenschutz:</b> Jede Reserve ist ein weiterer Empfänger der Schülertexte. Die Schüler:innen sehen beide Empfänger (mit Sitz) im Datenschutzhinweis und im Dialog vor dem Senden; informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern, bevor Sie eine Reserve nutzen.</p>
+        <p class="note" style="margin:0 0 12px">Ein zweiter Anbieter (mit eigenem API-Schlüssel bzw. Cloudflare Workers AI ohne Schlüssel), der automatisch einspringt, wenn der erste ausgelastet ist, sein Tageskontingent erreicht hat, nicht antwortet oder keine verwertbare Antwort liefert – nie bei Inhaltsfiltern oder Fehlkonfiguration, und nie parallel. Am besten ein <b>anderer</b> Anbieter – dann addieren sich die beiden Kontingente, z. B. Cloudflare Workers AI als erster Anbieter und Groq als Reserve. Workers AI zweimal geht nicht: Beide Einträge teilten sich dasselbe Kontingent des Cloudflare-Kontos. <b>Datenschutz:</b> Jede Reserve ist ein weiterer Empfänger der Schülertexte. Die Schüler:innen sehen beide Empfänger (mit Sitz) im Datenschutzhinweis und im Dialog vor dem Senden; informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern, bevor Sie eine Reserve nutzen.</p>
         <div class="field">
           <label for="ai2-prov">Anbieter der Reserve</label>
           <select id="ai2-prov">
+            <option value="cloudflare">Cloudflare Workers AI (ohne API-Schlüssel)</option>
             <option value="groq">Groq</option>
-            <option value="openrouter">OpenRouter – kostenlose Modelle</option>
-            <option value="gemini">Google Gemini</option>
-            <option value="cerebras">Cerebras</option>
+            <option value="openrouter">OpenRouter – nicht für den Schuleinsatz geeignet</option>
+            <option value="gemini">Google Gemini – nicht für den Schuleinsatz geeignet</option>
+            <option value="cerebras">Cerebras – nicht für den Schuleinsatz geeignet</option>
             <option value="custom">Anderer OpenAI-kompatibler Dienst</option>
           </select>
         </div>
@@ -987,11 +1002,13 @@
           <label for="ai2-model">Modell (leer = Vorgabe)</label>
           <input type="text" id="ai2-model" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="200">
         </div>
-        <div class="field">
+        <div class="field" id="ai2-key-field">
           <label for="ai2-key">API-Schlüssel der Reserve</label>
           <input type="password" id="ai2-key" autocomplete="off" spellcheck="false" maxlength="500">
           <p class="fhint" id="ai2-key-hint"></p>
         </div>
+        <p class="fhint hidden" id="ai2-keyless-hint"></p>
+        <p class="note cfusage hidden" id="ai2-usage"></p>
         <div class="row" style="margin-top:4px">
           <button type="button" class="btn" id="ai2-save">Reserve speichern</button>
           <button type="button" class="btn ghost" id="ai2-test">Reserve testen</button>
@@ -999,7 +1016,7 @@
         </div>
         <p class="status" id="ai2-status" aria-live="polite"></p>
       </div>
-      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits.</p>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits. Bei Cloudflare Workers AI zählen alle Token – für Gemma 4 gibt es keinen Rabatt für gecachte Eingaben.</p>
     </div>
 
     <!-- Passwort ändern -->
@@ -1265,8 +1282,10 @@ const MSG = {
   bad_json: { s: "Die Anfrage war fehlerhaft. Bitte lade die Seite neu und versuche es noch einmal.", t: "Die Anfrage war fehlerhaft. Bitte laden Sie die Seite neu und versuchen Sie es erneut." },
   server_error: { s: "Auf dem Server ist ein Fehler aufgetreten. Bitte versuche es später noch einmal.", t: "Auf dem Server ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut." },
   rate_limited: { s: "Gerade kommen zu viele Anfragen aus diesem Netz. Bitte warte etwas und versuche es dann noch einmal.", t: "Zu viele Versuche. Bitte warten Sie etwas und versuchen Sie es dann erneut." },
-  ai_not_configured: { s: "Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet. Bitte sag deiner Lehrkraft Bescheid.", t: "Es ist noch kein KI-Anbieter eingerichtet. Bitte speichern Sie zuerst Anbieter und API-Schlüssel." },
-  ai_error: { s: "Die KI hat gerade nicht geantwortet. Bitte versuche es in ein paar Minuten noch einmal.", t: "Die KI hat nicht geantwortet. Bitte prüfen Sie Anbieter, Modell und API-Schlüssel." },
+  ai_not_configured: { s: "Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet. Bitte sag deiner Lehrkraft Bescheid.", t: "Es ist noch kein KI-Anbieter eingerichtet. Bitte wählen und speichern Sie zuerst einen Anbieter (bei Cloudflare Workers AI ohne API-Schlüssel)." },
+  ai_error: { s: "Die KI hat gerade nicht geantwortet. Bitte versuche es in ein paar Minuten noch einmal.", t: "Die KI hat nicht geantwortet. Bitte prüfen Sie Anbieter, Modell und ggf. den API-Schlüssel." },
+  // Workers AI: Tageskontingent des Cloudflare-Kontos aufgebraucht (bis 0:00 Uhr UTC hilft kein neuer Versuch)
+  ai_quota: { s: "Das KI-Kontingent für heute ist aufgebraucht. Du kannst ohne KI-Feedback abgeben oder es morgen noch einmal versuchen.", t: "Das kostenlose Tageskontingent der KI ist aufgebraucht (Neustart um 0:00 Uhr UTC)." },
   ai_busy: { s: "Die KI ist gerade ausgelastet. Bitte versuche es in einer Minute noch einmal.", t: "Die KI ist gerade ausgelastet. Bitte versuchen Sie es in einer Minute erneut." },
   server_not_configured: { s: "Der Server ist noch nicht vollständig eingerichtet. Bitte sag deiner Lehrkraft Bescheid.", t: "Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt). Bitte den Workflow „Deploy“ erneut ausführen." },
   already_setup: { s: "Der Lehrkräfte-Zugang ist bereits eingerichtet.", t: "Für diese Seite wurde bereits ein Passwort festgelegt. Bitte melden Sie sich an." },
@@ -1970,14 +1989,17 @@ function recipientParts() {
   const list = (S.sheet && S.sheet.aiRecipients) || [], q = (t) => "„" + t + "“";
   const first = list.length ? q(list[0].label) : (S.sheet && S.sheet.aiProvider ? q(S.sheet.aiProvider) : "deiner Lehrkraft");
   const rest = list.slice(1).map((x) => x.label).filter((l, i, a) => l !== (list[0] && list[0].label) && a.indexOf(l) === i).map(q);
-  const usa = list.some((x) => /USA/.test(x.label));
-  return { first, rest, usa, any: list.length > 0 };
+  // Cloudflare (Workers AI) hat Sitz in den USA, die Datenbank liegt in der EU; die KI-Verarbeitung lässt sich aber nicht auf die
+  // EU beschränken – deshalb „auch außerhalb der EU möglich“ statt „außerhalb der EU“
+  const cf = list.some((x) => x.id === "cloudflare"), usa = list.some((x) => x.id !== "cloudflare" && /USA/.test(x.label));
+  return { first, rest, usa, cf, any: list.length > 0 };
 }
 function recipientSentence() {
   const r = recipientParts();
   return `Deine Antworten gehen – ohne Namenskürzel, Geburtstag und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
     (r.rest.length ? ` Nur wenn dieser Dienst nicht antwortet oder ausgelastet ist, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
-    (r.usa ? " Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU." : "");
+    (r.usa ? " Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU." : "") +
+    (r.cf ? " Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich." : "");
 }
 function renderPrivacy() {
   const r = recipientParts(), withAi = S.sheet.aiFeedback;
@@ -1988,7 +2010,8 @@ function renderPrivacy() {
         `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtstag und Klasse – an den Server dieser Seite geschickt. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
         (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
-        ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen${r.usa ? ", bei Sitz in den USA außerhalb der EU" : ""}. ` +
+        ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
+        [r.usa && ", bei Sitz in den USA außerhalb der EU", r.cf && (r.usa ? "; bei Cloudflare" : ", bei Cloudflare") + " auch außerhalb der EU möglich"].filter(Boolean).join("") + `. ` +
         `Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI, wenn du vorher KI-Feedback bekommen hast – dafür bekommst du eine zweite Rückmeldung zu deiner abgegebenen Fassung (nicht, wenn du nach dem ersten Feedback nichts geändert hast). ` +
         `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
         `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `
@@ -3407,7 +3430,7 @@ function renderFeedbackState() {
     : !aiSheet ? "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
   const fbf = $("fb-fallback");
-  fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es später noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war." : "";
+  fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es " + laterFor(S.fbUnavailable) + " noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war." : "";
   fbf.classList.toggle("hidden", !noAi);
   const rh = $("revise-hint"), eh = $("ed-hint");
   const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
@@ -3487,8 +3510,9 @@ async function requestFeedback() {
     setStatus(st, msg, "bad");
     S.fbFails += count;
     const serverSide = e instanceof ApiError && e.code !== "bad_answers" && e.code !== "too_long" && e.code !== "bad_request" && e.code !== "not_found";
-    if (serverSide && (e.code === "ai_not_configured" || S.fbFails >= 2)) {
-      S.fbUnavailable = e.code === "ai_not_configured" ? "KI nicht eingerichtet" : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
+    // ohne eingerichtete KI und bei aufgebrauchtem Tageskontingent hilft heute kein neuer Versuch: gleich den Grund nennen
+    if (serverSide && (e.code === "ai_not_configured" || e.code === "ai_quota" || S.fbFails >= 2)) {
+      S.fbUnavailable = e.code === "ai_not_configured" ? "KI nicht eingerichtet" : e.code === "ai_quota" ? FB_QUOTA : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
       renderFeedbackState();
     }
     saveDraft();
@@ -3540,7 +3564,9 @@ async function requestFeedback() {
           : "es wurde nichts gesendet.") + " Lies bitte den Datenschutzhinweis unter dem Button noch einmal und fordere das Feedback dann erneut an.", "bad");
         return;
       }
-      const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s");
+      const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal."
+        : e.code === "ai_quota" ? MSG.ai_quota.s   // vor der Abgabe: der Browser nennt den Weg ohne KI-Feedback (der Server bleibt neutral)
+        : errMsg(e, "s");
       failed(e, 1, msg);
       return;
     } finally { clearTimeout(slow); }
@@ -3653,8 +3679,10 @@ function finalFeedbackFailed(e) {
   if (!sub) return;
   sub.fb2State = "failed";
   const code = e instanceof ApiError ? e.code : "";
-  const transient = !code || FB2_TRANSIENT.has(code) || e.status === 429 || e.status >= 500;   // nur dann hilft ein neuer Versuch
+  // nur dann hilft ein neuer Versuch – nie bei aufgebrauchtem Tageskontingent (503 ai_quota gilt bis 0:00 Uhr UTC)
+  const transient = code !== "ai_quota" && (!code || FB2_TRANSIENT.has(code) || e.status === 429 || e.status >= 500);
   const msg = code === "ai_changed" ? "Die Lehrkraft hat inzwischen die KI-Einstellungen geändert – deine Antworten wurden deshalb nicht noch einmal gesendet."
+    : code === "ai_quota" ? "Das KI-Kontingent für heute ist aufgebraucht – eine Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht."
     : code === "not_found" ? "Dieses Feibeitsblatt gibt es inzwischen nicht mehr – eine KI-Rückmeldung ist deshalb nicht möglich."
     : code === "ai_busy" ? "Die KI ist gerade sehr stark ausgelastet – auch nach mehreren Versuchen hat es nicht geklappt."
     : code === "bad_result" ? "Die Antwort der KI war unvollständig."
@@ -3726,6 +3754,8 @@ $("done-fb-retry").addEventListener("click", () => {
  * (Grund in feedbackError: KI nicht eingerichtet, ausgefallen, ein Versuch gescheitert oder mit der Abgabe abgebrochen);
  * "none" = das Blatt hat keinen Auftrag an die KI. Ohne Feedback gibt es keinen Erstversuch, keine zweite Rückmeldung, first = final. */
 const FB_NOT_DONE = "Anfrage nicht abgeschlossen";   // Grund, wenn eine Anfrage lief, aber kein Feedback ankam (ohne S.fbUnavailable)
+const FB_QUOTA = "KI-Kontingent für heute aufgebraucht";   // Grund bei 503 ai_quota (Workers AI: Tageskontingent des Kontos)
+const laterFor = (reason) => (reason === FB_QUOTA ? "morgen" : "später");
 function noAiState(wasBusy) {
   if (!S.sheet.aiFeedback) return { mode: "none", reason: "", tried: false };
   const tried = S.fbFails > 0 || !!S.fbUnavailable || wasBusy || S.busyFeedback;
@@ -3756,7 +3786,7 @@ function submitDialog(withFb, finals) {
       lock + " Bei der Abgabe geht nichts mehr an die KI." + toTeacher };
   if (na.mode === "unavailable") return { ...base,
     text: emptyLine + (na.tried ? "Das KI-Feedback hat bisher nicht geklappt" : "Das KI-Feedback ist gerade nicht möglich") + ` (${na.reason}). ` +
-      `Du kannst es später ${na.tried ? "noch einmal " : ""}versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\n` +
+      `Du kannst es ${laterFor(na.reason)} ${na.tried ? "noch einmal " : ""}versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\n` +
       lock + " Bei der Abgabe geht nichts an die KI." + toTeacher };
   return { ...base,
     text: emptyLine + "Du hast kein KI-Feedback angefordert. Das ist in Ordnung: " + FB_VOLUNTARY + "\n" + lock + " An die KI wird nichts gesendet." + toTeacher };
@@ -4017,10 +4047,14 @@ async function loadAiState() {
     T.ai = r;
     const has = !!(r.provider && r.hasKey);
     $("t-aiwarn").classList.toggle("hidden", has);
-    $("t-aiwarn").textContent = (r.keyError ? String(r.keyError) + " " : "") + "Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte richten Sie unter „KI-Einstellungen“ einen Anbieter mit API-Schlüssel ein.";
+    // keyError nur zu einem gespeicherten Anbieter voranstellen (z. B. Binding fehlt, Schlüssel unlesbar) – „noch nicht
+    // gespeichert“ sagt der Text danach ohnehin
+    $("t-aiwarn").textContent = (r.keyError && r.saved !== false ? String(r.keyError) + " " : "") + "Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte wählen Sie unter „KI-Einstellungen“ einen Anbieter (empfohlen: Cloudflare Workers AI, ohne API-Schlüssel) und klicken Sie auf „Speichern“.";
     $("t-aiinfo").classList.toggle("hidden", !has);
     const rs = r.reserve && r.reserve.hasKey ? r.reserve : null;
-    $("t-aiinfo").textContent = has ? `KI-Feedback über ${provLabel(r.provider, r.label)}${r.model ? " (Modell: " + r.model + ")" : ""}.${rs ? ` Reserve: ${provLabel(rs.provider, rs.label)}${rs.model ? " (Modell: " + rs.model + ")" : ""}.` : ""}` : "";
+    const quota = r.quotaUntil && r.quotaUntil > Date.now() && (r.provider === "cloudflare" || (rs && rs.provider === "cloudflare"))
+      ? ` Das Tageskontingent von Cloudflare Workers AI ist aufgebraucht bis ${fmtUntil(r.quotaUntil)} (Neustart 0:00 Uhr UTC).` : "";
+    $("t-aiinfo").textContent = has ? `KI-Feedback über ${provLabel(r.provider, r.label)}${unsuitableTag(r.provider)}${r.model ? " (Modell: " + r.model + ")" : ""}.${rs ? ` Reserve: ${provLabel(rs.provider, rs.label)}${unsuitableTag(rs.provider)}${rs.model ? " (Modell: " + rs.model + ")" : ""}.` : ""}${quota}` : "";
   } catch (e) { if (!handleAuthError(e)) { $("t-aiinfo").classList.remove("hidden"); $("t-aiinfo").textContent = "KI-Einstellungen konnten nicht geladen werden: " + errMsg(e, "t"); } }
 }
 async function loadSheets(keepSel) {
@@ -5246,36 +5280,73 @@ $("b-res-back").addEventListener("click", async () => {
 });
 
 /* ---------- KI-Einstellungen ---------- */
-const PROVIDERS = {   // recipient = Rechtsträger und Sitz, wie der Server ihn den Schüler:innen nennt (worker/ai.js)
-  groq: { label: "Groq", model: "openai/gpt-oss-120b", key: "gsk_…", recipient: "Groq, Inc. (USA)" },
-  openrouter: { label: "OpenRouter", model: "openai/gpt-oss-120b:free", key: "sk-or-v1-…", recipient: "OpenRouter, Inc. (USA) – leitet die Anfrage an wechselnde Rechenzentren anderer Anbieter weiter" },
-  gemini: { label: "Google Gemini", model: "gemini-flash-latest", key: "AIza…", recipient: "Google (Gemini-API; Verarbeitung auch in den USA möglich)" },
-  cerebras: { label: "Cerebras", model: "gpt-oss-120b", key: "csk-…", recipient: "Cerebras Systems Inc. (USA)" },
+// recipient = Rechtsträger und Sitz, wie der Server ihn den Schüler:innen nennt (worker/ai.js); keyless = ohne API-Schlüssel
+// (Workers AI über das Binding des Servers); unsuitable = Grund, warum der Anbieter nicht für den Schuleinsatz geeignet ist
+// (nur Kennzeichnung in der Oberfläche – der Server nimmt ihn weiter an)
+const PROVIDERS = {
+  cloudflare: { label: "Cloudflare Workers AI", model: "@cf/google/gemma-4-26b-a4b-it", key: "", keyless: true, recipient: "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert" },
+  groq: { label: "Groq", model: "openai/gpt-oss-120b", key: "gsk_…", recipient: "Groq LLC (USA) – Vertragspartner im EWR: Groq UK Limited (London); Datenhaltung in den USA, Verarbeitung auch in anderen Ländern" },
+  openrouter: { label: "OpenRouter", model: "openai/gpt-oss-120b:free", key: "sk-or-v1-…", recipient: "OpenRouter, Inc. (USA) – leitet die Anfrage an wechselnde Rechenzentren anderer Anbieter weiter",
+    unsuitable: "Die kostenlosen Modelle laufen oft bei Unteranbietern, die Eingaben protokollieren oder zum Training nutzen dürfen; viele kostenlose Modelle sind nur erreichbar, wenn Sie das im Konto erlauben." },
+  gemini: { label: "Google Gemini", model: "gemini-flash-latest", key: "AIza…", recipient: "Google (Gemini-API; Verarbeitung auch in den USA möglich)",
+    unsuitable: "Laut den Zusatzbedingungen der Gemini-API (Stand 28.04.2026) müssen Nutzer:innen mindestens 18 Jahre alt sein, und die API darf nicht in Diensten eingesetzt werden, die sich an Minderjährige richten oder wahrscheinlich von ihnen genutzt werden." },
+  cerebras: { label: "Cerebras", model: "gpt-oss-120b", key: "csk-…", recipient: "Cerebras Systems Inc. (USA)",
+    unsuitable: "Cerebras bietet kein dauerhaft kostenloses Kontingent mehr – nur ein einmaliges Startguthaben (5 US-$ für 30 Tage, mit hinterlegter Zahlungsmethode); danach pausiert der Zugang, bis Sie Guthaben kaufen." },
   custom: { label: "anderer OpenAI-kompatibler Dienst", model: "", key: "API-Schlüssel", recipient: "" }
 };
+const DEFAULT_PROV = "cloudflare";   // Vorauswahl – aktiv erst nach „Speichern“
+const KEYLESS_HINT = "Kein API-Schlüssel nötig – der Server nutzt Workers AI in seinem eigenen Cloudflare-Konto.";
+const AI_SAME_ACCOUNT = "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.";
+document.querySelectorAll(".provwarn[data-warn]").forEach((n) => { const p = PROVIDERS[n.getAttribute("data-warn")]; if (p && p.unsuitable) n.textContent = "Nicht für den Schuleinsatz geeignet: " + p.unsuitable; });
+const unsuitableTag = (p) => (PROVIDERS[p] && PROVIDERS[p].unsuitable ? " – nicht für den Schuleinsatz geeignet" : "");
+const unsuitableText = (p) => `„${PROVIDERS[p].label}“ ist für den Einsatz mit Schüler:innen nicht geeignet: ${PROVIDERS[p].unsuitable} Speichern Sie diesen Anbieter nur, wenn Ihre Schule ihn ausdrücklich geprüft und freigegeben hat.`;
+// Von der Lehrkraft gespeicherter Anbieter (sonst "" – der Server meldet dann nur die Vorauswahl, saved:false)
+const savedMain = () => (T.ai && T.ai.saved !== false ? T.ai.provider || "" : "");
 function recipientOf(provider, baseUrl) {
   if (provider !== "custom") return (PROVIDERS[provider] || {}).recipient || provider;
   let host = ""; try { host = new URL(baseUrl).host; } catch (e) { host = String(baseUrl || ""); }
   return host + " (Betreiber und Sitz: von Ihnen zu prüfen)";
 }
 function provLabel(p, serverLabel) { return typeof serverLabel === "string" && serverLabel ? serverLabel : PROVIDERS[p] ? PROVIDERS[p].label : String(p || "–"); }
+const groupInt = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+function fmtUntil(ms) {   // „23.10. um 02:00 Uhr“ (Ortszeit des Browsers)
+  const d = new Date(ms);
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " um " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+}
+// Workers AI: geschätzter Verbrauch heute (UTC) und ggf. die Sperre „Tageskontingent aufgebraucht“ – unter dem gewählten Anbieter
+function renderCfUsage(el, p) {
+  const u = T.ai && T.ai.usage, show = p === "cloudflare" && !!u;
+  el.classList.toggle("hidden", !show);
+  if (!show) return;
+  const q = T.ai.quotaUntil && T.ai.quotaUntil > Date.now() ? T.ai.quotaUntil : 0;
+  el.textContent = `Heute (UTC) geschätzt verbraucht: ca. ${groupInt(u.neurons)} von ${groupInt(u.limit)} Neurons (${u.requests === 1 ? "1 Anfrage" : groupInt(u.requests) + " Anfragen"}) – genau im Cloudflare-Dashboard unter „Workers AI“.` +
+    (q ? ` Tageskontingent aufgebraucht bis ${fmtUntil(q)} (Neustart 0:00 Uhr UTC).` : "");
+  el.classList.toggle("over", !!q);
+}
 let aiDirty = false;
 function aiSyncForm() {
-  const p = $("ai-prov").value, def = PROVIDERS[p] || PROVIDERS.custom;
+  const p = $("ai-prov").value, def = PROVIDERS[p] || PROVIDERS.custom, saved = savedMain();
   document.querySelectorAll(".provinfo").forEach((n) => n.classList.toggle("hidden", n.getAttribute("data-prov") !== p));
   $("ai-base-field").classList.toggle("hidden", p !== "custom");
   $("ai-gemini-field").classList.toggle("hidden", p !== "gemini");
   $("ai-model").placeholder = def.model ? def.model : "Modell-ID, z. B. mistral-small-latest";
-  $("ai-model-hint").textContent = def.model ? `Leer lassen für die Vorgabe (${def.model}). Bei erschöpftem Kontingent weicht der Server auf andere Modelle aus.` : "Bei einem anderen Dienst bitte die Modell-ID angeben.";
+  $("ai-model-hint").textContent = def.keyless ? `Leer lassen für die Vorgabe (Gemma 4: ${def.model}). Ist ein Modell ausgelastet, weicht der Server auf GLM-4.7-Flash und Qwen3-30B aus – das Tageskontingent gilt für alle Modelle gemeinsam.`
+    : def.model ? `Leer lassen für die Vorgabe (${def.model}). Bei erschöpftem Kontingent weicht der Server auf andere Modelle aus.` : "Bei einem anderen Dienst bitte die Modell-ID angeben.";
   $("ai-key").placeholder = def.key;
-  const saved = T.ai && T.ai.provider;
+  $("ai-key-field").classList.toggle("hidden", !!def.keyless);
+  const kh = $("ai-keyless-hint");
+  kh.classList.toggle("hidden", !def.keyless);
+  // Hinweise nur zum gespeicherten Anbieter (nie die Meldung „noch nicht gespeichert“ unter einem anderen)
+  if (def.keyless) kh.textContent = saved === p ? (T.ai.keyError ? String(T.ai.keyError) : KEYLESS_HINT) : KEYLESS_HINT + " Aktiv wird Workers AI erst, wenn Sie „Speichern“ klicken.";
+  const withKey = !!(T.ai && T.ai.hasKey && !T.ai.keyless && saved);
   let hint;
-  if (T.ai && T.ai.hasKey && saved === p) hint = `Gespeichert: ${T.ai.keyHint || "…"} – leer lassen, um ihn zu behalten.`;
-  else if (T.ai && T.ai.hasKey && saved && saved !== p) hint = "Für den neuen Anbieter bitte auch einen neuen API-Schlüssel eintragen.";
-  else if (saved && T.ai.keyError) hint = String(T.ai.keyError);
-  else if (saved) hint = "Kein gültiger Schlüssel gespeichert – bitte den API-Schlüssel neu eintragen.";
+  if (withKey && saved === p) hint = `Gespeichert: ${T.ai.keyHint || "…"} – leer lassen, um ihn zu behalten.`;
+  else if (withKey) hint = "Für den neuen Anbieter bitte auch einen neuen API-Schlüssel eintragen.";
+  else if (saved === p && T.ai.keyError) hint = String(T.ai.keyError);
+  else if (saved === p) hint = "Kein gültiger Schlüssel gespeichert – bitte den API-Schlüssel neu eintragen.";
   else hint = "Noch kein Schlüssel gespeichert.";
   $("ai-key-hint").textContent = hint;
+  renderCfUsage($("ai-usage"), p);
 }
 async function openAi() {
   teacherView("tv-ai");
@@ -5285,12 +5356,13 @@ async function openAi() {
   try {
     const r = await TA("/api/teacher/ai");
     T.ai = r;
-    $("ai-prov").value = PROVIDERS[r.provider] ? r.provider : "groq";
+    $("ai-prov").value = PROVIDERS[r.provider] ? r.provider : DEFAULT_PROV;
     $("ai-model").value = r.model || "";
     $("ai-base").value = r.baseUrl || "";
     $("ai-key").value = "";
     const rs = r.reserve;
-    $("ai2-prov").value = rs && PROVIDERS[rs.provider] ? rs.provider : "groq";
+    // Reserve-Vorauswahl: ein anderer Anbieter als der erste (Workers AI zweimal teilte sich dasselbe Kontingent)
+    $("ai2-prov").value = rs && PROVIDERS[rs.provider] ? rs.provider : r.provider === "cloudflare" ? "groq" : "cloudflare";
     $("ai2-model").value = rs ? rs.model || "" : "";
     $("ai2-base").value = rs ? rs.baseUrl || "" : "";
     $("ai2-key").value = "";
@@ -5301,26 +5373,53 @@ async function openAi() {
 }
 $("t-ai").addEventListener("click", openAi);
 $("ai-back").addEventListener("click", () => { teacherView("tv-overview"); loadAiState(); });
-$("ai-prov").addEventListener("change", () => { aiDirty = true; aiSyncForm(); setStatus($("ai-status"), "", ""); });
+$("ai-prov").addEventListener("change", () => {
+  aiDirty = true;
+  const p = $("ai-prov").value;
+  $("ai-model").value = savedMain() === p ? (T.ai.model || "") : "";   // eine Modell-ID passt nur zu ihrem Anbieter
+  aiSyncForm();
+  const clash = p === "cloudflare" && sameAccountMain();
+  setStatus($("ai-status"), clash ? AI_SAME_RESERVE : "", clash ? "bad" : "");
+});
+const AI_SAME_RESERVE = "Die Reserve-KI ist schon Cloudflare Workers AI – beide teilten sich dasselbe Kontingent des Cloudflare-Kontos. Bitte zuerst die Reserve ändern oder entfernen.";
+const sameAccountMain = () => !!(T.ai && T.ai.reserve && T.ai.reserve.provider === "cloudflare");    // Reserve ist schon Workers AI
+const sameAccountReserve = () => savedMain() === "cloudflare";                                       // erster Anbieter ist schon Workers AI
+// Hinweis, wenn „Verbindung testen“ noch nichts testen kann
+function notReadyText(e, p, reserve) {
+  if (e && e.saved !== false && e.provider === p && e.keyError) return String(e.keyError);   // z. B. Binding fehlt, Schlüssel unlesbar
+  if ((PROVIDERS[p] || {}).keyless) return reserve ? "Bitte zuerst „Reserve speichern“ klicken – erst dann ist Workers AI als Reserve aktiv." : "Bitte zuerst „Speichern“ klicken – erst dann ist Workers AI aktiv.";
+  return reserve ? "Bitte zuerst Anbieter und API-Schlüssel der Reserve speichern." : "Bitte zuerst Anbieter und API-Schlüssel speichern.";
+}
+// Token-Zahlen des Verbindungstests (nur Workers AI): zeigt, ob der Denkmodus wirklich aus ist
+const testUsageText = (u) => (u && typeof u === "object" ? ` Token dieses Tests: ${groupInt(u.prompt_tokens)} Eingabe, ${groupInt(u.completion_tokens)} Ausgabe (davon ${groupInt(u.reasoning_tokens)} im Denkmodus).` : "");
 ["ai-model", "ai-base", "ai-key"].forEach((id) => $(id).addEventListener("input", () => { aiDirty = true; }));
 function validBase(u) {
   let x; try { x = new URL(u); } catch (e) { return false; }
   if (x.protocol === "https:") return true;
   return x.protocol === "http:" && (x.hostname === "127.0.0.1" || x.hostname === "localhost");
 }
+const CF_MODEL_RE = /^@(cf|hf)\//;
 async function aiSave(quiet) {
   const st = $("ai-status");
-  const provider = $("ai-prov").value, model = $("ai-model").value.trim(), key = $("ai-key").value.trim();
+  const provider = $("ai-prov").value, model = $("ai-model").value.trim(), def = PROVIDERS[provider] || PROVIDERS.custom;
+  const key = def.keyless ? "" : $("ai-key").value.trim();   // Workers AI: nie einen Schlüssel senden
   let baseUrl = $("ai-base").value.trim().replace(/\/+$/, "");
   if (provider === "custom") {
     if (!baseUrl) { setStatus(st, "Bitte die Basis-URL des Dienstes eintragen (https://…/v1).", "bad"); $("ai-base").focus(); return false; }
     if (!validBase(baseUrl)) { setStatus(st, "Die Basis-URL muss mit https:// beginnen (http:// nur für 127.0.0.1 oder localhost).", "bad"); $("ai-base").focus(); return false; }
     if (!model) { setStatus(st, "Bitte für den anderen Dienst eine Modell-ID angeben.", "bad"); $("ai-model").focus(); return false; }
   }
+  if (def.keyless && model && !CF_MODEL_RE.test(model)) { setStatus(st, "Bitte eine Modell-ID von Workers AI angeben (beginnt mit „@cf/“) oder das Feld leer lassen.", "bad"); $("ai-model").focus(); return false; }
+  if (def.keyless && sameAccountMain()) { setStatus(st, AI_SAME_RESERVE, "bad"); return false; }
   // Der gespeicherte Schlüssel bleibt nur für denselben Dienst (Anbieter und Adresse) – er geht nie an einen anderen Host
-  const sameProv = T.ai && T.ai.hasKey && T.ai.provider === provider && (provider !== "custom" || String(T.ai.baseUrl || "") === baseUrl);
-  if (!key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel eintragen.", "bad"); $("ai-key").focus(); return false; }
+  const sameProv = T.ai && T.ai.hasKey && !T.ai.keyless && savedMain() === provider && (provider !== "custom" || String(T.ai.baseUrl || "") === baseUrl);
+  if (!def.keyless && !key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel eintragen.", "bad"); $("ai-key").focus(); return false; }
   if (provider === "gemini" && !$("ai-gemini-ok").checked) { setStatus(st, "Bitte bestätigen Sie, dass für diesen Google-Schlüssel ein Abrechnungskonto hinterlegt ist – ohne gilt Gemini im EWR nicht als zulässig.", "bad"); $("ai-gemini-ok").focus(); return false; }
+  // Ungeeigneter Anbieter (Kennzeichnung): nur nach ausdrücklicher Bestätigung – nicht noch einmal, wenn er schon gespeichert ist
+  if (def.unsuitable && savedMain() !== provider) {
+    const ok = await askConfirm({ title: "Anbieter trotz Warnung speichern?", text: unsuitableText(provider), ok: "Trotzdem speichern", cancel: "Abbrechen", safeFirst: true });
+    if (!ok) { setStatus(st, "", ""); return false; }
+  }
   const body = { provider, model };
   if (provider === "custom") body.baseUrl = baseUrl;
   if (provider === "gemini") body.confirmBilling = true;
@@ -5331,7 +5430,7 @@ async function aiSave(quiet) {
     $("ai-key").value = "";
     aiDirty = false;
     try { T.ai = await TA("/api/teacher/ai"); } catch (e) { /* Anzeige bleibt */ }
-    aiSyncForm();
+    aiSyncForm(); ai2SyncForm();
     if (r.warning) setStatus(st, String(r.warning), "bad");      // gespeichert, aber Schlüssel/Verbindung nicht geprüft
     else if (!quiet) setStatus(st, "Gespeichert." + (Number.isInteger(r.modelCount) ? (r.modelCount === 1 ? " 1 passendes Modell gefunden." : ` ${r.modelCount} passende Modelle gefunden.`) : "")
       + (r.tierNote ? " " + r.tierNote : "") + " Mit „Verbindung testen“ prüfen Sie, ob die KI antwortet.", "ok");
@@ -5345,15 +5444,23 @@ $("ai-save").addEventListener("click", async () => {
 $("ai-test").addEventListener("click", async () => {
   const b = $("ai-test"), s = $("ai-save"), st = $("ai-status");
   busy(b, true, "Wird getestet …"); s.disabled = true;
+  let tested = false;
   try {
     if (aiDirty && !(await aiSave(true))) return;
-    if (!T.ai || !T.ai.hasKey) { setStatus(st, "Bitte zuerst Anbieter und API-Schlüssel speichern.", "bad"); return; }
+    if (!T.ai || !T.ai.hasKey) { setStatus(st, notReadyText(T.ai, $("ai-prov").value, false), "bad"); return; }
     setStatus(st, "Die Verbindung wird getestet … das kann bis zu einer Minute dauern.", "busy");
+    tested = true;
     const r = await TA("/api/teacher/ai/test", { method: "POST", timeout: 120000 });
-    setStatus(st, `Verbindung erfolgreich: ${provLabel(r.provider, r.label)}${r.model ? ", Modell „" + r.model + "“" : ""}.${r.sample ? " Testantwort: „" + String(r.sample).slice(0, 160) + "“" : ""}${r.tierNote ? " " + r.tierNote : ""}`, "ok");
-  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
-  finally { busy(b, false); s.disabled = false; }
+    setStatus(st, `Verbindung erfolgreich: ${provLabel(r.provider, r.label)}${r.model ? ", Modell „" + r.model + "“" : ""}.${r.sample ? " Testantwort: „" + String(r.sample).slice(0, 160) + "“" : ""}${r.tierNote ? " " + r.tierNote : ""}${testUsageText(r.usage)}`, "ok");
+  } catch (e) { if (handleAuthError(e)) tested = false; else setStatus(st, errMsg(e, "t"), "bad"); }
+  finally {
+    busy(b, false); s.disabled = false;
+    if (tested) refreshAiState();   // Verbrauch und Sperre „Tageskontingent aufgebraucht“ neu anzeigen
+  }
 });
+async function refreshAiState() {
+  try { T.ai = await TA("/api/teacher/ai"); aiSyncForm(); ai2SyncForm(); } catch (e) { /* Anzeige bleibt */ }
+}
 
 /* ---------- Reserve-KI (zweiter Anbieter, springt bei Auslastung ein) ---------- */
 let ai2Dirty = false;
@@ -5366,35 +5473,54 @@ function ai2SyncForm() {
   if (src) { const cl = src.cloneNode(true); cl.classList.remove("hidden", "provinfo"); cl.classList.add("provinfo2"); info.appendChild(cl); }
   $("ai2-model").placeholder = def.model ? def.model : "Modell-ID, z. B. mistral-small-latest";
   $("ai2-key").placeholder = def.key;
+  $("ai2-key-field").classList.toggle("hidden", !!def.keyless);
+  const kh = $("ai2-keyless-hint");
+  kh.classList.toggle("hidden", !def.keyless);
+  if (def.keyless) kh.textContent = rs && rs.provider === p && rs.keyError ? String(rs.keyError) : KEYLESS_HINT;
+  const withKey = !!(rs && rs.hasKey && !rs.keyless);
   let hint;
-  if (rs && rs.hasKey && rs.provider === p) hint = `Gespeichert: ${rs.keyHint || "…"} – leer lassen, um ihn zu behalten.`;
-  else if (rs && rs.hasKey) hint = "Für den neuen Anbieter bitte auch einen neuen API-Schlüssel eintragen.";
-  else if (rs && rs.keyError) hint = String(rs.keyError);
+  if (withKey && rs.provider === p) hint = `Gespeichert: ${rs.keyHint || "…"} – leer lassen, um ihn zu behalten.`;
+  else if (withKey) hint = "Für den neuen Anbieter bitte auch einen neuen API-Schlüssel eintragen.";
+  else if (rs && rs.provider === p && rs.keyError) hint = String(rs.keyError);
+  else if (rs) hint = "Bitte den API-Schlüssel der Reserve eintragen.";
   else hint = "Keine Reserve-KI eingerichtet.";
   $("ai2-key-hint").textContent = hint;
   $("ai2-test").disabled = !(rs && rs.hasKey);
   $("ai2-remove").disabled = !rs;
+  renderCfUsage($("ai2-usage"), p);
 }
-$("ai2-prov").addEventListener("change", () => { ai2Dirty = true; ai2SyncForm(); setStatus($("ai2-status"), "", ""); });
+$("ai2-prov").addEventListener("change", () => {
+  ai2Dirty = true;
+  const p = $("ai2-prov").value, rs = T.ai && T.ai.reserve;
+  $("ai2-model").value = rs && rs.provider === p ? rs.model || "" : "";   // eine Modell-ID passt nur zu ihrem Anbieter
+  ai2SyncForm();
+  const clash = p === "cloudflare" && sameAccountReserve();   // sofort sagen, nicht erst beim Speichern
+  setStatus($("ai2-status"), clash ? AI_SAME_ACCOUNT : "", clash ? "bad" : "");
+});
 ["ai2-model", "ai2-base", "ai2-key"].forEach((id) => $(id).addEventListener("input", () => { ai2Dirty = true; }));
 async function ai2Save(quiet) {
   const st = $("ai2-status");
-  const provider = $("ai2-prov").value, model = $("ai2-model").value.trim(), key = $("ai2-key").value.trim();
+  const provider = $("ai2-prov").value, model = $("ai2-model").value.trim(), def = PROVIDERS[provider] || PROVIDERS.custom;
+  const key = def.keyless ? "" : $("ai2-key").value.trim();   // Workers AI: nie einen Schlüssel senden
   let baseUrl = $("ai2-base").value.trim().replace(/\/+$/, "");
   if (provider === "custom") {
     if (!baseUrl) { setStatus(st, "Bitte die Basis-URL des Dienstes eintragen (https://…/v1).", "bad"); $("ai2-base").focus(); return false; }
     if (!validBase(baseUrl)) { setStatus(st, "Die Basis-URL muss mit https:// beginnen (http:// nur für 127.0.0.1 oder localhost).", "bad"); $("ai2-base").focus(); return false; }
     if (!model) { setStatus(st, "Bitte für den anderen Dienst eine Modell-ID angeben.", "bad"); $("ai2-model").focus(); return false; }
   }
+  if (def.keyless && model && !CF_MODEL_RE.test(model)) { setStatus(st, "Bitte eine Modell-ID von Workers AI angeben (beginnt mit „@cf/“) oder das Feld leer lassen.", "bad"); $("ai2-model").focus(); return false; }
+  if (def.keyless && sameAccountReserve()) { setStatus(st, AI_SAME_ACCOUNT, "bad"); return false; }
   const rs = T.ai && T.ai.reserve;
-  const sameProv = rs && rs.hasKey && rs.provider === provider && (provider !== "custom" || String(rs.baseUrl || "") === baseUrl);
-  if (!key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel der Reserve eintragen.", "bad"); $("ai2-key").focus(); return false; }
+  const sameProv = rs && rs.hasKey && !rs.keyless && rs.provider === provider && (provider !== "custom" || String(rs.baseUrl || "") === baseUrl);
+  if (!def.keyless && !key && !sameProv) { setStatus(st, "Bitte den API-Schlüssel der Reserve eintragen.", "bad"); $("ai2-key").focus(); return false; }
   if (provider === "gemini" && !$("ai2-gemini-ok").checked) { setStatus(st, "Bitte bestätigen Sie, dass für diesen Google-Schlüssel ein Abrechnungskonto hinterlegt ist – ohne gilt Gemini im EWR nicht als zulässig.", "bad"); $("ai2-gemini-ok").focus(); return false; }
-  // Jede Reserve ist ein weiterer Empfänger der Schülertexte – das bestätigt die Lehrkraft ausdrücklich
+  // Jede Reserve ist ein weiterer Empfänger der Schülertexte – das bestätigt die Lehrkraft ausdrücklich; ist der Anbieter für den
+  // Schuleinsatz ungeeignet, steht die Warnung im selben Dialog (nicht zwei Dialoge nacheinander)
   const confirmed = await askConfirm({
     title: "Weiteren KI-Empfänger hinzufügen?",
-    text: `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ausgelastet ist oder nicht antwortet. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
-    ok: "Reserve speichern", cancel: "Abbrechen", safeFirst: true
+    text: (def.unsuitable ? "Achtung: " + unsuitableText(provider) + "\n\n" : "") +
+      `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ausgelastet ist oder nicht antwortet. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
+    ok: def.unsuitable ? "Trotzdem speichern" : "Reserve speichern", cancel: "Abbrechen", safeFirst: true
   });
   if (!confirmed) { setStatus(st, "", ""); return false; }
   const reserve = { provider, model };
@@ -5407,7 +5533,7 @@ async function ai2Save(quiet) {
     $("ai2-key").value = "";
     ai2Dirty = false;
     T.ai = r;
-    ai2SyncForm();
+    aiSyncForm(); ai2SyncForm();
     if (r.reserveWarning) setStatus(st, String(r.reserveWarning), "bad");
     else if (!quiet) setStatus(st, "Reserve gespeichert." + (Number.isInteger(r.reserveModelCount) ? (r.reserveModelCount === 1 ? " 1 passendes Modell gefunden." : ` ${r.reserveModelCount} passende Modelle gefunden.`) : "")
       + (r.reserveTierNote ? " " + r.reserveTierNote : "") + " Mit „Reserve testen“ prüfen Sie, ob sie antwortet.", "ok");
@@ -5421,19 +5547,25 @@ $("ai2-save").addEventListener("click", async () => {
 $("ai2-test").addEventListener("click", async () => {
   const b = $("ai2-test"), st = $("ai2-status");
   busy(b, true, "Wird getestet …");
+  let tested = false;
   try {
     if (ai2Dirty && !(await ai2Save(true))) return;
-    if (!T.ai || !T.ai.reserve || !T.ai.reserve.hasKey) { setStatus(st, "Bitte zuerst Anbieter und API-Schlüssel der Reserve speichern.", "bad"); return; }
+    if (!T.ai || !T.ai.reserve || !T.ai.reserve.hasKey) { setStatus(st, notReadyText(T.ai && T.ai.reserve, $("ai2-prov").value, true), "bad"); return; }
     setStatus(st, "Die Reserve wird getestet … das kann bis zu einer Minute dauern.", "busy");
+    tested = true;
     const r = await TA("/api/teacher/ai/test?which=reserve", { method: "POST", timeout: 120000 });
-    setStatus(st, `Reserve erfolgreich: ${provLabel(r.provider, r.label)}${r.model ? ", Modell „" + r.model + "“" : ""}.${r.sample ? " Testantwort: „" + String(r.sample).slice(0, 160) + "“" : ""}${r.tierNote ? " " + r.tierNote : ""}`, "ok");
-  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
-  finally { busy(b, false); }
+    setStatus(st, `Reserve erfolgreich: ${provLabel(r.provider, r.label)}${r.model ? ", Modell „" + r.model + "“" : ""}.${r.sample ? " Testantwort: „" + String(r.sample).slice(0, 160) + "“" : ""}${r.tierNote ? " " + r.tierNote : ""}${testUsageText(r.usage)}`, "ok");
+  } catch (e) { if (handleAuthError(e)) tested = false; else setStatus(st, errMsg(e, "t"), "bad"); }
+  finally {
+    busy(b, false);
+    if (tested) refreshAiState();
+  }
 });
 $("ai2-remove").addEventListener("click", async () => {
   const b = $("ai2-remove"), st = $("ai2-status");
   if (!T.ai || !T.ai.reserve) return;
-  const ok = await askConfirm({ title: "Reserve-KI entfernen?", text: "Der gespeicherte Schlüssel der Reserve wird gelöscht. Der erste Anbieter bleibt unverändert.", ok: "Entfernen", cancel: "Abbrechen", danger: true });
+  const ok = await askConfirm({ title: "Reserve-KI entfernen?", text: T.ai.reserve.keyless ? "Die Reserve-KI (Cloudflare Workers AI) wird entfernt. Der erste Anbieter bleibt unverändert."
+    : "Der gespeicherte Schlüssel der Reserve wird gelöscht. Der erste Anbieter bleibt unverändert.", ok: "Entfernen", cancel: "Abbrechen", danger: true });
   if (!ok) return;
   busy(b, true, "Wird entfernt …");
   try {

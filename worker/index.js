@@ -12,6 +12,7 @@ import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI,
   TEST_MESSAGES, reserveSlot, skipQuery, skipStatements, gateKey, recipientLabel, wantsFeedback,
+  CF_NO_BINDING, CF_DAILY_NEURONS, utcDay,
 } from "./ai.js";
 
 const MSG = {
@@ -39,6 +40,10 @@ const MSG = {
   aiKeyForNew: "Bitte für den neuen Anbieter bzw. die neue Adresse einen API-Schlüssel eintragen – der gespeicherte Schlüssel wird nie an einen anderen Dienst gesendet.",
   noSecret: "Der Server ist noch nicht vollständig eingerichtet (Secret SETTINGS_SECRET fehlt). Bitte den Workflow „Deploy“ erneut ausführen; erst danach lässt sich ein API-Schlüssel speichern.",
   tooMany: "Für dieses Feibeitsblatt sind bereits sehr viele Abgaben gespeichert. Bitte wende dich an deine Lehrkraft.",
+  aiNotSaved: "Noch nicht gespeichert – bitte Anbieter wählen und „Speichern“ klicken.",
+  aiKeyless: "Für Cloudflare Workers AI ist kein API-Schlüssel nötig – bitte das Feld leer lassen.",
+  aiSameAccount: "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.",
+  aiCfModel: "Bitte eine Modell-ID von Workers AI angeben (beginnt mit „@cf/“) oder das Feld leer lassen.",
 };
 
 /* ---------- Antworten ---------- */
@@ -83,6 +88,8 @@ const SCHEMA = [
   // Summen für die gemeinsame Speichergrenze (LIMITS.storageBytes) nur aus dem Index lesen
   "CREATE INDEX IF NOT EXISTS idx_sheet_files_bytes ON sheet_files(n, bytes)",
   "CREATE INDEX IF NOT EXISTS idx_sheet_images_bytes ON sheet_images(bytes)",
+  // Geschätzter Verbrauch von Workers AI je Tag (UTC) – das Gratiskontingent (Neurons) gilt für das ganze Cloudflare-Konto
+  "CREATE TABLE IF NOT EXISTS ai_usage (day TEXT NOT NULL, provider TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0, neurons REAL NOT NULL DEFAULT 0, PRIMARY KEY(day, provider))",
 ];
 // Belegter Speicher für Bilder und PDF-Dateien aller Blätter (roh, Bytes) – als SQL-Ausdruck für Bedingungen und Listen
 const STORAGE_SQL = "((SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE n=0)+(SELECT COALESCE(SUM(bytes),0) FROM sheet_images))";
@@ -143,23 +150,32 @@ function parseSetting(row) {
 const firstRow = (res) => (res && res.results && res.results[0]) || null;
 
 // Ein Anbieter-Eintrag aus settings.ai (erster Anbieter oder `reserve`) → nutzbare Konfiguration
-// (API-Schlüssel entschlüsselt; nicht entschlüsselbar → „kein Schlüssel“)
+// (API-Schlüssel entschlüsselt; nicht entschlüsselbar → „kein Schlüssel“). explicit = von der Lehrkraft gespeichert (sonst
+// nur die Vorauswahl DEFAULT_PROVIDER der Oberfläche). Workers AI (keyless): nie ein Schlüssel, dafür das Binding env.AI.
 async function aiEntry(env, s) {
-  const provider = PROVIDERS[s.provider] ? s.provider : DEFAULT_PROVIDER;
+  const explicit = !!PROVIDERS[s.provider];
+  const provider = explicit ? s.provider : DEFAULT_PROVIDER, keyless = !!PROVIDERS[provider].keyless;
   let apiKey = "", keyError = "";
-  if (s.apiKeyEnc) { apiKey = (await openSecret(s.apiKeyEnc, env.SETTINGS_SECRET)) || ""; if (!apiKey) keyError = env.SETTINGS_SECRET ? MSG.aiKeyLost : MSG.noSecret; }
+  if (s.apiKeyEnc && !keyless) { apiKey = (await openSecret(s.apiKeyEnc, env.SETTINGS_SECRET)) || ""; if (!apiKey) keyError = env.SETTINGS_SECRET ? MSG.aiKeyLost : MSG.noSecret; }
+  const ai = keyless && env.AI && typeof env.AI.run === "function" ? env.AI : null;
+  if (keyless) keyError = !explicit ? MSG.aiNotSaved : ai ? "" : CF_NO_BINDING;
   const fallbacks = Array.isArray(s.fallbacks) ? s.fallbacks.filter((x) => typeof x === "string").slice(0, 10) : [];
   return { provider, model: typeof s.model === "string" ? s.model : "", baseUrl: provider === "custom" && typeof s.baseUrl === "string" ? s.baseUrl : "",
-    fallbacks, apiKey, keyError, stored: s };
+    fallbacks, apiKey, keyError, stored: s, explicit, keyless, ai };
 }
-// settings.ai → erster Anbieter (+ `reserve`: zweiter Anbieter mit eigenem Schlüssel, der einspringt, wenn der erste
-// ausgelastet ist, sein Tageskontingent erreicht hat oder nicht antwortet – so addieren sich zwei Kontingente)
+// Nutzbar = bekommt Schülertexte: mit entschlüsselbarem Schlüssel bzw. (Workers AI) ausdrücklich gespeichert und Binding da
+const usable = (e) => !!e && (e.keyless ? !!(e.explicit && e.ai) : !!e.apiKey);
+// Schlüssel für ai_gate/ai_skip: die Reserve hat eigene Kontingente → eigener Schlüssel (provider#r); Anbieter mit einem
+// Kontingent je Konto (Workers AI) behalten ihren Namen – die Sperre „Tageskontingent aufgebraucht“ gilt für beide Rollen
+const entryKey = (provider, reserve) => (reserve && !(PROVIDERS[provider] || {}).accountDaily ? provider + "#r" : provider);
+// settings.ai → erster Anbieter (+ `reserve`: zweiter Anbieter, der einspringt, wenn der erste ausgelastet ist, sein
+// Tageskontingent erreicht hat oder nicht antwortet – so addieren sich zwei Kontingente)
 async function aiConfig(env, row) {
   const s = parseSetting(row) || {};
   const ai = await aiEntry(env, s);
-  ai.key = ai.provider;   // Schlüssel für ai_gate/ai_skip (die Reserve hat eigene Kontingente → eigener Schlüssel)
+  ai.key = entryKey(ai.provider, false);
   ai.reserve = s.reserve && typeof s.reserve === "object" && PROVIDERS[s.reserve.provider] ? await aiEntry(env, s.reserve) : null;
-  if (ai.reserve) ai.reserve.key = ai.reserve.provider + "#r";
+  if (ai.reserve) ai.reserve.key = entryKey(ai.reserve.provider, true);
   ai.raw = row ? row.value : null;
   return ai;
 }
@@ -169,15 +185,23 @@ function entryId(e) {
   try { return "custom:" + new URL(e.baseUrl).host; } catch { return "custom:" + String(e.baseUrl || ""); }
 }
 const hasStoredKey = (s) => !!(s && s.apiKeyEnc);
+// hasKey = nutzbar (so verstehen es auch ältere, noch gecachte Seiten), ready = dasselbe, saved = von der Lehrkraft gespeichert
 function entryView(e) {
   const p = PROVIDERS[e.provider];
   const out = { provider: e.provider, label: p.label, model: e.model, defaultModel: p.defaultModel, baseUrl: e.baseUrl,
-    hasKey: !!e.apiKey, keyHint: e.apiKey ? keyHintOf(e.apiKey) : "", fallbacks: e.fallbacks };
+    hasKey: usable(e), keyHint: e.apiKey ? keyHintOf(e.apiKey) : "", fallbacks: e.fallbacks, keyless: !!p.keyless, ready: usable(e), saved: !!e.explicit };
   if (e.keyError) out.keyError = e.keyError;
   return out;
 }
 const aiPublicView = (ai) => ({ ...entryView(ai), reserve: ai.reserve ? entryView(ai.reserve) : null });
-const cfgOf = (e, skip = []) => ({ provider: e.provider, apiKey: e.apiKey, model: e.model, fallbacks: e.fallbacks, skip, base: e.baseUrl, key: e.key || e.provider });
+const cfgOf = (e, skip = []) => ({ provider: e.provider, apiKey: e.apiKey, ai: e.ai, model: e.model, fallbacks: e.fallbacks, skip, base: e.baseUrl, key: e.key || e.provider });
+// Workers AI: geschätzter Verbrauch je Tag (UTC) und Anbieter – ein Upsert je Aufruf, der etwas verbraucht hat
+const usageStmt = (db, provider, cost, now) => db.prepare(
+  "INSERT INTO ai_usage(day,provider,requests,neurons) VALUES(?1,?2,?3,?4) ON CONFLICT(day,provider) DO UPDATE SET " +
+  "requests=requests+excluded.requests, neurons=neurons+excluded.neurons").bind(utcDay(now), provider, cost.requests, Math.round(cost.neurons * 1000) / 1000);
+const spent = (cost) => !!cost && cost.requests > 0;
+// Konto-Tageskontingent aufgebraucht: bis 0:00 UTC keine Anfrage mehr an diesen Anbieter (Sperre mit model "*")
+const quotaLock = (db, key, until) => skipStatements(db, key, [{ model: "*", reason: "Tageskontingent aufgebraucht", until }], Date.now());
 
 /* ---------- Rate-Limits (festes Zeitfenster, IP nur gehasht) ----------
  * rlHit zählt atomar (Upsert … RETURNING): auch parallele Anfragen kommen nicht am Zähler vorbei. */
@@ -545,10 +569,22 @@ const gate = (c) => (provider, gapMs, remainingMs = 100000, model = "", key = pr
 // Sperre eines Modells sofort schreiben (nicht erst nach Ende des Aufrufs), damit parallel laufende Anfragen sie sehen
 const onRotate = (c) => (key, model, reason, until) => c.waitUntil(c.db.batch(skipStatements(c.db, key, [{ model, reason, until }], Date.now())).catch(() => {}));
 
+// Für die KI-Einstellungen: Sperre „Tageskontingent aufgebraucht“ (quotaUntil) und geschätzter Verbrauch heute (UTC) von
+// Workers AI – nur zur Orientierung; genau steht der Verbrauch im Cloudflare-Dashboard
+const cfStatusStmts = (c) => [
+  c.db.prepare("SELECT MAX(until) AS until FROM ai_skip WHERE provider='cloudflare' AND model='*' AND until>?1").bind(c.now),
+  c.db.prepare("SELECT requests, neurons FROM ai_usage WHERE day=?1 AND provider='cloudflare'").bind(utcDay(c.now)),
+];
+function cfStatusView(c, q, u) {
+  const until = Number((firstRow(q) || {}).until) || 0, row = firstRow(u) || {};
+  return { quotaUntil: until > c.now ? until : null,
+    usage: { day: utcDay(c.now), requests: Number(row.requests) || 0, neurons: Math.round(Number(row.neurons) || 0), limit: CF_DAILY_NEURONS } };
+}
 async function routeAiGet(c) {
   await requireTeacher(c);
-  const ai = await aiConfig(c.env, await settingStmt(c.db, "ai").first());
-  return json({ ok: true, ...aiPublicView(ai) });
+  const [st, q, u] = await c.db.batch([settingStmt(c.db, "ai"), ...cfStatusStmts(c)]);
+  const ai = await aiConfig(c.env, firstRow(st));
+  return json({ ok: true, ...aiPublicView(ai), ...cfStatusView(c, q, u) });
 }
 
 // Einen Anbieter-Eintrag (erster Anbieter oder Reserve) aus der Eingabe prüfen, Modell-Rangliste holen und den
@@ -556,6 +592,14 @@ async function routeAiGet(c) {
 // Leerer Schlüssel → der alte bleibt, aber nur für denselben Dienst (ein Schlüssel geht nie an einen anderen Anbieter/Host).
 async function prepareAiEntry(c, bodyPart, cur) {
   const input = validateAiInput(bodyPart, PROVIDERS);
+  if (PROVIDERS[input.provider].keyless) {   // Workers AI: nie einen Schlüssel speichern (kein SETTINGS_SECRET nötig), feste Modellliste
+    if (input.apiKey) throw new InputError(MSG.aiKeyless);
+    if (input.model && !/^@(cf|hf)\//.test(input.model)) throw new InputError(MSG.aiCfModel);
+    const t = await testKey({ provider: input.provider });
+    const stored = { provider: input.provider, model: input.model, baseUrl: "", keyHint: "", fallbacks: pickFallbacks(t.models), updatedAt: c.now };
+    const bound = !!(c.env.AI && typeof c.env.AI.run === "function");
+    return { stored, warning: bound ? "" : "Gespeichert, aber: " + CF_NO_BINDING, tierNote: t.tierNote, modelCount: null };
+  }
   if (input.provider === "gemini" && bodyPart.confirmBilling !== true && !(cur && cur.provider === "gemini" && cur.stored && cur.stored.billingConfirmed))
     throw new InputError(MSG.geminiBilling);
   const sameService = !!cur && cur.provider === input.provider && cur.baseUrl === input.baseUrl;
@@ -593,7 +637,7 @@ async function routeAiPut(c) {
   let reserve = cur.stored.reserve;
   if (hasMain) {
     const r = await prepareAiEntry(c, body, cur);
-    main = r.stored; clear.push(main.provider);
+    main = r.stored; clear.push(entryKey(main.provider, false));
     if (r.modelCount != null) out.modelCount = r.modelCount;
     if (r.tierNote) out.tierNote = r.tierNote;
     if (r.warning) out.warning = r.warning;
@@ -603,18 +647,23 @@ async function routeAiPut(c) {
     else {
       if (!body.reserve || typeof body.reserve !== "object") throw new InputError("Ungültige Einstellungen für die Reserve-KI.");
       const r = await prepareAiEntry(c, body.reserve, cur.reserve);
-      reserve = r.stored; clear.push(reserve.provider + "#r");   // Sperren der Reserve liegen unter ihrem eigenen Schlüssel
+      reserve = r.stored; clear.push(entryKey(reserve.provider, true));   // Sperren der Reserve liegen unter ihrem eigenen Schlüssel
       if (r.modelCount != null) out.reserveModelCount = r.modelCount;
       if (r.tierNote) out.reserveTierNote = r.tierNote;
       if (r.warning) out.reserveWarning = r.warning;
     }
   }
+  // Workers AI als erster Anbieter und als Reserve: dasselbe Konto, dasselbe Kontingent – keine Reserve (beide Reihenfolgen)
+  if (reserve && main.provider === reserve.provider && PROVIDERS[main.provider] && PROVIDERS[main.provider].accountDaily)
+    throw new InputError(MSG.aiSameAccount);
   const value = JSON.stringify(reserve ? { ...main, reserve } : main);
-  await c.db.batch([
+  const [, , ...rest] = await c.db.batch([
     c.db.prepare("INSERT INTO settings(key,value) VALUES('ai',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(value),
-    ...[...new Set(clear)].map((p) => c.db.prepare("DELETE FROM ai_skip WHERE provider=?1").bind(p)),   // neuer Schlüssel/Modell: Sperren aufheben
+    // neuer Schlüssel/Modell: Sperren aufheben – außer „Tageskontingent aufgebraucht“ (gilt für das Konto, nicht die Einstellung)
+    c.db.prepare("DELETE FROM ai_skip WHERE provider IN (SELECT value FROM json_each(?1)) AND model<>'*'").bind(JSON.stringify([...new Set(clear)])),
+    ...cfStatusStmts(c),
   ]);
-  Object.assign(out, aiPublicView(await aiConfig(c.env, { value })));
+  Object.assign(out, aiPublicView(await aiConfig(c.env, { value })), cfStatusView(c, rest[0], rest[1]));
   return json(out);
 }
 
@@ -624,27 +673,38 @@ async function routeAiTest(c) {
   const ai = await aiConfig(c.env, await settingStmt(c.db, "ai").first());
   const which = new URL(c.request.url).searchParams.get("which") === "reserve" ? "reserve" : "main";
   const e = which === "reserve" ? ai.reserve : ai;
-  if (!e || !e.apiKey) throw new HttpError(400, "ai_not_configured", (e && e.keyError) || (which === "reserve" ? MSG.aiNoReserve : MSG.aiNoKey));
+  if (!usable(e)) throw new HttpError(400, "ai_not_configured", (e && e.keyError) || (which === "reserve" ? MSG.aiNoReserve : MSG.aiNoKey));
   let t;
   try { t = await testKey(cfgOf(e)); }
   catch (x) { if (x instanceof AIError) throw new HttpError(502, "ai_error", x.message, { aiCode: x.code }); throw x; }
   e.fallbacks = pickFallbacks(t.models);
-  const skip = ((await skipQuery(c.db, e.key, c.now).all()).results || []).map((r) => r.model);
+  const skip = ((await skipQuery(c.db, e.key, c.now).all()).results || []).map((r) => r.model);   // "*" ist kein Modell: der Test fragt trotzdem
   let out;
   try {
+    // outTokens (nur Workers AI): die Testantwort ist kurz – eine kleine Grenze hält auch einen nicht abgeschalteten Denkmodus billig
     out = await callAI(cfgOf(e, skip), TEST_MESSAGES, { temperature: 0.1, maxAttempts: 4, timeoutMs: 30000, deadlineMs: 60000, maxWaitMs: 10000,
-      beforeAttempt: gate(c), onRotate: onRotate(c) });
+      outTokens: 200, beforeAttempt: gate(c), onRotate: onRotate(c) });
   } catch (x) {
     if (!(x instanceof AIError)) throw x;
+    const writes = [];
+    if (e.keyless && spent(x.cost)) writes.push(usageStmt(c.db, e.provider, x.cost, c.now));
+    if (x.code === "DAILY_LIMIT" && x.accountWide && x.until > c.now) writes.push(...quotaLock(c.db, e.key, x.until));   // gilt sofort auch für die Schüler:innen
+    if (writes.length) await c.db.batch(writes).catch(() => {});
     throw new HttpError(502, "ai_error", x.message, { aiCode: x.code });
   }
   const stored = which === "reserve" ? { ...ai.stored, reserve: { ...ai.stored.reserve, fallbacks: e.fallbacks, testedAt: c.now } }
     : { ...ai.stored, fallbacks: e.fallbacks, testedAt: c.now };
-  await c.db.prepare("UPDATE settings SET value=?1 WHERE key='ai' AND value=?2").bind(JSON.stringify(stored), ai.raw).run();
+  await c.db.batch([
+    c.db.prepare("UPDATE settings SET value=?1 WHERE key='ai' AND value=?2").bind(JSON.stringify(stored), ai.raw),
+    // Workers AI antwortet wieder (z. B. nach einem Wechsel auf Workers Paid): die Sperre „Tageskontingent aufgebraucht“ endet
+    ...(e.keyless ? [c.db.prepare("DELETE FROM ai_skip WHERE provider=?1 AND model='*'").bind(e.key)] : []),
+    ...(e.keyless && spent(out.cost) ? [usageStmt(c.db, e.provider, out.cost, c.now)] : []),
+  ]);
   const sample = String(out.json && typeof out.json.antwort === "string" ? out.json.antwort : out.text).slice(0, 200);
   const res = { ok: true, which, provider: e.provider, label: PROVIDERS[e.provider].label, model: out.model, sample, fallbacks: e.fallbacks,
     modelCount: t.models.length, rotated: out.rotated.map((r) => ({ model: r.model, reason: r.reason })) };
   if (t.tierNote) res.tierNote = t.tierNote;
+  if (e.keyless && out.usage) res.usage = out.usage;   // nur Token-Zahlen: zeigt nach dem Deploy, ob der Denkmodus aus ist
   return json(res);
 }
 
@@ -665,13 +725,14 @@ async function routePublicSheet(c, codeRaw) {
   if (!s) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
   const rows = Object.fromEntries((st.results || []).map((r) => [r.key, r]));
   const teacher = parseSetting(rows.teacher);
-  // Empfänger für den Datenschutzhinweis: erster Anbieter, dann die Reserve – nur Einträge mit nutzbarem Schlüssel
-  // (ein nicht entschlüsselbarer Schlüssel bekommt nie Daten); id = Anbieter bzw. custom:Host, label = Rechtsträger und Sitz
+  // Empfänger für den Datenschutzhinweis: erster Anbieter, dann die Reserve – nur nutzbare Einträge (usable: ein nicht
+  // entschlüsselbarer Schlüssel bzw. ein nicht gespeichertes Workers AI bekommt nie Daten); id = Anbieter bzw. custom:Host,
+  // label = Rechtsträger und Sitz
   const ai = await aiConfig(c.env, rows.ai || null);
-  const usable = [ai, ai.reserve].filter((e) => e && e.apiKey);
-  const aiProvider = usable.length && usable[0] === ai ? providerLabel(ai.provider, ai.baseUrl) : null;
-  const aiRecipients = usable.map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl) }));
-  const aiReserve = usable.length > 1 ? providerLabel(usable[1].provider, usable[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
+  const list = [ai, ai.reserve].filter(usable);
+  const aiProvider = list.length && list[0] === ai ? providerLabel(ai.provider, ai.baseUrl) : null;
+  const aiRecipients = list.map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl) }));
+  const aiReserve = list.length > 1 ? providerLabel(list[1].provider, list[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
   // Niemals Aufträge an die KI (solution) ausliefern: nur Aufgabentext (rein und – falls vorhanden – formatiert als textFmt) und
   // Bild-Metadaten verlassen den Server; die Länder einer Weltkarten-Zuordnung nur als Prüfwerte (SHA-256 von Code|Karte|Land),
   // Kartenbilder nur, wenn sie zu dieser Aufgabe gespeichert sind
@@ -710,7 +771,7 @@ async function routeFeedback(c) {
   const { messages, nrs } = buildFeedbackMessages(tasks, answers);
   if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()) });   // kein Auftrag an die KI: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
-  let entries = [ai, ai.reserve].filter((e) => e && e.apiKey);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
+  let entries = [ai, ai.reserve].filter(usable);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
   if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
   // Transparenz: Der Browser schickt mit, über welche Empfänger die Schülerin bzw. der Schüler vor dem Klick informiert war
   // (ids aus GET /api/sheet). Nur diese dürfen Daten bekommen; hat die Lehrkraft inzwischen den ersten Anbieter geändert
@@ -720,34 +781,54 @@ async function routeFeedback(c) {
     if (!allowed.has(entryId(entries[0]))) throw new HttpError(409, "ai_changed", MSG.aiChanged);
     entries = entries.filter((e) => allowed.has(entryId(e)));
   }
+  // Gesperrte Modelle je Eintrag (einmal gelesen). Model "*" = Tageskontingent des ganzen Kontos aufgebraucht (Workers AI):
+  // bis 0:00 UTC keine Anfrage mehr dorthin. Ohne Reserve steht dann schon vorher fest, dass nichts zur KI geht – nicht zählen.
+  const skips = new Map();
+  const skipOf = async (e) => {
+    if (!skips.has(e.key)) skips.set(e.key, ((await skipQuery(c.db, e.key, c.now).all()).results || []).map((r) => r.model));
+    return skips.get(e.key);
+  };
+  const quotaErr = () => new AIError("DAILY_LIMIT", "Tageskontingent aufgebraucht.", { accountWide: true });
+  if (entries.length === 1 && PROVIDERS[entries[0].provider].accountDaily && (await skipOf(entries[0])).includes("*"))
+    throw new HttpError(503, "ai_quota", PUBLIC_MSG.DAILY_LIMIT, { aiCode: "DAILY_LIMIT" });
   // Erst zählen, wenn die Anfrage gültig ist und wirklich zur KI geht: je IP (Anzahl und Zeichen) und je Blatt und Tag
   const chars = answers.reduce((n, a) => n + a.length, 0);
   const refund = await countAll(c, [{ kind: "feedback" }, { kind: "feedback_chars", weight: Math.max(1, chars) }, { kind: "sheet_feedback", key: code }]);
   // Zeitbudget: insgesamt 100 s (der Browser wartet bis 150 s); mit Reserve bekommt der erste Anbieter 45 s, die Reserve den
   // Rest – aber nur, wenn noch ≥ 35 s bleiben (sonst ein nutzloser Abbruch). Langes Warten erledigt der Browser (Wiederholung).
+  // Wurde der erste Anbieter gar nicht gefragt (nur wegen "*" übersprungen), bekommt die Reserve das volle Budget.
   const t0 = Date.now(), BUDGET = 100000, startAt = Math.floor(Math.random() * 64);
-  let out = null, err = null;
+  let out = null, err = null, called = false;
+  const usage = [];   // Workers AI: geschätzter Verbrauch je Aufruf (auch gescheiterter)
   for (let i = 0; i < entries.length && !out; i++) {
-    const e = entries[i], left = BUDGET - (Date.now() - t0);
-    if (i > 0 && (left < 35000 || !(err && RESERVE_ON.has(err.code)))) break;   // Reserve nur bei Verfügbarkeitsproblemen
-    const skip = ((await skipQuery(c.db, e.key, c.now).all()).results || []).map((r) => r.model);
+    const e = entries[i], left = BUDGET - (Date.now() - t0), lead = !called;   // lead: der erste Eintrag, der wirklich gefragt wird
+    if (i > 0 && (!(err && RESERVE_ON.has(err.code)) || (!lead && left < 35000))) break;   // Reserve nur bei Verfügbarkeitsproblemen
+    const skip = await skipOf(e);
+    if (skip.includes("*")) { if (!err) err = quotaErr(); continue; }
+    called = true;
     try {
       out = await callAI(cfgOf(e, skip), messages, {
         temperature: 0.1, geminiSchema: FEEDBACK_SCHEMA_GEMINI, accept: feedbackAcceptor(nrs),
-        timeoutMs: 45000, deadlineMs: i === 0 ? (entries.length > 1 ? 45000 : left) : Math.min(40000, left), maxWaitMs: 15000,
-        maxAttempts: i === 0 ? 6 : 3, startAt: startAt + i,
+        timeoutMs: 45000, deadlineMs: lead ? (i < entries.length - 1 ? 45000 : left) : Math.min(40000, left), maxWaitMs: 15000,
+        maxAttempts: lead ? 6 : 3, startAt: startAt + i, outTokens: Math.min(8192, 800 + 300 * nrs.length),
         beforeAttempt: gate(c), onRotate: onRotate(c),
       });
+      if (e.keyless && spent(out.cost)) usage.push(usageStmt(c.db, e.provider, out.cost, c.now));
     } catch (x) {
       if (!(x instanceof AIError)) throw x;
+      if (e.keyless && spent(x.cost)) usage.push(usageStmt(c.db, e.provider, x.cost, c.now));
+      if (x.code === "DAILY_LIMIT" && x.accountWide && x.until > c.now) usage.push(...quotaLock(c.db, e.key, x.until));   // für alle folgenden Anfragen bis 0:00 UTC
       // Es zählt der letzte Fehler – außer die Reserve ist selbst falsch eingerichtet, dann bleibt der des ersten Anbieters
       if (!err || !(x.code === "NO_KEY" || x.code === "CONFIG" || x.code === "NO_MODEL")) err = x;
     }
   }
+  if (usage.length) c.waitUntil(c.db.batch(usage).catch(() => {}));
   if (!out) {
     if (AI_REFUND.has(err.code)) refund();
     if (err.code === "NO_KEY" || err.code === "CONFIG" || err.code === "NO_MODEL") throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
     if (AI_WAIT[err.code]) throw new HttpError(429, "ai_busy", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code, retryAfter: retryAfterOfErr(err) });
+    // Konto-Tageskontingent (Workers AI): bis 0:00 UTC hilft keine Wiederholung – eigener Code, der Browser bietet die Abgabe ohne KI an
+    if (err.code === "DAILY_LIMIT" && err.accountWide) throw new HttpError(503, "ai_quota", PUBLIC_MSG.DAILY_LIMIT, { aiCode: err.code });
     throw new HttpError(502, "ai_error", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code });
   }
   return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs)) });
@@ -828,6 +909,7 @@ async function handleApi(request, env, ctx, path) {
     if (Math.random() < 0.02) c.waitUntil(c.db.batch([   // gelegentlich aufräumen
       c.db.prepare("DELETE FROM rate_limits WHERE reset_at<?1").bind(c.now),
       c.db.prepare("DELETE FROM ai_skip WHERE until<?1").bind(c.now),
+      c.db.prepare("DELETE FROM ai_usage WHERE day<?1").bind(utcDay(c.now - 2 * 86400e3)),   // Verbrauchszeilen älter als zwei Tage
     ]).catch(() => {}));
   }
   return handler(c, ...route.params);

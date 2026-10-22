@@ -162,8 +162,9 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
 > anders** und geben Sie bei Bedarf selbst eine Rückmeldung – die Oberfläche verspricht den Schüler:innen, dass ihnen
 > daraus kein Nachteil entsteht, einlösen können das nur Sie. Richten Sie die
 > [KI-Einstellungen](#schritt-8-ki-feedback-einrichten) trotzdem ein und testen Sie das Blatt einmal selbst, bevor Sie
-> den Code an die Klasse geben. Ist das KI-Feedback nicht eingerichtet oder schlägt es zweimal hintereinander fehl
-> (Kontingent erschöpft, Anbieter gestört), sehen die Schüler:innen einen Hinweis mit dem Grund. Hat keine Aufgabe
+> den Code an die Klasse geben. Ist das KI-Feedback nicht eingerichtet, ist das Tageskontingent von Workers AI
+> aufgebraucht oder schlägt es zweimal hintereinander fehl (Kontingent erschöpft, Anbieter gestört), sehen die
+> Schüler:innen einen Hinweis mit dem Grund. Hat keine Aufgabe
 > einen Auftrag an die KI, gibt es keinen Feedback-Button und gar keine KI.
 
 Die Einfügesperre verhindert das übliche Einfügen (Tastenkürzel, Kontextmenü, Ziehen mit der Maus, größere
@@ -336,6 +337,9 @@ Der Workflow braucht einen Schlüssel („API-Token“), mit dem er in Ihrem Nam
    Resources“ „Alle Zonen“ / „All zones“ (bzw. „All zones from an account“) wählen – das geht auch ohne eigene
    Domain.
 5. „Weiter zur Zusammenfassung“ / „Continue to summary“ → „Token erstellen“ / „Create Token“.
+   (Der Worker nutzt außerdem Cloudflare Workers AI. Ob das Veröffentlichen dafür eine weitere Berechtigung braucht,
+   dokumentiert Cloudflare nicht – vermutlich nicht. Scheitert `wrangler deploy` mit einem Rechtefehler zu Workers AI,
+   im Token zusätzlich **Konto → Workers AI → Lesen** ergänzen; siehe [Häufige Probleme](#häufige-probleme).)
 6. Den angezeigten Token sofort kopieren – er wird nur einmal angezeigt. Er ist ein Geheimnis: nirgends
    veröffentlichen, nicht per E-Mail verschicken.
 
@@ -372,7 +376,8 @@ Was der Workflow dabei tut:
    Server beim ersten Aufruf selbst an.
 5. Er veröffentlicht den Worker samt Seite (`wrangler deploy`).
 6. Er erzeugt einmalig das Worker-Secret `SETTINGS_SECRET` (32 Zufallsbytes), mit dem der Server Ihren
-   KI-API-Schlüssel verschlüsselt speichert. Ein vorhandenes Secret wird nie überschrieben; lässt sich nicht
+   KI-API-Schlüssel verschlüsselt speichert und die Zähler für Sperren pseudonymisiert (gehashte IP-Adressen) – es
+   wird also auch gebraucht, wenn Sie Cloudflare Workers AI ohne API-Schlüssel nutzen. Ein vorhandenes Secret wird nie überschrieben; lässt sich nicht
    feststellen, ob es existiert, bricht der Workflow mit einer Fehlermeldung ab (dann einfach erneut starten).
 7. Er gibt die Adresse der Seite aus.
 
@@ -414,14 +419,24 @@ Lehrkräfte-Übersicht übernehmen. Ist das passiert, setzen Sie den Zugang wie 
 ### Schritt 8: KI-Feedback einrichten
 
 1. In der Lehrkräfte-Übersicht auf „KI-Einstellungen“ klicken.
-2. Anbieter wählen. **Für Klassen empfohlen: Groq** (Vorgabe) – siehe [KI-Anbieter](#ki-anbieter).
-3. Beim Anbieter einen kostenlosen API-Schlüssel erstellen (Groq: <https://console.groq.com/keys>) und in das Feld
-   „API-Schlüssel“ einfügen. Das Feld „Modell“ leer lassen (dann wählt der Server das Vorgabemodell).
-4. „Speichern“ klicken. Der Server prüft den Schlüssel, ermittelt die verfügbaren Modelle und merkt sich die
-   besten als Ausweichmodelle. Klappt die Prüfung nicht, wird trotzdem gespeichert und ein Hinweis angezeigt.
-5. „Verbindung testen“ klicken. Erscheint eine kurze Beispielantwort, funktioniert das KI-Feedback.
+2. Vorausgewählt ist **Cloudflare Workers AI (Empfehlung)** – es läuft im selben Cloudflare-Konto wie der Server und
+   braucht **keinen API-Schlüssel**, siehe [KI-Anbieter](#ki-anbieter). Das Feld „Modell“ leer lassen (dann nimmt der
+   Server das Vorgabemodell).
+3. **„Speichern“ klicken.** Erst damit ist das KI-Feedback aktiv – die Vorauswahl allein schickt nichts an eine KI
+   (auch nach einem Update bleibt ein bisher gespeicherter Anbieter unverändert).
+4. „Verbindung testen“ klicken. Erscheint eine kurze Beispielantwort, funktioniert das KI-Feedback. Bei Workers AI
+   zeigt der Test auch, wie viele Token er verbraucht hat (davon im „Denkmodus“: sollte 0 sein); darunter steht der
+   geschätzte Verbrauch des Tages.
+5. Optional eine [Reserve-KI](#reserve-ki-zweiter-anbieter) eintragen, z. B. Groq mit einem kostenlosen API-Schlüssel
+   (<https://console.groq.com/keys>) – sie springt ein, wenn das Tageskontingent von Workers AI aufgebraucht ist.
 
-Der Schlüssel wird nur auf dem Server gespeichert (verschlüsselt mit `SETTINGS_SECRET`; ohne dieses Secret lehnt
+Für einen anderen Anbieter: Anbieter wählen, beim Anbieter einen API-Schlüssel erstellen und in das Feld
+„API-Schlüssel“ einfügen, „Speichern“ (der Server prüft den Schlüssel, ermittelt die verfügbaren Modelle und merkt sich
+die besten als Ausweichmodelle; klappt die Prüfung nicht, wird trotzdem gespeichert und ein Hinweis angezeigt), dann
+„Verbindung testen“. Anbieter, die für den Schuleinsatz nicht geeignet sind, sind in der Auswahl gekennzeichnet; die
+Seite speichert sie nur nach einer ausdrücklichen Bestätigung.
+
+Ein API-Schlüssel wird nur auf dem Server gespeichert (verschlüsselt mit `SETTINGS_SECRET`; ohne dieses Secret lehnt
 der Server das Speichern ab) und nie an die Browser der Schüler:innen übertragen. In den Einstellungen sehen Sie
 nur die letzten vier Zeichen („gespeichert: …abcd“). Ein neuer Schlüssel ersetzt den alten; ein leeres
 Schlüsselfeld lässt den gespeicherten unverändert – aber nur für denselben Anbieter und dieselbe Adresse. Wechseln
@@ -438,7 +453,8 @@ Dienst geschickt.
 
 ## KI-Anbieter
 
-Das KI-Feedback läuft über Ihren eigenen API-Schlüssel bei einem Anbieter Ihrer Wahl. Je Schülerin bzw. Schüler
+Das KI-Feedback läuft über Cloudflare Workers AI (ohne API-Schlüssel, im Cloudflare-Konto des Servers) oder über Ihren
+eigenen API-Schlüssel bei einem anderen Anbieter. Je Schülerin bzw. Schüler
 und Feibeitsblatt stellt der Server in der Regel **eine** Anfrage mit allen Aufgaben, die einen Auftrag an die KI haben;
 bei Überlastung oder unbrauchbaren Antworten können daraus bis zu acht Versuche werden, und Schüler:innen können
 nach einem Fehlschlag erneut klicken. Der Server hält je Anbieter einen Mindestabstand zwischen den Anfragen ein,
@@ -452,20 +468,34 @@ Vorankündigung.
 
 | Anbieter | Schlüssel | Limits (Stand Oktober 2026, nicht bestätigt – bitte beim Anbieter prüfen) | Datenschutz und Hinweise |
 |---|---|---|---|
-| **Groq** (Vorgabe, für Klassen empfohlen) | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Limits je Modell**: bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag, etwa 100 000 pro Tag bei Llama 3.3 70B (Angaben Dritter, Stand Oktober 2026; die für Ihr Konto gültigen Werte stehen in der Groq-Konsole unter „Limits“). Gecachte Token zählen bei Groq nicht gegen diese Limits – Feibeitsblatt stellt die Anfrage so, dass Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt aus dem Cache kommen (siehe [Kapazität](#kapazität-und-grenzen)). Ist ein Modell erschöpft oder ausgelastet, wechselt der Server automatisch zum nächsten. | Sehr schnell. Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden. |
-| **OpenRouter** | kostenloses Konto, <https://openrouter.ai/settings/keys> | nur kostenlose Modelle (`:free`). **Ohne einmaligen Guthabenkauf nur 50 kostenlose Anfragen pro Tag für das ganze Konto** – das reicht nicht für eine Klasse. Nach einem einmaligen Kauf von 10 US-$ Guthaben 1000 pro Tag. | Die kostenlosen Modelle laufen bei Drittanbietern, die Eingaben protokollieren oder zum Training verwenden dürfen. Das muss im Konto unter <https://openrouter.ai/settings/privacy> erlaubt sein, sonst antwortet die API „No endpoints found matching your data policy“. |
-| **Google Gemini** | Google AI Studio, <https://aistudio.google.com/app/apikey> | kostenloses Kontingent mit Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus. | Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Googles Bedingungen nur die bezahlten Dienste; dafür verlangt Google ein **hinterlegtes Abrechnungskonto**. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage. |
-| **Cerebras** | Konsole von Cerebras, <https://cloud.cerebras.ai> | **nicht bestätigt** – die Angaben Dritter widersprechen sich; bitte in der Konsole prüfen. | Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden. |
+| **Cloudflare Workers AI** (vorausgewählt, Empfehlung) | keiner – der Server nutzt Workers AI im eigenen Cloudflare-Konto (Binding `AI` in `wrangler.jsonc`); aktiv erst nach „Speichern“ | kostenlos **10 000 „Neurons“ pro Tag für das ganze Cloudflare-Konto** (alle Modelle zusammen, Neustart 0:00 Uhr UTC = 1:00 Uhr MEZ bzw. 2:00 Uhr MESZ), höchstens 300 Anfragen pro Minute (Cloudflare-Doku, Stand 17.09./20.10.2026). Eine Feedback-Anfrage kostet mit dem Vorgabemodell Gemma 4 etwa 20–50 Neurons, mit viel Material mehr (siehe [Kapazität](#kapazität-und-grenzen)). Ausweichmodelle: GLM-4.7-Flash, dann Qwen3-30B. Mit dem Plan „Workers Paid“ wird Verbrauch darüber berechnet (0,011 US-$ je 1 000 Neurons). | Empfänger ist **Cloudflare, Inc. (San Francisco, USA)** – derselbe Anbieter, der den Server betreibt, kein weiterer KI-Dienstleister. Laut Cloudflare (Doku „Data usage“, Stand 16.10.2026) speichert Workers AI Ein- und Ausgaben nicht über die Beantwortung hinaus und nutzt sie nicht zum Training – mit begrenzten Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare. **Die Datenbank liegt in der EU, die KI-Verarbeitung kann aber auch außerhalb der EU stattfinden** – Cloudflare bietet für Workers AI keine Beschränkung auf die EU an („Regional Services“ ist mit Workers AI nicht kompatibel). Die Übermittlung stützt sich laut Cloudflare auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. Der Server nutzt **kein AI Gateway** (das würde Anfragen protokollieren). Der Denkmodus der Modelle ist abgeschaltet. |
+| **Groq** | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Limits je Modell**: bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag, etwa 100 000 pro Tag bei Llama 3.3 70B (Angaben Dritter, Stand Oktober 2026; die für Ihr Konto gültigen Werte stehen in der Groq-Konsole unter „Limits“). Gecachte Token zählen bei Groq nicht gegen diese Limits – Feibeitsblatt stellt die Anfrage so, dass Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt aus dem Cache kommen (siehe [Kapazität](#kapazität-und-grenzen)). Ist ein Modell erschöpft oder ausgelastet, wechselt der Server automatisch zum nächsten. | Sehr schnell; gut als Reserve-KI. Rechtsträger ist **Groq LLC (USA)**, Vertragspartner für Kund:innen im EWR ist Groq UK Limited (London); Kundendaten liegen laut Groq in den USA, verarbeitet wird auch in anderen Ländern (Datenschutzerklärung ab 12.11.2025, Services Agreement 22.06.2026). Prüfen Sie die Bedingungen, bevor Schülertexte gesendet werden. |
+| **OpenRouter** – *nicht für den Schuleinsatz geeignet* | kostenloses Konto, <https://openrouter.ai/settings/keys> | nur kostenlose Modelle (`:free`). **Ohne einmaligen Guthabenkauf nur 50 kostenlose Anfragen pro Tag für das ganze Konto** – das reicht nicht für eine Klasse. Nach einem einmaligen Kauf von 10 US-$ Guthaben 1000 pro Tag. | Die kostenlosen Modelle laufen oft bei Unteranbietern, die Eingaben protokollieren oder zum Training nutzen dürfen; viele kostenlose Modelle sind nur erreichbar, wenn Sie das im Konto unter <https://openrouter.ai/settings/privacy> erlauben (sonst antwortet die API „No endpoints found matching your data policy“). |
+| **Google Gemini** – *nicht für den Schuleinsatz geeignet* | Google AI Studio, <https://aistudio.google.com/app/apikey> | kostenloses Kontingent mit Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus. | Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Googles Bedingungen nur die bezahlten Dienste; dafür verlangt Google ein **hinterlegtes Abrechnungskonto**. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage. Vor allem aber verlangen die Zusatzbedingungen der Gemini-API (Stand 28.04.2026), dass Nutzer:innen mindestens 18 Jahre alt sind; die API darf nicht in Diensten eingesetzt werden, die sich an Minderjährige richten oder wahrscheinlich von ihnen genutzt werden. |
+| **Cerebras** – *nicht für den Schuleinsatz geeignet* | Konsole von Cerebras, <https://cloud.cerebras.ai> | kein dauerhaft kostenloses Kontingent mehr: nur ein einmaliges Startguthaben (5 US-$ für 30 Tage, mit hinterlegter Zahlungsmethode); danach pausiert der Zugang, bis Sie Guthaben kaufen (Preisseite, Oktober 2026). | Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden. |
 | **Anderer OpenAI-kompatibler Dienst** | je nach Dienst | je nach Dienst | Basis-URL mit `https://` und ohne Schrägstrich am Ende (z. B. `https://api.mistral.ai/v1`), dazu die Modell-ID. Bedingungen des Dienstes prüfen. |
 
 Hinweise:
 
-- **Groq ist die Vorgabe**, weil es hohe Tageslimits je Modell hat und der Server über mehrere Modelle ausweichen
-  kann (die beim Speichern ermittelte Rangliste); damit reicht es für ganze Klassen am ehesten. Bei vielen Klassen
-  am selben Tag kann das Kontingent trotzdem erschöpft sein.
-- Ist das Kontingent aufgebraucht, sehen die Schüler:innen „Das KI-Kontingent für heute ist aufgebraucht. Bitte
-  frag deine Lehrkraft.“ Ihre Antworten bleiben auf dem Gerät gespeichert; sie können ohne KI-Feedback abgeben oder es
-  später auf demselben Gerät noch einmal versuchen.
+- **Cloudflare Workers AI ist die Empfehlung**, weil es keinen API-Schlüssel und keinen weiteren Dienstleister braucht:
+  Die Schülertexte gehen nur an Cloudflare, das ohnehin den Server betreibt. Workers AI ist vorausgewählt, aber erst
+  aktiv, wenn Sie „Speichern“ klicken – bestehende Installationen behalten nach einem Update ihren Anbieter.
+- **Gekennzeichnet als „nicht für den Schuleinsatz geeignet“** sind Google Gemini (Altersgrenze 18 in den
+  API-Bedingungen), OpenRouter (kostenlose Modelle bei Unteranbietern, die protokollieren oder trainieren dürfen) und
+  Cerebras (kein dauerhaft kostenloses Kontingent). Die Seite speichert sie nur nach einer ausdrücklichen Bestätigung;
+  bestehende Einstellungen laufen weiter.
+- **Das Tageskontingent von Workers AI gilt für das ganze Cloudflare-Konto**, also für alle Klassen zusammen. Ein
+  großes Feibeitsblatt (viel Material, lange Aufträge an die KI, viele Aufgaben) oder sehr viele Anfragen – auch
+  absichtlich, von einer einzelnen Person – können es aufbrauchen; die Grenzen je Netzwerk und Blatt (siehe
+  [Kapazität](#kapazität-und-grenzen)) liegen höher als das, was 10 000 Neurons hergeben. Den geschätzten Verbrauch des
+  Tages zeigen die KI-Einstellungen („Heute (UTC) geschätzt verbraucht: ca. … von 10 000 Neurons“), den genauen das
+  Cloudflare-Dashboard unter „Workers AI“.
+- Ist das Kontingent aufgebraucht, sehen die Schüler:innen „Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es
+  wieder.“ – vor der Abgabe ergänzt die Seite, dass sie ohne KI-Feedback abgeben können. Bei Workers AI fragt der
+  Server bis 0:00 Uhr UTC gar nicht mehr nach (die Reserve-KI übernimmt, falls eingerichtet), und eine Abgabe ohne
+  KI-Feedback ist mit dem Grund „KI-Kontingent für heute aufgebraucht“ vermerkt. Ein erfolgreicher „Verbindung
+  testen“ (z. B. nach einem Wechsel auf Workers Paid) hebt diese Sperre auf. Die Antworten bleiben auf dem Gerät
+  gespeichert; das KI-Feedback lässt sich am nächsten Tag auf demselben Gerät noch einmal anfordern.
 - Was die KI tut: Sie berät nach Ihrem Auftrag. Je Aufgabe schreibt sie kurze Stichpunkte, an die Schülerin bzw. den
   Schüler gerichtet – bis zu drei unter „Das gelingt dir schon“ (nur Zutreffendes) und bis zu fünf unter „Tipps zum
   Überarbeiten“ (das Wichtigste zuerst, als Hinweis oder Frage zum Weiterdenken); sachliche Fehler benennt sie
@@ -484,16 +514,19 @@ Hinweise:
 ### Reserve-KI (zweiter Anbieter)
 
 Unter „KI-Einstellungen“ gibt es den Block **„Reserve-KI (optional)“**: ein zweiter Anbieter mit eigenem
-API-Schlüssel (Anbieter, Modell, Schlüssel, „Reserve speichern“, „Reserve testen“, „Reserve entfernen“). Der Server
+API-Schlüssel bzw. Cloudflare Workers AI ohne Schlüssel (Anbieter, Modell, Schlüssel, „Reserve speichern“, „Reserve
+testen“, „Reserve entfernen“). Der Server
 fragt immer zuerst den ersten Anbieter – mit allen seinen Ausweichmodellen – und nur bei **Verfügbarkeitsproblemen**
 die Reserve: ausgelastet (HTTP 429), Tageskontingent erreicht, keine oder zu langsame Antwort, Serverfehler, Anfrage
 zu lang oder keine verwertbare Antwort. **Nie** bei einem Inhaltsfilter des ersten Anbieters (die Schüler:innen sehen
 „Die KI hat diese Antworten nicht bewertet“) und nie bei Fehlkonfiguration (falscher Schlüssel, fehlende Freigabe) –
 dann ist die Lehrkraft gefragt. Es wird nie an beide gleichzeitig gesendet. Am sinnvollsten ist ein **anderer**
-Anbieter (z. B. Groq als erster, dazu ein zweiter Dienst, für den Sie einen Schlüssel haben): Dann addieren sich zwei
-Kontingente, und ein Ausfall eines Anbieters trifft die Klasse nicht. Ein zweites kostenloses Konto beim **selben**
-Anbieter ist keine Lösung – die Limits gelten dort je Organisation, und mehrere Gratis-Konten verstoßen meist gegen
-die Bedingungen.
+Anbieter (z. B. **Workers AI als erster Anbieter, Groq als Reserve**): Dann addieren sich zwei Kontingente, und ein
+Ausfall eines Anbieters trifft die Klasse nicht. Ist das Tageskontingent von Workers AI aufgebraucht, fragt der Server
+Workers AI bis 0:00 Uhr UTC nicht mehr und gibt der Reserve das volle Zeitbudget. Workers AI als erster Anbieter **und**
+als Reserve lehnt die Seite ab – beide teilten sich dasselbe Kontingent des Cloudflare-Kontos. Ein zweites kostenloses
+Konto beim **selben** Anbieter ist ebenfalls keine Lösung – die Limits gelten dort je Organisation, und mehrere
+Gratis-Konten verstoßen meist gegen die Bedingungen.
 
 **Datenschutz:** Jede Reserve ist ein weiterer Empfänger der Schülertexte. Beim Speichern fragt die Seite deshalb
 ausdrücklich nach („Weiteren KI-Empfänger hinzufügen?“) und nennt den Empfänger mit Sitz; die Schüler:innen sehen
@@ -501,7 +534,8 @@ beide Empfänger im Datenschutzhinweis unter dem Button **und** im Dialog vor de
 der Anfrage mit, über welche Empfänger informiert wurde – ändern Sie die KI-Einstellungen, während ein Blatt
 geöffnet ist, bekommt die Schülerin bzw. der Schüler statt einer Antwort den Hinweis, den neuen Datenschutzhinweis
 zu lesen, und muss erneut klicken; es wird nichts gesendet. Für Google Gemini müssen Sie (als erster Anbieter wie
-als Reserve) bestätigen, dass ein Abrechnungskonto hinterlegt ist. Beide Schlüssel liegen nur verschlüsselt auf dem
+als Reserve) bestätigen, dass ein Abrechnungskonto hinterlegt ist; ist der Anbieter als „nicht für den Schuleinsatz
+geeignet“ gekennzeichnet, steht die Warnung im selben Dialog. Beide Schlüssel liegen nur verschlüsselt auf dem
 Server. Ohne Reserve ändert sich nichts.
 
 ## Sicherheit
@@ -559,7 +593,8 @@ Muss eine Sperre ausnahmsweise sofort aufgehoben werden, löscht in der D1-Konso
 - Die Tipps des KI-Feedbacks beruhen auf Ihrem Auftrag an die KI und können verraten, was darin steht. Für Prüfungen,
   bei denen die Lösung geheim bleiben muss, gehört sie deshalb nicht in den Auftrag.
 
-**API-Schlüssel der KI.** Er liegt ausschließlich verschlüsselt (AES-GCM mit dem Worker-Secret `SETTINGS_SECRET`)
+**API-Schlüssel der KI.** Cloudflare Workers AI braucht keinen – der Server ruft es über das Binding `AI` im eigenen
+Konto auf. Ein API-Schlüssel anderer Anbieter liegt ausschließlich verschlüsselt (AES-GCM mit dem Worker-Secret `SETTINGS_SECRET`)
 in der Datenbank und wird nie an Browser ausgeliefert. Fehlt `SETTINGS_SECRET`, lehnt der Server das Speichern
 eines Schlüssels ab (Meldung „Der Server ist noch nicht vollständig eingerichtet …“) – dann den Workflow „Deploy“
 erneut ausführen, der das Secret anlegt. Wurde `SETTINGS_SECRET` geändert, meldet die Seite „Bitte den
@@ -614,7 +649,8 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt oder Sie löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
-| KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
+| KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert; Workers AI hat keinen) | bis Sie sie ändern |
+| Geschätzter Verbrauch von Workers AI je Tag (Zahl der Anfragen und Neurons, keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach gelegentlich gelöscht |
 | Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtstag, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 | Zwischenstand als PDF-Datei (dieselben Angaben), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
@@ -644,7 +680,11 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   informiert wurde. Ist die KI
   ausgelastet, wiederholt der Browser die Anfrage bis zu viermal automatisch (jeweils mit dem aktuellen Text); im
   ungünstigsten Fall erhalten also beide Dienste dieselben Antworten mehrfach. **Nie** gesendet werden Kürzel,
-  Geburtstag und Klasse; der Server bekommt sie dabei gar nicht. Groq (Groq, Inc.), Cerebras (Cerebras Systems
+  Geburtstag und Klasse; der Server bekommt sie dabei gar nicht. Mit **Cloudflare Workers AI** ist Cloudflare
+  (Cloudflare, Inc., San Francisco, USA) zugleich Hoster und KI-Dienst: Die Datenbank liegt in der EU, die
+  KI-Verarbeitung kann aber auch außerhalb der EU stattfinden (Cloudflare bietet dafür keine EU-Beschränkung an);
+  laut Cloudflare stützt sich die Übermittlung auf das EU-US Data Privacy Framework, ersatzweise auf
+  Standardvertragsklauseln. Groq (Groq LLC; Vertragspartner im EWR: Groq UK Limited), Cerebras (Cerebras Systems
   Inc.) und OpenRouter (OpenRouter, Inc.) haben ihren Sitz in den USA, Google verarbeitet Gemini-Anfragen auch in
   den USA; damit liegt eine **Übermittlung in ein Drittland** vor, deren Grundlage (z. B. eine Zertifizierung nach dem
   EU-US Data Privacy Framework oder Standardvertragsklauseln) die Schule beim Anbieter prüfen muss. OpenRouter
@@ -683,8 +723,9 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
    Adressen, Gesundheits- oder Familienangaben). Auch Aufgaben und Aufträge an die KI sollten keine enthalten.
 5. **Löschen Sie die Abgaben nach der Korrektur** („Alle Abgaben dieses Feibeitsblattes löschen“) und nicht mehr
    benötigte Feibeitsblätter.
-6. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen (Gemini im EWR nur mit Abrechnungskonto;
-   kostenlose OpenRouter-Modelle dürfen Eingaben protokollieren).
+6. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen. Empfohlen ist Cloudflare Workers AI (kein
+   weiterer Empfänger); als „nicht für den Schuleinsatz geeignet“ gekennzeichnet sind Gemini (Altersgrenze 18),
+   OpenRouter (kostenlose Modelle dürfen Eingaben protokollieren) und Cerebras (kein dauerhaftes Gratiskontingent).
 
 ### Textbaustein für Schüler:innen und Eltern
 
@@ -700,10 +741,12 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > lesbar – auf Servern von Cloudflare (Datenbank in der EU) bis zur Löschung nach der Durchsicht, spätestens [Frist].
 > Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
 > keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
-> Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B. Groq, Inc., USA] gesendet; nur wenn
-> dieser nicht antwortet oder ausgelastet ist, an
-> [Reserve-Dienst mit Sitz]. Diese Dienste haben ihren Sitz in den USA; die Übermittlung stützt sich auf [EU-US
-> Data Privacy Framework / Standardvertragsklauseln]. Schülerinnen und Schüler ab 18 Jahren – mit 16 und 17 Jahren nur
+> Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B.
+> Cloudflare Workers AI – Cloudflare, Inc., USA, derselbe Anbieter, der den Server betreibt] gesendet; nur wenn
+> dieser nicht antwortet, ausgelastet ist oder sein Tageskontingent aufgebraucht hat, an
+> [Reserve-Dienst mit Sitz, z. B. Groq LLC, USA]. Diese Dienste haben ihren Sitz in den USA; [bei Cloudflare Workers AI:
+> die Datenbank liegt in der EU, die KI-Verarbeitung kann auch außerhalb der EU stattfinden;] die Übermittlung stützt
+> sich auf [EU-US Data Privacy Framework / Standardvertragsklauseln]. Schülerinnen und Schüler ab 18 Jahren – mit 16 und 17 Jahren nur
 > mit Erlaubnis der Eltern – können auf Wunsch eine Rechtschreibprüfung nutzen, die den Text der jeweiligen Antwort an
 > LanguageTool (Learneo, Inc., USA) sendet; vor der ersten Prüfung fragt die Seite danach, ohne Bestätigung wird nichts
 > gesendet. Es
@@ -725,12 +768,34 @@ Prüfungen je Person (180 am Tag) liegen weit unter jeder Grenze; ein Tageslimit
 es nur, wenn mehr als 20 Personen **in derselben Minute** aus demselben Schulnetz prüfen – dann hilft Warten.
 
 **KI-Anbieter:** siehe [Tabelle oben](#ki-anbieter). Zusätzlich hält der Server je Anbieter einen Mindestabstand
-zwischen Anfragen ein (Groq 2,5 s, OpenRouter 3,5 s, Gemini 4 s, Cerebras 2 s, andere 1 s) und lässt höchstens etwa
+zwischen Anfragen ein (Workers AI 0,2 s, Groq 2,5 s, OpenRouter 3,5 s, Gemini 4 s, Cerebras 2 s, andere 1 s) und lässt höchstens etwa
 eine Minute Wartezeit zu. Fordern viele Schüler:innen gleichzeitig ein Feedback an, erhalten einige „Gerade fragen
 sehr viele gleichzeitig. Bitte versuche es in einer Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage
 bis zu etwa 100 Sekunden dauern.
 
-Rechenbeispiel für **60 Schüler:innen am Tag mit je etwa 600 Wörtern** bei Groq (Vorgabe gpt-oss-120b; die
+**Cloudflare Workers AI** rechnet in „Neurons“ (kostenlos 10 000 pro Tag für das ganze Konto, Neustart 0:00 Uhr UTC).
+Laut Preisliste (Stand 20.10.2026) kostet das Vorgabemodell Gemma 4 je Million Token 9 091 Neurons Eingabe und
+27 273 Neurons Ausgabe; einen Rabatt für wiederkehrende (gecachte) Eingaben gibt es dafür nicht – jede Anfrage zahlt
+Anweisungen, Aufgaben, Material und Aufträge an die KI voll. Rechenbeispiel (Schätzung; die echten Token-Zahlen hängen
+vom Blatt ab):
+
+- Eine Feedback-Anfrage mit 1 800–4 000 Token Eingabe und 200–500 Token Ausgabe kostet etwa **22–50 Neurons**
+  (GLM-4.7-Flash 17–40, Qwen3-30B 14–34). Viel Material oder viele Aufgaben machen sie teurer – bei sehr großen
+  Blättern über 100 Neurons je Anfrage.
+- 180 Anfragen am Tag (etwa drei Klassen mit je 30 Schüler:innen und je zwei Anfragen) brauchen also etwa
+  **3 900–9 000 Neurons**, 40–90 % des Tageskontingents. Für mehr reicht es nicht sicher; dafür ist die Reserve-KI da
+  (oder die Abgabe ohne KI-Feedback).
+- Der Denkmodus der Modelle ist abgeschaltet (er würde die Ausgabe vervielfachen); der Verbindungstest zeigt, ob das
+  wirkt. Die Ausgabegrenze ist großzügig (800 + 300 Token je Aufgabe) – berechnet werden nur erzeugte Token.
+- Ist das Kontingent aufgebraucht (Cloudflare-Fehler 3036), merkt sich der Server das bis 0:00 Uhr UTC und fragt
+  Workers AI bis dahin nicht mehr: Die Reserve-KI übernimmt mit vollem Zeitbudget, sonst bekommen die Schüler:innen
+  sofort die Meldung „Das KI-Kontingent für heute ist aufgebraucht …“ und können ohne KI-Feedback abgeben (diese
+  Anfragen zählen nicht gegen die Grenzen je Netzwerk und Blatt). Ist ein Modell nur kurz ausgelastet (Fehler 3040),
+  weicht der Server auf das nächste aus.
+- Den geschätzten Verbrauch (aus den Token-Zahlen der Antworten) zeigen die KI-Einstellungen; Verbindungstests und
+  andere Nutzung von Workers AI im selben Konto zählen mit. Genau steht er im Cloudflare-Dashboard unter „Workers AI“.
+
+Rechenbeispiel für **60 Schüler:innen am Tag mit je etwa 600 Wörtern** bei Groq (gpt-oss-120b; die
 Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole prüfen):
 
 - Eine Feedback-Anfrage besteht aus den Anweisungen (≈ 800 Token), Aufgaben und Aufträgen an die KI (≈ 300–800),
@@ -739,13 +804,13 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 - Jede Schülerin und jeder Schüler stellt bis zu **zwei** solche Anfragen: das Feedback zum Überarbeiten und bei der
   Abgabe die Rückmeldung zur abgegebenen Fassung (die zweite entfällt, wenn nichts geändert wurde). 60 Schüler:innen
   sind also bis zu 120 Anfragen, ohne Cache 300 000–500 000 Token – deutlich über dem Tageslimit von etwa 200 000
-  Token des Vorgabe-Modells. Deshalb macht Feibeitsblatt mehrere Dinge:
+  Token von gpt-oss-120b. Deshalb macht Feibeitsblatt mehrere Dinge:
   1. **Anfrage in Cache-freundlicher Reihenfolge.** Der für alle Schüler:innen eines Blattes gleiche Teil (Anweisungen,
      Aufgaben, Material, Aufträge an die KI) steht vorn, die Antworten stehen hinten. Groq cacht solche Präfixe
      automatisch (für die gpt-oss-Modelle, laut Groq „best effort“, Cache einige Stunden gültig), und **gecachte
      Token zählen nicht gegen die Minuten- und Tageslimits**. Ab der zweiten Anfrage zum selben Blatt kosten dann im
      Wesentlichen nur noch Antworten und Ausgabe, grob 1 500–2 000 Token: 120 Anfragen ≈ 180 000–240 000 Token, also
-     etwa das Tageslimit des Vorgabe-Modells; was darüber hinausgeht, übernehmen die weiteren Modelle (Punkt 2), die
+     etwa das Tageslimit von gpt-oss-120b; was darüber hinausgeht, übernehmen die weiteren Modelle (Punkt 2), die
      jeweils ein eigenes Tageslimit haben. Je Minute gehen so etwa 4–5 statt 2 Anfragen durch ein Modell.
   2. **Alle Modelle gleichzeitig nutzen.** Bei Groq, Cerebras und Gemini gelten die Minutenlimits **je Modell**.
      Der Server verteilt gleichzeitige Anfragen deshalb von Anfang an auf alle Modelle des Anbieters (versetztes
@@ -802,7 +867,7 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
 | KI-Anfragen je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 800 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
-| KI-Anfragen je Feibeitsblatt | 600 pro Tag |
+| KI-Anfragen je Feibeitsblatt | 600 pro Tag (bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
 | Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
@@ -826,7 +891,10 @@ gespeichert.
 | „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“ | KI-Einstellungen speichern (Schritt 8). Abgeben (ohne KI-Feedback) geht trotzdem. |
 | „Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt).“ | Den Workflow „Deploy“ erneut ausführen; er legt das Secret an. Danach den API-Schlüssel eintragen. |
 | „Bitte den API-Schlüssel neu eintragen.“ | `SETTINGS_SECRET` wurde geändert. Schlüssel in den KI-Einstellungen neu eintragen. |
-| „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder in den KI-Einstellungen einen anderen Anbieter bzw. Schlüssel eintragen. Schüler:innen können jederzeit ohne KI-Feedback abgeben; wer es versucht hat, ist in den Abgaben als „das KI-Feedback war nicht möglich“ vermerkt – mit einem allgemeinen Grund wie „Anfrage nicht abgeschlossen“ oder (nach zwei Fehlversuchen) „KI nicht erreichbar“, nicht unbedingt mit dem Kontingent. |
+| „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder eine Reserve-KI bzw. einen anderen Anbieter eintragen. Schüler:innen können jederzeit ohne KI-Feedback abgeben; wer es versucht hat, ist in den Abgaben als „das KI-Feedback war nicht möglich“ vermerkt – bei Workers AI mit dem Grund „KI-Kontingent für heute aufgebraucht“, bei anderen Anbietern mit einem allgemeinen Grund wie „Anfrage nicht abgeschlossen“ oder (nach zwei Fehlversuchen) „KI nicht erreichbar“. Bei Workers AI zeigen die KI-Einstellungen „Tageskontingent aufgebraucht bis …“; ein erfolgreicher „Verbindung testen“ (z. B. nach einem Wechsel auf Workers Paid) hebt die Sperre vorzeitig auf. |
+| „Workers AI ist für diesen Worker nicht eingerichtet (Binding „AI“ fehlt).“ | Der veröffentlichte Worker ist älter als die aktuelle `wrangler.jsonc`. Den Workflow „Deploy“ erneut ausführen. |
+| „Workers AI antwortet nur im Cloudflare-Betrieb – in der lokalen Entwicklung …“ | Kein Fehler: Unter `wrangler dev --local` (`npm run dev`, Tests) gibt es keine Verbindung zu Workers AI. Lokal „Anderer OpenAI-kompatibler Dienst“ mit der Test-KI wählen (siehe [Entwicklung](#entwicklung)). |
+| Workflow scheitert bei `wrangler deploy` mit einem Rechtefehler zu Workers AI („AI“, „ai“) | Vermutlich fehlt dem Token eine Berechtigung (nicht dokumentiert). Im Token zusätzlich „Konto → Workers AI → Lesen“ ergänzen und den Workflow erneut starten; bis dahin bleibt die bisherige Version online. |
 | „Die KI ist gerade ausgelastet.“ / „Gerade fragen sehr viele gleichzeitig.“ | Minutenlimit des Anbieters oder Warteschlange voll; nach einer Minute erneut versuchen. |
 | „Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich.“ | Die Anfrage überschreitet das Limit aller verfügbaren Modelle. Aufträge an die KI und Aufgaben kürzen oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen. |
 | „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
@@ -917,6 +985,12 @@ Pfeile) und bettet das Ergebnis (≈ 120 KB) in `index.html` ein – die Seite l
 Nordzypern und Somaliland haben in den Daten keine ISO-Kennung und sind nicht anklickbar. Natural Earth zeichnet
 tatsächliche Grenzverläufe („de facto“); abweichend davon gehört die Krim hier zur Ukraine.
 
+**Workers AI lokal:** `wrangler.jsonc` enthält das Binding `"ai": { "binding": "AI", "remote": true }`. Unter
+`wrangler dev --local` (so starten `npm run dev`, Smoke- und Browser-Tests) braucht es kein Cloudflare-Konto; `env.AI`
+ist dann zwar vorhanden, jeder Aufruf scheitert aber („Binding AI needs to be run remotely“) – „Verbindung testen“
+meldet das. Die Unit-Tests ersetzen das Binding durch eine Attrappe (`mockAIBinding` in `test/mock-ai.mjs`); echte
+Antworten von Workers AI gibt es erst nach dem Veröffentlichen.
+
 **Lokale Test-KI:** `node test/mock-ai.mjs --port 8812` startet einen OpenAI-kompatiblen Test-Server. In den
 KI-Einstellungen dann „Anderer OpenAI-kompatibler Dienst“ wählen, Basis-URL `http://127.0.0.1:8812/v1`, ein
 beliebiger API-Schlüssel (der Schlüssel `bad` simuliert einen abgelehnten Schlüssel) und z. B. das Modell
@@ -944,7 +1018,7 @@ andernfalls findet die Seite diese Zwischenstände stillschweigend nicht mehr.
 | `worker/index.js` | Cloudflare Worker: API unter `/api/…`, Datenbank, Sperren, Lehrkraft-Anmeldung |
 | `worker/lib.js` | Hilfsfunktionen: Prüfung der Eingaben, Codes, Lastbegrenzung, Verschlüsselung des API-Schlüssels |
 | `worker/ai.js` | KI-Anbieter, Prompt für das Feedback, Auswertung der Antworten, Ausweichmodelle |
-| `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, statische Seite aus `dist/`) |
+| `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, Workers AI ohne AI Gateway, statische Seite aus `dist/`) |
 | `scripts/build.mjs` | Build-Skript für `dist/` |
 | `scripts/worldmap.mjs` | erzeugt die eingebettete Weltkarte (Natural Earth über world-atlas, Equal Earth, deutsche Namen) |
 | `test/` | Unit-Tests, API-Durchlauf, Test-KI, Browser-Tests |

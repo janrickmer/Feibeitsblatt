@@ -215,7 +215,24 @@ async function main() {
     step = "KI-Einstellungen";
     let auth = T.authKey;
     r = await api("GET", "/api/teacher/ai", undefined, { auth });
-    assert.equal(r.json.provider, "groq"); assert.equal(r.json.hasKey, false); assert.equal(r.json.keyHint, "");
+    // Vorauswahl Workers AI, aber erst nach „Speichern“ aktiv
+    assert.equal(r.json.provider, "cloudflare"); assert.equal(r.json.hasKey, false); assert.equal(r.json.keyHint, ""); assert.equal(r.json.ready, false); assert.equal(r.json.saved, false);
+    // Workers AI lokal: das Binding steht in wrangler.jsonc, gespeichert wird ohne Schlüssel; jeder Aufruf scheitert mit Hinweis (kein Konto nötig)
+    r = await api("PUT", "/api/teacher/ai", { provider: "cloudflare", model: "" }, { auth });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.ready, true); assert.equal(r.json.warning, undefined); assert.equal(r.json.keyHint, "");
+    r = await api("POST", "/api/teacher/ai/test", undefined, { auth });
+    expectErr(r, 502, "ai_error"); assert.match(r.json.error, /lokalen Entwicklung/); assert.equal(r.json.aiCode, "CONFIG");
+    {   // Empfänger für den Datenschutzhinweis; Feedback lokal → 503 ai_not_configured
+      const t = await api("POST", "/api/teacher/sheets", { title: "Workers AI", tasks: [{ text: "Frage", solution: "- Licht" }] }, { auth });
+      assert.equal(t.status, 200, t.text);
+      r = await api("GET", "/api/sheet/" + t.json.code);
+      assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "cloudflare", label: "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert" }]);
+      r = await api("POST", "/api/feedback", { code: t.json.code, answers: ["Licht"] }); feedbackCount++;
+      expectErr(r, 503, "ai_not_configured");
+      assert.equal((await api("DELETE", "/api/teacher/sheets/" + t.json.code, undefined, { auth })).status, 200);
+    }
+    r = await api("PUT", "/api/teacher/ai", { provider: "groq", model: "" }, { auth });   // zurück: ohne Schlüssel nicht nutzbar
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.hasKey, false); assert.equal(r.json.saved, true);
     expectErr(await api("PUT", "/api/teacher/ai", { provider: "custom", model: "", baseUrl: "http://example.com/v1", apiKey: "test" }, { auth }), 400, "bad_request");
     expectErr(await api("PUT", "/api/teacher/ai", { provider: "unbekannt", model: "" }, { auth }), 400, "bad_request");
     expectErr(await api("POST", "/api/teacher/ai/test", undefined, { auth }), 400, "ai_not_configured");
@@ -233,7 +250,7 @@ async function main() {
     assert.equal(r.status, 200, r.text);
     assert.equal(r.json.sample, "Verbindung steht."); assert.equal(r.json.model, "openai/gpt-oss-120b"); assert.equal(r.json.provider, "custom");
     assert.equal(mock.state.requests.length, 1);
-    ok("KI: Vorgabe groq ohne Schlüssel; custom + Mock speichern (keyHint …test, Ausweich-Liste), Test → sample");
+    ok("KI: Vorauswahl Workers AI nicht aktiv; gespeichert ohne Schlüssel, lokal → CONFIG mit Hinweis, Empfänger Cloudflare; custom + Mock speichern (keyHint …test, Ausweich-Liste), Test → sample");
 
     step = "Feibeitsblatt anlegen";
     const tasks = [
@@ -429,7 +446,7 @@ async function main() {
     assert.equal(r.json.aiCode, "BAD_JSON");
     mock.setMode("429");
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
-    expectErr(r, 502, "ai_error", "Das KI-Kontingent für heute ist aufgebraucht. Bitte frag deine Lehrkraft.");
+    expectErr(r, 502, "ai_error", "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.");   // Tageslimit eines Anbieters mit Schlüssel: 502 (nur Workers AI: 503 ai_quota)
     mock.setMode("ok");
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
     assert.equal(r.status, 200, "erschöpfte Modelle bleiben als letzte Wahl nutzbar: " + r.text);

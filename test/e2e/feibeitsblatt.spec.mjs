@@ -74,6 +74,10 @@ const E = {
   first: ["Das Gewissen ist wie eine innere Stimme.", "Ich habe gelogen.", "Nicht gut."],
 };
 const RECIPIENT_SUFFIX = " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";   // Empfänger-Label des eigenen Dienstes
+// KI-Einstellungen: Workers AI ohne Schlüssel; Reserve im selben Cloudflare-Konto
+const KEYLESS_HINT = "Kein API-Schlüssel nötig – der Server nutzt Workers AI in seinem eigenen Cloudflare-Konto.";
+const AI_SAME_ACCOUNT = "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.";
+const QUOTA_REASON = "KI-Kontingent für heute aufgebraucht";
 const FB_VOLUNTARY = "Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.";
 const FIN_TEXT = "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
 const SUBMIT_HINT_NO_FB = "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
@@ -170,6 +174,8 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#screen-teacher")).toHaveClass(/active/, { timeout: 60_000 });
   await expect(page.locator("#tv-overview h1")).toHaveText("Lehrkräfte-Übersicht");
   await expect(page.locator("#t-aiwarn")).toBeVisible();
+  // Vorauswahl Workers AI ist noch nicht gespeichert: ein Hinweis, keine doppelte Aufforderung
+  await expect(page.locator("#t-aiwarn")).toHaveText("Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte wählen Sie unter „KI-Einstellungen“ einen Anbieter (empfohlen: Cloudflare Workers AI, ohne API-Schlüssel) und klicken Sie auf „Speichern“.");
   await expect(page.locator("#t-sheets-body")).toContainText("Noch keine Feibeitsblätter");
 
   // Die Einrichtung geht nur einmal (409), und die Tür liefert jetzt die KDF-Parameter fürs Anmelden
@@ -179,11 +185,72 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   const door = await (await request.post("/api/teacher/door", { data: { doorCode: "1104" } })).json();
   expect(door).toMatchObject({ ok: true, setup: true, kdf: { iterations: 600000 } });
 
-  // KI-Einstellungen: anderer OpenAI-kompatibler Dienst = Mock-KI
+  // KI-Einstellungen: Vorauswahl Cloudflare Workers AI – ohne Schlüssel, aktiv erst nach „Speichern“; lokal (wrangler dev --local)
+  // antwortet Workers AI nie, der Verbindungstest sagt das
   await page.click("#t-ai");
   await expect(page.locator("#tv-ai")).toBeVisible();
   await expect(page.locator("#ai-save")).toBeEnabled();
-  await expect(page.locator("#ai-prov")).toHaveValue("groq");
+  await expect(page.locator("#ai-prov")).toHaveValue("cloudflare");
+  await expect(page.locator("#ai-prov option:checked")).toHaveText("Cloudflare Workers AI – Empfehlung (ohne API-Schlüssel)");
+  const cfInfo = page.locator('.provinfo[data-prov="cloudflare"]');
+  await expect(cfInfo).toBeVisible();
+  await expect(cfInfo).toContainText("Die Datenbank liegt in der EU, die KI-Verarbeitung durch Workers AI kann aber auch außerhalb der EU stattfinden");
+  await expect(cfInfo).toContainText("Der Server nutzt kein AI Gateway");
+  await expect(page.locator("#ai-key-field")).toBeHidden();
+  await expect(page.locator("#ai-keyless-hint")).toHaveText(KEYLESS_HINT + " Aktiv wird Workers AI erst, wenn Sie „Speichern“ klicken.");
+  await expect(page.locator("#ai-usage")).toHaveText("Heute (UTC) geschätzt verbraucht: ca. 0 von 10 000 Neurons (0 Anfragen) – genau im Cloudflare-Dashboard unter „Workers AI“.");
+  await page.click("#ai-test");   // nicht gespeichert: nichts wird getestet
+  await expect(page.locator("#ai-status")).toHaveText("Bitte zuerst „Speichern“ klicken – erst dann ist Workers AI aktiv.");
+  await page.click("#ai-save");
+  await expect(page.locator("#ai-status")).toHaveText("Gespeichert. Kostenloses Kontingent: 10 000 Neurons pro Tag für das ganze Cloudflare-Konto (Neustart 0:00 Uhr UTC). Mit „Verbindung testen“ prüfen Sie, ob die KI antwortet.");
+  await expect(page.locator("#ai-keyless-hint")).toHaveText(KEYLESS_HINT);
+  await page.click("#ai-test");
+  await expect(page.locator("#ai-status")).toHaveText(/lokalen Entwicklung \(wrangler dev --local\) gibt es keine Verbindung/, { timeout: 60_000 });
+  await expect(page.locator("#ai-status")).toHaveClass(/\bbad\b/);
+  // Eine Reserve im selben Cloudflare-Konto: sofort ein Hinweis, „Reserve speichern“ fragt gar nicht erst
+  await page.selectOption("#ai2-prov", "cloudflare");
+  await expect(page.locator("#ai2-status")).toHaveText(AI_SAME_ACCOUNT);
+  await expect(page.locator("#ai2-key-field")).toBeHidden();
+  await page.click("#ai2-save");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#ai2-status")).toHaveText(AI_SAME_ACCOUNT);
+  // Ungeeignete Reserve: die Warnung steht im selben Dialog wie der weitere Empfänger (ein Dialog, nicht zwei); Abbrechen speichert nichts
+  await page.selectOption("#ai2-prov", "gemini");
+  await expect(page.locator("#ai2-status")).toHaveText("");
+  await expect(page.locator("#ai2-info .provwarn")).toHaveText(/^Nicht für den Schuleinsatz geeignet: Laut den Zusatzbedingungen der Gemini-API/);
+  await page.fill("#ai2-key", "AIza-e2e-nicht-gespeichert");
+  await page.check("#ai2-gemini-ok");
+  await page.click("#ai2-save");
+  await expect(page.locator("#dlg-ok")).toHaveText("Trotzdem speichern");
+  expect(await confirmDialog(page, "Weiteren KI-Empfänger hinzufügen?", false)).toMatch(/^Achtung: „Google Gemini“ ist für den Einsatz mit Schüler:innen nicht geeignet: Laut den Zusatzbedingungen [\s\S]* freigegeben hat\.\n\nMit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „Google \(Gemini-API/);
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#ai2-key-hint")).toHaveText("Keine Reserve-KI eingerichtet.");
+  await page.fill("#ai2-key", "");
+  await page.selectOption("#ai2-prov", "groq");
+  await expect(page.locator("#ai2-status")).toHaveText("");
+  // Ungeeignete Anbieter: gekennzeichnet (Option, roter Hinweis), Speichern nur nach Bestätigung – Abbrechen speichert nichts
+  await page.fill("#ai-model", "@cf/test/x");
+  await page.selectOption("#ai-prov", "gemini");
+  await expect(page.locator("#ai-model")).toHaveValue("");   // eine Modell-ID passt nur zu ihrem Anbieter
+  await expect(page.locator("#ai-prov option:checked")).toHaveText("Google Gemini – nicht für den Schuleinsatz geeignet");
+  const warn = page.locator('.provinfo[data-prov="gemini"] .provwarn');
+  await expect(warn).toBeVisible();
+  await expect(warn).toHaveText(/^Nicht für den Schuleinsatz geeignet: Laut den Zusatzbedingungen der Gemini-API \(Stand 28\.04\.2026\) müssen Nutzer:innen mindestens 18 Jahre alt sein/);
+  await expect(warn).toHaveCSS("color", RED);
+  await expect(page.locator("#ai-key-field")).toBeVisible();
+  await expect(page.locator("#ai-key-hint")).toHaveText("Noch kein Schlüssel gespeichert.");
+  await page.fill("#ai-key", "AIza-e2e-nicht-gespeichert");
+  await page.check("#ai-gemini-ok");
+  await page.click("#ai-save");
+  expect(await confirmDialog(page, "Anbieter trotz Warnung speichern?", false)).toMatch(/^„Google Gemini“ ist für den Einsatz mit Schüler:innen nicht geeignet: Laut den Zusatzbedingungen .* Speichern Sie diesen Anbieter nur, wenn Ihre Schule ihn ausdrücklich geprüft und freigegeben hat\.$/);
+  await expect(page.locator("#ai-status")).toHaveText("");
+  for (const pv of ["openrouter", "cerebras"]) await expect(page.locator('#ai-prov option[value="' + pv + '"]')).toHaveText(/ – nicht für den Schuleinsatz geeignet$/);
+  await page.click("#ai-back");
+  await expect(page.locator("#t-aiinfo")).toHaveText("KI-Feedback über Cloudflare Workers AI.");   // gespeichert bleibt Workers AI
+  await page.click("#t-ai");
+  await expect(page.locator("#ai-prov")).toHaveValue("cloudflare");
+  await expect(page.locator("#ai-key")).toHaveValue("");
+  // anderer OpenAI-kompatibler Dienst = Mock-KI
   await page.selectOption("#ai-prov", "custom");
   await expect(page.locator("#ai-base-field")).toBeVisible();
   await expect(page.locator('.provinfo[data-prov="custom"]')).toBeVisible();
@@ -1864,6 +1931,71 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await t.page.click("#t-del-sheet");
   await confirmDialog(t.page, "Feibeitsblatt löschen?");
   await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort den Weg ohne KI-Feedback (kein automatischer Versuch), R nach der Abgabe keine Wiederholung der zweiten Rückmeldung; die Lehrkraft sieht den Grund", async ({ browser }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Kontingent");
+  for (let i = 0; i < 2; i++) { await tp.fill("#bq-" + (i + 1), TASKS[i].text); await tp.fill("#bs-" + (i + 1), TASKS[i].solution); }
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shownQ = (await tp.locator("#b-res-code").textContent()).trim();
+  const quota = (route) => route.fulfill({ status: 503, contentType: "application/json",
+    body: JSON.stringify({ ok: false, error: "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.", code: "ai_quota", aiCode: "DAILY_LIMIT" }) });
+
+  // Q: schon die erste Anfrage trifft auf das aufgebrauchte Kontingent
+  const Q = { input: { vorname: "quirin", nachname: "qu", geb: "--11-11", klasse: "8a" }, first: ["Das Gewissen ist eine innere Stimme.", "Ich habe gelogen."] };
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shownQ);
+  await fillPerson(page, Q.input);
+  for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), Q.first[i]);
+  await page.route("**/api/feedback", quota);
+  await page.click("#fb-btn");
+  await confirmDialog(page, "KI-Feedback anfordern?");
+  await expect(page.locator("#fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht. Du kannst ohne KI-Feedback abgeben oder es morgen noch einmal versuchen.");
+  await expect(page.locator("#fb-fallback")).toHaveText("Das KI-Feedback ist gerade nicht möglich (" + QUOTA_REASON + "). Du kannst es morgen noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.");
+  await expect(page.locator("#fb-wait")).toBeHidden();   // kein automatischer neuer Versuch
+  await page.waitForTimeout(500);
+  expect((await s.calls((r) => r.path === "/api/feedback")).length).toBe(1);
+  await page.click("#submit-btn");
+  expect(await confirmDialog(page, "Ohne KI-Feedback abgeben?")).toBe("Das KI-Feedback hat bisher nicht geklappt (" + QUOTA_REASON + "). Du kannst es morgen noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI. Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb")).toBeHidden();
+  await closePage(s);
+
+  // R: bekommt das erste Feedback, überarbeitet und gibt ab – die zweite Rückmeldung trifft auf das aufgebrauchte Kontingent
+  const R = { input: { vorname: "rosa", nachname: "ro", geb: "--12-12", klasse: "8a" }, first: ["Eine innere Stimme.", "Ich habe geschummelt."] };
+  const s2 = await openPage(browser);
+  const p2 = s2.page;
+  await enterCode(p2, shownQ);
+  await fillPerson(p2, R.input);
+  for (let i = 0; i < 2; i++) await typeAt(p2, "#a-" + (i + 1), R.first[i]);
+  await requestFeedback(p2);
+  await typeAt(p2, "#a-2", " Das war unfair.");
+  await p2.route("**/api/feedback", quota);
+  await submit(p2);
+  await expect(p2.locator("#done-fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht – eine Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht. Deine Abgabe ist davon nicht betroffen.", { timeout: 30_000 });
+  await expect(p2.locator("#done-fb-retry")).toBeHidden();
+  await p2.waitForTimeout(500);
+  expect((await s2.calls((r) => r.path === "/api/feedback")).map((r) => r.status)).toEqual([200, 503]);
+  await closePage(s2);
+
+  // Lehrkraft: Q mit Grund, R wie gewohnt; danach aufräumen
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shownQ);
+  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(2);
+  await tp.click("#t-expand-all");
+  const notes = tp.locator("#t-subs-body tr.details .moodle-hint");
+  await expect(notes).toHaveCount(1);
+  await expect(notes).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (" + QUOTA_REASON + ").");
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   await closePage(t);
 });
 
