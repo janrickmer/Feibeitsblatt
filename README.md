@@ -106,14 +106,14 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
 6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Der Button
    „Abgeben“ ist bis dahin ausgegraut. Nach einer Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet:
    erste Fassung, überarbeitete Fassung und das KI-Feedback. War die Abgabe technisch erfolgreich, erscheint die
-   Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt. Darunter steht der Button
-   **„Meine Lösungen als PDF herunterladen“** mit dem Hinweis, die Datei zur Sicherheit in den eigenen Unterlagen zu
-   speichern – erstens, um die Lösungen vorzeigen zu können, falls die Abgabe die Lehrkraft wegen technischer
-   Probleme doch nicht erreicht, und zweitens, weil alle Lösungen zum Lernen für Klausur, Klassenarbeit bzw.
-   schriftlichen Leistungsnachweis gebraucht werden.
+   Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt. Direkt darunter – noch über
+   der KI-Rückmeldung zur abgegebenen Fassung – steht der Button **„Lade dir deine Lösungen herunter und speichere sie
+   in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, Fassungen und KI-Rückmeldungen) und darunter
+   klein und blass: „Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte
+   erlernt hast.“
    **Zweite KI-Rückmeldung:** Direkt nach der Abgabe gehen die abgegebenen Antworten auf demselben Weg wie beim
    ersten Feedback noch einmal an die KI (ohne Kürzel, Geburtsdatum und Klasse; der Abgabe-Dialog nennt die
-   Empfänger). Über dem PDF-Button erscheint dann „KI-Rückmeldung zu deiner abgegebenen Fassung“: je Aufgabe neue
+   Empfänger). Unter dem Download-Button erscheint dann „KI-Rückmeldung zu deiner abgegebenen Fassung“: je Aufgabe neue
    Stichpunkte „Das gelingt dir schon“ und „Tipps zum Weiterlernen“ – ohne Zählung, denn der Auftrag ist keine Liste
    zum Abhaken. Die Abgabe ist zu diesem Zeitpunkt schon
    angekommen und hängt nie von der KI ab. Ist die KI ausgelastet, wiederholt die Seite automatisch wie beim ersten

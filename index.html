@@ -129,9 +129,7 @@
   .done-check{width:104px; height:104px; margin:6px auto 2px; display:block}
   .done-check circle{fill:var(--green)}
   .done-check path{fill:none; stroke:#fff; stroke-width:7; stroke-linecap:round; stroke-linejoin:round}
-  .donehint{font-family:var(--sans); font-size:13.5px; color:var(--ink); margin:14px 0 4px; text-align:left}
-  .donelist{font-family:var(--sans); font-size:13.5px; color:var(--muted); margin:0 0 14px; padding-left:22px; text-align:left}
-  .donelist li{margin:4px 0}
+  .donenote{font-family:var(--sans); font-size:12.5px; line-height:1.45; color:var(--muted); margin:8px 0 18px; text-align:left}
   .donefb{margin:0 0 22px; text-align:left; font-family:var(--sans)}
   .donefb-h{font-family:var(--sans); font-size:16px; font-weight:700; margin:0 0 6px}
   .donefb .status{margin:0 0 4px}
@@ -705,6 +703,9 @@
       <h1 id="done-h">Abgabe erfolgreich</h1>
       <p class="sub">Deine Lösung ist bei deiner Lehrkraft angekommen.</p>
       <p class="donetime" id="done-time"></p>
+      <button type="button" class="btn block" id="done-pdf" aria-describedby="done-pdf-note">Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht</button>
+      <p class="donenote" id="done-pdf-note">Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.</p>
+      <p class="status" id="done-status" aria-live="polite"></p>
       <div class="donefb hidden" id="done-fb">
         <h2 class="donefb-h">KI-Rückmeldung zu deiner abgegebenen Fassung</h2>
         <p class="status" id="done-fb-status" aria-live="polite"></p>
@@ -712,13 +713,6 @@
         <div id="done-fb-list"></div>
         <button type="button" class="btn ghost small hidden" id="done-fb-retry">Rückmeldung erneut anfordern</button>
       </div>
-      <button type="button" class="btn block" id="done-pdf">Meine Lösungen als PDF herunterladen</button>
-      <p class="donehint">Lade dir zur Sicherheit deine Lösungen als PDF-Datei herunter und speichere sie in deinen Unterlagen – aus zwei Gründen:</p>
-      <ol class="donelist">
-        <li>Falls es doch zu technischen Problemen kommt und deine Abgabe die Lehrkraft nicht erreicht, kannst du deine Lösungen vorzeigen.</li>
-        <li>Alle Lösungen brauchst du zum Lernen für die Klausur, die Klassenarbeit bzw. den schriftlichen Leistungsnachweis – darum gehören sie in deine Unterlagen.</li>
-      </ol>
-      <p class="status" id="done-status" aria-live="polite"></p>
       <button type="button" class="btn ghost block" id="done-btn">Neues Feibeitsblatt öffnen</button>
     </div>
   </div>
@@ -2955,7 +2949,7 @@ $("done-pdf").addEventListener("click", () => {
     if (Array.isArray(sub.feedback) && !sub.feedback2 && !sub.fb2Final) {   // die zweite Rückmeldung fehlt noch: hinweisen und später erinnern
       sub.pdfBeforeFb2 = true;
       setStatus(st, sub.fb2State === "loading"
-        ? "Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung ist noch nicht darin. Lade die Datei noch einmal herunter, sobald die Rückmeldung oben erscheint."
+        ? "Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung ist noch nicht darin. Lade die Datei noch einmal herunter, sobald die Rückmeldung darunter erscheint."
         : "Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung fehlt darin noch. Wenn „Rückmeldung erneut anfordern“ klappt, lade die Datei danach noch einmal herunter.", "ok");
     } else setStatus(st, "Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.", "ok");
   } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuche es noch einmal.", "bad"); }
@@ -3434,7 +3428,7 @@ async function sendFirstAttempt() {
  * (ohne Namenskürzel, Geburtsdatum und Klasse, an dieselben Empfänger) noch einmal an die KI. Neu beurteilt werden nur
  * Aufgaben, die die KI beurteilt (Stichpunkte im ersten Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht
  * (fbText); für alle anderen gilt die erste Rückmeldung weiter. Hat sich nichts davon geändert, wird gar nicht gefragt. Die
- * Rückmeldung steht auf der Bestätigungsseite und in „Meine Lösungen als PDF herunterladen“; sie bleibt nur im
+ * Rückmeldung steht auf der Bestätigungsseite und in der Lösungs-PDF (Download-Button #done-pdf); sie bleibt nur im
  * Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Ist die KI ausgelastet, wird automatisch wiederholt. */
 const FB2_MANUAL = 3;   // „Rückmeldung erneut anfordern“ nach einem vorübergehenden Fehler höchstens so oft
 const FB2_TRANSIENT = new Set(["ai_busy", "ai_error", "network", "timeout", "server_error", "rate_limited", "bad_result", "db_limit"]);
@@ -3604,7 +3598,7 @@ async function submitAll() {
     const d = toDate(r.receivedAt) || new Date();
     const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
     $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;
-    // Für „Meine Lösungen als PDF herunterladen“ auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
+    // Für den Download-Button (#done-pdf) auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
     S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
       feedback: payload.feedback, feedbackError: payload.feedbackError || "", receivedAt: d.getTime(),
       recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false };

@@ -68,9 +68,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   lokalen Stand nachfragen) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
   **Bestätigung nach der Abgabe** (`#screen-done`, nur nach HTTP 200 von `/api/submit`): großer grüner Haken
-  (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Button `#done-pdf` „Meine Lösungen als PDF
-  herunterladen“ und darunter der Hinweis mit den zwei Gründen (Vorzeigen bei technischen Problemen, Lernen für
-  Klausur/Klassenarbeit/Leistungsnachweis). `S.lastSubmission` (Code, Titel, Aufgabentexte, person, answers
+  (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, dann **ganz oben über der zweiten KI-Rückmeldung**
+  Button `#done-pdf` „Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“ und
+  direkt darunter klein und blass `#done-pdf-note` (`.donenote`, `aria-describedby`) „Es ist möglich, dass du mit diesen
+  Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.“, danach `#done-status` (Meldungen zum Download). `S.lastSubmission` (Code, Titel, Aufgabentexte, person, answers
   first/final, feedback, receivedAt) bleibt nur im Arbeitsspeicher bis „Neues Feibeitsblatt öffnen“ (`resetStudent`);
   `makeSolutionsPdf` baut mehrseitig mit denselben Bausteinen (`pdfWrap`/`pdfStr`/`latin1`/`pdfUtf16`): je Aufgabe
   Aufgabenstellung, abgegebene Fassung + „KI-Rückmeldung zur abgegebenen Fassung:“ (`sub.feedback2`, ohne Zählung;
@@ -94,7 +95,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Live-Region `#done-fb-status`), sonst `finalFeedbackFailed` + `#done-fb-retry` „Rückmeldung erneut anfordern“
   (höchstens `FB2_MANUAL` 3, nur bei vorübergehenden Fehlern `FB2_TRANSIENT`/429/5xx; endgültig → `finalFeedbackGone`,
   `fb2Final`). Anzeige `renderFinalFeedback` in
-  `#done-fb-list` über dem PDF-Button: je Aufgabe `.fbbox#done-fb-n` **ohne Zählung** (der Auftrag ist keine Liste zum
+  `#done-fb-list` unter dem Download-Button: je Aufgabe `.fbbox#done-fb-n` **ohne Zählung** (der Auftrag ist keine Liste zum
   Abhaken; nur bei `kept[i]` ohne `same` ein `.fb-sum` „Unverändert abgegeben – wie beim ersten Feedback.“) und denselben
   Listen wie im Editor (`appendFbLists`: „Das gelingt dir schon“ `.fb-sub.fb-ok` / `.fb-sub.fb-miss` – im Editor „Tipps zum
   Überarbeiten“, nach der Abgabe „Tipps zum Weiterlernen“). PDF ohne zweite Rückmeldung
