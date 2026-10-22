@@ -878,19 +878,26 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#done-fb")).toBeVisible();
   await expect(page.locator("#done-fb .donefb-h")).toHaveText("KI-Rückmeldung zu deiner abgegebenen Fassung");
   await expect(page.locator("#done-fb-status")).toHaveText("Die KI sieht sich deine abgegebene Fassung an … das kann bis zu einer Minute dauern.");
-  // Bestätigung: großer grüner Haken, Hinweis mit zwei Gründen, „Meine Lösungen als PDF herunterladen“ (mehrseitig möglich)
+  // Bestätigung: großer grüner Haken; Download-Button ganz oben über der zweiten KI-Rückmeldung, darunter ein kleiner, blasser Hinweis
   await expect(page.locator("#done-h")).toHaveText("Abgabe erfolgreich");
   await expect(page.locator("#screen-done .done-check")).toBeVisible();
   expect(await page.locator("#screen-done .done-check circle").evaluate((e) => getComputedStyle(e).fill)).toBe(GREEN);
   expect((await page.locator("#screen-done .done-check").boundingBox()).width).toBeGreaterThanOrEqual(96);
-  await expect(page.locator("#screen-done .donehint")).toContainText("aus zwei Gründen");
-  await expect(page.locator("#screen-done .donelist li")).toHaveCount(2);
-  await expect(page.locator("#screen-done .donelist li").nth(0)).toContainText("technischen Problemen");
-  await expect(page.locator("#screen-done .donelist li").nth(1)).toContainText("Klassenarbeit");
+  await expect(page.locator("#done-pdf")).toHaveText("Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht");
+  await expect(page.locator("#done-pdf-note")).toHaveText("Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.");
+  await expect(page.locator("#done-pdf")).toHaveAttribute("aria-describedby", "done-pdf-note");
+  expect(await page.$eval("#done-pdf", (e) => e.nextElementSibling.id)).toBe("done-pdf-note");   // Hinweis direkt unter dem Button
+  const [pdfBox, noteBox, fbBox] = await Promise.all(["#done-pdf", "#done-pdf-note", "#done-fb"].map((sel) => page.locator(sel).boundingBox()));
+  expect(pdfBox.y + pdfBox.height).toBeLessThanOrEqual(noteBox.y);
+  expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(fbBox.y);                              // Button und Hinweis über der Rückmeldung
+  const [noteCss, btnCss, mutedCss] = await page.evaluate(() => [getComputedStyle(document.getElementById("done-pdf-note")), getComputedStyle(document.getElementById("done-pdf")), getComputedStyle(document.querySelector("#screen-done .sub"))].map((c) => ({ size: parseFloat(c.fontSize), color: c.color })));
+  expect(noteCss.size).toBeLessThan(btnCss.size);                                                 // klein …
+  expect(noteCss.color).toBe(mutedCss.color);                                                     // … und blass (gedämpfte Farbe wie „Deine Lösung ist … angekommen.“)
+  await expect(page.locator("#screen-done .donehint, #screen-done .donelist")).toHaveCount(0);
   // PDF schon während die zweite Rückmeldung lädt: Hinweis in der Datei und auf der Seite
   const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   expect(sdl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Loesungen-" + S.shown + "-\\d{4}-\\d\\d-\\d\\d\\.pdf$"));
-  await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung ist noch nicht darin. Lade die Datei noch einmal herunter, sobald die Rückmeldung oben erscheint.");
+  await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung ist noch nicht darin. Lade die Datei noch einmal herunter, sobald die Rückmeldung darunter erscheint.");
   const sol = (await readFile(await sdl.path())).toString("latin1");
   expect(sol).toContain("(Die KI-R\\374ckmeldung zu deiner abgegebenen Fassung lag");
   expect(sol).not.toContain("(KI-R\\374ckmeldung zur abgegebenen Fassung");
