@@ -107,12 +107,25 @@ jobs:
           npx wrangler d1 info feibeitsblatt-db >/dev/null 2>&1 || npx wrangler d1 create feibeitsblatt-db --jurisdiction eu
 
       - name: Worker veröffentlichen
+        id: deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT }}
-        run: npx wrangler deploy
+        run: |
+          # wrangler lädt erst den Code hoch und setzt danach die Zeitpläne (Cron Trigger für die automatische Löschung). Ist das
+          # Cron-Kontingent des Kontos voll (Free: 5), scheitert nur dieser zweite Teil – der Code ist dann schon live.
+          set -o pipefail
+          if ! npx wrangler deploy 2>&1 | tee "$RUNNER_TEMP/deploy.log"; then
+            if grep -q "Cron schedules" "$RUNNER_TEMP/deploy.log"; then
+              echo "::error title=Zeitplan für die automatische Löschung nicht gesetzt::Der Worker ist veröffentlicht, aber der tägliche Zeitplan (Cron Trigger) ließ sich nicht setzen – meist ist das Cron-Kontingent des Cloudflare-Kontos voll. Gelöscht wird dann nur beim Öffnen der Lehrkräfte-Übersicht. Abhilfe: README, „Häufige Probleme“."
+            fi
+            exit 1
+          fi
 
+      # Läuft auch, wenn „Worker veröffentlichen“ gescheitert ist (z. B. nur am Zeitplan, siehe oben): Ohne SETTINGS_SECRET ließe sich
+      # bei einer Neuinstallation kein API-Schlüssel speichern. Nicht, wenn der Deploy gar nicht lief (frühere Schritte gescheitert).
       - name: SETTINGS_SECRET sicherstellen (verschlüsselt den KI-Schlüssel, Pfeffer der Rate-Limits)
+        if: ${{ !cancelled() && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'failure') }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT }}

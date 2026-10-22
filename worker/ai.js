@@ -15,10 +15,12 @@ export const PROVIDERS = {
   // kein Versetzen des Startmodells (spread:false): erst die Vorgabe, dann die Ausweichmodelle in fester Reihenfolge.
   cloudflare: { label: "Cloudflare Workers AI", kind: "workers-ai", keyless: true, accountDaily: true, spread: false,
     defaultModel: "@cf/google/gemma-4-26b-a4b-it", fallbacks: ["@cf/zai-org/glm-4.7-flash", "@cf/qwen/qwen3-30b-a3b-fp8"],
-    gapMs: 200, recipient: "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert", keyHint: "" },
+    gapMs: 200, recipient: "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert",
+    transfer: "EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln", keyHint: "" },
   groq: { label: "Groq", kind: "openai", base: "https://api.groq.com/openai/v1", defaultModel: "openai/gpt-oss-120b",
     gapMs: 2500, perModelGate: true,
     recipient: "Groq LLC (USA) – Vertragspartner im EWR: Groq UK Limited (London); Datenhaltung in den USA, Verarbeitung auch in anderen Ländern",
+    transfer: "Standardvertragsklauseln",
     maxTokensField: "max_completion_tokens", reasoning: "effort", keyHint: " Bitte unter console.groq.com → API Keys prüfen." },
   openrouter: { label: "OpenRouter", kind: "openai", base: "https://openrouter.ai/api/v1", freeOnly: true,
     keyCheck: ["/key", "/auth/key"], defaultModel: "openai/gpt-oss-120b:free", gapMs: 3500, reasoning: "object",
@@ -60,6 +62,10 @@ export function gateKey(provider, key, model) {
   return p && p.perModelGate && model ? key + "|" + String(model).slice(0, 120) : key;
 }
 export const RATE_LIMIT_TTL = { min: 5000, max: 90000, fallback: 30000 };   // Sperre eines Modells nach einem Minutenlimit (429)
+/* Grundlage der Übermittlung in ein Drittland (Art. 13 Abs. 1 Buchst. f DSGVO) laut Anbieter – nur wo sie belegt ist (Cloudflare:
+   Datenschutzerklärung, gültig ab 04.11.2025; Groq: Doku „Your Data“, abgerufen 22.10.2026); sonst muss die Schule sie prüfen */
+export const TRANSFER_UNKNOWN = "von der Schule beim Anbieter zu prüfen";
+export const recipientTransfer = (provider) => ((PROVIDERS[provider] || {}).transfer || TRANSFER_UNKNOWN);
 /* Empfänger für den Datenschutzhinweis der Schüler:innen: Rechtsträger und Sitz, beim eigenen Dienst der Host */
 export function recipientLabel(provider, baseUrl) {
   const p = PROVIDERS[provider]; if (!p) return null;

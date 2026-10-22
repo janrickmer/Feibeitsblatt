@@ -97,6 +97,41 @@ const LT_CONSENT = "Die Prüfung übernimmt LanguageTool (languagetool.org, Betr
 const LT_OFF = "Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.";
 const LT_PRIVACY = "Die Rechtschreibprüfung ist freiwillig, laut Anbieter erst ab 16 Jahren (mit 16 und 17 nur mit Erlaubnis deiner Eltern) und läuft nur nach deiner Bestätigung";
 const ATTEMPT = /^[0-9a-f]{16}$/;
+// Datenschutz: Angaben der Schule (frei erfunden), Vorschläge für Hessen, Kennzeichnung KI-erzeugter Inhalte
+const SCHOOL = { name: "Musterschule am See", address: "Seestraße 1, 65185 Wiesbaden, Tel. 0611 000000", dpo: "Datenschutzbeauftragte am Schulamt, datenschutz@example.org",
+  url: "https://example.org/datenschutz" };
+const HESSEN_BASIS = "Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs. 1 und § 83a Abs. 1 Nr. 2 Hessisches Schulgesetz (HSchG)";
+const HESSEN_AUTH = "Der Hessische Beauftragte für Datenschutz und Informationsfreiheit, Postfach 3163, 65021 Wiesbaden, poststelle@datenschutz.hessen.de";
+const PRIV_HEADS = ["Wer ist verantwortlich?", "Datenschutzbeauftragte:r deiner Schule", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
+  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Musst du mitmachen?", "Entscheidet die KI über dich?", "Deine Rechte"];
+const PRIV_MISSING_WARN = "Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch (Name der Schule, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage). Bis dahin sehen die Schüler:innen nur einen allgemeinen Hinweis – das genügt der Informationspflicht nach Art. 13 DSGVO nicht. Bitte tragen Sie die Angaben unter „Datenschutz und Löschfrist“ ein.";
+const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
+const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
+const DAYS = 14;   // Löschfrist, die die Lehrkraft in Test 1b speichert
+const deDate = (ms) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(ms));
+// KI-Kennzeichnung einer Box: [data-ai-generated, data-ai-content, data-digital-source-type] (null = nicht gekennzeichnet)
+const aiMarks = (loc) => loc.evaluate((e) => [e.getAttribute("data-ai-generated"), e.getAttribute("data-ai-content"), e.getAttribute("data-digital-source-type")]);
+// Aufbau einer im Browser erzeugten PDF-Datei prüfen: startxref → xref, jeder Eintrag zeigt auf „n 0 obj“, /Size stimmt, jede /Length
+// endet genau vor „endstream“ → {s (Latin-1), count, objAt(n) → Text des Objekts}
+function pdfStructure(buf) {
+  const s = buf.toString("latin1");
+  const sx = Number(/startxref\n(\d+)\n%%EOF\n$/.exec(s)[1]);
+  const head = /^xref\n0 (\d+)\n/.exec(s.slice(sx));
+  expect(head, "xref an startxref").not.toBeNull();
+  const count = Number(head[1]), rows = s.slice(sx + head[0].length).split("\n").slice(0, count), offs = [];
+  expect(rows[0]).toBe("0000000000 65535 f ");
+  for (let i = 1; i < count; i++) {
+    expect(rows[i]).toMatch(/^\d{10} 00000 n $/);
+    offs[i] = Number(rows[i].slice(0, 10));
+    expect(s.slice(offs[i], offs[i] + String(i).length + 6), "xref-Eintrag " + i).toBe(i + " 0 obj");
+  }
+  expect(s).toContain("/Size " + count + " /Root 1 0 R /Info 5 0 R");
+  for (const m of s.matchAll(/\/Length (\d+) >>\nstream\n/g)) {
+    const start = m.index + m[0].length;
+    expect(s.slice(start + Number(m[1]), start + Number(m[1]) + 10), "/Length bei Byte " + m.index).toBe("\nendstream");
+  }
+  return { s, count, objAt: (n) => s.slice(offs[n], s.indexOf("endobj", offs[n])) };
+}
 
 const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [], pdf: null };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe, pdf: PDF-Datei zu Aufgabe 2)
 // PDF-Datei der Lehrkraft zu Aufgabe 2 (600 KB → zwei Teile beim Hochladen und Herunterladen)
@@ -181,6 +216,9 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#t-aiwarn")).toBeVisible();
   // Vorauswahl Workers AI ist noch nicht gespeichert: ein Hinweis, keine doppelte Aufforderung
   await expect(page.locator("#t-aiwarn")).toHaveText("Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte wählen Sie unter „KI-Einstellungen“ einen Anbieter (empfohlen: Cloudflare Workers AI, ohne API-Schlüssel) und klicken Sie auf „Speichern“.");
+  // Neuinstallation: automatische Löschung nach 30 Tagen als Vorgabe; die Angaben der Schule für Art. 13 DSGVO fehlen noch
+  await expect(page.locator("#t-privwarn")).toHaveText(PRIV_MISSING_WARN);
+  await expect(page.locator("#t-privinfo")).toHaveText("Abgaben und Erstversuche werden 30 Tage nach dem Eingang automatisch gelöscht (Vorgabe – unter „Datenschutz und Löschfrist“ änderbar).");
   await expect(page.locator("#t-sheets-body")).toContainText("Noch keine Feibeitsblätter");
 
   // Die Einrichtung geht nur einmal (409), und die Tür liefert jetzt die KDF-Parameter fürs Anmelden
@@ -654,6 +692,125 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await closePage(t);
 });
 
+test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitHub Pages) → Lehrkraft trägt Schule, Rechtsgrundlage (Vorschlag Hessen) und Löschfrist ein; Vorschau wie bei den Schüler:innen", async ({ browser }) => {
+  // Schüler:in: Startseite und Angaben-Bildschirm (Zeitpunkt der Erhebung) – noch ohne Schulangaben, Frist 30 Tage (Vorgabe)
+  const s = await openPage(browser);
+  const sp = s.page;
+  await expect(sp.locator("#start-privacy")).toHaveText("Datenschutz: Beim Laden dieser Seite und beim Prüfen des Codes verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts. Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du, nachdem du den Code eingegeben hast.");
+  await enterCode(sp, S.shown);
+  await expect(sp.locator("#screen-person")).toHaveClass(/active/);
+  await expect(sp.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);   // die Angaben gehen schon mit dem KI-Feedback (Erstversuch) an die Lehrkraft
+  const short = sp.locator("#p-privacy-short");
+  await expect(short).toHaveText(/^Datenschutz: Verantwortlich ist deine Schule\. Gespeichert werden deine Angaben und Antworten nur verschlüsselt – lesen kann die gespeicherten Daten nur deine Lehrkraft\. Nach 30 Tagen werden sie automatisch gelöscht\. Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\.0\.0\.1:\d+ \(Betreiber und Sitz: von der Lehrkraft zu prüfen\)“\. Auch die Rechtschreibprüfung ist freiwillig\.$/);
+  const full = sp.locator("#p-privfull");
+  expect(await full.evaluate((e) => e.open)).toBe(false);   // aufklappbar
+  await full.locator("summary").click();
+  await expect(full.locator("summary")).toHaveText("Alle Informationen zum Datenschutz");
+  await expect(full.locator("h2.privh")).toHaveText(PRIV_HEADS);   // unter h1 „Deine Angaben“ → h2
+  await expect(full).toContainText("Deine Schule. Deine Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – frag sie danach.");
+  await expect(full).toContainText("Frag deine Lehrkraft nach den Kontaktdaten.");
+  await expect(full).toContainText("Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes.");
+  await expect(full).toContainText("wird 30 Tage nach dem Eingang auf dem Server automatisch gelöscht");
+  await expect(full).toContainText("bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)");
+  // nie behaupten, der Server sehe die Antworten nur verschlüsselt: für das KI-Feedback verarbeitet er sie kurz unverschlüsselt
+  await expect(full).toContainText("Für das KI-Feedback verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.");
+  await expect(full).toContainText("Grundlage einer Übermittlung außerhalb der EU: von der Schule beim Anbieter zu prüfen.");
+  await expect(full).toContainText("Learneo ist nach dem EU-US Data Privacy Framework zertifiziert");
+  await expect(full).toContainText("in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang.");
+  await expect(full).toContainText("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren.");
+  await expect(full.locator("a")).toHaveCount(0);   // ohne Angabe kein Link
+  await expect(full).not.toContainText("GitHub");   // die Seite kommt hier vom Worker
+  for (const w of ["sieht deine Angaben und Antworten nur verschlüsselt", "erst bei der Abgabe verschlüsselt an die Lehrkraft"]) await expect(sp.locator("#screen-person")).not.toContainText(w);
+  await closePage(s);
+
+  // dieselbe Seite über GitHub Pages ausgeliefert (FEIBEITSBLATT_API ≠ ""): GitHub ist ein weiterer Empfänger (IP-Adresse)
+  const gctx = await browser.newContext();
+  await gctx.addInitScript(() => { window.FEIBEITSBLATT_API = location.origin; });
+  const gp = await gctx.newPage();
+  await gp.goto("/");
+  await expect(gp.locator("#start-privacy")).toContainText("verarbeiten GitHub, Inc. (USA; liefert diese Seite aus) und Cloudflare, Inc. (USA; betreibt den Server dieser Seite)");
+  await enterCode(gp, S.shown);
+  await expect(gp.locator("#screen-person")).toHaveClass(/active/);
+  await gp.locator("#p-privfull summary").click();
+  await expect(gp.locator("#p-privfull li", { hasText: "GitHub" })).toHaveText("GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.");
+  await gctx.close();
+
+  // Lehrkraft: Warnung in der Übersicht → „Datenschutz und Löschfrist“
+  const t = await openPage(browser);
+  const page = t.page;
+  await teacherLogin(page, PW);
+  await expect(page.locator("#t-privwarn")).toHaveText(PRIV_MISSING_WARN);
+  await page.click("#t-privacy");
+  await expect(page.locator("#tv-privacy")).toBeVisible();
+  await expect(page.locator("#tv-privacy h1")).toHaveText("Datenschutz und Löschfrist");
+  await expect(page.locator("#pv-days")).toHaveValue("30");
+  await expect(page.locator("#pv-days option")).toHaveText(["7 Tagen", "14 Tagen", "30 Tagen (Vorgabe)", "60 Tagen", "90 Tagen", "180 Tagen", "365 Tagen"]);
+  await expect(page.locator("#pv-status")).toHaveText("Die Löschfrist von 30 Tagen ist die Vorgabe dieser Installation – mit „Speichern“ legen Sie sie selbst fest.");
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
+  const pv = page.locator("#pv-preview");
+  expect(await pv.locator("details.privfull").evaluate((e) => e.open)).toBe(true);   // Vorschau aufgeklappt
+  await expect(pv.locator("h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(pv).toContainText("Verantwortlich ist deine Schule.");
+  await page.fill("#pv-name", SCHOOL.name);
+  await page.fill("#pv-addr", SCHOOL.address);
+  await page.fill("#pv-dpo", SCHOOL.dpo);
+  await page.fill("#pv-url", "http://example.org/datenschutz");   // nur https
+  await page.click("#pv-save");
+  await expect(page.locator("#pv-status")).toHaveText("Bitte geben Sie die Datenschutzerklärung der Schule als vollständige Adresse mit https:// an (höchstens 500 Zeichen).");
+  await expect(page.locator("#pv-url")).toHaveClass(/invalid/);
+  await expect(page.locator("#pv-url")).toBeFocused();
+  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value)).toMatchObject({ retentionDays: 30, auto: true });   // nichts gespeichert
+  await page.fill("#pv-url", SCHOOL.url);
+  // Vorschläge für Hessen: leere Felder ohne Nachfrage; eigene Eingaben nur nach Bestätigung ersetzen
+  await expect(page.locator("#pv-hessen-hint")).toContainText("Voraussetzung: Ihre Schule führt Feibeitsblatt selbst ein (Schulleitung, Datenschutzbeauftragte:r). Bitte abstimmen.");
+  await page.click("#pv-hessen");
+  await expect(page.locator("#pv-basis")).toHaveValue(HESSEN_BASIS);
+  await expect(page.locator("#pv-auth")).toHaveValue(HESSEN_AUTH);
+  await page.fill("#pv-auth", "Eigene Angabe");
+  await page.click("#pv-hessen");
+  expect(await confirmDialog(page, "Vorschläge einsetzen?", false)).toBe("Ihre Eingaben bei „Rechtsgrundlage“ und „Aufsichtsbehörde“ werden durch die Vorschläge für Hessen ersetzt.");
+  await expect(page.locator("#pv-auth")).toHaveValue("Eigene Angabe");
+  await page.click("#pv-hessen");
+  await confirmDialog(page, "Vorschläge einsetzen?");
+  await expect(page.locator("#pv-auth")).toHaveValue(HESSEN_AUTH);
+  // Vorschau mit den (noch ungespeicherten) Eingaben – derselbe Baustein wie bei den Schüler:innen
+  await page.selectOption("#pv-days", String(DAYS));
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
+  await expect(pv.locator(".privacy")).toContainText("Verantwortlich ist " + SCHOOL.name + ".");
+  await expect(pv.locator(".privacy")).toContainText("Nach " + DAYS + " Tagen werden sie automatisch gelöscht.");
+  await expect(pv).toContainText(SCHOOL.name + ", " + SCHOOL.address + ". Bei Fragen kannst du dich auch an deine Lehrkraft wenden.");
+  await expect(pv).toContainText(SCHOOL.dpo);
+  await expect(pv).toContainText(HESSEN_BASIS);
+  await expect(pv).toContainText("Für Übermittlungen in die USA stützt sich Cloudflare auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.");
+  await expect(pv).toContainText("beschweren – zuständig ist: " + HESSEN_AUTH + ".");
+  const link = pv.locator("a");
+  await expect(link).toHaveAttribute("href", SCHOOL.url);
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(link.locator(".sr-only")).toHaveText(" (öffnet in neuem Tab)");
+  await page.click("#pv-save");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.");
+  await expect(page.locator("#pv-status")).toHaveClass(/\bok\b/);
+  const stored = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value);
+  expect(stored).toMatchObject({ v: 1, retentionDays: DAYS, school: { ...SCHOOL, legalBasis: HESSEN_BASIS, authority: HESSEN_AUTH } });
+  expect(stored.auto).toBeUndefined();   // jetzt von der Lehrkraft festgelegt
+  await page.click("#pv-back");   // gespeichert → ohne Nachfrage zurück
+  await expect(page.locator("#tv-overview")).toBeVisible();
+  await expect(page.locator("#t-privwarn")).toBeHidden();
+  await expect(page.locator("#t-privinfo")).toHaveText("Datenschutzhinweis für: " + SCHOOL.name + ". Abgaben und Erstversuche werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht.");
+  // ungespeicherte Änderung → Nachfrage beim Zurückgehen
+  await page.click("#t-privacy");
+  await expect(page.locator("#pv-name")).toHaveValue(SCHOOL.name);
+  await expect(page.locator("#pv-days")).toHaveValue(String(DAYS));
+  await expect(page.locator("#pv-status")).toHaveText("");
+  await page.fill("#pv-name", "Andere Schule");
+  await page.click("#pv-back");
+  await confirmDialog(page, "Ohne Speichern zurück?");
+  await expect(page.locator("#tv-overview")).toBeVisible();
+  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value).school.name).toBe(SCHOOL.name);
+  await closePage(t);
+});
+
 test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld wächst, LanguageTool, KI-Feedback, Überarbeiten, Abgabe", async ({ browser }) => {
   const s = await openPage(browser, { clipboard: true });
   const { page } = s;
@@ -665,6 +822,22 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(lookup.status).toBe(200);
   await expect(page.locator("#p-sheet")).toContainText(TITLE);
   await expect(page.locator("#p-sheet small")).toHaveText("Code " + S.shown + " · 3 Aufgaben");
+  // Datenschutzhinweis zum Zeitpunkt der Erhebung: mit den Angaben der Schule (Test 1b), alles nur per textContent
+  await expect(page.locator("#p-privacy-short")).toContainText("Verantwortlich ist " + SCHOOL.name + ". Gespeichert werden deine Angaben und Antworten nur verschlüsselt – lesen kann die gespeicherten Daten nur deine Lehrkraft. Nach " + DAYS + " Tagen werden sie automatisch gelöscht.");
+  await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);
+  const pfull = page.locator("#p-privfull");
+  await pfull.locator("summary").click();
+  await expect(pfull).toContainText(SCHOOL.name + ", " + SCHOOL.address + ".");
+  await expect(pfull).toContainText(SCHOOL.dpo);
+  await expect(pfull).toContainText(HESSEN_BASIS);
+  await expect(pfull).toContainText("Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU.");
+  await expect(pfull).toContainText("LanguageTool (Learneo, Inc., USA)");
+  await expect(pfull).toContainText("zuständig ist: " + HESSEN_AUTH + ".");
+  await expect(pfull).toContainText("wird " + DAYS + " Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach)");
+  await expect(pfull.locator("a")).toHaveAttribute("href", SCHOOL.url);
+  await expect(pfull.locator("a")).toHaveAttribute("target", "_blank");
+  expect(await pfull.locator("a").getAttribute("rel")).toBe("noopener noreferrer");
+  await pfull.locator("summary").click();   // wieder zu
 
   // Angaben: Prüfungen der Reihe nach
   const err = page.locator("#p-err");
@@ -829,7 +1002,14 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(privacy).toContainText("speichert selbst nichts davon");
   await expect(privacy).toContainText("Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI");
   await expect(privacy).toContainText("LanguageTool");
+  await expect(privacy).toContainText("(Cloudflare, Inc., USA; Datenbank in der EU)");
+  await expect(privacy).toContainText("Erstversuch und Abgabe werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen.");
+  await expect(privacy).not.toContainText("Die Lehrkraft löscht alles nach der Durchsicht.");
   expect(await privacy.evaluate((e) => getComputedStyle(e).color)).toBe("rgb(111, 103, 90)");
+  // darunter alle Informationen (beim Weiterschreiben gibt es keinen Angaben-Bildschirm) – Überschriften unter h2 „Abschluss“ als h3
+  await expect(page.locator("#privfull-ed details.privfull summary")).toHaveText("Alle Informationen zum Datenschutz");
+  await expect(page.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(page.locator("#privfull-ed")).toContainText(SCHOOL.name);
 
   // Abstand zur nächsten Aufgabe: eine Leerzeile
   expect(Math.abs((await gapAfterTask(page, 1)) - lh)).toBeLessThan(1);
@@ -980,6 +1160,13 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#t-1 .fb-sub.fb-miss")).toHaveText("Tipps zum Überarbeiten");
   await expect(page.locator("#t-1 .fb-sub + ul.fb-list")).toHaveCount(2);   // jede Überschrift steht direkt über ihrer Liste
   await expect(page.locator("#t-3 .fb-note")).toHaveText(NO_SOLUTION_NOTE);
+  // maschinenlesbare KI-Kennzeichnung (Art. 50 Abs. 2 KI-VO): Boxen mit KI-Stichpunkten, nicht der Hinweis ohne KI; die Antwort ebenso
+  expect(await aiMarks(page.locator("#t-1 .fbbox"))).toEqual(["true", "feedback", AI_SOURCE]);
+  expect(await aiMarks(page.locator("#t-2 .fbbox"))).toEqual(["true", "feedback", AI_SOURCE]);
+  expect(await aiMarks(page.locator("#t-3 .fbbox"))).toEqual([null, null, null]);
+  expect(JSON.parse(fbReq[0].body)).toMatchObject({ aiGenerated: true, digitalSourceType: AI_SOURCE });
+  // der Zwischenstand vermerkt es ebenfalls (cleanDraft liest das Feld nicht)
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:"))))).feedbackAi).toEqual({ aiGenerated: true, digitalSourceType: AI_SOURCE });
   await expect(page.locator("#fb-btn")).toBeDisabled();
   await expect(page.locator("#fb-btn")).toHaveText("KI-Feedback erhalten");
   await expect(page.locator("#revise-hint")).toBeVisible();
@@ -1073,6 +1260,11 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#done-pdf-note")).toHaveText("Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.");
   await expect(page.locator("#done-pdf")).toHaveAttribute("aria-describedby", "done-pdf-note");
   expect(await page.$eval("#done-pdf", (e) => e.nextElementSibling.id)).toBe("done-pdf-note");   // Hinweis direkt unter dem Button
+  // Löschdatum laut Frist beim Server (Antwort von /api/submit), zwischen Zeitpunkt und Download-Button
+  const subRes = JSON.parse((await s.calls((r) => r.path === "/api/submit"))[1].body);
+  expect(subRes.retentionDays).toBe(DAYS);
+  await expect(page.locator("#done-del")).toHaveText("Bei deiner Lehrkraft wird deine Abgabe nach " + DAYS + " Tagen automatisch gelöscht (am " + deDate(subRes.receivedAt + DAYS * 864e5) + " oder kurz danach). Wenn du deine Lösungen behalten möchtest, lade sie dir herunter.");
+  expect(await page.$eval("#done-del", (e) => [e.previousElementSibling.id, e.nextElementSibling.id])).toEqual(["done-time", "done-pdf"]);
   const [pdfBox, noteBox, fbBox] = await Promise.all(["#done-pdf", "#done-pdf-note", "#done-fb"].map((sel) => page.locator(sel).boundingBox()));
   expect(pdfBox.y + pdfBox.height).toBeLessThanOrEqual(noteBox.y);
   expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(fbBox.y);                              // Button und Hinweis über der Rückmeldung
@@ -1095,6 +1287,17 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(sol).toContain("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj");   // A hat überarbeitet
   expect(sol).toContain("Max \\267 Mu \\267 Klasse 8b");
   expect(sol).not.toContain("--05-04"); expect(sol).not.toMatch(/04\.05\.(?!\d)/);   // kein Geburtstag in der Datei („04.05.2026“ wäre ein Abgabedatum)
+  // KI-Kennzeichnung: sichtbarer Hinweis, Subject/Keywords, XMP mit IPTC „compositeSynthetic“ (Schülertext + KI-Text); Aufbau gültig
+  expect(pdfShownText(Buffer.from(sol, "latin1"))).toContain("Die Rückmeldungen in dieser Datei hat eine KI erzeugt (KI-Feedback). Sie können Fehler enthalten.");
+  const st1 = pdfStructure(Buffer.from(sol, "latin1"));
+  const xmpNo = Number(/\/Type \/Catalog \/Pages 2 0 R \/Metadata (\d+) 0 R/.exec(st1.objAt(1))[1]);
+  expect(xmpNo).toBe(st1.count - 1);   // das letzte Objekt
+  expect(st1.objAt(xmpNo)).toMatch(/^\d+ 0 obj\n<< \/Type \/Metadata \/Subtype \/XML \/Length \d+ >>\nstream\n/);
+  expect(st1.objAt(5)).toMatch(/\/Subject <FEFF[0-9a-f]+> \/Keywords <FEFF[0-9a-f]+>/);
+  const xmp = Buffer.from(/stream\n([\s\S]*)\nendstream/.exec(st1.objAt(xmpNo))[1], "latin1").toString("utf8");
+  expect(xmp).toContain("<Iptc4xmpExt:DigitalSourceType>http://cv.iptc.org/newscodes/digitalsourcetype/compositeSynthetic</Iptc4xmpExt:DigitalSourceType>");
+  expect(xmp).toContain("<rdf:li xml:lang=\"x-default\">Meine Lösungen – " + TITLE + "</rdf:li>");   // UTF-8, Titel XML-maskiert
+  expect(await page.evaluate((x) => { const d = new DOMParser().parseFromString(x.slice(x.indexOf("<x:xmpmeta"), x.indexOf("<?xpacket end")), "application/xml"); return d.getElementsByTagName("parsererror").length; }, xmp)).toBe(0);
 
   // der erste Versuch der zweiten Rückmeldung scheitert → Hinweis, Abgabe unberührt, „Rückmeldung erneut anfordern“
   releaseFb2();
@@ -1140,6 +1343,11 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
   const sol2 = (await readFile(await sdl2.path())).toString("latin1");
   expect(sol2).toContain("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj");   // ohne Zählung
+  pdfStructure(Buffer.from(sol2, "latin1"));
+  expect(sol2).toContain("/Metadata ");
+  // auch nach der Abgabe gekennzeichnet: Boxen der zweiten Rückmeldung (nicht Aufgabe 3 ohne Auftrag an die KI)
+  expect(await aiMarks(page.locator("#done-fb-1"))).toEqual(["true", "feedback-final", AI_SOURCE]);
+  expect(await aiMarks(page.locator("#done-fb-3"))).toEqual([null, null, null]);
   expect(sol2).toContain("(KI-Feedback zur ersten Fassung:) Tj");
   expect(sol2).not.toContain("lag beim Herunterladen noch nicht vor");
   for (const c of exp2[0].covered) expect(sol2).toContain("(\\225 Gelingt schon: " + c.slice(0, 20));   // • = \225 (WinAnsi)
@@ -1202,6 +1410,12 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await page.reload();
   await page.click("#resume-btn");
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  // „Weiterschreiben“ überspringt den Angaben-Bildschirm – der vollständige Datenschutzhinweis steht deshalb auch im Editor
+  await expect(page.locator("#screen-person")).not.toHaveClass(/active/);
+  await page.locator("#privfull-ed summary").click();
+  await expect(page.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(page.locator("#privfull-ed")).toContainText(SCHOOL.name + ", " + SCHOOL.address + ".");
+  await expect(page.locator("#privfull-ed")).toContainText(HESSEN_BASIS);
   await expect(page.locator(".ltbtn")).toHaveCount(3);
   await expect(page.locator(".lt-off")).toHaveCount(0);
   for (let i = 0; i < 3; i++) expect(await page.inputValue("#a-" + (i + 1))).toBe(B.first[i]);
@@ -1304,6 +1518,13 @@ test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback (der D
   expect(await confirmDialog(page, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("KI nicht erreichbar"));
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#done-fb")).toBeHidden();   // ohne erstes Feedback keine zweite Rückmeldung
+  await expect(page.locator("#done-del")).toContainText("nach " + DAYS + " Tagen automatisch gelöscht");
+  // Lösungs-PDF ohne KI-Inhalt: keine KI-Kennzeichnung (kein Hinweis, kein XMP, kein Subject/Keywords), Aufbau gültig
+  const [dlC] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const pdfC = await readFile(await dlC.path());
+  const stC = pdfStructure(pdfC);
+  for (const w of ["/Metadata", "compositeSynthetic", "/Keywords", "/Subject"]) expect(stC.s).not.toContain(w);
+  expect(pdfShownText(pdfC)).not.toContain("hat eine KI erzeugt");
   const sub = await s.calls((r) => r.path === "/api/submit");
   expect(sub.map((r) => r.status)).toEqual([200]);
   expect((await s.calls((r) => r.path === "/api/feedback")).length).toBe(2);   // nur die zwei gescheiterten Versuche
@@ -1575,7 +1796,11 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(mains.nth(1)).toHaveAttribute("aria-expanded", "true");
   const det = page.locator("#t-subs-body tr.details:visible");
   await expect(det).toHaveCount(1);
-  await expect(det.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · KI-Feedback am \d\d\.\d\d\.\d{4}, \d\d:\d\d$/);
+  await expect(det.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · KI-Feedback am \d\d\.\d\d\.\d{4}, \d\d:\d\d · automatische Löschung am \d\d\.\d\d\.\d{4}$/);
+  const [, gotA, delA] = /^Abgegeben am (\d\d\.\d\d\.\d{4}).* automatische Löschung am (\d\d\.\d\d\.\d{4})$/.exec(await det.locator(".dmeta").textContent()) || [];
+  const dmy = (x) => { const [d, m, y] = x.split(".").map(Number); return Date.UTC(y, m - 1, d); };
+  expect([DAYS - 1, DAYS]).toContain(Math.round((dmy(delA) - dmy(gotA)) / 864e5));   // Eingang + Frist (Ortszeit: bei Zeitumstellung kurz nach Mitternacht ein Tag weniger)
+  await expect(page.locator("#t-subs-retention")).toHaveText("Abgaben und Erstversuche werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht. Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt.");
   const tasks = det.locator(".dtask");
   await expect(tasks).toHaveCount(3);
   const expA = expectedResults(TASKS, A.first);
@@ -1597,6 +1822,8 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
     for (const c of expA[i].covered) await expect(fb.locator("ul.fb-ok")).toContainText(c);
     for (const m of expA[i].missing) await expect(fb.locator("ul.fb-miss")).toContainText(m);
   }
+  expect(await aiMarks(tasks.nth(0).locator(".dfb"))).toEqual(["true", "feedback", AI_SOURCE]);   // KI-Kennzeichnung auch hier
+  expect(await aiMarks(tasks.nth(2).locator(".dfb"))).toEqual([null, null, null]);                  // Aufgabe 3: nur der Hinweis ohne KI
   expect(await tasks.nth(0).locator(".dfb ul.fb-ok").evaluate((e) => getComputedStyle(e).color)).toBe(GREEN);
   expect(await tasks.nth(0).locator(".dfb ul.fb-miss").evaluate((e) => getComputedStyle(e).color)).toBe(RED);
   await expect(tasks.nth(0).locator(".dfb p.fb-ok")).toHaveText("Gelingt schon:");
@@ -1607,7 +1834,7 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await mains.nth(2).click();
   const detC = page.locator("#t-subs-body tr.details").nth(2);
   await expect(detC.locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");
-  await expect(detC.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · ohne KI-Feedback$/);
+  await expect(detC.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · ohne KI-Feedback · automatische Löschung am \d\d\.\d\d\.\d{4}$/);
   await expect(detC.locator(".dtask").nth(0).locator("table.cmp thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback)"]);
   const tdC = detC.locator(".dtask").nth(0).locator("table.cmp tbody td");
   await expect(tdC).toHaveCount(1);
@@ -1618,7 +1845,7 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   // D: Erstversuch ohne Überarbeitung → Hinweis, Spalte 1 = erste Fassung, Spalte 2 „(noch nicht überarbeitet)“, Feedback dabei
   await mains.nth(3).click();
   const detD = page.locator("#t-subs-body tr.details").nth(3);
-  await expect(detD.locator(".dmeta")).toHaveText(/^Erstversuch ohne Überarbeitung – noch nicht abgegeben · KI-Feedback am \d\d\.\d\d\.\d{4}, \d\d:\d\d$/);
+  await expect(detD.locator(".dmeta")).toHaveText(/^Erstversuch ohne Überarbeitung – noch nicht abgegeben · KI-Feedback am \d\d\.\d\d\.\d{4}, \d\d:\d\d · automatische Löschung am \d\d\.\d\d\.\d{4}$/);
   await expect(detD.locator(".dmeta")).toHaveClass(/st-first/);
   await expect(detD.locator(".moodle-hint")).toContainText("hat das KI-Feedback angefordert, aber (noch) nicht abgegeben");
   const tdD = detD.locator(".dtask").nth(0).locator("table.cmp tbody td");
@@ -1863,12 +2090,14 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
   const sheets = await d1Query("SELECT code, title, tasks FROM sheets");
   expect(sheets.map((s) => s.code)).toEqual([S.code]);
   const settings = await d1Query("SELECT key, value FROM settings ORDER BY key");
-  expect(settings.map((s) => s.key)).toEqual(["ai", "teacher"]);
+  expect(settings.map((s) => s.key)).toEqual(["ai", "privacy", "teacher"]);
+  expect(Object.keys(JSON.parse(settings[1].value)).sort()).toEqual(["retentionDays", "school", "updatedAt", "v"]);   // nur Angaben der Schule
+  for (const f of forbidden) expect(settings[1].value).not.toContain(f);
   const ai = JSON.parse(settings[0].value);
   expect(ai.apiKey).toBeUndefined();                // mit SETTINGS_SECRET verschlüsselt
   expect(Object.keys(ai.apiKeyEnc).sort()).toEqual(["ct", "iv"]);
   expect(settings[0].value).not.toContain(AI_KEY);
-  expect(settings[1].value).not.toContain(PW);
+  expect(settings[2].value).not.toContain(PW);
 
   // Rohbytes aller Dateien des lokalen Zustands (inkl. WAL); Gegenprobe: Aufgabentext und Umschlag sind auffindbar
   const control = [TASKS[0].text, '"ek":"', '"apiKeyEnc"'];
@@ -1883,9 +2112,10 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     expect(res.status()).toBe(200);
     const body = await res.text();
     const j = JSON.parse(body);
-    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "publicKey", "tasks", "title"]);
+    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "privacy", "publicKey", "tasks", "title"]);
     expect(j.sheet.aiFeedback).toBe(true);
-    expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX }]);
+    expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX, transfer: "von der Schule beim Anbieter zu prüfen" }]);
+    expect(j.sheet.privacy).toEqual({ school: { ...SCHOOL, legalBasis: HESSEN_BASIS, authority: HESSEN_AUTH }, retentionDays: DAYS });   // ohne updatedAt
     expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, textFmt: [], material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
@@ -2435,7 +2665,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await tp.click("#t-expand-all");
   const det = (k) => tp.locator("#t-subs-body tr.details").nth(k);
   await expect(det(0).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben.");
-  await expect(det(0).locator(".dmeta")).toHaveText(/ · ohne KI-Feedback$/);
+  await expect(det(0).locator(".dmeta")).toHaveText(/ · ohne KI-Feedback · automatische Löschung am \d\d\.\d\d\.\d{4}$/);
   await expect(det(0).locator(".dtask").nth(0).locator("table.cmp.one thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback)"]);
   await expect(det(0).locator(".dtask").nth(0).locator("table.cmp tbody td")).toHaveText([G.first[0]]);
   await expect(det(0).locator(".dtask").nth(1).locator("table.cmp tbody td")).toHaveText(["(leer)"]);
@@ -2466,6 +2696,11 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p3.locator("#fin-text")).toHaveText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab.");
   await expect(p3.locator("#privacy")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
   await expect(p3.locator("#privacy")).not.toContainText("KI-Dienst");
+  // ausführlicher Hinweis und Klasse-Hinweis ohne KI: kein KI-Dienst, kein Abschnitt zur KI, Angaben erst bei der Abgabe
+  await expect(p3.locator("#p-klasse-hint")).toHaveText("z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.");
+  await expect(p3.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS.filter((x) => x !== "Entscheidet die KI über dich?"));
+  await expect(p3.locator("#privfull-ed")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
+  await expect(p3.locator("#privfull-ed")).not.toContainText("unverschlüsselt");
   await expect(p3.locator("#submit-hint")).toHaveText("Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.");
   await typeAt(p3, "#a-1", "Ich schäme mich dann.");
   const draftN = await draftPdfText(p3);
@@ -2997,6 +3232,72 @@ test("7e Formatierte Aufgabenstellung: Lehrkraft setzt ein Wort fett und fügt e
     await confirmDialog(tp, "Feibeitsblatt löschen?");
     await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   }
+  await closePage(t);
+});
+
+test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort, Verlängern erinnert an die neue Information; der tägliche Zeitplan löscht nach der Frist (lokal ausgelöst)", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const page = t.page;
+  await teacherLogin(page, PW);
+  // eigenes Blatt mit zwei Abgaben (ohne KI-Auftrag); eine davon per D1 zehn Tage zurückdatiert
+  await page.click("#t-new");
+  await page.fill("#b-title", "Löschfrist");
+  await page.fill("#bq-1", "Wie heißt deine Lieblingsstadt?");
+  await page.click("#b-gen");
+  await expect(page.locator("#b-result")).toBeVisible();
+  const code = (await page.locator("#b-res-code").textContent()).trim().replace("-", "");
+  const sheet = (await (await request.get("/api/sheet/" + code)).json()).sheet;
+  expect(sheet.privacy.retentionDays).toBe(DAYS);
+  const ids = [];
+  for (const v of ["Ole", "Pia"]) {
+    const env = await makeEnvelope(sheet.publicKey, { v: 1, sheetCode: code, sheetTitle: sheet.title, person: { vorname: v, nachname: "Lf", geburtsdatum: "--06-06", klasse: "6a" },
+      answers: [{ first: "Rom", final: "Rom" }], feedback: null, feedbackAt: null, noAi: "none", submittedAt: new Date().toISOString() });
+    const r = await request.post("/api/submit", { data: { code, envelope: env } });
+    expect(r.status()).toBe(200);
+    const j = await r.json();
+    expect(j.retentionDays).toBe(DAYS);
+    ids.push(j.id);
+  }
+  await d1Query(`UPDATE submissions SET received_at = received_at - ${10 * 864e5} WHERE id = ${ids[1]}`);
+  await page.click("#b-res-back");
+  const row = page.locator("#t-sheets-body tr", { hasText: "Löschfrist" });
+  await expect(row.locator("td").nth(4)).toHaveText("2");   // innerhalb der Frist von 14 Tagen bleibt beides
+  await expect(page.locator("#t-subs-sum")).toHaveText("2 Abgaben");
+
+  // Kürzen auf 7 Tage: die Seite nennt, was jetzt gelöscht würde, und fragt vor dem Speichern nach (Abbrechen ändert nichts)
+  await page.click("#t-privacy");
+  await page.selectOption("#pv-days", "7");
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt 1 älterer Eintrag gelöscht.");
+  await page.click("#pv-save");
+  await expect(page.locator("#dlg-ok")).toHaveText("Speichern und löschen");
+  expect(await confirmDialog(page, "Ältere Abgaben jetzt löschen?", false)).toBe("Mit einer Frist von 7 Tagen wird 1 Abgabe bzw. Erstversuch, der älter ist, sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.");
+  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value).retentionDays).toBe(DAYS);
+  expect((await d1Query(`SELECT id FROM submissions WHERE sheet_code='${code}' ORDER BY id`)).map((r) => r.id)).toEqual(ids);
+  await page.click("#pv-save");
+  await confirmDialog(page, "Ältere Abgaben jetzt löschen?");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes. 1 älterer Eintrag wurde gelöscht.");
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
+  expect((await d1Query(`SELECT id FROM submissions WHERE sheet_code='${code}'`)).map((r) => r.id)).toEqual([ids[0]]);
+  // wieder verlängern: gilt auch für schon gespeicherte Abgaben → Hinweis, die Schüler:innen neu zu informieren
+  await page.selectOption("#pv-days", String(DAYS));
+  await page.click("#pv-save");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes. Die längere Frist gilt auch für schon gespeicherte Abgaben – informieren Sie die Schüler:innen neu.");
+  await page.click("#pv-back");
+  await expect(page.locator("#t-privinfo")).toContainText(DAYS + " Tage nach dem Eingang automatisch gelöscht.");
+  await page.click("#t-refresh");
+  await expect(row.locator("td").nth(4)).toHaveText("1");
+  await expect(page.locator("#t-subs-sum")).toHaveText("1 Abgabe");
+
+  // täglicher Zeitplan (Cron „17 2 * * *“, lokal über /cdn-cgi/local/scheduled): löscht, was älter als die Frist ist; das Blatt bleibt
+  await d1Query(`UPDATE submissions SET received_at = received_at - ${(DAYS + 1) * 864e5} WHERE id = ${ids[0]}`);
+  const cron = await request.get("/cdn-cgi/local/scheduled?cron=" + encodeURIComponent("17 2 * * *") + "&format=json");
+  expect(cron.status()).toBe(200);
+  expect(await cron.json()).toMatchObject({ outcome: "ok" });
+  expect(await d1Query(`SELECT id FROM submissions WHERE sheet_code='${code}'`)).toEqual([]);
+  expect((await request.get("/api/sheet/" + code)).status()).toBe(200);
+  await page.click("#t-del-sheet");
+  await confirmDialog(page, "Feibeitsblatt löschen?");
+  await expect(page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   await closePage(t);
 });
 

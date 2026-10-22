@@ -7,12 +7,13 @@ import {
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer,
+  validatePrivacyInput, privacyOut, isPrivacyComplete, PURGE_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI,
   TEST_MESSAGES, reserveSlot, skipQuery, skipStatements, gateKey, recipientLabel, wantsFeedback,
-  CF_NO_BINDING, CF_DAILY_NEURONS, utcDay,
+  CF_NO_BINDING, CF_DAILY_NEURONS, utcDay, recipientTransfer,
 } from "./ai.js";
 
 const MSG = {
@@ -91,6 +92,8 @@ const SCHEMA = [
   "CREATE INDEX IF NOT EXISTS idx_sheet_images_bytes ON sheet_images(bytes)",
   // Geschätzter Verbrauch von Workers AI je Tag (UTC) – das Gratiskontingent (Neurons) gilt für das ganze Cloudflare-Konto
   "CREATE TABLE IF NOT EXISTS ai_usage (day TEXT NOT NULL, provider TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0, neurons REAL NOT NULL DEFAULT 0, PRIMARY KEY(day, provider))",
+  // Automatische Löschung nach der Frist der Lehrkraft (PURGE_SQL in lib.js) sucht über den Eingangszeitpunkt
+  "CREATE INDEX IF NOT EXISTS idx_submissions_received ON submissions(received_at)",
 ];
 // Belegter Speicher für Bilder und PDF-Dateien aller Blätter (roh, Bytes) – als SQL-Ausdruck für Bedingungen und Listen
 const STORAGE_SQL = "((SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE n=0)+(SELECT COALESCE(SUM(bytes),0) FROM sheet_images))";
@@ -115,6 +118,16 @@ export async function ensureSubmissionColumns(db) {
   }
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON submissions(sheet_code, attempt)").run();
 }
+
+/* Aufräumen: Abgaben und Erstversuche nach der Löschfrist (PURGE_SQL; ohne gespeicherte Frist nichts), abgelaufene Zähler und
+   Sperren, Verbrauchszeilen von Workers AI älter als zwei Tage. Täglich per Cron Trigger (scheduled) und gelegentlich bei
+   API-Aufrufen; die Löschfrist zusätzlich beim Öffnen der Lehrkräfte-Übersicht. */
+const cleanupStatements = (db, now) => [
+  db.prepare(PURGE_SQL).bind(now),
+  db.prepare("DELETE FROM rate_limits WHERE reset_at<?1").bind(now),
+  db.prepare("DELETE FROM ai_skip WHERE until<?1").bind(now),
+  db.prepare("DELETE FROM ai_usage WHERE day<?1").bind(utcDay(now - 2 * 86400e3)),
+];
 
 /* ---------- Body lesen (≤ 1 MB) ---------- */
 async function readJson(request) {
@@ -283,7 +296,15 @@ async function routeSetup(c) {
   await importPublicKey(body.publicKey);
   const encPrivateKey = validateEncPrivateKey(body.encPrivateKey);
   const value = JSON.stringify({ authHash: await sha256Hex(raw), kdf, publicKey: body.publicKey, encPrivateKey, createdAt: c.now });
-  const r = await c.db.prepare("INSERT INTO settings(key,value) VALUES('teacher',?1) ON CONFLICT(key) DO NOTHING").bind(value).run();
+  // Eine Neuinstallation (noch ohne Feibeitsblätter) löscht von Anfang an automatisch nach 30 Tagen (auto = Vorgabe, die Lehrkraft
+  // kann sie ändern). Nur wenn dieser Aufruf die Lehrkraft angelegt hat und noch keine Frist gespeichert ist: Beim Zurücksetzen
+  // des Zugangs („Passwort vergessen“) bleibt eine gespeicherte Frist, und ohne gespeicherte Frist wird weiter nichts gelöscht.
+  const privacy = JSON.stringify({ v: 1, school: {}, retentionDays: LIMITS.retentionDefault, auto: true, updatedAt: c.now });
+  const [r] = await c.db.batch([
+    c.db.prepare("INSERT INTO settings(key,value) VALUES('teacher',?1) ON CONFLICT(key) DO NOTHING").bind(value),
+    c.db.prepare("INSERT INTO settings(key,value) SELECT 'privacy',?1 WHERE (SELECT value FROM settings WHERE key='teacher')=?2 " +
+      "AND NOT EXISTS(SELECT 1 FROM sheets) ON CONFLICT(key) DO NOTHING").bind(privacy, value),
+  ]);
   if (!r.meta || !r.meta.changes) throw new HttpError(409, "already_setup", MSG.alreadySetup);
   return json({ ok: true });
 }
@@ -318,6 +339,9 @@ function parseTasks(text) {
 
 async function routeSheetsList(c) {
   await requireTeacher(c);
+  // Löschfrist auch beim Öffnen der Übersicht anwenden (falls der tägliche Zeitplan fehlt oder scheiterte), damit die Zahlen stimmen –
+  // getrennt vom Lese-Batch und fehlertolerant: scheitert das Löschen (z. B. Tageslimit geschriebener Zeilen), lädt die Übersicht trotzdem
+  await c.db.prepare(PURGE_SQL).bind(c.now).run().catch(() => {});
   const [list, st] = await c.db.batch([
     c.db.prepare(
       "SELECT s.code, s.title, s.created_at, json_array_length(s.tasks) AS task_count, " +
@@ -715,8 +739,40 @@ async function routeAiTest(c) {
   return json(res);
 }
 
+/* ---------- Datenschutz-Angaben der Schule und Löschfrist (Lehrkraft) ---------- */
+const DAY_MS = 86400e3;
+const olderThanStmt = (c) => c.db.prepare(OLDER_THAN_SQL).bind(...RETENTION_OPTIONS.map((d) => c.now - d * DAY_MS));
+const olderThanView = (row) => Object.fromEntries(RETENTION_OPTIONS.map((d) => [String(d), Number((row || {})["d" + d]) || 0]));
+const privacyDefaults = { retentionDays: LIMITS.retentionDefault, options: RETENTION_OPTIONS, min: LIMITS.retentionMin, max: LIMITS.retentionMax };
+// GET: gespeicherte Angaben (null = nie gespeichert), vollständig nach Art. 13?, wie viele Einträge jede wählbare Frist jetzt löschen
+// würde, und die KI-Empfänger wie für die Schüler:innen (für die Vorschau des Hinweises)
+async function routePrivacyGet(c) {
+  await requireTeacher(c);
+  const [st, ai, old] = await c.db.batch([settingStmt(c.db, "privacy"), settingStmt(c.db, "ai"), olderThanStmt(c)]);
+  const p = privacyOut(parseSetting(firstRow(st)));
+  return json({ ok: true, privacy: p, complete: isPrivacyComplete(p), defaults: privacyDefaults, olderThan: olderThanView(firstRow(old)),
+    aiRecipients: recipientsFor(await aiConfig(c.env, firstRow(ai))) });
+}
+// PUT {school:{…}, retentionDays}: speichert (ersetzt) und löscht im selben Batch, was nach der neuen Frist zu alt ist – eine
+// Transaktion: scheitert sie, ist nichts gespeichert und nichts gelöscht. Die Oberfläche fragt vorher nach, wenn etwas gelöscht würde.
+async function routePrivacyPut(c) {
+  await requireTeacher(c);
+  const { school, retentionDays } = validatePrivacyInput(await readJson(c.request));
+  const value = JSON.stringify({ v: 1, school, retentionDays, updatedAt: c.now });
+  const [, del, old] = await c.db.batch([
+    c.db.prepare("INSERT INTO settings(key,value) VALUES('privacy',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(value),
+    c.db.prepare(PURGE_SQL).bind(c.now),
+    olderThanStmt(c),
+  ]);
+  const p = privacyOut(JSON.parse(value));
+  return json({ ok: true, privacy: p, complete: isPrivacyComplete(p), deleted: (del.meta && del.meta.changes) || 0, olderThan: olderThanView(firstRow(old)) });
+}
 
 /* ---------- Öffentlich (Schüler:innen) ---------- */
+// Empfänger der Schülertexte für den Datenschutzhinweis: erster Anbieter, dann die Reserve – nur nutzbare Einträge (usable: ein nicht
+// entschlüsselbarer Schlüssel bzw. ein nicht gespeichertes Workers AI bekommt nie Daten); id = Anbieter bzw. custom:Host, label =
+// Rechtsträger und Sitz, transfer = Grundlage der Übermittlung in ein Drittland (Art. 13 Abs. 1 Buchst. f DSGVO)
+const recipientsFor = (ai) => activeEntries(ai).map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl), transfer: recipientTransfer(e.provider) }));
 // Gültige Codes gehen immer durch; nur unbekannte Codes zählen (887 Mio. mögliche Codes – Raten lohnt nicht,
 // aber Tippfehler einer ganzen Schule dürfen niemanden aussperren)
 async function routePublicSheet(c, codeRaw) {
@@ -724,7 +780,7 @@ async function routePublicSheet(c, codeRaw) {
   if (!isValidCode(code)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
   const [sh, st, im, fi] = await c.db.batch([
     c.db.prepare("SELECT code, title, tasks FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("SELECT key, value FROM settings WHERE key IN ('teacher','ai')"),
+    c.db.prepare("SELECT key, value FROM settings WHERE key IN ('teacher','ai','privacy')"),   // eine Abfrage für alle drei
     imagesStmt(c.db, code),
     filesStmt(c.db, code),
   ]);
@@ -732,13 +788,12 @@ async function routePublicSheet(c, codeRaw) {
   if (!s) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
   const rows = Object.fromEntries((st.results || []).map((r) => [r.key, r]));
   const teacher = parseSetting(rows.teacher);
-  // Empfänger für den Datenschutzhinweis: erster Anbieter, dann die Reserve – nur nutzbare Einträge (usable: ein nicht
-  // entschlüsselbarer Schlüssel bzw. ein nicht gespeichertes Workers AI bekommt nie Daten); id = Anbieter bzw. custom:Host,
-  // label = Rechtsträger und Sitz
+  // Empfänger für den Datenschutzhinweis (recipientsFor); Schulangaben und Löschfrist (privacy, null = nie gespeichert)
   const ai = await aiConfig(c.env, rows.ai || null);
   const list = activeEntries(ai);
   const aiProvider = list.length && list[0] === ai ? providerLabel(ai.provider, ai.baseUrl) : null;
-  const aiRecipients = list.map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl) }));
+  const aiRecipients = recipientsFor(ai);
+  const pv = privacyOut(parseSetting(rows.privacy));
   const aiReserve = list.length > 1 ? providerLabel(list[1].provider, list[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
   // Niemals Aufträge an die KI (solution) ausliefern: nur Aufgabentext (rein und – falls vorhanden – formatiert als textFmt) und
   // Bild-Metadaten verlassen den Server; die Länder einer Weltkarten-Zuordnung nur als Prüfwerte (SHA-256 von Code|Karte|Land),
@@ -751,9 +806,11 @@ async function routePublicSheet(c, codeRaw) {
     return { text: String(t.text || ""), textFmt: Array.isArray(t.textFmt) ? t.textFmt : [], material: Array.isArray(t.material) ? t.material : [], images, files: filesForTask(fi.results, i + 1),
       answer: await publicAnswer(t.answer, code, new Set(images.filter((m) => m.mode === "card").map((m) => m.id))) };
   }));
-  return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}) } });
+  return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}),
+    privacy: pv ? { school: pv.school, retentionDays: pv.retentionDays } : null } });
 }
 
+const AI_SOURCE_TYPE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
 // KI-Fehler, bei denen Warten hilft → 429 mit Retry-After (der Browser wiederholt automatisch); sonst 502
 const AI_WAIT = { BUSY: 30, RATE_LIMIT: 45, TIMEOUT: 30 };
 const AI_REFUND = new Set(["BUSY", "RATE_LIMIT", "TIMEOUT", "SERVER", "NETWORK", "DAILY_LIMIT"]);   // nicht die Schuld der Schüler:innen
@@ -776,7 +833,7 @@ async function routeFeedback(c) {
   const tasks = parseTasks(s.tasks);
   const answers = validateAnswers(body.answers, tasks.length);
   const { messages, nrs } = buildFeedbackMessages(tasks, answers);
-  if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()) });   // kein Auftrag an die KI: keine KI nötig
+  if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()), aiGenerated: false });   // kein Auftrag an die KI: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
   let entries = activeEntries(ai);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
   if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
@@ -838,7 +895,8 @@ async function routeFeedback(c) {
     if (err.code === "DAILY_LIMIT" && err.accountWide) throw new HttpError(503, "ai_quota", PUBLIC_MSG.DAILY_LIMIT, { aiCode: err.code });
     throw new HttpError(502, "ai_error", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code });
   }
-  return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs)) });
+  // Maschinenlesbar gekennzeichnet (Art. 50 Abs. 2 KI-VO): die Stichpunkte hat eine KI erzeugt (IPTC Digital Source Type)
+  return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs)), aiGenerated: true, digitalSourceType: AI_SOURCE_TYPE });
 }
 
 // Abgabe (stage "final") oder Erstversuch (stage "first", nach dem KI-Feedback). Mit derselben attempt-Kennung ersetzt die
@@ -849,25 +907,27 @@ async function routeSubmit(c) {
   if (!isValidCode(code)) throw sheetNotFound();
   const envelope = validateEnvelope(body.envelope);
   const { stage, attempt } = validateSubmitMeta(body);
-  const [sh, cnt, ex] = await c.db.batch([
+  const [sh, cnt, ex, pv] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
     attempt ? c.db.prepare("SELECT id, stage FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
       : c.db.prepare("SELECT 1 AS x WHERE 0"),
+    settingStmt(c.db, "privacy"),   // Löschfrist jetzt (nicht beim Öffnen des Blattes): die Bestätigungsseite nennt das Löschdatum
   ]);
   if (!firstRow(sh)) throw sheetNotFound();
   await countAll(c, [{ kind: "submit" }, { kind: "submit_bytes", weight: envelope.length }]);   // nur gültige Abgaben zählen
+  const retentionDays = (privacyOut(parseSetting(firstRow(pv))) || {}).retentionDays || null;   // null = keine automatische Löschung
   const prev = attempt ? firstRow(ex) : null;
   if (prev) {
-    if (prev.stage === "final" && stage === "first") return json({ ok: true, id: Number(prev.id), receivedAt: c.now, kept: true });   // Abgabe bleibt
+    if (prev.stage === "final" && stage === "first") return json({ ok: true, id: Number(prev.id), receivedAt: c.now, kept: true, retentionDays });   // Abgabe bleibt
     await c.db.prepare("UPDATE submissions SET envelope=?1, received_at=?2, stage=?3 WHERE id=?4").bind(envelope, c.now, stage, prev.id).run();
-    return json({ ok: true, id: Number(prev.id), receivedAt: c.now, replaced: prev.stage });
+    return json({ ok: true, id: Number(prev.id), receivedAt: c.now, replaced: prev.stage, retentionDays });
   }
   const use = firstRow(cnt) || {};
   if ((use.n || 0) >= LIMITS.submissionsPerSheet || (use.bytes || 0) + envelope.length > LIMITS.sheetBytes)
     throw new HttpError(409, "too_many_submissions", MSG.tooMany);
   const r = await c.db.prepare("INSERT INTO submissions(sheet_code,received_at,envelope,stage,attempt) VALUES(?1,?2,?3,?4,?5)").bind(code, c.now, envelope, stage, attempt).run();
-  return json({ ok: true, id: r.meta ? r.meta.last_row_id : null, receivedAt: c.now });
+  return json({ ok: true, id: r.meta ? r.meta.last_row_id : null, receivedAt: c.now, retentionDays });
 }
 
 /* ---------- Routing ---------- */
@@ -889,6 +949,7 @@ const ROUTES = [
   [/^\/api\/teacher\/sheets\/([^/]+)\/files$/, { POST: routeFileUpload }],
   ["/api/teacher/ai", { GET: routeAiGet, PUT: routeAiPut }],
   ["/api/teacher/ai/test", { POST: routeAiTest }],
+  ["/api/teacher/privacy", { GET: routePrivacyGet, PUT: routePrivacyPut }],
 ];
 function match(path) {
   for (const [pat, handlers, opts] of ROUTES) {
@@ -913,16 +974,21 @@ async function handleApi(request, env, ctx, path) {
   };
   if (!route.opts.noDb) {
     await ensureSchema(c.db);
-    if (Math.random() < 0.02) c.waitUntil(c.db.batch([   // gelegentlich aufräumen
-      c.db.prepare("DELETE FROM rate_limits WHERE reset_at<?1").bind(c.now),
-      c.db.prepare("DELETE FROM ai_skip WHERE until<?1").bind(c.now),
-      c.db.prepare("DELETE FROM ai_usage WHERE day<?1").bind(utcDay(c.now - 2 * 86400e3)),   // Verbrauchszeilen älter als zwei Tage
-    ]).catch(() => {}));
+    // gelegentlich aufräumen – Rückfall, falls der tägliche Zeitplan fehlt (z. B. Cron-Kontingent des Kontos voll)
+    if (Math.random() < 0.02) c.waitUntil(c.db.batch(cleanupStatements(c.db, c.now)).catch(() => {}));
   }
   return handler(c, ...route.params);
 }
 
 export default {
+  // Täglich (Cron Trigger in wrangler.jsonc, 02:17 UTC): Löschfrist anwenden und aufräumen. now = geplanter Zeitpunkt (lokal per
+  // /cdn-cgi/local/scheduled?cron=…&time=… testbar). Fehler nicht abfangen: ein gescheiterter Lauf erscheint im Dashboard unter
+  // „Past Cron Events“ (ohne Inhalte – Protokolle sind abgeschaltet).
+  async scheduled(controller, env) {
+    const now = Number(controller && controller.scheduledTime) || Date.now();
+    await ensureSchema(env.DB);
+    await env.DB.batch(cleanupStatements(env.DB, now));
+  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;

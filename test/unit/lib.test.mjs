@@ -7,7 +7,9 @@ import {
   validateSheetInput, validateAnswers, normalizeBaseUrl, isAllowedBase, validateAiInput, keyHintOf, defaultTitle,
   bucketOf, ipKey, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
   validateAnswerSpec, withMapChecks, publicAnswer, teacherAnswer, mapCheck,
+  validatePrivacyInput, privacyOut, isPrivacyComplete, cleanHttpsUrl, cleanLine, PURGE_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
 } from "../../worker/lib.js";
+import { DatabaseSync } from "node:sqlite";
 import { PROVIDERS } from "../../worker/ai.js";
 
 const b64 = (n, fill = 7) => bytesToB64(new Uint8Array(n).fill(fill));
@@ -383,4 +385,74 @@ test("map checks: SHA-256 of code|item|country, never countries in public answer
   assert.deepEqual((await publicAnswer(a, "K7QM4X", null)).items[1].checks, [await sha256Hex("K7QM4X|kakao|384")]);
   assert.deepEqual(teacherAnswer(t.answer).items[0], { id: "kaffee", label: "Kaffee", hint: "Bohnen aus Übersee", image: "0123456789abcdef", countries: [{ id: "076", name: "Brasilien" }, { id: "704", name: "Vietnam" }] });
   assert.deepEqual([teacherAnswer(undefined), await publicAnswer({ type: "evil" }, "K7QM4X")], [{ type: "text" }, { type: "text" }]);
+});
+
+/* ---------- Datenschutz-Angaben der Schule und Löschfrist ---------- */
+const SCHOOL = { name: "Musterschule", address: "Musterstraße 1, 65185 Wiesbaden", dpo: "Datenschutz Schulamt, ds@example.org",
+  url: "https://example.org/datenschutz", legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO", authority: "HBDI, Postfach 3163, 65021 Wiesbaden" };
+const privErr = (body, msg) => assert.throws(() => validatePrivacyInput(body), (e) => e instanceof InputError && e.status === 400 && (msg ? (msg instanceof RegExp ? msg.test(e.message) : e.message === msg) : true));
+test("validatePrivacyInput: einzeilig, NFC, ohne Steuer- und Formatzeichen; Grenzen je Feld; Link nur https; Frist 7–365", () => {
+  const ok = validatePrivacyInput({ school: { ...SCHOOL, name: "  Muster\nschule\t am\u00A0See ", address: "A\u202Eb", dpo: "Cafe\u0301", url: " https://Example.org/x?y=1 " }, retentionDays: 30, extra: 1 });
+  assert.deepEqual(Object.keys(ok), ["school", "retentionDays"]);
+  assert.deepEqual(Object.keys(ok.school), ["name", "address", "dpo", "url", "legalBasis", "authority"]);
+  assert.equal(ok.school.name, "Muster schule am See");   // Zeilenumbruch/Tab/NBSP → ein Leerzeichen
+  assert.equal(ok.school.address, "Ab");                  // Bidi-Steuerzeichen (U+202E) entfernt
+  assert.equal(ok.school.dpo, "Café");                    // NFC
+  assert.equal(ok.school.url, "https://example.org/x?y=1");
+  assert.equal(validatePrivacyInput({ retentionDays: 7 }).school.url, "");   // alles optional speicherbar (unvollständig)
+  assert.equal(validatePrivacyInput({ school: { url: "" }, retentionDays: 365 }).retentionDays, 365);
+  const lim = { name: "schoolName", address: "schoolAddress", dpo: "dpoContact", legalBasis: "legalBasis", authority: "authority" };
+  const the = { name: "Der Name der Schule", address: "Die Anschrift der Schule", dpo: "Der Kontakt der bzw. des Datenschutzbeauftragten", legalBasis: "Die Rechtsgrundlage", authority: "Die Aufsichtsbehörde" };
+  for (const k of Object.keys(lim)) {
+    const max = LIMITS[lim[k]];
+    assert.equal(validatePrivacyInput({ school: { [k]: "x".repeat(max) }, retentionDays: 30 }).school[k].length, max);
+    privErr({ school: { [k]: "x".repeat(max + 1) }, retentionDays: 30 }, the[k] + " ist zu lang (höchstens " + max + " Zeichen).");
+    privErr({ school: { [k]: "x ".repeat(4 * max) }, retentionDays: 30 }, the[k] + " ist zu lang (höchstens " + max + " Zeichen).");   // sehr lang: vor dem Bereinigen
+    privErr({ school: { [k]: 5 }, retentionDays: 30 }, "Die Angaben zur Schule haben ein ungültiges Format.");
+  }
+  for (const url of ["http://example.org", "javascript:alert(1)", "data:text/html,x", "mailto:a@b.de", "https://user:pw@example.org/", "https://example.org/" + "a".repeat(500), "ftp://example.org", "kein link"])
+    privErr({ school: { url }, retentionDays: 30 }, /als vollständige Adresse mit https:\/\//);
+  for (const d of [6, 366, 30.5, "30", null, undefined, true, -7]) privErr({ school: {}, retentionDays: d }, "Bitte wählen Sie eine Löschfrist zwischen 7 und 365 Tagen.");
+  privErr(null, "Ungültige Anfrage."); privErr({ school: "x", retentionDays: 30 }, "Die Angaben zur Schule haben ein ungültiges Format.");
+  assert.equal(cleanLine("a\u200Bb\u0000c"), "abc");
+  assert.equal(cleanHttpsUrl("https://example.org"), "https://example.org/");
+  assert.equal(cleanHttpsUrl("http://example.org"), "");
+});
+test("privacyOut prüft gespeicherte Werte erneut; isPrivacyComplete nach Art. 13 Abs. 1 a–c", () => {
+  assert.equal(privacyOut(null), null); assert.equal(privacyOut("x"), null);
+  const p = privacyOut({ v: 1, school: { ...SCHOOL, name: "N".repeat(500), url: "javascript:alert(1)", dpo: 7 }, retentionDays: 30, updatedAt: 5, auto: true });
+  assert.equal(p.school.name.length, LIMITS.schoolName); assert.equal(p.school.url, ""); assert.equal(p.school.dpo, "");
+  assert.deepEqual([p.retentionDays, p.updatedAt, p.auto], [30, 5, true]);
+  // dieselben Grenzen wie PURGE_SQL: nur Ganzzahlen 7–365, sonst keine automatische Löschung
+  for (const d of [3, 366, 7.5, "30", true, null]) assert.equal(privacyOut({ retentionDays: d }).retentionDays, null, String(d));
+  assert.equal(privacyOut({ retentionDays: 7 }).retentionDays, 7);
+  assert.equal(isPrivacyComplete(privacyOut({ school: SCHOOL })), true);
+  for (const k of ["name", "address", "dpo", "legalBasis"]) assert.equal(isPrivacyComplete(privacyOut({ school: { ...SCHOOL, [k]: "" } })), false, k);
+  assert.equal(isPrivacyComplete(privacyOut({ school: { ...SCHOOL, url: "", authority: "" } })), true);   // Link und Aufsichtsbehörde sind optional
+  assert.equal(isPrivacyComplete(null), false);
+});
+test("PURGE_SQL: nutzt den Index, löscht ohne gültige Frist nichts, sonst genau die älteren Abgaben und Erstversuche", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, sheet_code TEXT NOT NULL, received_at INTEGER NOT NULL, envelope TEXT NOT NULL, stage TEXT NOT NULL DEFAULT 'final', attempt TEXT);
+    CREATE INDEX idx_submissions_sheet ON submissions(sheet_code); CREATE INDEX idx_submissions_attempt ON submissions(sheet_code, attempt);
+    CREATE INDEX idx_submissions_received ON submissions(received_at);`);
+  const DAY = 864e5, now = Date.UTC(2026, 9, 22);
+  const ins = db.prepare("INSERT INTO submissions(sheet_code,received_at,envelope,stage) VALUES(?,?,?,?)");
+  for (let i = 0; i < 200; i++) ins.run("K7QM4X", now - i * DAY - 1000, "{}", i % 3 ? "final" : "first");
+  const plan = db.prepare("EXPLAIN QUERY PLAN " + PURGE_SQL).all(now).map((r) => r.detail).join(" | ");
+  assert.match(plan, /idx_submissions_received/);
+  assert.match(db.prepare("EXPLAIN QUERY PLAN " + OLDER_THAN_SQL).all(...RETENTION_OPTIONS.map((d) => now - d * DAY)).map((r) => r.detail).join(" | "), /COVERING INDEX idx_submissions_received/);
+  const purge = () => Number(db.prepare(PURGE_SQL).run(now).changes);
+  assert.equal(purge(), 0, "ohne Einstellung");
+  const set = (v) => db.prepare("INSERT INTO settings(key,value) VALUES('privacy',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(v);
+  for (const v of ['{"retentionDays":9999}', '{"retentionDays":"30"}', '{"retentionDays":7.5}', '{"retentionDays":true}', '{"retentionDays":3}', '{"retentionDays":null}', '{}', "kaputt{"]) { set(v); assert.equal(purge(), 0, v); }
+  const older = db.prepare(OLDER_THAN_SQL).get(...RETENTION_OPTIONS.map((d) => now - d * DAY));
+  assert.deepEqual({ ...older }, { d7: 193, d14: 186, d30: 170, d60: 140, d90: 110, d180: 20, d365: 0 });
+  set('{"v":1,"school":{},"retentionDays":30}');
+  assert.equal(purge(), 170);
+  const left = db.prepare("SELECT COUNT(*) AS n, MIN(received_at) AS m, SUM(stage='first') AS f FROM submissions").get();
+  assert.equal(left.n, 30); assert.ok(left.m >= now - 30 * DAY); assert.ok(left.f > 0);
+  set('{"retentionDays":7}');
+  assert.equal(purge(), 23);
 });

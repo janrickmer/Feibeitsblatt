@@ -101,6 +101,9 @@ export const LIMITS = {
   mapItems: 40, itemId: 40, itemLabel: 120, itemHint: 400, itemCountries: 10, countryName: 80,
   mapChecks: 400,                  // Prüfwerte (Länder aller Karten) je Blatt – der Worker hasht sie beim Anlegen
   cardsPerTask: 40,                // Kartenbilder (mode "card") je Aufgabe – zählen nicht zu imagesPerTask
+  // Datenschutz-Angaben der Schule (settings `privacy`, je Feld einzeilig) und automatische Löschfrist in Tagen
+  schoolName: 160, schoolAddress: 240, dpoContact: 300, privacyUrl: 500, legalBasis: 400, authority: 240,
+  retentionMin: 7, retentionMax: 365, retentionDefault: 30,
 };
 
 export class InputError extends Error {
@@ -508,6 +511,76 @@ export function validateAnswers(answers, taskCount) {
     return cleanText(a);
   });
 }
+
+/* ---------- Datenschutz-Angaben der Schule und Löschfrist (settings `privacy`) ----------
+ * {v:1, school:{name, address, dpo, url, legalBasis, authority}, retentionDays (7–365), updatedAt, auto?} – auto:true = von einer
+ * Neuinstallation gesetzte Vorgabe (30 Tage), noch nicht von der Lehrkraft gespeichert. Alles einzeilig, der Link nur mit https.
+ * Die Angaben sind öffentlich: GET /api/sheet/:code liefert sie für den Datenschutzhinweis der Schüler:innen. */
+export const RETENTION_OPTIONS = [7, 14, 30, 60, 90, 180, 365];
+const SCHOOL_FIELDS = [   // [Feld, Grenze in LIMITS, Name in der Meldung]
+  ["name", "schoolName", "Der Name der Schule"],
+  ["address", "schoolAddress", "Die Anschrift der Schule"],
+  ["dpo", "dpoContact", "Der Kontakt der bzw. des Datenschutzbeauftragten"],
+  ["legalBasis", "legalBasis", "Die Rechtsgrundlage"],
+  ["authority", "authority", "Die Aufsichtsbehörde"],
+];
+// Einzeilig: NFC, Zeilenumbrüche → Leerzeichen, Steuer- und Formatzeichen weg (u. a. Bidi-Steuerung gegen vertauschte Anzeige),
+// Leerraum zusammengefasst
+export const cleanLine = (v) => String(v == null ? "" : v).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ")
+  .replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\s+/g, " ").trim();
+// Link zur Datenschutzerklärung: nur https, ohne Zugangsdaten, Länge nach der Normalisierung → Adresse oder ""
+export function cleanHttpsUrl(raw) {
+  const href = cleanHref(raw);
+  if (!href) return "";
+  const u = new URL(href);
+  return u.protocol === "https:" && !u.username && !u.password && href.length <= LIMITS.privacyUrl ? href : "";
+}
+const isRetention = (d) => Number.isInteger(d) && d >= LIMITS.retentionMin && d <= LIMITS.retentionMax;
+const badSchool = () => new InputError("Die Angaben zur Schule haben ein ungültiges Format.");
+export function validatePrivacyInput(body) {
+  if (!isObj(body)) throw new InputError("Ungültige Anfrage.");
+  const src = body.school == null ? {} : body.school;
+  if (!isObj(src)) throw badSchool();
+  const out = {};
+  for (const [k, lim, the] of SCHOOL_FIELDS) {
+    const v = src[k];
+    if (v != null && typeof v !== "string") throw badSchool();
+    const tooLong = new InputError(the + " ist zu lang (höchstens " + LIMITS[lim] + " Zeichen).");
+    if (v && v.length > 4 * LIMITS[lim] + 100) throw tooLong;   // vor dem Bereinigen (10 ms CPU)
+    out[k] = cleanLine(v);
+    if (out[k].length > LIMITS[lim]) throw tooLong;
+  }
+  if (src.url != null && typeof src.url !== "string") throw badSchool();
+  const rawUrl = String(src.url || "").trim(), url = rawUrl ? cleanHttpsUrl(rawUrl) : "";
+  if (rawUrl && !url) throw new InputError("Bitte geben Sie die Datenschutzerklärung der Schule als vollständige Adresse mit https:// an (höchstens " + LIMITS.privacyUrl + " Zeichen).");
+  if (!isRetention(body.retentionDays)) throw new InputError("Bitte wählen Sie eine Löschfrist zwischen " + LIMITS.retentionMin + " und " + LIMITS.retentionMax + " Tagen.");
+  return { school: { name: out.name, address: out.address, dpo: out.dpo, url, legalBasis: out.legalBasis, authority: out.authority }, retentionDays: body.retentionDays };
+}
+// Gespeicherte Angaben erneut prüfen und kappen (die Zeile könnte von Hand geändert sein); eine ungültige Frist → null, also keine
+// automatische Löschung – genau wie PURGE_SQL (Ganzzahl 7–365; JSON.stringify schreibt Ganzzahlen nie als 30.0)
+export function privacyOut(stored) {
+  if (!isObj(stored)) return null;
+  const s = isObj(stored.school) ? stored.school : {}, f = {};
+  for (const [k, lim] of SCHOOL_FIELDS) f[k] = typeof s[k] === "string" ? cleanLine(s[k]).slice(0, LIMITS[lim]) : "";
+  return {
+    school: { name: f.name, address: f.address, dpo: f.dpo, url: typeof s.url === "string" ? cleanHttpsUrl(s.url) : "", legalBasis: f.legalBasis, authority: f.authority },
+    retentionDays: isRetention(stored.retentionDays) ? stored.retentionDays : null,
+    updatedAt: Number.isFinite(stored.updatedAt) ? stored.updatedAt : null, auto: stored.auto === true,
+  };
+}
+// Art. 13 DSGVO: Name und Kontakt der Verantwortlichen, Kontakt der bzw. des Datenschutzbeauftragten, Rechtsgrundlage
+export const isPrivacyComplete = (p) => !!(p && p.school && p.school.name && p.school.address && p.school.dpo && p.school.legalBasis);
+/* Automatische Löschung: eine einzige Anweisung, ?1 = jetzt (ms). Abgaben und Erstversuche, deren Eingang länger als die Frist
+   zurückliegt, werden gelöscht (Index idx_submissions_received). Ohne gültige Frist (keine Zeile, kein gültiges JSON, keine
+   Ganzzahl 7–365) ist die Unterabfrage NULL – dann wird nichts gelöscht. Liegt hier, weil workerd in der Hauptdatei des Workers
+   (index.js) nur Funktionen als Export zulässt. */
+export const PURGE_SQL = "DELETE FROM submissions WHERE received_at < ?1 - 86400000 * (SELECT json_extract(value,'$.retentionDays') FROM settings " +
+  "WHERE key='privacy' AND json_valid(value) AND json_type(value,'$.retentionDays')='integer' AND json_extract(value,'$.retentionDays') BETWEEN " +
+  LIMITS.retentionMin + " AND " + LIMITS.retentionMax + ")";
+// Wie viele Einträge würde jede wählbare Frist jetzt löschen? Eine Abfrage, eine Indexsuche (die kürzeste Frist schließt alle ein);
+// ?1…?n = jetzt − Frist je RETENTION_OPTIONS
+export const OLDER_THAN_SQL = "SELECT " + RETENTION_OPTIONS.map((d, i) => "SUM(received_at<?" + (i + 1) + ") AS d" + d).join(", ") +
+  " FROM submissions WHERE received_at<?1";
 
 // Basis-URL eines eigenen OpenAI-kompatiblen Dienstes: https Pflicht, http nur für 127.0.0.1/localhost (Tests)
 export function normalizeBaseUrl(input) {
