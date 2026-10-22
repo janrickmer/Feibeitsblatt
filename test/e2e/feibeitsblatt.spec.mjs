@@ -35,8 +35,8 @@ const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ2
 
 // Schüler:in A: tippt Kürzel klein/groß gemischt, überarbeitet nach dem Feedback
 const A = {
-  input: { vorname: "max", nachname: "MU", geb: "2009-05-04", klasse: " 8b " },
-  person: { vorname: "Max", nachname: "Mu", geburtsdatum: "2009-05-04", klasse: "8b" },
+  input: { vorname: "max", nachname: "MU", geb: "--05-04", klasse: " 8b " },
+  person: { vorname: "Max", nachname: "Mu", geburtsdatum: "--05-04", klasse: "8b" },
   lines1: ["Das Gewissn ist eine innere Instanz.", "Es unterscheidet zwischen gut und böse.", "Man hört es im Kopf."],
   line4: "Das finde ich sehr toll.",
   a2start: "Eine konkrete ", a2rest: "Situation: Ich habe meine Schwester angelogen.",
@@ -51,26 +51,26 @@ const A_LT = "Das Gewissen ist eine innere Instanz.\nEs unterscheidet zwischen G
 
 // Schüler:in B: Umlaute im Kürzel, andere Klasse; gibt ohne Überarbeitung ab
 const B = {
-  input: { vorname: "özg", nachname: "ün", geb: "2012-01-15", klasse: "7a" },
-  person: { vorname: "Özg", nachname: "Ün", geburtsdatum: "2012-01-15", klasse: "7a" },
+  input: { vorname: "özg", nachname: "ün", geb: "--01-15", klasse: "7a" },
+  person: { vorname: "Özg", nachname: "Ün", geburtsdatum: "--01-15", klasse: "7a" },
   first: ["Das Gewissen ist eine innere Stimme.", "Keine Ahnung, ehrlich gesagt.", "Schlecht, dann rede ich darüber."],
 };
 B.final = B.first.slice();
 // Schüler:in C: Die KI fällt zweimal aus → Abgabe ohne KI-Feedback (sortiert als Letzte: Klasse 9c)
 const C = {
-  input: { vorname: "lea", nachname: "sc", geb: "2012-06-30", klasse: "9 c" },   // „9 c“ → Klasse 9c
-  person: { vorname: "Lea", nachname: "Sc", geburtsdatum: "2012-06-30", klasse: "9c" },
+  input: { vorname: "lea", nachname: "sc", geb: "--02-29", klasse: "9 c" },   // „9 c“ → Klasse 9c; Geburtstag am 29. Februar
+  person: { vorname: "Lea", nachname: "Sc", geburtsdatum: "--02-29", klasse: "9c" },
   first: ["Das Gewissen sagt mir, was richtig ist.", "Ich habe einmal gelogen und mich danach schlecht gefühlt.", "Ich schäme mich dann."],
 };
 // Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → „Erstversuch ohne Überarbeitung“ (orange in der Lehrkraft-Ansicht)
 const D = {
-  input: { vorname: "tom", nachname: "ze", geb: "2010-02-02", klasse: "9c" },
-  person: { vorname: "Tom", nachname: "Ze", geburtsdatum: "2010-02-02", klasse: "9c" },
+  input: { vorname: "tom", nachname: "ze", geb: "--02-02", klasse: "9c" },
+  person: { vorname: "Tom", nachname: "Ze", geburtsdatum: "--02-02", klasse: "9c" },
   first: ["Das Gewissen ist so etwas wie ein innerer Richter.", "Ich habe beim Test abgeschrieben und mich danach mies gefühlt.", "Ich will es dann wiedergutmachen."],
 };
 // Schüler:in E: die KI bleibt ausgelastet → bricht das Warten zweimal ab, sieht dann den Grund (gibt nicht ab)
 const E = {
-  input: { vorname: "ida", nachname: "kr", geb: "2011-09-09", klasse: "8b" },
+  input: { vorname: "ida", nachname: "kr", geb: "--09-09", klasse: "8b" },
   first: ["Das Gewissen ist wie eine innere Stimme.", "Ich habe gelogen.", "Nicht gut."],
 };
 const RECIPIENT_SUFFIX = " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";   // Empfänger-Label des eigenen Dienstes
@@ -81,6 +81,12 @@ const SUBMIT_HINT_NO_FB = "Du kannst auch ohne KI-Feedback abgeben – dann geht
 const NO_FB_TAIL = " Du kannst es später noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI. Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.";
 const noFbDialog = (reason) => "Das KI-Feedback hat bisher nicht geklappt (" + reason + ")." + NO_FB_TAIL;
 const ORANGE = "rgb(184, 92, 0)";   // .st-first
+// Rechtschreibprüfung: Selbstauskunft im Dialog (Altersgrenze des Anbieters) und Hinweis nach „Trifft nicht zu“
+const LT_CONSENT = "Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird nur der Text dieser Antwort an LanguageTool gesendet – ohne deinen Namen oder deine Angaben, aber mit der Internetadresse deines Geräts. Die Prüfung ist freiwillig.\n\n" +
+  "Laut Anbieter darfst du LanguageTool nur nutzen, wenn du\n• mindestens 18 Jahre alt bist oder\n• 16 oder 17 Jahre alt bist und deine Eltern es dir erlaubt haben.\n\n" +
+  "Trifft das nicht auf dich zu, wähle „Trifft nicht zu“ – du schreibst und gibst ganz normal ab, ohne Nachteil.\nDie Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.";
+const LT_OFF = "Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.";
+const LT_PRIVACY = "Die Rechtschreibprüfung ist freiwillig, laut Anbieter erst ab 16 Jahren (mit 16 und 17 nur mit Erlaubnis deiner Eltern) und läuft nur nach deiner Bestätigung";
 const ATTEMPT = /^[0-9a-f]{16}$/;
 
 const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [], pdf: null };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe, pdf: PDF-Datei zu Aufgabe 2)
@@ -95,7 +101,7 @@ const MATERIAL_1 = [
   [{ t: "Hinweis:", f: "u" }, { t: " " }, { t: "Quelle 2", h: LINK_URL2 }, { t: " – Verlag" }],
 ];
 const MATERIAL_2 = [[{ t: "Siehe " }, { t: "Kapitel 3", f: "b" }, { t: " und böse sowie " }, { t: "gut", h: "https://example.org/x" }, { t: "." }]];
-const fmtDe = (iso) => iso.split("-").reverse().join(".");
+const fmtBd = (b) => b.slice(5) + "." + b.slice(2, 4) + ".";   // "--05-04" → "04.05."
 // Sichtbarer Text einer im Browser erzeugten PDF-Datei: alle „(…) Tj“ in Reihenfolge (WinAnsi-Oktal → Zeichen), mit Leerzeichen verbunden
 const WIN = { 0x84: "„", 0x93: "“", 0x95: "•", 0x96: "–" };
 const pdfShownText = (buf) => [...buf.toString("latin1").matchAll(/\(((?:\\[\s\S]|[^\\)])*)\) Tj/g)]
@@ -110,7 +116,9 @@ async function fillPerson(page, input) {
   await expect(page.locator("#p-vorname")).toBeFocused();   // die Seite setzt den Fokus kurz nach dem Öffnen; danach stiehlt sie ihn nicht mehr
   await page.fill("#p-vorname", input.vorname);
   await page.fill("#p-nachname", input.nachname);
-  await page.fill("#p-geb", input.geb);
+  const [, mm, dd] = /^--(\d\d)-(\d\d)$/.exec(input.geb);   // Geburtstag "--MM-TT" → Felder Tag und Monat (ohne führende Null)
+  await page.fill("#p-gtag", String(+dd));
+  await page.fill("#p-gmonat", String(+mm));
   await page.fill("#p-klasse", input.klasse);
   await page.click("#p-btn");
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
@@ -510,24 +518,37 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
     await expect(err).toHaveText(msg);
     await expect(page.locator("#screen-person")).toHaveClass(/active/);
   };
-  const nextYear = new Date().getFullYear() + 1;
   await tryPerson(null, "", "Bitte gib die ersten drei Buchstaben deines Vornamens ein.");
   await expect(page.locator("#p-vorname")).toHaveClass(/invalid/);
   await tryPerson("#p-vorname", "M4x", "Beim Vornamen sind nur Buchstaben erlaubt.");
   await tryPerson("#p-vorname", "M", "Bitte gib die ersten drei Buchstaben deines Vornamens ein (bei kürzerem Vornamen den ganzen Vornamen).");
   await tryPerson("#p-vorname", A.input.vorname, "Bitte gib die ersten zwei Buchstaben deines Nachnamens ein.");
   await tryPerson("#p-nachname", "M1", "Beim Nachnamen sind nur Buchstaben erlaubt.");
-  await tryPerson("#p-nachname", A.input.nachname, "Bitte gib dein Geburtsdatum ein.");
-  await tryPerson("#p-geb", nextYear + "-01-01", "Bitte prüfe dein Geburtsdatum.");
-  await tryPerson("#p-geb", "1949-12-31", "Bitte prüfe dein Geburtsdatum.");
-  await tryPerson("#p-geb", A.input.geb, "Bitte gib deine Klasse ein (z. B. 8b).");
+  await tryPerson("#p-nachname", A.input.nachname, "Bitte gib deinen Geburtstag ein (Tag und Monat).");
+  await expect(page.locator("#p-gtag")).toHaveClass(/invalid/);
+  await expect(page.locator("#p-gtag")).toBeFocused();
+  await tryPerson("#p-gtag", "0", "Bitte gib beim Tag eine Zahl von 1 bis 31 ein.");
+  await tryPerson("#p-gtag", "32", "Bitte gib beim Tag eine Zahl von 1 bis 31 ein.");
+  await tryPerson("#p-gtag", "30", "Bitte gib den Monat deines Geburtstags ein.");
+  await expect(page.locator("#p-gmonat")).toBeFocused();
+  await tryPerson("#p-gmonat", "13", "Bitte gib beim Monat eine Zahl von 1 bis 12 ein (z. B. 5 für Mai).");
+  await tryPerson("#p-gmonat", "2", "Den 30. Februar gibt es nicht. Bitte prüfe deinen Geburtstag.");
+  await expect(page.locator("#p-gtag")).toBeFocused();
+  await tryPerson("#p-gtag", "29", "Bitte gib deine Klasse ein (z. B. 8b).");   // 29. Februar gibt es
+  await expect(page.locator("#p-gtag")).not.toHaveClass(/invalid/);
+  await page.fill("#p-gtag", "٣١"); await tryPerson("#p-gmonat", "٤", "Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.");   // Ziffern anderer Schriften zählen wie 0–9
+  await page.fill("#p-gtag", "04"); await page.fill("#p-gmonat", "5");          // führende Null ist erlaubt
+  // Autofill-Werte für den Geburtstag (WCAG 2.2, 1.3.5); die übrigen Angaben ohne Autofill
+  expect(await page.$eval("#p-gtag", (e) => [e.inputMode, e.maxLength, e.autocomplete, e.labels[0].textContent])).toEqual(["numeric", 2, "bday-day", "Tag"]);
+  expect(await page.$eval("#p-gmonat", (e) => [e.inputMode, e.maxLength, e.autocomplete, e.labels[0].textContent, e.closest("fieldset").querySelector("legend").textContent])).toEqual(["numeric", 2, "bday-month", "Monat", "Geburtstag (Tag und Monat)"]);
+  for (const id of ["#p-vorname", "#p-nachname", "#p-klasse"]) expect(await page.$eval(id, (e) => e.autocomplete)).toBe("off");
   await tryPerson("#p-klasse", "8b!", "Bitte gib deine Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
   await page.fill("#p-klasse", A.input.klasse);
   await page.click("#p-btn");
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
 
   // Schreibbereich
-  await expect(page.locator("#who-name")).toHaveText("Max · Mu · 04.05.2009 · Klasse 8b");
+  await expect(page.locator("#who-name")).toHaveText("Max · Mu · 04.05. · Klasse 8b");
   await expect(page.locator("#ed-title")).toHaveText(TITLE);
   await expect(page.locator("#sheet-title")).toHaveText(TITLE);
   await expect(page.locator("#tasks .task-label")).toHaveText(["Aufgabe 1", "Aufgabe 2", "Aufgabe 3"]);
@@ -646,7 +667,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   const aiProvider = JSON.parse(lookup.body).sheet.aiProvider;
   expect(aiProvider).toMatch(/^127\.0\.0\.1:\d+$/);
   const privacy = page.locator("#privacy");
-  await expect(privacy).toContainText("ohne Namenskürzel, Geburtsdatum und Klasse");
+  await expect(privacy).toContainText("ohne Namenskürzel, Geburtstag und Klasse");
   await expect(privacy).toContainText("„" + aiProvider + RECIPIENT_SUFFIX + "“");   // Empfänger mit Betreiber-Hinweis
   await expect(privacy).toContainText("wiederholt diese Seite die Anfrage automatisch (bis zu 5 Versuche");
   await expect(privacy).toContainText("speichert selbst nichts davon");
@@ -726,20 +747,17 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await typeAt(page, "#a-3", A.a3);
   for (let i = 0; i < 3; i++) expect(await page.inputValue("#a-" + (i + 1))).toBe(A.first[i]);
 
-  // Rechtschreibung und Grammatik (LanguageTool-Attrappe): A ist 17 → Button da, aber erst nach Altersbestätigung
+  // Rechtschreibung und Grammatik (LanguageTool-Attrappe): Button bei jedem Textfeld, aber erst nach der Selbstauskunft im Dialog
+  // (ohne Geburtsjahr kennt die Seite das Alter nicht); „Trifft nicht zu“ prüft Test 3
   await expect(page.locator("#t-1 .ltbtn")).toHaveText("Rechtschreibung und Grammatik prüfen");
   await expect(page.locator(".ltbtn")).toHaveCount(3);
   await expect(page.locator(".lt-off")).toHaveCount(0);
   await page.click("#t-1 .ltbtn");
-  await expect(page.locator("#dlg-ok")).toHaveText("Ich bin mindestens 16 Jahre alt – prüfen");
-  await expect(page.locator("#dlg-cancel")).toHaveText("Nicht prüfen");
-  const consent = await confirmDialog(page, "Rechtschreibung und Grammatik prüfen", false);   // erst ablehnen
-  for (const p of ["LanguageTool", "Learneo, Inc., USA", "ab 16 Jahren", "mindestens 16 Jahre alt", "solange dieses Feibeitsblatt geöffnet ist"]) expect(consent).toContain(p);
-  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("Ohne Bestätigung wird nichts an LanguageTool gesendet.");
-  await expect(page.locator("#t-1 .lt-out")).toBeHidden();
-  expect(s.lt).toHaveLength(0);                                   // ohne Bestätigung geht nichts raus
-  await page.click("#t-1 .ltbtn");
-  await confirmDialog(page, "Rechtschreibung und Grammatik prüfen");   // jetzt bestätigen
+  await expect(page.locator("#dlg-ok")).toHaveText("Trifft auf mich zu – prüfen");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Trifft nicht zu");
+  await expect(page.locator("#dlg-cancel")).toBeFocused();   // der sichere Knopf hat den Fokus
+  expect(s.lt).toHaveLength(0);                               // vor der Bestätigung geht nichts raus
+  expect(await confirmDialog(page, "Rechtschreibung und Grammatik prüfen")).toBe(LT_CONSENT);
   const out = page.locator("#t-1 .lt-out");
   await expect(out).toBeVisible();
   expect(s.lt).toHaveLength(1);
@@ -780,7 +798,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   const prompt = JSON.stringify(ms.requests[0].messages);
   expect(prompt).toContain("innere Instanz");
   expect(prompt).not.toContain(A.a3);                                   // Aufgabe ohne Auftrag geht nicht an die KI
-  for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt).not.toContain(p);
+  for (const p of [A.person.geburtsdatum, fmtBd(A.person.geburtsdatum), "8b", "Max"]) expect(prompt).not.toContain(p);
   // Format der Nachricht: erst Aufgaben, Material und Aufträge der Lehrkraft (je Blatt gleich → Präfix-Caching), dann die Antworten
   const user = ms.requests[0].messages.find((m) => m.role === "user").content;
   expect(user.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 1, 2):\n\n### Aufgabe 1\nAufgabenstellung:\n<<<\n" + TASKS[0].text + "\n>>>\n")).toBe(true);
@@ -822,7 +840,8 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(fp.stage).toBe("first");
   expect(fp.attempt).toMatch(ATTEMPT);
   expect(Object.keys(fp.envelope).sort()).toEqual(["ct", "ek", "iv", "v"]);
-  for (const p of ["Gewissn", "Schwester", "Max", "2009-05-04", "vorname"]) expect(firstPost.reqBody).not.toContain(p);
+  // kein Klartext neben dem Umschlag (der Umschlag selbst ist Base64 – Klartext oder ein „-“ wie in „--05-04“ kann darin nicht stehen)
+  for (const p of ["Gewissn", "Schwester", "Max", A.person.geburtsdatum, "vorname"]) expect(firstPost.reqBody).not.toContain(p);
 
   // Überarbeiten → die Prüfung von Aufgabe 1 bezieht sich jetzt auf einen älteren Stand
   await typeAt(page, "#a-1", A.rev1);
@@ -859,7 +878,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(fresh.page.locator("#screen-start")).toHaveClass(/active/);
   await fresh.page.setInputFiles("#start-pdf-file", pdfPath);
   await expect(fresh.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
-  await expect(fresh.page.locator("#who-name")).toHaveText("Max · Mu · 04.05.2009 · Klasse 8b");
+  await expect(fresh.page.locator("#who-name")).toHaveText("Max · Mu · 04.05. · Klasse 8b");
   for (let i = 0; i < 3; i++) expect(await fresh.page.inputValue("#a-" + (i + 1))).toBe(A.final[i]);
   await expect(fresh.page.locator("#save-state")).toHaveText("Zwischenstand aus der PDF-Datei übernommen");
   await expect(fresh.page.locator("#t-1 .fbbox")).toBeVisible();
@@ -919,7 +938,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(sol).toContain("(Meine L\\366sung \\(abgegebene Fassung\\):) Tj");
   expect(sol).toContain("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj");   // A hat überarbeitet
   expect(sol).toContain("Max \\267 Mu \\267 Klasse 8b");
-  expect(sol).not.toContain("2009-05-04"); expect(sol).not.toContain("04.05.2009");   // kein Geburtsdatum in der Datei
+  expect(sol).not.toContain("--05-04"); expect(sol).not.toMatch(/04\.05\.(?!\d)/);   // kein Geburtstag in der Datei („04.05.2026“ wäre ein Abgabedatum)
 
   // der erste Versuch der zweiten Rückmeldung scheitert → Hinweis, Abgabe unberührt, „Rückmeldung erneut anfordern“
   releaseFb2();
@@ -959,7 +978,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(ms2.count).toBe(2);   // erstes Feedback + zweite Rückmeldung (der gescheiterte Versuch kam nicht bei der KI an)
   const prompt2 = JSON.stringify(ms2.requests[1].messages);
   expect(prompt2).toContain("Es meldet sich als schlechtes Gewissen.");
-  for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt2).not.toContain(p);
+  for (const p of [A.person.geburtsdatum, fmtBd(A.person.geburtsdatum), "8b", "Max"]) expect(prompt2).not.toContain(p);
   // die PDF-Datei enthält jetzt beide Rückmeldungen
   const [sdl2] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
@@ -978,7 +997,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(sb.stage).toBe("final");
   expect(sb.attempt).toBe(fp.attempt);                           // ersetzt den Erstversuch auf dem Server
   expect(Object.keys(sb.envelope).sort()).toEqual(["ct", "ek", "iv", "v"]);
-  for (const p of ["Gewissn", "Schwester", "Max", "2009-05-04", "vorname"]) expect(sub[1].reqBody).not.toContain(p);
+  for (const p of ["Gewissn", "Schwester", "Max", A.person.geburtsdatum, "vorname"]) expect(sub[1].reqBody).not.toContain(p);   // kein Klartext neben dem Umschlag (s. o.)
   expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")))).toEqual([]);
   S.sheetBodies.push(lookup.body);
   await closePage(s);
@@ -990,13 +1009,34 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await enterCode(page, S.shown);
   await expect(page.locator("#screen-person")).toHaveClass(/active/);
   await fillPerson(page, B.input);
-  await expect(page.locator("#who-name")).toHaveText("Özg · Ün · 15.01.2012 · Klasse 7a");
-  // B ist laut Geburtsdatum unter 16: keine Rechtschreibprüfung, nur ein Hinweis – Absatz zum Feedback-Hinweis stimmt
-  await expect(page.locator(".ltbtn")).toHaveCount(0);
-  await expect(page.locator(".lt-off")).toHaveCount(3);
-  await expect(page.locator("#t-1 .lt-off")).toHaveText("Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.");
-  await expect(page.locator("#privacy")).toContainText("erst ab 16 Jahren und nur nach deiner Bestätigung");
+  await expect(page.locator("#who-name")).toHaveText("Özg · Ün · 15.01. · Klasse 7a");
+  // Ohne Geburtsjahr kennt die Seite das Alter nicht: Der Button steht bei jedem Textfeld, B (unter 16) lehnt im Dialog ab → nichts geht raus
+  await expect(page.locator(".ltbtn")).toHaveCount(3);
+  await expect(page.locator(".lt-off")).toHaveCount(0);
+  await expect(page.locator("#privacy")).toContainText(LT_PRIVACY);
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), B.first[i]);
+  await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg-title")).toHaveText("Rechtschreibung und Grammatik prüfen");
+  await expect(page.locator("#dlg-cancel")).toBeFocused();
+  await page.keyboard.press("Escape");                                   // Esc gilt wie „Trifft nicht zu“
+  await expect(page.locator("#dlg")).not.toHaveClass(/open/);
+  await expect(page.locator(".ltbtn")).toHaveCount(0);                   // für dieses geöffnete Blatt kein Button mehr …
+  await expect(page.locator(".lt-off")).toHaveText([LT_OFF, LT_OFF, LT_OFF]);   // … sondern der Hinweis
+  await expect(page.locator("#t-1 .lt-off")).toBeFocused();
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("Ohne Bestätigung wird nichts an LanguageTool gesendet.");
+  expect(s.lt).toHaveLength(0);
+  await typeAt(page, "#a-1", " Ja.");                                    // Weiterschreiben räumt die Meldung weg
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("");
+  await page.keyboard.press("Backspace"); await page.keyboard.press("Backspace"); await page.keyboard.press("Backspace"); await page.keyboard.press("Backspace");
+  expect(await page.inputValue("#a-1")).toBe(B.first[0]);
+  // gespeichert wird die Auswahl nicht: nach dem Neuladen („Weiterschreiben“) gibt es die Buttons wieder
+  await page.waitForTimeout(700);
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator(".ltbtn")).toHaveCount(3);
+  await expect(page.locator(".lt-off")).toHaveCount(0);
+  for (let i = 0; i < 3; i++) expect(await page.inputValue("#a-" + (i + 1))).toBe(B.first[i]);
 
   // KI lehnt ab (Mock: HTTP 401) → kurze Meldung ohne Interna, Feedback erneut möglich; „Abgeben“ ging die ganze Zeit
   await mockMode("401");
@@ -1068,7 +1108,7 @@ test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback (der D
   const { page } = s;
   await enterCode(page, S.shown);
   await fillPerson(page, C.input);
-  await expect(page.locator("#who-name")).toHaveText("Lea · Sc · 30.06.2012 · Klasse 9c");
+  await expect(page.locator("#who-name")).toHaveText("Lea · Sc · 29.02. · Klasse 9c");
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), C.first[i]);
   await mockMode("500");
   try {
@@ -1098,7 +1138,7 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   const { page } = s;
   await enterCode(page, S.shown);
   await fillPerson(page, D.input);
-  await expect(page.locator("#who-name")).toHaveText("Tom · Ze · 02.02.2010 · Klasse 9c");
+  await expect(page.locator("#who-name")).toHaveText("Tom · Ze · 02.02. · Klasse 9c");
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), D.first[i]);
   // Ausgelastete KI: zweimal 429 ai_busy (Attrappe über route, retryAfter 5 s) → die Seite wartet mit Countdown und wiederholt
   // von selbst; währenddessen darf weitergeschrieben werden, der dritte Versuch schickt den aktuellen Text und geht durch
@@ -1113,7 +1153,7 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   expect(dlgText).toContain(FB_VOLUNTARY);
   expect(dlgText).toContain("an den KI-Dienst „127.0.0.1:");                       // der Empfänger steht im Dialog, nicht nur im Kleingedruckten
   expect(dlgText).toContain(RECIPIENT_SUFFIX + "“");
-  expect(dlgText).toContain("ohne Namenskürzel, Geburtsdatum und Klasse");
+  expect(dlgText).toContain("ohne Namenskürzel, Geburtstag und Klasse");
   await expect(page.locator("#fb-status")).toContainText("Versuch 2 von 5", { timeout: 20_000 });
   await expect(page.locator("#fb-status")).toContainText("die KI ist ausgelastet");
   await expect(page.locator("#fb-wait")).toBeVisible();
@@ -1136,7 +1176,8 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   const body = JSON.parse(post.reqBody);
   expect(body.stage).toBe("first");
   expect(body.attempt).toMatch(ATTEMPT);
-  for (const p of ["Richter", "Tom", "2010-02-02", "vorname", "klasse"]) expect(post.reqBody).not.toContain(p);   // („9c“ wäre als Base64-Zufallstreffer möglich)
+  // kein Klartext neben dem Base64-Umschlag („9c“ fehlt in der Liste: als Base64-Zufallstreffer möglich)
+  for (const p of ["Richter", "Tom", D.person.geburtsdatum, "vorname", "klasse"]) expect(post.reqBody).not.toContain(p);
   await expect(page.locator("#submit-btn")).toBeEnabled();   // … gibt aber nicht ab
   await closePage(s);
 });
@@ -1171,6 +1212,93 @@ test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zä
   await closePage(s);
 });
 
+test("3e Übergang: Zwischenstände und Zwischenstand-PDFs mit vollem Geburtsdatum bleiben nutzbar (der jüngste gewinnt), unmögliche Geburtstage nicht – danach liegt nur noch Tag und Monat auf dem Gerät; nach BDAY_LEGACY_UNTIL wird nicht mehr gesucht", async ({ browser }) => {
+  const s = await openPage(browser);
+  const { page } = s;
+  // Feste Uhrzeit im Browser vor bzw. nach dem Ende des Übergangs – so hängt der Test nicht vom heutigen Datum ab
+  const until = /const BDAY_LEGACY_UNTIL = "(\d{4}-\d{2}-\d{2})";/.exec(await readFile(new URL("../../index.html", import.meta.url), "utf8"))[1];
+  const T_IN = new Date(until + "T10:00:00").getTime() - 14 * 864e5, T_OUT = new Date(until + "T10:00:00").getTime() + 864e5;
+  await page.clock.setFixedTime(T_IN);
+  const OLD = { vorname: "Ole", nachname: "Al", geburtsdatum: "2010-03-07", klasse: "8a" };   // so speicherte die Seite bis zur Umstellung
+  const OLD2 = { ...OLD, geburtsdatum: "2011-03-07" };                                         // gleiche Angaben, anderes Jahr
+  const NEW = { ...OLD, geburtsdatum: "--03-07" };
+  // Speicherschlüssel wie draftKeyFor in index.html: SHA-256 über Code|Kürzel|Geburtstag|Klasse (klein geschrieben)
+  const keyOf = (p) => "feibeitsblatt:draft:" + createHash("sha256").update([S.code, p.vorname, p.nachname, p.geburtsdatum, p.klasse].join("|").toLocaleLowerCase("de-DE")).digest("hex");
+  const oldKey = keyOf(OLD), oldKey2 = keyOf(OLD2), newKey = keyOf(NEW);
+  expect(new Set([oldKey, oldKey2, newKey]).size).toBe(3);
+  const draft = { v: 1, t: T_IN - 2 * 3600e3, answers: ["Alter Stand eins.", "", "Alter Stand drei."], first: null, feedback: null, feedbackAt: null, fbUnavailable: "", fbFails: 0, attempt: "00112233445566aa", firstSent: false };
+  const draft2 = { ...draft, t: T_IN - 3600e3, answers: ["Jüngerer Stand eins.", "", "Jüngerer Stand drei."], attempt: "00112233445566bb" };
+  const stored = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:")).sort());
+  const values = () => page.evaluate(() => Object.keys(localStorage).map((k) => localStorage.getItem(k)).join("\n"));
+  const setItems = (pairs) => page.evaluate((pairs) => { for (const [k, v] of pairs) localStorage.setItem(k, JSON.stringify(v)); }, pairs);
+  const restored = async (state, d = draft) => {
+    await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+    await expect(page.locator("#who-name")).toHaveText("Ole · Al · 07.03. · Klasse 8a");
+    expect(await page.inputValue("#a-1")).toBe(d.answers[0]);
+    expect(await page.inputValue("#a-3")).toBe(d.answers[2]);
+    await expect(page.locator("#save-state")).toHaveText(state);
+    expect(await stored()).toEqual([newKey, "feibeitsblatt:last"].sort());   // umgezogen, alte Schlüssel weg
+    expect(JSON.parse(await page.evaluate(() => localStorage.getItem("feibeitsblatt:last"))).person).toEqual(NEW);
+    for (const g of [OLD.geburtsdatum, OLD2.geburtsdatum]) expect(await values()).not.toContain(g);
+  };
+  const cancel = async () => {
+    await page.click("#ed-cancel");
+    await confirmDialog(page, "Zwischenstand löschen?");
+    await expect(page.locator("#screen-start")).toHaveClass(/active/);
+    expect(await stored()).toEqual([]);
+  };
+
+  // 1) „Weiterschreiben“ nach Neuladen: Angaben und Speicherschlüssel noch mit vollem Datum → Anzeige ohne Jahr, Umzug beim Laden
+  await setItems([[oldKey, draft], ["feibeitsblatt:last", { v: 1, t: T_IN - 2 * 3600e3, code: S.code, person: OLD }]]);
+  await page.reload();
+  await expect(page.locator("#resume-text")).toHaveText(`Auf diesem Gerät liegt ein Zwischenstand von Ole · Al · 07.03. · Klasse 8a (Code ${S.shown}). Bist du das?`);
+  expect(await stored()).toEqual([newKey, "feibeitsblatt:last"].sort());
+  await page.click("#resume-btn");
+  await restored("Zwischenstand von diesem Gerät wiederhergestellt");
+  await cancel();
+
+  // 2) Code und Angaben neu eingegeben (nur Tag und Monat): von zwei alten Ständen (verschiedene Jahre) gilt der jüngste,
+  //    beide alten Schlüssel verschwinden (mit Tag und Monat lassen sie sich nicht mehr unterscheiden)
+  await setItems([[oldKey, draft], [oldKey2, draft2]]);
+  await enterCode(page, S.shown);
+  await fillPerson(page, { vorname: "ole", nachname: "al", geb: "--03-07", klasse: "8a" });
+  await restored("Zwischenstand von diesem Gerät wiederhergestellt", draft2);
+  await cancel();
+
+  // 3) Zwischenstand-PDF aus der Zeit davor (eingebetteter Datensatz mit vollem Datum, wie ihn makeDraftPdf schrieb) → das Jahr wird verworfen
+  const draftPdf = (person) => {
+    const rec = Buffer.from(JSON.stringify({ ...draft, kind: "feibeitsblatt-draft", code: S.code, sheetTitle: TITLE, person }), "utf8");
+    return Buffer.concat([Buffer.from(`%PDF-1.7\n6 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbDraft 1 /Length ${rec.length} >>\nstream\n`), rec, Buffer.from("\nendstream\nendobj\n%%EOF\n")]);
+  };
+  await page.setInputFiles("#start-pdf-file", { name: "alt.pdf", mimeType: "application/pdf", buffer: draftPdf(OLD) });
+  await restored("Zwischenstand aus der PDF-Datei übernommen");
+  await cancel();
+  // … aber kein Zwischenstand mit einem Geburtstag, den es nicht gibt
+  for (const [k, g] of ["--02-30", "--13-01", "2011-02-29"].entries()) {
+    await page.evaluate(() => { document.getElementById("start-err").textContent = ""; });
+    await page.setInputFiles("#start-pdf-file", { name: `falsch-${k}.pdf`, mimeType: "application/pdf", buffer: draftPdf({ ...NEW, geburtsdatum: g }) });
+    await expect(page.locator("#start-err")).toContainText("In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.");
+    await expect(page.locator("#screen-start")).toHaveClass(/active/);
+  }
+  expect(await stored()).toEqual([]);
+
+  // 4) Nach BDAY_LEGACY_UNTIL sucht die Seite nicht mehr unter alten Schlüsseln (nach DRAFT_DAYS gibt es dort ohnehin nichts mehr)
+  await page.clock.setFixedTime(T_OUT);
+  await setItems([[oldKey, { ...draft, t: T_OUT - 3600e3 }]]);
+  await enterCode(page, S.shown);
+  await fillPerson(page, { vorname: "ole", nachname: "al", geb: "--03-07", klasse: "8a" });
+  await expect(page.locator("#save-state")).toHaveText("Zwischenstand wird auf diesem Gerät gespeichert");
+  expect(await page.inputValue("#a-1")).toBe("");
+  expect(await stored()).toEqual([oldKey, "feibeitsblatt:last"].sort());
+  await page.click("#ed-cancel");
+  await confirmDialog(page, "Zwischenstand löschen?");
+  await expect(page.locator("#screen-start")).toHaveClass(/active/);
+  expect(await stored()).toEqual([oldKey]);   // bleibt liegen, bis cleanupDrafts ihn nach DRAFT_DAYS löscht
+  await page.evaluate(() => localStorage.clear());
+  expect(await s.calls((r) => r.path === "/api/submit")).toEqual([]);   // nichts beim Server
+  await closePage(s);
+});
+
 test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Aufklappen zeigt erste und überarbeitete Fassung", async ({ browser }) => {
   const t = await openPage(browser);
   const { page } = t;
@@ -1197,10 +1325,10 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   for (let i = 0; i < 4; i++) await expect(mains.nth(i)).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#t-subs-body tr.details:visible")).toHaveCount(0);
   const cells = (i) => mains.nth(i).locator("td:not(.arrowcol)");
-  await expect(cells(0)).toHaveText([B.person.nachname, B.person.vorname, fmtDe(B.person.geburtsdatum), B.person.klasse]);
-  await expect(cells(1)).toHaveText([A.person.nachname, A.person.vorname, fmtDe(A.person.geburtsdatum), A.person.klasse]);
-  await expect(cells(2)).toHaveText([C.person.nachname, C.person.vorname, fmtDe(C.person.geburtsdatum), C.person.klasse]);
-  await expect(cells(3)).toHaveText([D.person.nachname, D.person.vorname, fmtDe(D.person.geburtsdatum), D.person.klasse]);
+  await expect(cells(0)).toHaveText([B.person.nachname, B.person.vorname, fmtBd(B.person.geburtsdatum), B.person.klasse]);
+  await expect(cells(1)).toHaveText([A.person.nachname, A.person.vorname, fmtBd(A.person.geburtsdatum), A.person.klasse]);
+  await expect(cells(2)).toHaveText([C.person.nachname, C.person.vorname, fmtBd(C.person.geburtsdatum), C.person.klasse]);
+  await expect(cells(3)).toHaveText([D.person.nachname, D.person.vorname, fmtBd(D.person.geburtsdatum), D.person.klasse]);
   await expect(page.locator("#t-subs-body")).not.toContainText(A.first[1]);   // Lösungen erst nach dem Aufklappen
   // Kürzel: grün bei Abgaben nach der Überarbeitung (A, B, C), orange beim Erstversuch ohne Überarbeitung (D); Screenreader-Text dazu
   for (let i = 0; i < 3; i++) {
@@ -1379,7 +1507,7 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
     expect(blob(m.ref).equals(srv)).toBe(true);
     expect([m.bytes, m.sha256]).toEqual([srv.length, sha(srv)]);
   }
-  for (const p of [...A.first, ...A.final, A.person.vorname, "2009-05-04"]) expect(JSON.stringify(rec)).not.toContain(p);   // keine Abgaben
+  for (const p of [...A.first, ...A.final, A.person.vorname, A.person.geburtsdatum]) expect(JSON.stringify(rec)).not.toContain(p);   // keine Abgaben
 
   // eine fremde PDF und ein Zwischenstand von Schüler:innen → Meldung, der Editor öffnet sich nicht
   await page.setInputFiles("#t-import-file", { name: "fremd.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n") });
@@ -1489,9 +1617,12 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
   expect(rows.map((r) => r.stage)).toEqual(["final", "final", "final", "first"]);   // A (Erstversuch → Abgabe, eine Zeile), B, C, D
   for (const r of rows) expect(r.attempt).toMatch(ATTEMPT);
   expect(new Set(rows.map((r) => r.attempt)).size).toBe(4);
+  // Klartext, der nur verschlüsselt gespeichert sein darf. Im Umschlag selbst (Base64, geprüft per Regex) kann keiner dieser Texte
+  // stehen – die Liste fängt Klartext neben dem Umschlag und unten in allen Dateien des lokalen Zustands (Logs, WAL)
   const forbidden = [...A.first, ...A.final, ...B.first, ...C.first, ...D.first].flatMap((a) => a.split("\n")).concat(
     ["Gewissn", "Schwester angelogen", "Lügen ist unfair", "innere Stimme", "Keine Ahnung", "innerer Richter",
-      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', '"Tom"', '"Ze"', "2009-05-04", "2012-01-15", "2012-06-30", "2010-02-02", "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError", "unavailable"]);   // C: noAi "unavailable" nur verschlüsselt
+      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', '"Tom"', '"Ze"', ...[A, B, C, D].map((x) => x.person.geburtsdatum),
+      "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError", "unavailable"]);   // C: noAi "unavailable"
   for (const r of rows) {
     expect(r.sheet_code).toBe(S.code);
     expect(Object.keys(r).sort()).toEqual(["attempt", "envelope", "id", "received_at", "sheet_code", "stage"]);
@@ -1617,7 +1748,7 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, shownF);
-  await fillPerson(page, { vorname: "ina", nachname: "fe", geb: "2009-09-09", klasse: "8a" });
+  await fillPerson(page, { vorname: "ina", nachname: "fe", geb: "--09-09", klasse: "8a" });
   for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), F.first[i]);
   await mockReset();
   await requestFeedback(page);
@@ -1700,7 +1831,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   const busyDialogStart = "Deine Anfrage um KI-Feedback läuft noch. Gibst du jetzt ab, wird sie abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.";
 
   // G: Abschluss-Text, Hinweis und Datenschutz nennen die Freiwilligkeit; „Abgeben“ geht sofort – aber nicht mit lauter leeren Feldern
-  const G = { input: { vorname: "jan", nachname: "gr", geb: "2010-03-03", klasse: "7b" }, first: ["Das Gewissen ist eine innere Stimme.", ""] };
+  const G = { input: { vorname: "jan", nachname: "gr", geb: "--03-03", klasse: "7b" }, first: ["Das Gewissen ist eine innere Stimme.", ""] };
   const s = await student(G);
   const { page } = s;
   await expect(page.locator("#fin-text")).toHaveText(FIN_TEXT);
@@ -1739,7 +1870,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await closePage(s);
 
   // H: fordert Feedback an, will während der Anfrage doch ohne KI abgeben – die Antwort kommt, solange der Dialog offen ist
-  const H = { input: { vorname: "eva", nachname: "ha", geb: "2010-04-04", klasse: "7b" }, first: ["Das Gewissen ist eine innere Instanz.", "Ich habe gelogen."] };
+  const H = { input: { vorname: "eva", nachname: "ha", geb: "--04-04", klasse: "7b" }, first: ["Das Gewissen ist eine innere Instanz.", "Ich habe gelogen."] };
   const s2 = await student(H);
   const p2 = s2.page;
   for (let i = 0; i < 2; i++) await typeAt(p2, "#a-" + (i + 1), H.first[i]);
@@ -1767,7 +1898,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await closePage(s2);
 
   // I: ein gescheiterter Versuch → die Abgabe ohne Feedback gilt nicht als „ohne Anfrage“; Zwischenstand-PDF und Dialog sagen es
-  const I = { input: { vorname: "ina", nachname: "ib", geb: "2010-06-06", klasse: "7b" }, first: ["Eine innere Stimme.", "Ich habe geschwindelt."] };
+  const I = { input: { vorname: "ina", nachname: "ib", geb: "--06-06", klasse: "7b" }, first: ["Eine innere Stimme.", "Ich habe geschwindelt."] };
   const s4 = await student(I);
   const p4 = s4.page;
   for (let i = 0; i < 2; i++) await typeAt(p4, "#a-" + (i + 1), I.first[i]);
@@ -1787,7 +1918,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
 
   // J: die Abgabe bricht eine laufende Anfrage ab und scheitert dann selbst → Felder und Feedback-Button sind wieder frei;
   // die abgebrochene Anfrage (fetch abgebrochen) liefert kein Feedback und keinen Erstversuch; der zweite Anlauf klappt
-  const J = { input: { vorname: "jon", nachname: "jo", geb: "2010-07-07", klasse: "7b" }, first: ["Das Gewissen urteilt.", "Ich habe etwas versteckt."] };
+  const J = { input: { vorname: "jon", nachname: "jo", geb: "--07-07", klasse: "7b" }, first: ["Das Gewissen urteilt.", "Ich habe etwas versteckt."] };
   const s5 = await student(J);
   const p5 = s5.page;
   for (let i = 0; i < 2; i++) await typeAt(p5, "#a-" + (i + 1), J.first[i]);
@@ -1830,7 +1961,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await closePage(s5);
 
   // K: Blatt mit Auftrag an die KI, aber keine KI eingerichtet (Antwort ohne Empfänger nachgestellt) → „KI nicht eingerichtet“
-  const K = { input: { vorname: "kai", nachname: "ka", geb: "2010-08-08", klasse: "7b" }, first: ["Mein Gewissen.", "Beim Spielen geschummelt."] };
+  const K = { input: { vorname: "kai", nachname: "ka", geb: "--08-08", klasse: "7b" }, first: ["Mein Gewissen.", "Beim Spielen geschummelt."] };
   const s6 = await openPage(browser);
   const p6 = s6.page;
   await p6.route("**/api/sheet/" + shownG.replace("-", ""), async (route) => {
@@ -1849,7 +1980,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
 
   // M: die laufende Anfrage scheitert, während der Abgabe-Dialog offen ist → der Fokus bleibt im Dialog; eingestuft wird
   // erst nach dem Dialog (wasBusy): „nicht möglich (Anfrage nicht abgeschlossen)“
-  const M = { input: { vorname: "mia", nachname: "mo", geb: "2010-10-10", klasse: "7b" }, first: ["Das Gewissen mahnt.", "Ich war unfair."] };
+  const M = { input: { vorname: "mia", nachname: "mo", geb: "--10-10", klasse: "7b" }, first: ["Das Gewissen mahnt.", "Ich war unfair."] };
   const s8 = await student(M);
   const p8 = s8.page;
   for (let i = 0; i < 2; i++) await typeAt(p8, "#a-" + (i + 1), M.first[i]);
@@ -1876,7 +2007,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
 
   // N: die Abgabe bricht eine nach „ausgelastet“ wartende Anfrage ab (Countdown) und scheitert dann selbst → Countdown und
   // Wartehinweis sind weg, der Feedback-Button ist frei; der zweite Anlauf trägt „nicht möglich (Anfrage nicht abgeschlossen)“
-  const N = { input: { vorname: "nik", nachname: "ne", geb: "2010-11-11", klasse: "7b" }, first: ["Eine innere Waage.", "Ich habe geflunkert."] };
+  const N = { input: { vorname: "nik", nachname: "ne", geb: "--11-11", klasse: "7b" }, first: ["Eine innere Waage.", "Ich habe geflunkert."] };
   const s9 = await student(N);
   const p9 = s9.page;
   for (let i = 0; i < 2; i++) await typeAt(p9, "#a-" + (i + 1), N.first[i]);
@@ -1904,7 +2035,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await closePage(s9);
 
   // P: wie H, aber „Auf das KI-Feedback warten“ → kein Hinweis unter „Abgeben“, der Fokus springt zum Überarbeiten-Hinweis
-  const P = { input: { vorname: "pia", nachname: "pi", geb: "2010-12-12", klasse: "7b" }, first: ["Das Gewissen ist ein Kompass.", "Ich habe Kekse genascht."] };
+  const P = { input: { vorname: "pia", nachname: "pi", geb: "--12-12", klasse: "7b" }, first: ["Das Gewissen ist ein Kompass.", "Ich habe Kekse genascht."] };
   const s10 = await student(P);
   const p10 = s10.page;
   for (let i = 0; i < 2; i++) await typeAt(p10, "#a-" + (i + 1), P.first[i]);
@@ -1930,7 +2061,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
 
   // L: schließt den Tab, während die KI-Anfrage läuft (die KI hat die Antworten schon) → beim nächsten Öffnen zählt das als
   // Fehlversuch: „bisher nicht geklappt“, die Abgabe trägt „nicht möglich“ – nie „ohne Anfrage“
-  const L = { input: { vorname: "lis", nachname: "lu", geb: "2010-09-09", klasse: "7b" }, first: ["Satz eins mit Inhalt.", "Satz zwei mit Inhalt."] };
+  const L = { input: { vorname: "lis", nachname: "lu", geb: "--09-09", klasse: "7b" }, first: ["Satz eins mit Inhalt.", "Satz zwei mit Inhalt."] };
   const s7 = await student(L);
   let p7 = s7.page;
   for (let i = 0; i < 2; i++) await typeAt(p7, "#a-" + (i + 1), L.first[i]);
@@ -2004,7 +2135,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   const s3 = await openPage(browser);
   const p3 = s3.page;
   await enterCode(p3, shownN);
-  await fillPerson(p3, { vorname: "kim", nachname: "no", geb: "2010-05-05", klasse: "7b" });
+  await fillPerson(p3, { vorname: "kim", nachname: "no", geb: "--05-05", klasse: "7b" });
   expect(JSON.parse((await s3.calls((r) => r.path.startsWith("/api/sheet/")))[0].body).sheet.aiFeedback).toBe(false);
   await expect(p3.locator("#fb-btn")).toBeHidden();
   await expect(p3.locator("#fin-text")).toHaveText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab.");
@@ -2036,6 +2167,48 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
     await confirmDialog(tp, "Feibeitsblatt löschen?");
     await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   }
+  await closePage(t);
+});
+
+test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Erstversuchen mit vollem Geburtsdatum nur Tag und Monat; Erstversuch (altes Format) und Abgabe (neues Format) derselben Person gehören zusammen", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Übergang");
+  await tp.fill("#bq-1", "Beschreibe deinen Schulweg.");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const pub = (await (await request.get("/api/sheet/" + code)).json()).sheet.publicKey;
+  const now = new Date().toISOString();
+  const send = async (payload, meta = {}) => expect((await request.post("/api/submit", { data: { code, envelope: await makeEnvelope(pub, payload), ...meta } })).status()).toBe(200);
+  const base = (vorname, nachname, geburtsdatum, text) => ({ v: 1, sheetCode: code, sheetTitle: "Übergang", person: { vorname, nachname, geburtsdatum, klasse: "9c" },
+    answers: [{ first: text, final: text }], feedback: [{ covered: [], missing: [], note: NO_SOLUTION_NOTE }], feedbackAt: now, submittedAt: now });
+  // Ole: ältere Abgabe mit vollem Geburtsdatum
+  await send(base("Ole", "Ol", "2009-11-30", "Ich gehe zu Fuß."));
+  // Kim: Erstversuch noch mit vollem Datum, Abgabe (andere Bearbeitung) nur mit Tag und Monat → derselbe Mensch
+  const kimFirst = base("Kim", "Wo", "2010-02-03", "Ich fahre mit dem Rad.");
+  await send({ ...kimFirst, stage: "first", answers: [{ first: kimFirst.answers[0].first, final: null }], submittedAt: null }, { stage: "first", attempt: "0123456789abcdef" });
+  await send(base("Kim", "Wo", "--02-03", "Ich fahre jeden Tag mit dem Rad zur Schule."));
+  // Ute: nur ein Erstversuch mit vollem Datum (noch nicht abgegeben) → bleibt sichtbar, ebenfalls ohne Jahr
+  const uteFirst = base("Ute", "Un", "2011-06-15", "Mit dem Bus.");
+  await send({ ...uteFirst, stage: "first", answers: [{ first: uteFirst.answers[0].first, final: null }], submittedAt: null }, { stage: "first", attempt: "fedcba9876543210" });
+
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("2 Abgaben · 1 Erstversuch ohne Überarbeitung · 1 älterer Erstversuch von Schüler:innen, die inzwischen abgegeben haben, wird nicht angezeigt");
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(3);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Ol", "Ole", "30.11.", "9c"]);
+  await expect(mains.nth(1).locator("td:not(.arrowcol)")).toHaveText(["Un", "Ute", "15.06.", "9c"]);
+  await expect(mains.nth(1).locator("td.st-first")).toHaveCount(2);
+  await expect(mains.nth(2).locator("td:not(.arrowcol)")).toHaveText(["Wo", "Kim", "03.02.", "9c"]);
+
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   await closePage(t);
 });
 
@@ -2124,7 +2297,7 @@ test("7c Antwortarten: Lehrkraft legt Weltkarten-Zuordnung (mit Kartenbild) und 
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, shown);
-  await fillPerson(page, { vorname: "jo", nachname: "ka", geb: "2010-10-10", klasse: "8c" });
+  await fillPerson(page, { vorname: "jo", nachname: "ka", geb: "--10-10", klasse: "8c" });
   const cards = page.locator("#a-1 .mcard");
   await expect(cards).toHaveCount(4);
   await expect(cards.nth(0).locator(".mcard-img img")).toHaveCount(1);
@@ -2323,7 +2496,7 @@ test("7d Testdatei „Ein Auto – eine Welt“: Import übernimmt alles (Weltka
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, shown);
-  await fillPerson(page, { vorname: "mo", nachname: "si", geb: "2011-11-11", klasse: "7b" });
+  await fillPerson(page, { vorname: "mo", nachname: "si", geb: "--11-11", klasse: "7b" });
   await expect(page.locator("#a-1 .mcard")).toHaveCount(12);
   await expect(page.locator("#a-1 .mcard-label")).toHaveText(map.items.map((x) => x.label));
   await expect(page.locator("#a-1 .mcard-img img")).toHaveCount(map.items.filter((x) => x.image).length);
@@ -2418,7 +2591,7 @@ test("7e Formatierte Aufgabenstellung: Lehrkraft setzt ein Wort fett und fügt e
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, shown);
-  await fillPerson(page, { vorname: "jo", nachname: "wa", geb: "2010-04-04", klasse: "7c" });
+  await fillPerson(page, { vorname: "jo", nachname: "wa", geb: "--04-04", klasse: "7c" });
   await expect(page.locator("#q-1 b")).toHaveText("Wasserkreislauf");
   const a = page.locator("#q-1 a");
   await expect(a).toHaveAttribute("href", LINK);
@@ -2522,7 +2695,7 @@ test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgab
   expect(shown2).toMatch(CODE_RE);
   const code2 = shown2.replace("-", "");
   const sheet = (await (await request.get("/api/sheet/" + code2)).json()).sheet;
-  const payload = { v: 1, sheetCode: code2, sheetTitle: sheet.title, person: { vorname: "Kim", nachname: "Wo", geburtsdatum: "2010-02-03", klasse: "9c" },
+  const payload = { v: 1, sheetCode: code2, sheetTitle: sheet.title, person: { vorname: "Kim", nachname: "Wo", geburtsdatum: "--02-03", klasse: "9c" },
     answers: [{ first: "Ich fahre mit dem Rad.", final: "Ich fahre jeden Tag mit dem Rad zur Schule." }],
     feedback: [{ covered: [], missing: [], note: NO_SOLUTION_NOTE }], feedbackAt: new Date().toISOString(), submittedAt: new Date().toISOString() };
   const sub = await request.post("/api/submit", { data: { code: code2, envelope: await makeEnvelope(sheet.publicKey, payload) } });
@@ -2555,7 +2728,7 @@ test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgab
   await teacherLogin(page, NEW_PW);
   await page.locator("#t-sheets-body tr", { hasText: shown2 }).click();
   await expect(page.locator("#t-subs-sum")).toHaveText("1 Abgabe");
-  await expect(page.locator("#t-subs-body tr.main td:not(.arrowcol)")).toHaveText(["Wo", "Kim", "03.02.2010", "9c"]);
+  await expect(page.locator("#t-subs-body tr.main td:not(.arrowcol)")).toHaveText(["Wo", "Kim", "03.02.", "9c"]);
   await page.locator("#t-subs-body tr.main").click();
   const td = page.locator("#t-subs-body tr.details .dtask table.cmp tbody td");
   expect(await td.nth(0).textContent()).toBe(payload.answers[0].first);

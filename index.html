@@ -59,13 +59,18 @@
   label{display:block; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 6px}
   .field{margin-bottom:18px}
   .fhint{font-size:12.5px; color:var(--muted); margin:5px 0 0; line-height:1.45}
-  input[type=text],input[type=password],input[type=date],input[type=url],select{
+  fieldset.field{border:0; padding:0; margin:0 0 18px; min-width:0}
+  fieldset.field > legend{display:block; padding:0; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 6px}
+  .bday > .fhint{margin:0 0 8px}
+  .bday-row{display:flex; gap:12px}
+  .bday-item{flex:0 0 6.5em}
+  .bday-item label{text-transform:none; letter-spacing:0; font-size:13.5px; color:var(--ink); margin:0 0 4px}
+  input[type=text],input[type=password],input[type=url],select{
     width:100%; font-family:var(--serif); font-size:18px; color:var(--ink);
     background:var(--paper); border:1px solid var(--line); border-radius:9px;
     padding:11px 13px; outline:none; transition:border-color .15s, box-shadow .15s;
   }
   input[type=password]{letter-spacing:.12em}
-  input[type=date]{min-height:47px; -webkit-appearance:none; appearance:none}
   input::placeholder{color:#756c60; letter-spacing:normal}   /* ≥ 4.5:1 auf dem Papierton */
   select{font-family:var(--sans); font-size:16px}
   input:focus,select:focus{border-color:var(--accent2); box-shadow:0 0 0 3px rgba(138,106,60,.16)}
@@ -641,10 +646,20 @@
         <label for="p-nachname">Nachname – die ersten zwei Buchstaben</label>
         <input type="text" id="p-nachname" maxlength="2" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
       </div>
-      <div class="field">
-        <label for="p-geb">Geburtsdatum</label>
-        <input type="date" id="p-geb" min="1950-01-02" autocomplete="off" enterkeyhint="next">
-      </div>
+      <fieldset class="field bday" role="group" aria-describedby="p-geb-hint">
+        <legend>Geburtstag (Tag und Monat)</legend>
+        <p class="fhint" id="p-geb-hint">Zum Beispiel 4 und 5 für den 4. Mai – ohne Jahr. Damit kann deine Lehrkraft Abgaben mit gleichen Kürzeln auseinanderhalten.</p>
+        <div class="bday-row">
+          <div class="bday-item">
+            <label for="p-gtag">Tag</label>
+            <input type="text" id="p-gtag" inputmode="numeric" maxlength="2" autocomplete="bday-day" autocorrect="off" spellcheck="false" enterkeyhint="next">
+          </div>
+          <div class="bday-item">
+            <label for="p-gmonat">Monat</label>
+            <input type="text" id="p-gmonat" inputmode="numeric" maxlength="2" autocomplete="bday-month" autocorrect="off" spellcheck="false" enterkeyhint="next">
+          </div>
+        </div>
+      </fieldset>
       <div class="field">
         <label for="p-klasse">Klasse</label>
         <input type="text" id="p-klasse" maxlength="10" placeholder="z. B. 8b" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="p-klasse-hint">
@@ -984,7 +999,7 @@
         </div>
         <p class="status" id="ai2-status" aria-live="polite"></p>
       </div>
-      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtsdaten oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits.</p>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits.</p>
     </div>
 
     <!-- Passwort ändern -->
@@ -1076,7 +1091,8 @@ const PDF_MAX_BYTES = 5 * 1024 * 1024;                       // hochgeladene Zwi
 const MAX_ANSWER = 8000;                                     // wie die Grenze des Servers je Antwort
 const MAX_ANSWERS_TOTAL = 40000;                             // … und für alle Antworten zusammen (KI-Feedback)
 const DRAFT_DAYS = 7;                                        // Zwischenstände bleiben so lange auf dem Gerät
-const LT_MIN_AGE = 16;                                       // Rechtschreibprüfung (LanguageTool) nur ab diesem Alter, nach Bestätigung
+// Rechtschreibprüfung (LanguageTool): laut Anbieter ab 18, mit 16 und 17 nur mit Erlaubnis der Eltern – Selbstauskunft im Dialog
+const LT_OFF_TEXT = "Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.";
 
 /* Element bauen: h("p", {class:"x", text:"…"}, [kinder]) – Texte immer als Textknoten. */
 function h(tag, props, kids) {
@@ -1100,8 +1116,65 @@ function toDate(v) { const d = new Date(typeof v === "string" && /^\d+$/.test(v)
 /* TT.MM.JJJJ, HH:MM */
 function fmtDT(v) { const d = toDate(v); return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : "–"; }
 function fmtD(v) { const d = toDate(v); return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : "–"; }
-/* "2011-05-04" → "04.05.2011" */
-function fmtIsoDate(s) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || "")); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(s || "–"); }
+/* ---------- Geburtstag ohne Jahr (Datensparsamkeit: dient nur dazu, gleiche Kürzel auseinanderzuhalten) ----------
+ * Gespeichert als "--MM-TT" im Feld `geburtsdatum` – historischer Name, damit ältere Daten lesbar bleiben. Die Schreibweise ist
+ * die verkürzte Form aus ISO 8601:2000 (seit ISO 8601:2004 nicht mehr enthalten), wie sie XML Schema als gMonthDay weiterführt;
+ * der 29.02. ist erlaubt. Zwischenstand-PDFs und Abgaben von vor der Umstellung enthalten noch "JJJJ-MM-TT": bdayOf liest
+ * beides dauerhaft und verwirft das Jahr. */
+/* BDAY:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/bday.test.mjs liest diesen Block) */
+const MONTHS_DE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const BDAY_MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];   // ohne Jahr hat der Februar 29 Tage
+// Ende des Übergangs (Ausrollen + DRAFT_DAYS + Puffer): danach sucht adoptLegacyDraft keine alten Speicherschlüssel mehr –
+// adoptLegacyDraft und legacyBirthDates dürfen dann entfallen, bdayOf bleibt
+const BDAY_LEGACY_UNTIL = "2026-11-15";
+/* "--MM-TT" oder altes "JJJJ-MM-TT" (nur echte Kalenderdaten) → "--MM-TT"; alles andere → "" */
+function bdayOf(v) {
+  const s = String(v == null ? "" : v).trim();
+  let m = /^--(\d{2})-(\d{2})$/.exec(s);
+  if (m) return +m[1] >= 1 && +m[1] <= 12 && +m[2] >= 1 && +m[2] <= BDAY_MONTH_DAYS[+m[1] - 1] ? s : "";
+  if (!(m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s))) return "";
+  const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return dt.getUTCFullYear() === +m[1] && dt.getUTCMonth() === +m[2] - 1 && dt.getUTCDate() === +m[3] ? `--${m[2]}-${m[3]}` : "";
+}
+/* Anzeige "TT.MM." (auch für alte Angaben mit Jahr); Unlesbares unverändert (nur per textContent), leer → "–" */
+function fmtBday(v) { const b = bdayOf(v); return b ? `${b.slice(5, 7)}.${b.slice(2, 4)}.` : String(v == null || v === "" ? "–" : v); }
+/* Ziffern anderer Schriften (\p{Nd}, z. B. „٤“ oder Vollbreite „４“) → 0–9. Unicode legt jede Dezimalziffernreihe als
+   zusammenhängenden Block 0…9 ab: Der Wert ist der Abstand zum Anfang des Ziffernblocks modulo 10. */
+function asciiDigits(v) {
+  return String(v == null ? "" : v).replace(/\p{Nd}/gu, (c) => {
+    const cp = c.codePointAt(0);
+    let z = cp;
+    while (z > 0 && /\p{Nd}/u.test(String.fromCodePoint(z - 1))) z--;
+    return String((cp - z) % 10);
+  });
+}
+/* Eingabe Tag + Monat (Ziffern, führende Null erlaubt) → {iso:"--MM-TT"} oder {err, field: "d" | "m"} */
+function parseBdayInput(dayRaw, monRaw) {
+  const ds = asciiDigits(dayRaw).trim(), ms = asciiDigits(monRaw).trim();
+  if (!ds && !ms) return { err: "Bitte gib deinen Geburtstag ein (Tag und Monat).", field: "d" };
+  if (!ds) return { err: "Bitte gib den Tag deines Geburtstags ein.", field: "d" };
+  const d = /^\d{1,2}\.?$/.test(ds) ? parseInt(ds, 10) : 0;
+  if (d < 1 || d > 31) return { err: "Bitte gib beim Tag eine Zahl von 1 bis 31 ein.", field: "d" };
+  if (!ms) return { err: "Bitte gib den Monat deines Geburtstags ein.", field: "m" };
+  const mo = /^\d{1,2}\.?$/.test(ms) ? parseInt(ms, 10) : 0;
+  if (mo < 1 || mo > 12) return { err: "Bitte gib beim Monat eine Zahl von 1 bis 12 ein (z. B. 5 für Mai).", field: "m" };
+  if (d > BDAY_MONTH_DAYS[mo - 1]) return { err: `Den ${d}. ${MONTHS_DE[mo - 1]} gibt es nicht. Bitte prüfe deinen Geburtstag.`, field: "d" };
+  return { iso: `--${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}` };
+}
+/* Übergang: volle Geburtsdaten, die zu "--MM-TT" passen (Jahre 1950 bis heute wie die frühere Eingabeprüfung, 29.02. nur in
+   Schaltjahren, nichts in der Zukunft) – um Zwischenstände unter dem alten Speicherschlüssel zu finden; nach
+   BDAY_LEGACY_UNTIL (Ortszeit) keine mehr */
+function legacyBirthDates(bday, now = new Date()) {
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const b = bdayOf(bday); if (!b || today > BDAY_LEGACY_UNTIL) return [];
+  const mo = +b.slice(2, 4), d = +b.slice(5, 7), out = [];
+  for (let y = now.getFullYear(); y >= 1950; y--) {
+    const dt = new Date(y, mo - 1, d);
+    if (dt.getMonth() === mo - 1 && dt <= now) out.push(`${y}${b.slice(1)}`);
+  }
+  return out;
+}
+/* BDAY:END */
 function fmtCode(c) { c = String(c || ""); return c.length === 6 ? c.slice(0, 3) + "-" + c.slice(3) : c; }
 function normCode(s) { return String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
 function listNums(arr) { return arr.length === 1 ? String(arr[0]) : arr.slice(0, -1).join(", ") + " und " + arr[arr.length - 1]; }
@@ -1837,7 +1910,7 @@ const S = {
   fbFails: 0, fbUnavailable: "",   // Fehlversuche beim KI-Feedback; ab dem zweiten bzw. ohne eingerichtete KI der Grund als Text
   fbPending: false,   // eine Anfrage dieses Laufs ist unterwegs (im Zwischenstand: ein Abbruch durch Schließen des Tabs zählt beim nächsten Öffnen als Fehlversuch)
   submitted: false, busyFeedback: false, ltCache: new Map(),
-  ltAllowed: false, ltConsent: false,   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
+  ltConsent: false, ltDeclined: false,   // Rechtschreibprüfung: Selbstauskunft im Dialog je geöffnetem Blatt („Trifft nicht zu“ → Buttons weg); nie gespeichert
   attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
   fbRun: 0, fbStop: null, fbAbort: null,   // laufende Feedback-Anfrage: Lauf-Kennung (gegen späte Antworten nach Abbruch/Wechsel), Warten abbrechen, Anfrage abbrechen
   lastSubmission: null   // die soeben abgegebene Lösung (nur im Arbeitsspeicher, bis „Neues Feibeitsblatt öffnen“) – für die PDF der Lösungen
@@ -1900,7 +1973,7 @@ function recipientParts() {
 }
 function recipientSentence() {
   const r = recipientParts();
-  return `Deine Antworten gehen – ohne Namenskürzel, Geburtsdatum und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
+  return `Deine Antworten gehen – ohne Namenskürzel, Geburtstag und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
     (r.rest.length ? ` Nur wenn dieser Dienst nicht antwortet oder ausgelastet ist, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
     (r.usa ? " Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU." : "");
 }
@@ -1910,7 +1983,7 @@ function renderPrivacy() {
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     (withAi
       ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
-        `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
+        `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtstag und Klasse – an den Server dieser Seite geschickt. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
         (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen${r.usa ? ", bei Sitz in den USA außerhalb der EU" : ""}. ` +
@@ -1918,13 +1991,13 @@ function renderPrivacy() {
         `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
         `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `
       : `Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI. `) +
-    `Die Rechtschreibprüfung gibt es erst ab ${LT_MIN_AGE} Jahren und nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
+    `Die Rechtschreibprüfung ist freiwillig, laut Anbieter erst ab 16 Jahren (mit 16 und 17 nur mit Erlaubnis deiner Eltern) und läuft nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
     h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
     `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
     (withAi
-      ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
+      ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtstag und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
         `Deine Abgabe nach der Überarbeitung ersetzt ihn. Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund). `
-      : `Deine Abgabe wird zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. `) +
+      : `Deine Abgabe wird zusammen mit Namenskürzel, Geburtstag und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. `) +
     `Die Lehrkraft löscht alles nach der Durchsicht. Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
     `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter).` +
     (withAi ? ` Die KI kann sich irren: Prüfe ihr Feedback selbst.` : ""));
@@ -1957,19 +2030,24 @@ function lastSession() {
   try {
     const d = JSON.parse(store.get(LAST_KEY) || "null");
     if (!d || d.v !== 1 || !d.code || !d.person || !(d.t > Date.now() - DRAFT_DAYS * 864e5)) return null;
+    const g = bdayOf(d.person.geburtsdatum);
+    if (!g) return null;
+    if (g !== d.person.geburtsdatum) {   // Übergang: altes volles Geburtsdatum sofort auf Tag und Monat kürzen
+      d.person = Object.assign({}, d.person, { geburtsdatum: g });
+      store.set(LAST_KEY, JSON.stringify(d));
+    }
     return d;
   } catch (e) { return null; }
 }
 async function showResume() {
   const box = $("resume-box"), d = lastSession();
   if (!d || !subtle) { box.classList.add("hidden"); return; }
-  const key = await draftKeyFor(d.code, d.person);
   let has = false;
-  try { const x = JSON.parse(store.get(key) || "null"); has = !!(x && Array.isArray(x.answers) && x.answers.some((a) => String(a || "").trim())); } catch (e) { has = false; }
+  try { const x = JSON.parse((await draftRaw(d.code, d.person)) || "null"); has = !!(x && Array.isArray(x.answers) && x.answers.some((a) => String(a || "").trim())); } catch (e) { has = false; }
   if (!has) { store.del(LAST_KEY); box.classList.add("hidden"); return; }
   const p = d.person;
   $("resume-text").textContent = "";
-  $("resume-text").append("Auf diesem Gerät liegt ein Zwischenstand von ", h("b", { text: `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}` }),
+  $("resume-text").append("Auf diesem Gerät liegt ein Zwischenstand von ", h("b", { text: `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}` }),
     ` (Code ${fmtCode(d.code)}). Bist du das?`);
   box.classList.remove("hidden");
 }
@@ -2008,7 +2086,7 @@ async function importDraftPdf(file) {
     // Liegt auf diesem Gerät schon ein neuerer Zwischenstand derselben Person? Dann nachfragen, welcher gelten soll.
     const person = d.person;
     let local = null;
-    try { local = JSON.parse(store.get(await draftKeyFor(d.code, person)) || "null"); } catch (e) { local = null; }
+    try { local = JSON.parse((await draftRaw(d.code, person)) || "null"); } catch (e) { local = null; }
     if (local && local.v === 1 && local.t > d.t && Array.isArray(local.answers) && local.answers.some((a) => String(a || "").trim())) {
       const usePdf = await askConfirm({ title: "Neuerer Zwischenstand auf diesem Gerät",
         text: `Auf diesem Gerät liegt schon ein Zwischenstand von ${fmtDT(local.t)} Uhr; die PDF-Datei ist von ${fmtDT(d.t)} Uhr. Welchen Stand möchtest du verwenden?`,
@@ -2030,32 +2108,16 @@ function openPerson() {
   sl.appendChild(document.createTextNode(S.sheet.title));
   sl.appendChild(h("small", { text: `Code ${fmtCode(S.code)} · ${S.sheet.tasks.length} ${S.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}` }));
   $("p-err").textContent = "";
-  ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => $(id).classList.remove("invalid"));
-  const t = new Date(); $("p-geb").max = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+  PERSON_FIELDS.forEach((id) => $(id).classList.remove("invalid"));
   show("screen-person");
   focusSoon("p-vorname", 30);
 }
 const LETTERS = /^[\p{L}\p{M}]+$/u;
 function nameCase(s) { const a = Array.from(s); return a.length ? a[0].toLocaleUpperCase("de-DE") + a.slice(1).join("").toLocaleLowerCase("de-DE") : ""; }
-/* Alter in vollen Jahren aus "JJJJ-MM-TT" (am Geburtstag selbst schon erreicht) */
-function ageOf(iso, now = new Date()) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "")); if (!m) return 0;
-  let age = now.getFullYear() - +m[1];
-  if (now.getMonth() + 1 < +m[2] || (now.getMonth() + 1 === +m[2] && now.getDate() < +m[3])) age--;
-  return age;
-}
-function parseBirth(v) {
-  v = String(v || "").trim(); let y, m, d, x;
-  if ((x = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v))) { y = +x[1]; m = +x[2]; d = +x[3]; }
-  else if ((x = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(v))) { d = +x[1]; m = +x[2]; y = +x[3]; }   // Browser ohne Datumsfeld
-  else return null;
-  const dt = new Date(y, m - 1, d);
-  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
-  return { iso: `${y}-${pad2(m)}-${pad2(d)}`, date: dt };
-}
+const PERSON_FIELDS = ["p-vorname", "p-nachname", "p-gtag", "p-gmonat", "p-klasse"];
 async function personGo() {
   const err = $("p-err"); err.textContent = "";
-  const fields = { v: $("p-vorname"), n: $("p-nachname"), g: $("p-geb"), k: $("p-klasse") };
+  const fields = { v: $("p-vorname"), n: $("p-nachname"), d: $("p-gtag"), m: $("p-gmonat"), k: $("p-klasse") };
   Object.values(fields).forEach((f) => f.classList.remove("invalid"));
   const fail = (f, msg) => { f.classList.add("invalid"); err.textContent = msg; f.focus(); };
   const v = fields.v.value.trim().normalize("NFC"), n = fields.n.value.trim().normalize("NFC");
@@ -2066,36 +2128,63 @@ async function personGo() {
   if (!n) return fail(fields.n, "Bitte gib die ersten zwei Buchstaben deines Nachnamens ein.");
   if (!LETTERS.test(n)) return fail(fields.n, "Beim Nachnamen sind nur Buchstaben erlaubt.");
   if (nl < 1 || nl > 2) return fail(fields.n, "Bitte gib die ersten zwei Buchstaben deines Nachnamens ein.");
-  const b = parseBirth(fields.g.value);
-  if (!b) return fail(fields.g, /^\d{1,3}-/.test(fields.g.value.trim()) ? "Bitte prüfe dein Geburtsdatum (Jahr vierstellig, z. B. 2011)." : "Bitte gib dein Geburtsdatum ein.");
-  if (b.date > new Date() || b.date < new Date(1950, 0, 2)) return fail(fields.g, "Bitte prüfe dein Geburtsdatum.");
+  const b = parseBdayInput(fields.d.value, fields.m.value);
+  if (b.err) return fail(fields[b.field], b.err);
   const k = fields.k.value.replace(/[\s.]+/g, "").trim();   // „8 b“, „8.b“ und „8b“ sind dieselbe Klasse
   if (!k) return fail(fields.k, "Bitte gib deine Klasse ein (z. B. 8b).");
   if (!/^[\p{L}\p{N}/-]{1,10}$/u.test(k)) return fail(fields.k, "Bitte gib deine Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
-  S.person = { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k };
+  S.person = { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k };   // Geburtstag "--MM-TT"
   const btn = $("p-btn"); busy(btn, true, "Einen Moment …");
   try { await openEditor(); } finally { busy(btn, false); }
 }
 $("p-btn").addEventListener("click", personGo);
 onEnter($("p-vorname"), () => $("p-nachname").focus());
-onEnter($("p-nachname"), () => $("p-geb").focus());
-onEnter($("p-geb"), () => $("p-klasse").focus());
+onEnter($("p-nachname"), () => $("p-gtag").focus());
+onEnter($("p-gtag"), () => $("p-gmonat").focus());   // kein automatischer Sprung nach zwei Ziffern (verwirrt, stört die Tastatur)
+onEnter($("p-gmonat"), () => $("p-klasse").focus());
 onEnter($("p-klasse"), personGo, $("p-btn"));
 $("p-back").addEventListener("click", () => { resetStudent(); show("screen-start"); showResume(); focusSoon("code-input", 30); });
 
 /* ---------- 3. Schreibfläche ---------- */
-/* Schlüssel des Zwischenstands: nur ein Hash – Kürzel, Geburtsdatum und Klasse stehen nicht lesbar im Speicher */
+/* Schlüssel des Zwischenstands: nur ein Hash – Kürzel, Geburtstag und Klasse stehen nicht lesbar im Speicher */
 async function draftKeyFor(code, p) {
   return "feibeitsblatt:draft:" + await sha256hex([code, p.vorname, p.nachname, p.geburtsdatum, p.klasse].join("|").toLocaleLowerCase("de-DE"));
+}
+/* Übergang (Umstellung auf Tag und Monat): Bis dahin entstand der Schlüssel mit dem vollen Geburtsdatum. Liegt unter dem neuen
+   Schlüssel nichts, werden die passenden alten Schlüssel gesucht (legacyBirthDates: höchstens 77 SHA-256, nach
+   BDAY_LEGACY_UNTIL gar keine). Der jüngste Treffer zieht unter den neuen Schlüssel um; alle gefundenen alten Schlüssel werden
+   gelöscht, sobald sie gelesen sind – auch wenn das Speichern scheitert (mit Tag und Monat lassen sie sich ohnehin nicht mehr
+   unterscheiden, und „Abbrechen und Zwischenstand löschen“ kennt nur den neuen Schlüssel). */
+async function adoptLegacyDraft(code, p, key) {
+  const dates = legacyBirthDates(p.geburtsdatum);
+  if (!dates.length || !store.keys().some((k) => k && k.indexOf("feibeitsblatt:draft:") === 0)) return null;
+  let best = null;
+  const found = [];
+  for (const g of dates) {
+    const k = await draftKeyFor(code, Object.assign({}, p, { geburtsdatum: g })), raw = store.get(k);
+    if (!raw) continue;
+    found.push(k);
+    let t = 0; try { t = Number(JSON.parse(raw).t) || 0; } catch (e) { /* kaputt: trotzdem umziehen, openEditor prüft */ }
+    if (!best || t > best.t) best = { raw, t };
+  }
+  if (!best) return null;
+  store.set(key, best.raw);
+  found.forEach((k) => store.del(k));
+  return best.raw;
+}
+/* Zwischenstand dieser Person zu diesem Code (roh) – unter dem neuen Schlüssel oder aus der Zeit vor der Umstellung */
+async function draftRaw(code, p) {
+  const key = await draftKeyFor(code, p);
+  return store.get(key) || await adoptLegacyDraft(code, p, key);
 }
 async function openEditor() {
   const p = S.person, sh = S.sheet;
   S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbPending = false; S.ltCache = new Map();
   S.attempt = ""; S.firstSent = false;
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
-  S.ltAllowed = ageOf(p.geburtsdatum) >= LT_MIN_AGE; S.ltConsent = false;   // Bestätigung gilt nur für diese Sitzung
+  S.ltConsent = false; S.ltDeclined = false;   // Selbstauskunft zu LanguageTool gilt nur, solange dieses Blatt geöffnet ist
   S.draftKey = await draftKeyFor(S.code, p);
-  $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`;
+  $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}`;
   $("ed-title").textContent = sh.title;
   $("sheet-title").textContent = sh.title;
   $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.`;
@@ -2105,7 +2194,7 @@ async function openEditor() {
   let restored = false, pendingLost = false;
   const imported = S.importDraft; S.importDraft = null;
   let d = imported;
-  if (!d) { const raw = store.get(S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
+  if (!d) { const raw = store.get(S.draftKey) || await adoptLegacyDraft(S.code, p, S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
   try {
     if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
       d.answers.forEach((a, i) => { S.tas[i].value = String(a || "").slice(0, MAX_ANSWER); S.tas[i]._ok = S.tas[i].value; });
@@ -2151,10 +2240,9 @@ function buildTasks() {
     else ta = h("textarea", { class: "answer", id: "a-" + n, rows: "3", maxlength: String(MAX_ANSWER), autocomplete: "off", autocapitalize: "sentences",
       spellcheck: "true", writingsuggestions: "false", "aria-describedby": "q-" + n, placeholder: "Deine Antwort …" });
     const cnt = isText ? h("p", { class: "charcount", id: "cc-" + n, "aria-live": "polite" }) : null;
-    // Rechtschreibprüfung nur ab LT_MIN_AGE (laut Geburtsdatum) und nur für Textfelder – darunter kein Button, nur ein Hinweis
-    const ltBtn = isText && S.ltAllowed ? h("button", { type: "button", class: "btn ghost small ltbtn", text: "Rechtschreibung und Grammatik prüfen", "aria-label": "Rechtschreibung und Grammatik prüfen – Aufgabe " + n }) : null;
+    // Rechtschreibprüfung nur für Textfelder; die Altersgrenze bestätigen die Schüler:innen vor der ersten Prüfung selbst (ltConsent)
+    const ltBtn = isText ? h("button", { type: "button", class: "btn ghost small ltbtn", text: "Rechtschreibung und Grammatik prüfen", "aria-label": "Rechtschreibung und Grammatik prüfen – Aufgabe " + n }) : null;
     const ltStat = h("span", { class: "ltstat", role: "status", "aria-live": "polite" });
-    const ltOff = isText && !S.ltAllowed ? h("span", { class: "ltstat lt-off", text: `Die Rechtschreibprüfung (LanguageTool) gibt es erst ab ${LT_MIN_AGE} Jahren.` }) : null;
     const out = h("div", { class: "lt-out hidden", "aria-live": "polite" });
     const fb = h("div", { class: "fbbox hidden" });
     // Bilder der Lehrkraft: Miniaturen rechts neben Aufgabe und Antwort, größere Bilder zwischen Aufgabenstellung und Antwortfeld
@@ -2173,7 +2261,7 @@ function buildTasks() {
         files.length ? h("div", { class: "task-files" }, [h("span", { class: "sublabel", text: "Material zum Herunterladen" }), h("div", { class: "filelist" }, files.map((f) => fileButton(S.code, f, n)))]) : null,
         figs.length ? h("div", { class: "task-figs" }, figs) : null,
         isText ? ta : ta.el, pe, cnt,
-        isText ? h("div", { class: "checkrow" }, [ltBtn, ltOff, ltStat]) : null,
+        isText ? h("div", { class: "checkrow" }, [ltBtn, ltStat]) : null,
         out, fb
       ])
     ]);
@@ -2562,7 +2650,7 @@ function answerChanged(el) {
   const ta = el._w || el;
   autoGrow(el);
   updateCounter(ta);
-  if (ta._ltStat && ta._ltBtn && !ta._ltBtn.disabled && ta._ltStat.textContent) setStatus(ta._ltStat, "", "");
+  if (ta._ltStat && !(ta._ltBtn && ta._ltBtn.disabled) && ta._ltStat.textContent) setStatus(ta._ltStat, "", "");   // nicht während einer Prüfung
   const out = S.outs[ta._idx];
   if (out && !out.classList.contains("hidden") && out._text != null) {
     const stale = out._text !== ta.value;
@@ -2662,7 +2750,7 @@ function makeDraftPdf(d, withAi = true) {   // withAi = false: Blatt ohne Auftra
   const row = (label, val) => { put(M, y, label, 11, true); y = para(M + 100, y, val, 11, false, TW - 100, 15); };
   row("Feibeitsblatt:", `${d.sheetTitle || "Feibeitsblatt"} (Code ${fmtCode(d.code)})`);
   row("Gesichert am:", fmtDT(when) + " Uhr");
-  row("Angaben:", `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`);
+  row("Angaben:", `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}`);
   const fbState = Array.isArray(d.feedback) ? "schon erhalten"
     : d.fbPending ? "angefordert, beim Sichern noch nicht erhalten"   // beim Öffnen dieser Datei zählt das als Fehlversuch
     : d.fbUnavailable || d.fbFails > 0 ? `bisher nicht geklappt (${d.fbUnavailable || FB_NOT_DONE})` : "nicht angefordert";
@@ -2825,8 +2913,8 @@ function cleanDraft(o) {
   const v = String(pr.vorname || "").trim().normalize("NFC"), n = String(pr.nachname || "").trim().normalize("NFC");
   const vl = Array.from(v).length, nl = Array.from(n).length;
   if (!LETTERS.test(v) || vl < 2 || vl > 3 || !LETTERS.test(n) || nl < 1 || nl > 2) return null;
-  const b = parseBirth(pr.geburtsdatum);
-  if (!b || b.date > new Date() || b.date < new Date(1950, 0, 2)) return null;
+  const g = bdayOf(pr.geburtsdatum);   // ältere Dateien: volles Datum → das Jahr wird verworfen
+  if (!g) return null;
   const k = String(pr.klasse || "").replace(/[\s.]+/g, "");
   if (!/^[\p{L}\p{N}/-]{1,10}$/u.test(k)) return null;
   if (!Array.isArray(o.answers) || !o.answers.length || o.answers.length > 30) return null;
@@ -2837,7 +2925,7 @@ function cleanDraft(o) {
   }
   return {
     v: 1, code, sheetTitle: String(o.sheetTitle || "").slice(0, 200), t: Number.isFinite(o.t) ? o.t : 0,
-    person: { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k },
+    person: { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: g, klasse: k },
     answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
     fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0, fbPending: o.fbPending === true && !feedback,
@@ -3153,24 +3241,41 @@ const LT_ERR = {
   TIMEOUT: "LanguageTool antwortet gerade nicht. Bitte versuche es später noch einmal.",
   TOO_LONG: "Dein Text ist zu lang für die Prüfung (höchstens etwa 20 000 Zeichen)."
 };
-/* Vor der ersten Prüfung dieser Sitzung: Altersbestätigung und Hinweis, wohin der Text geht */
+/* Vor der ersten Prüfung je geöffnetem Blatt: Hinweis, wohin der Text geht, und Selbstauskunft zur Altersgrenze des Anbieters
+   (ein Alter kennt die Seite nicht – der Geburtstag hat kein Jahr). Abbrechen (auch Esc) = „Trifft nicht zu“. */
 async function ltConsent() {
   if (S.ltConsent) return true;
   const ok = await askConfirm({
     title: "Rechtschreibung und Grammatik prüfen",
-    text: `Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird der Text dieser Antwort an LanguageTool gesendet – ohne deinen Namen oder deine Angaben, aber mit der Internetadresse deines Geräts. LanguageTool ist laut Anbieter für Personen ab ${LT_MIN_AGE} Jahren gedacht.\n\nBestätige bitte, dass du mindestens ${LT_MIN_AGE} Jahre alt bist und die Prüfung nutzen möchtest. Die Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.`,
-    ok: `Ich bin mindestens ${LT_MIN_AGE} Jahre alt – prüfen`, cancel: "Nicht prüfen", safeFirst: true
+    text: "Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird nur der Text dieser Antwort an LanguageTool gesendet – ohne deinen Namen oder deine Angaben, aber mit der Internetadresse deines Geräts. Die Prüfung ist freiwillig.\n\n" +
+      "Laut Anbieter darfst du LanguageTool nur nutzen, wenn du\n• mindestens 18 Jahre alt bist oder\n• 16 oder 17 Jahre alt bist und deine Eltern es dir erlaubt haben.\n\n" +
+      "Trifft das nicht auf dich zu, wähle „Trifft nicht zu“ – du schreibst und gibst ganz normal ab, ohne Nachteil.\n" +
+      "Die Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.",
+    ok: "Trifft auf mich zu – prüfen", cancel: "Trifft nicht zu", safeFirst: true
   });
   if (ok) S.ltConsent = true;
   return ok;
 }
+/* „Trifft nicht zu“: Für dieses geöffnete Blatt ersetzt der Hinweis alle Buttons (nichts wird gespeichert oder gesendet);
+   der Fokus landet auf dem Hinweis der Aufgabe, deren Button eben noch fokussiert war */
+function ltDecline(i) {
+  S.ltDeclined = true;
+  let target = null;
+  S.tas.forEach((ta, k) => {
+    if (!ta._ltBtn) return;
+    const off = h("span", { class: "ltstat lt-off", tabindex: "-1", text: LT_OFF_TEXT });
+    ta._ltBtn.replaceWith(off); ta._ltBtn = null;
+    if (k === i) target = off;
+  });
+  if (target) target.focus();
+}
 async function ltRun(i, btn, stat) {
   const ta = S.tas[i];
-  if (!S.ltAllowed) return;
+  if (S.ltDeclined) return;
   setStatus(stat, "", "");
   const text = ta.value;
   if (!text.trim()) { setStatus(stat, "Schreibe zuerst etwas in das Feld.", ""); return; }
-  if (!(await ltConsent())) { setStatus(stat, "Ohne Bestätigung wird nichts an LanguageTool gesendet.", ""); return; }
+  if (!(await ltConsent())) { setStatus(stat, "Ohne Bestätigung wird nichts an LanguageTool gesendet.", ""); ltDecline(i); return; }
   if (utf8Bytes(text) > LT_MAX_BYTES) { setStatus(stat, LT_ERR.TOO_LONG, "bad"); return; }
   const cached = S.ltCache.get(text);
   if (cached) { renderLT(i, text, cached); return; }
@@ -3459,7 +3564,7 @@ async function sendFirstAttempt() {
 
 /* ---------- Zweite KI-Rückmeldung zur abgegebenen Fassung (auf der Bestätigungsseite) ----------
  * Erst wird abgegeben – die Abgabe hängt nie von der KI ab –, dann gehen die abgegebenen Antworten wie beim ersten Feedback
- * (ohne Namenskürzel, Geburtsdatum und Klasse, an dieselben Empfänger) noch einmal an die KI. Neu beurteilt werden nur
+ * (ohne Namenskürzel, Geburtstag und Klasse, an dieselben Empfänger) noch einmal an die KI. Neu beurteilt werden nur
  * Aufgaben, die die KI beurteilt (Stichpunkte im ersten Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht
  * (fbText); für alle anderen gilt die erste Rückmeldung weiter. Hat sich nichts davon geändert, wird gar nicht gefragt. Die
  * Rückmeldung steht auf der Bestätigungsseite und in der Lösungs-PDF (Download-Button #done-pdf); sie bleibt nur im
@@ -3719,8 +3824,8 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbPending: false, submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
-  ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbPending: false, submitted: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
+  PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }
 $("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").value = ""; show("screen-start"); showResume(); focusSoon("code-input", 30); });
@@ -4005,8 +4110,9 @@ async function loadSubs() {
       } catch (e) { p = null; }
       out.push({ id: s.id, receivedAt: s.receivedAt, stage: s.stage === "first" ? "first" : "final", p });
     }
-    // Erstversuche von Schüler:innen, die (z. B. von einem anderen Gerät aus) inzwischen abgegeben haben, sind überholt
-    const who = (x) => x.p ? [x.p.person.klasse, x.p.person.nachname, x.p.person.vorname, x.p.person.geburtsdatum].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|") : "";
+    // Erstversuche von Schüler:innen, die (z. B. von einem anderen Gerät aus) inzwischen abgegeben haben, sind überholt.
+    // Geburtstag als "--MM-TT" vergleichen: ältere Abgaben tragen noch das volle Datum (gleiche Person vor/nach der Umstellung)
+    const who = (x) => x.p ? [x.p.person.klasse, x.p.person.nachname, x.p.person.vorname, bdayOf(x.p.person.geburtsdatum) || x.p.person.geburtsdatum].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|") : "";
     const finals = new Set(out.filter((x) => x.stage === "final" && x.p).map(who));
     const shown = out.filter((x) => !(x.stage === "first" && x.p && finals.has(who(x))));
     T.subsHidden = out.length - shown.length;
@@ -4046,7 +4152,7 @@ function renderSubs() {
       h("td", { class: "arrowcol" }, [h("span", { class: "arrow", "aria-hidden": "true", text: "▸" }), h("span", { class: "sr-only", text: isFirst ? "Erstversuch ohne Überarbeitung" : "Abgabe nach der Überarbeitung" })]),
       h("td", { class: cls, text: String(pr.nachname || "") }),
       h("td", { class: cls, text: String(pr.vorname || "") }),
-      h("td", { class: "nowrap", text: fmtIsoDate(pr.geburtsdatum) }),
+      h("td", { class: "nowrap", text: fmtBday(pr.geburtsdatum) }),
       h("td", { text: String(pr.klasse || "") })
     ]);
     const det = h("tr", { class: "details hidden", id: "sd-" + idx }, [h("td", { colspan: "5" })]);

@@ -32,7 +32,8 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Kleinschreibung, Leerzeichen und Bindestrich spielen keine Rolle. Codes haben sechs Zeichen und enthalten nie
    die leicht verwechselbaren Zeichen I, L, O, 0 und 1.
 2. **Angaben machen.** Die ersten drei Buchstaben des Vornamens (bei einem kürzeren Vornamen den ganzen
-   Vornamen), die ersten zwei Buchstaben des Nachnamens, das Geburtsdatum und die Klasse (z. B. „8b“). Dann
+   Vornamen), die ersten zwei Buchstaben des Nachnamens, den Geburtstag – nur Tag und Monat, ohne Jahr (er hilft, gleiche
+   Kürzel auseinanderzuhalten) – und die Klasse (z. B. „8b“). Dann
    „Schreibbereich öffnen“.
 3. **Schreiben.** Die Arbeitsaufträge stehen untereinander. Unter jedem steht ein Textfeld, das mit dem Text
    wächst; alles Folgende rückt dabei nach unten. Zwischen einem Antwortfeld und der nächsten Aufgabe bleibt eine
@@ -78,11 +79,15 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Vorschlagsliste), Enter prüft. „Alle Zuordnungen löschen“ fängt nach einer Rückfrage neu an. Ob eine Zuordnung
    stimmt, prüft der Browser selbst; die richtigen Länder bekommt er nicht zu sehen, nur Prüfwerte. Zu dieser
    Antwortart gibt es kein KI-Feedback.
-4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button – aber nur, wenn
-   die Schülerin oder der Schüler laut Geburtsdatum mindestens 16 Jahre alt ist (darunter steht an seiner Stelle der
-   Hinweis „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“). Beim ersten Klick erklärt ein
-   Dialog, dass der Text an LanguageTool (Learneo, Inc., USA) geht, und verlangt die Bestätigung „Ich bin mindestens
-   16 Jahre alt – prüfen“; ohne Bestätigung wird nichts gesendet. Die Bestätigung gilt, solange das Blatt geöffnet
+4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button. Beim ersten Klick
+   erklärt ein Dialog, dass der Text an LanguageTool (Learneo, Inc., USA) geht und dass man den Dienst laut Anbieter nur
+   nutzen darf, wenn man mindestens 18 ist oder 16 bzw. 17 und die Eltern es erlaubt haben. Wer das bestätigt („Trifft
+   auf mich zu – prüfen“), kann prüfen; wer „Trifft nicht zu“ wählt (oder Esc drückt), schreibt und gibt ohne Nachteil
+   ab – für dieses geöffnete Blatt steht dann statt der Buttons nur der Hinweis „Rechtschreibprüfung (LanguageTool):
+   erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ Ohne Bestätigung wird nichts gesendet, und die
+   Auswahl wird nirgends gespeichert. Die Altersgrenze beruht allein auf dieser Selbstauskunft – ein Geburtsjahr wird
+   nicht erhoben; den Button sieht deshalb zunächst jede Schülerin und jeder Schüler, auch in Klassen, in denen alle
+   jünger als 16 sind. Die Bestätigung gilt, solange das Blatt geöffnet
    ist. Der Button schickt dann nur den Text dieser einen Antwort an den Prüfdienst LanguageTool. Darunter erscheint
    in kleiner Schrift der Text mit korrigierter Rechtschreibung, Grammatik, Groß- und Kleinschreibung, Getrennt- und Zusammenschreibung und
    Zeichensetzung; die Änderungen sind markiert. Inhalt und Stil werden nie verändert. Ein ausgegrauter Hinweis
@@ -130,7 +135,7 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    klein und blass: „Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte
    erlernt hast.“
    **Zweite KI-Rückmeldung:** Direkt nach der Abgabe gehen die abgegebenen Antworten auf demselben Weg wie beim
-   ersten Feedback noch einmal an die KI (ohne Kürzel, Geburtsdatum und Klasse; der Abgabe-Dialog nennt die
+   ersten Feedback noch einmal an die KI (ohne Kürzel, Geburtstag und Klasse; der Abgabe-Dialog nennt die
    Empfänger). Unter dem Download-Button erscheint dann „KI-Rückmeldung zu deiner abgegebenen Fassung“: je Aufgabe neue
    Stichpunkte „Das gelingt dir schon“ und „Tipps zum Weiterlernen“ – ohne Zählung, denn der Auftrag ist keine Liste
    zum Abhaken. Die Abgabe ist zu diesem Zeitpunkt schon
@@ -144,7 +149,7 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
    Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
    heruntergeladen, bevor die zweite Rückmeldung da ist, steht das in der Datei, und die Seite erinnert daran, sie
-   danach noch einmal herunterzuladen. Sie entsteht im Browser und enthält kein Geburtsdatum. Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
+   danach noch einmal herunterzuladen. Sie entsteht im Browser und enthält keinen Geburtstag. Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
    Lösungen bleiben nur bis „Neues Feibeitsblatt öffnen“ für den Download im Arbeitsspeicher.
 
 > **Wichtig:** Das KI-Feedback ist freiwillig. Die Handreichung „Künstliche Intelligenz (KI) in Schule und
@@ -251,8 +256,8 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    PDF-Dateien und Antwortarten (samt Karten und Kartenbildern) und ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
-   Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ und „Klasse“,
-   sortiert nach Klasse und Namen. Die Kürzel sind farbig: **grün** = Abgabe nach der Überarbeitung, **orange** =
+   Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ (Tag und Monat,
+   z. B. „04.05.“ – auch bei älteren Abgaben, die noch ein Jahr enthalten) und „Klasse“, sortiert nach Klasse und Namen. Die Kürzel sind farbig: **grün** = Abgabe nach der Überarbeitung, **orange** =
    „Erstversuch ohne Überarbeitung“ – diese Person hat sich nur das KI-Feedback geholt und (noch) nicht abgegeben;
    eine Legende über der Tabelle erklärt die Farben, und die Zusammenfassung lautet dann z. B. „3 Abgaben ·
    1 Erstversuch ohne Überarbeitung“. Aufgeklappt sehen Sie je Aufgabe eine Tabelle mit Spalte 1 „Erste Eingabe
@@ -267,7 +272,7 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    und den Hinweis „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“; Liste,
    Farben und Zähler unterscheiden sie nicht. „Alle aufklappen“ öffnet
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
-   Beachten Sie: Kürzel, Geburtsdatum, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
+   Beachten Sie: Kürzel, Geburtstag, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
    Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt.
 6. **Als PDF-Datei sichern und wiederverwenden.** Bei einem ausgewählten Feibeitsblatt lädt „Als PDF-Datei
    herunterladen“ eine PDF-Datei herunter (`Feibeitsblatt-<Code>-<Titel>.pdf`, Umlaute im Namen umschrieben). Sie zeigt Titel, Aufgabenstellungen,
@@ -371,7 +376,8 @@ Was der Workflow dabei tut:
 7. Er gibt die Adresse der Seite aus.
 
 Spätere Veröffentlichungen (z. B. nach einem Update) lassen Datenbank, Passwort, Feibeitsblätter und Abgaben
-unverändert.
+unverändert. Updates am besten außerhalb des Unterrichts ausrollen und danach geöffnete Seiten neu laden (siehe
+[GitHub Pages](#optional-github-pages-oder-eigene-domain)).
 
 **Nie vor dem ersten Workflow-Lauf von Hand `wrangler deploy` ausführen:** wrangler würde die Datenbank dann
 selbst anlegen – ohne EU-Festlegung, und das lässt sich später nicht ändern. Kontrolle: Im Cloudflare-Dashboard
@@ -510,7 +516,7 @@ Passwortfeld. Der Server prüft ihn; falsche Codes zählen als Fehlversuche.
   Browser der Schüler:innen; den privaten Schlüssel speichert der Server nur verschlüsselt mit Ihrem Passwort.
 - Jede Abgabe wird im Browser der Schülerin bzw. des Schülers mit einem neuen Zufallsschlüssel verschlüsselt,
   der wiederum mit Ihrem öffentlichen Schlüssel verschlüsselt wird. Der Server speichert nur diesen
-  verschlüsselten Umschlag – **einschließlich Kürzeln, Geburtsdatum und Klasse**.
+  verschlüsselten Umschlag – **einschließlich Kürzeln, Geburtstag (Tag und Monat) und Klasse**.
 - Technisch: PBKDF2-SHA-256 mit 600 000 Durchläufen und zufälligem Salt, daraus per HKDF-SHA-256 der
   Anmeldeschlüssel und ein AES-GCM-256-Schlüssel; Schlüsselpaar RSA-OAEP mit 3072 Bit (SHA-256); Abgaben mit
   AES-GCM-256 verschlüsselt, der Abgabeschlüssel mit RSA-OAEP. Alle Verfahren stammen aus der eingebauten Web
@@ -604,14 +610,14 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt oder Sie löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
 | KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach gelegentlich gelöscht |
-| Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtsdatum, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtstag, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 | Zwischenstand als PDF-Datei (dieselben Angaben), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
-| „Meine Lösungen“ als PDF nach der Abgabe (Kürzel, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtsdatum), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
+| „Meine Lösungen“ als PDF nach der Abgabe (Kürzel, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten, und er protokolliert keine Schülertexte
 und keine Schlüssel. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage in der
@@ -637,7 +643,7 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   informiert wurde. Ist die KI
   ausgelastet, wiederholt der Browser die Anfrage bis zu viermal automatisch (jeweils mit dem aktuellen Text); im
   ungünstigsten Fall erhalten also beide Dienste dieselben Antworten mehrfach. **Nie** gesendet werden Kürzel,
-  Geburtsdatum und Klasse; der Server bekommt sie dabei gar nicht. Groq (Groq, Inc.), Cerebras (Cerebras Systems
+  Geburtstag und Klasse; der Server bekommt sie dabei gar nicht. Groq (Groq, Inc.), Cerebras (Cerebras Systems
   Inc.) und OpenRouter (OpenRouter, Inc.) haben ihren Sitz in den USA, Google verarbeitet Gemini-Anfragen auch in
   den USA; damit liegt eine **Übermittlung in ein Drittland** vor, deren Grundlage (z. B. eine Zertifizierung nach dem
   EU-US Data Privacy Framework oder Standardvertragsklauseln) die Schule beim Anbieter prüfen muss. OpenRouter
@@ -645,18 +651,18 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   nach seinen eigenen Bedingungen; bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe
   [KI-Anbieter](#ki-anbieter)). Der Datenschutzhinweis unter dem Button und der Dialog vor dem Senden nennen jeden
   möglichen Empfänger mit Rechtsträger und Sitz.
-- **Rechtschreibprüfung:** Sie wird nur Schüler:innen angeboten, die laut eingegebenem Geburtsdatum **mindestens
-  16 Jahre** alt sind, und erst nach einer ausdrücklichen Bestätigung im Browser (Altersangabe und Hinweis, wohin der
-  Text geht; einmal je geöffnetem Blatt). Nur auf Klick schickt der Browser dann **nur den Text dieser einen
+- **Rechtschreibprüfung:** Sie ist freiwillig und arbeitet erst nach einer ausdrücklichen Bestätigung im Browser
+  (Hinweis, wohin der Text geht, und Selbstauskunft „mindestens 18 – oder 16 bzw. 17 mit Erlaubnis der Eltern“; einmal
+  je geöffnetem Blatt; wer „Trifft nicht zu“ wählt, sieht für dieses Blatt keine Prüf-Buttons mehr). Nur auf Klick schickt der Browser dann **nur den Text dieser einen
   Antwort** direkt an LanguageTool (`api.languagetool.org`) – ohne Namen oder Angaben zur Person, aber naturgemäß mit der IP-Adresse
   des Geräts. Laut LanguageTool ist seit Dezember 2024 die **Learneo, Inc. (USA)** verantwortlich; Daten können
-  Deutschland verlassen. Nach Hinweisen des Anbieters ist der Dienst nicht für Nutzer:innen unter 16 Jahren
-  gedacht. (Diese Angaben stammen aus Zusammenfassungen; die Seiten von LanguageTool konnten bei der Entwicklung
-  nicht direkt gelesen werden.) **Ob Schüler:innen die Rechtschreibprüfung überhaupt nutzen
+  Deutschland verlassen. Laut Datenschutzerklärung von Learneo (<https://languagetool.org/legal/privacy>, abgerufen im
+  Oktober 2026) ist der Dienst in Europa nicht für Personen unter 16 Jahren gedacht, und wer jünger als 18 ist, soll die
+  Erlaubnis der Eltern einholen. **Ob Schüler:innen die Rechtschreibprüfung überhaupt nutzen
   dürfen, muss die Schule entscheiden** (die Schulleitung als Verantwortliche, beraten durch die bzw. den
-  Datenschutzbeauftragte:n). Die Altersgrenze stützt sich auf das selbst eingegebene Geburtsdatum und die eigene
-  Bestätigung – ein Ausweis wird nicht geprüft. Die Grenze steht als `LT_MIN_AGE` in `index.html`; eine Einstellung
-  zum vollständigen Abschalten der Prüfung gibt es bisher nicht.
+  Datenschutzbeauftragte:n). Die Altersgrenze stützt sich allein auf die eigene Bestätigung (ein Geburtsjahr
+  wird nicht erhoben) – ein Ausweis wird nicht geprüft. Die Texte stehen in `ltConsent` und `LT_OFF_TEXT` in
+  `index.html`; eine Einstellung zum vollständigen Abschalten der Prüfung gibt es bisher nicht.
 - Die Seite lädt keine externen Schriften, Bibliotheken oder Tracker.
 
 ### Empfehlungen
@@ -689,15 +695,17 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > im Fach [Fach] nutzen wir die Schreibplattform „Feibeitsblatt“. Verantwortlich ist die [Schule, Anschrift],
 > Datenschutzbeauftragte:r: [Kontakt]. Zweck ist das Üben des Schreibens mit einer automatischen Rückmeldung, die die
 > Antworten nach Vorgaben der Lehrkraft bespricht; Rechtsgrundlage ist [§ … Schulgesetz / Art. 6 Abs. 1 lit. e
-> DSGVO]. Gespeichert werden Namenskürzel, Geburtsdatum, Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
+> DSGVO]. Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
 > lesbar – auf Servern von Cloudflare (Datenbank in der EU) bis zur Löschung nach der Durchsicht, spätestens [Frist].
 > Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
 > keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
 > Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B. Groq, Inc., USA] gesendet; nur wenn
 > dieser nicht antwortet oder ausgelastet ist, an
 > [Reserve-Dienst mit Sitz]. Diese Dienste haben ihren Sitz in den USA; die Übermittlung stützt sich auf [EU-US
-> Data Privacy Framework / Standardvertragsklauseln]. Schülerinnen und Schüler ab 16 Jahren können auf Wunsch eine
-> Rechtschreibprüfung nutzen, die den Text der jeweiligen Antwort an LanguageTool (Learneo, Inc., USA) sendet. Es
+> Data Privacy Framework / Standardvertragsklauseln]. Schülerinnen und Schüler ab 18 Jahren – mit 16 und 17 Jahren nur
+> mit Erlaubnis der Eltern – können auf Wunsch eine Rechtschreibprüfung nutzen, die den Text der jeweiligen Antwort an
+> LanguageTool (Learneo, Inc., USA) sendet; vor der ersten Prüfung fragt die Seite danach, ohne Bestätigung wird nichts
+> gesendet. Es
 > werden keine Namen, Adressen oder andere personenbezogenen Angaben in die Antworten geschrieben. Bei Fragen
 > wenden Sie sich an [Lehrkraft, Kontakt].
 
@@ -829,7 +837,8 @@ gespeichert.
 | „Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis …“ (nach automatischen Wiederholungen: „… – dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise schon erhalten. …“) | Sie haben den ersten Anbieter geändert oder eine Reserve eingetragen, während das Blatt geöffnet war. Die Seite hat den Hinweis neu geladen; die Schülerin bzw. der Schüler liest ihn und klickt erneut. Die Antworten bleiben erhalten. In der zweiten Form zählt der Lauf als Fehlversuch, weil frühere Versuche schon beim bisherigen Dienst angekommen sein können. |
 | „Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.“ | Der KI-Anbieter hat die Anfrage mit seinem Inhaltsfilter abgelehnt. Absichtlich geht sie dann **nicht** an die Reserve. Sehen Sie sich die Antworten an; abgeben (ohne KI-Feedback) geht trotzdem. |
 | „In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.“ beim Hochladen einer PDF | Es wurde nicht die Original-PDF aus „Zwischenstand als PDF-Datei sichern“ hochgeladen, sondern z. B. ein Screenshot, ein Ausdruck oder eine „Drucken als PDF“-Kopie – die enthalten die eingebetteten Daten nicht. Nur die heruntergeladene Datei selbst (unverändert) funktioniert; ein Neuspeichern in einem PDF-Programm, das die eingebettete Datei behält, ist unproblematisch. |
-| „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“ (statt des Buttons) | Kein Fehler: Laut eingegebenem Geburtsdatum ist die Schülerin oder der Schüler jünger als 16; die Prüfung wird dann nicht angeboten (Altersgrenze `LT_MIN_AGE` in `index.html`). Bei einem Tippfehler im Geburtsdatum oben „Abbrechen und Zwischenstand löschen“ wählen und den Code neu eingeben. |
+| „Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ (statt der Buttons, darüber ggf. „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) | Kein Fehler: Im Dialog vor der ersten Rechtschreibprüfung wurde „Trifft nicht zu“ gewählt oder Esc gedrückt. Für dieses geöffnete Blatt gibt es dann keine Prüf-Buttons mehr; Schreiben und Abgeben gehen ganz normal weiter. Wer sich vertan hat, lädt die Seite neu und öffnet das Blatt wieder (z. B. über „Weiterschreiben“) – dann fragt der Dialog wieder. |
+| „Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.“ | Tag und Monat passen nicht zusammen (der 29. Februar ist erlaubt). Gefragt sind nur Tag und Monat des Geburtstags, kein Jahr. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |
 
@@ -861,6 +870,12 @@ Datenbank; Schüler:innen und Lehrkraft können jede davon verwenden.
 
 GitHub Pages veröffentlicht den Inhalt des Branches `main` – also auch nach jeder Änderung automatisch, so wie der
 Workflow den Worker neu veröffentlicht.
+
+**Updates nicht während des Unterrichts ausrollen.** GitHub Pages erlaubt Browsern, die Seite bis zu 10 Minuten
+zwischenzuspeichern (`Cache-Control: max-age=600`, geprüft im Oktober 2026); unter der `workers.dev`-Adresse fragt der
+Browser jedes Mal neu. In diesen Minuten laufen alte und neue Seite nebeneinander – bei der Umstellung des Geburtstags
+auf Tag und Monat lehnt eine alte Seite z. B. eine neue Zwischenstand-PDF als „kein Zwischenstand“ ab. Nach dem
+Ausrollen deshalb alle geöffneten Seiten (Schüler:innen und Ihre Lehrkraft-Ansicht) einmal neu laden.
 
 Zu beachten:
 
