@@ -1124,8 +1124,8 @@ function fmtD(v) { const d = toDate(v); return d ? `${pad2(d.getDate())}.${pad2(
 /* BDAY:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/bday.test.mjs liest diesen Block) */
 const MONTHS_DE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const BDAY_MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];   // ohne Jahr hat der Februar 29 Tage
-// Ende des Übergangs (Ausrollen + DRAFT_DAYS + Puffer): danach sucht adoptLegacyDraft keine alten Speicherschlüssel mehr –
-// adoptLegacyDraft und legacyBirthDates dürfen dann entfallen, bdayOf bleibt
+// Ende des Übergangs (Ausrollen + DRAFT_DAYS + Puffer – vor dem Ausrollen prüfen, sonst verschieben): danach sucht adoptLegacyDraft
+// keine alten Speicherschlüssel mehr – adoptLegacyDraft und legacyBirthDates dürfen dann entfallen, bdayOf bleibt
 const BDAY_LEGACY_UNTIL = "2026-11-15";
 /* "--MM-TT" oder altes "JJJJ-MM-TT" (nur echte Kalenderdaten) → "--MM-TT"; alles andere → "" */
 function bdayOf(v) {
@@ -1365,11 +1365,13 @@ function show(id) {
 }
 
 /* Bestätigungsdialog → Promise<boolean>. Bei endgültigen Schritten (danger, safeFirst) bekommt „Abbrechen“ den Fokus,
-   damit ein doppeltes Enter nichts Unumkehrbares bestätigt. */
-let dlgResolve = null, dlgReturn = null, dlgOpenedAt = 0;
+   damit ein doppeltes Enter nichts Unumkehrbares bestätigt. Ein Klick auf den Hintergrund gilt wie „Abbrechen“ – außer
+   o.backdrop gibt einen eigenen Wert vor (ltConsent: null = nur geschlossen, keine Antwort). */
+let dlgResolve = null, dlgReturn = null, dlgOpenedAt = 0, dlgBackdrop = false;
 function askConfirm(o) {
   return new Promise((resolve) => {
     dlgResolve = resolve; dlgReturn = document.activeElement; dlgOpenedAt = Date.now();
+    dlgBackdrop = "backdrop" in o ? o.backdrop : false;
     $("dlg-title").textContent = o.title || "";
     $("dlg-text").textContent = o.text || "";
     $("dlg-ok").textContent = o.ok || "OK";
@@ -1397,7 +1399,7 @@ $("dlg").addEventListener("keydown", (e) => {
   }
 });
 // Klick auf den Hintergrund schließt – aber nicht der zweite Klick eines Doppelklicks direkt nach dem Öffnen
-$("dlg").addEventListener("click", (e) => { if (e.target === $("dlg") && Date.now() - dlgOpenedAt > 400) closeDlg(false); });
+$("dlg").addEventListener("click", (e) => { if (e.target === $("dlg") && Date.now() - dlgOpenedAt > 400) closeDlg(dlgBackdrop); });
 
 /* In die Zwischenablage kopieren (mit Rückfall für ältere Browser) */
 async function copyText(text, btn) {
@@ -2062,7 +2064,7 @@ $("resume-btn").addEventListener("click", async () => {
 $("resume-del").addEventListener("click", async () => {
   const d = lastSession();
   if (d && !(await askConfirm({ title: "Zwischenstand löschen?", text: "Der gespeicherte Zwischenstand wird von diesem Gerät gelöscht. Das lässt sich nicht rückgängig machen.", ok: "Löschen", cancel: "Behalten", danger: true }))) return;
-  if (d) store.del(await draftKeyFor(d.code, d.person));
+  if (d) delDraft(await draftKeyFor(d.code, d.person));
   store.del(LAST_KEY);
   $("resume-box").classList.add("hidden");
   $("code-input").focus();
@@ -2153,8 +2155,10 @@ async function draftKeyFor(code, p) {
 /* Übergang (Umstellung auf Tag und Monat): Bis dahin entstand der Schlüssel mit dem vollen Geburtsdatum. Liegt unter dem neuen
    Schlüssel nichts, werden die passenden alten Schlüssel gesucht (legacyBirthDates: höchstens 77 SHA-256, nach
    BDAY_LEGACY_UNTIL gar keine). Der jüngste Treffer zieht unter den neuen Schlüssel um; alle gefundenen alten Schlüssel werden
-   gelöscht, sobald sie gelesen sind – auch wenn das Speichern scheitert (mit Tag und Monat lassen sie sich ohnehin nicht mehr
-   unterscheiden, und „Abbrechen und Zwischenstand löschen“ kennt nur den neuen Schlüssel). */
+   gelöscht, sobald sie gelesen sind (mit Tag und Monat lassen sie sich ohnehin nicht mehr unterscheiden, und „Abbrechen und
+   Zwischenstand löschen“ kennt nur den neuen Schlüssel) – und zwar vor dem Speichern: Der frei gewordene Platz reicht bei vollem
+   Speicher für denselben Stand. Scheitert das Speichern trotzdem, bleibt der Stand in heldDrafts (nie verloren, solange die
+   Seite offen ist). */
 async function adoptLegacyDraft(code, p, key) {
   const dates = legacyBirthDates(p.geburtsdatum);
   if (!dates.length || !store.keys().some((k) => k && k.indexOf("feibeitsblatt:draft:") === 0)) return null;
@@ -2168,14 +2172,20 @@ async function adoptLegacyDraft(code, p, key) {
     if (!best || t > best.t) best = { raw, t };
   }
   if (!best) return null;
-  store.set(key, best.raw);
   found.forEach((k) => store.del(k));
+  if (!store.set(key, best.raw)) heldDrafts.set(key, best.raw);
   return best.raw;
 }
+/* Zwischenstände, die dieses Gerät gerade nicht speichern kann (Speicher voll oder gesperrt): Sie bleiben im Arbeitsspeicher,
+   bis das Speichern wieder klappt, der Stand gelöscht/abgegeben wird oder die Seite neu lädt. Ein Eintrag ist immer neuer als
+   der Stand im Speicher (saveDraft entfernt ihn nach jedem gelungenen Speichern). */
+const heldDrafts = new Map();
+function draftStored(key) { return heldDrafts.has(key) ? heldDrafts.get(key) : store.get(key); }
+function delDraft(key) { store.del(key); heldDrafts.delete(key); }
 /* Zwischenstand dieser Person zu diesem Code (roh) – unter dem neuen Schlüssel oder aus der Zeit vor der Umstellung */
-async function draftRaw(code, p) {
-  const key = await draftKeyFor(code, p);
-  return store.get(key) || await adoptLegacyDraft(code, p, key);
+async function draftRaw(code, p, key) {
+  key = key || await draftKeyFor(code, p);
+  return draftStored(key) || await adoptLegacyDraft(code, p, key);
 }
 async function openEditor() {
   const p = S.person, sh = S.sheet;
@@ -2194,7 +2204,8 @@ async function openEditor() {
   let restored = false, pendingLost = false;
   const imported = S.importDraft; S.importDraft = null;
   let d = imported;
-  if (!d) { const raw = store.get(S.draftKey) || await adoptLegacyDraft(S.code, p, S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
+  if (!d) { const raw = await draftRaw(S.code, p, S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
+  const held = !imported && heldDrafts.has(S.draftKey);   // nur im Arbeitsspeicher (Speicher voll)
   try {
     if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
       d.answers.forEach((a, i) => { S.tas[i].value = String(a || "").slice(0, MAX_ANSWER); S.tas[i]._ok = S.tas[i].value; });
@@ -2215,10 +2226,12 @@ async function openEditor() {
   } catch (e) { /* kaputter Entwurf: ignorieren */ }
   if (!S.attempt) S.attempt = hexOf(crypto.getRandomValues(new Uint8Array(8)));   // Kennung dieser Bearbeitung (Erstversuch ↔ Abgabe)
   store.set(LAST_KEY, JSON.stringify({ v: 1, t: Date.now(), code: S.code, person: p }));
-  if (imported || pendingLost) saveDraft();   // aus der PDF auch auf diesem Gerät weiterführen; einen verlorenen Versuch nur einmal zählen
+  // sofort speichern: den Stand aus der PDF auf diesem Gerät weiterführen, einen verlorenen Versuch nur einmal zählen, einen Stand
+  // nur im Arbeitsspeicher erneut sichern – scheitert es, sagt die Statuszeile das (statt „übernommen“/„wiederhergestellt“)
+  const saveFailed = (imported || pendingLost || held) && !saveDraft();
   S.tas.forEach(updateCounter);
   renderFeedbackState();
-  setSaveState(imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", false);
+  setSaveState(saveFailed ? SAVE_FAILED : imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", saveFailed);
   if (S.feedback && !S.firstSent) sendFirstAttempt();   // Erstversuch nachholen, falls die Übermittlung damals scheiterte
   setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
   show("screen-editor");
@@ -2667,11 +2680,14 @@ function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDr
 function draftRecord() {
   return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent };
 }
+const SAVE_FAILED = "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden";
 function saveDraft() {
   clearTimeout(saveTimer);
-  if (!S.draftKey || S.submitted) return;
-  const ok = store.set(S.draftKey, JSON.stringify(draftRecord()));
-  setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden", !ok);
+  if (!S.draftKey || S.submitted) return false;
+  const rec = JSON.stringify(draftRecord()), ok = store.set(S.draftKey, rec);
+  if (ok) heldDrafts.delete(S.draftKey); else heldDrafts.set(S.draftKey, rec);   // nicht gespeichert: für „Weiterschreiben“ im Arbeitsspeicher
+  setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : SAVE_FAILED, !ok);
+  return ok;
 }
 function setSaveState(text, bad) {   // nur bei Änderung schreiben (sonst würde ein Screenreader es bei jeder Pause erneut vorlesen)
   const s = $("save-state");
@@ -3074,7 +3090,7 @@ $("ed-cancel").addEventListener("click", async () => {
   const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." + (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
   if (!ok) return;
   clearTimeout(saveTimer);
-  store.del(S.draftKey); store.del(LAST_KEY);
+  delDraft(S.draftKey); store.del(LAST_KEY);
   S.submitted = true;   // nichts mehr speichern
   resetStudent(); $("code-input").value = "";
   show("screen-start"); showResume();
@@ -3242,7 +3258,8 @@ const LT_ERR = {
   TOO_LONG: "Dein Text ist zu lang für die Prüfung (höchstens etwa 20 000 Zeichen)."
 };
 /* Vor der ersten Prüfung je geöffnetem Blatt: Hinweis, wohin der Text geht, und Selbstauskunft zur Altersgrenze des Anbieters
-   (ein Alter kennt die Seite nicht – der Geburtstag hat kein Jahr). Abbrechen (auch Esc) = „Trifft nicht zu“. */
+   (ein Alter kennt die Seite nicht – der Geburtstag hat kein Jahr). → true (bestätigt), false („Trifft nicht zu“, auch Esc)
+   oder null (Klick neben den Dialog, z. B. vertippt auf dem Tablet: nur geschlossen, keine Antwort). */
 async function ltConsent() {
   if (S.ltConsent) return true;
   const ok = await askConfirm({
@@ -3251,7 +3268,7 @@ async function ltConsent() {
       "Laut Anbieter darfst du LanguageTool nur nutzen, wenn du\n• mindestens 18 Jahre alt bist oder\n• 16 oder 17 Jahre alt bist und deine Eltern es dir erlaubt haben.\n\n" +
       "Trifft das nicht auf dich zu, wähle „Trifft nicht zu“ – du schreibst und gibst ganz normal ab, ohne Nachteil.\n" +
       "Die Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.",
-    ok: "Trifft auf mich zu – prüfen", cancel: "Trifft nicht zu", safeFirst: true
+    ok: "Trifft auf mich zu – prüfen", cancel: "Trifft nicht zu", safeFirst: true, backdrop: null
   });
   if (ok) S.ltConsent = true;
   return ok;
@@ -3275,7 +3292,12 @@ async function ltRun(i, btn, stat) {
   setStatus(stat, "", "");
   const text = ta.value;
   if (!text.trim()) { setStatus(stat, "Schreibe zuerst etwas in das Feld.", ""); return; }
-  if (!(await ltConsent())) { setStatus(stat, "Ohne Bestätigung wird nichts an LanguageTool gesendet.", ""); ltDecline(i); return; }
+  const consent = await ltConsent();
+  if (consent !== true) {   // nichts gesendet; nur „Trifft nicht zu“/Esc ersetzt die Buttons, ein Klick daneben lässt sie stehen
+    setStatus(stat, "Ohne Bestätigung wird nichts an LanguageTool gesendet.", "");
+    if (consent === false) ltDecline(i);
+    return;
+  }
   if (utf8Bytes(text) > LT_MAX_BYTES) { setStatus(stat, LT_ERR.TOO_LONG, "bad"); return; }
   const cached = S.ltCache.get(text);
   if (cached) { renderLT(i, text, cached); return; }
@@ -3780,7 +3802,7 @@ async function submitAll() {
     try { envelope = await Crypto.seal(S.pub, payload); } catch (e) { throw new ApiError("crypto"); }
     const r = await api("POST", "/api/submit", { body: { code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }, timeout: 60000 });
     S.submitted = true;
-    store.del(S.draftKey); store.del(LAST_KEY);
+    delDraft(S.draftKey); store.del(LAST_KEY);
     const d = toDate(r.receivedAt) || new Date();
     const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
     $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;

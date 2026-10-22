@@ -182,8 +182,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Geburtsjahr): Button bei jedem Textfeld; vor der ersten Prüfung je geöffnetem Blatt der Dialog `ltConsent` (Wortlaut fest,
   OK „Trifft auf mich zu – prüfen“, Abbrechen „Trifft nicht zu“, `safeFirst`) – ohne Bestätigung wird nichts gesendet.
   „Trifft nicht zu“ (auch Esc) → `ltDecline`: `S.ltDeclined`, alle `.ltbtn` → Hinweis `span.ltstat.lt-off` (`LT_OFF_TEXT`,
-  Fokus auf den Hinweis der Aufgabe); nichts speichern. `S.ltConsent`/`S.ltDeclined` in `openEditor`/`resetStudent`
-  zurücksetzen (nach Neuladen fragt der Dialog wieder).
+  Fokus auf den Hinweis der Aufgabe); nichts speichern. Klick neben den Dialog (vertippt) ist keine Antwort: `askConfirm`
+  mit `backdrop: null` → `ltConsent` liefert `null`, nur die Meldung „Ohne Bestätigung wird nichts …“, Buttons bleiben.
+  `S.ltConsent`/`S.ltDeclined` in `openEditor`/`resetStudent` zurücksetzen (nach Neuladen fragt der Dialog wieder).
   `POST https://api.languagetool.org/v2/check`, Body `URLSearchParams`, **keine eigenen Header** (simple request,
   kein Preflight), `credentials:"omit"`, `referrerPolicy:"no-referrer"`; `language=de-DE`, `disabledCategories`
   (Stil u. a.), `enabledRules=GERMAN_WORD_REPEAT_RULE`; kein `preferredVariants`/`enabledOnly`/`level`. Offsets =
@@ -399,13 +400,17 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   alte Abgaben ohne Jahr, `who()` für ausgeblendete Erstversuche vergleicht `bdayOf`). Übergang auf dem Gerät:
   `adoptLegacyDraft` (über `draftRaw` in `showResume`/`importDraftPdf` und in `openEditor`) sucht einen Zwischenstand unter
   alten Schlüsseln (`legacyBirthDates`: 1950 bis heute, höchstens 77 SHA-256), der jüngste zieht um, alle gefundenen alten
-  Schlüssel werden sofort gelöscht (auch wenn das Speichern scheitert). Bis `BDAY_LEGACY_UNTIL` ("2026-11-15", Ortszeit),
-  danach sofort `[]`/`null` – **danach dürfen `adoptLegacyDraft`, `legacyBirthDates`, `BDAY_LEGACY_UNTIL` und die Teile 1, 2
-  und 4 von E2E 3e entfallen, `bdayOf` bleibt.** Alte Stände verschwinden spätestens nach `DRAFT_DAYS` beim nächsten Öffnen
-  der Seite auf diesem Gerät. Die reinen Helfer stehen zwischen `/* BDAY:BEGIN` und `/* BDAY:END */`
-  (`test/unit/bday.test.mjs`). E2E 3e (feste Uhrzeit per `page.clock`; mehrere alte Stände, Zwischenstand-PDF mit vollem bzw.
-  unmöglichem Geburtstag, Ablauf), 7g (Lehrkraft-Ansicht mit alten Abgaben/Erstversuchen). Der Server sieht den Geburtstag
-  nie (nur im verschlüsselten Umschlag).
+  Schlüssel werden sofort gelöscht – **vor** dem Speichern unter dem neuen Schlüssel (bei vollem Speicher passt derselbe Stand
+  dann); scheitert es trotzdem, bleibt er in `heldDrafts` (siehe Frontend-Regeln), nie verloren. Bis `BDAY_LEGACY_UNTIL`
+  ("2026-11-15", Ortszeit), danach sofort `[]`/`null` – **vor dem Ausrollen prüfen: `BDAY_LEGACY_UNTIL` ≥ Ausrolltag +
+  `DRAFT_DAYS` (7) + einige Tage Puffer, sonst das Datum verschieben** (die Tests lesen es selbst). **Danach dürfen
+  `adoptLegacyDraft`, `legacyBirthDates`, `BDAY_LEGACY_UNTIL` und in E2E 3e die Teile 1, 1b, 1c, 2, 4 und der Import mit
+  neuerem Stand auf dem Gerät entfallen, `bdayOf` bleibt.** Alte Stände verschwinden spätestens nach `DRAFT_DAYS` beim
+  nächsten Öffnen der Seite auf diesem Gerät. Die reinen Helfer stehen zwischen `/* BDAY:BEGIN` und `/* BDAY:END */`
+  (`test/unit/bday.test.mjs`). E2E 3e (feste Uhrzeit per `page.clock`; mehrere alte Stände, voller Speicher, Speichern
+  scheitert, Zwischenstand-PDF mit vollem bzw. unmöglichem Geburtstag, neuerer alter Stand auf dem Gerät beim PDF-Import,
+  Ablauf), 7g (Lehrkraft-Ansicht mit alten Abgaben/Erstversuchen). Der Server sieht den Geburtstag nie (nur im
+  verschlüsselten Umschlag).
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
@@ -414,8 +419,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Schreibmodus scrollt nur `.paperwrap`, nichts liegt über der Schreibfläche (Abgeben ohne KI-Feedback: eigener Punkt
   unten). Zwischenstand in `localStorage` unter `feibeitsblatt:draft:<SHA-256>` (`draftKeyFor`: Code|Kürzel|Geburtstag|
   Klasse; Schlüssel ohne Klartext-Angaben; 7 Tage), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite,
-  „Abbrechen und Zwischenstand löschen“ in der Topbar; alle Zugriffe in try/catch, nach Abgabe löschen. Lehrkraft: Abmeldung nach
-  20 min ohne Eingabe; Abgaben-Listen seitenweise laden; fremde Payloads vor dem Rendern kappen (≤ 30 Antworten).
+  „Abbrechen und Zwischenstand löschen“ in der Topbar; alle Zugriffe in try/catch, nach Abgabe löschen. Was sich nicht
+  speichern lässt (Speicher voll/gesperrt), hält `heldDrafts` im Arbeitsspeicher (neuer als der gespeicherte Stand; `draftStored`
+  liest, `delDraft` löscht beides, `saveDraft` liefert `ok`; `openEditor` speichert so einen Stand sofort erneut und zeigt sonst
+  `SAVE_FAILED`). Lehrkraft: Abmeldung nach 20 min ohne Eingabe; Abgaben-Listen seitenweise laden; fremde Payloads vor
+  dem Rendern kappen (≤ 30 Antworten).
 - **Das KI-Feedback ist freiwillig** (Handreichung KI des HKM, Juli 2023: S. 10 allgemein „derzeit nur auf
   freiwilliger Basis“; S. 17 kein Nachteil ohne KI – dort für volljährige Schüler:innen, sinngemäß übertragen).
   „Abgeben“ ist nie wegen fehlenden Feedbacks gesperrt (nur ein ganz leeres Blatt: Meldung wie beim Feedback; leere

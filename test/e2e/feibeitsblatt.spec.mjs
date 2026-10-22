@@ -1018,6 +1018,18 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await page.click("#t-1 .ltbtn");
   await expect(page.locator("#dlg-title")).toHaveText("Rechtschreibung und Grammatik prüfen");
   await expect(page.locator("#dlg-cancel")).toBeFocused();
+  // Klick neben den Dialog (z. B. vertippt auf dem Tablet): schließt nur – nichts gesendet, keine Antwort, die Buttons bleiben
+  await page.waitForTimeout(450);                                        // (ein Klick direkt nach dem Öffnen zählt absichtlich nicht)
+  await page.mouse.click(5, 5);
+  await expect(page.locator("#dlg")).not.toHaveClass(/open/);
+  await expect(page.locator(".ltbtn")).toHaveCount(3);
+  await expect(page.locator(".lt-off")).toHaveCount(0);
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("Ohne Bestätigung wird nichts an LanguageTool gesendet.");
+  await expect(page.locator("#t-1 .ltbtn")).toBeFocused();
+  expect(s.lt).toHaveLength(0);
+  await page.click("#t-1 .ltbtn");                                       // der Dialog fragt wieder
+  await expect(page.locator("#dlg-title")).toHaveText("Rechtschreibung und Grammatik prüfen");
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("");
   await page.keyboard.press("Escape");                                   // Esc gilt wie „Trifft nicht zu“
   await expect(page.locator("#dlg")).not.toHaveClass(/open/);
   await expect(page.locator(".ltbtn")).toHaveCount(0);                   // für dieses geöffnete Blatt kein Button mehr …
@@ -1037,6 +1049,15 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await expect(page.locator(".ltbtn")).toHaveCount(3);
   await expect(page.locator(".lt-off")).toHaveCount(0);
   for (let i = 0; i < 3; i++) expect(await page.inputValue("#a-" + (i + 1))).toBe(B.first[i]);
+  // der Knopf „Trifft nicht zu“ selbst wirkt wie Esc
+  await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Trifft nicht zu");
+  await page.click("#dlg-cancel");
+  await expect(page.locator("#dlg")).not.toHaveClass(/open/);
+  await expect(page.locator(".ltbtn")).toHaveCount(0);
+  await expect(page.locator(".lt-off")).toHaveText([LT_OFF, LT_OFF, LT_OFF]);
+  await expect(page.locator("#t-1 .lt-off")).toBeFocused();
+  expect(s.lt).toHaveLength(0);
 
   // KI lehnt ab (Mock: HTTP 401) → kurze Meldung ohne Interna, Feedback erneut möglich; „Abgeben“ ging die ganze Zeit
   await mockMode("401");
@@ -1229,7 +1250,7 @@ test("3e Übergang: Zwischenstände und Zwischenstand-PDFs mit vollem Geburtsdat
   const draft = { v: 1, t: T_IN - 2 * 3600e3, answers: ["Alter Stand eins.", "", "Alter Stand drei."], first: null, feedback: null, feedbackAt: null, fbUnavailable: "", fbFails: 0, attempt: "00112233445566aa", firstSent: false };
   const draft2 = { ...draft, t: T_IN - 3600e3, answers: ["Jüngerer Stand eins.", "", "Jüngerer Stand drei."], attempt: "00112233445566bb" };
   const stored = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:")).sort());
-  const values = () => page.evaluate(() => Object.keys(localStorage).map((k) => localStorage.getItem(k)).join("\n"));
+  const values = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:")).map((k) => localStorage.getItem(k)).join("\n"));
   const setItems = (pairs) => page.evaluate((pairs) => { for (const [k, v] of pairs) localStorage.setItem(k, JSON.stringify(v)); }, pairs);
   const restored = async (state, d = draft) => {
     await expect(page.locator("#screen-editor")).toHaveClass(/active/);
@@ -1257,6 +1278,47 @@ test("3e Übergang: Zwischenstände und Zwischenstand-PDFs mit vollem Geburtsdat
   await restored("Zwischenstand von diesem Gerät wiederhergestellt");
   await cancel();
 
+  // 1b) Speicher des Geräts voll: Der Umzug löscht zuerst den alten Schlüssel – derselbe Stand passt dann unter den neuen
+  const fill = () => page.evaluate(() => {   // bis zum Quota-Fehler füllen (zuletzt Zeichen für Zeichen)
+    let n = 0;
+    for (let size = 1 << 20; size >= 1;) { try { localStorage.setItem("fill:" + n, "x".repeat(size)); n++; } catch (e) { size >>= 1; } }
+    return n;
+  });
+  const unfill = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("fill:")).forEach((k) => localStorage.removeItem(k)));
+  await setItems([[oldKey, draft], ["feibeitsblatt:last", { v: 1, t: T_IN - 2 * 3600e3, code: S.code, person: OLD }]]);
+  expect(await fill()).toBeGreaterThan(0);
+  expect(await page.evaluate(() => { try { localStorage.setItem("fill:probe", "x"); return true; } catch (e) { return false; } })).toBe(false);
+  await page.reload();
+  await expect(page.locator("#resume-text")).toContainText("Ole · Al · 07.03. · Klasse 8a");
+  await page.click("#resume-btn");
+  await restored("Zwischenstand von diesem Gerät wiederhergestellt");
+  await cancel();
+  await unfill();
+
+  // 1c) Scheitert das Speichern unter dem neuen Schlüssel trotzdem, bleibt der Stand für diese Sitzung im Arbeitsspeicher: Die
+  //     Antworten sind da, die Statuszeile sagt, dass nicht gespeichert werden konnte; „Abbrechen und Zwischenstand löschen“ löscht
+  //     auch diese Kopie
+  await setItems([[oldKey, draft]]);
+  await page.evaluate((k) => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, v) { if (key === k) throw new DOMException("Speicher voll", "QuotaExceededError"); return set.call(this, key, v); };
+  }, newKey);
+  await enterCode(page, S.shown);
+  await fillPerson(page, { vorname: "ole", nachname: "al", geb: "--03-07", klasse: "8a" });
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe(draft.answers[0]);
+  expect(await page.inputValue("#a-3")).toBe(draft.answers[2]);
+  await expect(page.locator("#save-state")).toHaveText("Zwischenstand konnte auf diesem Gerät nicht gespeichert werden");
+  await expect(page.locator("#save-state")).toHaveClass(/\bbad\b/);
+  expect(await stored()).toEqual(["feibeitsblatt:last"]);   // alter Schlüssel weg, neuer nicht speicherbar
+  await cancel();
+  await enterCode(page, S.shown);
+  await fillPerson(page, { vorname: "ole", nachname: "al", geb: "--03-07", klasse: "8a" });
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe("");            // nichts mehr da – auch nicht im Arbeitsspeicher
+  await cancel();
+  await page.reload();                                       // Speicher wieder normal
+
   // 2) Code und Angaben neu eingegeben (nur Tag und Monat): von zwei alten Ständen (verschiedene Jahre) gilt der jüngste,
   //    beide alten Schlüssel verschwinden (mit Tag und Monat lassen sie sich nicht mehr unterscheiden)
   await setItems([[oldKey, draft], [oldKey2, draft2]]);
@@ -1270,6 +1332,16 @@ test("3e Übergang: Zwischenstände und Zwischenstand-PDFs mit vollem Geburtsdat
     const rec = Buffer.from(JSON.stringify({ ...draft, kind: "feibeitsblatt-draft", code: S.code, sheetTitle: TITLE, person }), "utf8");
     return Buffer.concat([Buffer.from(`%PDF-1.7\n6 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbDraft 1 /Length ${rec.length} >>\nstream\n`), rec, Buffer.from("\nendstream\nendobj\n%%EOF\n")]);
   };
+  // … liegt auf dem Gerät (noch unter einem alten Schlüssel) ein neuerer Stand, fragt die Seite; „Neueren Stand von diesem Gerät“
+  // nimmt den umgezogenen Stand
+  await setItems([[oldKey2, draft2]]);
+  await page.setInputFiles("#start-pdf-file", { name: "alt.pdf", mimeType: "application/pdf", buffer: draftPdf(OLD) });
+  await expect(page.locator("#dlg-title")).toHaveText("Neuerer Zwischenstand auf diesem Gerät");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Neueren Stand von diesem Gerät");
+  await page.click("#dlg-cancel");
+  await restored("Zwischenstand von diesem Gerät wiederhergestellt", draft2);
+  await cancel();
+  // … sonst gilt die PDF-Datei
   await page.setInputFiles("#start-pdf-file", { name: "alt.pdf", mimeType: "application/pdf", buffer: draftPdf(OLD) });
   await restored("Zwischenstand aus der PDF-Datei übernommen");
   await cancel();

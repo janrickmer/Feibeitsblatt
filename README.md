@@ -84,8 +84,9 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    nutzen darf, wenn man mindestens 18 ist oder 16 bzw. 17 und die Eltern es erlaubt haben. Wer das bestätigt („Trifft
    auf mich zu – prüfen“), kann prüfen; wer „Trifft nicht zu“ wählt (oder Esc drückt), schreibt und gibt ohne Nachteil
    ab – für dieses geöffnete Blatt steht dann statt der Buttons nur der Hinweis „Rechtschreibprüfung (LanguageTool):
-   erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ Ohne Bestätigung wird nichts gesendet, und die
-   Auswahl wird nirgends gespeichert. Die Altersgrenze beruht allein auf dieser Selbstauskunft – ein Geburtsjahr wird
+   erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ Ein Klick neben den Dialog (etwa vertippt auf
+   dem Tablet) schließt ihn nur und gilt nicht als Antwort; die Buttons bleiben. Ohne Bestätigung wird nichts gesendet,
+   und die Auswahl wird nirgends gespeichert. Die Altersgrenze beruht allein auf dieser Selbstauskunft – ein Geburtsjahr wird
    nicht erhoben; den Button sieht deshalb zunächst jede Schülerin und jeder Schüler, auch in Klassen, in denen alle
    jünger als 16 sind. Die Bestätigung gilt, solange das Blatt geöffnet
    ist. Der Button schickt dann nur den Text dieser einen Antwort an den Prüfdienst LanguageTool. Darunter erscheint
@@ -837,7 +838,8 @@ gespeichert.
 | „Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis …“ (nach automatischen Wiederholungen: „… – dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise schon erhalten. …“) | Sie haben den ersten Anbieter geändert oder eine Reserve eingetragen, während das Blatt geöffnet war. Die Seite hat den Hinweis neu geladen; die Schülerin bzw. der Schüler liest ihn und klickt erneut. Die Antworten bleiben erhalten. In der zweiten Form zählt der Lauf als Fehlversuch, weil frühere Versuche schon beim bisherigen Dienst angekommen sein können. |
 | „Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.“ | Der KI-Anbieter hat die Anfrage mit seinem Inhaltsfilter abgelehnt. Absichtlich geht sie dann **nicht** an die Reserve. Sehen Sie sich die Antworten an; abgeben (ohne KI-Feedback) geht trotzdem. |
 | „In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.“ beim Hochladen einer PDF | Es wurde nicht die Original-PDF aus „Zwischenstand als PDF-Datei sichern“ hochgeladen, sondern z. B. ein Screenshot, ein Ausdruck oder eine „Drucken als PDF“-Kopie – die enthalten die eingebetteten Daten nicht. Nur die heruntergeladene Datei selbst (unverändert) funktioniert; ein Neuspeichern in einem PDF-Programm, das die eingebettete Datei behält, ist unproblematisch. |
-| „Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ (statt der Buttons, darüber ggf. „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) | Kein Fehler: Im Dialog vor der ersten Rechtschreibprüfung wurde „Trifft nicht zu“ gewählt oder Esc gedrückt. Für dieses geöffnete Blatt gibt es dann keine Prüf-Buttons mehr; Schreiben und Abgeben gehen ganz normal weiter. Wer sich vertan hat, lädt die Seite neu und öffnet das Blatt wieder (z. B. über „Weiterschreiben“) – dann fragt der Dialog wieder. |
+| „Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ (statt der Buttons, darunter ggf. „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) | Kein Fehler: Im Dialog vor der ersten Rechtschreibprüfung wurde „Trifft nicht zu“ gewählt oder Esc gedrückt. Für dieses geöffnete Blatt gibt es dann keine Prüf-Buttons mehr; Schreiben und Abgeben gehen ganz normal weiter. (Ein Klick neben den Dialog schließt ihn nur: Die Buttons bleiben, darunter steht dann nur „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) Wer sich vertan hat, lädt die Seite neu und öffnet das Blatt wieder (z. B. über „Weiterschreiben“) – dann fragt der Dialog wieder. |
+| „Zwischenstand konnte auf diesem Gerät nicht gespeichert werden“ (oben im Schreibbereich) | Der Browser lässt nichts mehr speichern – meist ist der Speicher für Website-Daten voll oder gesperrt (z. B. privates Fenster). Die Antworten bleiben erhalten, solange die Seite offen ist; zur Sicherheit „Zwischenstand als PDF-Datei sichern“ oder gleich abgeben. Nach einem Neuladen wäre ein nicht gespeicherter Stand weg. |
 | „Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.“ | Tag und Monat passen nicht zusammen (der 29. Februar ist erlaubt). Gefragt sind nur Tag und Monat des Geburtstags, kein Jahr. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |
@@ -926,6 +928,12 @@ sie ist von Git ausgeschlossen. Ohne `SETTINGS_SECRET` lässt sich auch lokal ke
 
 **Nie `wrangler deploy` von Hand vor dem ersten Lauf des Workflows „Deploy“** – sonst entsteht die Datenbank
 außerhalb der EU (siehe Schritt 5).
+
+**Übergang Geburtstag ohne Jahr – vor dem Ausrollen prüfen:** Zwischenstände, die Schüler:innen vor der Umstellung auf
+dem Gerät gespeichert haben, liegen unter einem Speicherschlüssel mit vollem Geburtsdatum. Die Seite sucht sie nur bis
+zum Datum `BDAY_LEGACY_UNTIL` in `index.html` (derzeit 15.11.2026). Dieses Datum darf nicht früher liegen als
+Ausrolltag + 7 Tage (so lange bleiben Zwischenstände liegen) + einige Tage Puffer; sonst vor dem Ausrollen verschieben –
+andernfalls findet die Seite diese Zwischenstände stillschweigend nicht mehr.
 
 **Aufbau:**
 
