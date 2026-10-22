@@ -10,7 +10,7 @@ import { isAllowedBase, materialText } from "./lib.js";
 // reasoning: "effort" = reasoning_effort (Groq/Cerebras), "object" = reasoning:{effort} (OpenRouter) – nur gpt-oss
 export const PROVIDERS = {
   // Cloudflare Workers AI über das Binding env.AI: kein API-Schlüssel (keyless), kein AI Gateway – nie die Option `gateway`
-  // übergeben (ein Gateway, auch „default“, protokolliert Ein- und Ausgaben). Das Tageskontingent (10 000 Neurons) gilt für
+  // übergeben (ein Gateway, auch „default“, protokolliert Ein- und Ausgaben). Das Tageskontingent (10.000 Neurons) gilt für
   // das ganze Konto und alle Modelle (accountDaily), das Minutenlimit (300/min) je Konto und Aufgabentyp → kein perModelGate,
   // kein Versetzen des Startmodells (spread:false): erst die Vorgabe, dann die Ausweichmodelle in fester Reihenfolge.
   cloudflare: { label: "Cloudflare Workers AI", kind: "workers-ai", keyless: true, accountDaily: true, spread: false,
@@ -51,7 +51,7 @@ const CF_PRICE_UNKNOWN = [9091, 36400];   // anderes @cf/-Modell: vorsichtig mit
 export const CF_DAILY_NEURONS = 10000;
 export const nextUtcMidnight = (now = Date.now()) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1); };
 export const utcDay = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
-const thousands = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const thousands = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");   // wie toLocaleString("de-DE") in der Oberfläche
 // Schlüssel für den Mindestabstand (ai_gate): je Modell, wo der Anbieter je Modell begrenzt (groq, cerebras, gemini) –
 // gleichzeitige Anfragen verteilen sich dann auf die Minutenkontingente aller Modelle; sonst je Anbieter-Eintrag.
 // `key` ist der Eintrag (erster Anbieter = provider, Reserve = provider + "#r"): getrennte Schlüssel = getrennte Kontingente.
@@ -384,17 +384,20 @@ async function callAIInner(cfg, messages, opts, rotated, cost) {
       if (ic === 3040) status = 429;                               // Kapazität erschöpft: wie ein Minutenlimit (nächstes Modell)
       else if (ic === 3006) status = 413;
       else if (ic === 3007 || ic === 3008) status = 408;
-      // Jede andere Ablehnung (4xx, z. B. 5006 „Bad input“ bei einem Schema ohne messages/kwargs, 5019 HTTP 405): erst dasselbe
-      // Modell ohne chat_template_kwargs, dann ohne JSON-Modus (nennt die Meldung eines davon, dieses zuerst), danach das nächste
-      // Modell (24 h gesperrt) – nie ein Abbruch der ganzen Kette; frühere Wartezeiten (minRetryMs) bleiben für ai_busy erhalten
+      // Jede andere Ablehnung (4xx, z. B. 5006 „Bad input“ bei einem Schema ohne messages/kwargs, 5019 HTTP 405): dasselbe Modell
+      // erst ohne JSON-Modus (der Denkmodus bleibt aus – mit ihm würde die Antwort ein Vielfaches kosten), dann ohne
+      // chat_template_kwargs; nennt die Meldung chat_template_kwargs/enable_thinking, fallen zuerst die kwargs weg. Danach das
+      // nächste Modell, gesperrt nur kurz (TTL.soft): Die Ursache ist unbekannt, eine einzelne seltsame Anfrage oder eine kurze
+      // Störung soll die Modellfolge nicht für einen ganzen Tag ändern (dauerhaft fehlende Modelle erkennt CF_GONE). Nie ein
+      // Abbruch der ganzen Kette; frühere Wartezeiten (minRetryMs) bleiben für ai_busy erhalten.
       if (status >= 400 && status < 500 && ![403, 404, 408, 413, 429].includes(status) && !TOO_LONG_RE.test(emsg)) {
         const thinkOn = !!(CF_MODELS[model] || {}).think && !thinkRejected.has(model), jsonOn = jsonMode && !jsonRejected.has(model);
-        const jsonFirst = jsonOn && (!thinkOn || (/response_format|json/i.test(emsg) && !/chat_template_kwargs|enable_thinking/i.test(emsg)));
-        if (jsonFirst) { jsonRejected.add(model); tries[model]--; continue; }
-        if (thinkOn) { thinkRejected.add(model); tries[model]--; continue; }
+        const thinkFirst = thinkOn && (!jsonOn || /chat_template_kwargs|enable_thinking|thinking/i.test(emsg));
+        if (thinkFirst) { thinkRejected.add(model); tries[model]--; continue; }
         if (jsonOn) { jsonRejected.add(model); tries[model]--; continue; }
+        if (thinkOn) { thinkRejected.add(model); tries[model]--; continue; }
         lastErr = new AIError("HTTP", "Workers AI lehnt die Anfrage für „" + model + "“ ab (HTTP " + status + withMsg(emsg || raw.slice(0, 200)) + ").", { status });
-        rotate(model, "lehnt die Anfrage ab (HTTP " + status + ")", TTL.gone);
+        rotate(model, "lehnt die Anfrage ab (HTTP " + status + ")", TTL.soft);
         continue;
       }
     }

@@ -460,7 +460,7 @@ test("workers ai: 3036 (Tageskontingent) im internalCode-, errors[]- und Wurf-Fo
   const daily = "You have used up your daily free allocation of 10,000 neurons. Please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage.";
   for (const step of [cfErr(429, 3036, daily), { status: 429, body: { errors: [{ code: 3036, message: "AiError: " + daily }], success: false } }, { throw: "3036: " + daily }, { throw: "InferenceUpstreamError: 3036: " + daily }]) {
     const ai = fakeAI([step]);
-    await assert.rejects(callAI(CF(ai), msgs), (e) => e.code === "DAILY_LIMIT" && e.accountWide === true && e.until === nextUtcMidnight() && /10 000 Neurons/.test(e.message) && /0:00 Uhr UTC/.test(e.message));
+    await assert.rejects(callAI(CF(ai), msgs), (e) => e.code === "DAILY_LIMIT" && e.accountWide === true && e.until === nextUtcMidnight() && /10\.000 Neurons/.test(e.message) && /0:00 Uhr UTC/.test(e.message));
     assert.equal(ai.calls.length, 1);
   }
   assert.equal(new Date(nextUtcMidnight(Date.UTC(2026, 9, 22, 23, 59))).toISOString(), "2026-10-23T00:00:00.000Z");
@@ -482,21 +482,31 @@ test("workers ai: 3040 (Kapazität) → nächstes Modell mit kurzer Sperre; 5007
   await assert.rejects(callAI(CF(ai), msgs), (e) => e.code === "FORBIDDEN" && /gesperrt/.test(e.message));
   assert.equal(ai.calls.length, 1);
 });
-test("workers ai: unbekannte Ablehnung (400 „Bad input“) → dasselbe Modell ohne chat_template_kwargs, dann ohne JSON-Modus, dann das nächste Modell (24 h gesperrt) – nie Abbruch der Kette", async () => {
+test("workers ai: unbekannte Ablehnung (400 „Bad input“) → dasselbe Modell erst ohne JSON-Modus (Denkmodus bleibt aus), dann ohne chat_template_kwargs, dann das nächste Modell (nur kurz gesperrt) – nie Abbruch der Kette", async () => {
   const bad = cfErr(400, 5006, "AiError: Bad input: Error: oneOf at '/' not met");
   const ai = fakeAI([bad, bad, bad, chat("{\"ok\":5}", GLM)]);
   const r = await callAI(CF(ai), msgs);
   assert.deepEqual(r.json, { ok: 5 });
   assert.deepEqual(ai.calls.map((c) => [c.model, !!c.inputs.chat_template_kwargs, !!c.inputs.response_format]),
-    [[GEMMA, true, true], [GEMMA, false, true], [GEMMA, false, false], [GLM, true, true]]);
-  assert.deepEqual(r.rotated.map((x) => [x.model, x.ttlMs]), [[GEMMA, TTL.gone]]);
-  // nennt die Meldung den JSON-Modus, fällt zuerst er weg; nennt sie chat_template_kwargs, zuerst die kwargs
+    [[GEMMA, true, true], [GEMMA, true, false], [GEMMA, false, false], [GLM, true, true]]);
+  // eine Ablehnung unbekannter Ursache sperrt das Modell nur 5 Minuten (nicht 24 h wie ein fehlendes Modell, CF_GONE)
+  assert.deepEqual(r.rotated.map((x) => [x.model, x.ttlMs]), [[GEMMA, TTL.soft]]);
+  // eine kurze Störung: schon der Versuch ohne JSON-Modus klappt – der Denkmodus bleibt aus, kein Modellwechsel
+  const ai1 = fakeAI([bad, chat("{\"ok\":4}")]);
+  const r1 = await callAI(CF(ai1), msgs);
+  assert.deepEqual(r1.json, { ok: 4 }); assert.deepEqual(r1.rotated, []);
+  assert.deepEqual(ai1.calls.map((c) => [!!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[true, true], [true, false]]);
+  // nennt die Meldung den JSON-Modus, fällt er weg; nennt sie chat_template_kwargs, zuerst die kwargs
   const ai2 = fakeAI([{ status: 400, body: { errors: [{ code: 5006, message: "JSON Mode couldn't be met" }] } }, chat("{\"ok\":6}")]);
   await callAI(CF(ai2), msgs);
   assert.deepEqual(ai2.calls.map((c) => [!!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[true, true], [true, false]]);
   const ai3 = fakeAI([cfErr(400, 5006, "Error: additionalProperties: chat_template_kwargs is not allowed"), chat("{\"ok\":7}", QWEN)]);
   await callAI(CF(ai3, { model: QWEN }), msgs);
   assert.deepEqual(ai3.calls.map((c) => [c.model, !!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[QWEN, true, true], [QWEN, false, true]]);
+  // ohne JSON-Modus (z. B. ein Aufruf mit json:false): gleich die kwargs
+  const ai5 = fakeAI([bad, chat("ok")]);
+  await callAI(CF(ai5), msgs, { json: false });
+  assert.deepEqual(ai5.calls.map((c) => [!!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[true, false], [false, false]]);
   // HTTP 405 (5019, veraltete Schnittstelle) zählt genauso
   const ai4 = fakeAI([cfErr(405, 5019, "Deprecated SDK version"), cfErr(405, 5019, "x"), cfErr(405, 5019, "x"), chat("{\"ok\":8}", GLM)]);
   assert.deepEqual((await callAI(CF(ai4), msgs)).json, { ok: 8 });
@@ -533,7 +543,7 @@ test("workers ai: lokal (wrangler dev --local) → CONFIG mit Hinweis ohne weite
 test("workers ai: testKey liefert die feste Liste ohne Netz; Feedback-Prompt geht unverändert durch; Kosten-Überschlag (Preisliste 20.10.2026)", async () => {
   const t = await testKey({ provider: "cloudflare" });
   assert.deepEqual(t.models.map((m) => m.id), [GEMMA, GLM, QWEN]); assert.equal(calls.length, 0);
-  assert.match(t.tierNote, /10 000 Neurons pro Tag für das ganze Cloudflare-Konto/);
+  assert.match(t.tierNote, /10\.000 Neurons pro Tag für das ganze Cloudflare-Konto/);
   const { messages, nrs } = buildFeedbackMessages([{ text: "A", solution: "- Licht" }], ["Licht"]);
   const ai = fakeAI([chat(JSON.stringify({ aufgaben: [{ nr: 1, gut: ["Licht"], tipps: [] }] }))]);
   const r = await callAI(CF(ai), messages, { accept: feedbackAcceptor(nrs) });

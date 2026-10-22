@@ -44,6 +44,7 @@ const MSG = {
   aiKeyless: "Für Cloudflare Workers AI ist kein API-Schlüssel nötig – bitte das Feld leer lassen.",
   aiSameAccount: "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.",
   aiCfModel: "Bitte eine Modell-ID von Workers AI angeben (beginnt mit „@cf/“) oder das Feld leer lassen.",
+  aiMainFirst: "Bitte zuerst den ersten Anbieter speichern – die Reserve-KI springt nur für ihn ein.",
 };
 
 /* ---------- Antworten ---------- */
@@ -165,6 +166,10 @@ async function aiEntry(env, s) {
 }
 // Nutzbar = bekommt Schülertexte: mit entschlüsselbarem Schlüssel bzw. (Workers AI) ausdrücklich gespeichert und Binding da
 const usable = (e) => !!e && (e.keyless ? !!(e.explicit && e.ai) : !!e.apiKey);
+// Empfänger der Schülertexte in dieser Reihenfolge: erster Anbieter, dann die Reserve – die Reserve nur, wenn der erste nutzbar
+// ist (sie springt für ihn ein). Sonst sagt die Lehrkräfte-Übersicht zu Recht „nur ohne KI-Feedback“ (auch bei älteren
+// Einstellungen, in denen nur eine Reserve gespeichert ist; neue lehnt routeAiPut ab).
+const activeEntries = (ai) => (usable(ai) ? [ai, ai.reserve].filter(usable) : []);
 // Schlüssel für ai_gate/ai_skip: die Reserve hat eigene Kontingente → eigener Schlüssel (provider#r); Anbieter mit einem
 // Kontingent je Konto (Workers AI) behalten ihren Namen – die Sperre „Tageskontingent aufgebraucht“ gilt für beide Rollen
 const entryKey = (provider, reserve) => (reserve && !(PROVIDERS[provider] || {}).accountDaily ? provider + "#r" : provider);
@@ -653,6 +658,8 @@ async function routeAiPut(c) {
       if (r.warning) out.reserveWarning = r.warning;
     }
   }
+  // Eine Reserve ohne gespeicherten ersten Anbieter wäre der einzige Empfänger, obwohl die Übersicht „nicht eingerichtet“ zeigt
+  if (reserve && !PROVIDERS[main.provider]) throw new InputError(MSG.aiMainFirst);
   // Workers AI als erster Anbieter und als Reserve: dasselbe Konto, dasselbe Kontingent – keine Reserve (beide Reihenfolgen)
   if (reserve && main.provider === reserve.provider && PROVIDERS[main.provider] && PROVIDERS[main.provider].accountDaily)
     throw new InputError(MSG.aiSameAccount);
@@ -729,7 +736,7 @@ async function routePublicSheet(c, codeRaw) {
   // entschlüsselbarer Schlüssel bzw. ein nicht gespeichertes Workers AI bekommt nie Daten); id = Anbieter bzw. custom:Host,
   // label = Rechtsträger und Sitz
   const ai = await aiConfig(c.env, rows.ai || null);
-  const list = [ai, ai.reserve].filter(usable);
+  const list = activeEntries(ai);
   const aiProvider = list.length && list[0] === ai ? providerLabel(ai.provider, ai.baseUrl) : null;
   const aiRecipients = list.map((e) => ({ id: entryId(e), label: recipientLabel(e.provider, e.baseUrl) }));
   const aiReserve = list.length > 1 ? providerLabel(list[1].provider, list[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
@@ -771,7 +778,7 @@ async function routeFeedback(c) {
   const { messages, nrs } = buildFeedbackMessages(tasks, answers);
   if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()) });   // kein Auftrag an die KI: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
-  let entries = [ai, ai.reserve].filter(usable);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
+  let entries = activeEntries(ai);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
   if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
   // Transparenz: Der Browser schickt mit, über welche Empfänger die Schülerin bzw. der Schüler vor dem Klick informiert war
   // (ids aus GET /api/sheet). Nur diese dürfen Daten bekommen; hat die Lehrkraft inzwischen den ersten Anbieter geändert

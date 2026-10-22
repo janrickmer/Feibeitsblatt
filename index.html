@@ -920,13 +920,13 @@
           </select>
         </div>
         <div class="provinfo note" data-prov="cloudflare">
-          <p><b>Cloudflare Workers AI</b> (Empfehlung) läuft im selben Cloudflare-Konto wie der Server dieser Seite – ohne API-Schlüssel und ohne weiteren KI-Dienstleister. Vorgabemodell ist Gemma 4 (26B, von Google, offen lizenziert); ist es ausgelastet, weicht der Server auf GLM-4.7-Flash und Qwen3-30B aus. Der Denkmodus der Modelle ist abgeschaltet, damit das Kontingent reicht. Aktiv wird Workers AI erst, wenn Sie den Anbieter speichern.</p>
-          <p><b>Limits:</b> kostenlos 10 000 „Neurons“ pro Tag für das ganze Cloudflare-Konto (alle Modelle zusammen; Neustart um 0:00 Uhr UTC, also 1:00 Uhr MEZ bzw. 2:00 Uhr MESZ), höchstens 300 Anfragen pro Minute. Eine Feedback-Anfrage kostet je nach Umfang etwa 20–50 Neurons – das reicht für etwa 200–450 Anfragen am Tag; je Schüler:in fallen bis zu zwei an. Viel Material, lange Aufträge an die KI und viele Aufgaben machen jede Anfrage teurer (bei Workers AI zählen alle Token, auch wiederkehrende): Ein großes Feibeitsblatt oder sehr viele Anfragen können das Kontingent für alle Klassen aufbrauchen. Ist es aufgebraucht, springt die Reserve-KI ein (falls eingerichtet); sonst können die Schüler:innen bis zum Neustart ohne KI-Feedback abgeben. Den geschätzten Verbrauch zeigt diese Seite; genau steht er im Cloudflare-Dashboard unter „Workers AI“. Mit dem kostenpflichtigen Plan „Workers Paid“ wird Verbrauch über 10 000 Neurons berechnet (0,011 US-$ je 1 000 Neurons).</p>
+          <p><b>Cloudflare Workers AI</b> (Empfehlung) läuft im selben Cloudflare-Konto wie der Server dieser Seite – ohne API-Schlüssel und ohne weiteren KI-Dienstleister. Vorgabemodell ist Gemma 4 (26B, von Google, offen lizenziert); ist es ausgelastet, weicht der Server auf GLM-4.7-Flash und Qwen3-30B aus. Der Denkmodus der Modelle wird abgeschaltet, damit das Kontingent reicht – der Verbindungstest zeigt, ob es wirkt (Token „im Denkmodus“: 0). Aktiv wird Workers AI erst, wenn Sie den Anbieter speichern.</p>
+          <p><b>Limits:</b> kostenlos 10.000 „Neurons“ pro Tag für das ganze Cloudflare-Konto (alle Modelle zusammen; Neustart um 0:00 Uhr UTC, also 1:00 Uhr MEZ bzw. 2:00 Uhr MESZ), höchstens 300 Anfragen pro Minute. Eine Feedback-Anfrage kostet je nach Umfang etwa 20–50 Neurons – das reicht für etwa 200–450 Anfragen am Tag; je Schüler:in fallen bis zu zwei an. Viel Material, lange Aufträge an die KI und viele Aufgaben machen jede Anfrage teurer (bei Workers AI zählen alle Token, auch wiederkehrende): Ein großes Feibeitsblatt oder sehr viele Anfragen können das Kontingent für alle Klassen aufbrauchen. Ist es aufgebraucht, springt die Reserve-KI ein (falls eingerichtet); sonst können die Schüler:innen bis zum Neustart ohne KI-Feedback abgeben. Den geschätzten Verbrauch zeigt diese Seite; genau steht er im Cloudflare-Dashboard unter „Workers AI“. Mit dem kostenpflichtigen Plan „Workers Paid“ wird Verbrauch über 10.000 Neurons berechnet (0,011 US-$ je 1.000 Neurons).</p>
           <p><b>Datenschutz:</b> Laut Cloudflare speichert Workers AI Ein- und Ausgaben nur so lange, wie es zur Beantwortung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare. Empfänger ist Cloudflare, Inc. (San Francisco, USA) – derselbe Anbieter, der den Server dieser Seite betreibt. Die Datenbank liegt in der EU, die KI-Verarbeitung durch Workers AI kann aber auch außerhalb der EU stattfinden (Cloudflare bietet für Workers AI keine Beschränkung auf die EU an); die Übermittlung stützt sich laut Cloudflare auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. Der Server nutzt kein AI Gateway, damit Anfragen nicht protokolliert werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="groq">
           <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
-          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Groq eignet sich deshalb auch als Reserve-KI.</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8.000 Token pro Minute und 200.000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Groq eignet sich deshalb auch als Reserve-KI.</p>
           <p><b>Datenschutz:</b> Rechtsträger ist Groq LLC (USA); Vertragspartner für Kund:innen im EWR ist Groq UK Limited (London). Kundendaten liegen laut Groq in Rechenzentren in den USA; verarbeitet wird auch in anderen Ländern. Prüfen Sie die Bedingungen, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="openrouter">
@@ -1929,6 +1929,7 @@ const S = {
   code: "", sheet: null, pub: null, person: null, draftKey: "",
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
   fbFails: 0, fbUnavailable: "",   // Fehlversuche beim KI-Feedback; ab dem zweiten bzw. ohne eingerichtete KI der Grund als Text
+  fbUnavailableDay: "",   // UTC-Tag, an dem der Grund entstand – „Kontingent für heute aufgebraucht“ gilt nur bis 0:00 UTC (quotaExpired)
   fbPending: false,   // eine Anfrage dieses Laufs ist unterwegs (im Zwischenstand: ein Abbruch durch Schließen des Tabs zählt beim nächsten Öffnen als Fehlversuch)
   submitted: false, busyFeedback: false, ltCache: new Map(),
   ltConsent: false, ltDeclined: false,   // Rechtschreibprüfung: Selbstauskunft im Dialog je geöffnetem Blatt („Trifft nicht zu“ → Buttons weg); nie gespeichert
@@ -1990,16 +1991,19 @@ function recipientParts() {
   const first = list.length ? q(list[0].label) : (S.sheet && S.sheet.aiProvider ? q(S.sheet.aiProvider) : "deiner Lehrkraft");
   const rest = list.slice(1).map((x) => x.label).filter((l, i, a) => l !== (list[0] && list[0].label) && a.indexOf(l) === i).map(q);
   // Cloudflare (Workers AI) hat Sitz in den USA, die Datenbank liegt in der EU; die KI-Verarbeitung lässt sich aber nicht auf die
-  // EU beschränken – deshalb „auch außerhalb der EU möglich“ statt „außerhalb der EU“
+  // EU beschränken – deshalb „auch außerhalb der EU möglich“ statt „außerhalb der EU“. Die Aussage über „Dienste mit Sitz in den
+  // USA“ gilt dann nur für die übrigen (Cloudflare steht selbst mit Sitz USA in der Liste).
   const cf = list.some((x) => x.id === "cloudflare"), usa = list.some((x) => x.id !== "cloudflare" && /USA/.test(x.label));
   return { first, rest, usa, cf, any: list.length > 0 };
 }
+// Wann die Reserve einspringt (wie RESERVE_ON im Worker, in Worten): auch, wenn der erste Dienst sein Tageskontingent aufgebraucht hat
+const RESERVE_WHEN = "nicht antwortet, ausgelastet ist oder sein Tageskontingent aufgebraucht hat";
 function recipientSentence() {
   const r = recipientParts();
   return `Deine Antworten gehen – ohne Namenskürzel, Geburtstag und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
-    (r.rest.length ? ` Nur wenn dieser Dienst nicht antwortet oder ausgelastet ist, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
-    (r.usa ? " Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU." : "") +
-    (r.cf ? " Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich." : "");
+    (r.rest.length ? ` Nur wenn dieser Dienst ${RESERVE_WHEN}, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
+    (r.cf ? " Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich." : "") +
+    (r.usa ? (r.cf ? " Die übrigen Dienste mit Sitz in den USA" : " Dienste mit Sitz in den USA") + " verarbeiten deine Texte außerhalb der EU." : "");
 }
 function renderPrivacy() {
   const r = recipientParts(), withAi = S.sheet.aiFeedback;
@@ -2009,9 +2013,9 @@ function renderPrivacy() {
       ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
         `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtstag und Klasse – an den Server dieser Seite geschickt. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
-        (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
+        (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
-        [r.usa && ", bei Sitz in den USA außerhalb der EU", r.cf && (r.usa ? "; bei Cloudflare" : ", bei Cloudflare") + " auch außerhalb der EU möglich"].filter(Boolean).join("") + `. ` +
+        [r.cf && ", bei Cloudflare auch außerhalb der EU möglich", r.usa && (r.cf ? ", bei den übrigen Diensten mit Sitz in den USA" : ", bei Sitz in den USA") + " außerhalb der EU"].filter(Boolean).join("") + `. ` +
         `Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI, wenn du vorher KI-Feedback bekommen hast – dafür bekommst du eine zweite Rückmeldung zu deiner abgegebenen Fassung (nicht, wenn du nach dem ersten Feedback nichts geändert hast). ` +
         `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
         `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `
@@ -2212,7 +2216,7 @@ async function draftRaw(code, p, key) {
 }
 async function openEditor() {
   const p = S.person, sh = S.sheet;
-  S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbPending = false; S.ltCache = new Map();
+  S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbPending = false; S.ltCache = new Map();
   S.attempt = ""; S.firstSent = false;
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltConsent = false; S.ltDeclined = false;   // Selbstauskunft zu LanguageTool gilt nur, solange dieses Blatt geöffnet ist
@@ -2238,6 +2242,7 @@ async function openEditor() {
         S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
       }
       if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
+      if (typeof d.fbUnavailableDay === "string" && DAY_RE.test(d.fbUnavailableDay)) S.fbUnavailableDay = d.fbUnavailableDay;
       if (Number.isInteger(d.fbFails)) S.fbFails = Math.max(0, Math.min(9, d.fbFails));   // Fehlversuche überdauern ein Neuladen
       // Eine Anfrage war unterwegs, als die Seite verschwand (Tab geschlossen, Absturz): die KI hat die Antworten womöglich
       // erhalten, ein Feedback kam nie an → Fehlversuch (eine Abgabe ohne Feedback gilt dann nie als „ohne Anfrage“)
@@ -2251,7 +2256,8 @@ async function openEditor() {
   store.set(LAST_KEY, JSON.stringify({ v: 1, t: Date.now(), code: S.code, person: p }));
   // sofort speichern: den Stand aus der PDF auf diesem Gerät weiterführen, einen verlorenen Versuch nur einmal zählen, einen Stand
   // nur im Arbeitsspeicher erneut sichern – scheitert es, sagt die Statuszeile das (statt „übernommen“/„wiederhergestellt“)
-  const saveFailed = (imported || pendingLost || held) && !saveDraft();
+  const quotaOver = quotaExpired();   // Stand von einem früheren Tag: das Tageskontingent ist inzwischen erneuert
+  const saveFailed = (imported || pendingLost || held || quotaOver) && !saveDraft();
   S.tas.forEach(updateCounter);
   renderFeedbackState();
   setSaveState(saveFailed ? SAVE_FAILED : imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", saveFailed);
@@ -2701,7 +2707,7 @@ let saveTimer = 0;
 function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
 /* Zwischenstand als Datensatz (für localStorage und die PDF-Datei) */
 function draftRecord() {
-  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent };
+  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", fbUnavailableDay: S.fbUnavailable ? S.fbUnavailableDay || "" : "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent };
 }
 const SAVE_FAILED = "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden";
 function saveDraft() {
@@ -2967,6 +2973,7 @@ function cleanDraft(o) {
     person: { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: g, klasse: k },
     answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
+    fbUnavailableDay: typeof o.fbUnavailableDay === "string" && DAY_RE.test(o.fbUnavailableDay) ? o.fbUnavailableDay : "",
     fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0, fbPending: o.fbPending === true && !feedback,
     attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true
   };
@@ -3278,7 +3285,7 @@ const LT_ERR = {
   RATE_LIMIT: "Gerade prüfen sehr viele gleichzeitig. Bitte warte eine Minute und versuche es dann noch einmal.",
   NETWORK: "LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).",
   TIMEOUT: "LanguageTool antwortet gerade nicht. Bitte versuche es später noch einmal.",
-  TOO_LONG: "Dein Text ist zu lang für die Prüfung (höchstens etwa 20 000 Zeichen)."
+  TOO_LONG: "Dein Text ist zu lang für die Prüfung (höchstens etwa 20.000 Zeichen)."
 };
 /* Vor der ersten Prüfung je geöffnetem Blatt: Hinweis, wohin der Text geht, und Selbstauskunft zur Altersgrenze des Anbieters
    (ein Alter kennt die Seite nicht – der Geburtstag hat kein Jahr). → true (bestätigt), false („Trifft nicht zu“, auch Esc)
@@ -3406,6 +3413,7 @@ function appendFbLists(box, f, tipsLabel) {
 // Feedback-Dialoge und Abgabe-Dialog sagen es mit denselben Worten
 const FB_VOLUNTARY = "Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.";
 function renderFeedbackState() {
+  quotaExpired();   // Seite über 0:00 UTC offen: „morgen“ ist inzwischen heute
   const has = !!S.feedback;
   S.fbs.forEach((box, i) => {
     box.textContent = "";
@@ -3513,6 +3521,7 @@ async function requestFeedback() {
     // ohne eingerichtete KI und bei aufgebrauchtem Tageskontingent hilft heute kein neuer Versuch: gleich den Grund nennen
     if (serverSide && (e.code === "ai_not_configured" || e.code === "ai_quota" || S.fbFails >= 2)) {
       S.fbUnavailable = e.code === "ai_not_configured" ? "KI nicht eingerichtet" : e.code === "ai_quota" ? FB_QUOTA : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
+      S.fbUnavailableDay = utcToday();
       renderFeedbackState();
     }
     saveDraft();
@@ -3575,7 +3584,7 @@ async function requestFeedback() {
     S.first = answers.slice();   // genau die gesendete Fassung
     S.feedback = r.results.map(normFb);
     S.feedbackAt = new Date().toISOString();
-    S.fbUnavailable = ""; S.fbFails = 0; S.fbPending = false;
+    S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbFails = 0; S.fbPending = false;
     saveDraft();
     setStatus(st, "", "");
     unlock();
@@ -3756,8 +3765,18 @@ $("done-fb-retry").addEventListener("click", () => {
 const FB_NOT_DONE = "Anfrage nicht abgeschlossen";   // Grund, wenn eine Anfrage lief, aber kein Feedback ankam (ohne S.fbUnavailable)
 const FB_QUOTA = "KI-Kontingent für heute aufgebraucht";   // Grund bei 503 ai_quota (Workers AI: Tageskontingent des Kontos)
 const laterFor = (reason) => (reason === FB_QUOTA ? "morgen" : "später");
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const utcToday = () => new Date().toISOString().slice(0, 10);
+/* Das Tageskontingent wird um 0:00 Uhr UTC erneuert: Ein FB_QUOTA von einem früheren Tag (Zwischenstand bis zu DRAFT_DAYS alt, PDF,
+   Seite über Nacht offen) gilt nicht mehr – kein „morgen“, kein Grund für die Lehrkraft; die Fehlversuche (fbFails) bleiben. */
+function quotaExpired() {
+  if (S.fbUnavailable !== FB_QUOTA || S.fbUnavailableDay === utcToday()) return false;
+  S.fbUnavailable = ""; S.fbUnavailableDay = "";
+  return true;
+}
 function noAiState(wasBusy) {
   if (!S.sheet.aiFeedback) return { mode: "none", reason: "", tried: false };
+  quotaExpired();
   const tried = S.fbFails > 0 || !!S.fbUnavailable || wasBusy || S.busyFeedback;
   const reason = S.fbUnavailable || (!(S.sheet.aiRecipients || []).length ? "KI nicht eingerichtet" : tried ? FB_NOT_DONE : "");
   return { mode: reason ? "unavailable" : "declined", reason, tried };
@@ -3876,7 +3895,7 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbPending: false, submitted: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }
@@ -4041,15 +4060,18 @@ function openOverview() {
   touchIdle();
   loadSheets(); loadAiState();
 }
+const AI_WARN_UNTIL = "Bis dahin können Schüler:innen nur ohne KI-Feedback abgeben.";
 async function loadAiState() {
   try {
     const r = await TA("/api/teacher/ai");
     T.ai = r;
     const has = !!(r.provider && r.hasKey);
     $("t-aiwarn").classList.toggle("hidden", has);
-    // keyError nur zu einem gespeicherten Anbieter voranstellen (z. B. Binding fehlt, Schlüssel unlesbar) – „noch nicht
-    // gespeichert“ sagt der Text danach ohnehin
-    $("t-aiwarn").textContent = (r.keyError && r.saved !== false ? String(r.keyError) + " " : "") + "Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte wählen Sie unter „KI-Einstellungen“ einen Anbieter (empfohlen: Cloudflare Workers AI, ohne API-Schlüssel) und klicken Sie auf „Speichern“.";
+    // Ein gespeicherter Anbieter, der nicht nutzbar ist (Binding fehlt, Schlüssel unlesbar …): nur sein Grund – „wählen Sie einen
+    // Anbieter und speichern“ hülfe dann nicht. Die Aufforderung zum Speichern nur, solange nichts gespeichert ist.
+    $("t-aiwarn").textContent = r.saved !== false
+      ? (r.keyError ? String(r.keyError) : "Für den gespeicherten KI-Anbieter ist kein gültiger API-Schlüssel hinterlegt – bitte unter „KI-Einstellungen“ neu eintragen.") + " " + AI_WARN_UNTIL
+      : "Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte wählen Sie unter „KI-Einstellungen“ einen Anbieter (empfohlen: Cloudflare Workers AI, ohne API-Schlüssel) und klicken Sie auf „Speichern“.";
     $("t-aiinfo").classList.toggle("hidden", !has);
     const rs = r.reserve && r.reserve.hasKey ? r.reserve : null;
     const quota = r.quotaUntil && r.quotaUntil > Date.now() && (r.provider === "cloudflare" || (rs && rs.provider === "cloudflare"))
@@ -5296,6 +5318,7 @@ const PROVIDERS = {
 };
 const DEFAULT_PROV = "cloudflare";   // Vorauswahl – aktiv erst nach „Speichern“
 const KEYLESS_HINT = "Kein API-Schlüssel nötig – der Server nutzt Workers AI in seinem eigenen Cloudflare-Konto.";
+const AI_MAIN_FIRST = "Bitte zuerst den ersten Anbieter speichern – die Reserve-KI springt nur für ihn ein.";
 const AI_SAME_ACCOUNT = "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.";
 document.querySelectorAll(".provwarn[data-warn]").forEach((n) => { const p = PROVIDERS[n.getAttribute("data-warn")]; if (p && p.unsuitable) n.textContent = "Nicht für den Schuleinsatz geeignet: " + p.unsuitable; });
 const unsuitableTag = (p) => (PROVIDERS[p] && PROVIDERS[p].unsuitable ? " – nicht für den Schuleinsatz geeignet" : "");
@@ -5308,7 +5331,7 @@ function recipientOf(provider, baseUrl) {
   return host + " (Betreiber und Sitz: von Ihnen zu prüfen)";
 }
 function provLabel(p, serverLabel) { return typeof serverLabel === "string" && serverLabel ? serverLabel : PROVIDERS[p] ? PROVIDERS[p].label : String(p || "–"); }
-const groupInt = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const groupInt = (n) => Math.round(Number(n) || 0).toLocaleString("de-DE");   // „10.000“ wie die übrigen Zahlen der Oberfläche
 function fmtUntil(ms) {   // „23.10. um 02:00 Uhr“ (Ortszeit des Browsers)
   const d = new Date(ms);
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " um " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
@@ -5384,6 +5407,13 @@ $("ai-prov").addEventListener("change", () => {
 const AI_SAME_RESERVE = "Die Reserve-KI ist schon Cloudflare Workers AI – beide teilten sich dasselbe Kontingent des Cloudflare-Kontos. Bitte zuerst die Reserve ändern oder entfernen.";
 const sameAccountMain = () => !!(T.ai && T.ai.reserve && T.ai.reserve.provider === "cloudflare");    // Reserve ist schon Workers AI
 const sameAccountReserve = () => savedMain() === "cloudflare";                                       // erster Anbieter ist schon Workers AI
+// Nach Speichern/Entfernen: einen Konflikt-Hinweis im jeweils anderen Block wegräumen, wenn der Konflikt nicht mehr besteht
+function clearStaleClash() {
+  const a = $("ai-status"), b = $("ai2-status");
+  if (a.textContent === AI_SAME_RESERVE && !($("ai-prov").value === "cloudflare" && sameAccountMain())) setStatus(a, "", "");
+  if (b.textContent === AI_SAME_ACCOUNT && !($("ai2-prov").value === "cloudflare" && sameAccountReserve())) setStatus(b, "", "");
+  if (b.textContent === AI_MAIN_FIRST && savedMain()) setStatus(b, "", "");
+}
 // Hinweis, wenn „Verbindung testen“ noch nichts testen kann
 function notReadyText(e, p, reserve) {
   if (e && e.saved !== false && e.provider === p && e.keyError) return String(e.keyError);   // z. B. Binding fehlt, Schlüssel unlesbar
@@ -5430,7 +5460,7 @@ async function aiSave(quiet) {
     $("ai-key").value = "";
     aiDirty = false;
     try { T.ai = await TA("/api/teacher/ai"); } catch (e) { /* Anzeige bleibt */ }
-    aiSyncForm(); ai2SyncForm();
+    aiSyncForm(); ai2SyncForm(); clearStaleClash();
     if (r.warning) setStatus(st, String(r.warning), "bad");      // gespeichert, aber Schlüssel/Verbindung nicht geprüft
     else if (!quiet) setStatus(st, "Gespeichert." + (Number.isInteger(r.modelCount) ? (r.modelCount === 1 ? " 1 passendes Modell gefunden." : ` ${r.modelCount} passende Modelle gefunden.`) : "")
       + (r.tierNote ? " " + r.tierNote : "") + " Mit „Verbindung testen“ prüfen Sie, ob die KI antwortet.", "ok");
@@ -5500,6 +5530,7 @@ $("ai2-prov").addEventListener("change", () => {
 ["ai2-model", "ai2-base", "ai2-key"].forEach((id) => $(id).addEventListener("input", () => { ai2Dirty = true; }));
 async function ai2Save(quiet) {
   const st = $("ai2-status");
+  if (!savedMain()) { setStatus(st, AI_MAIN_FIRST, "bad"); return false; }   // die Reserve springt nur für einen gespeicherten ersten Anbieter ein
   const provider = $("ai2-prov").value, model = $("ai2-model").value.trim(), def = PROVIDERS[provider] || PROVIDERS.custom;
   const key = def.keyless ? "" : $("ai2-key").value.trim();   // Workers AI: nie einen Schlüssel senden
   let baseUrl = $("ai2-base").value.trim().replace(/\/+$/, "");
@@ -5519,7 +5550,7 @@ async function ai2Save(quiet) {
   const confirmed = await askConfirm({
     title: "Weiteren KI-Empfänger hinzufügen?",
     text: (def.unsuitable ? "Achtung: " + unsuitableText(provider) + "\n\n" : "") +
-      `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ausgelastet ist oder nicht antwortet. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
+      `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ausgelastet ist, nicht antwortet oder sein Tageskontingent aufgebraucht hat. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
     ok: def.unsuitable ? "Trotzdem speichern" : "Reserve speichern", cancel: "Abbrechen", safeFirst: true
   });
   if (!confirmed) { setStatus(st, "", ""); return false; }
@@ -5533,7 +5564,7 @@ async function ai2Save(quiet) {
     $("ai2-key").value = "";
     ai2Dirty = false;
     T.ai = r;
-    aiSyncForm(); ai2SyncForm();
+    aiSyncForm(); ai2SyncForm(); clearStaleClash();
     if (r.reserveWarning) setStatus(st, String(r.reserveWarning), "bad");
     else if (!quiet) setStatus(st, "Reserve gespeichert." + (Number.isInteger(r.reserveModelCount) ? (r.reserveModelCount === 1 ? " 1 passendes Modell gefunden." : ` ${r.reserveModelCount} passende Modelle gefunden.`) : "")
       + (r.reserveTierNote ? " " + r.reserveTierNote : "") + " Mit „Reserve testen“ prüfen Sie, ob sie antwortet.", "ok");
@@ -5571,8 +5602,9 @@ $("ai2-remove").addEventListener("click", async () => {
   try {
     T.ai = await TA("/api/teacher/ai", { method: "PUT", body: { reserve: null } });
     $("ai2-key").value = ""; $("ai2-model").value = ""; $("ai2-base").value = ""; ai2Dirty = false;
-    ai2SyncForm();
+    aiSyncForm(); ai2SyncForm();
     setStatus(st, "Reserve-KI entfernt.", "ok");
+    clearStaleClash();   // „Die Reserve-KI ist schon Cloudflare Workers AI …“ beim ersten Anbieter gilt nicht mehr
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
   finally { busy(b, false); }
 });

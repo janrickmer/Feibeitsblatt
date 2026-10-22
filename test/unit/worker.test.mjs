@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults, mockAIBinding } from "../mock-ai.mjs";
 import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf } from "../../worker/lib.js";
-import { nextUtcMidnight } from "../../worker/ai.js";
+import { nextUtcMidnight, TTL } from "../../worker/ai.js";
 import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
 
@@ -749,6 +749,19 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured"); assert.equal(cf.calls.length, 0);
     r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
     assert.equal(r.status, 400); assert.match(r.json.error, /Noch nicht gespeichert/);
+    // Eine Reserve ohne gespeicherten ersten Anbieter wäre der einzige Empfänger, während die Übersicht „nicht eingerichtet“ zeigt:
+    // abgelehnt; ältere Einstellungen dieser Art geben der Reserve keine Schülertexte
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { reserve: { provider: "cloudflare", model: "" } } });
+    assert.equal(r.status, 400); assert.equal(r.json.error, "Bitte zuerst den ersten Anbieter speichern – die Reserve-KI springt nur für ihn ein.");
+    assert.equal(settingsRow("ai"), null);
+    d1.db.prepare("INSERT INTO settings(key,value) VALUES('ai',?)").run(JSON.stringify({ reserve: { provider: "cloudflare", model: "" } }));
+    r = await call("GET", "/api/sheet/" + c, { env: CFENV });
+    assert.equal(r.json.sheet.aiRecipients, undefined);
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured"); assert.equal(cf.calls.length, 0);
+    r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.equal(r.json.saved, false); assert.equal(r.json.reserve.provider, "cloudflare");   // sichtbar (und entfernbar) bleibt sie
+    d1.db.prepare("DELETE FROM settings WHERE key='ai'").run();
     // Erst custom mit Schlüssel, dann Wechsel auf cloudflare ohne Schlüssel → erlaubt, der Schlüssel verschwindet
     r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-x-1234" } });
     assert.equal(r.status, 200, r.text);
@@ -759,7 +772,7 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     r = await call("PUT", "/api/teacher/ai", { auth, env: { ...CFENV, SETTINGS_SECRET: undefined }, body: { provider: "cloudflare", model: "" } });
     assert.equal(r.status, 200, r.text);   // ohne SETTINGS_SECRET speicherbar (kein Schlüssel)
     assert.deepEqual({ ready: r.json.ready, k: r.json.hasKey, h: r.json.keyHint, saved: r.json.saved, w: r.json.warning, err: r.json.keyError }, { ready: true, k: true, h: "", saved: true, w: undefined, err: undefined });
-    assert.match(r.json.tierNote, /10 000 Neurons/); assert.equal(r.json.modelCount, undefined);
+    assert.match(r.json.tierNote, /10\.000 Neurons/); assert.equal(r.json.modelCount, undefined);
     let s = settingsRow("ai"); assert.equal(s.apiKeyEnc, undefined); assert.equal(s.provider, "cloudflare"); assert.equal(JSON.stringify(s).includes("sk-x"), false);
     assert.deepEqual(s.fallbacks, [GEMMA, "@cf/zai-org/glm-4.7-flash", "@cf/qwen/qwen3-30b-a3b-fp8"]);
     // Empfänger: Rechtsträger und Sitz
@@ -852,12 +865,16 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     cf.mode = "cf3036";
     r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
     assert.equal(r.status, 502); assert.equal(r.json.aiCode, "DAILY_LIMIT"); assert.match(r.json.error, /Tageskontingent von Workers AI/); assert.ok(lockRow());
-    // Unbekannte Ablehnung (400) bei allen Modellen → kein HTTP-Abbruch nach dem ersten Modell, sondern alle Modelle versucht
+    // Unbekannte Ablehnung (400) bei allen Modellen → kein HTTP-Abbruch nach dem ersten Modell, sondern alle Modelle versucht;
+    // gesperrt werden sie nur kurz (TTL.soft) – eine einzelne seltsame Anfrage ändert die Modellfolge nicht für einen ganzen Tag
     d1.db.prepare("DELETE FROM ai_skip").run(); cf.mode = "cf400"; cf.calls = [];
     r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] }, ip: "203.0.113.94" });
     assert.equal(r.status, 502); assert.equal(r.json.code, "ai_error");
     assert.deepEqual([...new Set(cf.calls.map((x) => x.model))], [GEMMA, "@cf/zai-org/glm-4.7-flash"], "6 Versuche: Gemma dreimal, GLM dreimal");
     assert.equal(cf.calls.length, 6);
+    assert.deepEqual(cf.calls.slice(0, 3).map((x) => [!!x.inputs.chat_template_kwargs, !!x.inputs.response_format]), [[true, true], [true, false], [false, false]], "erst ohne JSON-Modus, Denkmodus bleibt aus");
+    const locks = d1.db.prepare("SELECT model, until FROM ai_skip WHERE provider='cloudflare' AND model<>'*'").all();
+    assert.equal(locks.length, 2); assert.ok(locks.every((x) => x.until - Date.now() <= TTL.soft), JSON.stringify(locks));
     // Aufräumen: alte Verbrauchszeilen (älter als zwei Tage) verschwinden beim gelegentlichen Aufräumen
     d1.db.prepare("INSERT INTO ai_usage VALUES('2000-01-01','cloudflare',5,10)").run();
     const rnd = Math.random; Math.random = () => 0;
@@ -870,6 +887,30 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     d1.db.prepare("DELETE FROM ai_skip").run();
     await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: null } });
   }
+});
+
+// D1-Abfragen je Feedback (Anweisungen eines Batches einzeln gezählt, Schema schon angelegt): Aufräumen 3 + Blatt/Einstellungen 2 +
+// Sperren je Eintrag 1 + Zählung 3 + je Versuch ≤ 3 (Warteschlange voll: Reservierung + Nachfrage 2; sonst Reservierung + Sperre)
+// + Verbrauch/Sperre 2 + Erstattung 3 → ohne Reserve (6 Versuche) ≤ 32, mit Reserve (6 + 3 Versuche) ≤ 42 – unter der Grenze 50
+test("feedback: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräumen, Erstattung) bleibt unter der Grenze von 42 D1-Abfragen", async () => {
+  const cf = mockAIBinding(mock), CFENV = { ...ENV, AI: cf };
+  let r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: { provider: "cloudflare", model: "" } } });
+  assert.equal(r.status, 200, r.text);
+  r = await call("POST", "/api/teacher/sheets", { auth, env: CFENV, body: { title: "D1", tasks } });
+  assert.equal(r.status, 200, r.text); const c = r.json.code;
+  const full = d1.db.prepare("INSERT INTO ai_gate(provider,next_at) VALUES(?,?) ON CONFLICT(provider) DO UPDATE SET next_at=excluded.next_at");
+  for (const k of ["custom", "cloudflare"]) full.run(k, Date.now() + 120000);   // beide Warteschlangen 2 Minuten voll
+  const rnd = Math.random; Math.random = () => 0;   // das gelegentliche Aufräumen läuft mit
+  try {
+    cf.calls = []; mock.reset();
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""], recipients: ["custom:127.0.0.1:" + mock.port, "cloudflare"] }, ip: "203.0.113.96" });
+  } finally { Math.random = rnd; d1.db.prepare("DELETE FROM ai_gate").run(); }
+  assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy");
+  assert.equal(cf.calls.length, 0); assert.equal(mock.state.requests.length, 0);   // nichts ging an eine KI
+  console.log("# D1-Abfragen im ungünstigen Fall mit Reserve: " + r.queries);
+  assert.ok(r.queries >= 30 && r.queries <= 42, "D1-Abfragen: " + r.queries);
+  assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
+  assert.equal((await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } })).status, 200);
 });
 
 test("password change keeps key pair; delete flow", async () => {
