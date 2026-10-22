@@ -130,7 +130,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
     aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }] });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
@@ -513,6 +513,24 @@ test("feedback: one AI call, expected covered/missing (= gut/tipps of the mock),
   assert.deepEqual(r.json.results[0], { covered: ["Photosynthese braucht Licht"], missing: ["Chloroplasten sind beteiligt", "Sauerstoff entsteht"] });
   assert.equal(mock.state.requests.length, 1);
   assert.equal(mock.state.requests[0].temperature, 0.1);
+});
+
+test("aiFeedback flag: false when no task has an Auftrag an die KI (map tasks never count); feedback then needs no AI", async () => {
+  const map = { type: "map", map: "world", items: [{ id: "kaffee", label: "Kaffee", countries: [{ id: "076", name: "Brasilien" }] }] };
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Ohne KI", tasks: [{ text: "Ordne zu", solution: "wird verworfen", answer: map }, { text: "Schreibe", solution: "  " }] } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  r = await call("GET", "/api/sheet/" + c);
+  assert.equal(r.json.sheet.aiFeedback, false);
+  assert.equal(/wird verworfen|solution/.test(r.text), false);
+  mock.reset();
+  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["", "Text"] } });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(mock.state.requests.length, 0);
+  r = await call("GET", "/api/sheet/" + code);
+  assert.equal(r.json.sheet.aiFeedback, true);
+  r = await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  assert.equal(r.status, 200, r.text);
 });
 
 test("AI gate spaces parallel requests (custom: 1 s)", async () => {

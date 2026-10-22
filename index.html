@@ -498,6 +498,7 @@
   .dtask-text{font-family:var(--serif); font-weight:700; font-size:15.5px; margin:0 0 6px; white-space:pre-wrap; overflow-wrap:anywhere}
   table.cmp{width:100%; border-collapse:collapse; table-layout:fixed; background:var(--paper2); border:1px solid var(--line)}
   table.cmp th{font-family:var(--sans); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600; text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--paper); width:50%}
+  table.cmp.one th{width:auto}
   table.cmp th + th, table.cmp td + td{border-left:1px solid var(--line)}
   table.cmp td{vertical-align:top; padding:10px 12px; font-family:var(--serif); font-size:15.5px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere}
   .same{display:block; font-family:var(--sans); font-size:12px; color:var(--muted); font-style:italic; margin-top:4px; white-space:normal}
@@ -677,7 +678,7 @@
       <div id="tasks"></div>
       <section class="finish" aria-labelledby="fin-h">
         <h2 class="task-label" id="fin-h">Abschluss</h2>
-        <p class="fin-text">Wenn du alle Aufgaben bearbeitet hast, bitte die KI um ein Feedback. Danach überarbeitest du deine Antworten und gibst ab.</p>
+        <p class="fin-text" id="fin-text">Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.</p>
         <button type="button" class="btn" id="fb-btn">KI um ein Feedback bitten</button>
         <p class="privacy" id="privacy"></p>
         <p class="status" id="fb-status" aria-live="polite"></p>
@@ -685,7 +686,7 @@
         <div class="notebox hidden" id="fb-fallback" role="status"></div>
         <div class="moodle-hint hidden" id="revise-hint" role="status" tabindex="-1"></div>
         <div class="submitrow">
-          <button type="button" class="btn" id="submit-btn" disabled aria-describedby="submit-hint">Abgeben</button>
+          <button type="button" class="btn" id="submit-btn" aria-describedby="submit-hint">Abgeben</button>
           <p class="fhint" id="submit-hint"></p>
           <p class="status" id="submit-status" aria-live="polite"></p>
         </div>
@@ -1833,7 +1834,7 @@ if (window.ResizeObserver) { const ro = new ResizeObserver(growAll); ro.observe(
 const S = {
   code: "", sheet: null, pub: null, person: null, draftKey: "",
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
-  fbFails: 0, fbUnavailable: "",   // KI-Feedback nicht erreichbar → Abgabe ohne Feedback erlaubt (Grund als Text)
+  fbFails: 0, fbUnavailable: "",   // Fehlversuche beim KI-Feedback; ab dem zweiten bzw. ohne eingerichtete KI der Grund als Text
   submitted: false, busyFeedback: false, ltCache: new Map(),
   ltAllowed: false, ltConsent: false,   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
   attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
@@ -1862,7 +1863,8 @@ async function loadSheet(code) {
     material: sh.tasks.map((t) => cleanMaterial(t && t.material)),   // je Aufgabe: formatierter Text der Lehrkraft mit Links
     files: sh.tasks.map((t) => cleanFiles(t && t.files)),   // je Aufgabe: PDF-Dateien der Lehrkraft zum Herunterladen
     aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null,
-    aiRecipients: recipientsOf(sh)   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
+    aiRecipients: recipientsOf(sh),   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
+    aiFeedback: sh.aiFeedback !== false   // false = keine Aufgabe mit Auftrag an die KI: kein KI-Feedback (ältere Worker: wie bisher)
   };
 }
 // Empfänger aus der Antwort; eine ältere Worker-Version liefert nur aiProvider/aiReserve → daraus ableiten (ids leer → der neue
@@ -1902,22 +1904,29 @@ function recipientSentence() {
     (r.usa ? " Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU." : "");
 }
 function renderPrivacy() {
-  const r = recipientParts();
+  const r = recipientParts(), withAi = S.sheet.aiFeedback;
   $("privacy").textContent = "";
   $("privacy").append(h("b", { text: "Datenschutz: " }),
-    `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
-    `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
-    (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
-    ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen${r.usa ? ", bei Sitz in den USA außerhalb der EU" : ""}. ` +
-    `Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI – dafür bekommst du eine zweite Rückmeldung zu deiner abgegebenen Fassung (nicht, wenn du nach dem ersten Feedback nichts geändert hast). ` +
-    `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
-    `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. ` +
+    (withAi
+      ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
+        `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtsdatum und Klasse – an den Server dieser Seite geschickt. ` +
+        `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
+        (r.rest.length ? ` – nur wenn dieser nicht antwortet oder ausgelastet ist, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
+        ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen${r.usa ? ", bei Sitz in den USA außerhalb der EU" : ""}. ` +
+        `Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI, wenn du vorher KI-Feedback bekommen hast – dafür bekommst du eine zweite Rückmeldung zu deiner abgegebenen Fassung (nicht, wenn du nach dem ersten Feedback nichts geändert hast). ` +
+        `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
+        `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `
+      : `Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI. `) +
     `Die Rechtschreibprüfung gibt es erst ab ${LT_MIN_AGE} Jahren und nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
     h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
     `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
-    `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
-    `Deine Abgabe nach der Überarbeitung ersetzt ihn. Die Lehrkraft löscht alles nach der Durchsicht. Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
-    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter). Die KI kann sich irren: Prüfe ihr Feedback selbst.`);
+    (withAi
+      ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
+        `Deine Abgabe nach der Überarbeitung ersetzt ihn. Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund). `
+      : `Deine Abgabe wird zusammen mit Namenskürzel, Geburtsdatum und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. `) +
+    `Die Lehrkraft löscht alles nach der Durchsicht. Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
+    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter).` +
+    (withAi ? ` Die KI kann sich irren: Prüfe ihr Feedback selbst.` : ""));
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -2635,7 +2644,7 @@ function pdfWrap(str, size, bold, maxW) {   // Zeilenumbruch an Leerzeichen; ein
 const pdfUtf16 = (str) => { let x = "<FEFF"; for (let i = 0; i < str.length; i++) x += str.charCodeAt(i).toString(16).padStart(4, "0"); return x + ">"; };   // Info-Texte (PDFDocEncoding ≠ WinAnsi)
 const latin1 = (str) => { const u = new Uint8Array(str.length); for (let i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 0xFF; return u; };
 /* Zwischenstand d (siehe draftRecord + kind/code/sheetTitle/person) → PDF-Bytes */
-function makeDraftPdf(d) {
+function makeDraftPdf(d, withAi = true) {   // withAi = false: Blatt ohne Auftrag an die KI (kein Hinweis zum KI-Feedback)
   const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M;   // A4, Ränder
   const ops = [];
   const put = (x, yTop, str, size, bold, color) => ops.push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - yTop).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
@@ -2650,7 +2659,9 @@ function makeDraftPdf(d) {
   row("Feibeitsblatt:", `${d.sheetTitle || "Feibeitsblatt"} (Code ${fmtCode(d.code)})`);
   row("Gesichert am:", fmtDT(when) + " Uhr");
   row("Angaben:", `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`);
-  row("Stand:", `${done} von ${answers.length} ${answers.length === 1 ? "Aufgabe" : "Aufgaben"} mit Text · KI-Feedback ${Array.isArray(d.feedback) ? "schon erhalten" : "noch nicht angefordert"}`);
+  const fbState = Array.isArray(d.feedback) ? "schon erhalten"
+    : d.fbUnavailable || d.fbFails > 0 ? `bisher nicht geklappt (${d.fbUnavailable || FB_NOT_DONE})` : "nicht angefordert";
+  row("Stand:", `${done} von ${answers.length} ${answers.length === 1 ? "Aufgabe" : "Aufgaben"} mit Text` + (withAi ? " · KI-Feedback " + fbState : ""));
   y += 14;
   // Orangener Hinweiskasten: erst die Zeilen setzen, dann Höhe, Rahmen und Text
   const pad = 16, bsz = 11.5, lh = 16, url = PUBLIC_URL, items = [];
@@ -2669,8 +2680,8 @@ function makeDraftPdf(d) {
   put(M, y, "Bitte beachte", 12.5, true); y += 18;
   ["Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
     "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
-    "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites Feedback gibt es nicht."
-  ].forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
+    withAi ? "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites Feedback gibt es nicht." : ""
+  ].filter(Boolean).forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
   put(M, H - 40, "Erstellt mit Feibeitsblatt · " + url, 9, false, "0.45 0.45 0.45");
   // Objekte zusammensetzen
   const content = ops.join("\n"), json = te.encode(JSON.stringify(d)), parts = [], offsets = [];
@@ -2841,7 +2852,7 @@ $("ed-pdf").addEventListener("click", () => {
     const d = Object.assign(draftRecord(), { kind: "feibeitsblatt-draft", code: S.code, sheetTitle: S.sheet.title,
       person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse } });
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
-    downloadBlob(new Blob([makeDraftPdf(d)], { type: "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
+    downloadBlob(new Blob([makeDraftPdf(d, S.sheet.aiFeedback || !!S.feedback)], { type: "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
     setSaveState("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf", false);
   } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
 });
@@ -2870,6 +2881,9 @@ function makeSolutionsPdf(sub) {
   if (Array.isArray(sub.feedback) && !fb2) {
     gap(4);
     para(sub.fb2Final ? "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gab es diesmal nicht." : "Die KI-Rückmeldung zu deiner abgegebenen Fassung lag beim Herunterladen noch nicht vor.", 10.5, false, { color: "0.35 0.35 0.35" });
+  } else if (!Array.isArray(sub.feedback) && sub.noAi !== "none") {   // einmal im Kopf statt bei Aufgabe 1; ohne Wertung
+    gap(4);
+    para(sub.feedbackError ? "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (" + sub.feedbackError + ")." : "Ohne KI-Feedback abgegeben.", 10.5, false, { color: "0.35 0.35 0.35" });
   }
   gap(14);
   const fbLines = (f) => {   // Rückmeldung: gelingt schon (grün), Tipps (rot), Hinweis
@@ -2906,9 +2920,6 @@ function makeSolutionsPdf(sub) {
       gap(6);
       para(kept ? "KI-Feedback (gilt auch für die abgegebene Fassung):" : "KI-Feedback zur ersten Fassung:", 10.5, true, { color: "0.35 0.35 0.35" });
       fbLines(fb);
-    } else if (sub.feedbackError && i === 0) {
-      gap(4);
-      para("Ohne KI-Feedback abgegeben (" + sub.feedbackError + ").", 10.5, false, { color: "0.35 0.35 0.35" });
     }
     gap(16);
   }
@@ -3236,6 +3247,9 @@ function appendFbLists(box, f, tipsLabel) {
   if (f.note) box.appendChild(h("p", { class: "fb-note", text: f.note }));
   else if (!f.covered.length && !f.missing.length) box.appendChild(h("p", { class: "fb-note", text: "Zu dieser Aufgabe gibt es keine Rückmeldung." }));
 }
+// Das KI-Feedback ist freiwillig (Handreichung KI des HKM, Juli 2023, S. 10: „derzeit nur auf freiwilliger Basis“) – Abschluss-Text,
+// Feedback-Dialoge und Abgabe-Dialog sagen es mit denselben Worten
+const FB_VOLUNTARY = "Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.";
 function renderFeedbackState() {
   const has = !!S.feedback;
   S.fbs.forEach((box, i) => {
@@ -3247,16 +3261,21 @@ function renderFeedbackState() {
     box.appendChild(h("p", { class: "fb-head", text: "KI-Feedback zu Aufgabe " + (i + 1) }));
     appendFbLists(box, f);
   });
-  const fbBtn = $("fb-btn"), sub = $("submit-btn"), noAi = !has && !!S.fbUnavailable;
+  // „Abgeben“ geht immer; ohne Feedback fragt submitDialog nach. Blätter ohne Auftrag an die KI: kein Feedback-Button.
+  const fbBtn = $("fb-btn"), sub = $("submit-btn"), noAi = !has && !!S.fbUnavailable, aiSheet = S.sheet.aiFeedback || has;
+  fbBtn.classList.toggle("hidden", !aiSheet);
   fbBtn.disabled = has || S.busyFeedback;
   fbBtn.textContent = has ? "KI-Feedback erhalten" : "KI um ein Feedback bitten";
-  sub.disabled = !(has || noAi);
+  sub.disabled = S.submitted;
+  $("fin-text").textContent = !aiSheet ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab."
+    : "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
   $("submit-hint").textContent = has
     ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. Nach der Abgabe bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung."
     : noAi ? "Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
-    : "Der Button „Abgeben“ wird freigeschaltet, sobald du das KI-Feedback erhalten hast.";
+    : !aiSheet ? "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
+    : "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
   const fbf = $("fb-fallback");
-  fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es später noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass die KI nicht erreichbar war." : "";
+  fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es später noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war." : "";
   fbf.classList.toggle("hidden", !noAi);
   const rh = $("revise-hint"), eh = $("ed-hint");
   const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
@@ -3316,11 +3335,11 @@ async function requestFeedback() {
   const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
-    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (bei der Abgabe folgt noch eine Rückmeldung zu deiner abgegebenen Fassung). Möchtest du es trotzdem jetzt anfordern?`,
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (bei der Abgabe folgt noch eine Rückmeldung zu deiner abgegebenen Fassung). Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
-    text: `${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; bei der Abgabe gehen deine überarbeiteten Antworten noch einmal denselben Weg, und du bekommst eine Rückmeldung zu deiner abgegebenen Fassung. Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
+    text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; bei der Abgabe gehen deine überarbeiteten Antworten noch einmal denselben Weg, und du bekommst eine Rückmeldung zu deiner abgegebenen Fassung. Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok) return;
@@ -3328,14 +3347,16 @@ async function requestFeedback() {
   S.busyFeedback = true; btn.disabled = true;
   let tries = 0, busySeen = 0;
   const unlock = () => { S.busyFeedback = false; btn.disabled = !!S.feedback; S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; };
-  const failed = (e, count, msg) => {   // Fehlversuch(e) zählen; nach zweien darf ohne KI-Feedback abgegeben werden (niemand sitzt fest)
+  // Fehlversuch(e) zählen (fbFails > 0 heißt: eine Anfrage lief schon – eine Abgabe ohne Feedback gilt dann nicht als „selbst
+  // gewählt“, siehe noAiState); nach zweien zeigt die Seite den Grund (S.fbUnavailable), Abgeben geht ohnehin immer
+  const failed = (e, count, msg) => {
     unlock();
     if (document.activeElement === document.body) { try { btn.focus({ preventScroll: true }); } catch (x) { /* egal */ } }   // Fokus nach „Nicht länger warten“
     setStatus(st, msg, "bad");
     S.fbFails += count;
     const serverSide = e instanceof ApiError && e.code !== "bad_answers" && e.code !== "too_long" && e.code !== "bad_request" && e.code !== "not_found";
     if (serverSide && (e.code === "ai_not_configured" || S.fbFails >= 2)) {
-      S.fbUnavailable = e.code === "ai_not_configured" ? "noch nicht eingerichtet" : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
+      S.fbUnavailable = e.code === "ai_not_configured" ? "KI nicht eingerichtet" : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
       renderFeedbackState();
     }
     saveDraft();
@@ -3366,7 +3387,7 @@ async function requestFeedback() {
             return;
           }
           ({ answers, empty, tooLong } = snapshot());
-          if (tooLong) { unlock(); setStatus(st, tooLong, "bad"); return; }
+          if (tooLong) { failed(e, 1, tooLong); return; }   // frühere Versuche dieses Laufs gingen schon an den Server: Fehlversuch
           continue;
         }
         failed(e, 2, "Die KI ist gerade sehr stark ausgelastet – auch nach mehreren Versuchen hat es nicht geklappt. Du kannst es in ein paar Minuten noch einmal versuchen.");
@@ -3377,6 +3398,7 @@ async function requestFeedback() {
         try { await reloadRecipients(); } catch (x) { /* Hinweis bleibt der alte */ }
         if (run !== S.fbRun) return;
         unlock();
+        if (busySeen) { S.fbFails++; saveDraft(); }   // diese Anfrage ging an keine KI, frühere Versuche dieses Laufs schon
         setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis unter dem Button noch einmal und fordere das Feedback dann erneut an.", "bad");
         return;
       }
@@ -3397,7 +3419,8 @@ async function requestFeedback() {
     sendFirstAttempt();   // im Hintergrund; die Abgabe enthält die erste Fassung ohnehin
     const rh = $("revise-hint");
     rh.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    setTimeout(() => { try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ } }, 50);
+    // nicht aus einem offenen Dialog heraus (z. B. „Ohne KI-Feedback abgeben?“ während die Anfrage lief)
+    setTimeout(() => { if (!$("dlg").classList.contains("open")) { try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ } } }, 50);
     return;
   }
 }
@@ -3559,25 +3582,66 @@ $("done-fb-retry").addEventListener("click", () => {
   requestFinalFeedback();
 });
 
-/* ---------- Abgabe ---------- */
+/* ---------- Abgabe ----------
+ * Abgeben geht immer – das KI-Feedback ist freiwillig. Ohne Feedback trägt die (verschlüsselte) Abgabe noAi:
+ * "declined" = ohne KI-Feedback abgegeben, und es lief nie eine Anfrage; "unavailable" = das KI-Feedback war nicht möglich
+ * (Grund in feedbackError: KI nicht eingerichtet, ausgefallen, ein Versuch gescheitert oder mit der Abgabe abgebrochen);
+ * "none" = das Blatt hat keinen Auftrag an die KI. Ohne Feedback gibt es keinen Erstversuch, keine zweite Rückmeldung, first = final. */
+const FB_NOT_DONE = "Anfrage nicht abgeschlossen";   // Grund, wenn eine Anfrage lief, aber kein Feedback ankam (ohne S.fbUnavailable)
+function noAiState(wasBusy) {
+  if (!S.sheet.aiFeedback) return { mode: "none", reason: "", tried: false };
+  const tried = S.fbFails > 0 || !!S.fbUnavailable || wasBusy || S.busyFeedback;
+  const reason = S.fbUnavailable || (!(S.sheet.aiRecipients || []).length ? "KI nicht eingerichtet" : tried ? FB_NOT_DONE : "");
+  return { mode: reason ? "unavailable" : "declined", reason, tried };
+}
+const emptyNums = (answers) => { const out = []; answers.forEach((a, i) => { if (!String(a || "").trim()) out.push(i + 1); }); return out; };
+function submitDialog(withFb, finals) {
+  const empty = emptyNums(finals);   // ganz leere Blätter lässt submitAll gar nicht erst abgeben
+  const emptyLine = empty.length ? `Achtung: ${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n` : "";
+  const lock = "Nach der Abgabe kannst du deine Antworten nicht mehr ändern.";
+  if (withFb) {
+    const unchanged = !fb2Changes(S.first, finals, S.feedback).some(Boolean), tooLong = !unchanged && fb2TooLong(finals);
+    return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true,
+      text: emptyLine + lock + " Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" +
+        (unchanged ? "An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet; die Rückmeldung bleibt dieselbe."
+          : tooLong ? "Deine Antworten sind zusammen zu lang für eine zweite KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet."
+          : "Danach bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung. " + recipientSentence()) };
+  }
+  const na = noAiState(false);
+  if (na.mode === "none") return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiterschreiben", safeFirst: true,
+    text: emptyLine + lock + " Deine Antworten gehen verschlüsselt an deine Lehrkraft; nur sie kann sie lesen." };
+  const base = { title: "Ohne KI-Feedback abgeben?", ok: "Ohne KI-Feedback abgeben", cancel: "Weiterschreiben", safeFirst: true };
+  const toTeacher = " Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass " +
+    (na.mode === "declined" ? "du ohne KI-Feedback abgegeben hast." : "das KI-Feedback nicht möglich war.");
+  if (S.busyFeedback) return { ...base, cancel: "Auf das KI-Feedback warten",
+    text: emptyLine + "Deine Anfrage um KI-Feedback läuft noch. Gibst du jetzt ab, wird sie abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.\n" +
+      lock + " Bei der Abgabe geht nichts mehr an die KI." + toTeacher };
+  if (na.mode === "unavailable") return { ...base,
+    text: emptyLine + (na.tried ? "Das KI-Feedback hat bisher nicht geklappt" : "Das KI-Feedback ist gerade nicht möglich") + ` (${na.reason}). ` +
+      `Du kannst es später ${na.tried ? "noch einmal " : ""}versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\n` +
+      lock + " Bei der Abgabe geht nichts an die KI." + toTeacher };
+  return { ...base,
+    text: emptyLine + "Du hast kein KI-Feedback angefordert. Das ist in Ordnung: " + FB_VOLUNTARY + "\n" + lock + " An die KI wird nichts gesendet." + toTeacher };
+}
 async function submitAll() {
-  if (!(S.feedback || S.fbUnavailable) || S.submitted) return;
+  if (S.submitted) return;
   const st = $("submit-status"), btn = $("submit-btn");
   if (btn.disabled) return;
   setStatus(st, "", "");
-  const finals = S.tas.map((t) => t.value), withFb = !!S.feedback;
-  const unchanged = withFb && !fb2Changes(S.first, finals, S.feedback).some(Boolean), tooLong = withFb && !unchanged && fb2TooLong(finals);
-  const ok = await askConfirm({
-    title: "Jetzt abgeben?",
-    text: withFb ? "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" +
-        (unchanged ? "An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet; die Rückmeldung bleibt dieselbe."
-          : tooLong ? "Deine Antworten sind zusammen zu lang für eine zweite KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet."
-          : "Danach bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung. " + recipientSentence())
-      : "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Du gibst ohne KI-Feedback ab; deine Lehrkraft sieht, dass die KI nicht erreichbar war.",
-    ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true
-  });
-  if (!ok) return;
-  stopFeedbackRun();   // eine noch wartende Feedback-Anfrage wird mit der Abgabe hinfällig
+  const finals = S.tas.map((t) => t.value);
+  if (emptyNums(finals).length === finals.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
+  const withFb = !!S.feedback, wasBusy = S.busyFeedback;
+  const ok = await askConfirm(submitDialog(withFb, finals));
+  if (!ok || S.submitted) return;
+  if (!!S.feedback !== withFb) {   // während der Dialog offen war, ist das angeforderte KI-Feedback angekommen: erst zeigen, nichts abgeben
+    setStatus(st, "Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.", "");
+    return;
+  }
+  // Erst nach dem Dialog einstufen: eine laufende Anfrage kann inzwischen gescheitert sein (dann gilt ihr Grund)
+  const na = withFb ? null : noAiState(wasBusy);
+  const stopped = S.busyFeedback;   // eine noch laufende oder wartende Feedback-Anfrage wird mit der Abgabe hinfällig
+  stopFeedbackRun();
+  if (stopped) S.fbFails++;   // zählt wie „Nicht länger warten“: scheitert die Abgabe, gilt ein neuer Anlauf nie als „declined“
   busy(btn, true, "Wird abgegeben …");
   setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
   try {
@@ -3588,7 +3652,8 @@ async function submitAll() {
       feedback: withFb ? S.feedback.map(fbOut) : null,
       feedbackAt: withFb ? S.feedbackAt : null, submittedAt: new Date().toISOString()
     };
-    if (!withFb) payload.feedbackError = S.fbUnavailable;
+    if (na) payload.noAi = na.mode;
+    if (na && na.mode === "unavailable") payload.feedbackError = na.reason;
     saveDraft();
     let envelope;
     try { envelope = await Crypto.seal(S.pub, payload); } catch (e) { throw new ApiError("crypto"); }
@@ -3600,7 +3665,7 @@ async function submitAll() {
     $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;
     // Für den Download-Button (#done-pdf) auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
     S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
-      feedback: payload.feedback, feedbackError: payload.feedbackError || "", receivedAt: d.getTime(),
+      feedback: payload.feedback, feedbackError: payload.feedbackError || "", noAi: payload.noAi || "", receivedAt: d.getTime(),
       recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false };
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
@@ -3609,6 +3674,11 @@ async function submitAll() {
     focusSoon("done-btn", 30);
     if (withFb) requestFinalFeedback();   // zweite KI-Rückmeldung zur abgegebenen Fassung – die Abgabe ist schon angekommen
   } catch (e) {
+    if (stopped) {   // die abgebrochene Anfrage hatte Felder und Feedback-Button gesperrt: wieder freigeben (Feedback bleibt möglich)
+      S.tas.forEach((t) => { t.readOnly = false; });
+      setStatus($("fb-status"), "", "");
+      renderFeedbackState();
+    }
     setStatus(st, (e.code === "crypto" ? "Deine Abgabe konnte nicht verschlüsselt werden." : errMsg(e, "s")) +
       " Deine Antworten sind noch da – versuche es gleich noch einmal.", "bad");
   } finally { busy(btn, false); if (S.submitted) btn.disabled = true; }
@@ -3913,6 +3983,8 @@ async function loadSubs() {
           p.person = { vorname: cut(p.person.vorname, 20), nachname: cut(p.person.nachname, 20), geburtsdatum: cut(p.person.geburtsdatum, 10), klasse: cut(p.person.klasse, 20) };
           p.answers = p.answers.slice(0, 30).map((a) => ({ first: cut(a && a.first, MAX_ANSWER + 100), final: cut(a && a.final, MAX_ANSWER + 100) }));
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
+          p.noAi = NO_AI_MODES.has(p.noAi) ? p.noAi : "";   // ohne KI-Feedback: ohne Anfrage / nicht möglich / Blatt ohne KI
+          p.feedbackError = cut(p.feedbackError, 100);
         }
       } catch (e) { p = null; }
       out.push({ id: s.id, receivedAt: s.receivedAt, stage: s.stage === "first" ? "first" : "final", p });
@@ -3973,19 +4045,29 @@ function renderSubs() {
     tb.appendChild(main); tb.appendChild(det);
   });
 }
+const NO_AI_MODES = new Set(["declined", "unavailable", "none"]);
+// Hinweis zu einer Abgabe ohne KI-Feedback – neutral, ohne Wertung (das KI-Feedback ist freiwillig); einen Grund gibt es nur, wenn
+// das KI-Feedback nicht möglich war (ältere Abgaben ohne noAi: nur dann ohne Feedback möglich, tragen immer feedbackError)
+function noAiNote(p) {
+  if (p.noAi === "none") return "";
+  if (p.noAi === "declined") return "Ohne KI-Feedback abgegeben.";
+  return "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich" + (p.feedbackError ? " (" + p.feedbackError + ")" : "") + ".";
+}
 function buildDetail(s) {
   const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [], isFirst = s.stage === "first";
   const box = h("div", { class: "detbox" });
+  const noFb = !isFirst && !Array.isArray(p.feedback);   // eine Fassung: die abgegebene
   const meta = [isFirst ? "Erstversuch ohne Überarbeitung – noch nicht abgegeben" : `Abgegeben am ${fmtDT(s.receivedAt)}`];
   if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
+  else if (noFb) meta.push("ohne KI-Feedback");
   box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
   if (isFirst) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Diese Schülerin oder dieser Schüler hat das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
-  } else if (!Array.isArray(p.feedback)) {
-    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Ohne KI-Feedback abgegeben (KI war nicht erreichbar" + (p.feedbackError ? ": " + String(p.feedbackError).slice(0, 100) : "") + "). Beide Spalten zeigen deshalb denselben Text." }));
+  } else if (noFb && noAiNote(p)) {
+    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: noAiNote(p) }));
   }
   const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
-  const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback";
+  const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback", L0 = "Abgegebene Fassung (ohne KI-Feedback)";
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
     const spec = tasks[i] ? cleanAnswer(tasks[i].answer) : { type: "text" };
@@ -4010,7 +4092,10 @@ function buildDetail(s) {
       taskTextDom("p", { class: "dtask-text" }, tasks[i] ? tasks[i].text : "", tasks[i] && tasks[i].textFmt),
       tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
       tasks[i] ? teacherFiles(T.sel, tasks[i].files, i + 1) : null,
-      h("table", { class: "cmp" }, [
+      noFb ? h("table", { class: "cmp one" }, [
+        h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L0 })])]),
+        h("tbody", null, [h("tr", null, [cell(fin, L0)])])
+      ]) : h("table", { class: "cmp" }, [
         h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
         h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, !isFirst && first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null, isFirst)])])
       ]),

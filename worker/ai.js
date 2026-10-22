@@ -530,7 +530,7 @@ export const FEEDBACK_SCHEMA_GEMINI = {
  */
 const MATERIAL_CAP = 4000;   // Zeichen Material je Aufgabe im Prompt
 const answerType = (t) => (t && t.answer && typeof t.answer === "object" ? t.answer.type : "text");
-const wantsFeedback = (t) => !!str(t.solution).trim() && answerType(t) !== "map";   // Weltkarten-Zuordnung: nie an die KI
+export const wantsFeedback = (t) => !!str(t.solution).trim() && answerType(t) !== "map";   // Weltkarten-Zuordnung: nie an die KI
 export function buildFeedbackMessages(tasks, answers) {
   const nrs = [], blocks = [], replies = [];
   tasks.forEach((t, i) => {

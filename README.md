@@ -103,9 +103,20 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    **„Erstversuch“**. So sehen Sie auch, wer sich ein Feedback geholt, aber nicht abgegeben hat; die spätere Abgabe
    ersetzt den Erstversuch. Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
    [Datenschutz](#datenschutz)).
-6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Der Button
-   „Abgeben“ ist bis dahin ausgegraut. Nach einer Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet:
-   erste Fassung, überarbeitete Fassung und das KI-Feedback. War die Abgabe technisch erfolgreich, erscheint die
+6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Nach einer
+   Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet: erste Fassung, überarbeitete Fassung und das
+   KI-Feedback. **Das KI-Feedback ist freiwillig:** „Abgeben“ geht jederzeit (nur ein Blatt mit lauter leeren
+   Antworten lässt sich nicht abgeben; leere einzelne Aufgaben nennt der Dialog). Abschluss-Text, Feedback-Dialog und
+   Abgabe-Dialog sagen: „Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus
+   ein Nachteil entsteht.“ Wer ohne KI-Feedback abgibt, bestätigt das in einem eigenen Dialog („Ohne KI-Feedback
+   abgeben?“); hat sie bzw. er nie eine Anfrage gestellt, geht dabei nichts an die KI. Ohne Feedback gibt es keinen
+   Erstversuch und keine zweite Rückmeldung, und Sie sehen in den Abgaben nur eine Fassung mit dem neutralen Hinweis
+   „Ohne KI-Feedback abgegeben.“ War das KI-Feedback nicht möglich – keine KI eingerichtet, Anbieter ausgefallen, ein
+   Versuch gescheitert oder eine laufende Anfrage mit der Abgabe abgebrochen –, steht dort „Ohne KI-Feedback
+   abgegeben – das KI-Feedback war nicht möglich (Grund).“ Was eine abgebrochene Anfrage schon gesendet hatte, hat der
+   KI-Dienst erhalten; der Dialog sagt das. Bis zur Abgabe lässt sich das Feedback jederzeit anfordern; kommt es an,
+   während der Abgabe-Dialog offen ist, wird nicht abgegeben, sondern erst das Feedback gezeigt. War die Abgabe
+   technisch erfolgreich, erscheint die
    Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt. Direkt darunter – noch über
    der KI-Rückmeldung zur abgegebenen Fassung – steht der Button **„Lade dir deine Lösungen herunter und speichere sie
    in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, Fassungen und KI-Rückmeldungen) und darunter
@@ -120,8 +131,8 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Feedback; klappt es vorübergehend nicht, gibt es „Rückmeldung erneut anfordern“. Neu beurteilt werden nur Aufgaben
    mit Auftrag an die KI, deren Text sich inhaltlich geändert hat; für alle anderen gilt die erste Rückmeldung weiter
    („Unverändert abgegeben – wie beim ersten Feedback.“). So bekommt eine unveränderte Antwort nie ein anderes Urteil.
-   Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (KI nicht
-   eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung. Die zweite Rückmeldung bleibt nur im Browser: Sie wird
+   Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (ohne KI-Feedback
+   abgegeben, KI nicht eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung. Die zweite Rückmeldung bleibt nur im Browser: Sie wird
    nicht gespeichert und geht nicht an Sie als Lehrkraft.
    Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
    Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
@@ -129,12 +140,18 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    danach noch einmal herunterzuladen. Sie entsteht im Browser und enthält kein Geburtsdatum. Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
    Lösungen bleiben nur bis „Neues Feibeitsblatt öffnen“ für den Download im Arbeitsspeicher.
 
-> **Wichtig:** Abgeben ist normalerweise erst nach dem KI-Feedback möglich. Richten Sie deshalb die
-> [KI-Einstellungen](#schritt-8-ki-feedback-einrichten) ein und testen Sie das Blatt einmal selbst, bevor Sie den
-> Code an die Klasse geben. **Niemand sitzt fest:** Ist das KI-Feedback nicht eingerichtet oder schlägt es zweimal
-> hintereinander fehl (Kontingent erschöpft, Anbieter gestört), wird „Abgeben“ trotzdem freigeschaltet. Die
-> Abgabe enthält dann nur die aktuelle Fassung, und Sie sehen in der Übersicht den Hinweis „Ohne KI-Feedback
-> abgegeben“. Hat keine Aufgabe einen Auftrag an die KI, ist gar keine KI nötig.
+> **Wichtig:** Das KI-Feedback ist freiwillig. Die Handreichung „Künstliche Intelligenz (KI) in Schule und
+> Unterricht“ des Hessischen Kultusministeriums (Juli 2023) sagt auf S. 10 allgemein, der Einsatz KI-gestützter
+> Anwendungen könne für Lehrkräfte sowie Schülerinnen und Schüler „derzeit nur auf freiwilliger Basis erfolgen“. Auf
+> S. 17 – dort im Zusammenhang mit volljährigen Schüler:innen, die einen eigenen KI-Zugang nutzen – verlangt sie,
+> darauf zu achten, „dass Schülerinnen und Schülern, die keine KI-Anwendung nutzen, hierdurch kein Nachteil
+> entsteht“. Sinngemäß auf das KI-Feedback übertragen heißt das: **Bitte werten Sie eine Abgabe ohne KI-Feedback nicht
+> anders** und geben Sie bei Bedarf selbst eine Rückmeldung – die Oberfläche verspricht den Schüler:innen, dass ihnen
+> daraus kein Nachteil entsteht, einlösen können das nur Sie. Richten Sie die
+> [KI-Einstellungen](#schritt-8-ki-feedback-einrichten) trotzdem ein und testen Sie das Blatt einmal selbst, bevor Sie
+> den Code an die Klasse geben. Ist das KI-Feedback nicht eingerichtet oder schlägt es zweimal hintereinander fehl
+> (Kontingent erschöpft, Anbieter gestört), sehen die Schüler:innen einen Hinweis mit dem Grund. Hat keine Aufgabe
+> einen Auftrag an die KI, gibt es keinen Feedback-Button und gar keine KI.
 
 Die Einfügesperre verhindert das übliche Einfügen (Tastenkürzel, Kontextmenü, Ziehen mit der Maus, größere
 Einfügungen aus der Zwischenablage einer Handy- oder Tablet-Tastatur). Kurze Stücke von wenigen Wörtern lassen sich
@@ -239,7 +256,9 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    mit allen Karten und ihren richtigen Ländern. Gibt die
    Person später ab, ersetzt die Abgabe ihren Erstversuch; gibt sie von einem anderen Gerät oder nach einem
    neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
-   die Zahl). Abgaben ohne KI-Feedback (siehe oben) sind entsprechend gekennzeichnet. „Alle aufklappen“ öffnet
+   die Zahl). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“
+   und den Hinweis „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“; Liste,
+   Farben und Zähler unterscheiden sie nicht. „Alle aufklappen“ öffnet
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
    Beachten Sie: Kürzel, Geburtsdatum, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
    Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt.
@@ -431,8 +450,8 @@ Hinweise:
   kann (die beim Speichern ermittelte Rangliste); damit reicht es für ganze Klassen am ehesten. Bei vielen Klassen
   am selben Tag kann das Kontingent trotzdem erschöpft sein.
 - Ist das Kontingent aufgebraucht, sehen die Schüler:innen „Das KI-Kontingent für heute ist aufgebraucht. Bitte
-  frag deine Lehrkraft.“ Ihre Antworten bleiben auf dem Gerät gespeichert; nach dem zweiten Fehlschlag können sie
-  ohne KI-Feedback abgeben oder es später auf demselben Gerät noch einmal versuchen.
+  frag deine Lehrkraft.“ Ihre Antworten bleiben auf dem Gerät gespeichert; sie können ohne KI-Feedback abgeben oder es
+  später auf demselben Gerät noch einmal versuchen.
 - Was die KI tut: Sie berät nach Ihrem Auftrag. Je Aufgabe schreibt sie kurze Stichpunkte, an die Schülerin bzw. den
   Schüler gerichtet – bis zu drei unter „Das gelingt dir schon“ (nur Zutreffendes) und bis zu fünf unter „Tipps zum
   Überarbeiten“ (das Wichtigste zuerst, als Hinweis oder Frage zum Weiterdenken); sachliche Fehler benennt sie
@@ -578,7 +597,7 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt oder Sie löschen |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
 | KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
@@ -597,15 +616,18 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 
 ### Was wohin gesendet wird
 
-- **KI-Feedback:** Der Browser schickt den Blatt-Code, die Antworten und die Liste der Empfänger, über die
-  informiert wurde, an den Server dieser Seite (Cloudflare). Der Server leitet **Aufgabenstellungen und den Text des
+- **KI-Feedback (freiwillig):** Nur wenn die Schülerin bzw. der Schüler auf „KI um ein Feedback bitten“ klickt und
+  den Dialog bestätigt, schickt der Browser den Blatt-Code, die Antworten und die Liste der Empfänger, über die
+  informiert wurde, an den Server dieser Seite (Cloudflare). Wer ohne vorherige Anfrage ohne KI-Feedback abgibt, dessen
+  Antworten gehen an keine KI (auch nicht bei der Abgabe). Der Server leitet **Aufgabenstellungen und den Text des
   Materials (jeweils als reinen Text ohne Link-Adressen), Ihre Aufträge an die KI und die Antworten** an den ersten KI-Anbieter weiter – nur für Aufgaben mit
   Auftrag an die KI. Nur wenn dieser ausgelastet ist, nicht antwortet, einen Serverfehler meldet, die Anfrage als zu lang
   ablehnt oder keine verwertbare Antwort liefert, geht dieselbe Anfrage danach an die eingetragene
   [Reserve-KI](#reserve-ki-zweiter-anbieter) – nie an beide gleichzeitig, nie nach einem Inhaltsfilter. Ein Dienst,
   der erst nach dem Senden ausfällt (z. B. Zeitüberschreitung), hat die Texte trotzdem erhalten. **Bei der Abgabe**
-  geschieht dasselbe noch einmal mit den abgegebenen (überarbeiteten) Antworten für die zweite Rückmeldung – nicht,
-  wenn seit dem ersten Feedback nichts geändert wurde, und nur an die Empfänger, über die informiert wurde. Ist die KI
+  geschieht dasselbe noch einmal mit den abgegebenen (überarbeiteten) Antworten für die zweite Rückmeldung – nur nach
+  einem ersten Feedback, nicht, wenn seit dem ersten Feedback nichts geändert wurde, und nur an die Empfänger, über die
+  informiert wurde. Ist die KI
   ausgelastet, wiederholt der Browser die Anfrage bis zu viermal automatisch (jeweils mit dem aktuellen Text); im
   ungünstigsten Fall erhalten also beide Dienste dieselben Antworten mehrfach. **Nie** gesendet werden Kürzel,
   Geburtsdatum und Klasse; der Server bekommt sie dabei gar nicht. Groq (Groq, Inc.), Cerebras (Cerebras Systems
@@ -662,7 +684,8 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > Antworten nach Vorgaben der Lehrkraft bespricht; Rechtsgrundlage ist [§ … Schulgesetz / Art. 6 Abs. 1 lit. e
 > DSGVO]. Gespeichert werden Namenskürzel, Geburtsdatum, Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
 > lesbar – auf Servern von Cloudflare (Datenbank in der EU) bis zur Löschung nach der Durchsicht, spätestens [Frist].
-> Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
+> Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
+> keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
 > Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B. Groq, Inc., USA] gesendet; nur wenn
 > dieser nicht antwortet oder ausgelastet ist, an
 > [Reserve-Dienst mit Sitz]. Diese Dienste haben ihren Sitz in den USA; die Übermittlung stützt sich auf [EU-US
@@ -784,10 +807,10 @@ gespeichert.
 | Workflow scheitert bei der workers.dev-Subdomain | Im Cloudflare-Dashboard einmal „Workers & Pages“ öffnen und dort eine Subdomain wählen, dann den Workflow erneut starten. |
 | Workflow scheitert bei „SETTINGS_SECRET sicherstellen“ | Die Secret-Liste war nicht abrufbar; den Workflow einfach erneut starten. |
 | „Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid.“ | Es ist kein Lehrkraft-Passwort festgelegt (z. B. nach dem Zurücksetzen). `1104` eingeben und ein Passwort festlegen (Schritt 7). |
-| „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“ | KI-Einstellungen speichern (Schritt 8). Bis dahin können Schüler:innen nur ohne KI-Feedback abgeben. |
+| „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“ | KI-Einstellungen speichern (Schritt 8). Abgeben (ohne KI-Feedback) geht trotzdem. |
 | „Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt).“ | Den Workflow „Deploy“ erneut ausführen; er legt das Secret an. Danach den API-Schlüssel eintragen. |
 | „Bitte den API-Schlüssel neu eintragen.“ | `SETTINGS_SECRET` wurde geändert. Schlüssel in den KI-Einstellungen neu eintragen. |
-| „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder in den KI-Einstellungen einen anderen Anbieter bzw. Schlüssel eintragen. Schüler:innen können nach dem zweiten Fehlschlag ohne KI-Feedback abgeben. |
+| „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder in den KI-Einstellungen einen anderen Anbieter bzw. Schlüssel eintragen. Schüler:innen können jederzeit ohne KI-Feedback abgeben; Sie sehen dann bei der Abgabe den Grund. |
 | „Die KI ist gerade ausgelastet.“ / „Gerade fragen sehr viele gleichzeitig.“ | Minutenlimit des Anbieters oder Warteschlange voll; nach einer Minute erneut versuchen. |
 | „Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich.“ | Die Anfrage überschreitet das Limit aller verfügbaren Modelle. Aufträge an die KI und Aufgaben kürzen oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen. |
 | „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
@@ -797,7 +820,7 @@ gespeichert.
 | „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
 | „Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in …“ | Kein Fehler: Die Minutenlimits aller Modelle sind gerade ausgeschöpft; die Seite wiederholt von selbst (bis zu fünf Versuche in etwa vier Minuten). Weiterschreiben ist möglich; „Nicht länger warten“ bricht ab. Kommt das ständig vor, Feedback gestaffelt anfordern lassen oder eine Reserve-KI eintragen. |
 | „Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis …“ | Sie haben den ersten Anbieter geändert oder eine Reserve eingetragen, während das Blatt geöffnet war. Die Seite hat den Hinweis neu geladen; die Schülerin bzw. der Schüler liest ihn und klickt erneut. Nichts ging verloren. |
-| „Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.“ | Der KI-Anbieter hat die Anfrage mit seinem Inhaltsfilter abgelehnt. Absichtlich geht sie dann **nicht** an die Reserve. Sehen Sie sich die Antworten an; nach zwei Fehlversuchen kann ohne KI-Feedback abgegeben werden. |
+| „Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.“ | Der KI-Anbieter hat die Anfrage mit seinem Inhaltsfilter abgelehnt. Absichtlich geht sie dann **nicht** an die Reserve. Sehen Sie sich die Antworten an; abgeben (ohne KI-Feedback) geht trotzdem. |
 | „In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.“ beim Hochladen einer PDF | Es wurde nicht die Original-PDF aus „Zwischenstand als PDF-Datei sichern“ hochgeladen, sondern z. B. ein Screenshot, ein Ausdruck oder eine „Drucken als PDF“-Kopie – die enthalten die eingebetteten Daten nicht. Nur die heruntergeladene Datei selbst (unverändert) funktioniert; ein Neuspeichern in einem PDF-Programm, das die eingebettete Datei behält, ist unproblematisch. |
 | „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“ (statt des Buttons) | Kein Fehler: Laut eingegebenem Geburtsdatum ist die Schülerin oder der Schüler jünger als 16; die Prüfung wird dann nicht angeboten (Altersgrenze `LT_MIN_AGE` in `index.html`). Bei einem Tippfehler im Geburtsdatum oben „Abbrechen und Zwischenstand löschen“ wählen und den Code neu eingeben. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |

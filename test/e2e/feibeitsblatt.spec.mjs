@@ -68,12 +68,18 @@ const D = {
   person: { vorname: "Tom", nachname: "Ze", geburtsdatum: "2010-02-02", klasse: "9c" },
   first: ["Das Gewissen ist so etwas wie ein innerer Richter.", "Ich habe beim Test abgeschrieben und mich danach mies gefühlt.", "Ich will es dann wiedergutmachen."],
 };
-// Schüler:in E: die KI bleibt ausgelastet → bricht das Warten zweimal ab, darf dann ohne KI-Feedback abgeben (gibt nicht ab)
+// Schüler:in E: die KI bleibt ausgelastet → bricht das Warten zweimal ab, sieht dann den Grund (gibt nicht ab)
 const E = {
   input: { vorname: "ida", nachname: "kr", geb: "2011-09-09", klasse: "8b" },
   first: ["Das Gewissen ist wie eine innere Stimme.", "Ich habe gelogen.", "Nicht gut."],
 };
 const RECIPIENT_SUFFIX = " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";   // Empfänger-Label des eigenen Dienstes
+const FB_VOLUNTARY = "Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.";
+const FIN_TEXT = "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
+const SUBMIT_HINT_NO_FB = "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
+// Abgabe-Dialog ohne KI-Feedback, wenn das KI-Feedback nicht möglich war (Grund) bzw. noch nie versucht wurde
+const NO_FB_TAIL = " Du kannst es später noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI. Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.";
+const noFbDialog = (reason) => "Das KI-Feedback hat bisher nicht geklappt (" + reason + ")." + NO_FB_TAIL;
 const ORANGE = "rgb(184, 92, 0)";   // .st-first
 const ATTEMPT = /^[0-9a-f]{16}$/;
 
@@ -90,6 +96,10 @@ const MATERIAL_1 = [
 ];
 const MATERIAL_2 = [[{ t: "Siehe " }, { t: "Kapitel 3", f: "b" }, { t: " und böse sowie " }, { t: "gut", h: "https://example.org/x" }, { t: "." }]];
 const fmtDe = (iso) => iso.split("-").reverse().join(".");
+// Sichtbarer Text einer im Browser erzeugten PDF-Datei: alle „(…) Tj“ in Reihenfolge (WinAnsi-Oktal → Zeichen), mit Leerzeichen verbunden
+const WIN = { 0x84: "„", 0x93: "“", 0x95: "•", 0x96: "–" };
+const pdfShownText = (buf) => [...buf.toString("latin1").matchAll(/\(((?:\\[\s\S]|[^\\)])*)\) Tj/g)]
+  .map((m) => m[1].replace(/\\([0-7]{3}|[\s\S])/g, (_, c) => (c.length === 3 ? WIN[parseInt(c, 8)] || String.fromCharCode(parseInt(c, 8)) : c))).join(" ");
 
 /* ---------- Hilfen für den Schreibbereich ---------- */
 async function enterCode(page, typed) {
@@ -111,7 +121,7 @@ async function typeAt(page, sel, text) {
   await page.keyboard.type(text);
 }
 async function requestFeedback(page) {
-  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#submit-btn")).toBeEnabled();   // das KI-Feedback ist freiwillig: Abgeben geht immer
   await page.click("#fb-btn");
   await confirmDialog(page, "KI-Feedback anfordern?");
   await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
@@ -628,8 +638,9 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(lookup.body.length).toBeLessThan(20_000);
   expect(JSON.parse(lookup.body).sheet.tasks[0].images.map((m) => m.id)).toEqual(S.imgs.map((m) => m.id));
   expect((await s.calls((r) => /\/api\/sheet\/[^/]+\/images\//.test(r.path))).map((r) => r.status)).toEqual([200, 200]);
-  await expect(page.locator("#submit-btn")).toBeDisabled();
-  await expect(page.locator("#submit-hint")).toHaveText("Der Button „Abgeben“ wird freigeschaltet, sobald du das KI-Feedback erhalten hast.");
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  await expect(page.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
+  await expect(page.locator("#fin-text")).toHaveText(FIN_TEXT);
   await expect(page.locator("#fb-btn")).toHaveText("KI um ein Feedback bitten");
   await expect(page.locator("#fb-btn")).toBeEnabled();
   const aiProvider = JSON.parse(lookup.body).sheet.aiProvider;
@@ -755,7 +766,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(s.lt).toHaveLength(1);
 
   // KI-Feedback (eine Anfrage an die KI, nur Aufgaben mit Auftrag an die KI, keine Personendaten)
-  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#submit-btn")).toBeEnabled();
   await mockReset();
   await requestFeedback(page);
   const fbReq = await s.calls((r) => r.path === "/api/feedback");
@@ -987,7 +998,7 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await expect(page.locator("#privacy")).toContainText("erst ab 16 Jahren und nur nach deiner Bestätigung");
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), B.first[i]);
 
-  // KI lehnt ab (Mock: HTTP 401) → kurze Meldung ohne Interna, Feedback erneut möglich, „Abgeben“ bleibt gesperrt
+  // KI lehnt ab (Mock: HTTP 401) → kurze Meldung ohne Interna, Feedback erneut möglich; „Abgeben“ ging die ganze Zeit
   await mockMode("401");
   try {
     await page.click("#fb-btn");
@@ -1000,12 +1011,13 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   expect(JSON.parse(failed[0].body)).toMatchObject({ ok: false, code: "ai_error" });
   expect(failed[0].body).not.toContain(AI_KEY);
   await expect(page.locator("#fb-btn")).toBeEnabled();
-  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  await expect(page.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
   await expect(page.locator("#fb-fallback")).toBeHidden();
   await expect(page.locator("#t-1 .fbbox")).toBeHidden();
   expect(await page.$eval("#a-1", (e) => e.readOnly)).toBe(false);
 
-  // zweiter Fehlschlag → Abgabe ohne KI-Feedback wird freigeschaltet (niemand sitzt fest), Feedback bleibt möglich
+  // zweiter Fehlschlag → Hinweis, dass das KI-Feedback gerade nicht möglich ist (die Lehrkraft sieht den Grund), Feedback bleibt möglich
   await mockMode("500");
   try {
     await page.click("#fb-btn");
@@ -1051,7 +1063,7 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await closePage(s);
 });
 
-test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback", async ({ browser }) => {
+test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback (der Dialog nennt den Grund)", async ({ browser }) => {
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, S.shown);
@@ -1071,9 +1083,8 @@ test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback", asyn
   await expect(page.locator("#t-1 .fbbox")).toBeHidden();
   await expect(page.locator("#submit-btn")).toBeEnabled();
   await page.click("#submit-btn");
-  const text = await confirmDialog(page, "Jetzt abgeben?");
-  expect(text).toContain("ohne KI-Feedback");
-  expect(text).not.toContain("KI-Rückmeldung zu deiner abgegebenen Fassung");
+  await expect(page.locator("#dlg-ok")).toHaveText("Ohne KI-Feedback abgeben");
+  expect(await confirmDialog(page, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("KI nicht erreichbar"));
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#done-fb")).toBeHidden();   // ohne erstes Feedback keine zweite Rückmeldung
   const sub = await s.calls((r) => r.path === "/api/submit");
@@ -1096,9 +1107,10 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
     if (busy < 2) { busy++; await route.fulfill({ status: 429, contentType: "application/json", headers: { "retry-after": "5" }, body: JSON.stringify({ ok: false, error: "Die KI ist gerade ausgelastet.", code: "ai_busy", aiCode: "RATE_LIMIT", retryAfter: 5 }) }); return; }
     await route.continue();
   });
-  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#submit-btn")).toBeEnabled();
   await page.click("#fb-btn");
   const dlgText = await confirmDialog(page, "KI-Feedback anfordern?");
+  expect(dlgText).toContain(FB_VOLUNTARY);
   expect(dlgText).toContain("an den KI-Dienst „127.0.0.1:");                       // der Empfänger steht im Dialog, nicht nur im Kleingedruckten
   expect(dlgText).toContain(RECIPIENT_SUFFIX + "“");
   expect(dlgText).toContain("ohne Namenskürzel, Geburtsdatum und Klasse");
@@ -1129,7 +1141,7 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   await closePage(s);
 });
 
-test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zählt als Fehlversuch; nach dem zweiten Abbruch ist Abgeben ohne KI möglich", async ({ browser }) => {
+test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zählt als Fehlversuch; nach dem zweiten Abbruch nennt die Seite den Grund (KI ausgelastet)", async ({ browser }) => {
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, S.shown);
@@ -1147,7 +1159,7 @@ test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zä
     await expect(page.locator("#fb-status")).toHaveText("Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
     await expect(page.locator("#fb-wait")).toBeHidden();
     await expect(page.locator("#fb-btn")).toBeEnabled();
-    if (cycle === 1) { await expect(page.locator("#fb-fallback")).toBeHidden(); await expect(page.locator("#submit-btn")).toBeDisabled(); }
+    if (cycle === 1) { await expect(page.locator("#fb-fallback")).toBeHidden(); await expect(page.locator("#submit-btn")).toBeEnabled(); }
   }
   expect(n).toBe(2);   // je Zyklus genau eine Anfrage – nach dem Abbruch wird nichts mehr gesendet
   await expect(page.locator("#fb-fallback")).toBeVisible();
@@ -1235,14 +1247,15 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(tasks.nth(0).locator(".dfb p.fb-miss")).toHaveText("Tipps zum Überarbeiten:");
   await expect(det).not.toContainText("ngesprochen");
 
-  // C: ohne KI-Feedback abgegeben → Hinweis, beide Spalten gleich
+  // C: ohne KI-Feedback abgegeben, weil die KI ausfiel → Hinweis mit Grund, nur eine Spalte (die abgegebene Fassung)
   await mains.nth(2).click();
   const detC = page.locator("#t-subs-body tr.details").nth(2);
-  await expect(detC.locator(".moodle-hint")).toContainText("Ohne KI-Feedback abgegeben");
-  await expect(detC.locator(".dmeta")).not.toContainText("KI-Feedback am");
+  await expect(detC.locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");
+  await expect(detC.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · ohne KI-Feedback$/);
+  await expect(detC.locator(".dtask").nth(0).locator("table.cmp thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback)"]);
   const tdC = detC.locator(".dtask").nth(0).locator("table.cmp tbody td");
+  await expect(tdC).toHaveCount(1);
   expect(await tdC.nth(0).textContent()).toBe(C.first[0]);
-  expect(await tdC.nth(1).textContent()).toBe(C.first[0] + "(unverändert)");
   await expect(detC.locator(".dfb")).toHaveCount(0);
   await mains.nth(2).click();
 
@@ -1478,7 +1491,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
   expect(new Set(rows.map((r) => r.attempt)).size).toBe(4);
   const forbidden = [...A.first, ...A.final, ...B.first, ...C.first, ...D.first].flatMap((a) => a.split("\n")).concat(
     ["Gewissn", "Schwester angelogen", "Lügen ist unfair", "innere Stimme", "Keine Ahnung", "innerer Richter",
-      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', '"Tom"', '"Ze"', "2009-05-04", "2012-01-15", "2012-06-30", "2010-02-02", "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError"]);
+      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', '"Tom"', '"Ze"', "2009-05-04", "2012-01-15", "2012-06-30", "2010-02-02", "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError", "unavailable"]);   // C: noAi "unavailable" nur verschlüsselt
   for (const r of rows) {
     expect(r.sheet_code).toBe(S.code);
     expect(Object.keys(r).sort()).toEqual(["attempt", "envelope", "id", "received_at", "sheet_code", "stage"]);
@@ -1511,7 +1524,8 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     expect(res.status()).toBe(200);
     const body = await res.text();
     const j = JSON.parse(body);
-    expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "aiRecipients", "code", "publicKey", "tasks", "title"]);
+    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "publicKey", "tasks", "title"]);
+    expect(j.sheet.aiFeedback).toBe(true);
     expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX }]);
     expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, textFmt: [], material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
@@ -1647,6 +1661,250 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await t.page.click("#t-del-sheet");
   await confirmDialog(t.page, "Feibeitsblatt löschen?");
   await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Erstversuch), H entscheidet um, während die KI arbeitet, I nach einem Fehlversuch, J bricht eine laufende Anfrage ab (Abgabe scheitert erst), K ohne eingerichtete KI; Blatt ohne Auftrag an die KI hat keinen Feedback-Button; Lehrkraft sieht neutrale Hinweise", async ({ browser }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  const makeSheet = async (title, rows) => {
+    await tp.click("#t-new");
+    await tp.fill("#b-title", title);
+    for (let i = 0; i < rows.length; i++) {
+      await tp.fill("#bq-" + (i + 1), rows[i].text);
+      if (rows[i].solution) await tp.fill("#bs-" + (i + 1), rows[i].solution);
+    }
+    await tp.click("#b-gen");
+    await expect(tp.locator("#b-result")).toBeVisible();
+    return (await tp.locator("#b-res-code").textContent()).trim();
+  };
+  const shownG = await makeSheet("Freiwillig", TASKS.slice(0, 2));
+  const student = async (who) => {
+    const s = await openPage(browser);
+    await enterCode(s.page, shownG);
+    await fillPerson(s.page, who.input);
+    return s;
+  };
+  const draftPdfText = async (page) => {
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#ed-pdf")]);
+    return pdfShownText(await readFile(await dl.path()));
+  };
+  const solutionsPdfText = async (page) => {
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+    return pdfShownText(await readFile(await dl.path()));
+  };
+  const toTeacherUnavailable = " Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.";
+
+  // G: Abschluss-Text, Hinweis und Datenschutz nennen die Freiwilligkeit; „Abgeben“ geht sofort – aber nicht mit lauter leeren Feldern
+  const G = { input: { vorname: "jan", nachname: "gr", geb: "2010-03-03", klasse: "7b" }, first: ["Das Gewissen ist eine innere Stimme.", ""] };
+  const s = await student(G);
+  const { page } = s;
+  await expect(page.locator("#fin-text")).toHaveText(FIN_TEXT);
+  await expect(page.locator("#privacy")).toContainText("Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.");
+  await expect(page.locator("#privacy")).toContainText("Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund).");
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  await expect(page.locator("#submit-btn")).toHaveAccessibleDescription(SUBMIT_HINT_NO_FB);
+  await page.click("#submit-btn");
+  await expect(page.locator("#submit-status")).toHaveText("Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);   // ganz leer: kein Dialog, nichts gesendet
+  await typeAt(page, "#a-1", G.first[0]);
+  expect(await draftPdfText(page)).toContain("Stand: 1 von 2 Aufgaben mit Text · KI-Feedback nicht angefordert");
+  await mockReset();
+  // Erst abbrechen: nichts passiert, der Fokus kehrt zu „Abgeben“ zurück
+  await page.click("#submit-btn");
+  await expect(page.locator("#dlg-cancel")).toBeFocused();   // die sichere Wahl hat den Fokus
+  await expect(page.locator("#dlg-ok")).toHaveText("Ohne KI-Feedback abgeben");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Weiterschreiben");
+  const dlg = await confirmDialog(page, "Ohne KI-Feedback abgeben?", false);
+  expect(dlg).toBe("Achtung: Aufgabe 2 ist noch leer.\nDu hast kein KI-Feedback angefordert. Das ist in Ordnung: " + FB_VOLUNTARY + "\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. An die KI wird nichts gesendet. Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass du ohne KI-Feedback abgegeben hast.");
+  await expect(page.locator("#submit-btn")).toBeFocused();
+  // Umkehrbar bis zur Abgabe: der Feedback-Dialog nennt die Freiwilligkeit (hier abgebrochen)
+  await page.click("#fb-btn");
+  expect(await confirmDialog(page, "Noch nicht alles beantwortet", false)).toContain(FB_VOLUNTARY);   // Aufgabe 2 ist leer
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Ohne KI-Feedback abgeben?");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb")).toBeHidden();
+  expect(await s.calls((r) => r.path === "/api/feedback")).toEqual([]);
+  expect((await mockState()).count).toBe(0);
+  const subs = await s.calls((r) => r.path === "/api/submit");
+  expect(subs.map((r) => [r.status, JSON.parse(r.reqBody).stage])).toEqual([[200, "final"]]);   // kein Erstversuch
+  const solG = await solutionsPdfText(page);
+  expect(solG).toContain("Ohne KI-Feedback abgegeben.");
+  expect(solG).not.toMatch(/nicht möglich|KI-Feedback zur|KI-Rückmeldung zur|Gelingt schon|Tipp:/);
+  await closePage(s);
+
+  // H: fordert Feedback an, will während der Anfrage doch ohne KI abgeben – die Antwort kommt, solange der Dialog offen ist
+  const H = { input: { vorname: "eva", nachname: "ha", geb: "2010-04-04", klasse: "7b" }, first: ["Das Gewissen ist eine innere Instanz.", "Ich habe gelogen."] };
+  const s2 = await student(H);
+  const p2 = s2.page;
+  for (let i = 0; i < 2; i++) await typeAt(p2, "#a-" + (i + 1), H.first[i]);
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await p2.route("**/api/feedback", async (route) => { await gate; await route.continue(); });
+  await p2.click("#fb-btn");
+  await confirmDialog(p2, "KI-Feedback anfordern?");
+  await expect(p2.locator("#fb-status")).toContainText("Die KI arbeitet");
+  await p2.click("#submit-btn");
+  await expect(p2.locator("#dlg.open")).toBeVisible();
+  await expect(p2.locator("#dlg-cancel")).toHaveText("Auf das KI-Feedback warten");
+  release();
+  await expect(p2.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });   // hinter dem Dialog angekommen …
+  await p2.waitForTimeout(200);
+  await expect(p2.locator("#dlg-cancel")).toBeFocused();                       // … ohne den Fokus aus dem Dialog zu holen
+  expect(await confirmDialog(p2, "Ohne KI-Feedback abgeben?")).toBe("Deine Anfrage um KI-Feedback läuft noch. Gibst du jetzt ab, wird sie abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts mehr an die KI." + toTeacherUnavailable);
+  await expect(p2.locator("#submit-status")).toHaveText("Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.");
+  await expect(p2.locator("#screen-editor")).toHaveClass(/active/);
+  await p2.unroute("**/api/feedback");
+  await expect.poll(async () => (await s2.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage), { timeout: 30_000 }).toEqual(["first"]);
+  await submit(p2);   // jetzt normal mit KI-Feedback („Jetzt abgeben?“)
+  await expect(p2.locator("#done-fb")).toBeVisible();
+  await closePage(s2);
+
+  // I: ein gescheiterter Versuch → die Abgabe ohne Feedback gilt nicht als „ohne Anfrage“; Zwischenstand-PDF und Dialog sagen es
+  const I = { input: { vorname: "ina", nachname: "ib", geb: "2010-06-06", klasse: "7b" }, first: ["Eine innere Stimme.", "Ich habe geschwindelt."] };
+  const s4 = await student(I);
+  const p4 = s4.page;
+  for (let i = 0; i < 2; i++) await typeAt(p4, "#a-" + (i + 1), I.first[i]);
+  await p4.route("**/api/feedback", (route) => route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI-Rückmeldung ist gerade nicht verfügbar. Bitte versuche es später noch einmal oder frag deine Lehrkraft.", code: "ai_error" }) }));
+  await p4.click("#fb-btn");
+  await confirmDialog(p4, "KI-Feedback anfordern?");
+  await expect(p4.locator("#fb-status")).toHaveClass(/\bbad\b/);
+  await expect(p4.locator("#fb-fallback")).toBeHidden();   // erst nach dem zweiten Fehlversuch
+  await expect(p4.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
+  expect(await draftPdfText(p4)).toContain("Stand: 2 von 2 Aufgaben mit Text · KI-Feedback bisher nicht geklappt (Anfrage nicht abgeschlossen)");
+  await p4.click("#submit-btn");
+  expect(await confirmDialog(p4, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  await expect(p4.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p4)).toContain("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen).");
+  expect((await s4.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage)).toEqual(["final"]);
+  await closePage(s4);
+
+  // J: die Abgabe bricht eine laufende Anfrage ab und scheitert dann selbst → Felder und Feedback-Button sind wieder frei;
+  // die späte Antwort der abgebrochenen Anfrage wird verworfen (kein Feedback, kein Erstversuch); der zweite Anlauf klappt
+  const J = { input: { vorname: "jon", nachname: "jo", geb: "2010-07-07", klasse: "7b" }, first: ["Das Gewissen urteilt.", "Ich habe etwas versteckt."] };
+  const s5 = await student(J);
+  const p5 = s5.page;
+  for (let i = 0; i < 2; i++) await typeAt(p5, "#a-" + (i + 1), J.first[i]);
+  let releaseJ;
+  const gateJ = new Promise((r) => { releaseJ = r; });
+  await p5.route("**/api/feedback", async (route) => {
+    await gateJ;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: [{ covered: ["Zu spät"], missing: [] }, { covered: ["Zu spät"], missing: [] }] }) }).catch(() => {});
+  });
+  let submitsJ = 0;
+  await p5.route("**/api/submit", (route) => (++submitsJ === 1
+    ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Auf dem Server ist ein Fehler aufgetreten.", code: "server_error" }) })
+    : route.continue()));
+  await mockReset();
+  await p5.click("#fb-btn");
+  await confirmDialog(p5, "KI-Feedback anfordern?");
+  await expect(p5.locator("#fb-status")).toContainText("Die KI arbeitet");
+  expect(await p5.$eval("#a-1", (e) => e.readOnly)).toBe(true);
+  await p5.click("#submit-btn");
+  expect(await confirmDialog(p5, "Ohne KI-Feedback abgeben?")).toContain("Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.");
+  await expect(p5.locator("#submit-status")).toContainText("Deine Antworten sind noch da – versuche es gleich noch einmal.");
+  await expect(p5.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await p5.$eval("#a-1", (e) => e.readOnly)).toBe(false);   // wieder schreibbar …
+  await expect(p5.locator("#fb-btn")).toBeEnabled();                // … Feedback wieder möglich …
+  await expect(p5.locator("#fb-status")).toHaveText("");            // … und kein „Die KI arbeitet …“ mehr
+  await expect(p5.locator("#submit-btn")).toBeEnabled();
+  await typeAt(p5, "#a-2", " Nachtrag.");
+  releaseJ();
+  await p5.waitForTimeout(500);
+  await expect(p5.locator("#t-1 .fbbox")).toBeHidden();
+  expect(JSON.parse(await p5.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))))).toMatchObject({ fbFails: 1, feedback: null });
+  await p5.click("#submit-btn");
+  expect(await confirmDialog(p5, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  await expect(p5.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await p5.waitForTimeout(300);
+  const subsJ = await s5.calls((r) => r.path === "/api/submit");
+  expect(subsJ.map((r) => [r.status, JSON.parse(r.reqBody).stage])).toEqual([[500, "final"], [200, "final"]]);   // kein Erstversuch
+  expect(new Set(subsJ.map((r) => JSON.parse(r.reqBody).attempt)).size).toBe(1);   // dieselbe Bearbeitung
+  expect((await mockState()).count).toBe(0);   // die angehaltene Anfrage hat die KI nie erreicht
+  await closePage(s5);
+
+  // K: Blatt mit Auftrag an die KI, aber keine KI eingerichtet (Antwort ohne Empfänger nachgestellt) → „KI nicht eingerichtet“
+  const K = { input: { vorname: "kai", nachname: "ka", geb: "2010-08-08", klasse: "7b" }, first: ["Mein Gewissen.", "Beim Spielen geschummelt."] };
+  const s6 = await openPage(browser);
+  const p6 = s6.page;
+  await p6.route("**/api/sheet/" + shownG.replace("-", ""), async (route) => {
+    const res = await route.fetch();
+    const j = await res.json();
+    delete j.sheet.aiRecipients; delete j.sheet.aiReserve; j.sheet.aiProvider = null;
+    await route.fulfill({ response: res, json: j });
+  });
+  await enterCode(p6, shownG);
+  await fillPerson(p6, K.input);
+  for (let i = 0; i < 2; i++) await typeAt(p6, "#a-" + (i + 1), K.first[i]);
+  await p6.click("#submit-btn");
+  expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?")).toBe("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI." + toTeacherUnavailable);
+  await expect(p6.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await closePage(s6);
+
+  // Lehrkraft: neutrale Hinweise – G „Ohne KI-Feedback abgegeben.“ (keine Wertung, kein „selbst gewählt“), I/J/K mit Grund; H wie gewohnt
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shownG);
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(5);
+  for (const [k, n] of ["Gr", "Ha", "Ib", "Jo", "Ka"].entries()) await expect(mains.nth(k).locator("td:not(.arrowcol)").nth(0)).toHaveText(n);
+  await tp.click("#t-expand-all");
+  const det = (k) => tp.locator("#t-subs-body tr.details").nth(k);
+  await expect(det(0).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben.");
+  await expect(det(0).locator(".dmeta")).toHaveText(/ · ohne KI-Feedback$/);
+  await expect(det(0).locator(".dtask").nth(0).locator("table.cmp.one thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback)"]);
+  await expect(det(0).locator(".dtask").nth(0).locator("table.cmp tbody td")).toHaveText([G.first[0]]);
+  await expect(det(0).locator(".dtask").nth(1).locator("table.cmp tbody td")).toHaveText(["(leer)"]);
+  await expect(det(0).locator(".dfb")).toHaveCount(0);
+  await expect(det(1).locator(".moodle-hint")).toHaveCount(0);
+  await expect(det(1).locator(".dtask").nth(0).locator("table.cmp thead th")).toHaveCount(2);
+  await expect(det(1).locator(".dfb")).toHaveCount(2);
+  for (const k of [2, 3]) {
+    await expect(det(k).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen).");
+    await expect(det(k).locator("table.cmp.one")).toHaveCount(2);
+  }
+  await expect(det(3).locator(".dtask").nth(1).locator("table.cmp tbody td")).toHaveText([J.first[1] + " Nachtrag."]);
+  await expect(det(4).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");
+  await expect(tp.locator("#t-subs-body")).not.toContainText("selbst gewählt");
+
+  // Blatt ohne Auftrag an die KI: kein Feedback-Button, Datenschutz ohne KI-Dienst, schlichter Abgabe-Dialog, keine Kennzeichnung
+  const shownN = await makeSheet("Ohne Auftrag", [{ text: "Wie fühlst du dich, wenn du etwas falsch gemacht hast?", solution: "" }]);
+  const s3 = await openPage(browser);
+  const p3 = s3.page;
+  await enterCode(p3, shownN);
+  await fillPerson(p3, { vorname: "kim", nachname: "no", geb: "2010-05-05", klasse: "7b" });
+  expect(JSON.parse((await s3.calls((r) => r.path.startsWith("/api/sheet/")))[0].body).sheet.aiFeedback).toBe(false);
+  await expect(p3.locator("#fb-btn")).toBeHidden();
+  await expect(p3.locator("#fin-text")).toHaveText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab.");
+  await expect(p3.locator("#privacy")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
+  await expect(p3.locator("#privacy")).not.toContainText("KI-Dienst");
+  await expect(p3.locator("#submit-hint")).toHaveText("Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.");
+  await typeAt(p3, "#a-1", "Ich schäme mich dann.");
+  const draftN = await draftPdfText(p3);
+  expect(draftN).toContain("Stand: 1 von 1 Aufgabe mit Text");
+  expect(draftN).not.toContain("KI-Feedback");   // kein Hinweis zum KI-Feedback, das es hier nicht gibt
+  await p3.click("#submit-btn");
+  expect(await confirmDialog(p3, "Jetzt abgeben?")).toBe("Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Deine Antworten gehen verschlüsselt an deine Lehrkraft; nur sie kann sie lesen.");
+  await expect(p3.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p3)).not.toContain("Ohne KI-Feedback");
+  expect(await s3.calls((r) => r.path === "/api/feedback")).toEqual([]);
+  await closePage(s3);
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shownN);
+  await tp.locator("#t-subs-body tr.main").first().click();
+  const detN = tp.locator("#t-subs-body tr.details").first();
+  await expect(detN.locator(".moodle-hint")).toHaveCount(0);
+  await expect(detN.locator("table.cmp.one tbody td")).toHaveText(["Ich schäme mich dann."]);
+
+  // aufräumen: beide Blätter samt Abgaben löschen
+  for (const c of [shownN, shownG]) {
+    await tp.locator("#t-sheets-body tr", { hasText: c }).click();
+    await expect(tp.locator("#t-sel-code")).toHaveText(c);
+    await tp.click("#t-del-sheet");
+    await confirmDialog(tp, "Feibeitsblatt löschen?");
+    await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  }
   await closePage(t);
 });
 

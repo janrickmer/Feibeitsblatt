@@ -11,7 +11,7 @@ import {
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI,
-  TEST_MESSAGES, reserveSlot, skipQuery, skipStatements, gateKey, recipientLabel,
+  TEST_MESSAGES, reserveSlot, skipQuery, skipStatements, gateKey, recipientLabel, wantsFeedback,
 } from "./ai.js";
 
 const MSG = {
@@ -675,12 +675,15 @@ async function routePublicSheet(c, codeRaw) {
   // Niemals Aufträge an die KI (solution) ausliefern: nur Aufgabentext (rein und – falls vorhanden – formatiert als textFmt) und
   // Bild-Metadaten verlassen den Server; die Länder einer Weltkarten-Zuordnung nur als Prüfwerte (SHA-256 von Code|Karte|Land),
   // Kartenbilder nur, wenn sie zu dieser Aufgabe gespeichert sind
-  const tasks = await Promise.all(parseTasks(s.tasks).map(async (t, i) => {
+  // aiFeedback: Hat mindestens eine Aufgabe einen Auftrag an die KI (keine Weltkarte)? Sonst zeigt die Seite keinen
+  // Feedback-Button (nur ein Ja/Nein – nie der Auftrag selbst)
+  const parsed = parseTasks(s.tasks), aiFeedback = parsed.some(wantsFeedback);
+  const tasks = await Promise.all(parsed.map(async (t, i) => {
     const images = imagesForTask(im.results, i + 1);
     return { text: String(t.text || ""), textFmt: Array.isArray(t.textFmt) ? t.textFmt : [], material: Array.isArray(t.material) ? t.material : [], images, files: filesForTask(fi.results, i + 1),
       answer: await publicAnswer(t.answer, code, new Set(images.filter((m) => m.mode === "card").map((m) => m.id))) };
   }));
-  return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}) } });
+  return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}) } });
 }
 
 // KI-Fehler, bei denen Warten hilft → 429 mit Retry-After (der Browser wiederholt automatisch); sonst 502
