@@ -1664,7 +1664,7 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await closePage(t);
 });
 
-test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Erstversuch), H entscheidet um, während die KI arbeitet, I nach einem Fehlversuch, J bricht eine laufende Anfrage ab (Abgabe scheitert erst), K ohne eingerichtete KI; Blatt ohne Auftrag an die KI hat keinen Feedback-Button; Lehrkraft sieht neutrale Hinweise", async ({ browser }) => {
+test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Erstversuch), H/P entscheiden um, während die KI arbeitet, I nach einem Fehlversuch, J/N brechen eine laufende bzw. wartende Anfrage ab (Abgabe scheitert erst), M scheitert hinter dem Dialog, K ohne eingerichtete KI, L schließt den Tab während der Anfrage, O ältere Abgabe ohne Vermerk; Blatt ohne Auftrag an die KI hat keinen Feedback-Button; Lehrkraft sieht neutrale Hinweise", async ({ browser, request }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -1695,6 +1695,9 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
     return pdfShownText(await readFile(await dl.path()));
   };
   const toTeacherUnavailable = " Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.";
+  const draftOf = (page) => page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))));
+  const NOT_DONE_NOTE = "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen).";
+  const busyDialogStart = "Deine Anfrage um KI-Feedback läuft noch. Gibst du jetzt ab, wird sie abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.";
 
   // G: Abschluss-Text, Hinweis und Datenschutz nennen die Freiwilligkeit; „Abgeben“ geht sofort – aber nicht mit lauter leeren Feldern
   const G = { input: { vorname: "jan", nachname: "gr", geb: "2010-03-03", klasse: "7b" }, first: ["Das Gewissen ist eine innere Stimme.", ""] };
@@ -1753,8 +1756,9 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p2.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });   // hinter dem Dialog angekommen …
   await p2.waitForTimeout(200);
   await expect(p2.locator("#dlg-cancel")).toBeFocused();                       // … ohne den Fokus aus dem Dialog zu holen
-  expect(await confirmDialog(p2, "Ohne KI-Feedback abgeben?")).toBe("Deine Anfrage um KI-Feedback läuft noch. Gibst du jetzt ab, wird sie abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts mehr an die KI." + toTeacherUnavailable);
+  expect(await confirmDialog(p2, "Ohne KI-Feedback abgeben?")).toBe(busyDialogStart + "\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts mehr an die KI." + toTeacherUnavailable);
   await expect(p2.locator("#submit-status")).toHaveText("Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.");
+  await expect(p2.locator("#revise-hint")).toBeFocused();   // der beim Eintreffen unterdrückte Fokuswechsel wird nachgeholt
   await expect(p2.locator("#screen-editor")).toHaveClass(/active/);
   await p2.unroute("**/api/feedback");
   await expect.poll(async () => (await s2.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage), { timeout: 30_000 }).toEqual(["first"]);
@@ -1782,7 +1786,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await closePage(s4);
 
   // J: die Abgabe bricht eine laufende Anfrage ab und scheitert dann selbst → Felder und Feedback-Button sind wieder frei;
-  // die späte Antwort der abgebrochenen Anfrage wird verworfen (kein Feedback, kein Erstversuch); der zweite Anlauf klappt
+  // die abgebrochene Anfrage (fetch abgebrochen) liefert kein Feedback und keinen Erstversuch; der zweite Anlauf klappt
   const J = { input: { vorname: "jon", nachname: "jo", geb: "2010-07-07", klasse: "7b" }, first: ["Das Gewissen urteilt.", "Ich habe etwas versteckt."] };
   const s5 = await student(J);
   const p5 = s5.page;
@@ -1843,12 +1847,135 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p6.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await closePage(s6);
 
-  // Lehrkraft: neutrale Hinweise – G „Ohne KI-Feedback abgegeben.“ (keine Wertung, kein „selbst gewählt“), I/J/K mit Grund; H wie gewohnt
+  // M: die laufende Anfrage scheitert, während der Abgabe-Dialog offen ist → der Fokus bleibt im Dialog; eingestuft wird
+  // erst nach dem Dialog (wasBusy): „nicht möglich (Anfrage nicht abgeschlossen)“
+  const M = { input: { vorname: "mia", nachname: "mo", geb: "2010-10-10", klasse: "7b" }, first: ["Das Gewissen mahnt.", "Ich war unfair."] };
+  const s8 = await student(M);
+  const p8 = s8.page;
+  for (let i = 0; i < 2; i++) await typeAt(p8, "#a-" + (i + 1), M.first[i]);
+  let releaseM;
+  const gateM = new Promise((r) => { releaseM = r; });
+  await p8.route("**/api/feedback", async (route) => {
+    await gateM;
+    await route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI-Rückmeldung ist gerade nicht verfügbar. Bitte versuche es später noch einmal oder frag deine Lehrkraft.", code: "ai_error" }) });
+  });
+  await p8.click("#fb-btn");
+  await confirmDialog(p8, "KI-Feedback anfordern?");
+  await expect(p8.locator("#fb-status")).toContainText("Die KI arbeitet");
+  await p8.click("#submit-btn");
+  await expect(p8.locator("#dlg-cancel")).toHaveText("Auf das KI-Feedback warten");
+  await expect(p8.locator("#dlg-cancel")).toBeFocused();
+  releaseM();
+  await expect(p8.locator("#fb-status")).toHaveClass(/\bbad\b/);   // hinter dem Dialog gescheitert …
+  await p8.waitForTimeout(200);
+  await expect(p8.locator("#dlg-cancel")).toBeFocused();            // … der Fokus bleibt im Dialog
+  expect(await confirmDialog(p8, "Ohne KI-Feedback abgeben?")).toContain(busyDialogStart);   // Text vom Öffnen des Dialogs
+  await expect(p8.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p8)).toContain(NOT_DONE_NOTE);
+  await closePage(s8);
+
+  // N: die Abgabe bricht eine nach „ausgelastet“ wartende Anfrage ab (Countdown) und scheitert dann selbst → Countdown und
+  // Wartehinweis sind weg, der Feedback-Button ist frei; der zweite Anlauf trägt „nicht möglich (Anfrage nicht abgeschlossen)“
+  const N = { input: { vorname: "nik", nachname: "ne", geb: "2010-11-11", klasse: "7b" }, first: ["Eine innere Waage.", "Ich habe geflunkert."] };
+  const s9 = await student(N);
+  const p9 = s9.page;
+  for (let i = 0; i < 2; i++) await typeAt(p9, "#a-" + (i + 1), N.first[i]);
+  await p9.route("**/api/feedback", (route) => route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "30" },
+    body: JSON.stringify({ ok: false, error: "Die KI ist gerade ausgelastet.", code: "ai_busy", retryAfter: 30 }) }));
+  let submitsN = 0;
+  await p9.route("**/api/submit", (route) => (++submitsN === 1
+    ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Auf dem Server ist ein Fehler aufgetreten.", code: "server_error" }) })
+    : route.continue()));
+  await p9.click("#fb-btn");
+  await confirmDialog(p9, "KI-Feedback anfordern?");
+  await expect(p9.locator("#fb-wait")).toBeVisible();
+  await p9.click("#submit-btn");
+  expect(await confirmDialog(p9, "Ohne KI-Feedback abgeben?")).toContain(busyDialogStart);
+  await expect(p9.locator("#submit-status")).toContainText("Deine Antworten sind noch da – versuche es gleich noch einmal.");
+  await expect(p9.locator("#fb-wait")).toBeHidden();
+  await expect(p9.locator("#fb-status")).toHaveText("");
+  await expect(p9.locator("#fb-btn")).toBeEnabled();
+  expect(await p9.$eval("#a-1", (e) => e.readOnly)).toBe(false);
+  expect(await draftOf(p9)).toMatchObject({ fbFails: 1, fbPending: false, feedback: null });
+  await p9.click("#submit-btn");
+  expect(await confirmDialog(p9, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  await expect(p9.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p9)).toContain(NOT_DONE_NOTE);
+  await closePage(s9);
+
+  // P: wie H, aber „Auf das KI-Feedback warten“ → kein Hinweis unter „Abgeben“, der Fokus springt zum Überarbeiten-Hinweis
+  const P = { input: { vorname: "pia", nachname: "pi", geb: "2010-12-12", klasse: "7b" }, first: ["Das Gewissen ist ein Kompass.", "Ich habe Kekse genascht."] };
+  const s10 = await student(P);
+  const p10 = s10.page;
+  for (let i = 0; i < 2; i++) await typeAt(p10, "#a-" + (i + 1), P.first[i]);
+  let releaseP;
+  const gateP = new Promise((r) => { releaseP = r; });
+  await p10.route("**/api/feedback", async (route) => { await gateP; await route.continue(); });
+  await p10.click("#fb-btn");
+  await confirmDialog(p10, "KI-Feedback anfordern?");
+  await expect(p10.locator("#fb-status")).toContainText("Die KI arbeitet");
+  await p10.click("#submit-btn");
+  await expect(p10.locator("#dlg.open")).toBeVisible();
+  releaseP();
+  await expect(p10.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await p10.waitForTimeout(200);
+  await expect(p10.locator("#dlg-cancel")).toBeFocused();
+  await confirmDialog(p10, "Ohne KI-Feedback abgeben?", false);
+  await expect(p10.locator("#revise-hint")).toBeFocused();
+  await expect(p10.locator("#submit-status")).toHaveText("");
+  await p10.unroute("**/api/feedback");
+  await expect.poll(async () => (await s10.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage), { timeout: 30_000 }).toEqual(["first"]);
+  await submit(p10);
+  await closePage(s10);
+
+  // L: schließt den Tab, während die KI-Anfrage läuft (die KI hat die Antworten schon) → beim nächsten Öffnen zählt das als
+  // Fehlversuch: „bisher nicht geklappt“, die Abgabe trägt „nicht möglich“ – nie „ohne Anfrage“
+  const L = { input: { vorname: "lis", nachname: "lu", geb: "2010-09-09", klasse: "7b" }, first: ["Satz eins mit Inhalt.", "Satz zwei mit Inhalt."] };
+  const s7 = await student(L);
+  let p7 = s7.page;
+  for (let i = 0; i < 2; i++) await typeAt(p7, "#a-" + (i + 1), L.first[i]);
+  await mockReset();
+  await fetch(MOCK_URL + "/__mock/mode", { method: "POST", body: JSON.stringify({ mode: "slow", delayMs: 6000 }) });
+  await p7.click("#fb-btn");
+  await confirmDialog(p7, "KI-Feedback anfordern?");
+  await expect.poll(async () => (await mockState()).count, { timeout: 15_000 }).toBe(1);   // die KI hat die Antworten erhalten …
+  expect(JSON.stringify((await mockState()).requests[0].messages)).toContain(L.first[0]);
+  await mockMode("ok");   // gilt für spätere Anfragen; diese wartet weiter
+  expect(await draftOf(p7)).toMatchObject({ fbPending: true, fbFails: 0, feedback: null });   // … vor dem Senden vermerkt
+  expect(await draftPdfText(p7)).toContain("KI-Feedback angefordert, beim Sichern noch nicht erhalten");
+  const keep = await s7.context.newPage();   // derselbe Browser (derselbe Speicher) bleibt offen
+  keep.on("pageerror", (e) => s7.errors.push(String(e)));
+  await keep.goto("/");
+  await p7.close({ runBeforeUnload: false });   // Tab zu, ohne dass die Seite noch etwas tun kann
+  p7 = s7.page = keep;
+  await expect(p7.locator("#resume-box")).toBeVisible();
+  expect(await draftOf(p7)).toMatchObject({ fbPending: true, fbFails: 0, feedback: null });   // die Seite konnte nichts mehr zählen
+  await p7.click("#resume-btn");
+  await expect(p7.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(p7.locator("#a-1")).toHaveValue(L.first[0]);
+  expect(await draftOf(p7)).toMatchObject({ fbPending: false, fbFails: 1, feedback: null });   // einmal gezählt und gespeichert
+  await p7.click("#submit-btn");
+  expect(await confirmDialog(p7, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  await expect(p7.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p7)).toContain(NOT_DONE_NOTE);
+  await closePage(s7);
+
+  // O: ältere Abgabe ohne noAi (früher nur möglich, wenn die KI nicht erreichbar war) → „nicht möglich (Grund)“
+  const codeG = shownG.replace("-", "");
+  const pubG = (await (await request.get("/api/sheet/" + codeG)).json()).sheet.publicKey;
+  const old = { v: 1, stage: "final", sheetCode: codeG, sheetTitle: "Freiwillig", person: { vorname: "Ole", nachname: "Ol", geburtsdatum: "2010-01-01", klasse: "7b" },
+    answers: [{ first: "Ein altes Gewissen.", final: "Ein altes Gewissen." }, { first: "Eine alte Lüge.", final: "Eine alte Lüge." }],
+    feedback: null, feedbackAt: null, feedbackError: "KI nicht erreichbar", submittedAt: new Date().toISOString() };
+  expect((await request.post("/api/submit", { data: { code: codeG, envelope: await makeEnvelope(pubG, old) } })).status()).toBe(200);
+
+  // Lehrkraft: neutrale Hinweise – G „Ohne KI-Feedback abgegeben.“ (keine Wertung, kein „selbst gewählt“), I/J/K/L/M/N/O mit
+  // Grund; H und P wie gewohnt
   await tp.click("#b-res-back");
   await expect(tp.locator("#t-sel-code")).toHaveText(shownG);
+  await expect(tp.locator(".batchhint", { hasText: "Klicken Sie auf eine Zeile" })).toHaveText("Klicken Sie auf eine Zeile, um die Lösungen zu sehen: links die erste Eingabe vor dem KI-Feedback, rechts die überarbeitete Eingabe (ohne KI-Feedback: nur die abgegebene Fassung).");
   const mains = tp.locator("#t-subs-body tr.main");
-  await expect(mains).toHaveCount(5);
-  for (const [k, n] of ["Gr", "Ha", "Ib", "Jo", "Ka"].entries()) await expect(mains.nth(k).locator("td:not(.arrowcol)").nth(0)).toHaveText(n);
+  await expect(mains).toHaveCount(10);
+  for (const [k, n] of ["Gr", "Ha", "Ib", "Jo", "Ka", "Lu", "Mo", "Ne", "Ol", "Pi"].entries()) await expect(mains.nth(k).locator("td:not(.arrowcol)").nth(0)).toHaveText(n);
   await tp.click("#t-expand-all");
   const det = (k) => tp.locator("#t-subs-body tr.details").nth(k);
   await expect(det(0).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben.");
@@ -1860,12 +1987,16 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(det(1).locator(".moodle-hint")).toHaveCount(0);
   await expect(det(1).locator(".dtask").nth(0).locator("table.cmp thead th")).toHaveCount(2);
   await expect(det(1).locator(".dfb")).toHaveCount(2);
-  for (const k of [2, 3]) {
-    await expect(det(k).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen).");
+  for (const k of [2, 3, 5, 6, 7]) {
+    await expect(det(k).locator(".moodle-hint")).toHaveText(NOT_DONE_NOTE);
     await expect(det(k).locator("table.cmp.one")).toHaveCount(2);
   }
   await expect(det(3).locator(".dtask").nth(1).locator("table.cmp tbody td")).toHaveText([J.first[1] + " Nachtrag."]);
   await expect(det(4).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");
+  await expect(det(8).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");   // ältere Abgabe ohne noAi
+  await expect(det(8).locator(".dtask").nth(0).locator("table.cmp.one tbody td")).toHaveText([old.answers[0].final]);
+  await expect(det(9).locator(".moodle-hint")).toHaveCount(0);
+  await expect(det(9).locator(".dfb")).toHaveCount(2);
   await expect(tp.locator("#t-subs-body")).not.toContainText("selbst gewählt");
 
   // Blatt ohne Auftrag an die KI: kein Feedback-Button, Datenschutz ohne KI-Dienst, schlichter Abgabe-Dialog, keine Kennzeichnung

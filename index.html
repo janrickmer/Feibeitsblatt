@@ -829,7 +829,7 @@
             <tbody id="t-subs-body"></tbody>
           </table>
         </div>
-        <p class="batchhint">Klicken Sie auf eine Zeile, um die Lösungen zu sehen: links die erste Eingabe vor dem KI-Feedback, rechts die überarbeitete Eingabe.</p>
+        <p class="batchhint">Klicken Sie auf eine Zeile, um die Lösungen zu sehen: links die erste Eingabe vor dem KI-Feedback, rechts die überarbeitete Eingabe (ohne KI-Feedback: nur die abgegebene Fassung).</p>
 
         <div class="dangerzone">
           <button type="button" class="btn danger" id="t-del-subs">Alle Abgaben dieses Feibeitsblattes löschen</button>
@@ -1835,6 +1835,7 @@ const S = {
   code: "", sheet: null, pub: null, person: null, draftKey: "",
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
   fbFails: 0, fbUnavailable: "",   // Fehlversuche beim KI-Feedback; ab dem zweiten bzw. ohne eingerichtete KI der Grund als Text
+  fbPending: false,   // eine Anfrage dieses Laufs ist unterwegs (im Zwischenstand: ein Abbruch durch Schließen des Tabs zählt beim nächsten Öffnen als Fehlversuch)
   submitted: false, busyFeedback: false, ltCache: new Map(),
   ltAllowed: false, ltConsent: false,   // Rechtschreibprüfung: Alter laut Geburtsdatum ≥ LT_MIN_AGE; Bestätigung einmal je Sitzung
   attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
@@ -2089,7 +2090,7 @@ async function draftKeyFor(code, p) {
 }
 async function openEditor() {
   const p = S.person, sh = S.sheet;
-  S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.ltCache = new Map();
+  S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbPending = false; S.ltCache = new Map();
   S.attempt = ""; S.firstSent = false;
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltAllowed = ageOf(p.geburtsdatum) >= LT_MIN_AGE; S.ltConsent = false;   // Bestätigung gilt nur für diese Sitzung
@@ -2101,7 +2102,7 @@ async function openEditor() {
   renderPrivacy();
   buildTasks();
   // Zwischenstand wiederherstellen: aus einer hochgeladenen PDF-Datei oder von diesem Gerät
-  let restored = false;
+  let restored = false, pendingLost = false;
   const imported = S.importDraft; S.importDraft = null;
   let d = imported;
   if (!d) { const raw = store.get(S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
@@ -2115,6 +2116,9 @@ async function openEditor() {
       }
       if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
       if (Number.isInteger(d.fbFails)) S.fbFails = Math.max(0, Math.min(9, d.fbFails));   // Fehlversuche überdauern ein Neuladen
+      // Eine Anfrage war unterwegs, als die Seite verschwand (Tab geschlossen, Absturz): die KI hat die Antworten womöglich
+      // erhalten, ein Feedback kam nie an → Fehlversuch (eine Abgabe ohne Feedback gilt dann nie als „ohne Anfrage“)
+      if (d.fbPending === true && !S.feedback) { S.fbFails = Math.min(9, S.fbFails + 1); pendingLost = true; }
       if (typeof d.attempt === "string" && ATTEMPT_RE.test(d.attempt)) S.attempt = d.attempt;
       S.firstSent = !!d.firstSent;
       restored = d.answers.some((a) => String(a || "").trim());
@@ -2122,7 +2126,7 @@ async function openEditor() {
   } catch (e) { /* kaputter Entwurf: ignorieren */ }
   if (!S.attempt) S.attempt = hexOf(crypto.getRandomValues(new Uint8Array(8)));   // Kennung dieser Bearbeitung (Erstversuch ↔ Abgabe)
   store.set(LAST_KEY, JSON.stringify({ v: 1, t: Date.now(), code: S.code, person: p }));
-  if (imported) saveDraft();   // aus der PDF auch auf diesem Gerät weiterführen
+  if (imported || pendingLost) saveDraft();   // aus der PDF auch auf diesem Gerät weiterführen; einen verlorenen Versuch nur einmal zählen
   S.tas.forEach(updateCounter);
   renderFeedbackState();
   setSaveState(imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", false);
@@ -2573,7 +2577,7 @@ let saveTimer = 0;
 function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
 /* Zwischenstand als Datensatz (für localStorage und die PDF-Datei) */
 function draftRecord() {
-  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", fbFails: S.fbFails || 0, attempt: S.attempt, firstSent: S.firstSent };
+  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt, fbUnavailable: S.fbUnavailable || "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent };
 }
 function saveDraft() {
   clearTimeout(saveTimer);
@@ -2660,6 +2664,7 @@ function makeDraftPdf(d, withAi = true) {   // withAi = false: Blatt ohne Auftra
   row("Gesichert am:", fmtDT(when) + " Uhr");
   row("Angaben:", `${p.vorname} · ${p.nachname} · ${fmtIsoDate(p.geburtsdatum)} · Klasse ${p.klasse}`);
   const fbState = Array.isArray(d.feedback) ? "schon erhalten"
+    : d.fbPending ? "angefordert, beim Sichern noch nicht erhalten"   // beim Öffnen dieser Datei zählt das als Fehlversuch
     : d.fbUnavailable || d.fbFails > 0 ? `bisher nicht geklappt (${d.fbUnavailable || FB_NOT_DONE})` : "nicht angefordert";
   row("Stand:", `${done} von ${answers.length} ${answers.length === 1 ? "Aufgabe" : "Aufgaben"} mit Text` + (withAi ? " · KI-Feedback " + fbState : ""));
   y += 14;
@@ -2835,7 +2840,7 @@ function cleanDraft(o) {
     person: { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k },
     answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
-    fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0,
+    fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0, fbPending: o.fbPending === true && !feedback,
     attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true
   };
 }
@@ -3346,7 +3351,7 @@ async function requestFeedback() {
   const run = ++S.fbRun, t0 = Date.now();
   S.busyFeedback = true; btn.disabled = true;
   let tries = 0, busySeen = 0;
-  const unlock = () => { S.busyFeedback = false; btn.disabled = !!S.feedback; S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; };
+  const unlock = () => { S.busyFeedback = false; S.fbPending = false; btn.disabled = !!S.feedback; S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; };
   // Fehlversuch(e) zählen (fbFails > 0 heißt: eine Anfrage lief schon – eine Abgabe ohne Feedback gilt dann nicht als „selbst
   // gewählt“, siehe noAiState); nach zweien zeigt die Seite den Grund (S.fbUnavailable), Abgeben geht ohnehin immer
   const failed = (e, count, msg) => {
@@ -3367,6 +3372,9 @@ async function requestFeedback() {
     S.tas.forEach((t) => { t.readOnly = true; });   // nur während eine Anfrage wirklich läuft
     setStatus(st, tries === 1 ? "Die KI arbeitet … das kann bis zu einer Minute dauern." : `Neuer Versuch – die KI arbeitet (Versuch ${tries} von ${FB_TRIES}).`, "busy");
     const slow = setTimeout(() => { if (run === S.fbRun) setStatus(st, "Die KI arbeitet … das dauert gerade etwas länger. Bitte warte noch.", "busy"); }, 60000);
+    // Vor dem Senden im Zwischenstand vermerken: endet die Seite, bevor der Lauf endet (Tab geschlossen, Absturz), zählt das
+    // beim nächsten Öffnen als Fehlversuch. Jeder Ausgang des Laufs setzt den Vermerk zurück (unlock, Erfolg, Abgabe).
+    if (!S.fbPending) { S.fbPending = true; saveDraft(); }
     S.fbAbort = new AbortController();
     let r;
     try {
@@ -3398,8 +3406,11 @@ async function requestFeedback() {
         try { await reloadRecipients(); } catch (x) { /* Hinweis bleibt der alte */ }
         if (run !== S.fbRun) return;
         unlock();
-        if (busySeen) { S.fbFails++; saveDraft(); }   // diese Anfrage ging an keine KI, frühere Versuche dieses Laufs schon
-        setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis unter dem Button noch einmal und fordere das Feedback dann erneut an.", "bad");
+        if (busySeen) S.fbFails++;   // diese Anfrage ging an keine KI, frühere Versuche dieses Laufs (ausgelastet) womöglich schon
+        saveDraft();
+        setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – " + (busySeen
+          ? "dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise schon erhalten."
+          : "es wurde nichts gesendet.") + " Lies bitte den Datenschutzhinweis unter dem Button noch einmal und fordere das Feedback dann erneut an.", "bad");
         return;
       }
       const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal." : errMsg(e, "s");
@@ -3411,7 +3422,7 @@ async function requestFeedback() {
     S.first = answers.slice();   // genau die gesendete Fassung
     S.feedback = r.results.map(normFb);
     S.feedbackAt = new Date().toISOString();
-    S.fbUnavailable = ""; S.fbFails = 0;
+    S.fbUnavailable = ""; S.fbFails = 0; S.fbPending = false;
     saveDraft();
     setStatus(st, "", "");
     unlock();
@@ -3632,16 +3643,21 @@ async function submitAll() {
   if (emptyNums(finals).length === finals.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
   const withFb = !!S.feedback, wasBusy = S.busyFeedback;
   const ok = await askConfirm(submitDialog(withFb, finals));
-  if (!ok || S.submitted) return;
+  if (S.submitted) return;
   if (!!S.feedback !== withFb) {   // während der Dialog offen war, ist das angeforderte KI-Feedback angekommen: erst zeigen, nichts abgeben
-    setStatus(st, "Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.", "");
+    if (ok) setStatus(st, "Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.", "");
+    // requestFeedback hat den Fokus im offenen Dialog gelassen – jetzt nachholen (closeDlg hat ihn gerade auf „Abgeben“ gesetzt)
+    const rh = $("revise-hint");
+    rh.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    try { rh.focus({ preventScroll: true }); } catch (e) { /* egal */ }
     return;
   }
+  if (!ok) return;
   // Erst nach dem Dialog einstufen: eine laufende Anfrage kann inzwischen gescheitert sein (dann gilt ihr Grund)
   const na = withFb ? null : noAiState(wasBusy);
   const stopped = S.busyFeedback;   // eine noch laufende oder wartende Feedback-Anfrage wird mit der Abgabe hinfällig
   stopFeedbackRun();
-  if (stopped) S.fbFails++;   // zählt wie „Nicht länger warten“: scheitert die Abgabe, gilt ein neuer Anlauf nie als „declined“
+  if (stopped) { S.fbFails++; S.fbPending = false; }   // zählt wie „Nicht länger warten“: scheitert die Abgabe, gilt ein neuer Anlauf nie als „declined“
   busy(btn, true, "Wird abgegeben …");
   setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
   try {
@@ -3703,7 +3719,7 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbPending: false, submitted: false, busyFeedback: false, ltCache: new Map(), ltAllowed: false, ltConsent: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
   ["p-vorname", "p-nachname", "p-geb", "p-klasse"].forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
 }
