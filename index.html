@@ -2437,7 +2437,7 @@ const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnes
   `und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`;
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
 const FB2_SEND = " Hast du KI-Feedback bekommen, gehen bei der Abgabe die Antworten, die du danach geändert hast, auf demselben Weg noch einmal an die KI – " +
-  "für eine zweite Rückmeldung zu diesen Aufgaben, die nur du siehst (hast du nichts geändert, wird nichts gesendet).";
+  "für eine zweite, nur für dich sichtbare Rückmeldung zu diesen Aufgaben (hast du nichts geändert, wird nichts gesendet).";
 // Dieselben Bausteine in der „ihr“-Form – nur für den ausführlichen Hinweis auf dem Angaben-Bildschirm einer Gruppe (privacyNoticeDom
 // mit group); inhaltlich gleich, im Schreibbereich bleibt es beim „du“
 const PRIV_IHR = {
@@ -2453,7 +2453,7 @@ const PRIV_IHR = {
     `und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
   github: `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
   fb2Send: " Habt ihr KI-Feedback bekommen, gehen bei der Abgabe die Antworten, die ihr danach geändert habt, auf demselben Weg noch einmal an die KI – " +
-    "für eine zweite Rückmeldung zu diesen Aufgaben, die nur ihr seht (habt ihr nichts geändert, wird nichts gesendet).",
+    "für eine zweite, nur für euch sichtbare Rückmeldung zu diesen Aufgaben (habt ihr nichts geändert, wird nichts gesendet).",
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
 };
 const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
@@ -4208,7 +4208,7 @@ function renderFeedbackState() {
     : "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
   $("submit-hint").textContent = has
     ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " +
-      (recipientParts().any ? "Nach der Abgabe bekommst du eine neue KI-Rückmeldung zu den Antworten, die du nach dem KI-Feedback geändert hast." : FB2_NO_AI + ".")
+      (recipientParts().any ? "Nach der Abgabe bekommst du zu den Aufgaben, die die KI beurteilt und deren Antwort du nach dem KI-Feedback geändert hast, eine neue KI-Rückmeldung." : FB2_NO_AI + ".")
     : noAi ? "Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : !aiSheet ? "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
@@ -4619,7 +4619,7 @@ function submitDialog(withFb, finals, na) {
         (unchanged ? "An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet; die Rückmeldung bleibt dieselbe."
           : tooLong ? "Deine geänderten Antworten sind zusammen zu lang für eine zweite KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet."
           : !recipientParts().any ? FB2_NO_AI + "; an die KI wird nichts gesendet."   // z. B. weitergeschrieben, nachdem die KI entfernt wurde
-          : `Danach bekommst du eine neue KI-Rückmeldung zu ${fb2Which(nums)}: Nur ${nums.length === 1 ? "diese Antwort hast du nach dem KI-Feedback geändert, nur sie geht" : "diese Antworten hast du nach dem KI-Feedback geändert, nur sie gehen"} noch einmal an die KI` +
+          : `Danach bekommst du eine neue KI-Rückmeldung zu ${fb2Which(nums)}: Von den Aufgaben, die die KI beurteilt, hast du nur diese nach dem KI-Feedback geändert – nur ${nums.length === 1 ? "sie geht" : "sie gehen"} noch einmal an die KI` +
             (keptAi ? "; für die übrigen Aufgaben gilt das erste Feedback weiter. " : ". ") + recipientSentence()) };
   }
   if (na.mode === "none") return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiterschreiben", safeFirst: true,

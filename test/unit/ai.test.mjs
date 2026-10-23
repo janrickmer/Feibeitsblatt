@@ -300,6 +300,16 @@ test("buildFeedbackMessages/feedbackResults with only (second feedback): just th
   const res = feedbackResults(tasks, new Map([[3, { covered: ["Wärme"], missing: [] }]]), [2, 3]);
   assert.deepEqual(res, [null, { covered: [], missing: [], note: NO_SOLUTION_NOTE }, { covered: ["Wärme"], missing: [] }]);
 });
+test("normalizeFeedback: a single task as an object instead of a list (common when only one task is asked) is read too", () => {
+  assert.deepEqual(normalizeFeedback({ nr: 3, gut: ["Wärme"], tipps: [] }, [3]).get(3), { covered: ["Wärme"], missing: [] });
+  assert.deepEqual(normalizeFeedback({ aufgaben: { nr: 3, gut: [], tipps: ["Mehr Begründung"] } }, [3]).get(3), { covered: [], missing: ["Mehr Begründung"] });
+  assert.deepEqual(normalizeFeedback({ aufgaben: { nr: 1, gut: ["x"], tipps: [] } }, [3]).get(3), { covered: ["x"], missing: [] });   // neu durchnummeriert
+  assert.equal(feedbackAcceptor([3])({ nr: 3, gut: ["Wärme"], tipps: [] }), true);
+  // die bisherigen Formen bleiben: Liste, Zuordnung nach Nummer; Fremdes ergibt nichts
+  assert.deepEqual(normalizeFeedback({ aufgaben: { "3": { gut: ["a"], tipps: [] } } }, [3]).get(3), { covered: ["a"], missing: [] });
+  assert.equal(normalizeFeedback({ foo: 1 }, [3]).size, 0);
+  assert.equal(feedbackAcceptor([3])({ text: "alles gut" }), false);
+});
 test("feedbackResults: note for tasks without an instruction for the AI, empty lists for missing answers", () => {
   assert.equal(NO_SOLUTION_NOTE, "Zu dieser Aufgabe gibt es kein KI-Feedback.");
   const res = feedbackResults(tasks, new Map([[1, { covered: ["x"], missing: [] }]]));

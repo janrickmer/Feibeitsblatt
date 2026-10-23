@@ -1090,7 +1090,9 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
      Token zählen nicht gegen die Minuten- und Tageslimits**. Ab der zweiten Anfrage zum selben Blatt kosten dann im
      Wesentlichen nur noch Antworten und Ausgabe, grob 1 500–2 000 Token: 120 Anfragen ≈ 180 000–240 000 Token, also
      etwa das Tageslimit von gpt-oss-120b; was darüber hinausgeht, übernehmen die weiteren Modelle (Punkt 2), die
-     jeweils ein eigenes Tageslimit haben. Je Minute gehen so etwa 4–5 statt 2 Anfragen durch ein Modell.
+     jeweils ein eigenes Tageslimit haben. Je Minute gehen so etwa 4–5 statt 2 Anfragen durch ein Modell. Die zweite
+     Anfrage bei der Abgabe enthält nur die geänderten Aufgaben: Sie ist kleiner, aus dem Cache kommt bei ihr aber nur
+     der Teil, der bei gleicher Auswahl gleich ist (meist nur die Anweisungen).
   2. **Alle Modelle gleichzeitig nutzen.** Bei Groq, Cerebras und Gemini gelten die Minutenlimits **je Modell**.
      Der Server verteilt gleichzeitige Anfragen deshalb von Anfang an auf alle Modelle des Anbieters (versetztes
      Startmodell, Mindestabstand je Modell statt je Anbieter), wechselt bei einem Minutenlimit (HTTP 429) sofort

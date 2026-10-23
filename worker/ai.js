@@ -722,13 +722,18 @@ function cleanItems(v) {
   }
   return out;
 }
+// Ein einzelner Eintrag als Objekt statt Liste (bei nur einer Aufgabe – z. B. der zweiten Rückmeldung – schreiben Modelle das manchmal)
+const ENTRY_KEYS = ["gut", "angesprochen", "covered", "korrekt", "tipps", "tipp", "fehlt", "missing", "nicht_angesprochen", "fehlend"];
+const isEntry = (o) => !!o && typeof o === "object" && !Array.isArray(o) && ENTRY_KEYS.some((k) => k in o);
 function entriesOf(json) {
   if (!json || typeof json !== "object") return [];
   if (Array.isArray(json)) return json;
   const a = json.aufgaben ?? json.tasks ?? json.results ?? json.ergebnisse;
   if (Array.isArray(a)) return a;
+  if (isEntry(a)) return [a];   // {"aufgaben": {"nr": 3, "gut": […], …}}
   if (a && typeof a === "object")   // {"1": {...}, "3": {...}}
     return Object.entries(a).map(([k, v]) => (v && typeof v === "object" && !Array.isArray(v) ? { nr: k, ...v } : null)).filter(Boolean);
+  if (isEntry(json)) return [json];   // {"nr": 3, "gut": […], "tipps": […]} ohne Hülle
   return [];
 }
 /**

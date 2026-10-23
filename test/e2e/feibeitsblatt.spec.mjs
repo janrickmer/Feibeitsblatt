@@ -1419,11 +1419,11 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
     await fb2Gate;
     return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI-Rückmeldung ist gerade nicht verfügbar. Bitte versuche es später noch einmal oder frag deine Lehrkraft.", code: "ai_error" }) });
   });
-  await expect(page.locator("#submit-hint")).toHaveText(/Nach der Abgabe bekommst du eine neue KI-Rückmeldung zu den Antworten, die du nach dem KI-Feedback geändert hast\.$/);
+  await expect(page.locator("#submit-hint")).toHaveText(/Nach der Abgabe bekommst du zu den Aufgaben, die die KI beurteilt und deren Antwort du nach dem KI-Feedback geändert hast, eine neue KI-Rückmeldung\.$/);
   await page.click("#submit-btn");
   const submitText = await confirmDialog(page, "Jetzt abgeben?");
   // A hat die Aufgaben 1 und 2 überarbeitet (Aufgabe 3 hat keinen Auftrag): nur diese gehen noch einmal an die KI
-  expect(submitText).toContain("Danach bekommst du eine neue KI-Rückmeldung zu den Aufgaben 1 und 2: Nur diese Antworten hast du nach dem KI-Feedback geändert, nur sie gehen noch einmal an die KI. Deine Antworten gehen");
+  expect(submitText).toContain("Danach bekommst du eine neue KI-Rückmeldung zu den Aufgaben 1 und 2: Von den Aufgaben, die die KI beurteilt, hast du nur diese nach dem KI-Feedback geändert – nur sie gehen noch einmal an die KI. Deine Antworten gehen");
   expect(submitText).toContain("„" + aiProvider + RECIPIENT_SUFFIX + "“");   // Empfänger stehen im Entscheidungsmoment
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#done-time")).toHaveText(/^Abgegeben am [A-Za-z]+, \d\d\.\d\d\.\d{4} um \d\d:\d\d Uhr\.$/);
@@ -2746,7 +2746,7 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await typeAt(page, "#a-2", F.rev2);
   const finals = [F.first[0] + " ", F.first[1] + F.rev2];
   await page.click("#submit-btn");
-  expect(await confirmDialog(page, "Jetzt abgeben?")).toContain("Danach bekommst du eine neue KI-Rückmeldung zu Aufgabe 2: Nur diese Antwort hast du nach dem KI-Feedback geändert, nur sie geht noch einmal an die KI; für die übrigen Aufgaben gilt das erste Feedback weiter. Deine Antworten gehen");
+  expect(await confirmDialog(page, "Jetzt abgeben?")).toContain("Danach bekommst du eine neue KI-Rückmeldung zu Aufgabe 2: Von den Aufgaben, die die KI beurteilt, hast du nur diese nach dem KI-Feedback geändert – nur sie geht noch einmal an die KI; für die übrigen Aufgaben gilt das erste Feedback weiter. Deine Antworten gehen");
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#done-fb .fbbox")).toHaveCount(2, { timeout: 60_000 });
   await expect(page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");

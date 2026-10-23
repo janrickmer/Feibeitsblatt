@@ -131,7 +131,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Zu lang (`fb2TooLong(final, changed)`, nur die gesendeten, wie `validateAnswers`) → keine Anfrage, Hinweis. Sonst
   `POST /api/feedback` mit `{code, answers, recipients, only}` (wie das erste: ohne Personendaten, 409 `ai_changed` → nichts
   gesendet, Hinweis); der Abgabe-Dialog nennt die Aufgaben (`fb2Which`: „Danach bekommst du eine neue KI-Rückmeldung zu
-  Aufgabe 2: Nur diese Antwort …“, „für die übrigen Aufgaben gilt das erste Feedback weiter“ nur bei weiteren beurteilten
+  Aufgabe 2: Von den Aufgaben, die die KI beurteilt, hast du nur diese … geändert“ – nie „nur diese hast du geändert“,
+  geänderte Aufgaben ohne Auftrag zählen nicht mit; „für die übrigen Aufgaben gilt das erste Feedback weiter“ nur bei weiteren beurteilten
   Aufgaben), die Datenschutztexte sagen „die danach geänderten Antworten“, Lauf-Kennung
   `S.fbRun`/`S.fbAbort` (`resetStudent` → `stopFeedbackRun` bricht ab), bei `ai_busy` automatische Wiederholung wie beim
   ersten Feedback (`FB_TRIES`, `FB_MAX_MS`, Zufallsanteil, `waitFinalFeedback` mit Zähler `#done-fb-wait` außerhalb der
