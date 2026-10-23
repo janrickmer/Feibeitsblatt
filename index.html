@@ -2242,6 +2242,12 @@ function privacyShortText(p, list, withAi) {
 const DRAFT_STAY = `Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
   `Ist er älter als ${DRAFT_DAYS} Tage, löscht diese Seite ihn beim nächsten Aufruf in diesem Browser; bis dahin bleibt er gespeichert. ` +
   `Auf einem geteilten Gerät gib deshalb ab oder lösche ihn („Abbrechen und Zwischenstand löschen“).`;
+// Checklisten-Seite hinter dem QR-Code eines ausgedruckten Arbeitsblattes (#screen-check): der Satz dort verweist auf diesen Hinweis
+const CHECK_PURPOSE = " Bekommst du ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste deiner Lehrkraft führen: Dort hakst du ab, " +
+  "was deine Antwort schon erfüllt. Dafür lädt diese Seite nur die Checkliste vom Server – ohne Angaben zu dir; die Internetadresse deines Geräts wird dabei " +
+  "wie beim Laden der Seite verarbeitet. Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet.";
+const CHECK_STAY = ` Die Häkchen einer solchen Checkliste löscht diese Seite beim nächsten Aufruf in diesem Browser, wenn du sie ${DRAFT_DAYS} Tage nicht geändert ` +
+  "hast; früher geht es mit „Alle Häkchen entfernen“.";
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
 const FB2_SEND = " Hast du KI-Feedback bekommen, geht bei der Abgabe auch deine abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
   "für eine zweite Rückmeldung, die nur du siehst (nicht, wenn du nach dem ersten Feedback nichts geändert hast).";
@@ -2286,8 +2292,8 @@ function privacyNoticeDom(p, list, opts) {
     para(sc.dpo || "Frag deine Lehrkraft nach den Kontaktdaten."),
     head("Wozu werden deine Daten verarbeitet?"),
     para(withAi ? "Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst und – wenn du möchtest – Rückmeldungen einer KI zum Überarbeiten bekommst. " +
-      "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und das KI-Feedback zu deiner ersten Fassung; die Rückmeldung zu deiner abgegebenen Fassung siehst nur du."
-      : "Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten."),
+      "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und das KI-Feedback zu deiner ersten Fassung; die Rückmeldung zu deiner abgegebenen Fassung siehst nur du." + CHECK_PURPOSE
+      : "Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten." + CHECK_PURPOSE),
     head("Rechtsgrundlage"),
     para(sc.legalBasis || "Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes."),
     head("Welche Daten?"),
@@ -2300,7 +2306,7 @@ function privacyNoticeDom(p, list, opts) {
     head("Wie lange werden die Daten gespeichert?"),
     para((days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); deine Lehrkraft kann sie auch früher löschen.`
       : `${what} wird gespeichert, bis deine Lehrkraft sie nach der Durchsicht löscht.`) +
-      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${DRAFT_STAY}` +
+      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${DRAFT_STAY}${CHECK_STAY}` +
       (cfAt >= 0 ? " Workers AI speichert deine Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten " +
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
       (ai.some((x) => x.id !== "cloudflare") ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
@@ -3788,9 +3794,11 @@ function appendFbLists(box, f, tipsLabel) {
    IPTC Digital Source Type „trainedAlgorithmicMedia“ (mit generativer KI erzeugt). Nicht bei reinen Hinweisen ohne KI („Zu dieser
    Aufgabe gibt es kein KI-Feedback.“). /api/feedback kennzeichnet seine Antwort ebenso (aiGenerated, digitalSourceType). */
 const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
+// KI-Vorschlag, den ein Mensch geprüft und womöglich geändert hat (Checkliste der Lehrkraft): KI-Inhalt zusammen mit anderem
+const AI_SOURCE_COMPOSITE = "http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia";
 const hasAiPoints = (f) => !!f && (f.covered.length + f.missing.length) > 0;
-function markAi(el, kind, on) {
-  if (on) { el.dataset.aiGenerated = "true"; el.dataset.aiContent = kind; el.dataset.digitalSourceType = AI_SOURCE; }
+function markAi(el, kind, on, source) {
+  if (on) { el.dataset.aiGenerated = "true"; el.dataset.aiContent = kind; el.dataset.digitalSourceType = source || AI_SOURCE; }
   else { delete el.dataset.aiGenerated; delete el.dataset.aiContent; delete el.dataset.digitalSourceType; }
   return el;
 }
@@ -4474,7 +4482,8 @@ const ckUnsaved = () => ckDirty && !$("tv-analog").classList.contains("hidden");
 async function logout(force, why) {
   if (force !== true && T.builderDirty && !(await askConfirm({ title: "Abmelden?", text: "Ihre Eingaben für das neue Feibeitsblatt gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
   if (force !== true && pvUnsaved() && !(await askConfirm({ title: "Abmelden?", text: "Ihre Änderungen an den Angaben zum Datenschutz gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
-  if (force !== true && ckUnsaved() && !(await askConfirm({ title: "Abmelden?", text: "Ihre Änderungen an der Checkliste gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
+  const ckq = force !== true && ckLeaveQuestion(true);   // ungespeicherte Checkliste oder Speichern/PDF läuft gerade
+  if (ckq && !(await askConfirm(ckq))) return;
   pvDirty = false; pvLoaded = false; pvPurged = false; ckDirty = false;
   clearTimeout(idleTimer);
   T.importRun = (T.importRun || 0) + 1; T.exportRun = (T.exportRun || 0) + 1;   // laufende Importe/Exporte enden mit der Sitzung
@@ -5300,6 +5309,8 @@ const CHECK_POINTS = 8, CHECK_POINT_MAX = 160;   // = LIMITS.checkPoints / LIMIT
 const CK_LIMIT_HINT = `Höchstens ${CHECK_POINTS} Punkte, je höchstens ${CHECK_POINT_MAX} Zeichen.`;
 const CK_NO_BRIEF = "Ohne Auftrag an die KI – Punkte können Sie selbst eintragen.";
 const CK_FAIL_TAIL = "Sie können die Punkte selbst eintragen oder es später erneut versuchen.";
+// Blatt ganz ohne Auftrag an die KI: digital gibt es dazu keine KI-Rückmeldung – also auch keinen Satz dazu im PDF
+const CK_NO_AI_SHEET = "Zu keiner Aufgabe dieses Blattes gibt es einen Auftrag an die KI. Deshalb steht im PDF kein Satz zur KI-Rückmeldung (digital gibt es zu diesem Blatt keine), und die KI schlägt keine Checkliste vor – tragen Sie die Punkte selbst ein.";
 const checkUrlOf = (code) => PUBLIC_URL.replace(/#.*$/, "") + "#checkliste=" + normCode(code);   // Ziel des QR-Codes (Code ohne Bindestrich)
 const ckWants = (t) => !!String((t && t.solution) || "").trim() && cleanAnswer(t && t.answer).type !== "map";   // wie wantsFeedback im Worker
 let ckDirty = false, CK = null;   // CK: {code, sheet, run, ai, final, aiFeedback, aiReady, loaded}
@@ -5356,7 +5367,7 @@ function ckParse() {
 function ckStateText(kind, list) {
   const fin = CK.final, when = fin && CK.updatedAt ? ` vom ${fmtDT(CK.updatedAt)} Uhr` : "";
   if (kind === "draft") return list && list.ai === false
-    ? "Zu keiner Aufgabe gibt es einen Auftrag an die KI – tragen Sie die Punkte selbst ein. Noch nicht gespeichert."
+    ? "Noch nicht gespeichert."   // ohne Auftrag an die KI (leerer Entwurf): den Grund nennt #ck-aiwarn
     : "Vorschlag der KI – noch nicht gespeichert. Bitte prüfen und ändern Sie die Punkte; erst mit „Speichern und PDF herunterladen“ sind sie über den QR-Code sichtbar." +
       (fin ? " Bis dahin gilt die gespeicherte Checkliste." : "");
   if (kind === "final") return `Gespeicherte Checkliste${when} – über den QR-Code sichtbar.`;
@@ -5364,7 +5375,7 @@ function ckStateText(kind, list) {
 }
 function ckShowOpen() {
   const a = $("ck-open");
-  a.href = location.origin + location.pathname + "#checkliste=" + CK.code;   // dieselbe Seite wie hier (gleicher Server)
+  a.href = checkUrlOf(CK.code);   // genau die Adresse des QR-Codes (PUBLIC_URL, z. B. GitHub Pages) – so prüft die Lehrkraft das Ziel selbst
   a.classList.toggle("hidden", !CK.final);
 }
 // Fehler beim KI-Vorschlag → Satz für die Lehrkraft (keine automatische Wiederholung)
@@ -5383,7 +5394,8 @@ function ckAiFailText(e) {
 }
 // Die KI schlägt vor (force: neu, auch wenn schon etwas gespeichert ist). Erfolg ersetzt den Editorinhalt; ein Fehlschlag lässt ihn stehen.
 async function ckSuggest(run, force) {
-  const st = $("ck-status");
+  const st = $("ck-status"), ae = document.activeElement;
+  const back = ae === $("ck-regen") || ae === $("ck-save") ? ae : null;   // der Knopf wird gesperrt (Fokus fiele auf body) – danach zurück
   ckLock(true);
   setStatus(st, CK.aiFeedback ? "Die KI schlägt eine Checkliste vor …" : "Die Checkliste wird angelegt …", "busy");   // ohne Auftrag fragt der Server keine KI
   try {
@@ -5401,7 +5413,10 @@ async function ckSuggest(run, force) {
     if (!CK.loaded) { renderCkEditor(null); CK.ai = false; }   // nichts da: leerer Editor zum Selbsteintragen
     setStatus(st, ckAiFailText(e), "bad");
   } finally {
-    if (analogStillWanted(run)) { ckLock(false); CK.loaded = true; }
+    if (analogStillWanted(run)) {
+      ckLock(false); CK.loaded = true;
+      if (back && document.activeElement === document.body && !back.classList.contains("hidden")) { try { back.focus({ preventScroll: true }); } catch (e) { /* egal */ } }
+    }
   }
 }
 async function openAnalog() {
@@ -5424,7 +5439,8 @@ async function openAnalog() {
     CK.aiFeedback = r.aiFeedback !== false; CK.aiReady = r.aiReady !== false;
     $("ck-regen").classList.toggle("hidden", !CK.aiFeedback || !CK.aiReady);   // ohne nutzbaren KI-Dienst führte der Knopf nur zur nächsten Fehlermeldung
     const w = $("ck-aiwarn");
-    w.textContent = CK.aiFeedback && !CK.aiReady ? "Gerade ist kein KI-Dienst eingerichtet, der genutzt werden kann. Deshalb steht im PDF nicht, dass es digital eine KI-Rückmeldung gibt, und die KI kann keine Checkliste vorschlagen – Sie können die Punkte selbst eintragen. Richten Sie das KI-Feedback unter „KI-Einstellungen“ ein, wenn der Satz im PDF stehen soll." : "";
+    w.textContent = !CK.aiFeedback ? CK_NO_AI_SHEET
+      : !CK.aiReady ? "Gerade ist kein KI-Dienst eingerichtet, der genutzt werden kann. Deshalb steht im PDF nicht, dass es digital eine KI-Rückmeldung gibt, und die KI kann keine Checkliste vorschlagen – Sie können die Punkte selbst eintragen. Richten Sie das KI-Feedback unter „KI-Einstellungen“ ein, wenn der Satz im PDF stehen soll." : "";
     w.classList.toggle("hidden", !w.textContent);
     const c = r.checklist;
     CK.final = (c && c.final) || null; CK.updatedAt = (c && c.updatedAt) || null;
@@ -5450,8 +5466,21 @@ async function openAnalog() {
   }
 }
 $("t-analog").addEventListener("click", openAnalog);
+// Rückfrage vor dem Verlassen der Ansicht (zurück bzw. abmelden) – oder null. Läuft gerade das Speichern (CK.saving "put"), geht es
+// beim Server weiter (die Änderungen werden gespeichert und über den QR-Code sichtbar), nur das PDF kommt nicht mehr; ebenso, während
+// das PDF entsteht ("pdf"). Sonst nur bei ungespeicherten Änderungen.
+function ckLeaveQuestion(logout) {
+  if (!CK || $("tv-analog").classList.contains("hidden")) return null;
+  const title = logout ? "Abmelden?" : "Zurück zur Übersicht?", ok = logout ? "Abmelden" : "Zurück zur Übersicht", now = logout ? "sich jetzt abmelden" : "jetzt zurückgehen";
+  if (CK.saving === "put") return { title, text: `Die Checkliste wird gerade gespeichert. Das Speichern läuft weiter, auch wenn Sie ${now} – das PDF wird dann aber nicht heruntergeladen.`, ok, cancel: "Hier bleiben", safeFirst: true };
+  if (CK.saving === "pdf") return { title, text: `Die Checkliste ist gespeichert; das PDF wird gerade erstellt. Wenn Sie ${now}, wird es nicht heruntergeladen.`, ok, cancel: "Hier bleiben", safeFirst: true };
+  if (!ckDirty) return null;
+  return logout ? { title, text: "Ihre Änderungen an der Checkliste gehen dabei verloren.", ok, cancel: "Abbrechen" }
+    : { title: "Ohne Speichern zurück?", text: "Ihre Änderungen an der Checkliste gehen verloren.", ok: "Verwerfen", cancel: "Weiter bearbeiten", safeFirst: true };
+}
 $("ck-back").addEventListener("click", async () => {
-  if (ckDirty && !(await askConfirm({ title: "Ohne Speichern zurück?", text: "Ihre Änderungen an der Checkliste gehen verloren.", ok: "Verwerfen", cancel: "Weiter bearbeiten", safeFirst: true }))) return;
+  const q = ckLeaveQuestion(false);
+  if (q && !(await askConfirm(q))) return;
   ckDirty = false;
   teacherView("tv-overview");
 });
@@ -5503,14 +5532,18 @@ async function ckSave() {
   if (!analogStillWanted(run)) return;
   setStatus(st, "Die Checkliste wird gespeichert …", "busy");
   let r;
+  const ck = CK;
   ckFields(true);   // während des Speicherns nicht tippen: danach baut sich der Editor aus dem Gespeicherten neu auf (Getipptes ginge verloren)
+  ck.saving = "put";   // „zurück“ fragt jetzt anders: das Speichern läuft beim Server weiter (ckLeaveQuestion)
   try { r = await TA(ckPath(code), { method: "PUT", body: { ai: CK.ai && any, tasks: parsed.tasks } }); }
   catch (e) {
+    ck.saving = "";
     if (handleAuthError(e) || !analogStillWanted(run)) return;
     ckFields(false);
     setStatus(st, "Nicht gespeichert – " + errMsg(e, "t"), "bad");
     return;
   }
+  ck.saving = "pdf";
   if (!analogStillWanted(run)) return;
   CK.final = r.final || { v: 1, ai: CK.ai && any, tasks: parsed.tasks }; CK.updatedAt = r.updatedAt || Date.now();
   ckDirty = false;
@@ -5531,11 +5564,12 @@ async function ckSave() {
   }
 }
 $("ck-save").addEventListener("click", async () => {
-  const b = $("ck-save"), run = CK && CK.run;
+  const b = $("ck-save"), ck = CK, run = CK && CK.run;
   if (b.disabled) return;
   busy(b, true, "Wird gespeichert …"); $("ck-regen").disabled = true;
   try { await ckSave(); }
   finally {   // nur in derselben Ansicht: ein später endendes Speichern eines anderen Blattes gibt dessen Knöpfe nicht mitten in einer Anfrage frei
+    if (ck) ck.saving = "";
     if (CK && CK.run === run) { busy(b, false); if (CK.loaded) $("ck-regen").disabled = false; }
   }
 });
@@ -5575,6 +5609,9 @@ function analogHrefText(href) {
 // Läufe einer formatierten Zeile (Material, Aufgabenstellung) für den Druck: Links werden zur Adresse (aufeinanderfolgende Läufe
 // desselben Links nur einmal); f → b/i/u. Stoßen zwei Adressen oder eine Adresse und ein Wort ohne Leerraum aneinander (digital
 // zwei getrennt anklickbare Linktexte), kommt ein Leerzeichen dazwischen – sonst sähe man auf Papier nicht, wo die Adresse endet.
+// Nach einer Adresse gilt das für jeden Text außer Satzzeichen am Ende („[Wikipedia]-Artikel“ → „https://… -Artikel“, nie
+// „https://…-Artikel“: „-“, „/“, „_“, „#“ … könnten zur Adresse gehören, und schwarz-weiß gedruckt fehlt die blaue Farbe).
+const ANALOG_AFTER_URL = /^[.,;:!?)\]}»«“”’'"…]/u;   // dürfen ohne Leerzeichen auf eine Adresse folgen
 function analogRuns(runs) {
   const out = [];
   let prevH = "";
@@ -5583,8 +5620,8 @@ function analogRuns(runs) {
     if (href && href === prevH) continue;
     prevH = href;
     const t = href ? analogHrefText(href) : r.t, last = out[out.length - 1];
-    const glued = last && (href || last.h) && !/\s$/.test(last.t) && !/^\s/.test(t);   // Adresse stößt ohne Leerraum an
-    if (glued && ((href && last.h) || (href ? /[\p{L}\p{N}]$/u.test(last.t) : /^[\p{L}\p{N}]/u.test(t))))
+    const glued = last && t && (href || last.h) && !/\s$/.test(last.t) && !/^\s/.test(t);   // Adresse stößt ohne Leerraum an
+    if (glued && ((href && last.h) || (href ? /[\p{L}\p{N}]$/u.test(last.t) : !ANALOG_AFTER_URL.test(t))))
       out.push({ t: " ", b: false, i: false, u: false, h: "" });
     out.push({ t, b: r.f.includes("b"), i: r.f.includes("i"), u: !href && r.f.includes("u"), h: href });
   }
@@ -5718,7 +5755,7 @@ async function makeAnalogPdf(o) {
     let firstRow = 0;
     for (const [k, sh] of thumbs.entries()) { const [dw, dh] = sizeOf(sh, Math.min(TW, 220), 190); if (k && thumbs.slice(0, k).reduce((x, s2) => x + sizeOf(s2, Math.min(TW, 220), 190)[0] + 10, 0) + dw > TW) break; firstRow = Math.max(firstRow, dh); }
     const firstBlock = thumbs.length ? 10 + firstRow : figs.length ? 10 + sizeOf(figs[0], TW, 330)[1] : mat.length ? 12 + 13 + 14.5
-      : files.length ? 10 + 13.5 : spec.type === "table" ? 10 + tableHeadH(spec) + ANALOG_ROW_PT : spec.type === "map" ? 10 + TW * WORLD_MAP.h / WORLD_MAP.w : 6 + 3 * ANALOG_LINE_PT + 4;
+      : files.length ? 10 + 13.5 : spec.type === "table" ? 10 + tableHead(spec).hh + ANALOG_ROW_PT : spec.type === "map" ? 10 + TW * WORLD_MAP.h / WORLD_MAP.w : 6 + 3 * ANALOG_LINE_PT + 4;
     const est = 20 + parasH(paras, 11, 15.2, TW) + firstBlock;
     y += 18;
     if (y + est > MAXY && TOP + est <= MAXY) newPage();
@@ -5774,16 +5811,44 @@ async function makeAnalogPdf(o) {
   });
 
   // Tabelle: Gitter über die volle Breite, gleiche Spalten, grauer Kopf (auf jeder Seite wiederholt), je Zeile zwei Schreibzeilen
-  function tableHeadH(spec) { return Math.max(22, Math.max(...spec.columns.map((c) => pdfWrap(c, 10, true, TW / spec.columns.length - 10).length)) * 12.5 + 8); }
+  // Kopf: fett 10 pt; passt ein Wort nicht in seine Spalte, wird die Schrift schrittweise kleiner (bis 7 pt) – erst darunter wird ein
+  // Wort getrennt, dann mit „-“ am Zeilenende. Umbrochen wird an Leerraum und nach „-“ bzw. „/“ in einem Wort.
+  function tableHead(spec) {
+    const cols = spec.columns, cw = TW / cols.length, pad = 5, maxW = cw - 2 * pad;
+    const words = cols.map((c) => String(c).split(/\s+/).filter(Boolean).map((w) => w.split(/(?<=[-\/])(?=.)/)));
+    const widest = (hs) => Math.max(0, ...words.flat(2).map((p) => pdfWidth(p, hs, true)));
+    let hs = 10;
+    while (hs > 7 && widest(hs) > maxW) hs -= 0.5;
+    const W = (str) => pdfWidth(str, hs, true);
+    const lines = words.map((ws) => {
+      const out = [];
+      let line = "";
+      ws.forEach((parts) => parts.forEach((p, j) => {
+        const t = line ? line + (j ? "" : " ") + p : p;
+        if (W(t) <= maxW) { line = t; return; }
+        if (line) out.push(line);
+        let chars = Array.from(p);
+        while (chars.length > 1 && W(chars.join("")) > maxW) {   // auch in 7 pt zu breit: mit „-“ trennen
+          let k = 1;
+          while (k < chars.length - 1 && W(chars.slice(0, k + 1).join("") + "-") <= maxW) k++;
+          out.push(chars.slice(0, k).join("") + "-"); chars = chars.slice(k);
+        }
+        line = chars.join("");
+      }));
+      out.push(line);
+      return out;
+    });
+    const lh = Math.round(hs * 1.25 * 10) / 10;
+    return { cw, pad, hs, lh, lines, hh: Math.max(22, Math.max(...lines.map((l) => l.length)) * lh + 8) };
+  }
   function analogTable(spec) {
-    const cols = spec.columns, cw = TW / cols.length, pad = 5, hs = 10, hlh = 12.5;
-    const heads = cols.map((c) => pdfWrap(c, hs, true, cw - 2 * pad)), hh = tableHeadH(spec);
+    const cols = spec.columns, { cw, pad, hs, lh: hlh, lines: heads, hh } = tableHead(spec);
     y += 10;
     if (!fits(hh + ANALOG_ROW_PT)) newPage();
     let top = y, bottoms = [];
     const head = () => {
       pg.ops.push(`q 0.92 g ${f2(ML)} ${f2(H - y - hh)} ${f2(TW)} ${f2(hh)} re f Q`);
-      heads.forEach((ls, k) => ls.forEach((l, j) => text(ML + k * cw + pad, y + pad + 8 + j * hlh, l, hs, { b: true }, "0.1 0.1 0.1")));
+      heads.forEach((ls, k) => ls.forEach((l, j) => text(ML + k * cw + pad, y + pad + hs * 0.8 + j * hlh, l, hs, { b: true }, "0.1 0.1 0.1")));
       y += hh; bottoms = [y];
     };
     const grid = () => {   // Rahmen, Spaltenlinien, Linie unter dem Kopf und unter jeder Zeile
@@ -7054,6 +7119,7 @@ function renderChecklist(r) {
   box.textContent = "";
   $("chk-lead").classList.toggle("hidden", !any);
   $("chk-ai").classList.toggle("hidden", !any || r.ai !== true);
+  markAi(box, "checklist", any && r.ai === true, AI_SOURCE_COMPOSITE);   // KI-Kennzeichnung wie beim Feedback (die Lehrkraft hat geprüft und ggf. geändert)
   $("chk-clear").classList.toggle("hidden", !any);
   if (!any) box.appendChild(h("p", { class: "chk-lead", text: "Deine Lehrkraft hat zu diesem Feibeitsblatt keine Checkliste hinterlegt." }));
   for (const t of CHK.tasks) {
@@ -7143,7 +7209,7 @@ const ipSentence = (when) => when + " " + (PAGES_HOST
 $("start-privacy").textContent = "Datenschutz: " + ipSentence("Beim Laden dieser Seite und beim Prüfen des Codes") +
   " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du, nachdem du den Code eingegeben hast.";
 $("chk-privacy").textContent = "Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. " + ipSentence("Beim Laden dieser Seite und der Checkliste") +
-  " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du nach „Feibeitsblatt digital öffnen“ und „Weiter“.";
+  " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist, und was mit den Häkchen geschieht – bekommst du, wenn du das Feibeitsblatt mit seinem Code digital öffnest (auf der Startseite „Weiter“).";
 cleanupDrafts();
 cleanupChecks();
 showResume();

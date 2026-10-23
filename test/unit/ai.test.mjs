@@ -586,9 +586,10 @@ test("buildChecklistMessages: nur Aufgaben mit Auftrag an die KI (keine Weltkart
   assert.deepEqual(expectedChecklist(""), []);
   assert.deepEqual(buildChecklistMessages([{ text: "A", solution: "" }]).nrs, []);
 });
-test("checklist prompt: Du-Form, prüfbare kurze Punkte, Inhalte aus dem Auftrag erlaubt, keine Noten, Injection-Schutz, JSON-Form; kurz genug", () => {
+test("checklist prompt: Du-Form, prüfbare kurze Punkte (nur so viele, wie der Auftrag hergibt), Inhalte aus dem Auftrag erlaubt (außer er verbietet, die Lösung zu verraten), keine Noten, Injection-Schutz, JSON-Form; kurz genug", () => {
   for (const part of [
-    "Je Aufgabe 2 bis 6 Punkte, höchstens 8",
+    "Je Aufgabe 1 bis 6 Punkte – nur so viele, wie Aufgabe und Auftrag hergeben –, höchstens 8",   // nie einen Punkt erfinden, um auf zwei zu kommen
+    "außer der Auftrag verlangt, die Lösung nicht zu verraten: Dann nennst du keine Lösungsinhalte, sondern formulierst allgemein",
     "höchstens etwa 12 Wörter",
     "„Du nennst …“, „Du begründest …“, „Du verwendest …“",
     "Konkrete Inhalte aus dem Auftrag",

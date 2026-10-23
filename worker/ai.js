@@ -781,10 +781,11 @@ export const CHECKLIST_SYSTEM = [
     "Antwort die Erwartungen erfüllt.",
   "",
   "Beachte:",
-  "- Je Aufgabe 2 bis 6 Punkte, höchstens " + LIMITS.checkPoints + ", das Wichtigste zuerst.",
+  "- Je Aufgabe 1 bis 6 Punkte – nur so viele, wie Aufgabe und Auftrag hergeben –, höchstens " + LIMITS.checkPoints + ", das Wichtigste zuerst.",
   "- Jeder Punkt ist kurz (höchstens etwa 12 Wörter), an die Schülerin oder den Schüler gerichtet (du) und als " +
     "prüfbare Aussage formuliert, z. B. „Du nennst …“, „Du begründest …“, „Du verwendest …“.",
-  "- Konkrete Inhalte aus dem Auftrag (Begriffe, Beispiele, Ursachen, Namen, Zahlen) darfst du nennen.",
+  "- Konkrete Inhalte aus dem Auftrag (Begriffe, Beispiele, Ursachen, Namen, Zahlen) darfst du nennen – außer der Auftrag verlangt, " +
+    "die Lösung nicht zu verraten: Dann nennst du keine Lösungsinhalte, sondern formulierst allgemein (z. B. „Du nennst drei Ursachen.“).",
   "- Nimm nur auf, was die Aufgabe oder der Auftrag verlangen – keine zusätzlichen Anforderungen.",
   "- Hinweise, die sich nur an die KI richten (z. B. zum Tonfall des Feedbacks, worauf nicht geachtet werden soll oder " +
     "dass die Lösung nicht verraten werden soll), werden keine Punkte.",

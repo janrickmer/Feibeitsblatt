@@ -301,11 +301,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   am TT.MM.JJJJ“ – `renderRetentionHint` leert gebaute Details (`tr.details._s`) und baut aufgeklappte sofort neu, damit das
   Datum nach einer Friständerung stimmt. Lokal auslösen: `/cdn-cgi/local/scheduled?cron=17+2+*+*+*&time=<ms>&format=json` (ein `time` in der
   Zukunft räumt auch alle Sperr-Zähler ab – im Smoke-Test deshalb ganz am Ende).
-- **KI-Kennzeichnung (Art. 50 Abs. 2 KI-VO):** `markAi(el, kind, on)` setzt `data-ai-generated="true"`, `data-ai-content`
-  (`feedback` | `feedback-final`) und `data-digital-source-type` = IPTC `…/trainedAlgorithmicMedia` – nur bei Boxen mit
-  Stichpunkten (`hasAiPoints`), nie beim Hinweis ohne KI: Editor `#t-n .fbbox` (`renderFeedbackState`, entfernt sie beim
-  Leeren), `#done-fb-n` (`renderFinalFeedback`), Lehrkraft `.dfb` (`buildDetail`). Dazu `aiGenerated` in `/api/feedback`,
-  `feedbackAi` im Zwischenstand (`draftRecord`; `cleanDraft` liest es nicht) und die XMP-Metadaten der Lösungs-PDF.
+- **KI-Kennzeichnung (Art. 50 Abs. 2 KI-VO):** `markAi(el, kind, on, source?)` setzt `data-ai-generated="true"`, `data-ai-content`
+  (`feedback` | `feedback-final` | `checklist`) und `data-digital-source-type` = IPTC `…/trainedAlgorithmicMedia` (`AI_SOURCE`) – nur
+  bei Boxen mit Stichpunkten (`hasAiPoints`), nie beim Hinweis ohne KI: Editor `#t-n .fbbox` (`renderFeedbackState`, entfernt sie beim
+  Leeren), `#done-fb-n` (`renderFinalFeedback`), Lehrkraft `.dfb` (`buildDetail`); Checklisten-Seite `#chk-tasks` bei `ai:true` mit
+  Punkten (`renderChecklist`, `AI_SOURCE_COMPOSITE` = `…/compositeWithTrainedAlgorithmicMedia`: KI-Vorschlag, von der Lehrkraft
+  geprüft und ggf. geändert). Dazu `aiGenerated` in `/api/feedback`, `feedbackAi` im Zwischenstand (`draftRecord`; `cleanDraft` liest
+  es nicht) und die XMP-Metadaten der Lösungs-PDF.
 - **LanguageTool:** direkt aus dem Browser, nur auf Klick (Nutzungsbedingungen: keine automatisierten Anfragen).
   Altersgrenze des Anbieters (ab 18, mit 16/17 nur mit Erlaubnis der Eltern) **nur als Selbstauskunft** (es gibt kein
   Geburtsjahr): Button bei jedem Textfeld; vor der ersten Prüfung je geöffnetem Blatt der Dialog `ltConsent` (Wortlaut fest,
@@ -542,57 +544,68 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   verschlüsselten Umschlag).
 - **Analoges Arbeitsblatt + Checkliste (QR-Code):** Lehrkraft: `#t-analog` „Analoges Arbeitsblatt als PDF herunterladen“ im
   ausgewählten Blatt → `openAnalog` → `#tv-analog` (Abbruchzähler `T.analogRun` wie `T.importRun`/`T.exportRun`: steigt in
-  `teacherView` beim Verlassen und bei `logout`, `analogStillWanted`; `ckDirty`/`ckUnsaved` → „Ohne Speichern zurück?“, Abmelden,
-  beforeunload). D1 `sheet_checklists` = JSON `{v:1, ai, tasks:[{n, points}]}` in `draft` (Vorschlag der KI, nie öffentlich) und
-  `final`, gelöscht mit dem Blatt. Routen: `GET …/sheets/:code/checklist` → `{checklist:{draft, final, updatedAt}|null, aiFeedback,
-  aiReady}`; `POST {force?}`: schon Entwurf oder final und kein force → keine KI (`generated:false`), keine Aufgabe mit Auftrag →
-  leerer Entwurf `ai:false` + `noAi`, sonst `askAI` (erster Anbieter, dann Reserve – dieselbe Schleife wie das Feedback) → Entwurf;
-  Fehler 429 `ai_busy`, 503 `ai_quota`/`ai_not_configured`, 502 `ai_error` mit der ausführlichen Lehrkraft-Meldung; `PUT {ai, tasks}`
-  → `validateChecklist` (cleanLine, leere und – ohne Groß-/Kleinschreibung – doppelte Punkte entfallen, `LIMITS.checkPoints` 8 ×
-  `checkPoint` 160 Zeichen, sonst 400 „Aufgabe n: …“) → final, draft NULL; öffentlich nur final mit Titel und reinem Aufgabentext
-  (ohne final 404 `no_checklist`, zählt nicht als `lookup_miss`; `no-store`). ai.js: `CHECKLIST_SYSTEM` (Du-Form, 2–6 prüfbare
-  Punkte, höchstens 8, Inhalte aus dem Auftrag erlaubt), `buildChecklistMessages` (nur Aufgaben mit Auftrag: Aufgabenstellung,
-  `materialText`, Tabellenspalten, Auftrag – nie Antworten), `normalizeChecklist`, `checklistAcceptor`; Mock: System-Prompt mit
-  „Checkliste“ → je Zeile des Auftrags „Du beachtest: …“ (`expectedChecklist`). Browser: ohne Entwurf und final sofort `POST`
-  („Die KI schlägt eine Checkliste vor …“, ohne Auftrag „Die Checkliste wird angelegt …“; bei `aiFeedback && !aiReady` kein `POST`,
-  leerer Editor), Entwurf → `#ck-state` „Vorschlag der KI – noch nicht gespeichert“; je Aufgabe `#ck-n` (Label „Punkte der
-  Checkliste zu Aufgabe n – …“, eine Zeile = ein Punkt, `ckParse` mit den Regeln des Servers, `aria-invalid`), `#ck-save` (PUT –
+  `teacherView` beim Verlassen und bei `logout`, `analogStillWanted`; `ckLeaveQuestion(logout)` für `#ck-back` und Abmelden: während
+  des PUT (`CK.saving` "put") „… Das Speichern läuft weiter … – das PDF wird dann aber nicht heruntergeladen.“, während das PDF
+  entsteht ("pdf") ebenso, sonst bei `ckDirty` „Ohne Speichern zurück?“; `ckUnsaved` → beforeunload). D1 `sheet_checklists` = JSON
+  `{v:1, ai, tasks:[{n, points}]}` in `draft` (Vorschlag der KI, nie öffentlich) und `final`, gelöscht mit dem Blatt. Routen: `GET
+  …/sheets/:code/checklist` → `{checklist:{draft, final, updatedAt}|null, aiFeedback, aiReady}`; `POST {force?}`: schon Entwurf oder
+  final und kein force → keine KI (`generated:false`), keine Aufgabe mit Auftrag → leerer Entwurf `ai:false` + `noAi`, sonst `askAI`
+  (erster Anbieter, dann Reserve – dieselbe Schleife wie das Feedback) → Entwurf; Fehler 429 `ai_busy`, 503
+  `ai_quota`/`ai_not_configured`, 502 `ai_error` mit der ausführlichen Lehrkraft-Meldung; `PUT {ai, tasks}` → `validateChecklist`
+  (cleanLine, leere und – ohne Groß-/Kleinschreibung – doppelte Punkte entfallen, `LIMITS.checkPoints` 8 × `checkPoint` 160 Zeichen,
+  sonst 400 „Aufgabe n: …“) → final, draft NULL; öffentlich nur final mit Titel und reinem Aufgabentext (ohne final 404
+  `no_checklist`, zählt nicht als `lookup_miss`; `no-store`). ai.js: `CHECKLIST_SYSTEM` (Du-Form, 1–6 prüfbare Punkte – nur so viele,
+  wie Aufgabe und Auftrag hergeben, nie einen erfinden –, höchstens 8, Inhalte aus dem Auftrag erlaubt, außer der Auftrag verlangt,
+  die Lösung nicht zu verraten: dann allgemein, „Du nennst drei Ursachen.“), `buildChecklistMessages` (nur Aufgaben mit Auftrag:
+  Aufgabenstellung, `materialText`, Tabellenspalten, Auftrag – nie Antworten), `normalizeChecklist`, `checklistAcceptor`; Mock:
+  System-Prompt mit „Checkliste“ → je Zeile des Auftrags „Du beachtest: …“ (`expectedChecklist`). Browser: ohne Entwurf und final
+  sofort `POST` („Die KI schlägt eine Checkliste vor …“, ohne Auftrag „Die Checkliste wird angelegt …“; bei `aiFeedback && !aiReady`
+  kein `POST`, leerer Editor), Entwurf → `#ck-state` „Vorschlag der KI – noch nicht gespeichert“; je Aufgabe `#ck-n` (Label „Punkte
+  der Checkliste zu Aufgabe n – …“, eine Zeile = ein Punkt, `ckParse` mit den Regeln des Servers, `aria-invalid`), `#ck-save` (PUT –
   währenddessen Felder readOnly (`ckFields`), danach baut sich der Editor aus dem Gespeicherten neu –, dann PDF; ohne Punkte Rückfrage
   „Ohne QR-Code herunterladen?“; das `finally` des Klicks setzt die Knöpfe nur bei unverändertem `CK.run` zurück, `openAnalog` setzt
-  `#ck-save` selbst zurück), `#ck-regen` (Rückfrage, `force`; ein Fehlschlag lässt den Editor stehen; verborgen ohne Auftrag oder
-  ohne nutzbaren KI-Dienst), `#ck-open` (nur mit final), `#ck-status`, `#ck-aiwarn` (Aufträge, aber kein KI-Dienst nutzbar → der
-  KI-Satz fehlt im PDF); KI-Fehler per `ckAiFailText` (`ai_quota` mit der Meldung des Servers, ohne doppelten Grund), keine
-  automatische Wiederholung. PDF `makeAnalogPdf` (`analogImages` lädt Bilder und Kartenbilder per `loadImage` → `pdfJpeg`,
-  fehlt eines → Abbruch; PDF-Dateien nur als Namen): A4, Ränder 50/56/60, `/F1`–`/F4` = Helvetica, -Bold, -Oblique, -BoldOblique,
-  Inhalte FlateDecode (`deflateBytes`); `analogRuns`/`analogLines` setzen Läufe mit Formatierung, Links **nur als Adresse** (nie
-  der Linktext) mit URI-Annotation (gedruckt per `analogHrefText`: prozentkodierte Umlaute lesbar wie in der Adresszeile, nur
-  WinAnsi-druckbare Zeichen ohne Leer-/Steuer-/Formatzeichen, sonst kodiert; die Annotation bleibt kodiert; Punycode bleibt),
-  zwischen zwei aneinanderstoßenden Adressen bzw. Adresse und Wort ein Leerzeichen, Einzug aus führendem Leerraum, überlange
-  Wörter hart getrennt; Kopf: Titel, Hinweiskasten (Code, `PUBLIC_URL` als Link, KI-Satz nur bei `aiFeedback && aiReady`),
-  Name/Klasse/Datum; je Aufgabe bleiben Überschrift, Text
-  und der erste unteilbare Block zusammen (sonst neue Seite), Bilder wie `makeSheetPdf`, Material mit grauer Linie, „Material zum
-  Herunterladen (nur digital): …“; Antwort: `ANALOG_LINES` 8 × `ANALOG_LINE_PT` 24 (`q 0.6 G 0.5 w … S Q`, mindestens 3 auf der
-  Seite), Tabelle (`ANALOG_ROW_PT` 48 mit Hilfslinie `q 0.8 G 0.4 w`, Kopf auf jeder Seite), Weltkarte als Form-XObject `/Wm`
-  (`worldPdfPath`, einmal je PDF) mit zweispaltiger Liste und „Land:“-Linien (der Satz „Schreibe zu jeder Karte …“ bleibt mit dem
-  ersten Kartenpaar auf einer Seite); am Ende (nur mit Punkten) QR-Code `ANALOG_QR_PT` 90 (Module als Rechtecke in
-  Modul-Einheiten per `cm`, Ruhezone 4 Module, links im Seitenrand) zu `checkUrlOf(code)` =
-  `PUBLIC_URL#checkliste=CODE`; Fußzeile Code · Titel und „Seite n von N“; Datei `Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`;
-  nie Aufträge an die KI, Länder, Abgaben oder Checklistenpunkte. QR-Block zwischen `/* QR:BEGIN` und `/* QR:END */`
-  (`qrMatrix(text, forceMask?)` → `{size, version, mask, dark}`, Byte-Modus, Stufe M, Version 1–10, nur zur Laufzeit aufrufen;
-  `test/unit/qr.test.mjs` mit jsQR 1.4.0). Schüler:innen: `#checkliste=<CODE>` (beim Laden; `hashchange` nur von Start, Angaben
-  und Checkliste aus) → `#screen-check` (`openChecklist`/`renderChecklist`: Aufgaben mit Punkten als `fieldset.chkset`, lange Texte
-  in `details`, Checkboxen `#chk-n-k` in `label` ≥ 44 px, Zähler `#chk-c-n`, eine verzögerte Live-Region `#ck-live`; ohne Punkte
-  „Deine Lehrkraft hat … keine Checkliste hinterlegt.“; `ai:true` → KI-Hinweis), Häkchen nur in `localStorage`
-  `feibeitsblatt:check:<CODE>` = `{t, sig (FNV-1a über die Punkte), ticks}` (`cleanupChecks` nach `DRAFT_DAYS`), „Alle Häkchen
-  entfernen“ (löscht nur, wenn nach dem Dialog noch dieselbe Checkliste offen ist: `CHK.run`/`CHK.code`), `#chk-privacy` (Satz zur
-  IP wie `#start-privacy` und Verweis „Alle Informationen … bekommst du nach „Feibeitsblatt digital öffnen“ und „Weiter“.“ – die
-  Seite selbst zeigt keinen vollständigen Hinweis), „Feibeitsblatt digital öffnen“ (`leaveChecklist`: Hash weg, Startseite mit
-  Code, Fokus auf „Weiter“), Fehler `no_checklist`, unbekannter Code, Netz („Erneut versuchen“). Sicherung und „Als Vorlage“
-  tragen die Checkliste nicht mit. Tests:
-  Unit lib/ai/worker/qr, Smoke-Schritt „Checkliste“, E2E 7k (Vorschlag des Mocks, Ändern/Ergänzen, PDF per zlib: Hinweis, Link als
-  Adresse, Wikipedia-Adresse mit Umlaut lesbar und zwei aneinanderstoßende Links getrennt, 16 Schreiblinien, 4 Tabellenzeilen,
-  Kartenpfade, QR → jsQR; erneutes Öffnen ohne KI; `ai_quota` per `page.route` ohne doppelten Grund; Checklisten-Seite; ohne Punkte
-  kein QR); `ANALOG_PDF_OUT=<Ordner> npm run test:e2e` speichert das PDF lokal zum Ansehen (`pdftoppm -r 60 -png`).
+  `#ck-save` selbst zurück), `#ck-regen` (Rückfrage, `force`; ein Fehlschlag lässt den Editor stehen; `ckSuggest` gibt den Fokus
+  danach an `#ck-regen`/`#ck-save` zurück, wenn er durchs Sperren auf `body` fiel; verborgen ohne Auftrag oder ohne nutzbaren
+  KI-Dienst), `#ck-open` (nur mit final; `href` = `checkUrlOf(code)`, genau das Ziel des QR-Codes), `#ck-status`, `#ck-aiwarn`
+  (Aufträge, aber kein KI-Dienst nutzbar bzw. – `CK_NO_AI_SHEET` – gar kein Auftrag → der KI-Satz fehlt im PDF; `#ck-state` sagt beim
+  leeren Entwurf dann nur „Noch nicht gespeichert.“); KI-Fehler per `ckAiFailText` (`ai_quota` mit der Meldung des Servers, ohne
+  doppelten Grund), keine automatische Wiederholung. PDF `makeAnalogPdf` (`analogImages` lädt Bilder und Kartenbilder per `loadImage`
+  → `pdfJpeg`, fehlt eines → Abbruch; PDF-Dateien nur als Namen): A4, Ränder 50/56/60, `/F1`–`/F4` = Helvetica, -Bold, -Oblique,
+  -BoldOblique, Inhalte FlateDecode (`deflateBytes`); `analogRuns`/`analogLines` setzen Läufe mit Formatierung, Links **nur als
+  Adresse** (nie der Linktext) mit URI-Annotation (gedruckt per `analogHrefText`: prozentkodierte Umlaute lesbar wie in der
+  Adresszeile, nur WinAnsi-druckbare Zeichen ohne Leer-/Steuer-/Formatzeichen, sonst kodiert; die Annotation bleibt kodiert; Punycode
+  bleibt), zwischen zwei aneinanderstoßenden Adressen bzw. Wort und Adresse ein Leerzeichen, nach einer Adresse vor jedem direkt
+  folgenden Text außer Satzzeichen (`ANALOG_AFTER_URL`: „[Wikipedia]-Artikel“ → „https://… -Artikel“), Einzug aus führendem Leerraum,
+  überlange Wörter hart getrennt; Kopf: Titel, Hinweiskasten (Code, `PUBLIC_URL` als Link, KI-Satz nur bei `aiFeedback && aiReady`),
+  Name/Klasse/Datum; je Aufgabe bleiben Überschrift, Text und der erste unteilbare Block zusammen (sonst neue Seite), Bilder wie
+  `makeSheetPdf`, Material mit grauer Linie, „Material zum Herunterladen (nur digital): …“; Antwort: `ANALOG_LINES` 8 ×
+  `ANALOG_LINE_PT` 24 (`q 0.6 G 0.5 w … S Q`, mindestens 3 auf der Seite), Tabelle (`ANALOG_ROW_PT` 48 mit Hilfslinie `q 0.8 G 0.4 w`,
+  Kopf auf jeder Seite; `tableHead`: fett 10 pt, kleiner in 0,5-pt-Schritten bis 7 pt, bis jedes Wort – auch nach „-“/„/“ trennbar –
+  in die Spalte passt, erst dann hart mit „-“), Weltkarte als Form-XObject `/Wm` (`worldPdfPath`, einmal je PDF) mit zweispaltiger
+  Liste und „Land:“-Linien (der Satz „Schreibe zu jeder Karte …“ bleibt mit dem ersten Kartenpaar auf einer Seite); am Ende (nur mit
+  Punkten) QR-Code `ANALOG_QR_PT` 90 (Module als Rechtecke in Modul-Einheiten per `cm`, Ruhezone 4 Module, links im Seitenrand) zu
+  `checkUrlOf(code)` = `PUBLIC_URL#checkliste=CODE` (`window.FEIBEITSBLATT_PUBLIC`, GitHub Pages – ohne Pages dort die eigene Adresse
+  eintragen, README „Optional: GitHub Pages“; der Textbaustein für Eltern nennt GitHub für die Checklisten-Seite); Fußzeile Code ·
+  Titel und „Seite n von N“; Datei `Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`; nie Aufträge an die KI, Länder, Abgaben oder
+  Checklistenpunkte. QR-Block zwischen `/* QR:BEGIN` und `/* QR:END */` (`qrMatrix(text, forceMask?)` → `{size, version, mask, dark}`,
+  Byte-Modus, Stufe M, Version 1–10, nur zur Laufzeit aufrufen; `test/unit/qr.test.mjs` mit jsQR 1.4.0). Schüler:innen:
+  `#checkliste=<CODE>` (beim Laden; `hashchange` nur von Start, Angaben und Checkliste aus) → `#screen-check`
+  (`openChecklist`/`renderChecklist`: Aufgaben mit Punkten als `fieldset.chkset`, lange Texte in `details`, Checkboxen `#chk-n-k` in
+  `label` ≥ 44 px, Zähler `#chk-c-n`, eine verzögerte Live-Region `#ck-live`; ohne Punkte „Deine Lehrkraft hat … keine Checkliste
+  hinterlegt.“; `ai:true` → KI-Hinweis), Häkchen nur in `localStorage` `feibeitsblatt:check:<CODE>` = `{t, sig (FNV-1a über die
+  Punkte), ticks}` (`cleanupChecks` nach `DRAFT_DAYS`), „Alle Häkchen entfernen“ (löscht nur, wenn nach dem Dialog noch dieselbe
+  Checkliste offen ist: `CHK.run`/`CHK.code`), `#chk-privacy` (Satz zur IP wie `#start-privacy` und Verweis „Alle Informationen …
+  bekommst du, wenn du das Feibeitsblatt mit seinem Code digital öffnest (auf der Startseite „Weiter“).“ – passt in jedem Zustand,
+  auch ohne `#chk-open`; die Seite selbst zeigt keinen vollständigen Hinweis, dafür beschreibt `privacyNoticeDom` die
+  Checklisten-Seite: `CHECK_PURPOSE` unter „Wozu …“, `CHECK_STAY` unter „Wie lange …“), „Feibeitsblatt digital öffnen“
+  (`leaveChecklist`: Hash weg, Startseite mit Code, Fokus auf „Weiter“), Fehler `no_checklist`, unbekannter Code, Netz („Erneut
+  versuchen“). Sicherung und „Als Vorlage“ tragen die Checkliste nicht mit. Tests: Unit lib/ai/worker/qr, Smoke-Schritt „Checkliste“,
+  E2E 7k (Vorschlag des Mocks, Ändern/Ergänzen, PDF per zlib: Hinweis, Link als Adresse, Wikipedia-Adresse mit Umlaut lesbar, zwei
+  aneinanderstoßende Links und „[Quellen]-Text“ getrennt, 16 Schreiblinien, 4 Tabellenzeilen, Kartenpfade, QR → jsQR; erneutes Öffnen
+  ohne KI; `ai_quota` per `page.route` ohne doppelten Grund, Fokus bleibt auf `#ck-regen`; Checklisten-Seite mit KI-Kennzeichnung;
+  ohne Punkte kein QR; zurück während eines angehaltenen PUT (Rückfrage, gespeichert, kein PDF); per `page.route` ein Blatt ohne
+  Auftrag (`#ck-aiwarn`) mit 8 langen Tabellenspalten (Kopf 7 pt, Trennung mit „-“)); `ANALOG_PDF_OUT=<Ordner> npm run test:e2e`
+  speichert das PDF lokal zum Ansehen (`pdftoppm -r 60 -png`).
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-

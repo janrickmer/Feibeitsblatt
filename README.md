@@ -324,27 +324,34 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
 7. **Analoges Arbeitsblatt als PDF.** Bei einem ausgewählten Feibeitsblatt öffnet „Analoges Arbeitsblatt als PDF
    herunterladen“ eine eigene Seite. Das PDF zum Ausdrucken (`Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`) enthält
    den Titel, direkt darunter einen Hinweis, dass sich das Arbeitsblatt mit dem Code auch digital auf
-   `https://feibeitsblatt.janrickmer.de/` aufrufen lässt – und, wenn das Blatt Aufträge an die KI hat und ein KI-Dienst
-   eingerichtet ist, dass es dort eine KI-Rückmeldung gibt, die es auf dem Papier nicht gibt –, eine Zeile für Name,
-   Klasse und Datum und dann alle Aufgaben: Aufgabenstellung (mit Fett, Kursiv, Unterstrichen), Bilder, Material
-   (Links erscheinen als Adresse, nie als Linktext; Umlaute in Adressen stehen lesbar da, zwei direkt
-   aneinanderstoßende Links trennt ein Leerzeichen), die Namen angehängter PDF-Dateien („nur digital“) und Platz für die
-   Antwort: **8 Schreiblinien** im Abstand von 24 pt (etwa 8,5 mm, passend für Handschrift in Schriftgröße 14), bei
-   einer Tabelle ein Gitter mit **zwei Schreibzeilen je Tabellenzeile** (der Kopf wiederholt sich auf jeder neuen
-   Seite), bei der Weltkarten-Zuordnung eine Umrisskarte ohne Ländernamen und darunter die Karten mit einer Linie für
-   das Land. Am Ende steht ein **QR-Code zur Checkliste**. Aufträge an die KI, richtige Länder und Abgaben stehen nie
-   darin. Die Punkte der Checkliste schlägt beim ersten Öffnen einmal die KI vor: Sie bekommt dafür nur Aufgabenstellungen,
-   Material (als reinen Text) und Ihre Aufträge an die KI – keine Abgaben und keine Daten der Schüler:innen – und
-   macht daraus kurze, prüfbare Punkte in Du-Form („Du nennst …“), die auch Inhalte aus dem Auftrag nennen dürfen. Der
-   Vorschlag wird beim Blatt gespeichert, Neuladen fragt die KI nicht noch einmal; „Neu von der KI vorschlagen lassen“
-   fragt erneut (ohne nutzbaren KI-Dienst fehlt der Knopf, und die Seite fragt die KI gar nicht erst). Prüfen und
-   ändern Sie die Punkte (eine Zeile je Punkt, höchstens 8 je Aufgabe mit je 160 Zeichen; Aufgaben ohne Auftrag an die
-   KI und Weltkarten bekommen keinen Vorschlag, Sie können dort selbst Punkte eintragen).
+   `https://feibeitsblatt.janrickmer.de/` aufrufen lässt (die Adresse aus `window.FEIBEITSBLATT_PUBLIC` ganz oben in
+   `index.html`, siehe [GitHub Pages](#optional-github-pages-oder-eigene-domain)) – und, wenn das Blatt Aufträge an die
+   KI hat und ein KI-Dienst eingerichtet ist, dass es dort eine KI-Rückmeldung gibt, die es auf dem Papier nicht gibt;
+   fehlt der Satz, sagt die Seite vorher, warum –, eine Zeile für Name, Klasse und Datum und dann alle Aufgaben:
+   Aufgabenstellung (mit Fett, Kursiv, Unterstrichen), Bilder, Material (Links erscheinen als Adresse, nie als Linktext;
+   Umlaute in Adressen stehen lesbar da, zwei direkt aneinanderstoßende Links trennt ein Leerzeichen, ebenso eine
+   Adresse und direkt folgenden Text – aus „[Wikipedia]-Artikel“ wird „https://… -Artikel“, damit niemand „-Artikel“ für
+   einen Teil der Adresse hält; nur Satzzeichen wie „.“ oder „)“ folgen direkt), die Namen angehängter PDF-Dateien („nur
+   digital“) und Platz für die Antwort: **8 Schreiblinien** im Abstand von 24 pt (etwa 8,5 mm, passend für Handschrift
+   in Schriftgröße 14), bei einer Tabelle ein Gitter mit **zwei Schreibzeilen je Tabellenzeile** (der Kopf wiederholt
+   sich auf jeder neuen Seite; bei vielen Spalten wird seine Schrift kleiner, bis jedes Wort in seine Spalte passt), bei
+   der Weltkarten-Zuordnung eine Umrisskarte ohne Ländernamen und darunter die Karten mit einer Linie für das Land. Am
+   Ende steht ein **QR-Code zur Checkliste**. Aufträge an die KI, richtige Länder und Abgaben stehen nie darin. Die
+   Punkte der Checkliste schlägt beim ersten Öffnen einmal die KI vor: Sie bekommt dafür nur Aufgabenstellungen,
+   Material (als reinen Text) und Ihre Aufträge an die KI – keine Abgaben und keine Daten der Schüler:innen – und macht
+   daraus kurze, prüfbare Punkte in Du-Form („Du nennst …“) – nur so viele, wie Aufgabe und Auftrag hergeben –, die auch
+   Inhalte aus dem Auftrag nennen dürfen; verlangt Ihr Auftrag, die Lösung nicht zu verraten, soll sie allgemein bleiben
+   („Du nennst drei Ursachen“). Der Vorschlag wird beim Blatt gespeichert, Neuladen fragt die KI nicht noch einmal; „Neu
+   von der KI vorschlagen lassen“ fragt erneut (ohne nutzbaren KI-Dienst fehlt der Knopf, und die Seite fragt die KI gar
+   nicht erst). Prüfen und ändern Sie die Punkte (eine Zeile je Punkt, höchstens 8 je Aufgabe mit je 160 Zeichen;
+   Aufgaben ohne Auftrag an die KI und Weltkarten bekommen keinen Vorschlag, Sie können dort selbst Punkte eintragen).
    **Erst „Speichern und PDF herunterladen“ macht die Checkliste öffentlich:** Über den QR-Code sieht sie jede Person,
-   die den Link kennt – schreiben Sie nichts Geheimes hinein und keine fertige Lösung, die die Schüler:innen nicht
-   sehen sollen. „Checkliste ansehen“ zeigt sie so, wie die Schüler:innen sie sehen. Ohne Checklistenpunkte enthält
-   das PDF keinen QR-Code (die Seite fragt vorher nach). Die Sicherung („Als PDF-Datei herunterladen“) und „Als Vorlage
-   verwenden“ tragen die Checkliste nicht mit: Ein neues Blatt bekommt beim ersten Öffnen einen neuen Vorschlag.
+   die den Link kennt – schreiben Sie nichts Geheimes hinein und keine fertige Lösung, die die Schüler:innen nicht sehen
+   sollen. „Checkliste ansehen“ öffnet genau die Adresse des QR-Codes und zeigt die Checkliste so, wie die Schüler:innen
+   sie sehen. Gehen Sie zurück, während noch gespeichert wird, läuft das Speichern weiter – nur das PDF wird dann nicht
+   heruntergeladen (die Seite sagt das vorher). Ohne Checklistenpunkte enthält das PDF keinen QR-Code (die Seite fragt
+   vorher nach). Die Sicherung („Als PDF-Datei herunterladen“) und „Als Vorlage verwenden“ tragen die Checkliste nicht
+   mit: Ein neues Blatt bekommt beim ersten Öffnen einen neuen Vorschlag.
 8. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
    Löschfrist“ festlegen ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Früher geht es ganz
    unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche werden mitgelöscht).
@@ -721,7 +728,10 @@ gekennzeichnet: Die Antwort von `/api/feedback` trägt `aiGenerated: true` und d
 `trainedAlgorithmicMedia`; jede Box mit KI-Stichpunkten hat `data-ai-generated="true"`, `data-ai-content` und
 `data-digital-source-type` mit diesem Wert; die Lösungs-PDF hat dann einen sichtbaren Hinweis, Subject und Keywords im
 Dokument-Info und XMP-Metadaten mit `Iptc4xmpExt:DigitalSourceType` = `compositeSynthetic` (Text der Schüler:innen
-gemischt mit KI-Text). Ob das als „wirksame, interoperable“ Kennzeichnung im Sinne der KI-VO genügt, ist rechtlich
+gemischt mit KI-Text). Auf der Checklisten-Seite hinter dem QR-Code steht bei Punkten, die auf einen KI-Vorschlag
+zurückgehen, ein sichtbarer Satz dazu, und die Liste trägt `data-ai-generated="true"`, `data-ai-content="checklist"` und
+`data-digital-source-type` = `compositeWithTrainedAlgorithmicMedia` (KI-Vorschlag, von Ihnen geprüft und ggf. geändert).
+Ob das als „wirksame, interoperable“ Kennzeichnung im Sinne der KI-VO genügt, ist rechtlich
 offen; für Text gibt es keinen festen Standard.
 
 **Optional: anderer Türcode.** Wer statt 1104 eine andere Ziffernfolge (4–12 Ziffern) verwenden möchte, legt im
@@ -807,8 +817,10 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   GitHub) technisch die IP-Adresse des Geräts. Die Startseite sagt das in einem Satz; den vollständigen
   Datenschutzhinweis nach Art. 13 DSGVO (mit Ihren Angaben aus [Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen))
   sehen die Schüler:innen auf dem Angaben-Bildschirm und unter dem Feedback-Button. Die Checklisten-Seite hinter dem
-  QR-Code sagt es ebenfalls in einem Satz und verweist für alles Weitere (auch, wer verantwortlich ist) auf „Feibeitsblatt
-  digital öffnen“ und „Weiter“ – dann erscheint der Angaben-Bildschirm mit dem vollständigen Hinweis. Er nennt alle
+  QR-Code sagt es ebenfalls in einem Satz (dazu: die Häkchen bleiben auf dem Gerät) und verweist für alles Weitere (auch, wer
+  verantwortlich ist) auf den vollständigen Hinweis, der erscheint, wenn man das Blatt mit seinem Code digital öffnet (z. B.
+  über „Feibeitsblatt digital öffnen“ und „Weiter“); dieser beschreibt auch die Checklisten-Seite und wie lange die Häkchen
+  auf dem Gerät bleiben. Der vollständige Hinweis nennt alle
   Empfänger mit der Grundlage der Übermittlung in die USA: Cloudflare und GitHub (EU-US Data Privacy Framework, ersatzweise
   Standardvertragsklauseln), den KI-Dienst (Workers AI wie Cloudflare, Groq: Standardvertragsklauseln laut Groq, andere:
   „von der Schule beim Anbieter zu prüfen“) und LanguageTool (Learneo ist nach dem Data Privacy Framework zertifiziert,
@@ -911,7 +923,10 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > lesbar – auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
 > gelöscht (danach noch bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung). Cloudflare stützt Übermittlungen in die USA auf das EU-US
 > Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. [Falls die Seite über GitHub Pages aufgerufen wird:
-> Beim Laden der Seite verarbeitet auch GitHub, Inc. (USA) die IP-Adresse.]
+> Beim Laden der Seite verarbeitet auch GitHub, Inc. (USA) die IP-Adresse.] [Falls Sie ausgedruckte Arbeitsblätter mit
+> QR-Code ausgeben: Der QR-Code führt zu einer Checkliste der Lehrkraft auf feibeitsblatt.janrickmer.de; beim Aufruf
+> verarbeiten GitHub, Inc. (USA; liefert diese Seite über GitHub Pages aus) und Cloudflare technisch die IP-Adresse. Die
+> Häkchen bleiben nur auf dem Gerät und werden nicht gesendet.]
 > Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
 > keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
 > Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B.
@@ -1102,12 +1117,20 @@ gespeichert.
 
 ## Optional: GitHub Pages oder eigene Domain
 
-Normalerweise liefert der Worker die Seite selbst aus (`https://feibeitsblatt.<subdomain>.workers.dev`); mehr ist
-nicht nötig. Dieses Repository ist zusätzlich so eingerichtet, dass GitHub Pages dieselbe Seite unter der eigenen
-Adresse **`feibeitsblatt.janrickmer.de`** ausliefert, so wie ParentsDay. Die Seite erkennt dann selbst, dass sie nicht
-vom Worker kommt, und ruft den Worker unter der Adresse auf, die ganz oben in `index.html` steht
+Normalerweise liefert der Worker die Seite selbst aus (`https://feibeitsblatt.<subdomain>.workers.dev`); für die
+digitale Arbeit ist mehr nicht nötig. Dieses Repository ist zusätzlich so eingerichtet, dass GitHub Pages dieselbe Seite
+unter der eigenen Adresse **`feibeitsblatt.janrickmer.de`** ausliefert, so wie ParentsDay. Die Seite erkennt dann selbst,
+dass sie nicht vom Worker kommt, und ruft den Worker unter der Adresse auf, die ganz oben in `index.html` steht
 (`window.FEIBEITSBLATT_WORKER`, derzeit `https://feibeitsblatt.feindt.workers.dev`). Beide Adressen nutzen dieselbe
 Datenbank; Schüler:innen und Lehrkraft können jede davon verwenden.
+
+**Die Adresse auf Papier und in PDF-Dateien** steht ebenfalls ganz oben in `index.html`: `window.FEIBEITSBLATT_PUBLIC`
+(derzeit `https://feibeitsblatt.janrickmer.de/`). Der Hinweis und der **QR-Code des analogen Arbeitsblattes** (Schritt 7)
+führen immer dorthin, ebenso der Link in der Zwischenstand-PDF der Schüler:innen – Schüler:innen, die die Checkliste über
+den QR-Code öffnen, laden die Seite also über GitHub Pages (GitHub verarbeitet dabei die IP-Adresse; der Hinweis auf der
+Checklisten-Seite nennt das). Nutzen Sie GitHub Pages nicht (oder unter einer anderen Adresse), tragen Sie dort Ihre
+Adresse ein, z. B. die Worker-Adresse – sonst führen QR-Code und Hinweis ins Leere bzw. zu einer fremden Installation.
+„Checkliste ansehen“ öffnet genau diese Adresse; so sehen Sie vor dem Ausdrucken, ob der QR-Code funktioniert.
 
 **Einrichten (einmalig):**
 
