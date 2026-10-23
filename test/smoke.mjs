@@ -440,7 +440,20 @@ async function main() {
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found"); feedbackCount++;
     r = await api("POST", "/api/feedback", { code: otherCode, answers: ["egal"] }); feedbackCount++;
     assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }], aiGenerated: false });
-    ok("Feedback: eine KI-Anfrage im neuen Format (Auftrag der Lehrkraft), gut/tipps wie erwartet, Aufgabe ohne Auftrag mit Hinweis; Längenprüfungen");
+    // zweite Rückmeldung nach der Abgabe: nur die geänderte Aufgabe 3 geht an die KI (only), die übrigen Ergebnisse sind null
+    mock.reset();
+    const only3 = ["", "", "Wasser verdunstet durch Wärme."];
+    r = await api("POST", "/api/feedback", { code: display, answers: only3, only: [3] }); feedbackCount++;
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, [null, null, expectedResults(tasks, only3)[2]]);
+    assert.equal(mock.state.requests.length, 1);
+    const sent3 = mock.state.requests[0].messages[1].content;
+    assert.ok(sent3.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 3):\n\n### Aufgabe 3\n"), sent3);
+    assert.equal(sent3.includes(tasks[0].text) || /### (Antwort zu )?Aufgabe 1\n/.test(sent3), false, "Aufgabe 1 geht nicht mit");
+    expectErr(await api("POST", "/api/feedback", { code, answers: ["a", "", ""], only: [4] }), 400, "bad_answers"); feedbackCount++;
+    expectErr(await api("POST", "/api/feedback", { code, answers: ["a", "", ""], only: [] }), 400, "bad_answers"); feedbackCount++;
+    assert.equal(mock.state.requests.length, 1);
+    ok("Feedback: eine KI-Anfrage im neuen Format (Auftrag der Lehrkraft), gut/tipps wie erwartet, Aufgabe ohne Auftrag mit Hinweis; Längenprüfungen; zweite Rückmeldung nur für die gewählten Aufgaben (only)");
 
     mock.setMode("fenced");
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;

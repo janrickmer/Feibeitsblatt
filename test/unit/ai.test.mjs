@@ -217,8 +217,8 @@ test("buildFeedbackMessages: Format – erst Aufgaben, Material und Aufträge de
     { text: "Fülle die Tabelle aus.", solution: "- Weizen", answer: { type: "table", columns: ["Produkt", "Land"], rows: 2 } },
   ], ["Krieg und Hunger", "Kaffee → Brasilien\nZugeordnet: 1 von 1", "Produkt | Land\nWeizen | Kanada"]);
   assert.deepEqual(nrs, [1, 3]);
-  // Nur Systemprompt und eine Nachricht; die Funktion bekommt nur Aufgaben und Antworten – nie Personendaten
-  assert.equal(buildFeedbackMessages.length, 2);
+  // Nur Systemprompt und eine Nachricht; die Funktion bekommt nur Aufgaben, Antworten und die Auswahl der Aufgaben – nie Personendaten
+  assert.equal(buildFeedbackMessages.length, 3);
   assert.deepEqual(messages.map((m) => m.role), ["system", "user"]);
   assert.equal(messages[0].content, FEEDBACK_SYSTEM);
   assert.equal(messages[1].content, [
@@ -281,6 +281,24 @@ test("feedbackAcceptor: jede angefragte Aufgabe braucht mindestens einen Stichpu
   assert.equal(acc({ aufgaben: [{ nr: 1, gut: ["a"], tipps: [] }] }), false);                                      // Aufgabe 3 fehlt
   assert.equal(acc({ aufgaben: [] }), false);
   assert.equal(acc({ aufgaben: [{ nr: 1, angesprochen: ["a"] }, { nr: 3, fehlt: ["b"] }] }), true);                // altes Format
+});
+test("buildFeedbackMessages/feedbackResults with only (second feedback): just the chosen tasks, same format and order; null for the others", () => {
+  const answers = ["Licht und Wasser", "egal", "weil warm"];
+  const { messages, nrs } = buildFeedbackMessages(tasks, answers, [3]);
+  assert.deepEqual(nrs, [3]);
+  const u = messages[1].content;
+  assert.match(u, /^Aufgaben, Material und Aufträge der Lehrkraft \(Nummern: 3\):$/m);
+  assert.doesNotMatch(u, /^### Aufgabe 1$/m); assert.doesNotMatch(u, /Licht und Wasser|Chloroplasten/);
+  assert.ok(u.indexOf("### Aufgabe 3") < u.indexOf("### Antwort zu Aufgabe 3"));   // Reihenfolge wie immer: erst Aufgaben, dann Antworten
+  assert.match(u, /Gib für jede der 1 Aufgaben \(Nummern: 3\)/);
+  assert.deepEqual(parseFeedbackPrompt(u).map((b) => [b.nr, b.answer]), [[3, "weil warm"]]);
+  // gewählt, aber ohne Auftrag (Aufgabe 2): nichts für die KI
+  assert.deepEqual(buildFeedbackMessages(tasks, answers, [2]).nrs, []);
+  // ohne Auswahl (null) wie bisher alle mit Auftrag
+  assert.deepEqual(buildFeedbackMessages(tasks, answers, null).nrs, [1, 3]);
+  assert.equal(buildFeedbackMessages(tasks, answers, null).messages[1].content, buildFeedbackMessages(tasks, answers).messages[1].content);
+  const res = feedbackResults(tasks, new Map([[3, { covered: ["Wärme"], missing: [] }]]), [2, 3]);
+  assert.deepEqual(res, [null, { covered: [], missing: [], note: NO_SOLUTION_NOTE }, { covered: ["Wärme"], missing: [] }]);
 });
 test("feedbackResults: note for tasks without an instruction for the AI, empty lists for missing answers", () => {
   assert.equal(NO_SOLUTION_NOTE, "Zu dieser Aufgabe gibt es kein KI-Feedback.");

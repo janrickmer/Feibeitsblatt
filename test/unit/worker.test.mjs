@@ -4,7 +4,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
-import { startMockAI, expectedResults, expectedChecklist, mockAIBinding } from "../mock-ai.mjs";
+import { startMockAI, expectedResults, expectedChecklist, mockAIBinding, parseFeedbackPrompt } from "../mock-ai.mjs";
 import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf } from "../../worker/lib.js";
 import { nextUtcMidnight, TTL } from "../../worker/ai.js";
 import { makePng } from "../png.mjs";
@@ -544,6 +544,44 @@ test("feedback: one AI call, expected covered/missing (= gut/tipps of the mock),
   assert.equal(r.json.aiGenerated, true); assert.equal(r.json.digitalSourceType, "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia");
   assert.equal(mock.state.requests.length, 1);
   assert.equal(mock.state.requests[0].temperature, 0.1);
+});
+
+test("second feedback (only): just the chosen tasks go to the AI – prompt, answers and output budget; null results for the others; bad selections → 400", async () => {
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Nur geänderte", tasks: [
+    { text: "Erkläre die Photosynthese.", solution: "- Photosynthese braucht Licht\n- Sauerstoff entsteht" },
+    { text: "Deine Meinung?", solution: "" },
+    { text: "Warum verdunstet Wasser?", solution: "- Wärme" },
+  ] } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  mock.reset();
+  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["", "", "Durch Wärme"], only: [3] } });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.json.results, [null, null, { covered: ["Wärme"], missing: [] }]);
+  assert.equal(r.json.aiGenerated, true);
+  assert.equal(mock.state.requests.length, 1);
+  const u = mock.state.requests[0].messages[1].content;
+  assert.match(u, /\(Nummern: 3\):/); assert.match(u, /^### Aufgabe 3$/m); assert.match(u, /^### Antwort zu Aufgabe 3$/m);
+  assert.doesNotMatch(u, /Photosynthese|^### Aufgabe 1$|^### Antwort zu Aufgabe 1$/m);   // Aufgabe 1 weder als Aufgabe noch als Antwort
+  assert.deepEqual(parseFeedbackPrompt(u).map((b) => b.nr), [3]);
+  // eine gewählte Aufgabe ohne Auftrag: keine KI, nur der Hinweis
+  mock.reset();
+  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Licht", "Text", "Wärme"], only: [2] } });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.json.results, [null, { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }, null]);
+  assert.equal(r.json.aiGenerated, false); assert.equal(mock.state.requests.length, 0);
+  // ungültige Auswahl: nie stillschweigend „alle“
+  for (const only of [[], [0], [4], [1, 1], ["1"], [1.5], "1", { 0: 1 }, [1, 2, 3, 3]]) {
+    r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Licht", "", "Wärme"], only } });
+    assert.equal(r.status, 400, JSON.stringify(only)); assert.equal(r.json.code, "bad_answers");
+  }
+  assert.equal(mock.state.requests.length, 0);
+  // ohne only wie bisher: alle Aufgaben mit Auftrag
+  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Licht", "", "Wärme"], only: null } });
+  assert.equal(r.status, 200, r.text); assert.equal(r.json.results.length, 3); assert.ok(r.json.results[0] && r.json.results[2]);
+  assert.match(mock.state.requests[0].messages[1].content, /\(Nummern: 1, 3\):/);
+  r = await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  assert.equal(r.status, 200);
 });
 
 test("aiFeedback flag: false when no task has an Auftrag an die KI (map tasks never count); feedback then needs no AI", async () => {

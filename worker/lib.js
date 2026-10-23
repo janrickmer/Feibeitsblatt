@@ -523,6 +523,15 @@ export function validateAnswers(answers, taskCount) {
     return cleanText(a);
   });
 }
+// Zweite KI-Rückmeldung (nach der Abgabe): nur diese Aufgaben gehen an die KI – die nach dem ersten Feedback geänderten,
+// 1-basiert. Fehlt `only`, gelten alle (erstes Feedback) → null; sonst aufsteigend sortiert, ohne Doppelte.
+export function validateOnly(only, taskCount) {
+  if (only == null) return null;
+  if (!Array.isArray(only) || !only.length || only.length > taskCount ||
+    !only.every((n) => Number.isInteger(n) && n >= 1 && n <= taskCount) || new Set(only).size !== only.length)
+    throw new InputError("Die Auswahl der Aufgaben passt nicht zu diesem Feibeitsblatt. Bitte lade die Seite neu.", "bad_answers");
+  return [...only].sort((a, b) => a - b);
+}
 
 /* ---------- Löschfrist (settings `privacy`) ----------
  * {v:1, retentionDays (7–365), updatedAt, auto?} – auto:true = von einer Neuinstallation gesetzte Vorgabe (30 Tage), noch nicht von

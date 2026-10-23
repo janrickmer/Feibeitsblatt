@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   CODE_ALPHABET, normalizeCode, isValidCode, formatCode, generateCode, b64Bytes, isB64, b64ToBytes, bytesToB64,
   sha256Hex, timingSafeEqualStr, validateKdf, validateEncPrivateKey, decodeAuthKey, importPublicKey, validateEnvelope,
-  validateSheetInput, validateAnswers, normalizeBaseUrl, isAllowedBase, validateAiInput, keyHintOf, defaultTitle,
+  validateSheetInput, validateAnswers, validateOnly, normalizeBaseUrl, isAllowedBase, validateAiInput, keyHintOf, defaultTitle,
   bucketOf, ipKey, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
   validateAnswerSpec, withMapChecks, publicAnswer, teacherAnswer, mapCheck,
   validatePrivacyInput, privacyOut, cleanLine, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
@@ -115,6 +115,12 @@ test("validateSheetInput: trimming, defaults, limits", () => {
   assert.throws(() => validateSheetInput({ tasks: [{ text: "a", solution: 5 }] }), { message: "Aufgabe 1: Der Auftrag an die KI muss ein Text sein." });
   rejectsWith(() => validateSheetInput({ tasks: "a" }), "bad_request");
   assert.equal(validateSheetInput({ tasks: [{ text: "a\u0000b\u0007" }] }).tasks[0].text, "ab");
+});
+test("validateOnly: null = all tasks; otherwise unique 1-based task numbers, sorted; anything else → bad_answers", () => {
+  assert.equal(validateOnly(undefined, 3), null); assert.equal(validateOnly(null, 3), null);
+  assert.deepEqual(validateOnly([3, 1], 3), [1, 3]);
+  assert.deepEqual(validateOnly([2], 3), [2]);
+  for (const bad of [[], [0], [4], [1, 1], ["1"], [1.5], [NaN], "1", 1, {}, [1, 2, 3, 4]]) rejectsWith(() => validateOnly(bad, 3), "bad_answers");
 });
 test("validateAnswers: count, per-answer and total limits", () => {
   assert.deepEqual(validateAnswers(["a", null, "c\r\nd"], 3), ["a", "", "c\nd"]);
