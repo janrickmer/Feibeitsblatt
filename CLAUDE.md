@@ -261,7 +261,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Aufsichtsbehörde stehen nur im Konfigurationsskript ganz oben in `index.html`: `window.FEIBEITSBLATT_OPERATOR = {name,
   street, city, country, email, authority:{name, address, url}}` (Jan-Rickmer Feindt, An der Bauna 30, 34270 Schauenburg,
   j.feindt@kollegium.lg-ks.de; HBDI, Gustav-Stresemann-Ring 1, 65189 Wiesbaden, https://datenschutz.hessen.de – **nie eine
-  andere E-Mail-Adresse**); im Skript nur die gekappte, eingefrorene Kopie `OPERATOR` lesen (E-Mail einfache Form, URL nur
+  andere E-Mail-Adresse**); im Skript nur die gekappte, eingefrorene Kopie `OPERATOR` lesen (E-Mail einfache ASCII-Form ≤ 120, URL ≤ 200 nur
   https), Bausteine `OP_NAME`, `OP_ADDR`, `AUTH_TEXT`, `mailLink()` (je Stelle ein neuer Knoten), `authorityLink`,
   `authorityTail`; E2E-Konstanten `OP*` müssen dazu passen. Der Server speichert keine Angaben einer Schule mehr. settings `privacy` = `{v:1, retentionDays 7–365, updatedAt, auto?}` (`auto:true` = Vorgabe 30 einer
   Neuinstallation). lib.js: `validatePrivacyInput` (nur Frist als Ganzzahl `retentionMin`–`retentionMax` und `confirmDelete`;
@@ -762,7 +762,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (Betreiber im Hinweis, „Impressum & Datenschutz“ über die Fußzeile in neuem Tab, über `#impressum` und mit gescheitertem
   `/api/privacy`, GitHub Pages per `addInitScript` → `FEIBEITSBLATT_API`, Betreiberkasten, Löschfrist, Vorschau, alte
   Schulangaben per `d1Query` → beim Laden der Übersicht entfernt; `PRIVAT_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos), 2/3/3b/4/5
-  (Hinweis mit Schulangaben, `#privfull-ed` nach Weiterschreiben, KI-Kennzeichnung, `#done-del`, Lösungs-PDF mit/ohne XMP
+  (Hinweis mit Betreiber und Löschfrist, keine Schulangaben in D1/API, `#privfull-ed` nach Weiterschreiben, KI-Kennzeichnung, `#done-del`, Lösungs-PDF mit/ohne XMP
   samt Aufbauprüfung `pdfStructure`), 7i (Kürzen mit Nachfrage, Verlängern, Cron lokal); Unit: `scheduled` auf der
   gemeinsamen D1 (und einmal frisch importiert `?scheduled`), `d1.failIf` für ein scheiterndes PURGE, `Math.random`
   gestubbt beim Zählen der D1-Abfragen und in Tests mit zurückdatierten Einträgen (`noRandomCleanup`: sonst löscht das

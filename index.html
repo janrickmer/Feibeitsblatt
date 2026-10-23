@@ -1376,12 +1376,14 @@ const PUBLIC_URL = String(window.FEIBEITSBLATT_PUBLIC || "https://feibeitsblatt.
 const OPERATOR = (() => {
   const o = window.FEIBEITSBLATT_OPERATOR && typeof window.FEIBEITSBLATT_OPERATOR === "object" ? window.FEIBEITSBLATT_OPERATOR : {};
   const a = o.authority && typeof o.authority === "object" ? o.authority : {};
-  const line = (v, n) => (typeof v === "string" ? v : "").normalize("NFC").replace(/\p{Cc}/gu, " ").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim().slice(0, n);
-  const email = line(o.email, 120), url = line(a.url, 200);
+  const clean = (v) => (typeof v === "string" ? v : "").normalize("NFC").replace(/\p{Cc}/gu, " ").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim();
+  const line = (v, n) => clean(v).slice(0, n);
+  // Adressen nie kürzen (eine gekürzte wäre falsch) – zu lang oder ungültig → leer
+  const email = clean(o.email), url = clean(a.url);
   return Object.freeze({
     name: line(o.name, 120), street: line(o.street, 120), city: line(o.city, 120), country: line(o.country, 60),
-    email: /^[^\s@<>"()]+@[^\s@<>"()]+\.[^\s@<>"()]+$/.test(email) ? email : "",
-    authority: Object.freeze({ name: line(a.name, 160), address: line(a.address, 200), url: /^https:\/\/[^\s"<>]+$/.test(url) ? url : "" }),
+    email: email.length <= 120 && /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/.test(email) ? email : "",
+    authority: Object.freeze({ name: line(a.name, 160), address: line(a.address, 200), url: url.length <= 200 && /^https:\/\/[^\s"<>]+$/.test(url) ? url : "" }),
   });
 })();
 const PDF_MAX_BYTES = 5 * 1024 * 1024;                       // hochgeladene Zwischenstand-PDF (unsere sind < 100 KB; neu gespeicherte größer)
@@ -2494,8 +2496,9 @@ function privacyNoticeDom(p, list, opts) {
       ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || TRANSFER_UNKNOWN}.` }));
   });
   if (!withAi) items.push(h("li", { text: t("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.", "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – eure Antworten gehen an keine KI.") }));
-  else if (o.general) items.push(h("li", { text: "Nur wenn du das KI-Feedback anforderst: der KI-Dienst, den deine Lehrkraft eingerichtet hat. Diese Seite nennt ihn dir mit Sitz und " +
-    `Grundlage der Übermittlung, bevor etwas gesendet wird. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} –, bei der Abgabe gegebenenfalls noch einmal in der abgegebenen Fassung.` }));
+  else if (o.general) items.push(h("li", { text: "Nur wenn du das KI-Feedback anforderst: der KI-Dienst, den deine Lehrkraft eingerichtet hat – und, falls sie eine Reserve " +
+    `eingerichtet hat, ein zweiter KI-Dienst, wenn der erste ${RESERVE_WHEN}. Diese Seite nennt dir jeden mit Sitz und ` +
+    `Grundlage der Übermittlung, bevor etwas gesendet wird. Der KI-Dienst bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} –, bei der Abgabe gegebenenfalls noch einmal in der abgegebenen Fassung.` }));
   else if (!ai.length) items.push(h("li", { text: o.site ? "Ein KI-Dienst ist gerade nicht eingerichtet – deine Antworten gehen an keine KI." : B.noAiSet }));
   items.push(h("li", { text: t("Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
     "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. ",
@@ -6936,7 +6939,7 @@ const savedMain = () => (T.ai && T.ai.saved !== false ? T.ai.provider || "" : ""
 function recipientOf(provider, baseUrl) {
   if (provider !== "custom") return (PROVIDERS[provider] || {}).recipient || provider;
   let host = ""; try { host = new URL(baseUrl).host; } catch (e) { host = String(baseUrl || ""); }
-  return host + " (Betreiber und Sitz: von Ihnen zu prüfen)";
+  return host + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)";   // = recipientLabel im Worker
 }
 function provLabel(p, serverLabel) { return typeof serverLabel === "string" && serverLabel ? serverLabel : PROVIDERS[p] ? PROVIDERS[p].label : String(p || "–"); }
 const groupInt = (n) => Math.round(Number(n) || 0).toLocaleString("de-DE");   // „10.000“ wie die übrigen Zahlen der Oberfläche
@@ -7274,9 +7277,9 @@ function pvCheck(f) {   // dieselben Grenzen wie validatePrivacyInput → {id, m
 // Betreiber und Aufsichtsbehörde wie im Hinweis – nur zum Ansehen (Änderungen nur in index.html)
 (function renderOperatorBox() {
   const box = $("pv-operator"), a = mailLink();
-  box.append(h("p", null, [[OP_NAME, OP_ADDR].filter(Boolean).join(", ") + (a ? ", E-Mail: " : ""), a]),
+  box.append(...[h("p", null, [[OP_NAME, OP_ADDR].filter(Boolean).join(", ") + (a ? ", E-Mail: " : ""), a]),
     h("p", { text: "Feibeitsblatt ist ein privates, nicht kommerzielles und kostenloses Angebot – kein Angebot einer Schule." }),
-    AUTH_TEXT ? h("p", null, ["Zuständige Datenschutz-Aufsichtsbehörde: " + AUTH_TEXT + (OPERATOR.authority.url ? ", " : ""), authorityLink()]) : null);
+    AUTH_TEXT ? h("p", null, ["Zuständige Datenschutz-Aufsichtsbehörde: " + AUTH_TEXT + (OPERATOR.authority.url ? ", " : ""), authorityLink()]) : null].filter(Boolean));
 })();
 const olderNow = (d) => (T.privacy && T.privacy.olderThan ? Number(T.privacy.olderThan[String(d)]) || 0 : 0);
 function renderPvEffect() {
@@ -7586,7 +7589,7 @@ async function openLegal() {
   try { r = await api("GET", "/api/privacy"); } catch (e) { r = null; }
   if (LEGAL.run !== run || screen !== "screen-legal") return;
   setStatus(st, r ? "" : "Die aktuellen Angaben zum KI-Dienst und zur Löschfrist konnten gerade nicht geladen werden – deshalb stehen hier allgemeine Angaben. " +
-    "Den KI-Dienst nennt dir diese Seite, bevor etwas gesendet wird; die Löschfrist steht nach der Eingabe des Codes auf der Seite „Deine Angaben“.", "");
+    "Den KI-Dienst (und eine Reserve) nennt dir diese Seite, bevor etwas gesendet wird; die Löschfrist steht nach der Eingabe des Codes auf der Seite „Deine Angaben“.", "");
   box.appendChild(privacyNoticeDom(r ? cleanPrivacy(r) : null, r ? cleanRecipients(r.aiRecipients) : [],
     { h: "h3", withAi: true, pages: PAGES_HOST, id: "legal-privfull", site: true, general: !r, flat: true, summary: "Datenschutzerklärung" }));
 }

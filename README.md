@@ -559,7 +559,8 @@ Daraus entstehen die Seite **„Impressum & Datenschutz“** (Adresse mit `#impr
 öffnet sie in einem neuen Tab) mit den Angaben nach § 18 Abs. 1 Medienstaatsvertrag und darunter dem vollständigen
 Datenschutzhinweis, sowie die Angaben „Wer ist verantwortlich?“ und „Deine Rechte“ im Hinweis auf dem Angaben-Bildschirm
 und im Schreibbereich. **Bei einer eigenen Installation** tragen Sie dort Ihre eigenen Angaben und die für Sie zuständige
-Aufsichtsbehörde ein (die E-Mail-Adresse nur in einfacher Form, die Webadresse der Behörde nur mit `https://`) und
+Aufsichtsbehörde ein (die E-Mail-Adresse nur in einfacher Form wie `name@example.org`, höchstens 120 Zeichen; die
+Webadresse der Behörde nur mit `https://`, höchstens 200 Zeichen – sonst fehlt die Angabe auf der Seite) und
 veröffentlichen die Seite neu; die Browser-Tests erwarten dieselben Angaben (`OP` in `test/e2e/feibeitsblatt.spec.mjs`).
 In der Datenbank stehen diese Angaben nicht; Angaben einer Schule, die ältere Versionen dort gespeichert haben, entfernt
 der Server beim nächsten Aufräumen.

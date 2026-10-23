@@ -830,8 +830,8 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await sp.route("**/api/privacy", (r) => r.abort());
   await sp.goto("/#impressum");
   await expect(sp.locator("#legal-status")).toHaveText("Die aktuellen Angaben zum KI-Dienst und zur Löschfrist konnten gerade nicht geladen werden – deshalb stehen hier allgemeine Angaben. " +
-    "Den KI-Dienst nennt dir diese Seite, bevor etwas gesendet wird; die Löschfrist steht nach der Eingabe des Codes auf der Seite „Deine Angaben“.");
-  await expect(sp.locator("#legal-privfull")).toContainText("Nur wenn du das KI-Feedback anforderst: der KI-Dienst, den deine Lehrkraft eingerichtet hat. Diese Seite nennt ihn dir mit Sitz und Grundlage der Übermittlung, bevor etwas gesendet wird.");
+    "Den KI-Dienst (und eine Reserve) nennt dir diese Seite, bevor etwas gesendet wird; die Löschfrist steht nach der Eingabe des Codes auf der Seite „Deine Angaben“.");
+  await expect(sp.locator("#legal-privfull")).toContainText("Nur wenn du das KI-Feedback anforderst: der KI-Dienst, den deine Lehrkraft eingerichtet hat – und, falls sie eine Reserve eingerichtet hat, ein zweiter KI-Dienst, wenn der erste nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert. Diese Seite nennt dir jeden mit Sitz und Grundlage der Übermittlung, bevor etwas gesendet wird.");
   await expect(sp.locator("#legal-privfull")).toContainText("wird nach der Frist automatisch gelöscht, die deine Lehrkraft festgelegt hat – sie steht nach der Eingabe des Codes auf der Seite „Deine Angaben“");
   await expect(sp.locator("#legal-privfull")).toContainText(OP_RESP);
   await sp.unroute("**/api/privacy");
