@@ -3301,7 +3301,13 @@ test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (d
   // er speichert nichts, die Seite fragt mit der neuen Zahl erneut (Abbrechen ändert weiter nichts)
   await back10(ids[2]);
   await page.click("#pv-save");
-  expect(await confirmDialog(page, "Ältere Abgaben jetzt löschen?")).toBe("Mit einer Frist von 7 Tagen wird 1 Abgabe bzw. Erstversuch, der älter ist, sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.");
+  // erste Rückfrage mit der alten Zahl bestätigen; lokal antwortet der Server so schnell, dass die zweite Rückfrage (dieselbe
+  // Dialogbox) erscheint, bevor die erste sichtbar geschlossen ist – deshalb hier auf den neuen Text warten statt aufs Schließen
+  await expect(page.locator("#dlg.open")).toBeVisible();
+  await expect(page.locator("#dlg-title")).toHaveText("Ältere Abgaben jetzt löschen?");
+  await expect(page.locator("#dlg-text")).toHaveText("Mit einer Frist von 7 Tagen wird 1 Abgabe bzw. Erstversuch, der älter ist, sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.");
+  await page.click("#dlg-ok");
+  await expect(page.locator("#dlg-text")).toHaveText(/^Nach dem aktuellen Stand/);
   expect(await confirmDialog(page, "Ältere Abgaben jetzt löschen?", false)).toBe("Nach dem aktuellen Stand ist mehr zu löschen als zuvor angezeigt. Mit einer Frist von 7 Tagen werden 2 Abgaben bzw. Erstversuche, die älter sind, sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.");
   await expect(page.locator("#pv-status")).toHaveText("Nicht gespeichert – es wurde nichts gelöscht.");
   await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würden jetzt 2 ältere Einträge gelöscht.");
