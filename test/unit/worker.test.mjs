@@ -955,8 +955,19 @@ test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht so
     r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 3 } });
     assert.equal(r.status, 400); assert.equal(r.json.error, "Bitte wählen Sie eine Löschfrist zwischen 7 und 365 Tagen.");
     assert.deepEqual(idsOf(c), [recent, mid, old]);
-    // gespeichert und im selben Batch gelöscht: Erstversuch (20 Tage) und Abgabe (100 Tage), die von vor 2 Tagen bleibt
-    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: { ...SCHOOL, name: " Muster\nschule\u202E " }, retentionDays: 14, extra: "weg" } });
+    // ohne Bestätigung (confirmDelete fehlt bzw. zu klein): 409 mit der aktuellen Zahl, nichts gespeichert, nichts gelöscht
+    const before = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 14 } });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "confirm_delete");
+    const would = r.json.wouldDelete;
+    assert.ok(would >= 2); assert.equal(r.json.olderThan["14"], would);
+    assert.match(r.json.error, /mehr, als Sie bestätigt haben\. Es wurde nichts gespeichert und nichts gelöscht\./);
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 14, confirmDelete: would - 1 } });
+    assert.equal(r.status, 409);
+    assert.deepEqual(d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get(), before);
+    assert.deepEqual(idsOf(c), [recent, mid, old]);
+    // bestätigt: gespeichert und im selben Batch gelöscht – Erstversuch (20 Tage) und Abgabe (100 Tage), die von vor 2 Tagen bleibt
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: { ...SCHOOL, name: " Muster\nschule\u202E " }, retentionDays: 14, confirmDelete: would, extra: "weg" } });
     assert.equal(r.status, 200, r.text);
     assert.ok(r.json.deleted >= 2); assert.equal(r.json.complete, true); assert.equal(r.json.olderThan["14"], 0);
     assert.deepEqual(idsOf(c), [recent]);

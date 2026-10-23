@@ -393,7 +393,10 @@ const SCHOOL = { name: "Musterschule", address: "Musterstraße 1, 65185 Wiesbade
 const privErr = (body, msg) => assert.throws(() => validatePrivacyInput(body), (e) => e instanceof InputError && e.status === 400 && (msg ? (msg instanceof RegExp ? msg.test(e.message) : e.message === msg) : true));
 test("validatePrivacyInput: einzeilig, NFC, ohne Steuer- und Formatzeichen; Grenzen je Feld; Link nur https; Frist 7–365", () => {
   const ok = validatePrivacyInput({ school: { ...SCHOOL, name: "  Muster\nschule\t am\u00A0See ", address: "A\u202Eb", dpo: "Cafe\u0301", url: " https://Example.org/x?y=1 " }, retentionDays: 30, extra: 1 });
-  assert.deepEqual(Object.keys(ok), ["school", "retentionDays"]);
+  assert.deepEqual(Object.keys(ok), ["school", "retentionDays", "confirmDelete"]);
+  assert.equal(ok.confirmDelete, 0);   // fehlt = nichts zum Löschen bestätigt
+  assert.equal(validatePrivacyInput({ retentionDays: 30, confirmDelete: 3 }).confirmDelete, 3);
+  for (const cd of [-1, 1.5, "2", true, 2e9]) privErr({ retentionDays: 30, confirmDelete: cd }, "Ungültige Anfrage.");
   assert.deepEqual(Object.keys(ok.school), ["name", "address", "dpo", "url", "legalBasis", "authority"]);
   assert.equal(ok.school.name, "Muster schule am See");   // Zeilenumbruch/Tab/NBSP → ein Leerzeichen
   assert.equal(ok.school.address, "Ab");                  // Bidi-Steuerzeichen (U+202E) entfernt

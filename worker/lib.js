@@ -554,7 +554,11 @@ export function validatePrivacyInput(body) {
   const rawUrl = String(src.url || "").trim(), url = rawUrl ? cleanHttpsUrl(rawUrl) : "";
   if (rawUrl && !url) throw new InputError("Bitte geben Sie die Datenschutzerklärung der Schule als vollständige Adresse mit https:// an (höchstens " + LIMITS.privacyUrl + " Zeichen).");
   if (!isRetention(body.retentionDays)) throw new InputError("Bitte wählen Sie eine Löschfrist zwischen " + LIMITS.retentionMin + " und " + LIMITS.retentionMax + " Tagen.");
-  return { school: { name: out.name, address: out.address, dpo: out.dpo, url, legalBasis: out.legalBasis, authority: out.authority }, retentionDays: body.retentionDays };
+  // Wie viele ältere Einträge die Lehrkraft zum Löschen bestätigt hat (fehlt = 0): Würde die neue Frist mehr löschen, speichert der
+  // Server nichts (409 confirm_delete) – kein Löschen, das die Lehrkraft nicht gesehen hat
+  const cd = body.confirmDelete == null ? 0 : body.confirmDelete;
+  if (!Number.isInteger(cd) || cd < 0 || cd > 1e9) throw new InputError("Ungültige Anfrage.");
+  return { school: { name: out.name, address: out.address, dpo: out.dpo, url, legalBasis: out.legalBasis, authority: out.authority }, retentionDays: body.retentionDays, confirmDelete: cd };
 }
 // Gespeicherte Angaben erneut prüfen und kappen (die Zeile könnte von Hand geändert sein); eine ungültige Frist → null, also keine
 // automatische Löschung – genau wie PURGE_SQL (Ganzzahl 7–365; JSON.stringify schreibt Ganzzahlen nie als 30.0)
@@ -581,6 +585,13 @@ export const PURGE_SQL = "DELETE FROM submissions WHERE received_at < ?1 - 86400
 // ?1…?n = jetzt − Frist je RETENTION_OPTIONS
 export const OLDER_THAN_SQL = "SELECT " + RETENTION_OPTIONS.map((d, i) => "SUM(received_at<?" + (i + 1) + ") AS d" + d).join(", ") +
   " FROM submissions WHERE received_at<?1";
+/* PUT der Frist in einem Batch (eine Transaktion): ?1 = jetzt − neue Frist. COUNT_OLDER_SQL zählt, was die neue Frist löschen würde;
+   SAVE_PRIVACY_SQL schreibt nur, wenn das nicht mehr ist als bestätigt (?2 = neuer Wert, ?3 = bestätigte Zahl); DELETE_OLDER_SQL
+   löscht nur, wenn genau dieser Wert jetzt gespeichert ist (?2) – also nie ohne Bestätigung und nie ohne gespeicherte Frist. */
+export const COUNT_OLDER_SQL = "SELECT COUNT(*) AS n FROM submissions WHERE received_at<?1";
+export const SAVE_PRIVACY_SQL = "INSERT INTO settings(key,value) SELECT 'privacy',?2 WHERE (SELECT COUNT(*) FROM submissions WHERE received_at<?1)<=?3 " +
+  "ON CONFLICT(key) DO UPDATE SET value=excluded.value";
+export const DELETE_OLDER_SQL = "DELETE FROM submissions WHERE received_at<?1 AND (SELECT value FROM settings WHERE key='privacy')=?2";
 
 // Basis-URL eines eigenen OpenAI-kompatiblen Dienstes: https Pflicht, http nur für 127.0.0.1/localhost (Tests)
 export function normalizeBaseUrl(input) {

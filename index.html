@@ -12,12 +12,14 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236b4f2c'/%3E%3Ctext x='32' y='45' font-family='Georgia,serif' font-size='40' font-weight='bold' text-anchor='middle' fill='%23fffdf8'%3EF%3C/text%3E%3C/svg%3E">
 <script>
   /* Adresse des Servers (Cloudflare Worker, ohne Schrägstrich am Ende). Liefert der Worker diese Seite selbst aus
-     (workers.dev) oder läuft sie lokal, gilt "" = gleiche Herkunft. Liegt die Seite woanders (GitHub Pages unter
-     feibeitsblatt.janrickmer.de), ruft sie den Worker unter dieser Adresse auf – dieselbe Adresse steht in der
-     Content-Security-Policy darüber (connect-src). */
+     (workers.dev oder eine eigene Domain direkt am Worker: die Kopie in dist/ trägt das Kennzeichen
+     meta name="feibeitsblatt-host" content="worker" aus scripts/build.mjs) oder läuft sie lokal, gilt "" = gleiche
+     Herkunft. Liegt die Seite woanders (GitHub Pages unter feibeitsblatt.janrickmer.de, ohne Kennzeichen), ruft sie den
+     Worker unter dieser Adresse auf – dieselbe Adresse steht in der Content-Security-Policy darüber (connect-src). */
   window.FEIBEITSBLATT_WORKER = "https://feibeitsblatt.feindt.workers.dev";
   window.FEIBEITSBLATT_PUBLIC = "https://feibeitsblatt.janrickmer.de/";   // Adresse in der Zwischenstand-PDF (Schüler:innen laden sie dort wieder hoch)
-  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || (/\.workers\.dev$|^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? "" : window.FEIBEITSBLATT_WORKER);
+  window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || (document.querySelector('meta[name="feibeitsblatt-host"][content="worker"]') ||
+    /\.workers\.dev$|^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? "" : window.FEIBEITSBLATT_WORKER);
 </script>
 <style>
   /* ---------- Grundlagen (Tokens wie im Feiditor) ---------- */
@@ -1087,7 +1089,7 @@
           <select id="pv-days" aria-describedby="pv-days-hint pv-days-effect">
             <option value="7">7 Tagen</option>
             <option value="14">14 Tagen</option>
-            <option value="30">30 Tagen (Vorgabe)</option>
+            <option value="30" selected>30 Tagen (Vorgabe)</option>
             <option value="60">60 Tagen</option>
             <option value="90">90 Tagen</option>
             <option value="180">180 Tagen</option>
@@ -1098,6 +1100,7 @@
         </div>
         <div class="row" style="margin-top:4px">
           <button type="button" class="btn" id="pv-save">Speichern</button>
+          <button type="button" class="btn ghost hidden" id="pv-reload">Erneut laden</button>
         </div>
         <p class="status" id="pv-status" aria-live="polite"></p>
       </div>
@@ -1337,7 +1340,7 @@ const store = {
 
 /* ------------------------- Server-Anfragen ------------------------- */
 class ApiError extends Error {
-  constructor(code, serverMsg, status, retryAfter) { super(code); this.code = code; this.serverMsg = serverMsg || ""; this.status = status || 0; this.retryAfter = retryAfter || 0; }
+  constructor(code, serverMsg, status, retryAfter, data) { super(code); this.code = code; this.serverMsg = serverMsg || ""; this.status = status || 0; this.retryAfter = retryAfter || 0; this.data = data || null; }
 }
 async function api(method, path, opts) {
   const o = opts || {};
@@ -1360,7 +1363,7 @@ async function api(method, path, opts) {
   const code = data && typeof data.code === "string" ? data.code : "http_" + res.status;
   const msg = data && typeof data.error === "string" ? data.error.trim().slice(0, 500) : "";
   let ra = data && Number.isFinite(data.retryAfter) ? data.retryAfter : parseInt(res.headers.get("Retry-After") || "", 10);
-  throw new ApiError(code, msg, res.status, Number.isFinite(ra) ? ra : 0);
+  throw new ApiError(code, msg, res.status, Number.isFinite(ra) ? ra : 0, data && typeof data === "object" ? data : null);
 }
 /* Deutsche Fehlermeldungen: s = Schüler:innen (du), t = Lehrkraft (Sie). Eine Meldung des Servers hat Vorrang. */
 const MSG = {
@@ -2106,7 +2109,7 @@ function recipientSentence() {
 const PRIV_LIMITS = { name: 160, address: 240, dpo: 300, url: 500, legalBasis: 400, authority: 240 };   // = LIMITS im Worker (schoolName …)
 const RETENTION_MIN = 7, RETENTION_MAX = 365;                                                           // = LIMITS.retentionMin/-Max
 const BACKUP_DAYS = "bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)";              // D1 Time Travel
-const PAGES_HOST = API !== "";   // die Seite kommt nicht vom Worker (GitHub Pages) → GitHub ist ein weiterer Empfänger (IP-Adresse)
+const PAGES_HOST = API !== "";   // die Seite kommt nicht vom Worker (GitHub Pages, ohne Kennzeichen feibeitsblatt-host) → GitHub ist ein weiterer Empfänger (IP-Adresse)
 const DPF_SCC = "auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln";
 const privLine = (v) => String(v == null ? "" : v).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ")
   .replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\s+/g, " ").trim();
@@ -2125,16 +2128,20 @@ function cleanPrivacy(v) {
   return { school: { name: f("name"), address: f("address"), dpo: f("dpo"), url: typeof s.url === "string" ? httpsUrl(s.url) : "", legalBasis: f("legalBasis"), authority: f("authority") },
     retentionDays: Number.isInteger(d) && d >= RETENTION_MIN && d <= RETENTION_MAX ? d : null };
 }
-// Kurzfassung (nennt auch den KI-Dienst: gespeichert wird nur verschlüsselt, das KI-Feedback aber geht an einen Dienst)
+// Kurzfassung (nennt auch den KI-Dienst: auf dem Server wird nur verschlüsselt gespeichert, das KI-Feedback aber geht an einen Dienst –
+// nach dem KI-Feedback bei der Abgabe noch einmal, zweite Rückmeldung)
 function privacyShortText(p, list, withAi) {
   const sc = (p && p.school) || {}, days = p && p.retentionDays;
-  return `Verantwortlich ist ${sc.name || "deine Schule"}. Gespeichert werden deine Angaben und Antworten nur verschlüsselt – lesen kann die gespeicherten Daten nur deine Lehrkraft. ` +
+  return `Verantwortlich ist ${sc.name || "deine Schule"}. Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft. ` +
     (days ? `Nach ${days} Tagen werden sie automatisch gelöscht. ` : "Deine Lehrkraft löscht sie nach der Durchsicht. ") +
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
       : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „${list[0].label}“` +
-        (list.length > 1 ? " (fällt er aus, an eine Reserve)" : "") + ". Auch die Rechtschreibprüfung ist freiwillig."
+        (list.length > 1 ? " (fällt er aus, an eine Reserve)" : "") + ", bei der Abgabe dann noch einmal in der abgegebenen Fassung. Auch die Rechtschreibprüfung ist freiwillig."
       : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.");
 }
+// Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
+const FB2_SEND = " Hast du KI-Feedback bekommen, geht bei der Abgabe auch deine abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
+  "für eine zweite Rückmeldung, die nur du siehst (nicht, wenn du nach dem ersten Feedback nichts geändert hast).";
 /* Alle Informationen (Art. 13 Abs. 1 und 2): p = Angaben (cleanPrivacy) oder null, list = KI-Empfänger [{id, label, transfer}],
    opts: h (Ebene der Abschnittsüberschriften), withAi (Blatt mit KI-Feedback), pages (Seite über GitHub Pages), open, id */
 function privacyNoticeDom(p, list, opts) {
@@ -2143,7 +2150,7 @@ function privacyNoticeDom(p, list, opts) {
   const ai = withAi ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
   const cfAt = ai.findIndex((x) => x.id === "cloudflare");
   const firstName = ai.length ? (ai[0].id === "cloudflare" ? "Cloudflare (Workers AI)" : "„" + ai[0].label + "“") : "";
-  const items = [h("li", { text: "Deine Lehrkraft – nur sie kann deine gespeicherten Angaben und Antworten lesen." })];
+  const items = [h("li", { text: "Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen." })];
   // Cloudflare betreibt Server und Datenbank; mit Workers AI ist Cloudflare zugleich der KI-Dienst (ein Eintrag statt zwei)
   items.push(h("li", { text: "Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU. " +
     "Gespeichert werden deine Angaben und Antworten dort nur verschlüsselt." +
@@ -2151,13 +2158,14 @@ function privacyNoticeDom(p, list, opts) {
     " Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) deines Geräts." +
     (cfAt < 0 ? "" : (cfAt === 0 ? " Wenn du das KI-Feedback anforderst, ist Cloudflare zugleich der KI-Dienst (Workers AI)"
       : ` Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}, ist Cloudflare zugleich der KI-Dienst (Workers AI, Reserve)`) +
-      ": Dafür bekommt Cloudflare deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden.") +
+      ": Dafür bekommt Cloudflare deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden." +
+      (cfAt === 0 ? FB2_SEND : "")) +
     ` Für Übermittlungen in die USA stützt sich Cloudflare ${DPF_SCC}.` }));
   if (o.pages) items.push(h("li", { text: `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.` }));
   ai.forEach((x, i) => {
     if (x.id === "cloudflare") return;
     items.push(h("li", { text: (i === 0
-      ? `Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ohne Namenskürzel, Geburtstag und Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`
+      ? `Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ohne Namenskürzel, Geburtstag und Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.${FB2_SEND}`
       : `Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}: der KI-Dienst „${x.label}“ (Reserve). Er bekommt dieselben Daten und verarbeitet sie nach seinen eigenen Bedingungen.`) +
       ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || "von der Schule beim Anbieter zu prüfen"}.` }));
   });
@@ -2180,7 +2188,8 @@ function privacyNoticeDom(p, list, opts) {
     head("Rechtsgrundlage"),
     para(sc.legalBasis || "Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes."),
     head("Welche Daten?"),
-    para("Die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr), deine Klasse, deine Antworten" + (withAi ? ", die KI-Rückmeldungen" : "") +
+    para("Die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr), deine Klasse, deine Antworten" +
+      (withAi ? ", die KI-Rückmeldungen, bei einer Abgabe ohne KI-Feedback ein Vermerk dazu (war das KI-Feedback nicht möglich, mit dem Grund)" : "") +
       " und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) deines Geräts; gespeichert wird sie nicht im Klartext, " +
       "sondern nur unkenntlich gemacht in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang."),
     head("Wer bekommt die Daten?"),
@@ -2188,8 +2197,10 @@ function privacyNoticeDom(p, list, opts) {
     head("Wie lange werden die Daten gespeichert?"),
     para((days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); deine Lehrkraft kann sie auch früher löschen.`
       : `${what} wird gespeichert, bis deine Lehrkraft sie nach der Durchsicht löscht.`) +
-      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. Dein Zwischenstand bleibt nur auf diesem Gerät, höchstens ${DRAFT_DAYS} Tage.` +
-      (cfAt >= 0 ? " Workers AI speichert deine Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist." : "") +
+      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät, ` +
+      `höchstens ${DRAFT_DAYS} Tage – wer denselben Browser nutzt, kann ihn lesen; auf einem geteilten Gerät gib deshalb ab oder lösche ihn („Abbrechen und Zwischenstand löschen“).` +
+      (cfAt >= 0 ? " Workers AI speichert deine Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten " +
+        "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
       (ai.some((x) => x.id !== "cloudflare") ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
     head("Musst du mitmachen?"),
     para("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. " +
@@ -4291,8 +4302,11 @@ function handleAuthError(e) {
   if (e && e.code === "unauthorized") { logout(true); $("start-err").textContent = "Bitte melden Sie sich erneut an."; return true; }
   return false;
 }
+const pvUnsaved = () => pvDirty && !$("tv-privacy").classList.contains("hidden");   // ungespeicherte Angaben zum Datenschutz (sichtbare Seite)
 async function logout(force, why) {
   if (force !== true && T.builderDirty && !(await askConfirm({ title: "Abmelden?", text: "Ihre Eingaben für das neue Feibeitsblatt gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
+  if (force !== true && pvUnsaved() && !(await askConfirm({ title: "Abmelden?", text: "Ihre Änderungen an den Angaben zum Datenschutz gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
+  pvDirty = false; pvLoaded = false; pvPurged = false;
   clearTimeout(idleTimer);
   T.importRun = (T.importRun || 0) + 1; T.exportRun = (T.exportRun || 0) + 1;   // laufende Importe/Exporte enden mit der Sitzung
   Object.assign(T, { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, privacy: null, builderDirty: false });
@@ -4528,7 +4542,7 @@ function buildDetail(s) {
   if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
   else if (noFb) meta.push("ohne KI-Feedback");
   const keep = retentionDaysT(), got = toDate(s.receivedAt);   // Löschfrist gilt ab dem Eingang (ein Erstversuch: ab seinem Eingang)
-  if (keep && got) meta.push("automatische Löschung am " + fmtD(got.getTime() + keep * 864e5));
+  if (keep && got) meta.push("automatische Löschung ab dem " + fmtD(got.getTime() + keep * 864e5));   // gelöscht im nächsten nächtlichen Lauf oder beim Öffnen der Übersicht
   box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
   if (isFirst) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Diese Schülerin oder dieser Schüler hat das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
@@ -5921,7 +5935,12 @@ function renderRetentionHint() {
     : "Abgaben werden nicht automatisch gelöscht – bitte löschen Sie sie nach der Durchsicht oder legen Sie unter „Datenschutz und Löschfrist“ eine Frist fest.";
   el.classList.toggle("hidden", !el.textContent);
 }
-let pvDirty = false, pvTimer = 0;
+/* pvLoaded: nur nach erfolgreichem Laden sind Formular und „Speichern“ frei – sonst stünden leere Felder und eine falsche Frist im
+   Formular, und „Speichern“ überschriebe die Angaben und löschte ohne Nachfrage. pvPurged: hat ein Speichern Einträge gelöscht, lädt
+   „zurück zur Übersicht“ Blätter und Abgaben neu (Zahlen, Liste, Lösch-Dialoge). */
+let pvDirty = false, pvTimer = 0, pvLoaded = false, pvPurged = false;
+const PV_LOCKED = PV_FIELDS.map(([, id]) => id).concat(["pv-days", "pv-hessen", "pv-save"]);
+const pvLock = (on) => PV_LOCKED.forEach((id) => { $(id).disabled = on; });
 function pvForm() {   // Formularwerte so, wie der Server sie prüft (einzeilig); der Link wird erst beim Prüfen normalisiert
   const school = {};
   PV_FIELDS.forEach(([k, id]) => { school[k] = k === "url" ? $(id).value.trim() : privLine($(id).value); });
@@ -5937,6 +5956,7 @@ function pvCheck(f) {   // dieselben Grenzen wie validatePrivacyInput → {id, m
 }
 const olderNow = (d) => (T.privacy && T.privacy.olderThan ? Number(T.privacy.olderThan[String(d)]) || 0 : 0);
 function renderPvEffect() {
+  if (!pvLoaded) { $("pv-days-effect").textContent = ""; return; }
   const k = olderNow(Number($("pv-days").value));
   $("pv-days-effect").textContent = k ? `Mit dieser Frist ${k === 1 ? "würde" : "würden"} jetzt ${entriesText(k)} gelöscht.` : "Mit dieser Frist würde jetzt nichts gelöscht.";
 }
@@ -5953,26 +5973,37 @@ function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der A
 }
 async function openPrivacy() {
   teacherView("tv-privacy");
-  const st = $("pv-status"), save = $("pv-save");
+  const st = $("pv-status"), reload = $("pv-reload");
+  pvLoaded = false; pvDirty = false; pvLock(true); reload.classList.add("hidden");
   setStatus(st, "Wird geladen …", "busy");
-  save.disabled = true;
   PV_FIELDS.forEach(([, id]) => $(id).classList.remove("invalid"));
   try {
     T.privacy = await TA("/api/teacher/privacy");
     const p = savedPrivacy(), def = (T.privacy.defaults && T.privacy.defaults.retentionDays) || 30;
     PV_FIELDS.forEach(([k, id]) => { $(id).value = p ? p.school[k] : ""; });
     setPvDays(p && p.retentionDays ? p.retentionDays : def);
-    pvDirty = false;
+    pvLoaded = !!(T.privacy.olderThan && typeof T.privacy.olderThan === "object"); pvLock(!pvLoaded);
     setStatus(st, T.privacy.privacy && T.privacy.privacy.auto ? "Die Löschfrist von 30 Tagen ist die Vorgabe dieser Installation – mit „Speichern“ legen Sie sie selbst fest." : "", "");
     renderPrivacyState();
-  } catch (e) { if (handleAuthError(e)) return; setStatus(st, errMsg(e, "t"), "bad"); }
-  finally { save.disabled = false; renderPvEffect(); renderPvPreview(); growAll(); focusSoon("pv-name", 30); }
+  } catch (e) {
+    if (handleAuthError(e)) return;
+    // gesperrt lassen: ohne den gespeicherten Stand wüsste die Seite weder die Angaben noch, was eine Frist jetzt löschen würde
+    setStatus(st, "Die gespeicherten Angaben konnten nicht geladen werden: " + errMsg(e, "t") + " Speichern ist erst möglich, wenn sie geladen sind.", "bad");
+    reload.classList.remove("hidden");
+  }
+  renderPvEffect(); renderPvPreview(); growAll(); focusSoon(pvLoaded ? "pv-name" : "pv-reload", 30);
 }
 $("t-privacy").addEventListener("click", openPrivacy);
+$("pv-reload").addEventListener("click", openPrivacy);
 $("pv-back").addEventListener("click", async () => {
   if (pvDirty && !(await askConfirm({ title: "Ohne Speichern zurück?", text: "Ihre Änderungen an den Angaben zum Datenschutz gehen verloren.", ok: "Verwerfen", cancel: "Weiter bearbeiten", safeFirst: true }))) return;
   pvDirty = false;
   teacherView("tv-overview"); renderPrivacyState();
+  if (pvPurged) {   // gelöschte Einträge nicht weiter in Zahlen, Liste und Lösch-Dialogen zeigen (wie „Aktualisieren“)
+    pvPurged = false;
+    await loadSheets(true);
+    if (T.sel) { renderSheets(); await loadSubs(); }
+  }
 });
 PV_FIELDS.forEach(([, id]) => $(id).addEventListener("input", () => {
   pvDirty = true; $(id).classList.remove("invalid");
@@ -5989,31 +6020,55 @@ $("pv-hessen").addEventListener("click", async () => {
   pvDirty = true; growAll(); renderPvPreview();
   setStatus($("pv-status"), "Vorschläge eingesetzt – bitte mit Ihrer bzw. Ihrem Datenschutzbeauftragten abstimmen und dann „Speichern“ klicken.", "");
 });
+/* Speichern: vor dem Löschen nachfragen und die bestätigte Zahl mitschicken (confirmDelete). Würde der Server mehr löschen (Seite lange
+   offen, eine per API gespeicherte Frist außerhalb der Auswahl …), speichert er nichts (409 confirm_delete mit der aktuellen Zahl) –
+   dann mit der neuen Zahl erneut fragen, höchstens zweimal. */
 async function pvSave() {
-  const st = $("pv-status"), f = pvForm(), before = retentionDaysT();
+  const st = $("pv-status");
+  if (!pvLoaded || !T.privacy || !T.privacy.olderThan) { setStatus(st, "Die gespeicherten Angaben sind nicht geladen – bitte zuerst „Erneut laden“ klicken.", "bad"); return; }
+  const f = pvForm(), before = retentionDaysT();
   PV_FIELDS.forEach(([, id]) => $(id).classList.remove("invalid"));
   const bad = pvCheck(f);
   if (bad) { $(bad.id).classList.add("invalid"); $(bad.id).focus(); setStatus(st, bad.msg, "bad"); return; }
-  const k = olderNow(f.retentionDays);   // Stand beim Öffnen der Seite; der Server löscht, was beim Speichern älter ist
-  if (k && !(await askConfirm({ title: "Ältere Abgaben jetzt löschen?",
-    text: `Mit einer Frist von ${f.retentionDays} Tagen ${k === 1 ? "wird 1 Abgabe bzw. Erstversuch, der älter ist," : "werden " + k + " Abgaben bzw. Erstversuche, die älter sind,"} sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.`,
-    ok: "Speichern und löschen", cancel: "Abbrechen", danger: true }))) return;
-  setStatus(st, "Wird gespeichert …", "busy");
-  try {
-    const r = await TA("/api/teacher/privacy", { method: "PUT", body: f });
-    T.privacy = Object.assign({}, T.privacy, { privacy: r.privacy, complete: r.complete, olderThan: r.olderThan || (T.privacy && T.privacy.olderThan) });
-    pvDirty = false;
-    const missing = missingOf(cleanPrivacy(r.privacy));
-    setStatus(st, "Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes." +
-      (r.deleted ? ` ${r.deleted === 1 ? "1 älterer Eintrag wurde" : r.deleted + " ältere Einträge wurden"} gelöscht.` : "") +
-      (before && f.retentionDays > before ? " Die längere Frist gilt auch für schon gespeicherte Abgaben – informieren Sie die Schüler:innen neu." : "") +
-      (missing.length ? ` Es fehlen noch: ${missing.join(", ")}.` : ""), missing.length ? "" : "ok");
-    renderPvEffect(); renderPrivacyState();
-  } catch (e) { if (!handleAuthError(e)) setStatus(st, "Nicht gespeichert – " + errMsg(e, "t"), "bad"); }
+  let k = olderNow(f.retentionDays), newer = false;
+  for (let round = 0; ; round++) {
+    if (k && !(await askConfirm({ title: "Ältere Abgaben jetzt löschen?",
+      text: (newer ? "Nach dem aktuellen Stand ist mehr zu löschen als zuvor angezeigt. " : "") +
+        `Mit einer Frist von ${f.retentionDays} Tagen ${k === 1 ? "wird 1 Abgabe bzw. Erstversuch, der älter ist," : "werden " + k + " Abgaben bzw. Erstversuche, die älter sind,"} sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.`,
+      ok: "Speichern und löschen", cancel: "Abbrechen", danger: true }))) {
+      if (newer) setStatus(st, "Nicht gespeichert – es wurde nichts gelöscht.", "");
+      return;
+    }
+    setStatus(st, "Wird gespeichert …", "busy");
+    try {
+      const r = await TA("/api/teacher/privacy", { method: "PUT", body: Object.assign({}, f, { confirmDelete: k }) });
+      T.privacy = Object.assign({}, T.privacy, { privacy: r.privacy, complete: r.complete, olderThan: r.olderThan || (T.privacy && T.privacy.olderThan) });
+      pvDirty = false;
+      if (r.deleted) pvPurged = true;
+      const missing = missingOf(cleanPrivacy(r.privacy));
+      setStatus(st, "Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes." +
+        (r.deleted ? ` ${r.deleted === 1 ? "1 älterer Eintrag wurde" : r.deleted + " ältere Einträge wurden"} gelöscht.` : "") +
+        (before && f.retentionDays > before ? " Die längere Frist gilt auch für schon gespeicherte Abgaben – informieren Sie die Schüler:innen neu." : "") +
+        (missing.length ? ` Es fehlen noch: ${missing.join(", ")}.` : ""), missing.length ? "" : "ok");
+      renderPvEffect(); renderPrivacyState();
+      return;
+    } catch (e) {
+      if (handleAuthError(e)) return;
+      const d = e instanceof ApiError && e.code === "confirm_delete" ? e.data : null;
+      if (d && Number.isInteger(d.wouldDelete) && d.wouldDelete > k && round < 2) {
+        if (d.olderThan && typeof d.olderThan === "object") T.privacy = Object.assign({}, T.privacy, { olderThan: d.olderThan });
+        renderPvEffect();
+        k = d.wouldDelete; newer = true;
+        continue;
+      }
+      setStatus(st, "Nicht gespeichert – " + errMsg(e, "t"), "bad");
+      return;
+    }
+  }
 }
 $("pv-save").addEventListener("click", async () => {
   const b = $("pv-save"); busy(b, true, "Wird gespeichert …");
-  try { await pvSave(); } finally { busy(b, false); }
+  try { await pvSave(); } finally { busy(b, false); if (!pvLoaded) b.disabled = true; }
 });
 
 /* ---------- Passwort ändern ---------- */
@@ -6051,7 +6106,7 @@ onEnter($("pw-2"), changePassword, $("pw-btn"));
 /* ---------- Seite verlassen: Warnung bei ungespeicherter Arbeit ---------- */
 window.addEventListener("beforeunload", (e) => {
   const writing = screen === "screen-editor" && !S.submitted && S.tas.some((t) => t.value.trim());
-  const building = screen === "screen-teacher" && T.builderDirty;
+  const building = screen === "screen-teacher" && (T.builderDirty || pvUnsaved());
   if (writing || building) { if (writing) saveDraft(); e.preventDefault(); e.returnValue = ""; }
 });
 

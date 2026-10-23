@@ -117,15 +117,16 @@ jobs:
           set -o pipefail
           if ! npx wrangler deploy 2>&1 | tee "$RUNNER_TEMP/deploy.log"; then
             if grep -q "Cron schedules" "$RUNNER_TEMP/deploy.log"; then
+              echo "uploaded=true" >> "$GITHUB_OUTPUT"
               echo "::error title=Zeitplan für die automatische Löschung nicht gesetzt::Der Worker ist veröffentlicht, aber der tägliche Zeitplan (Cron Trigger) ließ sich nicht setzen – meist ist das Cron-Kontingent des Cloudflare-Kontos voll. Gelöscht wird dann nur beim Öffnen der Lehrkräfte-Übersicht. Abhilfe: README, „Häufige Probleme“."
             fi
             exit 1
           fi
 
-      # Läuft auch, wenn „Worker veröffentlichen“ gescheitert ist (z. B. nur am Zeitplan, siehe oben): Ohne SETTINGS_SECRET ließe sich
-      # bei einer Neuinstallation kein API-Schlüssel speichern. Nicht, wenn der Deploy gar nicht lief (frühere Schritte gescheitert).
+      # Läuft auch, wenn „Worker veröffentlichen“ nur am Zeitplan gescheitert ist (der Code ist dann schon hochgeladen, siehe oben):
+      # Ohne SETTINGS_SECRET ließe sich bei einer Neuinstallation kein API-Schlüssel speichern. Nicht nach jedem anderen Fehler.
       - name: SETTINGS_SECRET sicherstellen (verschlüsselt den KI-Schlüssel, Pfeffer der Rate-Limits)
-        if: ${{ !cancelled() && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.deploy.outcome == 'success' || steps.deploy.outputs.uploaded == 'true') }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT }}
@@ -142,5 +143,6 @@ jobs:
           fi
 
       - name: Adresse ausgeben
+        if: ${{ !cancelled() && (steps.deploy.outcome == 'success' || steps.deploy.outputs.uploaded == 'true') }}
         run: |
           echo "::notice title=Feibeitsblatt ist online::https://feibeitsblatt.${WORKERS_SUBDOMAIN}.workers.dev – bitte sofort öffnen, 1104 eingeben und das Lehrkraft-Passwort festlegen."

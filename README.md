@@ -286,7 +286,8 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
    Beachten Sie: Kürzel, Geburtstag, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
    Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt. Über der Tabelle steht die Löschfrist,
-   aufgeklappt je Abgabe das Datum der automatischen Löschung („automatische Löschung am TT.MM.JJJJ“).
+   aufgeklappt je Abgabe, ab wann sie automatisch gelöscht wird („automatische Löschung ab dem TT.MM.JJJJ“ – im nächsten
+   nächtlichen Lauf oder beim nächsten Öffnen der Übersicht).
 6. **Als PDF-Datei sichern und wiederverwenden.** Bei einem ausgewählten Feibeitsblatt lädt „Als PDF-Datei
    herunterladen“ eine PDF-Datei herunter (`Feibeitsblatt-<Code>-<Titel>.pdf`, Umlaute im Namen umschrieben). Sie zeigt Titel, Aufgabenstellungen,
    Material (als Text, Links mit Adresse) und die Bilder; die Namen angehängter PDF-Dateien stehen darunter. Im
@@ -836,7 +837,7 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > Antworten nach Vorgaben der Lehrkraft bespricht; Rechtsgrundlage ist [§ … Schulgesetz / Art. 6 Abs. 1 lit. e
 > DSGVO]. Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
 > lesbar – auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
-> gelöscht (danach noch bis zu 7 Tage in der Datensicherung). Cloudflare stützt Übermittlungen in die USA auf das EU-US
+> gelöscht (danach noch bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung). Cloudflare stützt Übermittlungen in die USA auf das EU-US
 > Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. [Falls die Seite über GitHub Pages aufgerufen wird:
 > Beim Laden der Seite verarbeitet auch GitHub, Inc. (USA) die IP-Adresse.]
 > Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
@@ -1002,7 +1003,7 @@ gespeichert.
 | „Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid.“ | Es ist kein Lehrkraft-Passwort festgelegt (z. B. nach dem Zurücksetzen). `1104` eingeben und ein Passwort festlegen (Schritt 7). |
 | „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“ | KI-Einstellungen speichern (Schritt 8). Abgeben (ohne KI-Feedback) geht trotzdem. |
 | Rote Warnung „Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch …“ bzw. „… werden noch nicht automatisch gelöscht“ in der Übersicht | Unter „Datenschutz und Löschfrist“ die Angaben der Schule eintragen bzw. eine Löschfrist speichern ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Bis dahin sehen die Schüler:innen einen allgemeinen Hinweis. |
-| Abgaben sind verschwunden | Vermutlich ist die Löschfrist abgelaufen (die Übersicht nennt sie; aufgeklappt steht je Abgabe das Löschdatum). Gelöschtes lässt sich nur über D1 Time Travel (bis zu 7 Tage) für die ganze Datenbank zurückholen – das setzt auch alles andere zurück. |
+| Abgaben sind verschwunden | Vermutlich ist die Löschfrist abgelaufen (die Übersicht nennt sie; aufgeklappt steht je Abgabe, ab wann sie gelöscht wird). Gelöschtes lässt sich nur über D1 Time Travel (bis zu 7 Tage, bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage) für die ganze Datenbank zurückholen – das setzt auch alles andere zurück. |
 | „Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt).“ | Den Workflow „Deploy“ erneut ausführen; er legt das Secret an. Danach den API-Schlüssel eintragen. |
 | „Bitte den API-Schlüssel neu eintragen.“ | `SETTINGS_SECRET` wurde geändert. Schlüssel in den KI-Einstellungen neu eintragen. |
 | „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder eine Reserve-KI bzw. einen anderen Anbieter eintragen. Schüler:innen können jederzeit ohne KI-Feedback abgeben; wer es versucht hat, ist in den Abgaben als „das KI-Feedback war nicht möglich“ vermerkt – bei Workers AI mit dem Grund „KI-Kontingent für heute aufgebraucht“, bei anderen Anbietern mit einem allgemeinen Grund wie „Anfrage nicht abgeschlossen“ oder (nach zwei Fehlversuchen) „KI nicht erreichbar“. Bei Workers AI zeigen die KI-Einstellungen „Tageskontingent aufgebraucht bis …“; ein erfolgreicher „Verbindung testen“ (z. B. nach einem Wechsel auf Workers Paid) hebt die Sperre vorzeitig auf. |
@@ -1076,7 +1077,10 @@ Zu beachten:
   „Settings“ → „Domains & Routes“ → „Add“ → „Custom domain“). Das setzt voraus, dass die Domain bei Cloudflare
   verwaltet wird, also ihre Nameserver auf Cloudflare zeigen (vorher alle vorhandenen DNS-Einträge wie E-Mail bei
   Cloudflare nachtragen). Ein bloßer CNAME-Eintrag beim bisherigen Anbieter auf die `workers.dev`-Adresse genügt
-  **nicht** – Cloudflare beantwortet fremde Hostnamen dort nicht (nicht im Einzelnen geprüft).
+  **nicht** – Cloudflare beantwortet fremde Hostnamen dort nicht (nicht im Einzelnen geprüft). Die Seite erkennt die
+  Worker-Kopie auch unter der eigenen Domain (`npm run build` setzt in `dist/index.html` das Kennzeichen
+  `<meta name="feibeitsblatt-host" content="worker">`): Sie ruft den Server dann über dieselbe Adresse auf und nennt
+  GitHub nicht als Empfänger.
 
 ## Entwicklung
 

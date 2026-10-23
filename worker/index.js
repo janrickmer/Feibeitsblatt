@@ -7,7 +7,7 @@ import {
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer,
-  validatePrivacyInput, privacyOut, isPrivacyComplete, PURGE_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
+  validatePrivacyInput, privacyOut, isPrivacyComplete, PURGE_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -753,17 +753,25 @@ async function routePrivacyGet(c) {
   return json({ ok: true, privacy: p, complete: isPrivacyComplete(p), defaults: privacyDefaults, olderThan: olderThanView(firstRow(old)),
     aiRecipients: recipientsFor(await aiConfig(c.env, firstRow(ai))) });
 }
-// PUT {school:{…}, retentionDays}: speichert (ersetzt) und löscht im selben Batch, was nach der neuen Frist zu alt ist – eine
-// Transaktion: scheitert sie, ist nichts gespeichert und nichts gelöscht. Die Oberfläche fragt vorher nach, wenn etwas gelöscht würde.
+// PUT {school:{…}, retentionDays, confirmDelete}: speichert (ersetzt) und löscht im selben Batch, was nach der neuen Frist zu alt ist –
+// eine Transaktion: scheitert sie, ist nichts gespeichert und nichts gelöscht. Die Oberfläche fragt vorher nach und schickt die
+// bestätigte Zahl (confirmDelete); würde jetzt mehr gelöscht (die Seite war lange offen, die Zahl beim Öffnen nicht ladbar …),
+// bleibt alles, wie es war: 409 confirm_delete mit der aktuellen Zahl (wouldDelete) und olderThan, damit sie neu fragen kann.
 async function routePrivacyPut(c) {
   await requireTeacher(c);
-  const { school, retentionDays } = validatePrivacyInput(await readJson(c.request));
-  const value = JSON.stringify({ v: 1, school, retentionDays, updatedAt: c.now });
-  const [, del, old] = await c.db.batch([
-    c.db.prepare("INSERT INTO settings(key,value) VALUES('privacy',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(value),
-    c.db.prepare(PURGE_SQL).bind(c.now),
+  const { school, retentionDays, confirmDelete } = validatePrivacyInput(await readJson(c.request));
+  const value = JSON.stringify({ v: 1, school, retentionDays, updatedAt: c.now }), cutoff = c.now - retentionDays * DAY_MS;
+  const [cnt, , del, old] = await c.db.batch([
+    c.db.prepare(COUNT_OLDER_SQL).bind(cutoff),
+    c.db.prepare(SAVE_PRIVACY_SQL).bind(cutoff, value, confirmDelete),
+    c.db.prepare(DELETE_OLDER_SQL).bind(cutoff, value),
     olderThanStmt(c),
   ]);
+  const n = Number((firstRow(cnt) || {}).n) || 0;
+  if (n > confirmDelete) {
+    throw new HttpError(409, "confirm_delete", `Mit dieser Frist ${n === 1 ? "würde jetzt 1 älterer Eintrag" : "würden jetzt " + n + " ältere Einträge"} gelöscht – ` +
+      "mehr, als Sie bestätigt haben. Es wurde nichts gespeichert und nichts gelöscht.", { wouldDelete: n, olderThan: olderThanView(firstRow(old)) });
+  }
   const p = privacyOut(JSON.parse(value));
   return json({ ok: true, privacy: p, complete: isPrivacyComplete(p), deleted: (del.meta && del.meta.changes) || 0, olderThan: olderThanView(firstRow(old)) });
 }

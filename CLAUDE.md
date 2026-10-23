@@ -20,7 +20,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
     `sealSecret`/`openSecret`. `worker/ai.js`: Anbieter (cloudflare = Vorauswahl/Empfehlung, groq, openrouter, gemini, cerebras, custom),
     `callAI`, `testKey`, Feedback-Prompt, `reserveSlot` – portiert aus janrickmer/check-des-feind-t-es.
   - Frontend ruft `API + "/api/…"` mit `API = window.FEIBEITSBLATT_API` (kleines Skript ganz oben): `""` = gleiche
-    Herkunft auf `*.workers.dev`/localhost, sonst `window.FEIBEITSBLATT_WORKER` (`https://feibeitsblatt.feindt.
+    Herkunft auf `*.workers.dev`/localhost und überall, wo die Worker-Kopie läuft (`scripts/build.mjs` setzt in `dist/index.html`
+    hinter `<meta charset>` das Kennzeichen `<meta name="feibeitsblatt-host" content="worker">` – auch für eine eigene Domain am
+    Worker; davon hängt auch `PAGES_HOST` ab, GitHub als Empfänger), sonst `window.FEIBEITSBLATT_WORKER` (`https://feibeitsblatt.feindt.
     workers.dev`). Die Seite liegt zusätzlich auf GitHub Pages unter `feibeitsblatt.janrickmer.de` (`CNAME`,
     `.nojekyll`, Quelle Branch `main` Ordner `/`): dort gelten keine `_headers`, deshalb steht die CSP auch als
     `<meta http-equiv>` in `index.html` – Worker-Adresse dort (`connect-src`) und im Skript immer zusammen ändern.
@@ -583,7 +585,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Anlegen wählbar – deshalb **nie `wrangler deploy` von Hand vor dem ersten Workflow-Lauf**) → `npx wrangler
   deploy` (Schritt `id: deploy`; scheitert nur das Setzen der Zeitpläne – wrangler „Cron schedules“, Konto hat schon 5 Cron
   Trigger –, ist der Code schon hochgeladen, der Schritt meldet es als `::error`) → `SETTINGS_SECRET` einmalig erzeugen
-  (`if: !cancelled() && steps.deploy.outcome` success/failure: läuft auch nach einem Scheitern nur am Zeitplan; **nie
+  (`if: !cancelled() && (steps.deploy.outcome == 'success' || steps.deploy.outputs.uploaded == 'true')` – `uploaded` setzt der
+  Deploy-Schritt nur beim Scheitern am Zeitplan; ebenso „Adresse ausgeben“; **nie
   überschreiben**: sonst ist der gespeicherte KI-Schlüssel unlesbar; ist die Secret-Liste nicht abrufbar, schlägt der
   Schritt fehl). Das Cloudflare-Token nur als Step-`env`
   der Schritte, die es brauchen (nie bei `npm ci`/`npm test`); Actions per Commit-SHA gepinnt. wrangler `4.145.0`
