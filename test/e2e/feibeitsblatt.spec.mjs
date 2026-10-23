@@ -2703,7 +2703,8 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p3.locator("#p-klasse-hint")).toHaveText("z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.");
   await expect(p3.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS.filter((x) => x !== "Entscheidet die KI über dich?"));
   await expect(p3.locator("#privfull-ed")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
-  await expect(p3.locator("#privfull-ed")).not.toContainText("unverschlüsselt");
+  await expect(p3.locator("#privfull-ed")).not.toContainText("kurz unverschlüsselt");   // keine Verarbeitung für eine KI
+  await expect(p3.locator("#privfull-ed")).toContainText("Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser");
   await expect(p3.locator("#submit-hint")).toHaveText("Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.");
   await typeAt(p3, "#a-1", "Ich schäme mich dann.");
   const draftN = await draftPdfText(p3);
