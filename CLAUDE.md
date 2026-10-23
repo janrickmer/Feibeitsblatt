@@ -45,7 +45,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   und `files` (PDF-Dateien, siehe unten). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
   Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
   `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
-  `POST /api/feedback` antwortet zusätzlich `aiGenerated` (`true` + `digitalSourceType` IPTC `trainedAlgorithmicMedia`,
+  `POST /api/feedback` nimmt optional `only: [n…]` (1-basierte Aufgabennummern, `validateOnly`: Ganzzahlen 1…Aufgabenzahl,
+  ohne Doppelte, nicht leer, sonst 400 `bad_answers` – nie stillschweigend „alle“; fehlt/`null` = alle) für die zweite
+  Rückmeldung: dann gehen nur diese Aufgaben (mit Auftrag) an die KI, `results` hat für die übrigen `null`; es antwortet
+  zusätzlich `aiGenerated` (`true` + `digitalSourceType` IPTC `trainedAlgorithmicMedia`,
   wenn die KI gefragt wurde, sonst `false`); `POST /api/submit` liefert `retentionDays` (Frist jetzt, `null` = keine).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
   `/door`, Blatt-Codes enthalten immer Buchstaben. `GET …/submissions?after=<id>` liefert seitenweise (≤ 50 bzw.
@@ -122,9 +125,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Steuerzeichen, trim wie `cleanText`) verschieden – derselbe Helfer im Abgabe-Dialog. Nichts geändert → keine Anfrage,
   `feedback2 = {results: erstes Feedback, same: true}`; sonst werden nur geänderte Aufgaben übernommen, für die anderen
   bleibt die erste Rückmeldung (`kept[i]`, Anzeige „Unverändert abgegeben – wie beim ersten Feedback.“, im PDF „gilt auch
-  für die abgegebene Fassung“) – nie zwei widersprüchliche Urteile für denselben Text. Zu lang (`fb2TooLong`, wie
-  `validateAnswers`) → keine Anfrage, Hinweis. Sonst `POST /api/feedback` mit `{code, answers: final,
-  recipients}` (wie das erste: ohne Personendaten, 409 `ai_changed` → nichts gesendet, Hinweis), Lauf-Kennung
+  für die abgegebene Fassung“) – nie zwei widersprüchliche Urteile für denselben Text. **Gesendet werden nur die geänderten
+  Aufgaben** (spart Token/Kontingent): `only = fb2Nums(changed)`, `answers = fb2Sent(final, changed)` (unveränderte als `""`);
+  ein Ergebnis fehlt für eine gewählte Aufgabe → `bad_result` (ein älterer Server ohne `only` liefert alle – passt auch).
+  Zu lang (`fb2TooLong(final, changed)`, nur die gesendeten, wie `validateAnswers`) → keine Anfrage, Hinweis. Sonst
+  `POST /api/feedback` mit `{code, answers, recipients, only}` (wie das erste: ohne Personendaten, 409 `ai_changed` → nichts
+  gesendet, Hinweis); der Abgabe-Dialog nennt die Aufgaben (`fb2Which`: „Danach bekommst du eine neue KI-Rückmeldung zu
+  Aufgabe 2: Von den Aufgaben, die die KI beurteilt, hast du nur diese … geändert“ – nie „nur diese hast du geändert“,
+  geänderte Aufgaben ohne Auftrag zählen nicht mit; „für die übrigen Aufgaben gilt das erste Feedback weiter“ nur bei weiteren beurteilten
+  Aufgaben), die Datenschutztexte sagen „die danach geänderten Antworten“, Lauf-Kennung
   `S.fbRun`/`S.fbAbort` (`resetStudent` → `stopFeedbackRun` bricht ab), bei `ai_busy` automatische Wiederholung wie beim
   ersten Feedback (`FB_TRIES`, `FB_MAX_MS`, Zufallsanteil, `waitFinalFeedback` mit Zähler `#done-fb-wait` außerhalb der
   Live-Region `#done-fb-status`), sonst `finalFeedbackFailed` + `#done-fb-retry` „Rückmeldung erneut anfordern“
@@ -136,7 +145,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Überarbeiten“, nach der Abgabe „Tipps zum Weiterlernen“). PDF ohne zweite Rückmeldung
   heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
   erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
-  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu. `feedback2` bleibt nur im Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Abgabe-Dialog
+  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2). `feedback2` bleibt nur im Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Abgabe-Dialog
   nennt die Empfänger (`recipientSentence`) bzw. „nichts geändert – nichts wird noch einmal gesendet“; Datenschutzhinweis
   und Feedback-Dialog nennen das zweite Senden. Je Schüler:in also bis zu zwei KI-Anfragen → Rate-Limits verdoppelt.
 - **Krypto (nur im Browser; Server sieht nie Passwort oder Klartext-Abgaben):** PBKDF2-HMAC-SHA256, 600 000
@@ -153,7 +162,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **KI:** Nie Personendaten an die KI – `/api/feedback` bekommt nur `{code, answers}`. Der Worker baut die Nachrichten
   **selbst** aus D1 (Aufgaben, reiner Text des Materials, Aufträge an die KI) und den Antworten (`buildFeedbackMessages`; nie `messages` vom
   Browser annehmen, sonst offenes KI-Relay); Daten zwischen `<<<`/`>>>` über `safeData`. Nur Aufgaben mit
-  Auftrag an die KI, eine Anfrage je Blatt. **Reihenfolge im Prompt nicht ändern:** erst der je Blatt gleiche Teil
+  Auftrag an die KI (bei `only` nur diese – gleiches Format, nur weniger Aufgaben), eine Anfrage je Blatt. **Reihenfolge im Prompt nicht ändern:** erst der je Blatt gleiche Teil
   („Aufgaben, Material und Aufträge der Lehrkraft (Nummern: …):“, je `### Aufgabe n` mit Aufgabenstellung, Material,
   „Auftrag der Lehrkraft für das Feedback:“), dann alle Antworten (`### Antwort zu Aufgabe n`) –
   so greift das Präfix-Caching (Groq: gecachte Token zählen nicht gegen die Limits); `parseFeedbackPrompt` im Mock

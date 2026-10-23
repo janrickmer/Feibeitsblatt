@@ -2415,7 +2415,7 @@ function privacyShortText(p, list, withAi, group) {
     (days ? `Nach ${days} Tagen werden sie automatisch gelöscht. ` : `${w.D} Lehrkraft löscht sie nach der Durchsicht. `) +
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
       : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn ${w.du} es ${w.anf}, gehen ${w.d} Antworten – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
-        (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") + ", bei der Abgabe dann noch einmal in der abgegebenen Fassung. Auch die Rechtschreibprüfung ist freiwillig."
+        (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") + ", bei der Abgabe dann noch einmal die danach geänderten Antworten. Auch die Rechtschreibprüfung ist freiwillig."
       : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.");
 }
 // Zwischenstand auf dem Gerät: gelöscht wird nur beim nächsten Aufruf der Seite (cleanupDrafts) – nie „höchstens 7 Tage“ zusagen
@@ -2436,8 +2436,8 @@ const CHECK_STAY = ` Die Häkchen einer solchen Checkliste löscht ${CHECK_PAGE}
 const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnest: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
   `und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`;
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
-const FB2_SEND = " Hast du KI-Feedback bekommen, geht bei der Abgabe auch deine abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
-  "für eine zweite Rückmeldung, die nur du siehst (nicht, wenn du nach dem ersten Feedback nichts geändert hast).";
+const FB2_SEND = " Hast du KI-Feedback bekommen, gehen bei der Abgabe die Antworten, die du danach geändert hast, auf demselben Weg noch einmal an die KI – " +
+  "für eine zweite, nur für dich sichtbare Rückmeldung zu diesen Aufgaben (hast du nichts geändert, wird nichts gesendet).";
 // Dieselben Bausteine in der „ihr“-Form – nur für den ausführlichen Hinweis auf dem Angaben-Bildschirm einer Gruppe (privacyNoticeDom
 // mit group); inhaltlich gleich, im Schreibbereich bleibt es beim „du“
 const PRIV_IHR = {
@@ -2452,8 +2452,8 @@ const PRIV_IHR = {
   checkGithub: `Nur wenn ihr eine Checkliste über den QR-Code öffnet: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
     `und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
   github: `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
-  fb2Send: " Habt ihr KI-Feedback bekommen, geht bei der Abgabe auch eure abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
-    "für eine zweite Rückmeldung, die nur ihr seht (nicht, wenn ihr nach dem ersten Feedback nichts geändert habt).",
+  fb2Send: " Habt ihr KI-Feedback bekommen, gehen bei der Abgabe die Antworten, die ihr danach geändert habt, auf demselben Weg noch einmal an die KI – " +
+    "für eine zweite, nur für euch sichtbare Rückmeldung zu diesen Aufgaben (habt ihr nichts geändert, wird nichts gesendet).",
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
 };
 const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
@@ -2498,7 +2498,7 @@ function privacyNoticeDom(p, list, opts) {
   if (!withAi) items.push(h("li", { text: t("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.", "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – eure Antworten gehen an keine KI.") }));
   else if (o.general) items.push(h("li", { text: "Nur wenn du das KI-Feedback anforderst: der KI-Dienst, den deine Lehrkraft eingerichtet hat – und, falls sie eine Reserve " +
     `eingerichtet hat, ein zweiter KI-Dienst, wenn der erste ${RESERVE_WHEN}. Diese Seite nennt dir jeden mit Sitz und ` +
-    `Grundlage der Übermittlung, bevor etwas gesendet wird. Der KI-Dienst bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} –, bei der Abgabe gegebenenfalls noch einmal in der abgegebenen Fassung.` }));
+    `Grundlage der Übermittlung, bevor etwas gesendet wird. Der KI-Dienst bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} –, bei der Abgabe gegebenenfalls noch einmal die danach geänderten Antworten.` }));
   else if (!ai.length) items.push(h("li", { text: o.site ? "Ein KI-Dienst ist gerade nicht eingerichtet – deine Antworten gehen an keine KI." : B.noAiSet }));
   items.push(h("li", { text: t("Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
     "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. ",
@@ -2617,7 +2617,7 @@ function renderPrivacy() {
         (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
         [r.cf && ", bei Cloudflare auch außerhalb der EU möglich", r.usa && (r.cf ? ", bei den übrigen Diensten mit Sitz in den USA" : ", bei Sitz in den USA") + " außerhalb der EU"].filter(Boolean).join("") + `. ` +
-        `Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI, wenn du vorher KI-Feedback bekommen hast – dafür bekommst du eine zweite Rückmeldung zu deiner abgegebenen Fassung (nicht, wenn du nach dem ersten Feedback nichts geändert hast). ` +
+        `Bei der Abgabe gehen die Antworten, die du nach dem ersten KI-Feedback geändert hast, auf demselben Weg noch einmal an die KI – dafür bekommst du zu diesen Aufgaben eine zweite Rückmeldung (hast du nichts geändert, wird nichts gesendet). ` +
         `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
         `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `)
       : `Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI. `) +
@@ -4208,7 +4208,7 @@ function renderFeedbackState() {
     : "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
   $("submit-hint").textContent = has
     ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " +
-      (recipientParts().any ? "Nach der Abgabe bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung." : FB2_NO_AI + ".")
+      (recipientParts().any ? "Nach der Abgabe bekommst du zu den Aufgaben, die die KI beurteilt und deren Antwort du nach dem KI-Feedback geändert hast, eine neue KI-Rückmeldung." : FB2_NO_AI + ".")
     : noAi ? "Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : !aiSheet ? "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
@@ -4297,11 +4297,11 @@ async function requestFeedback() {
   const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
-    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (bei der Abgabe folgt noch eine Rückmeldung zu deiner abgegebenen Fassung). Möchtest du es trotzdem jetzt anfordern?`,
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (bei der Abgabe folgt noch eine Rückmeldung zu den Antworten, die du danach änderst). Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
-    text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; bei der Abgabe gehen deine überarbeiteten Antworten noch einmal denselben Weg, und du bekommst eine Rückmeldung zu deiner abgegebenen Fassung. Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
+    text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; bei der Abgabe gehen die Antworten, die du danach änderst, noch einmal denselben Weg, und du bekommst zu ihnen eine zweite Rückmeldung. Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok || submitBusy(st, SENDING_FB)) return;
@@ -4420,10 +4420,11 @@ async function sendFirstAttempt() {
 }
 
 /* ---------- Zweite KI-Rückmeldung zur abgegebenen Fassung (auf der Bestätigungsseite) ----------
- * Erst wird abgegeben – die Abgabe hängt nie von der KI ab –, dann gehen die abgegebenen Antworten wie beim ersten Feedback
- * (ohne Namenskürzel, Geburtstag und Klasse, an dieselben Empfänger) noch einmal an die KI. Neu beurteilt werden nur
- * Aufgaben, die die KI beurteilt (Stichpunkte im ersten Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht
- * (fbText); für alle anderen gilt die erste Rückmeldung weiter. Hat sich nichts davon geändert, wird gar nicht gefragt. Die
+ * Erst wird abgegeben – die Abgabe hängt nie von der KI ab –, dann gehen wie beim ersten Feedback (ohne Namenskürzel, Geburtstag
+ * und Klasse, an dieselben Empfänger) nur die Aufgaben noch einmal an die KI, die die KI beurteilt (Stichpunkte im ersten
+ * Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht (fbText): `only` nennt sie, die übrigen Antworten
+ * gehen leer mit (spart Token und Kontingent). Für alle anderen gilt die erste Rückmeldung weiter. Hat sich nichts davon
+ * geändert, wird gar nicht gefragt. Die
  * Rückmeldung steht auf der Bestätigungsseite und in der Lösungs-PDF (Download-Button #done-pdf); sie bleibt nur im
  * Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Ist die KI ausgelastet, wird automatisch wiederholt. */
 const FB2_MANUAL = 3;   // „Rückmeldung erneut anfordern“ nach einem vorübergehenden Fehler höchstens so oft
@@ -4437,7 +4438,12 @@ function fb2Changes(firsts, finals, feedback) {
     return !!f && f.covered.length + f.missing.length > 0 && fbText(firsts[i]) !== fbText(fin);
   });
 }
-const fb2TooLong = (finals) => finals.reduce((n, a) => n + String(a || "").length, 0) > MAX_ANSWERS_TOTAL;   // wie validateAnswers im Worker
+// Nur die geänderten Antworten gehen mit (fb2Sent) – zu lang für den Server (wie validateAnswers im Worker)?
+const fb2Sent = (finals, changed) => finals.map((a, i) => (changed[i] ? a : ""));
+const fb2TooLong = (finals, changed) => fb2Sent(finals, changed).reduce((n, a) => n + String(a || "").length, 0) > MAX_ANSWERS_TOTAL;
+// „Aufgabe 2“ bzw. „den Aufgaben 2 und 3“ – die Aufgaben der zweiten Rückmeldung
+const fb2Nums = (changed) => changed.flatMap((c, i) => (c ? [i + 1] : []));
+const fb2Which = (nums) => (nums.length === 1 ? "Aufgabe " + nums[0] : "den Aufgaben " + listNums(nums));
 // Erstes KI-Feedback liegt vor (Zwischenstand), aber die Seite kennt jetzt keinen Empfänger (KI entfernt oder nicht nutzbar):
 // keine zweite Rückmeldung – die abgegebenen Antworten gehen dann gar nicht erst an den Server (Abgabe-Dialog, Hinweis, Bestätigung)
 const FB2_NO_AI = "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht – ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet";
@@ -4517,9 +4523,9 @@ async function requestFinalFeedback() {
     renderFinalFeedback();
     return;
   }
-  if (fb2TooLong(answers)) {   // der Server nähme die Anfrage nicht an (Grenze für alle Antworten zusammen)
+  if (fb2TooLong(answers, changed)) {   // der Server nähme die Anfrage nicht an (Grenze für alle Antworten zusammen)
     sub.fb2State = "failed";
-    setStatus(st, `Deine abgegebenen Antworten sind zusammen zu lang für eine KI-Rückmeldung (höchstens ${MAX_ANSWERS_TOTAL.toLocaleString("de-DE")} Zeichen). Deine Abgabe ist davon nicht betroffen.`, "bad");
+    setStatus(st, `Deine geänderten Antworten sind zusammen zu lang für eine KI-Rückmeldung (höchstens ${MAX_ANSWERS_TOTAL.toLocaleString("de-DE")} Zeichen). Deine Abgabe ist davon nicht betroffen.`, "bad");
     finalFeedbackGone(sub);
     return;
   }
@@ -4529,15 +4535,15 @@ async function requestFinalFeedback() {
     finalFeedbackGone(sub);
     return;
   }
-  const run = ++S.fbRun, t0 = Date.now();
+  const run = ++S.fbRun, t0 = Date.now(), only = fb2Nums(changed), sent = fb2Sent(answers, changed);
   sub.fb2State = "loading";
   for (let tries = 1; ; tries++) {
     if (run !== S.fbRun) return;
-    setStatus(st, tries === 1 ? "Die KI sieht sich deine abgegebene Fassung an … das kann bis zu einer Minute dauern." : `Neuer Versuch – die KI arbeitet (Versuch ${tries} von ${FB_TRIES}).`, "busy");
+    setStatus(st, tries === 1 ? `Die KI sieht sich deine geänderte${only.length === 1 ? " Antwort" : "n Antworten"} an (${fb2Which(only).replace(/^den /, "")}) … das kann bis zu einer Minute dauern.` : `Neuer Versuch – die KI arbeitet (Versuch ${tries} von ${FB_TRIES}).`, "busy");
     S.fbAbort = new AbortController();
     let r;
     try {
-      r = await api("POST", "/api/feedback", { body: { code: sub.code, answers, recipients: sub.recipients }, timeout: 150000, signal: S.fbAbort.signal });
+      r = await api("POST", "/api/feedback", { body: { code: sub.code, answers: sent, recipients: sub.recipients, only }, timeout: 150000, signal: S.fbAbort.signal });
     } catch (e) {
       if (run !== S.fbRun || (e instanceof ApiError && e.code === "aborted")) return;
       if (e instanceof ApiError && e.code === "ai_busy" && tries < FB_TRIES && Date.now() - t0 < FB_MAX_MS) {
@@ -4549,7 +4555,8 @@ async function requestFinalFeedback() {
       return;
     } finally { if (run === S.fbRun) S.fbAbort = null; }
     if (run !== S.fbRun) return;
-    if (!Array.isArray(r.results) || r.results.length !== answers.length) { finalFeedbackFailed(new ApiError("bad_result")); return; }
+    // je gewählter Aufgabe ein Ergebnis (die übrigen sind null – ein älterer Server ohne `only` liefert alle)
+    if (!Array.isArray(r.results) || r.results.length !== answers.length || only.some((n) => !r.results[n - 1] || typeof r.results[n - 1] !== "object")) { finalFeedbackFailed(new ApiError("bad_result")); return; }
     // neu beurteilt nur, was sich geändert hat – für unveränderte Aufgaben gilt die erste Rückmeldung (keine widersprüchlichen Urteile)
     sub.feedback2 = { results: r.results.map((x, i) => (changed[i] ? normFb(x) : normFb(sub.feedback[i]))), same: false, kept: changed.map((c) => !c), at: new Date().toISOString() };
     sub.fb2State = "done";
@@ -4604,13 +4611,16 @@ function submitDialog(withFb, finals, na) {
   const emptyLine = empty.length ? `Achtung: ${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n` : "";
   const lock = "Nach der Abgabe kannst du deine Antworten nicht mehr ändern.";
   if (withFb) {
-    const unchanged = !fb2Changes(S.first, finals, S.feedback).some(Boolean), tooLong = !unchanged && fb2TooLong(finals);
+    const changed = fb2Changes(S.first, finals, S.feedback), nums = fb2Nums(changed), unchanged = !nums.length, tooLong = !unchanged && fb2TooLong(finals, changed);
+    // beurteilte Aufgaben, die unverändert bleiben – für sie gilt das erste Feedback weiter
+    const keptAi = (S.feedback || []).some((f, i) => !changed[i] && f && normFb(f).covered.length + normFb(f).missing.length > 0);
     return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true,
       text: emptyLine + lock + " Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" +
         (unchanged ? "An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet; die Rückmeldung bleibt dieselbe."
-          : tooLong ? "Deine Antworten sind zusammen zu lang für eine zweite KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet."
+          : tooLong ? "Deine geänderten Antworten sind zusammen zu lang für eine zweite KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet."
           : !recipientParts().any ? FB2_NO_AI + "; an die KI wird nichts gesendet."   // z. B. weitergeschrieben, nachdem die KI entfernt wurde
-          : "Danach bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung. " + recipientSentence()) };
+          : `Danach bekommst du eine neue KI-Rückmeldung zu ${fb2Which(nums)}: Von den Aufgaben, die die KI beurteilt, hast du nur diese nach dem KI-Feedback geändert – nur ${nums.length === 1 ? "sie geht" : "sie gehen"} noch einmal an die KI` +
+            (keptAi ? "; für die übrigen Aufgaben gilt das erste Feedback weiter. " : ". ") + recipientSentence()) };
   }
   if (na.mode === "none") return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiterschreiben", safeFirst: true,
     text: emptyLine + lock + " Deine Antworten gehen verschlüsselt an deine Lehrkraft; nur sie kann sie lesen." };

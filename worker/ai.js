@@ -673,17 +673,18 @@ export const FEEDBACK_SCHEMA_GEMINI = {
 };
 
 /**
- * tasks: [{text, solution (= Auftrag an die KI), material?, answer?}], answers: [string] (gleich lang)
+ * tasks: [{text, solution (= Auftrag an die KI), material?, answer?}], answers: [string] (gleich lang),
+ * only: null (alle) oder 1-basierte Nummern (zweite Rückmeldung: nur die nach dem ersten Feedback geänderten Aufgaben)
  * → { messages, nrs } – nrs = 1-basierte Nummern der Aufgaben MIT Auftrag an die KI (nur diese gehen an die KI)
  */
 const MATERIAL_CAP = 4000;   // Zeichen Material je Aufgabe im Prompt
 const answerType = (t) => (t && t.answer && typeof t.answer === "object" ? t.answer.type : "text");
 export const wantsFeedback = (t) => !!str(t.solution).trim() && answerType(t) !== "map";   // Weltkarten-Zuordnung: nie an die KI
-export function buildFeedbackMessages(tasks, answers) {
-  const nrs = [], blocks = [], replies = [];
+export function buildFeedbackMessages(tasks, answers, only) {
+  const nrs = [], blocks = [], replies = [], pick = Array.isArray(only) ? new Set(only) : null;
   tasks.forEach((t, i) => {
     const brief = str(t.solution).trim();   // Auftrag der Lehrkraft an die KI
-    if (!wantsFeedback(t)) return;
+    if (!wantsFeedback(t) || (pick && !pick.has(i + 1))) return;   // nicht gewählte Aufgaben: weder Aufgabe noch Antwort
     const nr = i + 1; nrs.push(nr);
     let material = materialText(t.material);   // Material der Lehrkraft (Text, Zitat, Hinweise) als Kontext – gekürzt
     if (material.length > MATERIAL_CAP) material = material.slice(0, MATERIAL_CAP).trimEnd() + " …";
@@ -697,7 +698,8 @@ export function buildFeedbackMessages(tasks, answers) {
   });
   // Der für alle Schüler:innen eines Blattes gleiche Teil (Aufgaben, Material, Aufträge der Lehrkraft) steht zuerst, die
   // Antworten zuletzt: So greift das automatische Präfix-Caching der Anbieter (Groq: gecachte Token zählen nicht gegen die
-  // Minuten-/Tageslimits) ab der zweiten Anfrage zum selben Blatt – nur die Antworten und die Ausgabe kosten Kontingent.
+  // Minuten-/Tageslimits) ab der zweiten Anfrage zum selben Blatt – nur die Antworten und die Ausgabe kosten Kontingent. Eine
+  // zweite Rückmeldung mit `only` enthält nur die gewählten Aufgaben (gleiches Format, weniger Token; Präfix nur bei gleicher Auswahl).
   const user = "Aufgaben, Material und Aufträge der Lehrkraft (Nummern: " + nrs.join(", ") + "):\n\n" + blocks.join("\n\n") +
     "\n\nAntworten der Schülerin bzw. des Schülers:\n\n" + replies.join("\n\n") +
     "\n\nGib für jede der " + nrs.length + " Aufgaben (Nummern: " + nrs.join(", ") + ") dein Feedback als JSON zurück.";
@@ -720,13 +722,18 @@ function cleanItems(v) {
   }
   return out;
 }
+// Ein einzelner Eintrag als Objekt statt Liste (bei nur einer Aufgabe – z. B. der zweiten Rückmeldung – schreiben Modelle das manchmal)
+const ENTRY_KEYS = ["gut", "angesprochen", "covered", "korrekt", "tipps", "tipp", "fehlt", "missing", "nicht_angesprochen", "fehlend"];
+const isEntry = (o) => !!o && typeof o === "object" && !Array.isArray(o) && ENTRY_KEYS.some((k) => k in o);
 function entriesOf(json) {
   if (!json || typeof json !== "object") return [];
   if (Array.isArray(json)) return json;
   const a = json.aufgaben ?? json.tasks ?? json.results ?? json.ergebnisse;
   if (Array.isArray(a)) return a;
+  if (isEntry(a)) return [a];   // {"aufgaben": {"nr": 3, "gut": […], …}}
   if (a && typeof a === "object")   // {"1": {...}, "3": {...}}
     return Object.entries(a).map(([k, v]) => (v && typeof v === "object" && !Array.isArray(v) ? { nr: k, ...v } : null)).filter(Boolean);
+  if (isEntry(json)) return [json];   // {"nr": 3, "gut": […], "tipps": […]} ohne Hülle
   return [];
 }
 /**
@@ -762,9 +769,11 @@ export const feedbackAcceptor = (nrs) => (json) => {
   return nrs.every((nr) => { const x = map.get(nr); return !!x && (x.covered.length + x.missing.length) > 0; });
 };
 
-/** Ergebnis je Aufgabe (gleiche Länge wie tasks): {covered = gut, missing = tipps}, ohne Auftrag an die KI mit Hinweis */
-export function feedbackResults(tasks, map) {
-  return tasks.map((t, i) => wantsFeedback(t)
+/** Ergebnis je Aufgabe (gleiche Länge wie tasks): {covered = gut, missing = tipps}, ohne Auftrag an die KI mit Hinweis;
+ *  mit only (zweite Rückmeldung) null für nicht gewählte Aufgaben – für sie gilt im Browser die erste Rückmeldung */
+export function feedbackResults(tasks, map, only) {
+  const pick = Array.isArray(only) ? new Set(only) : null;
+  return tasks.map((t, i) => pick && !pick.has(i + 1) ? null : wantsFeedback(t)
     ? (map.get(i + 1) || { covered: [], missing: [] })
     : { covered: [], missing: [], note: NO_SOLUTION_NOTE });
 }

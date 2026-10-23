@@ -164,9 +164,10 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, Fassungen und KI-Rückmeldungen) und darunter
    klein und blass: „Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte
    erlernt hast.“
-   **Zweite KI-Rückmeldung:** Direkt nach der Abgabe gehen die abgegebenen Antworten auf demselben Weg wie beim
-   ersten Feedback noch einmal an die KI (ohne Kürzel, Geburtstag und Klasse; der Abgabe-Dialog nennt die
-   Empfänger). Unter dem Download-Button erscheint dann „KI-Rückmeldung zu deiner abgegebenen Fassung“: je Aufgabe neue
+   **Zweite KI-Rückmeldung:** Direkt nach der Abgabe gehen die Antworten, die nach dem ersten Feedback geändert
+   wurden, auf demselben Weg wie beim ersten Feedback noch einmal an die KI (ohne Kürzel, Geburtstag und Klasse; der
+   Abgabe-Dialog nennt die Aufgaben und die Empfänger) – nur diese Aufgaben mit Aufgabenstellung, Material und
+   Auftrag, nicht das ganze Blatt. Das spart Token und schont das Tageskontingent (z. B. von Workers AI). Unter dem Download-Button erscheint dann „KI-Rückmeldung zu deiner abgegebenen Fassung“: je Aufgabe neue
    Stichpunkte „Das gelingt dir schon“ und „Tipps zum Weiterlernen“ – ohne Zählung, denn der Auftrag ist keine Liste
    zum Abhaken. Die Abgabe ist zu diesem Zeitpunkt schon
    angekommen und hängt nie von der KI ab. Ist die KI ausgelastet, wiederholt die Seite automatisch wie beim ersten
@@ -904,9 +905,9 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   Serverfehler meldet, die Anfrage als zu lang ablehnt oder keine verwertbare Antwort liefert, geht dieselbe Anfrage danach an die eingetragene
   [Reserve-KI](#reserve-ki-zweiter-anbieter) – nie an beide gleichzeitig, nie nach einem Inhaltsfilter. Ein Dienst,
   der erst nach dem Senden ausfällt (z. B. Zeitüberschreitung), hat die Texte trotzdem erhalten. **Bei der Abgabe**
-  geschieht dasselbe noch einmal mit den abgegebenen (überarbeiteten) Antworten für die zweite Rückmeldung – nur nach
-  einem ersten Feedback, nicht, wenn seit dem ersten Feedback nichts geändert wurde, und nur an die Empfänger, über die
-  informiert wurde. Ist die KI
+  geschieht dasselbe noch einmal für die zweite Rückmeldung, aber nur mit den Antworten, die seit dem ersten Feedback
+  geändert wurden (samt ihren Aufgaben) – nur nach einem ersten Feedback, gar nicht, wenn nichts geändert wurde, und nur
+  an die Empfänger, über die informiert wurde. Ist die KI
   ausgelastet, wiederholt der Browser die Anfrage bis zu viermal automatisch (jeweils mit dem aktuellen Text); im
   ungünstigsten Fall erhalten also beide Dienste dieselben Antworten mehrfach. **Nie** gesendet werden Kürzel,
   Geburtstag und Klasse; der Server bekommt sie dabei gar nicht. Mit **Cloudflare Workers AI** ist Cloudflare
@@ -1008,7 +1009,7 @@ auch im Datenschutzhinweis unter dem Feedback-Button und auf der Seite „Impres
 > verarbeiten GitHub, Inc. (USA; liefert diese Seite über GitHub Pages aus) und Cloudflare technisch die IP-Adresse. Die
 > Häkchen bleiben nur auf dem Gerät und werden nicht gesendet.]
 > Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
-> keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
+> keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine bei der Abgabe zu den danach geänderten Antworten) werden nur die Antworttexte (ohne
 > Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B.
 > Cloudflare Workers AI – Cloudflare, Inc., USA, derselbe Anbieter, der den Server betreibt] gesendet; nur wenn
 > dieser nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert, an
@@ -1056,6 +1057,10 @@ vom Blatt ab):
 - 180 Anfragen am Tag (etwa drei Klassen mit je 30 Schüler:innen und je zwei Anfragen) brauchen also etwa
   **3 900–9 000 Neurons**, 40–90 % des Tageskontingents. Für mehr reicht es nicht sicher; dafür ist die Reserve-KI da
   (oder die Abgabe ohne KI-Feedback).
+- Die zweite Anfrage bei der Abgabe enthält nur die Aufgaben, deren Antwort seit dem ersten Feedback geändert wurde
+  (Aufgabenstellung, Material, Auftrag und Antwort); nur die Anweisungen zahlt sie wieder voll. Wer eine von drei
+  Aufgaben überarbeitet, braucht dafür grob die Hälfte der ersten Anfrage (Schätzung) – die 180 Anfragen oben kosten
+  dann meist weniger als angegeben.
 - Der Denkmodus der Modelle ist abgeschaltet (er würde die Ausgabe vervielfachen); der Verbindungstest zeigt, ob das
   wirkt. Die Ausgabegrenze ist großzügig (800 + 300 Token je Aufgabe) – berechnet werden nur erzeugte Token.
 - Ist das Kontingent aufgebraucht (Cloudflare-Fehler 3036), merkt sich der Server das bis 0:00 Uhr UTC und fragt
@@ -1075,7 +1080,8 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
   ggf. Material (bis ≈ 1 200 je Aufgabe), den Antworten (600 deutsche Wörter ≈ 1 200–1 600 Token) und der Ausgabe
   (≈ 200–500). Ohne Material also grob **2 500–4 000 Token je Anfrage**, mit viel Material mehr.
 - Jede Schülerin und jeder Schüler stellt bis zu **zwei** solche Anfragen: das Feedback zum Überarbeiten und bei der
-  Abgabe die Rückmeldung zur abgegebenen Fassung (die zweite entfällt, wenn nichts geändert wurde). 60 Schüler:innen
+  Abgabe die Rückmeldung zur abgegebenen Fassung (sie enthält nur die danach geänderten Aufgaben und entfällt, wenn
+  nichts geändert wurde). 60 Schüler:innen
   sind also bis zu 120 Anfragen, ohne Cache 300 000–500 000 Token – deutlich über dem Tageslimit von etwa 200 000
   Token von gpt-oss-120b. Deshalb macht Feibeitsblatt mehrere Dinge:
   1. **Anfrage in Cache-freundlicher Reihenfolge.** Der für alle Schüler:innen eines Blattes gleiche Teil (Anweisungen,
@@ -1084,7 +1090,9 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
      Token zählen nicht gegen die Minuten- und Tageslimits**. Ab der zweiten Anfrage zum selben Blatt kosten dann im
      Wesentlichen nur noch Antworten und Ausgabe, grob 1 500–2 000 Token: 120 Anfragen ≈ 180 000–240 000 Token, also
      etwa das Tageslimit von gpt-oss-120b; was darüber hinausgeht, übernehmen die weiteren Modelle (Punkt 2), die
-     jeweils ein eigenes Tageslimit haben. Je Minute gehen so etwa 4–5 statt 2 Anfragen durch ein Modell.
+     jeweils ein eigenes Tageslimit haben. Je Minute gehen so etwa 4–5 statt 2 Anfragen durch ein Modell. Die zweite
+     Anfrage bei der Abgabe enthält nur die geänderten Aufgaben: Sie ist kleiner, aus dem Cache kommt bei ihr aber nur
+     der Teil, der bei gleicher Auswahl gleich ist (meist nur die Anweisungen).
   2. **Alle Modelle gleichzeitig nutzen.** Bei Groq, Cerebras und Gemini gelten die Minutenlimits **je Modell**.
      Der Server verteilt gleichzeitige Anfragen deshalb von Anfang an auf alle Modelle des Anbieters (versetztes
      Startmodell, Mindestabstand je Modell statt je Anbieter), wechselt bei einem Minutenlimit (HTTP 429) sofort

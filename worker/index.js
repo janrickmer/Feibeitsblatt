@@ -3,7 +3,7 @@
 // nur SHA-256/AES-GCM im Worker (kein PBKDF2, keine RSA-Erzeugung), D1-Abfragen gebündelt (batch).
 import {
   normalizeCode, isValidCode, generateCode, sha256Hex, timingSafeEqualStr, decodeAuthKey, importPublicKey,
-  validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateAiInput,
+  validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateOnly, validateAiInput,
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer,
@@ -914,8 +914,10 @@ async function routeFeedback(c) {
   if (!s) throw sheetNotFound();
   const tasks = parseTasks(s.tasks);
   const answers = validateAnswers(body.answers, tasks.length);
-  const { messages, nrs } = buildFeedbackMessages(tasks, answers);
-  if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map()), aiGenerated: false });   // kein Auftrag an die KI: keine KI nötig
+  // Zweite Rückmeldung nach der Abgabe: nur die nach dem ersten Feedback geänderten Aufgaben (spart Token und Kontingent)
+  const only = validateOnly(body.only, tasks.length);
+  const { messages, nrs } = buildFeedbackMessages(tasks, answers, only);
+  if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map(), only), aiGenerated: false });   // kein Auftrag an die KI: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
   let entries = activeEntries(ai);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
   if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
@@ -946,7 +948,7 @@ async function routeFeedback(c) {
     throw new HttpError(502, "ai_error", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code });
   }
   // Maschinenlesbar gekennzeichnet (Art. 50 Abs. 2 KI-VO): die Stichpunkte hat eine KI erzeugt (IPTC Digital Source Type)
-  return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs)), aiGenerated: true, digitalSourceType: AI_SOURCE_TYPE });
+  return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs), only), aiGenerated: true, digitalSourceType: AI_SOURCE_TYPE });
 }
 
 // Abgabe (stage "final") oder Erstversuch (stage "first", nach dem KI-Feedback). Mit derselben attempt-Kennung ersetzt die
