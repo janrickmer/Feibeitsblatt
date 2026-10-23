@@ -104,7 +104,7 @@ async function main() {
     await mkdir(STATE, { recursive: true });
 
     step = "Mock-KI";
-    const { startMockAI, expectedResults } = await import(pathToFileURL(join(ROOT, "test", "mock-ai.mjs")).href);
+    const { startMockAI, expectedResults, expectedChecklist } = await import(pathToFileURL(join(ROOT, "test", "mock-ai.mjs")).href);
     mock = await startMockAI({ port: MOCK_PORT });
 
     step = "wrangler dev";
@@ -456,6 +456,52 @@ async function main() {
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
     assert.equal(r.status, 200, "erschöpfte Modelle bleiben als letzte Wahl nutzbar: " + r.text);
     ok("Feedback robust: Code-Zaun/<think> ok; kein JSON / Tageslimit → 502 ai_error mit Schülertext");
+
+    step = "Checkliste";
+    {
+      let r;   // eigenes r: der Schritt „Abgabe“ braucht noch das Ergebnis des letzten Feedbacks
+      const ckTasks = [
+        { text: "Nenne Ursachen des Klimawandels.", solution: "- Abholzung\n- Verkehr\n- Industrie" },
+        { text: "Was denkst du?", solution: "" },
+        { text: "Fülle aus.", solution: "Weizen. Reis.", answer: { type: "table", columns: ["Produkt", "Land"], rows: 2 } },
+      ];
+      r = await api("POST", "/api/teacher/sheets", { title: "Smoke: Checkliste", tasks: ckTasks }, { auth });
+      assert.equal(r.status, 200, r.text);
+      const ck = r.json.code, ckPath = "/api/teacher/sheets/" + ck + "/checklist";
+      expectErr(await api("GET", ckPath), 401, "unauthorized");
+      expectErr(await api("POST", ckPath, {}), 401, "unauthorized");
+      expectErr(await api("PUT", ckPath, { tasks: [] }), 401, "unauthorized");
+      r = await api("GET", ckPath, undefined, { auth });
+      assert.deepEqual(r.json, { ok: true, checklist: null, aiFeedback: true, aiReady: true });
+      expectErr(await api("GET", "/api/sheet/" + ck + "/checklist"), 404, "no_checklist", "Zu diesem Feibeitsblatt gibt es noch keine Checkliste.");   // zählt nicht als Fehlgriff
+      mock.reset();
+      r = await api("POST", ckPath, undefined, { auth });
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual(r.json, { ok: true, generated: true, final: null,
+        draft: { v: 1, ai: true, tasks: [{ n: 1, points: expectedChecklist(ckTasks[0].solution) }, { n: 2, points: [] }, { n: 3, points: expectedChecklist(ckTasks[2].solution) }] } });
+      assert.equal(mock.state.requests.length, 1);
+      const ckPrompt = mock.state.requests[0].messages.map((m) => m.content).join("\n");
+      assert.ok(ckPrompt.includes("Die Antwort ist eine Tabelle mit den Spalten:\n<<<\nProdukt | Land\n>>>"), ckPrompt);
+      assert.equal(/Was denkst du|Antwort zu Aufgabe|Antworten der Schülerin/.test(ckPrompt), false, "nur Aufgaben mit Auftrag, nie Antworten");
+      r = await api("POST", ckPath, {}, { auth });
+      assert.equal(r.json.generated, false); assert.equal(mock.state.requests.length, 1, "einmal: ohne force kein zweiter KI-Aufruf");
+      expectErr(await api("PUT", ckPath, { ai: true, tasks: [{ n: 1, points: Array.from({ length: 9 }, (_, i) => "Punkt " + i) }] }, { auth }), 400, "bad_request", "Aufgabe 1: höchstens 8 Punkte.");
+      const points = ["Du nennst Abholzung, Verkehr und Industrie.", "Du erklärst eine Ursache genauer."];
+      r = await api("PUT", ckPath, { ai: true, tasks: [{ n: 1, points }] }, { auth });
+      assert.equal(r.status, 200, r.text); assert.deepEqual(r.json.final.tasks.map((t) => t.points), [points, [], []]);
+      r = await api("GET", "/api/sheet/" + ck.toLowerCase() + "/checklist");
+      assert.equal(r.status, 200, r.text); assert.equal(r.headers.get("cache-control"), "no-store");
+      assert.deepEqual(r.json, { ok: true, code: ck, title: "Smoke: Checkliste", ai: true, tasks: ckTasks.map((t, i) => ({ n: i + 1, text: t.text, points: i === 0 ? points : [] })) });
+      assert.equal(/Du beachtest|Weizen|solution|draft/.test(r.text), false, "nie Entwurf oder Auftrag an die KI");
+      r = await api("POST", ckPath, { force: true }, { auth });
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.generated, true); assert.deepEqual(r.json.final.tasks[0].points, points);
+      assert.deepEqual((await api("GET", "/api/sheet/" + ck + "/checklist")).json.tasks[0].points, points, "neuer Vorschlag ersetzt die gespeicherte Checkliste nicht");
+      r = await api("GET", "/api/sheet/ZZZZZ9/checklist"); misses++; expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);
+      assert.equal((await api("DELETE", "/api/teacher/sheets/" + ck, undefined, { auth })).status, 200);
+      r = await api("GET", "/api/sheet/" + ck + "/checklist"); misses++; expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);
+      expectErr(await api("GET", ckPath, undefined, { auth }), 404, "not_found");
+    }
+    ok("Checkliste: Vorschlag der KI einmal (nur Aufgaben mit Auftrag, keine Antworten), Speichern mit Grenzen, öffentlich nur die gespeicherte, force lässt sie stehen, mit dem Blatt gelöscht");
 
     step = "Abgabe";
     const sheetPub = (await api("GET", "/api/sheet/" + code)).json.sheet;

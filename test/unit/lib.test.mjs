@@ -160,11 +160,12 @@ test("rate-limit buckets never contain the IP; messages in German", async () => 
   assert.notEqual(await bucketOf("auth", "203.0.113.7"), b.replace("door", "auth"));
   assert.deepEqual(Object.fromEntries(Object.entries(RATE).map(([k, v]) => [k, [v.max, v.windowMs / 60000]])),
     { door: [10, 15], auth: [10, 15], auth_all: [200, 60], lookup_miss: [30, 10], feedback: [240, 60], feedback_chars: [800000, 60],
-      sheet_feedback: [600, 1440], submit: [240, 60], submit_bytes: [60 * 1024 * 1024, 60] });
+      sheet_feedback: [600, 1440], submit: [240, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [30, 60] });
   assert.match(rateMessage("auth", 61), /^Zu viele falsche Passwörter\. Mit dem richtigen Passwort .* in etwa 2 Minuten möglich\.$/);
   assert.equal(rateMessage("door", 30), "Zu viele Fehlversuche. Ein neuer Versuch ist in etwa 1 Minute möglich.");
   assert.match(rateMessage("lookup_miss", 120), /richtigen Code geht es weiter/);
   assert.match(rateMessage("submit", 600), /10 Minuten/);
+  assert.equal(rateMessage("checklist", 90), "Gerade wurden sehr viele Checklisten bei der KI angefragt. Bitte versuchen Sie es in etwa 2 Minuten erneut – Sie können die Punkte auch selbst eintragen.");
 });
 test("ipKey: IPv4 unchanged, IPv6 reduced to its /64 prefix, mapped IPv4 unwrapped", () => {
   assert.equal(ipKey("203.0.113.7"), "203.0.113.7");
@@ -458,4 +459,40 @@ test("PURGE_SQL: nutzt den Index, löscht ohne gültige Frist nichts, sonst gena
   assert.equal(left.n, 30); assert.ok(left.m >= now - 30 * DAY); assert.ok(left.f > 0);
   set('{"retentionDays":7}');
   assert.equal(purge(), 23);
+});
+
+/* ---------- Checkliste zum analogen Arbeitsblatt ---------- */
+import { validateChecklist, checklistOut } from "../../worker/lib.js";
+
+test("validateChecklist: bereinigt (einzeilig, leer/doppelt weg), sortiert nach n, ergänzt fehlende Aufgaben; ai nur als Ja/Nein", () => {
+  assert.deepEqual([LIMITS.checkPoints, LIMITS.checkPoint], [8, 160]);
+  const r = validateChecklist({ ai: true, extra: 1, tasks: [
+    { n: 3, points: ["  Du nennst\ndie   Ursache. ", "", "   ", "du nennst die ursache.", "Du begründest\u202E sie.", "Du nennst die Ursache."] },
+    { n: 1, points: [], other: "x" },
+  ] }, 4);
+  assert.deepEqual(r, { ai: true, tasks: [
+    { n: 1, points: [] }, { n: 2, points: [] }, { n: 3, points: ["Du nennst die Ursache.", "Du begründest sie."] }, { n: 4, points: [] }] });
+  assert.deepEqual(validateChecklist({}, 2), { ai: false, tasks: [{ n: 1, points: [] }, { n: 2, points: [] }] });   // ohne tasks: leere Listen
+  assert.deepEqual(validateChecklist({ ai: false, tasks: [{ n: 2 }] }, 2).tasks[1], { n: 2, points: [] });
+  assert.equal(validateChecklist({ tasks: [{ n: 1, points: ["\u00e9"] }] }, 1).tasks[0].points[0], "\u00e9".normalize("NFC"));
+  const nfc = validateChecklist({ tasks: [{ n: 1, points: ["Cafe\u0301"] }] }, 1).tasks[0].points[0];
+  assert.equal(nfc, "Café"); assert.equal(nfc.length, 4);
+});
+test("validateChecklist: Grenzen (8 Punkte nach dem Bereinigen, 160 Zeichen je Punkt) und ungültige Formen → 400 mit Aufgabennummer", () => {
+  const eight = Array.from({ length: 8 }, (_, i) => "Punkt " + i);
+  assert.equal(validateChecklist({ tasks: [{ n: 2, points: [...eight, "punkt 0", "", " "] }] }, 2).tasks[1].points.length, 8);   // Doppelte und Leere zählen nicht
+  assert.throws(() => validateChecklist({ tasks: [{ n: 2, points: [...eight, "Punkt 8"] }] }, 2), (e) => e instanceof InputError && e.status === 400 && e.message === "Aufgabe 2: höchstens 8 Punkte.");
+  assert.equal(validateChecklist({ tasks: [{ n: 1, points: ["x".repeat(160), "  " + "y".repeat(160) + "  "] }] }, 1).tasks[0].points[1].length, 160);
+  assert.throws(() => validateChecklist({ tasks: [{ n: 1, points: ["x".repeat(161)] }] }, 1), (e) => e.message === "Aufgabe 1: Ein Punkt ist zu lang (höchstens 160 Zeichen).");
+  assert.throws(() => validateChecklist({ tasks: [{ n: 1, points: ["x".repeat(5000)] }] }, 1), (e) => e.message === "Aufgabe 1: Ein Punkt ist zu lang (höchstens 160 Zeichen).");
+  assert.throws(() => validateChecklist({ tasks: [{ n: 1, points: Array(100).fill("") }] }, 1), (e) => e.message === "Aufgabe 1: höchstens 8 Punkte.");
+  const bad = (raw, n = 2) => assert.throws(() => validateChecklist(raw, n), (e) => e instanceof InputError && e.code === "bad_request" && e.message === "Die Checkliste hat ein ungültiges Format.", JSON.stringify(raw));
+  bad(null); bad([]); bad("x"); bad({ ai: "ja" }); bad({ tasks: {} }); bad({ tasks: [{ n: 1 }, { n: 2 }, { n: 1 }] });
+  bad({ tasks: [{ n: 0 }] }); bad({ tasks: [{ n: 3 }] }); bad({ tasks: [{ n: "1" }] }); bad({ tasks: [{ n: 1.5 }] }); bad({ tasks: [null] });
+  bad({ tasks: [{ n: 1, points: "Du nennst" }] }); bad({ tasks: [{ n: 1, points: [5] }] }); bad({ tasks: [{ n: 1 }, { n: 2 }, {}] });
+});
+test("checklistOut: gespeichertes JSON erneut geprüft → {v:1, ai, tasks} mit genau so vielen Aufgaben wie das Blatt, sonst null", () => {
+  assert.deepEqual(checklistOut(JSON.stringify({ v: 1, ai: true, tasks: [{ n: 2, points: ["A", "a"] }] }), 2),
+    { v: 1, ai: true, tasks: [{ n: 1, points: [] }, { n: 2, points: ["A"] }] });
+  for (const t of [null, undefined, "", "kaputt{", "[]", JSON.stringify({ tasks: [{ n: 3 }] })]) assert.equal(checklistOut(t, 2), null, String(t));
 });
