@@ -4,7 +4,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
-import { startMockAI, expectedResults, mockAIBinding } from "../mock-ai.mjs";
+import { startMockAI, expectedResults, expectedChecklist, mockAIBinding } from "../mock-ai.mjs";
 import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf } from "../../worker/lib.js";
 import { nextUtcMidnight, TTL } from "../../worker/ai.js";
 import { makePng } from "../png.mjs";
@@ -936,6 +936,220 @@ test("feedback: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräu
   assert.equal(cf.calls.length, 0); assert.equal(mock.state.requests.length, 0);   // nichts ging an eine KI
   console.log("# D1-Abfragen im ungünstigen Fall mit Reserve: " + r.queries);
   assert.ok(r.queries >= 30 && r.queries <= 42, "D1-Abfragen: " + r.queries);
+  assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
+  assert.equal((await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } })).status, 200);
+});
+
+/* ---------- Checkliste zum analogen Arbeitsblatt ---------- */
+const ckMap = { type: "map", map: "world", items: [{ id: "kaffee", label: "Kaffee", countries: [{ id: "076", name: "Brasilien" }] }] };
+const ckCount = (bucketName) => { const row = d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(bucketName); return row ? row.count : null; };
+
+test("Checkliste: nur mit Anmeldung; die KI schlägt einmal vor (nur Aufgaben, Material, Aufträge – keine Antworten); Speichern macht sie öffentlich, nie Entwurf oder Auftrag; force fragt neu und lässt final stehen; Blatt löschen löscht sie", async () => {
+  const material = [[{ t: "Lies " }, { t: "hier klicken", h: "https://example.org/quelle" }]];
+  const ckTasks = [
+    { text: "Erkläre die Photosynthese.", solution: "- Photosynthese braucht Licht\n- Chloroplasten sind beteiligt", material },
+    { text: "Deine Meinung?", solution: "" },
+    { text: "Fülle aus.", solution: "Weizen. Reis.", answer: { type: "table", columns: ["Produkt", "Land"], rows: 3 } },
+    { text: "Ordne zu.", answer: ckMap },
+  ];
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Analog", tasks: ckTasks } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code, path = "/api/teacher/sheets/" + c + "/checklist";
+  const pub = () => call("GET", "/api/sheet/" + c.slice(0, 3).toLowerCase() + "-" + c.slice(3) + "/checklist", { ip: "203.0.113.120" });
+  const missBucket = await bucketOf("lookup_miss", "203.0.113.120", SECRET);
+  try {
+    for (const m of ["GET", "POST", "PUT"]) assert.equal((await call(m, path, { body: m === "PUT" ? { tasks: [] } : undefined })).status, 401, m);
+    r = await call("GET", "/api/teacher/sheets/K7QM4X/checklist", { auth });
+    assert.equal(r.status, 404); assert.equal(r.json.code, "not_found");
+    r = await call("GET", path, { auth });
+    assert.deepEqual(r.json, { ok: true, checklist: null, aiFeedback: true, aiReady: true });
+    // öffentlich vor dem Speichern: 404 no_checklist – zählt nicht als unbekannter Code (das Blatt gibt es)
+    r = await pub();
+    assert.equal(r.status, 404); assert.deepEqual([r.json.code, r.json.error], ["no_checklist", "Zu diesem Feibeitsblatt gibt es noch keine Checkliste."]);
+    assert.equal(ckCount(missBucket), null);
+    // Vorschlag der KI: eine Anfrage, nur die Aufgaben mit Auftrag an die KI (1 und 3), ohne Link-Adresse, mit den Tabellenspalten
+    mock.reset();
+    r = await call("POST", path, { auth });   // ohne Body
+    assert.equal(r.status, 200, r.text);
+    const draft = { v: 1, ai: true, tasks: [{ n: 1, points: expectedChecklist(ckTasks[0].solution) }, { n: 2, points: [] }, { n: 3, points: expectedChecklist(ckTasks[2].solution) }, { n: 4, points: [] }] };
+    assert.deepEqual(r.json, { ok: true, draft, final: null, generated: true });
+    assert.deepEqual(draft.tasks[0].points, ["Du beachtest: Photosynthese braucht Licht", "Du beachtest: Chloroplasten sind beteiligt"]);
+    assert.deepEqual(draft.tasks[2].points, ["Du beachtest: Weizen", "Du beachtest: Reis"]);
+    assert.equal(mock.state.requests.length, 1);
+    const q = mock.state.requests[0], prompt = q.messages.map((m) => m.content).join("\n");
+    assert.match(q.messages[0].content, /Checkliste/); assert.equal(q.temperature, 0.2); assert.deepEqual(q.response_format, { type: "json_object" });
+    assert.ok(prompt.includes("(Nummern: 1, 3):\n\n### Aufgabe 1\n"), prompt);
+    assert.ok(prompt.includes("Die Antwort ist eine Tabelle mit den Spalten:\n<<<\nProdukt | Land\n>>>"), prompt);
+    assert.equal(/Deine Meinung|Ordne zu|Brasilien|example\.org|Antwort zu Aufgabe|Antworten der Schülerin/.test(prompt), false);
+    // „einmal“: ein zweiter Aufruf ohne force (z. B. nach Neuladen der Seite) fragt die KI nicht noch einmal
+    r = await call("POST", path, { auth, body: {} });
+    assert.deepEqual(r.json, { ok: true, draft, final: null, generated: false });
+    assert.equal(mock.state.requests.length, 1);
+    r = await call("GET", path, { auth });
+    assert.deepEqual(r.json.checklist.draft, draft); assert.equal(r.json.checklist.final, null); assert.equal(typeof r.json.checklist.updatedAt, "number");
+    assert.equal((await pub()).json.code, "no_checklist", "der Entwurf ist nicht öffentlich");
+    // Speichern: ungültig → 400, nichts gespeichert
+    r = await call("PUT", path, { auth, body: { ai: true, tasks: [{ n: 1, points: Array.from({ length: 9 }, (_, i) => "Punkt " + i) }] } });
+    assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 1: höchstens 8 Punkte.");
+    r = await call("PUT", path, { auth, body: { ai: true, tasks: [{ n: 3, points: ["x".repeat(161)] }] } });
+    assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 3: Ein Punkt ist zu lang (höchstens 160 Zeichen).");
+    r = await call("PUT", path, { auth, body: { ai: true, tasks: [{ n: 5, points: ["x"] }] } });
+    assert.equal(r.status, 400); assert.equal(r.json.error, "Die Checkliste hat ein ungültiges Format.");
+    r = await call("PUT", path, { auth, raw: "[]" }); assert.equal(r.status, 400);
+    assert.equal(d1.db.prepare("SELECT final FROM sheet_checklists WHERE sheet_code=?").get(c).final, null);
+    // gültig: einen Punkt geändert, einen ergänzt (Doppelte entfallen), zur Weltkarte selbst einen eingetragen; Reihenfolge egal
+    const final = { v: 1, ai: true, tasks: [
+      { n: 1, points: ["Du nennst Licht als Energiequelle.", "Du beachtest: Chloroplasten sind beteiligt", "Du nennst Sauerstoff."] },
+      { n: 2, points: [] }, { n: 3, points: draft.tasks[2].points }, { n: 4, points: ["Du ordnest Kaffee zu."] }] };
+    r = await call("PUT", path, { auth, body: { ai: true, tasks: [final.tasks[3], { n: 1, points: [...final.tasks[0].points, " du nennst  sauerstoff. "] }, final.tasks[2]] } });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.final, final); assert.equal(typeof r.json.updatedAt, "number");
+    r = await call("GET", path, { auth });
+    assert.deepEqual(r.json.checklist, { draft: null, final, updatedAt: r.json.checklist.updatedAt });
+    // öffentlich: nur die gespeicherte Checkliste mit Titel und reinem Aufgabentext – nie Auftrag an die KI oder Entwurf
+    r = await pub();
+    assert.equal(r.status, 200, r.text); assert.equal(r.headers.get("cache-control"), "no-store");
+    assert.deepEqual(r.json, { ok: true, code: c, title: "Analog", ai: true, tasks: ckTasks.map((t, i) => ({ n: i + 1, text: t.text, points: final.tasks[i].points })) });
+    assert.equal(/solution|draft|Photosynthese braucht Licht|Brasilien|example\.org/.test(r.text), false);
+    // force: die KI schlägt neu vor (neuer Entwurf), die gespeicherte Checkliste bleibt öffentlich, bis wieder gespeichert wird
+    mock.reset();
+    r = await call("POST", path, { auth, body: { force: true } });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json, { ok: true, draft, final, generated: true });
+    assert.equal(mock.state.requests.length, 1);
+    r = await call("GET", path, { auth });
+    assert.deepEqual([r.json.checklist.draft, r.json.checklist.final], [draft, final]);
+    assert.deepEqual((await pub()).json.tasks[0].points, final.tasks[0].points);
+    assert.equal((await call("POST", path, { auth, body: { force: "ja" } })).status, 400);
+    // Blatt löschen → Checkliste weg (derselbe Batch); öffentlich danach wie ein unbekannter Code
+    assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_checklists WHERE sheet_code=?").get(c).n, 0);
+    r = await pub();
+    assert.equal(r.status, 404); assert.equal(r.json.code, "not_found"); assert.equal(ckCount(missBucket), 1);
+    assert.equal((await call("PUT", path, { auth, body: { tasks: [] } })).status, 404);
+    assert.equal((await call("POST", path, { auth })).status, 404);
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_checklists WHERE sheet_code=?").get(c).n, 0, "keine verwaiste Zeile");
+  } finally { await call("DELETE", "/api/teacher/sheets/" + c, { auth }); }
+});
+
+test("Checkliste: ohne Auftrag an die KI leerer Entwurf ohne KI (noAi); 30 je Stunde und IP, Erstattung bei Wartefehlern (ai_busy mit retryAfter); kein JSON → 502; ohne KI-Dienst 503", async () => {
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Ohne KI", tasks: [{ text: "Schreibe frei." }, { text: "Ordne zu.", solution: "verworfen", answer: ckMap }] } });
+  const c0 = r.json.code;
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Mit KI", tasks } });
+  const c1 = r.json.code, p1 = "/api/teacher/sheets/" + c1 + "/checklist";
+  const saved = RATE.checklist.max;
+  try {
+    mock.reset();
+    r = await call("GET", "/api/teacher/sheets/" + c0 + "/checklist", { auth });
+    assert.deepEqual(r.json, { ok: true, checklist: null, aiFeedback: false, aiReady: true });
+    const empty = { v: 1, ai: false, tasks: [{ n: 1, points: [] }, { n: 2, points: [] }] };
+    r = await call("POST", "/api/teacher/sheets/" + c0 + "/checklist", { auth });
+    assert.deepEqual(r.json, { ok: true, draft: empty, final: null, generated: false, noAi: true });
+    r = await call("POST", "/api/teacher/sheets/" + c0 + "/checklist", { auth, body: { force: true } });
+    assert.deepEqual(r.json, { ok: true, draft: empty, final: null, generated: false, noAi: true });
+    r = await call("POST", "/api/teacher/sheets/" + c0 + "/checklist", { auth });
+    assert.deepEqual(r.json, { ok: true, draft: empty, final: null, generated: false, noAi: true });
+    assert.equal(mock.state.requests.length, 0, "ohne Auftrag an die KI keine KI");
+    // Rate-Limit je IP: nur Aufrufe, die wirklich zur KI gehen, zählen; Wartefehler werden erstattet
+    RATE.checklist.max = 1;
+    const ip = "203.0.113.130", b = await bucketOf("checklist", ip, SECRET);
+    mock.setMode("429soft");
+    r = await call("POST", p1, { auth, ip });
+    assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy"); assert.ok(r.json.retryAfter >= 5 && r.json.retryAfter <= 60, "retryAfter " + r.json.retryAfter);
+    assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter)); assert.equal(r.json.aiCode, "RATE_LIMIT");
+    assert.match(r.json.error, /Rate-Limit/);   // ausführliche Meldung für die Lehrkraft (wie beim Verbindungstest)
+    assert.equal(ckCount(b), 0, "Wartefehler: Zählung erstattet");
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_checklists WHERE sheet_code=?").get(c1).n, 0, "ohne Vorschlag kein Entwurf");
+    mock.setMode("ok"); d1.db.prepare("DELETE FROM ai_skip").run();
+    r = await call("POST", p1, { auth, ip });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.generated, true); assert.equal(ckCount(b), 1);
+    r = await call("POST", p1, { auth, ip, body: { force: true } });
+    assert.equal(r.status, 429); assert.equal(r.json.code, "rate_limited");
+    assert.match(r.json.error, /^Gerade wurden sehr viele Checklisten bei der KI angefragt\. Bitte versuchen Sie es in etwa \d+ Minuten erneut – Sie können die Punkte auch selbst eintragen\.$/);
+    r = await call("POST", p1, { auth, ip });   // ohne force: keine KI, kein Zählen
+    assert.equal(r.status, 200); assert.equal(r.json.generated, false);
+    RATE.checklist.max = saved;
+    // kein brauchbares JSON → 502 ai_error; der bisherige Entwurf bleibt
+    mock.setMode("badjson");
+    r = await call("POST", p1, { auth, body: { force: true } });
+    assert.equal(r.status, 502); assert.equal(r.json.code, "ai_error"); assert.equal(r.json.aiCode, "BAD_JSON");
+    mock.setMode("ok"); d1.db.prepare("DELETE FROM ai_skip").run();
+    assert.deepEqual((await call("GET", p1, { auth })).json.checklist.draft.tasks[0].points, expectedChecklist(tasks[0].solution));
+    // ohne nutzbaren KI-Dienst: aiReady false, Vorschlag 503 ai_not_configured (Meldung für die Lehrkraft)
+    const aiRow = d1.db.prepare("SELECT value FROM settings WHERE key='ai'").get().value;
+    d1.db.prepare("DELETE FROM settings WHERE key='ai'").run();
+    try {
+      r = await call("GET", p1, { auth });
+      assert.deepEqual([r.json.aiReady, r.json.aiFeedback], [false, true]);
+      r = await call("POST", p1, { auth, body: { force: true } });
+      assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured"); assert.match(r.json.error, /^Es ist kein KI-Dienst eingerichtet.*KI-Einstellungen/);
+    } finally { d1.db.prepare("INSERT INTO settings(key,value) VALUES('ai',?)").run(aiRow); }
+  } finally {
+    RATE.checklist.max = saved; mock.setMode("ok"); d1.db.prepare("DELETE FROM ai_skip").run();
+    await call("DELETE", "/api/teacher/sheets/" + c0, { auth }); await call("DELETE", "/api/teacher/sheets/" + c1, { auth });
+  }
+});
+
+test("Checkliste über Workers AI: Ausgabegrenze 400 + 250 je Aufgabe, Verbrauch gezählt; lokal → 503 ai_not_configured mit Hinweis; unbekannte Ablehnung → 502; Tageskontingent → 503 ai_quota mit Sperre bis 0:00 UTC, danach ohne Anfrage und ohne Zählung", async () => {
+  const cf = mockAIBinding(mock), CFENV = { ...ENV, AI: cf };
+  let r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "", reserve: null } });
+  assert.equal(r.status, 200, r.text);
+  r = await call("POST", "/api/teacher/sheets", { auth, env: CFENV, body: { title: "CF-Checkliste", tasks } });
+  const c = r.json.code, path = "/api/teacher/sheets/" + c + "/checklist";
+  const lockRow = () => d1.db.prepare("SELECT until FROM ai_skip WHERE provider='cloudflare' AND model='*'").get();
+  d1.db.prepare("DELETE FROM ai_skip").run(); d1.db.prepare("DELETE FROM ai_usage").run();
+  try {
+    assert.equal((await call("GET", path, { auth, env: CFENV })).json.aiReady, true);
+    assert.equal((await call("GET", path, { auth, env: ENV })).json.aiReady, false);   // ohne Binding nicht nutzbar
+    cf.calls = []; mock.reset();
+    r = await call("POST", path, { auth, env: CFENV });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.generated, true);
+    assert.deepEqual(r.json.draft.tasks.map((t) => t.points), [expectedChecklist(tasks[0].solution), []]);
+    assert.equal(cf.calls.length, 1); assert.equal(mock.state.requests[0].max_completion_tokens, 650);   // eine Aufgabe mit Auftrag
+    assert.deepEqual(mock.state.requests[0].chat_template_kwargs, { enable_thinking: false });
+    assert.deepEqual(Object.keys(cf.calls[0].opts).sort(), ["returnRawResponse", "signal"]);
+    assert.equal(d1.db.prepare("SELECT requests FROM ai_usage WHERE provider='cloudflare'").get().requests, 1);
+    cf.mode = "local";
+    r = await call("POST", path, { auth, env: CFENV, body: { force: true } });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured"); assert.equal(r.json.aiCode, "CONFIG"); assert.match(r.json.error, /lokalen Entwicklung/);
+    cf.mode = "cf400"; cf.calls = [];
+    r = await call("POST", path, { auth, env: CFENV, body: { force: true } });
+    assert.equal(r.status, 502); assert.equal(r.json.code, "ai_error"); assert.equal(cf.calls.length, 6);
+    d1.db.prepare("DELETE FROM ai_skip").run();
+    cf.mode = "cf3036"; cf.calls = [];
+    const b = await bucketOf("checklist", "203.0.113.140", SECRET), b2 = await bucketOf("checklist", "203.0.113.141", SECRET);
+    r = await call("POST", path, { auth, env: CFENV, body: { force: true }, ip: "203.0.113.140" });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_quota"); assert.equal(r.json.aiCode, "DAILY_LIMIT"); assert.equal(r.headers.get("retry-after"), null);
+    assert.match(r.json.error, /^Das kostenlose Tageskontingent von Cloudflare Workers AI ist aufgebraucht/);
+    assert.equal(cf.calls.length, 1); assert.equal(lockRow().until, nextUtcMidnight()); assert.equal(ckCount(b), 0, "Zählung erstattet");
+    r = await call("POST", path, { auth, env: CFENV, body: { force: true }, ip: "203.0.113.141" });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_quota"); assert.equal(cf.calls.length, 1, "Sperre: keine Anfrage an Workers AI");
+    assert.equal(ckCount(b2), null, "nicht gezählt");
+    assert.deepEqual((await call("GET", path, { auth, env: CFENV })).json.checklist.draft.tasks[0].points, expectedChecklist(tasks[0].solution), "der Entwurf bleibt");
+  } finally {
+    cf.mode = "ok"; d1.db.prepare("DELETE FROM ai_skip").run();
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: null } });
+  }
+});
+
+test("Checkliste: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräumen, Erstattung) bleibt unter der Grenze von 42 D1-Abfragen", async () => {
+  const cf = mockAIBinding(mock), CFENV = { ...ENV, AI: cf };
+  let r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: { provider: "cloudflare", model: "" } } });
+  assert.equal(r.status, 200, r.text);
+  r = await call("POST", "/api/teacher/sheets", { auth, env: CFENV, body: { title: "D1-Checkliste", tasks } });
+  const c = r.json.code;
+  const full = d1.db.prepare("INSERT INTO ai_gate(provider,next_at) VALUES(?,?) ON CONFLICT(provider) DO UPDATE SET next_at=excluded.next_at");
+  for (const k of ["custom", "cloudflare"]) full.run(k, Date.now() + 120000);
+  const rnd = Math.random; Math.random = () => 0;   // das gelegentliche Aufräumen läuft mit
+  try {
+    cf.calls = []; mock.reset();
+    r = await call("POST", "/api/teacher/sheets/" + c + "/checklist", { auth, env: CFENV, ip: "203.0.113.150" });
+  } finally { Math.random = rnd; d1.db.prepare("DELETE FROM ai_gate").run(); }
+  assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy");
+  assert.equal(cf.calls.length, 0); assert.equal(mock.state.requests.length, 0);
+  console.log("# D1-Abfragen der Checkliste im ungünstigen Fall mit Reserve: " + r.queries);
+  assert.ok(r.queries >= 25 && r.queries <= 42, "D1-Abfragen: " + r.queries);
   assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
   assert.equal((await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } })).status, 200);
 });

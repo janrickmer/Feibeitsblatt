@@ -8,12 +8,14 @@ import {
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer,
   validatePrivacyInput, privacyOut, isPrivacyComplete, PURGE_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
+  validateChecklist, checklistOut,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI,
   TEST_MESSAGES, reserveSlot, skipQuery, skipStatements, gateKey, recipientLabel, wantsFeedback,
   CF_NO_BINDING, CF_DAILY_NEURONS, utcDay, recipientTransfer,
+  buildChecklistMessages, normalizeChecklist, checklistAcceptor, CHECKLIST_SCHEMA_GEMINI,
 } from "./ai.js";
 
 const MSG = {
@@ -46,6 +48,9 @@ const MSG = {
   aiSameAccount: "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.",
   aiCfModel: "Bitte eine Modell-ID von Workers AI angeben (beginnt mit „@cf/“) oder das Feld leer lassen.",
   aiMainFirst: "Bitte zuerst den ersten Anbieter speichern – die Reserve-KI springt nur für ihn ein.",
+  noChecklist: "Zu diesem Feibeitsblatt gibt es noch keine Checkliste.",
+  ckNoAi: "Es ist kein KI-Dienst eingerichtet, der gerade genutzt werden kann. Bitte prüfen Sie die KI-Einstellungen – die Punkte der Checkliste können Sie auch selbst eintragen.",
+  ckQuota: "Das kostenlose Tageskontingent von Cloudflare Workers AI ist aufgebraucht (es gilt für das ganze Cloudflare-Konto). Ab 0:00 Uhr UTC (1:00 Uhr MEZ bzw. 2:00 Uhr MESZ) geht es wieder.",
 };
 
 /* ---------- Antworten ---------- */
@@ -94,6 +99,9 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS ai_usage (day TEXT NOT NULL, provider TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0, neurons REAL NOT NULL DEFAULT 0, PRIMARY KEY(day, provider))",
   // Automatische Löschung nach der Frist der Lehrkraft (PURGE_SQL in lib.js) sucht über den Eingangszeitpunkt
   "CREATE INDEX IF NOT EXISTS idx_submissions_received ON submissions(received_at)",
+  // Checkliste zum analogen Arbeitsblatt je Blatt: draft = Vorschlag der KI (noch nicht gespeichert, nie öffentlich), final = von der
+  // Lehrkraft gespeichert (über den QR-Code öffentlich) – beides JSON {v:1, ai, tasks:[{n, points}]}
+  "CREATE TABLE IF NOT EXISTS sheet_checklists (sheet_code TEXT PRIMARY KEY, draft TEXT, final TEXT, updated_at INTEGER NOT NULL)",
 ];
 // Belegter Speicher für Bilder und PDF-Dateien aller Blätter (roh, Bytes) – als SQL-Ausdruck für Bedingungen und Listen
 const STORAGE_SQL = "((SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE n=0)+(SELECT COALESCE(SUM(bytes),0) FROM sheet_images))";
@@ -397,6 +405,7 @@ async function routeSheetDelete(c, codeRaw) {
     c.db.prepare("DELETE FROM sheet_images WHERE sheet_code=?1").bind(code),
     c.db.prepare("DELETE FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("DELETE FROM sheet_files WHERE sheet_code=?1").bind(code),
+    c.db.prepare("DELETE FROM sheet_checklists WHERE sheet_code=?1").bind(code),
   ]);
   if (!sh.meta || !sh.meta.changes) throw sheetGone();
   return json({ ok: true, deletedSubmissions: (subs.meta && subs.meta.changes) || 0 });
@@ -835,6 +844,54 @@ const AI_REFUND = new Set(["BUSY", "RATE_LIMIT", "TIMEOUT", "SERVER", "NETWORK",
 const RESERVE_ON = new Set(["BUSY", "RATE_LIMIT", "DAILY_LIMIT", "TIMEOUT", "SERVER", "NETWORK", "NOT_FOUND", "NO_MODEL", "TOO_LARGE", "EMPTY", "BAD_JSON", "TRUNCATED", "HTTP"]);
 const retryAfterOfErr = (e) => { const s = Math.ceil((e.retryAfterMs || 0) / 1000); return s > 0 ? Math.max(5, Math.min(60, s)) : (AI_WAIT[e.code] || 30); };
 
+/* ---------- Eine KI-Anfrage: erster Anbieter, dann die Reserve (Feedback und Checkliste) ---------- */
+// Gesperrte Modelle je Eintrag (einmal je Aufruf gelesen). Model "*" = Tageskontingent des ganzen Kontos aufgebraucht (Workers AI):
+// bis 0:00 UTC keine Anfrage mehr dorthin.
+function skipReader(c) {
+  const skips = new Map();
+  return async (e) => {
+    if (!skips.has(e.key)) skips.set(e.key, ((await skipQuery(c.db, e.key, c.now).all()).results || []).map((r) => r.model));
+    return skips.get(e.key);
+  };
+}
+// Nur ein Eintrag, und sein Konto-Tageskontingent ist aufgebraucht: Es steht schon vorher fest, dass nichts zur KI geht – nicht zählen
+const quotaBlocked = async (entries, skipOf) => entries.length === 1 && !!PROVIDERS[entries[0].provider].accountDaily && (await skipOf(entries[0])).includes("*");
+const quotaErr = () => new AIError("DAILY_LIMIT", "Tageskontingent aufgebraucht.", { accountWide: true });
+// Fragt die Einträge in dieser Reihenfolge (erster Anbieter, dann die Reserve) → {out, err}. Verbrauch von Workers AI und die Sperre
+// „Tageskontingent aufgebraucht“ gehen per waitUntil in D1. Zeitbudget: insgesamt 100 s (der Browser wartet bis 150 s); mit Reserve
+// bekommt der erste Anbieter 45 s, die Reserve den Rest – aber nur, wenn noch ≥ 35 s bleiben (sonst ein nutzloser Abbruch). Langes
+// Warten erledigt der Browser (Wiederholung). Wurde der erste Anbieter gar nicht gefragt (nur wegen "*" übersprungen), bekommt die
+// Reserve das volle Budget.
+async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, accept, outTokens }) {
+  const t0 = Date.now(), BUDGET = 100000, startAt = Math.floor(Math.random() * 64);
+  let out = null, err = null, called = false;
+  const usage = [];   // Workers AI: geschätzter Verbrauch je Aufruf (auch gescheiterter)
+  for (let i = 0; i < entries.length && !out; i++) {
+    const e = entries[i], left = BUDGET - (Date.now() - t0), lead = !called;   // lead: der erste Eintrag, der wirklich gefragt wird
+    if (i > 0 && (!(err && RESERVE_ON.has(err.code)) || (!lead && left < 35000))) break;   // Reserve nur bei Verfügbarkeitsproblemen
+    const skip = await skipOf(e);
+    if (skip.includes("*")) { if (!err) err = quotaErr(); continue; }
+    called = true;
+    try {
+      out = await callAI(cfgOf(e, skip), messages, {
+        temperature, geminiSchema, accept,
+        timeoutMs: 45000, deadlineMs: lead ? (i < entries.length - 1 ? 45000 : left) : Math.min(40000, left), maxWaitMs: 15000,
+        maxAttempts: lead ? 6 : 3, startAt: startAt + i, outTokens,
+        beforeAttempt: gate(c), onRotate: onRotate(c),
+      });
+      if (e.keyless && spent(out.cost)) usage.push(usageStmt(c.db, e.provider, out.cost, c.now));
+    } catch (x) {
+      if (!(x instanceof AIError)) throw x;
+      if (e.keyless && spent(x.cost)) usage.push(usageStmt(c.db, e.provider, x.cost, c.now));
+      if (x.code === "DAILY_LIMIT" && x.accountWide && x.until > c.now) usage.push(...quotaLock(c.db, e.key, x.until));   // für alle folgenden Anfragen bis 0:00 UTC
+      // Es zählt der letzte Fehler – außer die Reserve ist selbst falsch eingerichtet, dann bleibt der des ersten Anbieters
+      if (!err || !(x.code === "NO_KEY" || x.code === "CONFIG" || x.code === "NO_MODEL")) err = x;
+    }
+  }
+  if (usage.length) c.waitUntil(c.db.batch(usage).catch(() => {}));
+  return { out, err };
+}
+
 async function routeFeedback(c) {
   const body = await readJson(c.request);
   const code = normalizeCode(body.code);
@@ -862,48 +919,14 @@ async function routeFeedback(c) {
     if (body.recipients[0] !== entryId(entries[0])) throw new HttpError(409, "ai_changed", MSG.aiChanged);
     entries = entries.filter((e) => allowed.has(entryId(e)));
   }
-  // Gesperrte Modelle je Eintrag (einmal gelesen). Model "*" = Tageskontingent des ganzen Kontos aufgebraucht (Workers AI):
-  // bis 0:00 UTC keine Anfrage mehr dorthin. Ohne Reserve steht dann schon vorher fest, dass nichts zur KI geht – nicht zählen.
-  const skips = new Map();
-  const skipOf = async (e) => {
-    if (!skips.has(e.key)) skips.set(e.key, ((await skipQuery(c.db, e.key, c.now).all()).results || []).map((r) => r.model));
-    return skips.get(e.key);
-  };
-  const quotaErr = () => new AIError("DAILY_LIMIT", "Tageskontingent aufgebraucht.", { accountWide: true });
-  if (entries.length === 1 && PROVIDERS[entries[0].provider].accountDaily && (await skipOf(entries[0])).includes("*"))
-    throw new HttpError(503, "ai_quota", PUBLIC_MSG.DAILY_LIMIT, { aiCode: "DAILY_LIMIT" });
+  // Ohne Reserve steht bei aufgebrauchtem Konto-Tageskontingent schon vorher fest, dass nichts zur KI geht – nicht zählen
+  const skipOf = skipReader(c);
+  if (await quotaBlocked(entries, skipOf)) throw new HttpError(503, "ai_quota", PUBLIC_MSG.DAILY_LIMIT, { aiCode: "DAILY_LIMIT" });
   // Erst zählen, wenn die Anfrage gültig ist und wirklich zur KI geht: je IP (Anzahl und Zeichen) und je Blatt und Tag
   const chars = answers.reduce((n, a) => n + a.length, 0);
   const refund = await countAll(c, [{ kind: "feedback" }, { kind: "feedback_chars", weight: Math.max(1, chars) }, { kind: "sheet_feedback", key: code }]);
-  // Zeitbudget: insgesamt 100 s (der Browser wartet bis 150 s); mit Reserve bekommt der erste Anbieter 45 s, die Reserve den
-  // Rest – aber nur, wenn noch ≥ 35 s bleiben (sonst ein nutzloser Abbruch). Langes Warten erledigt der Browser (Wiederholung).
-  // Wurde der erste Anbieter gar nicht gefragt (nur wegen "*" übersprungen), bekommt die Reserve das volle Budget.
-  const t0 = Date.now(), BUDGET = 100000, startAt = Math.floor(Math.random() * 64);
-  let out = null, err = null, called = false;
-  const usage = [];   // Workers AI: geschätzter Verbrauch je Aufruf (auch gescheiterter)
-  for (let i = 0; i < entries.length && !out; i++) {
-    const e = entries[i], left = BUDGET - (Date.now() - t0), lead = !called;   // lead: der erste Eintrag, der wirklich gefragt wird
-    if (i > 0 && (!(err && RESERVE_ON.has(err.code)) || (!lead && left < 35000))) break;   // Reserve nur bei Verfügbarkeitsproblemen
-    const skip = await skipOf(e);
-    if (skip.includes("*")) { if (!err) err = quotaErr(); continue; }
-    called = true;
-    try {
-      out = await callAI(cfgOf(e, skip), messages, {
-        temperature: 0.1, geminiSchema: FEEDBACK_SCHEMA_GEMINI, accept: feedbackAcceptor(nrs),
-        timeoutMs: 45000, deadlineMs: lead ? (i < entries.length - 1 ? 45000 : left) : Math.min(40000, left), maxWaitMs: 15000,
-        maxAttempts: lead ? 6 : 3, startAt: startAt + i, outTokens: Math.min(8192, 800 + 300 * nrs.length),
-        beforeAttempt: gate(c), onRotate: onRotate(c),
-      });
-      if (e.keyless && spent(out.cost)) usage.push(usageStmt(c.db, e.provider, out.cost, c.now));
-    } catch (x) {
-      if (!(x instanceof AIError)) throw x;
-      if (e.keyless && spent(x.cost)) usage.push(usageStmt(c.db, e.provider, x.cost, c.now));
-      if (x.code === "DAILY_LIMIT" && x.accountWide && x.until > c.now) usage.push(...quotaLock(c.db, e.key, x.until));   // für alle folgenden Anfragen bis 0:00 UTC
-      // Es zählt der letzte Fehler – außer die Reserve ist selbst falsch eingerichtet, dann bleibt der des ersten Anbieters
-      if (!err || !(x.code === "NO_KEY" || x.code === "CONFIG" || x.code === "NO_MODEL")) err = x;
-    }
-  }
-  if (usage.length) c.waitUntil(c.db.batch(usage).catch(() => {}));
+  const { out, err } = await askAI(c, entries, skipOf, messages,
+    { temperature: 0.1, geminiSchema: FEEDBACK_SCHEMA_GEMINI, accept: feedbackAcceptor(nrs), outTokens: Math.min(8192, 800 + 300 * nrs.length) });
   if (!out) {
     if (AI_REFUND.has(err.code)) refund();
     if (err.code === "NO_KEY" || err.code === "CONFIG" || err.code === "NO_MODEL") throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
@@ -947,12 +970,108 @@ async function routeSubmit(c) {
   return json({ ok: true, id: r.meta ? r.meta.last_row_id : null, receivedAt: c.now, retentionDays });
 }
 
+/* ---------- Checkliste zum analogen Arbeitsblatt ----------
+ * Die KI schlägt aus den Aufträgen an die KI einmal je Blatt Punkte vor (draft, nur für die Lehrkraft); erst was die Lehrkraft
+ * speichert (final), ist über den QR-Code des gedruckten Arbeitsblattes öffentlich. Die KI bekommt nur Aufgaben, Material und
+ * Aufträge – keine Antworten, keine Daten von Schüler:innen (deshalb auch kein Abgleich der Empfänger wie beim Feedback). */
+const checklistStmt = (db, code) => db.prepare("SELECT draft, final, updated_at FROM sheet_checklists WHERE sheet_code=?1").bind(code);
+// Speichern nur, solange das Blatt existiert (sonst bliebe eine verwaiste Zeile, wenn es inzwischen gelöscht wurde)
+const saveDraftStmt = (db, code, draft, now) => db.prepare(
+  "INSERT INTO sheet_checklists(sheet_code,draft,final,updated_at) SELECT ?1,?2,NULL,?3 WHERE EXISTS(SELECT 1 FROM sheets WHERE code=?1) " +
+  "ON CONFLICT(sheet_code) DO UPDATE SET draft=excluded.draft, updated_at=excluded.updated_at").bind(code, JSON.stringify(draft), now);
+const saveFinalStmt = (db, code, final, now) => db.prepare(
+  "INSERT INTO sheet_checklists(sheet_code,draft,final,updated_at) SELECT ?1,NULL,?2,?3 WHERE EXISTS(SELECT 1 FROM sheets WHERE code=?1) " +
+  "ON CONFLICT(sheet_code) DO UPDATE SET draft=NULL, final=excluded.final, updated_at=excluded.updated_at").bind(code, JSON.stringify(final), now);
+const emptyChecklist = (n, ai) => ({ v: 1, ai, tasks: Array.from({ length: n }, (_, i) => ({ n: i + 1, points: [] })) });
+
+// GET …/sheets/:code/checklist → {checklist: {draft, final, updatedAt} | null, aiFeedback, aiReady}: aiFeedback = mindestens eine Aufgabe
+// mit Auftrag an die KI, aiReady = ein KI-Dienst ist nutzbar (dann sagt das gedruckte Blatt, dass es digital KI-Feedback gibt)
+async function routeChecklistGet(c, codeRaw) {
+  await requireTeacher(c);
+  const code = codeParam(codeRaw);
+  if (!isValidCode(code)) throw sheetGone();
+  const [sh, ck, st] = await c.db.batch([c.db.prepare("SELECT tasks FROM sheets WHERE code=?1").bind(code), checklistStmt(c.db, code), settingStmt(c.db, "ai")]);
+  const s = firstRow(sh);
+  if (!s) throw sheetGone();
+  const tasks = parseTasks(s.tasks), row = firstRow(ck);
+  const checklist = row ? { draft: checklistOut(row.draft, tasks.length), final: checklistOut(row.final, tasks.length), updatedAt: Number(row.updated_at) || null } : null;
+  return json({ ok: true, checklist, aiFeedback: tasks.some(wantsFeedback), aiReady: activeEntries(await aiConfig(c.env, firstRow(st))).length > 0 });
+}
+
+// POST …/sheets/:code/checklist {force?} – die KI schlägt einmal vor: Gibt es schon einen Entwurf oder eine gespeicherte Checkliste,
+// fragt der Server ohne force nicht erneut. Ohne Aufgabe mit Auftrag an die KI: leerer Entwurf ohne KI (noAi). Das Ergebnis wird
+// als Entwurf gespeichert; eine gespeicherte Checkliste (final) bleibt unverändert öffentlich, bis die Lehrkraft neu speichert.
+async function routeChecklistPost(c, codeRaw) {
+  await requireTeacher(c);
+  const code = codeParam(codeRaw);
+  if (!isValidCode(code)) throw sheetGone();
+  const body = (await readJson(c.request, true)) || {};
+  if (body.force != null && typeof body.force !== "boolean") throw new InputError("Ungültige Anfrage.");
+  const [sh, ck, st] = await c.db.batch([c.db.prepare("SELECT tasks FROM sheets WHERE code=?1").bind(code), checklistStmt(c.db, code), settingStmt(c.db, "ai")]);
+  const s = firstRow(sh);
+  if (!s) throw sheetGone();
+  const tasks = parseTasks(s.tasks), row = firstRow(ck) || {};
+  const draft = checklistOut(row.draft, tasks.length), final = checklistOut(row.final, tasks.length);
+  if (!body.force && (draft || final)) return json({ ok: true, draft, final, generated: false, ...(tasks.some(wantsFeedback) ? {} : { noAi: true }) });
+  const save = async (d) => { const r = await saveDraftStmt(c.db, code, d, c.now).run(); if (!r.meta || !r.meta.changes) throw sheetGone(); return d; };
+  const { messages, nrs } = buildChecklistMessages(tasks);
+  if (!nrs.length) return json({ ok: true, draft: await save(emptyChecklist(tasks.length, false)), final, generated: false, noAi: true });
+  const entries = activeEntries(await aiConfig(c.env, firstRow(st)));   // erster Anbieter, danach die Reserve-KI
+  if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.ckNoAi);
+  const skipOf = skipReader(c);
+  if (await quotaBlocked(entries, skipOf)) throw new HttpError(503, "ai_quota", MSG.ckQuota, { aiCode: "DAILY_LIMIT" });
+  const refund = await countAll(c, [{ kind: "checklist" }]);   // erst zählen, wenn die Anfrage wirklich zur KI geht
+  const { out, err } = await askAI(c, entries, skipOf, messages,
+    { temperature: 0.2, geminiSchema: CHECKLIST_SCHEMA_GEMINI, accept: checklistAcceptor(nrs), outTokens: Math.min(4096, 400 + 250 * nrs.length) });
+  if (!out) {   // wie beim Feedback, aber mit der ausführlichen Meldung für die Lehrkraft (wie beim Verbindungstest)
+    if (AI_REFUND.has(err.code)) refund();
+    if (err.code === "NO_KEY" || err.code === "CONFIG" || err.code === "NO_MODEL") throw new HttpError(503, "ai_not_configured", err.message || MSG.ckNoAi, { aiCode: err.code });
+    if (AI_WAIT[err.code]) throw new HttpError(429, "ai_busy", err.message, { aiCode: err.code, retryAfter: retryAfterOfErr(err) });
+    if (err.code === "DAILY_LIMIT" && err.accountWide) throw new HttpError(503, "ai_quota", MSG.ckQuota, { aiCode: err.code });
+    throw new HttpError(502, "ai_error", err.message, { aiCode: err.code });
+  }
+  const map = normalizeChecklist(out.json, nrs), d = emptyChecklist(tasks.length, true);
+  for (const t of d.tasks) t.points = map.get(t.n) || [];
+  return json({ ok: true, draft: await save(d), final, generated: true });
+}
+
+// PUT …/sheets/:code/checklist {ai, tasks} – speichert die geprüfte Checkliste (final, ab jetzt öffentlich) und verwirft den Entwurf
+async function routeChecklistPut(c, codeRaw) {
+  await requireTeacher(c);
+  const code = codeParam(codeRaw);
+  if (!isValidCode(code)) throw sheetGone();
+  const body = await readJson(c.request);
+  const sh = await c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code).first();
+  if (!sh) throw sheetGone();
+  const { ai, tasks } = validateChecklist(body, Number(sh.n) || 0), final = { v: 1, ai, tasks };
+  const r = await saveFinalStmt(c.db, code, final, c.now).run();
+  if (!r.meta || !r.meta.changes) throw sheetGone();
+  return json({ ok: true, final, updatedAt: c.now });
+}
+
+// GET /api/sheet/:code/checklist – öffentlich (Ziel des QR-Codes): nur die gespeicherte Checkliste mit Titel und reinem Aufgabentext,
+// nie der Entwurf und nie die Aufträge an die KI. Unbekannte Codes zählen wie beim Blatt; ein Blatt ohne Checkliste nicht.
+async function routePublicChecklist(c, codeRaw) {
+  const code = codeParam(codeRaw);
+  if (!isValidCode(code)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
+  const [sh, ck] = await c.db.batch([
+    c.db.prepare("SELECT code, title, tasks FROM sheets WHERE code=?1").bind(code),
+    c.db.prepare("SELECT final FROM sheet_checklists WHERE sheet_code=?1").bind(code),
+  ]);
+  const s = firstRow(sh);
+  if (!s) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
+  const tasks = parseTasks(s.tasks), fin = checklistOut((firstRow(ck) || {}).final, tasks.length);
+  if (!fin) throw new HttpError(404, "no_checklist", MSG.noChecklist);
+  return json({ ok: true, code: s.code, title: s.title, ai: fin.ai, tasks: tasks.map((t, i) => ({ n: i + 1, text: String(t.text || ""), points: fin.tasks[i].points })) });
+}
+
 /* ---------- Routing ---------- */
 const ROUTES = [
   ["/api/health", { GET: async () => json({ ok: true, service: "feibeitsblatt" }) }, { noDb: true }],
   [/^\/api\/sheet\/([^/]+)$/, { GET: routePublicSheet }],
   [/^\/api\/sheet\/([^/]+)\/images\/([^/]+)$/, { GET: routePublicImage }],
   [/^\/api\/sheet\/([^/]+)\/files\/([^/]+)$/, { GET: routePublicFile }],
+  [/^\/api\/sheet\/([^/]+)\/checklist$/, { GET: routePublicChecklist }],
   ["/api/feedback", { POST: routeFeedback }],
   ["/api/submit", { POST: routeSubmit }],
   ["/api/teacher/door", { POST: routeDoor }],
@@ -964,6 +1083,7 @@ const ROUTES = [
   [/^\/api\/teacher\/sheets\/([^/]+)\/submissions$/, { GET: routeSubmissionsList, DELETE: routeSubmissionsDelete }],
   [/^\/api\/teacher\/sheets\/([^/]+)\/images$/, { POST: routeImageUpload }],
   [/^\/api\/teacher\/sheets\/([^/]+)\/files$/, { POST: routeFileUpload }],
+  [/^\/api\/teacher\/sheets\/([^/]+)\/checklist$/, { GET: routeChecklistGet, POST: routeChecklistPost, PUT: routeChecklistPut }],
   ["/api/teacher/ai", { GET: routeAiGet, PUT: routeAiPut }],
   ["/api/teacher/ai/test", { POST: routeAiTest }],
   ["/api/teacher/privacy", { GET: routePrivacyGet, PUT: routePrivacyPut }],

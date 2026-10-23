@@ -8,6 +8,9 @@
 // unter „gut“, wenn die Antwort das erste bedeutungstragende Wort der Zeile (≥ 4 Buchstaben, kein Füllwort) enthält (ohne
 // Groß-/Kleinschreibung), sonst unter „tipps“. So lassen sich die Listen in Tests vorhersagen (expectedResults).
 //
+// Checklisten-Regel (Anfrage erkannt am System-Prompt, der „Checkliste“ enthält): je Zeile des Auftrags (einzeilig: je Satz, ≤ 8)
+// ein Punkt „Du beachtest: <Zeile>“ – einzeilig, auf 160 Zeichen gekürzt, Doppelte entfallen (expectedChecklist sagt sie voraus).
+//
 // Modi (MOCK_AI_MODE, POST /__mock/mode {"mode","delayMs"}):
 //   ok (Vorgabe) · fenced (<think> + ```json-Zaun) · badjson · 429 (Tageslimit, hart) · 429soft (RPM, Retry-After 1 s)
 //   500 · 401 · slow (Verzögerung delayMs, Vorgabe 5000) · reasoning400 (400, wenn reasoning_effort/reasoning gesendet)
@@ -62,6 +65,20 @@ export function mockFeedback(blocks) {
     }),
   };
 }
+// Checkliste: Punkte je Auftrag an die KI (string) → [Punkt], so wie der Worker sie als Entwurf speichert (normalizeChecklist:
+// einzeilig wie cleanLine, ≤ 160 Zeichen, ohne Doppelte – Groß-/Kleinschreibung zählt nicht)
+const oneLine = (v) => String(v).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ").replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\s+/g, " ").trim();
+export function expectedChecklist(solution) {
+  const seen = new Set(), out = [];
+  for (const p of pointsOf(String(solution || "").trim())) {
+    let s = oneLine("Du beachtest: " + p);
+    if (s.length > 160) s = s.slice(0, 160).trimEnd();
+    if (seen.has(s.toLowerCase())) continue;
+    seen.add(s.toLowerCase()); out.push(s);
+  }
+  return out;
+}
+export const mockChecklist = (blocks) => ({ aufgaben: blocks.map((b) => ({ nr: b.nr, punkte: expectedChecklist(b.solution) })) });
 // Erwartetes Ergebnis für Tests: tasks [{text, solution (= Auftrag an die KI)}], answers [string] → results wie /api/feedback
 // (covered = „gut“, missing = „tipps“)
 export function expectedResults(tasks, answers) {
@@ -123,8 +140,10 @@ export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs 
         if (state.mode === "reasoning400" && (body.reasoning_effort != null || body.reasoning != null))
           return send(res, 400, { error: { message: "property 'reasoning_effort' is unsupported for this model", type: "invalid_request_error" } });
         const user = messages.filter((m) => m && m.role === "user").map((m) => String(m.content || "")).join("\n");
+        const system = messages.filter((m) => m && m.role === "system").map((m) => String(m.content || "")).join("\n");
         const blocks = parseFeedbackPrompt(user);
-        let content = blocks.length ? JSON.stringify(mockFeedback(blocks)) : JSON.stringify({ ok: true, antwort: "Verbindung steht." });
+        let content = !blocks.length ? JSON.stringify({ ok: true, antwort: "Verbindung steht." })
+          : JSON.stringify(/Checkliste/.test(system) ? mockChecklist(blocks) : mockFeedback(blocks));
         if (state.mode === "fenced") content = "<think>Ich lese den Auftrag der Lehrkraft.</think>\n```json\n" + content + "\n```";
         if (state.mode === "badjson") content = "Das ist leider kein JSON.";
         // Token grob wie echte Dienste (etwa 4 Zeichen je Token) – für die Verbrauchsschätzung von Workers AI in Tests

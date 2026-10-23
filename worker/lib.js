@@ -105,6 +105,8 @@ export const LIMITS = {
   // Datenschutz-Angaben der Schule (settings `privacy`, je Feld einzeilig) und automatische Löschfrist in Tagen
   schoolName: 160, schoolAddress: 240, dpoContact: 300, privacyUrl: 500, legalBasis: 400, authority: 240,
   retentionMin: 7, retentionMax: 365, retentionDefault: 30,
+  // Checkliste zum analogen Arbeitsblatt (über den QR-Code öffentlich): Punkte je Aufgabe, Zeichen je Punkt
+  checkPoints: 8, checkPoint: 160,
 };
 
 export class InputError extends Error {
@@ -604,6 +606,47 @@ export const SAVE_PRIVACY_SQL = "INSERT INTO settings(key,value) SELECT 'privacy
   "ON CONFLICT(key) DO UPDATE SET value=excluded.value";
 export const DELETE_OLDER_SQL = "DELETE FROM submissions WHERE received_at<?1 AND (SELECT value FROM settings WHERE key='privacy')=?2";
 
+/* ---------- Checkliste zum analogen Arbeitsblatt (Tabelle sheet_checklists, Spalten draft/final) ----------
+ * {ai, tasks:[{n (1…taskCount, je einmal), points:[Text]}]} → {ai, tasks} mit genau taskCount Einträgen, sortiert nach n; fehlende
+ * Aufgaben bekommen eine leere Liste. Je Punkt einzeilig (cleanLine: NFC, Steuer- und Formatzeichen weg, Leerraum zusammengefasst),
+ * leere Punkte und Doppelte derselben Aufgabe (ohne Groß-/Kleinschreibung) entfallen – erst danach gelten die Grenzen
+ * (LIMITS.checkPoints Punkte zu je LIMITS.checkPoint Zeichen). ai = die Punkte gehen auf einen Vorschlag der KI zurück. Die
+ * gespeicherte Checkliste ist über den QR-Code für alle mit dem Link sichtbar. */
+export function validateChecklist(raw, taskCount) {
+  const bad = () => new InputError("Die Checkliste hat ein ungültiges Format.");
+  if (!isObj(raw) || (raw.ai != null && typeof raw.ai !== "boolean")) throw bad();
+  const list = raw.tasks == null ? [] : raw.tasks;
+  if (!Array.isArray(list) || list.length > taskCount) throw bad();
+  const byN = new Map();
+  for (const t of list) {
+    if (!isObj(t) || !Number.isInteger(t.n) || t.n < 1 || t.n > taskCount || byN.has(t.n)) throw bad();
+    const pts = t.points == null ? [] : t.points;
+    if (!Array.isArray(pts)) throw bad();
+    const tooMany = () => new InputError("Aufgabe " + t.n + ": höchstens " + LIMITS.checkPoints + " Punkte.");
+    const tooLong = () => new InputError("Aufgabe " + t.n + ": Ein Punkt ist zu lang (höchstens " + LIMITS.checkPoint + " Zeichen).");
+    if (pts.length > 6 * LIMITS.checkPoints) throw tooMany();   // vor dem Bereinigen (10 ms CPU)
+    const seen = new Set(), out = [];
+    for (const p of pts) {
+      if (typeof p !== "string") throw bad();
+      if (p.length > 4 * LIMITS.checkPoint + 100) throw tooLong();
+      const s = cleanLine(p);
+      if (!s) continue;
+      if (s.length > LIMITS.checkPoint) throw tooLong();
+      const k = s.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(s);
+    }
+    if (out.length > LIMITS.checkPoints) throw tooMany();
+    byN.set(t.n, out);
+  }
+  return { ai: raw.ai === true, tasks: Array.from({ length: taskCount }, (_, i) => ({ n: i + 1, points: byN.get(i + 1) || [] })) };
+}
+// Gespeicherte Checkliste (JSON-Text aus draft bzw. final) erneut prüfen → {v:1, ai, tasks} oder null (fehlt oder unlesbar)
+export function checklistOut(text, taskCount) {
+  if (typeof text !== "string" || !text) return null;
+  try { const c = validateChecklist(JSON.parse(text), taskCount); return { v: 1, ai: c.ai, tasks: c.tasks }; } catch { return null; }
+}
+
 // Basis-URL eines eigenen OpenAI-kompatiblen Dienstes: https Pflicht, http nur für 127.0.0.1/localhost (Tests)
 export function normalizeBaseUrl(input) {
   const s = String(input || "").trim().replace(/\/+$/, "");
@@ -654,6 +697,7 @@ export const RATE = {
                                                        // Tageskontingent von Workers AI ist kleiner und bleibt aufbrauchbar – dafür gibt es die Reserve)
   submit: { max: 240, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu zwei Aufrufe)
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
+  checklist: { max: 30, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste zum analogen Arbeitsblatt je IP (Lehrkraft)
 };
 const minutes = (s) => { const m = Math.max(1, Math.ceil(s / 60)); return m + (m === 1 ? " Minute" : " Minuten"); };
 export function rateMessage(kind, retryAfter) {
@@ -665,6 +709,7 @@ export function rateMessage(kind, retryAfter) {
     case "feedback": case "feedback_chars": return "Gerade wurden von diesem Netzwerk sehr viele KI-Rückmeldungen angefordert. Bitte versuche es in etwa " + t + " erneut.";
     case "sheet_feedback": return "Für dieses Feibeitsblatt wurden heute schon sehr viele KI-Rückmeldungen angefordert. Bitte sag deiner Lehrkraft Bescheid.";
     case "submit": case "submit_bytes": return "Gerade wurden von diesem Netzwerk sehr viele Abgaben gesendet. Bitte versuche es in etwa " + t + " erneut – deine Antworten bleiben auf diesem Gerät gespeichert.";
+    case "checklist": return "Gerade wurden sehr viele Checklisten bei der KI angefragt. Bitte versuchen Sie es in etwa " + t + " erneut – Sie können die Punkte auch selbst eintragen.";
     default: return "Zu viele Anfragen. Bitte versuche es in etwa " + t + " erneut.";
   }
 }
