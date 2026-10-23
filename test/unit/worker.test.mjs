@@ -140,7 +140,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
   assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
-    aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)", transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }],
+    aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)", transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }],
     // die Neuinstallation (Setup ohne Blätter) löscht nach 30 Tagen (updatedAt/auto bleiben intern)
     privacy: { retentionDays: 30 } });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
@@ -416,7 +416,7 @@ test("reserve AI: stored separately (encrypted), tested via ?which=reserve, used
   assert.equal(r.json.reserve.hasKey, true); assert.equal(r.json.hasKey, true);
   // Schüler:innen erfahren beide Empfänger (Datenschutzhinweis), erster Anbieter zuerst
   r = await call("GET", "/api/sheet/" + code);
-  const rcpt = "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";
+  const rcpt = "127.0.0.1:" + mock.port + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)";
   assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + mock.port);
   const tr = "vom Betreiber dieser Seite beim Anbieter zu prüfen";   // Grundlage der Übermittlung beim eigenen Dienst: unbekannt
   assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + mock.port, label: rcpt, transfer: tr }, { id: "custom:127.0.0.1:" + mock.port, label: rcpt, transfer: tr }]);

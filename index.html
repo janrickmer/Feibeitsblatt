@@ -18,6 +18,15 @@
      Worker unter dieser Adresse auf – dieselbe Adresse steht in der Content-Security-Policy darüber (connect-src). */
   window.FEIBEITSBLATT_WORKER = "https://feibeitsblatt.feindt.workers.dev";
   window.FEIBEITSBLATT_PUBLIC = "https://feibeitsblatt.janrickmer.de/";   // Adresse in der Zwischenstand-PDF (Schüler:innen laden sie dort wieder hoch) sowie im Hinweis und im QR-Code (Checkliste) des analogen Arbeitsblattes
+  /* Betreiber dieser Seite: verantwortlich im Sinne der DSGVO und Anbieter nach § 18 Abs. 1 MStV (Seite „Impressum & Datenschutz“,
+     Datenschutzhinweis, Lehrkraft-Bereich) – dazu die für ihn zuständige Datenschutz-Aufsichtsbehörde. Feibeitsblatt ist ein privates,
+     nicht kommerzielles Angebot, kein Angebot einer Schule. Bei einer eigenen Installation hier die eigenen Angaben eintragen. */
+  window.FEIBEITSBLATT_OPERATOR = {
+    name: "Jan-Rickmer Feindt", street: "An der Bauna 30", city: "34270 Schauenburg", country: "Deutschland",
+    email: "j.feindt@kollegium.lg-ks.de",
+    authority: { name: "Der Hessische Beauftragte für Datenschutz und Informationsfreiheit", address: "Gustav-Stresemann-Ring 1, 65189 Wiesbaden",
+      url: "https://datenschutz.hessen.de" },
+  };
   window.FEIBEITSBLATT_API = window.FEIBEITSBLATT_API || (document.querySelector('meta[name="feibeitsblatt-host"][content="worker"]') ||
     /\.workers\.dev$|^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? "" : window.FEIBEITSBLATT_WORKER);
 </script>
@@ -196,6 +205,24 @@
   #chk-open{margin-top:22px; min-height:44px}
   #chk-retry{margin:8px 0 0; min-height:44px}
   #chk-home{min-height:44px; margin-top:12px}
+  /* Impressum & Datenschutz (#screen-legal): der vollständige Hinweis offen in normaler Lesegröße – h2 „Datenschutzerklärung“, Abschnitte h3 */
+  #legal-h:focus{outline:none}   /* nur per Skript fokussiert (Bildschirmwechsel), nie per Tab */
+  .legal .legal-top{margin:0 0 14px}
+  .legal h2.legal-h2{font-family:var(--serif); font-size:21px; font-weight:600; margin:22px 0 4px}
+  .legal .legal-lead{font-size:13.5px; color:var(--muted); margin:0 0 8px}
+  .legal address{font-style:normal; font-size:15px; line-height:1.55; margin:0 0 6px}
+  .legal .legal-mail, .legal .legal-free{font-size:15px; margin:0 0 6px; overflow-wrap:anywhere}
+  .legal #legal-status{margin:14px 0 0}
+  .legal .privflat{margin:0; font-family:var(--sans); font-size:14.5px; line-height:1.55; color:var(--ink)}
+  .legal .privflat .privh{font-family:var(--sans); font-size:15.5px; font-weight:700; letter-spacing:0; line-height:1.4; margin:18px 0 4px; color:var(--ink)}
+  .legal .privflat p{margin:0}
+  .legal .privflat p + p{margin-top:8px}
+  .legal .privflat ul{margin:2px 0 0; padding-left:20px}
+  .legal .privflat li{margin:4px 0}
+  .legal .privflat p, .legal .privflat li{overflow-wrap:anywhere}
+  .legal .privflat a{color:var(--accent)}
+  .legal .legal-other{margin:16px 0 0}
+  .legal #legal-home2{min-height:44px; margin-top:12px}
 
   /* ---------- Schreibfläche (Topbar, Papier, Aufgaben) ----------
      Im Schreibmodus füllt der Bildschirm genau die Fensterhöhe; nur .paperwrap scrollt, die Fußzeile steht darunter
@@ -483,6 +510,7 @@
   details.privfull > summary{cursor:pointer; color:var(--ink); font-weight:600}
   details.privfull .privh{font-family:var(--sans); font-size:12.5px; font-weight:600; letter-spacing:0; line-height:1.4; margin:10px 0 2px; color:var(--ink)}
   details.privfull p{margin:0}
+  details.privfull p + p{margin-top:5px}
   details.privfull ul{margin:2px 0 0; padding-left:18px}
   details.privfull li{margin:3px 0}
   details.privfull a{color:var(--accent)}
@@ -498,6 +526,10 @@
     font-size:11px; letter-spacing:.05em; color:var(--muted); pointer-events:none;
   }
   body.writing .copyright{padding:5px 16px 7px; border-top:1px solid var(--line); background:var(--paper)}
+  /* Link „Impressum & Datenschutz“ in der Fußzeile: klickbar (die Zeile selbst nicht), Tippfläche ≥ 24 px; auf der Seite selbst ausgeblendet */
+  .copyright a{pointer-events:auto; color:var(--muted); display:inline-block; padding:4px 2px; margin:-4px 0}
+  .copyright a:hover{color:var(--accent)}
+  body.on-legal .copyright a, body.on-legal .footsep{display:none}
 
   /* ---------- Lehrkräfte-Bereich ---------- */
   #screen-teacher{display:none; place-items:start center; padding:40px 20px 20px}
@@ -519,6 +551,10 @@
   .aiwarn p + p{margin-top:8px}
   .panel h2.pvh{font-family:var(--sans); font-size:16px; font-weight:700; margin:0 0 12px}
   .panel h2.pvh.sep{margin-top:26px}
+  /* Betreiber (fest eingetragen) im Lehrkraft-Bereich: schreibgeschützt, nur zum Ansehen */
+  .opbox{background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:10px 14px; font-size:14px; line-height:1.55; overflow-wrap:anywhere}
+  .opbox p{margin:0}
+  .opbox p + p{margin-top:6px}
   .batchsum{font-size:13px; color:var(--muted); margin:0; font-variant-numeric:tabular-nums}
   .tablewrap{position:relative; border:1px solid var(--line); border-radius:10px; overflow:auto; background:var(--paper2)}
   table.batch{width:100%; border-collapse:collapse; font-size:15px}
@@ -884,6 +920,26 @@
   </div>
 </section>
 
+<!-- ============ IMPRESSUM & DATENSCHUTZ (Adresse mit #impressum; der Link in der Fußzeile öffnet sie in einem neuen Tab) ============ -->
+<section id="screen-legal" class="screen" aria-labelledby="legal-h">
+  <div class="start-wrap">
+    <div class="card wide legal">
+      <button type="button" class="backlink legal-top" id="legal-home">← zur Startseite</button>
+      <p class="brand">Feibeitsblatt</p>
+      <h1 id="legal-h" tabindex="-1">Impressum &amp; Datenschutz</h1>
+      <h2 class="legal-h2">Impressum</h2>
+      <p class="legal-lead">Angaben gemäß § 18 Abs. 1 Medienstaatsvertrag (MStV)</p>
+      <address class="legal-addr" id="legal-addr"></address>
+      <p class="legal-mail" id="legal-mail"></p>
+      <p class="legal-free">Feibeitsblatt ist ein nicht kommerzielles Angebot und wird unentgeltlich bereitgestellt.</p>
+      <p class="status" id="legal-status" aria-live="polite"></p>
+      <div id="legal-privacy"></div>
+      <p class="fhint legal-other" id="legal-other">Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. Bei Partner- oder Gruppenarbeit gilt alles ebenso für alle in der Gruppe; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.</p>
+      <button type="button" class="backlink" id="legal-home2">← zur Startseite</button>
+    </div>
+  </div>
+</section>
+
 <!-- ============ LEHRKRAFT: Passwort festlegen ============ -->
 <section id="screen-tsetup" class="screen" aria-labelledby="tsetup-h">
   <div class="start-wrap">
@@ -1130,7 +1186,7 @@
       </div>
       <div class="pbox" style="max-width:760px; margin-top:16px">
         <h3 style="margin:0 0 6px">Reserve-KI (optional)</h3>
-        <p class="note" style="margin:0 0 12px">Ein zweiter Anbieter (mit eigenem API-Schlüssel bzw. Cloudflare Workers AI ohne Schlüssel), der automatisch einspringt, wenn der erste ausgelastet ist, sein Tageskontingent erreicht hat, nicht antwortet oder keine verwertbare Antwort liefert – nie bei Inhaltsfiltern oder Fehlkonfiguration, und nie parallel. Am besten ein <b>anderer</b> Anbieter – dann addieren sich die beiden Kontingente, z. B. Cloudflare Workers AI als erster Anbieter und Groq als Reserve. Workers AI zweimal geht nicht: Beide Einträge teilten sich dasselbe Kontingent des Cloudflare-Kontos. <b>Datenschutz:</b> Jede Reserve ist ein weiterer Empfänger der Schülertexte. Die Schüler:innen sehen beide Empfänger (mit Sitz) im Datenschutzhinweis und im Dialog vor dem Senden; informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern, bevor Sie eine Reserve nutzen.</p>
+        <p class="note" style="margin:0 0 12px">Ein zweiter Anbieter (mit eigenem API-Schlüssel bzw. Cloudflare Workers AI ohne Schlüssel), der automatisch einspringt, wenn der erste ausgelastet ist, sein Tageskontingent erreicht hat, nicht antwortet oder keine verwertbare Antwort liefert – nie bei Inhaltsfiltern oder Fehlkonfiguration, und nie parallel. Am besten ein <b>anderer</b> Anbieter – dann addieren sich die beiden Kontingente, z. B. Cloudflare Workers AI als erster Anbieter und Groq als Reserve. Workers AI zweimal geht nicht: Beide Einträge teilten sich dasselbe Kontingent des Cloudflare-Kontos. <b>Datenschutz:</b> Jede Reserve ist ein weiterer Empfänger der Schülertexte. Die Schüler:innen sehen beide Empfänger (mit Sitz) im Datenschutzhinweis und im Dialog vor dem Senden; stimmen Sie sich mit dem Betreiber dieser Seite ab (verantwortlich für den Datenschutz, falls Sie es nicht selbst sind) und informieren Sie Schüler:innen und Eltern, bevor Sie eine Reserve nutzen.</p>
         <div class="field">
           <label for="ai2-prov">Anbieter der Reserve</label>
           <select id="ai2-prov">
@@ -1171,44 +1227,15 @@
       <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits. Bei Cloudflare Workers AI zählen alle Token – für Gemma 4 gibt es keinen Rabatt für gecachte Eingaben.</p>
     </div>
 
-    <!-- Datenschutz-Angaben der Schule und Löschfrist -->
+    <!-- Datenschutz: Betreiber (fest eingetragen) und Löschfrist -->
     <div id="tv-privacy" class="hidden">
       <button type="button" class="backlink" id="pv-back">← zurück zur Übersicht</button>
       <h1>Datenschutz und Löschfrist</h1>
-      <p class="sub">Diese Angaben erscheinen im Datenschutzhinweis, den die Schüler:innen vor dem Schreiben sehen (Informationspflicht nach Art. 13 DSGVO). Verantwortlich für die Verarbeitung ist Ihre Schule – stimmen Sie die Angaben mit der Schulleitung und der bzw. dem Datenschutzbeauftragten ab.</p>
+      <p class="sub">Feibeitsblatt ist ein privates, nicht kommerzielles Angebot, kein Angebot einer Schule. Verantwortlich für die Verarbeitung ist der Betreiber dieser Seite – ihn nennt der Datenschutzhinweis, den die Schüler:innen vor dem Schreiben sehen (Informationspflicht nach Art. 13 DSGVO). Hier legen Sie fest, wann Abgaben und Erstversuche automatisch gelöscht werden.</p>
       <div class="pbox" style="max-width:760px">
-        <h2 class="pvh">Angaben der Schule</h2>
-        <div class="field">
-          <label for="pv-name">Name der Schule (verantwortliche Stelle)</label>
-          <input type="text" id="pv-name" maxlength="160" placeholder="z. B. Musterschule Wiesbaden" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="pv-addr">Anschrift und Kontakt der Schule</label>
-          <input type="text" id="pv-addr" maxlength="240" placeholder="z. B. Musterstraße 1, 65185 Wiesbaden, Tel. 0611 …" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="pv-dpo">Kontakt der bzw. des Datenschutzbeauftragten</label>
-          <input type="text" id="pv-dpo" maxlength="300" autocomplete="off" aria-describedby="pv-dpo-hint">
-          <p class="fhint" id="pv-dpo-hint">Name oder Stelle und eine E-Mail-Adresse oder Telefonnummer – Ihre Schulleitung kennt sie.</p>
-        </div>
-        <div class="field">
-          <label for="pv-basis">Rechtsgrundlage</label>
-          <textarea class="grow" id="pv-basis" rows="2" maxlength="400" placeholder="z. B. Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz Ihres Landes" spellcheck="false"></textarea>
-        </div>
-        <div class="field">
-          <label for="pv-auth">Zuständige Datenschutz-Aufsichtsbehörde (optional)</label>
-          <textarea class="grow" id="pv-auth" rows="2" maxlength="240" spellcheck="false" aria-describedby="pv-auth-hint"></textarea>
-          <p class="fhint" id="pv-auth-hint">Leer: Die Schüler:innen erfahren nur, dass sie sich bei einer Datenschutz-Aufsichtsbehörde beschweren können.</p>
-        </div>
-        <div class="field">
-          <button type="button" class="btn ghost small" id="pv-hessen" aria-describedby="pv-hessen-hint">Vorschläge für Hessen einsetzen</button>
-          <p class="fhint" id="pv-hessen-hint">Setzt als Rechtsgrundlage „Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs. 1 und § 83a Abs. 1 Nr. 2 Hessisches Schulgesetz (HSchG)“ und als Aufsichtsbehörde den Hessischen Beauftragten für Datenschutz und Informationsfreiheit ein. Voraussetzung: Ihre Schule führt Feibeitsblatt selbst ein (Schulleitung, Datenschutzbeauftragte:r). Bitte abstimmen.</p>
-        </div>
-        <div class="field">
-          <label for="pv-url">Link zur Datenschutzerklärung der Schule (optional)</label>
-          <input type="url" id="pv-url" maxlength="500" placeholder="https://…" autocomplete="off" spellcheck="false" aria-describedby="pv-url-hint">
-          <p class="fhint" id="pv-url-hint">Nur Adressen mit https://. Schüler:innen öffnen den Link in einem neuen Tab.</p>
-        </div>
+        <h2 class="pvh">Verantwortlich (fest in index.html eingetragen)</h2>
+        <div class="opbox" id="pv-operator"></div>
+        <p class="fhint" id="pv-operator-hint">Diese Angaben stehen im Datenschutzhinweis und auf der Seite „Impressum &amp; Datenschutz“ (<a href="#impressum" target="_blank" rel="noopener">öffnen<span class="sr-only"> (öffnet in neuem Tab)</span></a>; Link unten auf jeder Seite). Ändern lassen sie sich nur in index.html (window.FEIBEITSBLATT_OPERATOR, ganz oben) – bei einer eigenen Installation tragen Sie dort Ihre eigenen Angaben ein.</p>
         <h2 class="pvh sep">Automatische Löschung</h2>
         <div class="field">
           <label for="pv-days">Abgaben und Erstversuche automatisch löschen nach</label>
@@ -1232,7 +1259,7 @@
       </div>
       <div class="pbox" style="max-width:760px">
         <h2 class="pvh">Vorschau des Hinweises für die Schüler:innen</h2>
-        <p class="note" style="margin:0 0 10px">Der Hinweis für ein Feibeitsblatt mit KI-Feedback, so wie er unter dieser Adresse erscheint – mit Ihren Eingaben (auch noch nicht gespeicherten) und den KI-Empfängern aus den KI-Einstellungen. Die Schüler:innen sehen den Hinweis auf der Seite „Deine Angaben“ und unter dem Feedback-Button.</p>
+        <p class="note" style="margin:0 0 10px">Der Hinweis für ein Feibeitsblatt mit KI-Feedback, so wie er unter dieser Adresse erscheint – mit der gewählten Löschfrist (auch noch nicht gespeichert) und den KI-Empfängern aus den KI-Einstellungen. Die Schüler:innen sehen den Hinweis auf der Seite „Deine Angaben“, unter dem Feedback-Button und auf der Seite „Impressum &amp; Datenschutz“.</p>
         <div id="pv-preview"></div>
       </div>
     </div>
@@ -1323,7 +1350,7 @@
   <p class="lb-hint"><b id="lb-cap"></b><span id="lb-sep"> · </span>Klicken oder Esc zum Schließen</p>
 </div>
 
-<div id="pagefoot" class="copyright">Copyright Jan-Rickmer Feindt</div>
+<div id="pagefoot" class="copyright"><span>Copyright Jan-Rickmer Feindt</span><span class="footsep" aria-hidden="true"> · </span><a href="#impressum" id="foot-legal" target="_blank" rel="noopener">Impressum &amp; Datenschutz<span class="sr-only"> (öffnet in neuem Tab)</span></a></div>
 
 <script>
 "use strict";
@@ -1343,6 +1370,20 @@ const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;   // Blatt-Code (ohne 
 const DOOR_RE = /^[0-9]{4,12}$/;
 const ATTEMPT_RE = /^[0-9a-f]{16}$/;                         // Kennung einer Bearbeitung (Erstversuch ↔ Abgabe), vom Browser erzeugt
 const PUBLIC_URL = String(window.FEIBEITSBLATT_PUBLIC || "https://feibeitsblatt.janrickmer.de/");   // steht in der Zwischenstand-PDF und im analogen Arbeitsblatt (Hinweis, QR-Code)
+/* Betreiber (Verantwortlicher) und Aufsichtsbehörde aus window.FEIBEITSBLATT_OPERATOR (Konfiguration ganz oben): je Feld einzeilig
+   (ohne Steuer- und Formatzeichen) und gekappt, E-Mail nur in einfacher Form, Webadresse nur mit https – eingefroren; alle Texte
+   (Impressum, Datenschutzhinweis, Lehrkraft-Bereich) lesen nur hieraus */
+const OPERATOR = (() => {
+  const o = window.FEIBEITSBLATT_OPERATOR && typeof window.FEIBEITSBLATT_OPERATOR === "object" ? window.FEIBEITSBLATT_OPERATOR : {};
+  const a = o.authority && typeof o.authority === "object" ? o.authority : {};
+  const line = (v, n) => (typeof v === "string" ? v : "").normalize("NFC").replace(/\p{Cc}/gu, " ").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim().slice(0, n);
+  const email = line(o.email, 120), url = line(a.url, 200);
+  return Object.freeze({
+    name: line(o.name, 120), street: line(o.street, 120), city: line(o.city, 120), country: line(o.country, 60),
+    email: /^[^\s@<>"()]+@[^\s@<>"()]+\.[^\s@<>"()]+$/.test(email) ? email : "",
+    authority: Object.freeze({ name: line(a.name, 160), address: line(a.address, 200), url: /^https:\/\/[^\s"<>]+$/.test(url) ? url : "" }),
+  });
+})();
 const PDF_MAX_BYTES = 5 * 1024 * 1024;                       // hochgeladene Zwischenstand-PDF (unsere sind < 100 KB; neu gespeicherte größer)
 const MAX_ANSWER = 8000;                                     // wie die Grenze des Servers je Antwort
 const MAX_ANSWERS_TOTAL = 40000;                             // … und für alle Antworten zusammen (KI-Feedback)
@@ -1688,6 +1729,7 @@ function show(id) {
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
   screen = id;
   document.body.classList.toggle("writing", id === "screen-editor");
+  document.body.classList.toggle("on-legal", id === "screen-legal");   // der Fußzeilen-Link führte nur auf diese Seite
   window.scrollTo(0, 0);
 }
 
@@ -2273,7 +2315,7 @@ async function loadSheet(code) {
     files: sh.tasks.map((t) => cleanFiles(t && t.files)),   // je Aufgabe: PDF-Dateien der Lehrkraft zum Herunterladen
     aiRecipients: recipientsOf(sh),   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
     aiFeedback: sh.aiFeedback !== false,   // false = keine Aufgabe mit Auftrag an die KI: kein KI-Feedback (ältere Worker: wie bisher)
-    privacy: cleanPrivacy(sh.privacy)   // Angaben der Schule und Löschfrist für den Datenschutzhinweis (null = keine eingetragen)
+    privacy: cleanPrivacy(sh.privacy)   // Löschfrist für den Datenschutzhinweis (null = keine gespeichert)
   };
 }
 // Empfänger aus der Antwort; eine ältere Worker-Version liefert nur aiProvider/aiReserve → daraus ableiten (ids leer → der neue
@@ -2328,42 +2370,46 @@ function recipientSentence() {
     (r.usa ? (r.cf ? " Die übrigen Dienste mit Sitz in den USA" : " Dienste mit Sitz in den USA") + " verarbeiten deine Texte außerhalb der EU." : "");
 }
 /* ---------- Datenschutzhinweis nach Art. 13 DSGVO ----------
- * Gestuft (Art. 12: kurz und verständlich): eine Kurzfassung und darunter aufklappbar „Alle Informationen zum Datenschutz“. Die
- * Angaben der Schule (Verantwortliche, Datenschutzbeauftragte:r, Rechtsgrundlage, Aufsichtsbehörde, Link) und die Löschfrist trägt
- * die Lehrkraft unter „Datenschutz und Löschfrist“ ein (GET /api/sheet liefert sie als `privacy`); fehlen sie, steht ein ehrlicher
- * allgemeiner Text. Derselbe Baustein steht auf dem Angaben-Bildschirm (Zeitpunkt der Erhebung), im Editor (beim Weiterschreiben
- * gibt es keinen Angaben-Bildschirm) und als Vorschau bei der Lehrkraft. Nur DOM-APIs/textContent – die Angaben sind Text der
- * Lehrkraft. Die Aussagen müssen zum Hinweis unter dem Feedback-Button (renderPrivacy) passen. */
-const PRIV_LIMITS = { name: 160, address: 240, dpo: 300, url: 500, legalBasis: 400, authority: 240 };   // = LIMITS im Worker (schoolName …)
+ * Gestuft (Art. 12: kurz und verständlich): eine Kurzfassung und darunter aufklappbar „Alle Informationen zum Datenschutz“.
+ * Verantwortlich ist der Betreiber dieser Seite (OPERATOR, fest in der Konfiguration ganz oben) – Feibeitsblatt ist ein privates
+ * Angebot, kein Angebot einer Schule. Die Löschfrist legt die Lehrkraft unter „Datenschutz und Löschfrist“ fest (GET /api/sheet liefert
+ * sie als `privacy`, GET /api/privacy für die Seite „Impressum & Datenschutz“). Derselbe Baustein steht auf dem Angaben-Bildschirm
+ * (Zeitpunkt der Erhebung), im Editor (beim Weiterschreiben gibt es keinen Angaben-Bildschirm), auf „Impressum & Datenschutz“ und als
+ * Vorschau bei der Lehrkraft. Nur DOM-APIs/textContent. Die Aussagen müssen zum Hinweis unter dem Feedback-Button (renderPrivacy)
+ * passen. */
 const RETENTION_MIN = 7, RETENTION_MAX = 365;                                                           // = LIMITS.retentionMin/-Max
 const BACKUP_DAYS = "bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)";              // D1 Time Travel
 const PAGES_HOST = API !== "";   // die Seite kommt nicht vom Worker (GitHub Pages, ohne Kennzeichen feibeitsblatt-host) → GitHub ist ein weiterer Empfänger (IP-Adresse)
 const DPF_SCC = "auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln";
 const GITHUB_ITEM = `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`;
+const TRANSFER_UNKNOWN = "vom Betreiber dieser Seite beim Anbieter zu prüfen";   // = TRANSFER_UNKNOWN im Worker (ältere Antworten ohne transfer)
 const privLine = (v) => String(v == null ? "" : v).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ")
   .replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\s+/g, " ").trim();
-function httpsUrl(v) {   // wie cleanHttpsUrl im Worker: nur https, ohne Zugangsdaten → normalisierte Adresse oder ""
-  const s = String(v == null ? "" : v).trim();
-  if (!s || s.length > 1000 || /[\u0000- \u007f]/.test(s)) return "";
-  let u; try { u = new URL(s); } catch (e) { return ""; }
-  return u.protocol === "https:" && !u.username && !u.password && u.href.length <= PRIV_LIMITS.url ? u.href : "";
-}
-// Angaben aus der Server-Antwort kappen; retentionDays nur als Ganzzahl 7–365, sonst null (= keine automatische Löschung)
+// Löschfrist aus der Server-Antwort: nur als Ganzzahl 7–365, sonst null (= keine automatische Löschung); nie mehr Angaben einer Schule
 function cleanPrivacy(v) {
   if (!v || typeof v !== "object") return null;
-  const s = v.school && typeof v.school === "object" ? v.school : {};
-  const f = (k) => (typeof s[k] === "string" ? privLine(s[k]).slice(0, PRIV_LIMITS[k]) : "");
   const d = v.retentionDays;
-  return { school: { name: f("name"), address: f("address"), dpo: f("dpo"), url: typeof s.url === "string" ? httpsUrl(s.url) : "", legalBasis: f("legalBasis"), authority: f("authority") },
-    retentionDays: Number.isInteger(d) && d >= RETENTION_MIN && d <= RETENTION_MAX ? d : null };
+  return { retentionDays: Number.isInteger(d) && d >= RETENTION_MIN && d <= RETENTION_MAX ? d : null };
 }
+// Betreiber: Anschrift in einer Zeile, E-Mail als mailto-Link, Aufsichtsbehörde mit Webadresse (neuer Tab) – Bausteine für den Hinweis,
+// das Impressum und den Kasten im Lehrkraft-Bereich
+const OP_NAME = OPERATOR.name || "der Betreiber dieser Seite";
+const OP_ADDR = [OPERATOR.street, OPERATOR.city, OPERATOR.country].filter(Boolean).join(", ");
+const AUTH_TEXT = [OPERATOR.authority.name, OPERATOR.authority.address].filter(Boolean).join(", ");
+const AUTH_HOST = OPERATOR.authority.url.replace(/^https:\/\//, "").replace(/\/$/, "");
+const mailLink = () => (OPERATOR.email ? h("a", { href: "mailto:" + OPERATOR.email, text: OPERATOR.email }) : null);
+const newTabLink = (href, text) => h("a", { href, target: "_blank", rel: "noopener noreferrer" }, [text, h("span", { class: "sr-only", text: " (öffnet in neuem Tab)" })]);
+const authorityLink = () => (OPERATOR.authority.url ? newTabLink(OPERATOR.authority.url, AUTH_HOST) : null);
+// Ende des Satzes „… bei einer Datenschutz-Aufsichtsbehörde beschweren“: die für den Betreiber zuständige mit Anschrift und Webadresse
+const authorityTail = () => (AUTH_TEXT ? [" – für den Betreiber zuständig ist: " + AUTH_TEXT + (OPERATOR.authority.url ? ", " : "."),
+  authorityLink(), OPERATOR.authority.url ? "." : null] : ["."]);
 // Kurzfassung (nennt auch den KI-Dienst: auf dem Server wird nur verschlüsselt gespeichert, das KI-Feedback aber geht an einen Dienst –
 // nach dem KI-Feedback bei der Abgabe noch einmal, zweite Rückmeldung)
 // group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe)
 function privacyShortText(p, list, withAi, group) {
-  const sc = (p && p.school) || {}, days = p && p.retentionDays;
+  const days = p && p.retentionDays;
   const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst" };
-  return `Verantwortlich ist ${sc.name || w.d + " Schule"}. Auf dem Server werden ${w.d} Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur ${w.d} Lehrkraft. ` +
+  return `Verantwortlich ist ${OP_NAME} – Feibeitsblatt ist ein privates, kostenloses Angebot. Auf dem Server werden ${w.d} Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur ${w.d} Lehrkraft. ` +
     (days ? `Nach ${days} Tagen werden sie automatisch gelöscht. ` : `${w.D} Lehrkraft löscht sie nach der Durchsicht. `) +
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
       : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn ${w.du} es ${w.anf}, gehen ${w.d} Antworten – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
@@ -2409,16 +2455,20 @@ const PRIV_IHR = {
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
 };
 const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
-/* Alle Informationen (Art. 13 Abs. 1 und 2): p = Angaben (cleanPrivacy) oder null, list = KI-Empfänger [{id, label, transfer}],
+/* Alle Informationen (Art. 13 Abs. 1 und 2): p = Löschfrist (cleanPrivacy) oder null, list = KI-Empfänger [{id, label, transfer}],
    opts: h (Ebene der Abschnittsüberschriften), withAi (Blatt mit KI-Feedback), pages (Seite über GitHub Pages), open, id,
-   group (Angaben-Bildschirm einer Partner- / Gruppenarbeit: alles in der „ihr“-Form, derselbe Inhalt) */
+   group (Angaben-Bildschirm einer Partner- / Gruppenarbeit: alles in der „ihr“-Form, derselbe Inhalt), noBday (Schreibbereich einer
+   Gruppe), site (Seite „Impressum & Datenschutz“: kein bestimmtes Feibeitsblatt), general (dort: Frist und Empfänger nicht ladbar →
+   allgemeine Sätze statt falscher Angaben), summary (Text der Zusammenfassung), flat (dort: kein aufklappbares details, sondern ein
+   Abschnitt mit h2 summary – die Abschnittsüberschriften dann h3) */
 function privacyNoticeDom(p, list, opts) {
-  const o = opts || {}, H = o.h || "h3", withAi = o.withAi !== false, sc = (p && p.school) || {}, days = p ? p.retentionDays : null;
+  const o = opts || {}, H = o.h || "h3", withAi = o.withAi !== false, days = p ? p.retentionDays : null;
   const g = !!o.group, t = (du, ihr) => (g ? ihr : du), B = g ? PRIV_IHR : PRIV_DU;
-  const head = (x) => h(H, { class: "privh", text: x }), para = (x) => h("p", { text: x });
-  const ai = withAi ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
+  const head = (x) => h(H, { class: "privh", text: x }), para = (x) => h("p", { text: x }), paraN = (...k) => h("p", null, k);
+  const ai = withAi && !o.general ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
   const cfAt = ai.findIndex((x) => x.id === "cloudflare");
   const firstName = ai.length ? (ai[0].id === "cloudflare" ? "Cloudflare (Workers AI)" : "„" + ai[0].label + "“") : "";
+  const withoutData = o.noBday ? "ohne die Namenskürzel der Gruppe und die Klasse" : "ohne Namenskürzel, Geburtstag und Klasse";
   const items = [h("li", { text: t("Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen.",
     "Eure Lehrkraft – nur sie kann eure auf dem Server gespeicherten Angaben und Antworten lesen.") })];
   // Cloudflare betreibt Server und Datenbank; mit Workers AI ist Cloudflare zugleich der KI-Dienst (ein Eintrag statt zwei)
@@ -2438,13 +2488,15 @@ function privacyNoticeDom(p, list, opts) {
   ai.forEach((x, i) => {
     if (x.id === "cloudflare") return;
     items.push(h("li", { text: (i === 0
-      ? t(`Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${o.noBday ? "ohne die Namenskürzel der Gruppe und die Klasse" : "ohne Namenskürzel, Geburtstag und Klasse"} – und verarbeitet sie nach seinen eigenen Bedingungen.`,
+      ? t(`Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} – und verarbeitet sie nach seinen eigenen Bedingungen.`,
         `Nur wenn ihr das KI-Feedback anfordert: der KI-Dienst „${x.label}“. Er bekommt eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft – ohne eure Namenskürzel und die Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`) + B.fb2Send
       : `Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}: der KI-Dienst „${x.label}“ (Reserve). Er bekommt dieselben Daten und verarbeitet sie nach seinen eigenen Bedingungen.`) +
-      ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || "von der Schule beim Anbieter zu prüfen"}.` }));
+      ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || TRANSFER_UNKNOWN}.` }));
   });
   if (!withAi) items.push(h("li", { text: t("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.", "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – eure Antworten gehen an keine KI.") }));
-  else if (!ai.length) items.push(h("li", { text: B.noAiSet }));
+  else if (o.general) items.push(h("li", { text: "Nur wenn du das KI-Feedback anforderst: der KI-Dienst, den deine Lehrkraft eingerichtet hat. Diese Seite nennt ihn dir mit Sitz und " +
+    `Grundlage der Übermittlung, bevor etwas gesendet wird. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} –, bei der Abgabe gegebenenfalls noch einmal in der abgegebenen Fassung.` }));
+  else if (!ai.length) items.push(h("li", { text: o.site ? "Ein KI-Dienst ist gerade nicht eingerichtet – deine Antworten gehen an keine KI." : B.noAiSet }));
   items.push(h("li", { text: t("Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
     "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. ",
   "Nur wenn ihr die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis der Eltern): " +
@@ -2452,13 +2504,31 @@ function privacyNoticeDom(p, list, opts) {
     "Learneo ist nach dem EU-US Data Privacy Framework zertifiziert; ersatzweise gelten Standardvertragsklauseln." }));
   const what = withAi ? t("Deine Abgabe – und ein Erstversuch, falls du nach dem KI-Feedback nicht abgibst –", "Eure Abgabe – und ein Erstversuch, falls ihr nach dem KI-Feedback nicht abgebt –")
     : t("Deine Abgabe", "Eure Abgabe");
+  // Rechtsgrundlagen (Art. 13 Abs. 1 Buchst. c): Nutzung des kostenlosen Angebots, Einwilligung für LanguageTool, berechtigtes Interesse
+  // für Aufruf und Missbrauchsschutz, § 25 TDDDG für den Speicher im Browser – sachlich, ohne Garantien
+  const deliver = o.pages ? "über Cloudflare und GitHub Pages" : CHECK_HOST ? "über Cloudflare; die Checklisten-Seite über GitHub Pages" : "über Cloudflare";
+  const bases = [
+    t(`Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe` +
+      (withAi ? " – und das KI-Feedback, wenn du es anforderst: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " + (withAi ? "diese Funktionen" : "es") + " selbst an.",
+    `Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe` +
+      (withAi ? " – und das KI-Feedback, wenn ihr es anfordert: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert " + (withAi ? "diese Funktionen" : "es") + " selbst an."),
+    t("Rechtschreibprüfung (LanguageTool): deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Du gibst sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und deiner Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
+      "Du kannst sie jederzeit für die Zukunft widerrufen, indem du die Prüfung nicht mehr nutzt.",
+    "Rechtschreibprüfung (LanguageTool): eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Ihr gebt sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und eurer Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
+      "Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr die Prüfung nicht mehr nutzt."),
+    `Aufruf und Auslieferung dieser Seite (${deliver}) und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – ` +
+      t("das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen kannst du Widerspruch einlegen (siehe „Deine Rechte“).",
+        "das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen könnt ihr Widerspruch einlegen (siehe „Eure Rechte“)."),
+    t("Speichern im Browser deines Geräts (dein Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von dir gewünschte Funktion unbedingt erforderlich.",
+      "Speichern im Browser eures Geräts (euer Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."),
+  ];
+  const mail = !!OPERATOR.email;   // je Stelle ein eigener Link (ein DOM-Knoten steht nur an einer Stelle)
   const kids = [
     head("Wer ist verantwortlich?"),
-    para(sc.name ? sc.name + (sc.address ? ", " + sc.address + "." : t(". Die Anschrift hat deine Lehrkraft hier noch nicht eingetragen – frag sie danach.", ". Die Anschrift hat eure Lehrkraft hier noch nicht eingetragen – fragt sie danach.")) +
-      t(" Bei Fragen kannst du dich auch an deine Lehrkraft wenden.", " Bei Fragen könnt ihr euch auch an eure Lehrkraft wenden.")
-      : t("Deine Schule. Deine Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – frag sie danach.", "Eure Schule. Eure Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – fragt sie danach.")),
-    head(t("Datenschutzbeauftragte:r deiner Schule", "Datenschutzbeauftragte:r eurer Schule")),
-    para(sc.dpo || t("Frag deine Lehrkraft nach den Kontaktdaten.", "Fragt eure Lehrkraft nach den Kontaktdaten.")),
+    paraN([OP_NAME, OP_ADDR].filter(Boolean).join(", ") + (mail ? ", E-Mail: " : "."), mailLink(), mail ? "." : null,
+      " Feibeitsblatt ist ein privates, nicht kommerzielles und kostenloses Angebot – kein Angebot einer Schule. " +
+      t("Deine Angaben und Antworten liest deine Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen kannst du dich an den Betreiber oder an deine Lehrkraft wenden.",
+        "Eure Angaben und Antworten liest eure Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen könnt ihr euch an den Betreiber oder an eure Lehrkraft wenden.")),
     head(t("Wozu werden deine Daten verarbeitet?", "Wozu werden eure Daten verarbeitet?")),
     para((withAi ? t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst und – wenn du möchtest – Rückmeldungen einer KI zum Überarbeiten bekommst. " +
       "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und das KI-Feedback zu deiner ersten Fassung; die Rückmeldung zu deiner abgegebenen Fassung siehst nur du.",
@@ -2466,8 +2536,7 @@ function privacyNoticeDom(p, list, opts) {
       "Eure Lehrkraft sieht eure Antworten (mit KI-Feedback eure erste und eure überarbeitete Fassung) und das KI-Feedback zu eurer ersten Fassung; die Rückmeldung zu eurer abgegebenen Fassung seht nur ihr.")
       : t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten.", "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt. Eure Lehrkraft sieht eure Antworten.")) + B.checkPurpose),
     head("Rechtsgrundlage"),
-    para(sc.legalBasis || t("Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes.",
-      "Eure Schule nennt euch die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz eures Bundeslandes.")),
+    h("ul", null, bases.map((x) => h("li", { text: x }))),
     head("Welche Daten?"),
     para(t("Bei Einzelarbeit die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr) und deine Klasse; " +
       "bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – " +
@@ -2482,12 +2551,14 @@ function privacyNoticeDom(p, list, opts) {
     head("Wer bekommt die Daten?"),
     h("ul", null, items),
     head("Wie lange werden die Daten gespeichert?"),
-    para((days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); ${t("deine", "eure")} Lehrkraft kann sie auch früher löschen.`
+    para((o.general ? `${what} wird nach der Frist automatisch gelöscht, die ${t("deine", "eure")} Lehrkraft festgelegt hat – sie steht nach der Eingabe des Codes auf der Seite „${t("Deine", "Eure")} Angaben“; ` +
+        `ohne Frist wird sie gespeichert, bis ${t("deine", "eure")} Lehrkraft sie nach der Durchsicht löscht.`
+      : days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); ${t("deine", "eure")} Lehrkraft kann sie auch früher löschen.`
       : `${what} wird gespeichert, bis ${t("deine", "eure")} Lehrkraft sie nach der Durchsicht löscht.`) +
       ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${B.draftStay}${B.checkStay}` +
       (cfAt >= 0 ? ` Workers AI speichert ${t("deine", "eure")} Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten ` +
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
-      (ai.some((x) => x.id !== "cloudflare") ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
+      (ai.some((x) => x.id !== "cloudflare") || o.general ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
     head(t("Musst du mitmachen?", "Müsst ihr mitmachen?")),
     para(t("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. ",
       "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
@@ -2497,15 +2568,25 @@ function privacyNoticeDom(p, list, opts) {
     withAi ? para(t("Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.",
       "Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über eure Arbeit entscheidet eure Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüft sie selbst.")) : null,
     head(t("Deine Rechte", "Eure Rechte")),
-    // Gruppe: die Rechte hat jede Person für sich
-    para(t("Du kannst Auskunft über deine gespeicherten Daten verlangen und sie berichtigen, löschen oder einschränken lassen. Du kannst der Verarbeitung widersprechen. " +
-      "Wende dich dafür an deine Lehrkraft oder an die bzw. den Datenschutzbeauftragten deiner Schule. Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren",
-    "Jede und jeder von euch kann Auskunft über die eigenen gespeicherten Daten verlangen und sie berichtigen, löschen oder einschränken lassen und der Verarbeitung widersprechen. " +
-      "Wendet euch dafür an eure Lehrkraft oder an die bzw. den Datenschutzbeauftragten eurer Schule. Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren") +
-      (sc.authority ? ` – zuständig ist: ${sc.authority}.` : ".")),
-    sc.url ? h("p", { class: "privlink" }, [h("a", { href: sc.url, target: "_blank", rel: "noopener noreferrer" }, ["Datenschutzerklärung der Schule", h("span", { class: "sr-only", text: " (öffnet in neuem Tab)" })])]) : null,
+    // Gruppe: die Rechte hat jede Person für sich. Kontakt: der Betreiber (E-Mail); lesen und einzeln löschen kann die verschlüsselten
+    // Abgaben nur die Lehrkraft; Beschwerde bei der für den Betreiber zuständigen Aufsichtsbehörde
+    paraN(t("Du kannst Auskunft über deine gespeicherten Daten verlangen, sie berichtigen, löschen oder einschränken lassen und sie in einem gängigen, maschinenlesbaren Format bekommen. " +
+      "Einer Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO). " +
+      "Deine Einwilligung zur Rechtschreibprüfung kannst du jederzeit für die Zukunft widerrufen – nutze die Prüfung dann einfach nicht mehr; Prüfungen, die schon stattgefunden haben, bleiben davon unberührt.",
+    "Jede und jeder von euch kann Auskunft über die eigenen gespeicherten Daten verlangen, sie berichtigen, löschen oder einschränken lassen und sie in einem gängigen, maschinenlesbaren Format bekommen. " +
+      "Einer Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO kann jede und jeder aus Gründen, die sich aus der eigenen besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO). " +
+      "Eure Einwilligung zur Rechtschreibprüfung könnt ihr jederzeit für die Zukunft widerrufen – nutzt die Prüfung dann einfach nicht mehr; Prüfungen, die schon stattgefunden haben, bleiben davon unberührt.")),
+    paraN(t("Wende dich dafür an den Betreiber", "Wendet euch dafür an den Betreiber") + (mail ? " (E-Mail: " : "."), mailLink(), mail ? ")." : null,
+      t(" Deine Abgaben liegen auf dem Server verschlüsselt – lesen und einzeln löschen kann sie nur deine Lehrkraft; du kannst dich deshalb auch an sie wenden. " +
+        "Was nur auf deinem Gerät liegt (Zwischenstand, Häkchen), löschst du selbst.",
+      " Eure Abgaben liegen auf dem Server verschlüsselt – lesen und einzeln löschen kann sie nur eure Lehrkraft; ihr könnt euch deshalb auch an sie wenden. " +
+        "Was nur auf eurem Gerät liegt (Zwischenstand, Häkchen), löscht ihr selbst.")),
+    paraN(t("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren", "Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren"),
+      ...authorityTail()),
   ];
-  return h("details", { class: "privfull", id: o.id || null, open: o.open ? true : null }, [h("summary", { text: "Alle Informationen zum Datenschutz" }), ...kids]);
+  if (o.flat) return h("section", { class: "privflat", id: o.id || null, "aria-labelledby": o.id ? o.id + "-h" : null },
+    [h("h2", { class: "legal-h2", id: o.id ? o.id + "-h" : null, text: o.summary || "Datenschutzerklärung" }), ...kids]);
+  return h("details", { class: "privfull", id: o.id || null, open: o.open ? true : null }, [h("summary", { text: o.summary || "Alle Informationen zum Datenschutz" }), ...kids]);
 }
 // Angaben-Bildschirm: Kurzfassung + alle Informationen (Zeitpunkt der Erhebung); Klasse-Hinweis passend zum Blatt
 const KLASSE_HINT_AI = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
@@ -6849,7 +6930,7 @@ const AI_MAIN_FIRST = "Bitte zuerst den ersten Anbieter speichern – die Reserv
 const AI_SAME_ACCOUNT = "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.";
 document.querySelectorAll(".provwarn[data-warn]").forEach((n) => { const p = PROVIDERS[n.getAttribute("data-warn")]; if (p && p.unsuitable) n.textContent = "Nicht für den Schuleinsatz geeignet: " + p.unsuitable; });
 const unsuitableTag = (p) => (PROVIDERS[p] && PROVIDERS[p].unsuitable ? " – nicht für den Schuleinsatz geeignet" : "");
-const unsuitableText = (p) => `„${PROVIDERS[p].label}“ ist für den Einsatz mit Schüler:innen nicht geeignet: ${PROVIDERS[p].unsuitable} Speichern Sie diesen Anbieter nur, wenn Ihre Schule ihn ausdrücklich geprüft und freigegeben hat.`;
+const unsuitableText = (p) => `„${PROVIDERS[p].label}“ ist für den Einsatz mit Schüler:innen nicht geeignet: ${PROVIDERS[p].unsuitable} Speichern Sie diesen Anbieter nur, wenn der Betreiber dieser Seite (verantwortlich für den Datenschutz) ihn ausdrücklich geprüft und freigegeben hat.`;
 // Von der Lehrkraft gespeicherter Anbieter (sonst "" – der Server meldet dann nur die Vorauswahl, saved:false)
 const savedMain = () => (T.ai && T.ai.saved !== false ? T.ai.provider || "" : "");
 function recipientOf(provider, baseUrl) {
@@ -7077,7 +7158,7 @@ async function ai2Save(quiet) {
   const confirmed = await askConfirm({
     title: "Weiteren KI-Empfänger hinzufügen?",
     text: (def.unsuitable ? "Achtung: " + unsuitableText(provider) + "\n\n" : "") +
-      `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ${RESERVE_WHEN}. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
+      `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ${RESERVE_WHEN}. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und stimmen Sie sich mit dem Betreiber dieser Seite ab (verantwortlich für den Datenschutz, falls Sie es nicht selbst sind) und informieren Sie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
     ok: def.unsuitable ? "Trotzdem speichern" : "Reserve speichern", cancel: "Abbrechen", safeFirst: true
   });
   if (!confirmed) { setStatus(st, "", ""); return false; }
@@ -7136,20 +7217,13 @@ $("ai2-remove").addEventListener("click", async () => {
   finally { busy(b, false); }
 });
 
-/* ---------- Datenschutz-Angaben der Schule und Löschfrist ----------
- * Übersicht: Infozeile (#t-privinfo) bzw. Warnung (#t-privwarn), solange Angaben für Art. 13 oder eine Frist fehlen; beim gewählten
- * Blatt die Frist (#t-subs-retention) und je Abgabe das Löschdatum. Unterseite #tv-privacy: Formular, Vorschläge für Hessen,
- * Löschfrist mit Vorschau, wie viel sie jetzt löschen würde (Nachfrage vor dem Löschen), Vorschau des Hinweises der Schüler:innen. */
-const HESSEN = {
-  legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs. 1 und § 83a Abs. 1 Nr. 2 Hessisches Schulgesetz (HSchG)",
-  authority: "Der Hessische Beauftragte für Datenschutz und Informationsfreiheit, Postfach 3163, 65021 Wiesbaden, poststelle@datenschutz.hessen.de",
-};
-const PRIV_NEEDED = [["name", "Name der Schule"], ["address", "Anschrift"], ["dpo", "Datenschutzbeauftragte:r"], ["legalBasis", "Rechtsgrundlage"]];   // Art. 13 Abs. 1 a–c
-const PV_FIELDS = [["name", "pv-name"], ["address", "pv-addr"], ["dpo", "pv-dpo"], ["url", "pv-url"], ["legalBasis", "pv-basis"], ["authority", "pv-auth"]];
-const PV_LABEL = { name: "Der Name der Schule", address: "Die Anschrift der Schule", dpo: "Der Kontakt der bzw. des Datenschutzbeauftragten", legalBasis: "Die Rechtsgrundlage", authority: "Die Aufsichtsbehörde" };
+/* ---------- Datenschutz: Betreiber und Löschfrist ----------
+ * Verantwortlich ist der Betreiber dieser Seite (OPERATOR, fest in der Konfiguration ganz oben) – Angaben einer Schule gibt es nicht.
+ * Übersicht: Infozeile (#t-privinfo) mit Betreiber und Frist, Warnung (#t-privwarn) nur ohne Frist; beim gewählten Blatt die Frist
+ * (#t-subs-retention) und je Abgabe das Löschdatum. Unterseite #tv-privacy: Betreiber (schreibgeschützt), Löschfrist mit Vorschau, wie
+ * viel sie jetzt löschen würde (Nachfrage vor dem Löschen), Vorschau des Hinweises der Schüler:innen. */
 const savedPrivacy = () => (T.privacy ? cleanPrivacy(T.privacy.privacy) : null);
 const retentionDaysT = () => { const p = savedPrivacy(); return p ? p.retentionDays : null; };
-const missingOf = (p) => PRIV_NEEDED.filter(([k]) => !(p && p.school[k])).map(([, l]) => l);
 const entriesText = (k) => (k === 1 ? "1 älterer Eintrag" : k + " ältere Einträge");
 async function loadPrivacyState() {
   try { T.privacy = await TA("/api/teacher/privacy"); renderPrivacyState(); }
@@ -7161,13 +7235,12 @@ async function loadPrivacyState() {
   }
 }
 function renderPrivacyState() {
-  const p = savedPrivacy(), auto = !!(T.privacy && T.privacy.privacy && T.privacy.privacy.auto), days = p && p.retentionDays, missing = missingOf(p);
+  const p = savedPrivacy(), auto = !!(T.privacy && T.privacy.privacy && T.privacy.privacy.auto), days = p && p.retentionDays;
   const info = $("t-privinfo"), warn = $("t-privwarn");
-  info.textContent = (p && p.school.name ? `Datenschutzhinweis für: ${p.school.name}. ` : "") +
+  info.textContent = `Verantwortlich für den Datenschutz: ${OP_NAME} (Betreiber dieser Seite, privates Angebot). ` +
     (days ? `Abgaben und Erstversuche werden ${days} Tage nach dem Eingang automatisch gelöscht${auto ? " (Vorgabe – unter „Datenschutz und Löschfrist“ änderbar)" : ""}.` : "");
-  info.classList.toggle("hidden", !info.textContent);
+  info.classList.remove("hidden");
   warn.textContent = "";
-  if (missing.length) warn.appendChild(h("p", { text: `Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch (${missing.join(", ")}). Bis dahin sehen die Schüler:innen nur einen allgemeinen Hinweis – das genügt der Informationspflicht nach Art. 13 DSGVO nicht. Bitte tragen Sie die Angaben unter „Datenschutz und Löschfrist“ ein.` }));
   if (!days) warn.appendChild(h("p", { text: "Abgaben und Erstversuche werden noch nicht automatisch gelöscht. Bitte legen Sie unter „Datenschutz und Löschfrist“ eine Frist fest." }));
   warn.classList.toggle("hidden", !warn.firstChild);
   renderRetentionHint();
@@ -7187,32 +7260,31 @@ function renderRetentionHint() {
     if (!d.classList.contains("hidden")) td.appendChild(buildDetail(d._s));
   });
 }
-/* pvLoaded: nur nach erfolgreichem Laden sind Formular und „Speichern“ frei – sonst stünden leere Felder und eine falsche Frist im
-   Formular, und „Speichern“ überschriebe die Angaben und löschte ohne Nachfrage. pvPurged: hat ein Speichern Einträge gelöscht, lädt
-   „zurück zur Übersicht“ Blätter und Abgaben neu (Zahlen, Liste, Lösch-Dialoge). */
-let pvDirty = false, pvTimer = 0, pvLoaded = false, pvPurged = false;
-const PV_LOCKED = PV_FIELDS.map(([, id]) => id).concat(["pv-days", "pv-hessen", "pv-save"]);
+/* pvLoaded: nur nach erfolgreichem Laden sind Frist und „Speichern“ frei – sonst stünde eine falsche Frist im Formular, und
+   „Speichern“ überschriebe sie und löschte ohne Nachfrage. pvPurged: hat ein Speichern Einträge gelöscht, lädt „zurück zur Übersicht“
+   Blätter und Abgaben neu (Zahlen, Liste, Lösch-Dialoge). */
+let pvDirty = false, pvLoaded = false, pvPurged = false;
+const PV_LOCKED = ["pv-days", "pv-save"];
 const pvLock = (on) => PV_LOCKED.forEach((id) => { $(id).disabled = on; });
-function pvForm() {   // Formularwerte so, wie der Server sie prüft (einzeilig); der Link wird erst beim Prüfen normalisiert
-  const school = {};
-  PV_FIELDS.forEach(([k, id]) => { school[k] = k === "url" ? $(id).value.trim() : privLine($(id).value); });
-  return { school, retentionDays: Number($("pv-days").value) };
-}
+const pvForm = () => ({ retentionDays: Number($("pv-days").value) });   // so, wie der Server prüft
 function pvCheck(f) {   // dieselben Grenzen wie validatePrivacyInput → {id, msg} oder null
-  for (const [k, id] of PV_FIELDS) {
-    if (k === "url") { if (f.school.url && !httpsUrl(f.school.url)) return { id, msg: `Bitte geben Sie die Datenschutzerklärung der Schule als vollständige Adresse mit https:// an (höchstens ${PRIV_LIMITS.url} Zeichen).` }; }
-    else if (f.school[k].length > PRIV_LIMITS[k]) return { id, msg: `${PV_LABEL[k]} ist zu lang (höchstens ${PRIV_LIMITS[k]} Zeichen).` };
-  }
   if (!Number.isInteger(f.retentionDays) || f.retentionDays < RETENTION_MIN || f.retentionDays > RETENTION_MAX) return { id: "pv-days", msg: `Bitte wählen Sie eine Löschfrist zwischen ${RETENTION_MIN} und ${RETENTION_MAX} Tagen.` };
   return null;
 }
+// Betreiber und Aufsichtsbehörde wie im Hinweis – nur zum Ansehen (Änderungen nur in index.html)
+(function renderOperatorBox() {
+  const box = $("pv-operator"), a = mailLink();
+  box.append(h("p", null, [[OP_NAME, OP_ADDR].filter(Boolean).join(", ") + (a ? ", E-Mail: " : ""), a]),
+    h("p", { text: "Feibeitsblatt ist ein privates, nicht kommerzielles und kostenloses Angebot – kein Angebot einer Schule." }),
+    AUTH_TEXT ? h("p", null, ["Zuständige Datenschutz-Aufsichtsbehörde: " + AUTH_TEXT + (OPERATOR.authority.url ? ", " : ""), authorityLink()]) : null);
+})();
 const olderNow = (d) => (T.privacy && T.privacy.olderThan ? Number(T.privacy.olderThan[String(d)]) || 0 : 0);
 function renderPvEffect() {
   if (!pvLoaded) { $("pv-days-effect").textContent = ""; return; }
   const k = olderNow(Number($("pv-days").value));
   $("pv-days-effect").textContent = k ? `Mit dieser Frist ${k === 1 ? "würde" : "würden"} jetzt ${entriesText(k)} gelöscht.` : "Mit dieser Frist würde jetzt nichts gelöscht.";
 }
-/* Vorschau: derselbe Baustein wie bei den Schüler:innen, mit den (auch ungespeicherten) Eingaben – für ein Blatt mit KI-Feedback und so,
+/* Vorschau: derselbe Baustein wie bei den Schüler:innen, mit der (auch ungespeicherten) Frist – für ein Blatt mit KI-Feedback und so,
    wie der Hinweis unter dieser Adresse erscheint. Darunter, was bei anderen Blättern bzw. über die andere Adresse abweicht. */
 function renderPvPreview() {
   const f = pvForm(), p = cleanPrivacy(f), list = cleanRecipients(T.privacy && T.privacy.aiRecipients), box = $("pv-preview");
@@ -7233,27 +7305,26 @@ async function openPrivacy() {
   const st = $("pv-status"), reload = $("pv-reload");
   pvLoaded = false; pvDirty = false; pvLock(true); reload.classList.add("hidden");
   setStatus(st, "Wird geladen …", "busy");
-  PV_FIELDS.forEach(([, id]) => $(id).classList.remove("invalid"));
+  $("pv-days").classList.remove("invalid");
   try {
     T.privacy = await TA("/api/teacher/privacy");
     const p = savedPrivacy(), def = (T.privacy.defaults && T.privacy.defaults.retentionDays) || 30;
-    PV_FIELDS.forEach(([k, id]) => { $(id).value = p ? p.school[k] : ""; });
     setPvDays(p && p.retentionDays ? p.retentionDays : def);
     pvLoaded = !!(T.privacy.olderThan && typeof T.privacy.olderThan === "object"); pvLock(!pvLoaded);
     setStatus(st, T.privacy.privacy && T.privacy.privacy.auto ? "Die Löschfrist von 30 Tagen ist die Vorgabe dieser Installation – mit „Speichern“ legen Sie sie selbst fest." : "", "");
     renderPrivacyState();
   } catch (e) {
     if (handleAuthError(e)) return;
-    // gesperrt lassen: ohne den gespeicherten Stand wüsste die Seite weder die Angaben noch, was eine Frist jetzt löschen würde
-    setStatus(st, "Die gespeicherten Angaben konnten nicht geladen werden: " + errMsg(e, "t") + " Speichern ist erst möglich, wenn sie geladen sind.", "bad");
+    // gesperrt lassen: ohne den gespeicherten Stand wüsste die Seite weder die Frist noch, was eine neue Frist jetzt löschen würde
+    setStatus(st, "Die gespeicherte Löschfrist konnte nicht geladen werden: " + errMsg(e, "t") + " Speichern ist erst möglich, wenn sie geladen ist.", "bad");
     reload.classList.remove("hidden");
   }
-  renderPvEffect(); renderPvPreview(); growAll(); focusSoon(pvLoaded ? "pv-name" : "pv-reload", 30);
+  renderPvEffect(); renderPvPreview(); focusSoon(pvLoaded ? "pv-days" : "pv-reload", 30);
 }
 $("t-privacy").addEventListener("click", openPrivacy);
 $("pv-reload").addEventListener("click", openPrivacy);
 $("pv-back").addEventListener("click", async () => {
-  if (pvDirty && !(await askConfirm({ title: "Ohne Speichern zurück?", text: "Ihre Änderungen an den Angaben zum Datenschutz gehen verloren.", ok: "Verwerfen", cancel: "Weiter bearbeiten", safeFirst: true }))) return;
+  if (pvDirty && !(await askConfirm({ title: "Ohne Speichern zurück?", text: "Die geänderte Löschfrist geht verloren.", ok: "Verwerfen", cancel: "Weiter bearbeiten", safeFirst: true }))) return;
   pvDirty = false;
   teacherView("tv-overview"); renderPrivacyState();
   if (pvPurged) {   // gelöschte Einträge nicht weiter in Zahlen, Liste und Lösch-Dialogen zeigen (wie „Aktualisieren“)
@@ -7262,29 +7333,15 @@ $("pv-back").addEventListener("click", async () => {
     if (T.sel) { renderSheets(); await loadSubs(); }
   }
 });
-PV_FIELDS.forEach(([, id]) => $(id).addEventListener("input", () => {
-  pvDirty = true; $(id).classList.remove("invalid");
-  clearTimeout(pvTimer); pvTimer = setTimeout(renderPvPreview, 200);
-}));
-$("pv-days").addEventListener("change", () => { pvDirty = true; renderPvEffect(); renderPvPreview(); });
-$("pv-hessen").addEventListener("click", async () => {
-  const b = $("pv-basis"), a = $("pv-auth");
-  const other = (el, v) => !!privLine(el.value) && privLine(el.value) !== v;
-  if ((other(b, HESSEN.legalBasis) || other(a, HESSEN.authority)) && !(await askConfirm({ title: "Vorschläge einsetzen?",
-    text: "Ihre Eingaben bei „Rechtsgrundlage“ und „Aufsichtsbehörde“ werden durch die Vorschläge für Hessen ersetzt.", ok: "Ersetzen", cancel: "Abbrechen", safeFirst: true }))) return;
-  b.value = HESSEN.legalBasis; a.value = HESSEN.authority;
-  [b, a].forEach((el) => el.classList.remove("invalid"));
-  pvDirty = true; growAll(); renderPvPreview();
-  setStatus($("pv-status"), "Vorschläge eingesetzt – bitte mit Ihrer bzw. Ihrem Datenschutzbeauftragten abstimmen und dann „Speichern“ klicken.", "");
-});
+$("pv-days").addEventListener("change", () => { pvDirty = true; $("pv-days").classList.remove("invalid"); renderPvEffect(); renderPvPreview(); });
 /* Speichern: vor dem Löschen nachfragen und die bestätigte Zahl mitschicken (confirmDelete). Würde der Server mehr löschen (Seite lange
    offen, eine per API gespeicherte Frist außerhalb der Auswahl …), speichert er nichts (409 confirm_delete mit der aktuellen Zahl) –
    dann mit der neuen Zahl erneut fragen, höchstens zweimal. */
 async function pvSave() {
   const st = $("pv-status");
-  if (!pvLoaded || !T.privacy || !T.privacy.olderThan) { setStatus(st, "Die gespeicherten Angaben sind nicht geladen – bitte zuerst „Erneut laden“ klicken.", "bad"); return; }
+  if (!pvLoaded || !T.privacy || !T.privacy.olderThan) { setStatus(st, "Die gespeicherte Löschfrist ist nicht geladen – bitte zuerst „Erneut laden“ klicken.", "bad"); return; }
   const f = pvForm(), before = retentionDaysT();
-  PV_FIELDS.forEach(([, id]) => $(id).classList.remove("invalid"));
+  $("pv-days").classList.remove("invalid");
   const bad = pvCheck(f);
   if (bad) { $(bad.id).classList.add("invalid"); $(bad.id).focus(); setStatus(st, bad.msg, "bad"); return; }
   let k = olderNow(f.retentionDays), newer = false;
@@ -7299,14 +7356,12 @@ async function pvSave() {
     setStatus(st, "Wird gespeichert …", "busy");
     try {
       const r = await TA("/api/teacher/privacy", { method: "PUT", body: Object.assign({}, f, { confirmDelete: k }) });
-      T.privacy = Object.assign({}, T.privacy, { privacy: r.privacy, complete: r.complete, olderThan: r.olderThan || (T.privacy && T.privacy.olderThan) });
+      T.privacy = Object.assign({}, T.privacy, { privacy: r.privacy, olderThan: r.olderThan || (T.privacy && T.privacy.olderThan) });
       pvDirty = false;
       if (r.deleted) pvPurged = true;
-      const missing = missingOf(cleanPrivacy(r.privacy));
-      setStatus(st, "Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes." +
+      setStatus(st, "Gespeichert. Die Schüler:innen sehen die Löschfrist beim nächsten Öffnen eines Feibeitsblattes." +
         (r.deleted ? ` ${r.deleted === 1 ? "1 älterer Eintrag wurde" : r.deleted + " ältere Einträge wurden"} gelöscht.` : "") +
-        (before && f.retentionDays > before ? " Die längere Frist gilt auch für schon gespeicherte Abgaben – informieren Sie die Schüler:innen neu." : "") +
-        (missing.length ? ` Es fehlen noch: ${missing.join(", ")}.` : ""), missing.length ? "" : "ok");
+        (before && f.retentionDays > before ? " Die längere Frist gilt auch für schon gespeicherte Abgaben – informieren Sie die Schüler:innen neu." : ""), "ok");
       renderPvEffect(); renderPrivacyState();
       return;
     } catch (e) {
@@ -7510,10 +7565,42 @@ $("chk-clear").addEventListener("click", async () => {
   CHK.tasks.forEach(checkCount);
   checkAnnounce("Alle Häkchen entfernt.");
 });
+/* ---------- Impressum & Datenschutz (Adresse mit #impressum) ----------
+ * Der Link in der Fußzeile öffnet die Seite in einem neuen Tab – im Schreibbereich geht so nichts verloren. Impressum aus OPERATOR,
+ * darunter der vollständige Datenschutzhinweis mit Löschfrist und KI-Empfängern von GET /api/privacy (wie bei einem Blatt mit
+ * KI-Feedback); scheitert der Abruf, stehen dort allgemeine Sätze statt falscher Angaben. */
+const LEGAL = { run: 0 };
+const legalHash = () => /^#impressum$/i.test(location.hash || "");
+(function renderImprint() {   // die Angaben stehen fest in der Konfiguration
+  const addr = $("legal-addr"), mail = $("legal-mail"), a = mailLink();
+  [OPERATOR.name, OPERATOR.street, OPERATOR.city, OPERATOR.country].filter(Boolean).forEach((x, i) => { if (i) addr.appendChild(h("br")); addr.appendChild(document.createTextNode(x)); });
+  if (a) mail.append("E-Mail: ", a);
+})();
+async function openLegal() {
+  const run = ++LEGAL.run, st = $("legal-status"), box = $("legal-privacy");
+  show("screen-legal");
+  box.textContent = "";
+  setStatus(st, "Die Datenschutzerklärung wird geladen …", "busy");
+  focusSoon("legal-h", 30);
+  let r = null;
+  try { r = await api("GET", "/api/privacy"); } catch (e) { r = null; }
+  if (LEGAL.run !== run || screen !== "screen-legal") return;
+  setStatus(st, r ? "" : "Die aktuellen Angaben zum KI-Dienst und zur Löschfrist konnten gerade nicht geladen werden – deshalb stehen hier allgemeine Angaben. " +
+    "Den KI-Dienst nennt dir diese Seite, bevor etwas gesendet wird; die Löschfrist steht nach der Eingabe des Codes auf der Seite „Deine Angaben“.", "");
+  box.appendChild(privacyNoticeDom(r ? cleanPrivacy(r) : null, r ? cleanRecipients(r.aiRecipients) : [],
+    { h: "h3", withAi: true, pages: PAGES_HOST, id: "legal-privfull", site: true, general: !r, flat: true, summary: "Datenschutzerklärung" }));
+}
+function leaveLegal() { LEGAL.run++; leaveChecklist(""); }   // Hash weg, Startseite (dieselben Schritte wie von der Checkliste)
+$("legal-home").addEventListener("click", leaveLegal);
+$("legal-home2").addEventListener("click", leaveLegal);
+// Hash-Wechsel nur von Bildschirmen ohne laufende Arbeit (Start, Arbeitsform, Angaben, Checkliste, Impressum) – Schreibbereich, Abgabe
+// und Lehrkraft-Bereich bleiben unberührt
 window.addEventListener("hashchange", () => {
-  const c = checkHashCode();
-  if (c !== null) { if (CHECK_SCREENS.has(screen)) openChecklist(c); }   // Schreibbereich, Abgabe und Lehrkraft-Bereich bleiben unberührt
+  const c = checkHashCode(), free = CHECK_SCREENS.has(screen) || screen === "screen-legal";
+  if (c !== null) { if (free) openChecklist(c); }
+  else if (legalHash()) { if (free) openLegal(); }
   else if (screen === "screen-check") leaveChecklist("");
+  else if (screen === "screen-legal") leaveLegal();
 });
 
 /* ---------- Start ---------- */
@@ -7523,13 +7610,14 @@ const ipSentence = (when) => when + " " + (PAGES_HOST
   ? "verarbeiten GitHub, Inc. (USA; liefert diese Seite aus) und Cloudflare, Inc. (USA; betreibt den Server dieser Seite)"
   : "verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite)") + " technisch die Internetadresse (IP-Adresse) deines Geräts.";
 $("start-privacy").textContent = "Datenschutz: " + ipSentence("Beim Laden dieser Seite und beim Prüfen des Codes") +
-  " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du, nachdem du den Code eingegeben hast.";
+  " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – findest du unter „Impressum & Datenschutz“ ganz unten auf der Seite und nach der Eingabe des Codes passend zu deinem Feibeitsblatt.";
 $("chk-privacy").textContent = "Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. " + ipSentence("Beim Laden dieser Seite und der Checkliste") +
-  " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist, und was mit den Häkchen geschieht – bekommst du, wenn du das Feibeitsblatt mit seinem Code digital öffnest (auf der Startseite „Weiter“).";
+  " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist, und was mit den Häkchen geschieht – findest du unter „Impressum & Datenschutz“ ganz unten auf der Seite; " +
+  "passend zu deinem Feibeitsblatt auch, wenn du es mit seinem Code digital öffnest (auf der Startseite „Weiter“).";
 cleanupDrafts();
 cleanupChecks();
 showResume();
-{ const c = checkHashCode(); if (c !== null) openChecklist(c); }   // Adresse aus dem QR-Code des analogen Arbeitsblattes
+{ const c = checkHashCode(); if (c !== null) openChecklist(c); else if (legalHash()) openLegal(); }   // Adresse aus dem QR-Code des analogen Arbeitsblattes bzw. Link „Impressum & Datenschutz“
 setTimeout(() => { if (screen === "screen-start") $("code-input").focus(); }, 50);
 
 /* ---------- QR-Code (Link zur Checkliste auf dem analogen Arbeitsblatt; nur zur Laufzeit gebraucht) ----------

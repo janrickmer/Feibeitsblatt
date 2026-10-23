@@ -364,7 +364,7 @@ async function main() {
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]); assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], [{ id: fileId, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length }], []]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.equal(r.json.sheet.aiFeedback, true);   // mindestens eine Aufgabe mit Auftrag an die KI
-    assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)",
+    assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)",
       transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }]);   // Empfänger für den Datenschutzhinweis
     // Neuinstallation: Löschfrist 30 Tage als Vorgabe (öffentlich nur die Frist; verantwortlich ist der Betreiber, siehe index.html)
     assert.deepEqual(r.json.sheet.privacy, { retentionDays: 30 });
@@ -615,7 +615,7 @@ async function main() {
     // öffentlich für die Seite „Impressum & Datenschutz“: Frist und KI-Empfänger wie beim Blatt, nicht gecacht
     r = await api("GET", "/api/privacy");
     assert.equal(r.status, 200, r.text); assert.equal(r.headers.get("cache-control"), "no-store");
-    assert.deepEqual(r.json, { ok: true, retentionDays: 7, aiRecipients: [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)",
+    assert.deepEqual(r.json, { ok: true, retentionDays: 7, aiRecipients: [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)",
       transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }] });
     // eigenes Blatt: der Zeitplan (scheduled) löscht nach der Frist – lokal ausgelöst über /cdn-cgi/local/scheduled (time = geplanter
     // Zeitpunkt). Ein Lauf in der Zukunft räumt auch alle Sperr-Zähler ab – deshalb erst ganz am Ende (Schritt „Zeitplan“).

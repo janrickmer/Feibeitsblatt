@@ -75,7 +75,7 @@ const E = {
   input: { vorname: "ida", nachname: "kr", geb: "--09-09", klasse: "8b" },
   first: ["Das Gewissen ist wie eine innere Stimme.", "Ich habe gelogen.", "Nicht gut."],
 };
-const RECIPIENT_SUFFIX = " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";   // Empfänger-Label des eigenen Dienstes
+const RECIPIENT_SUFFIX = " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)";   // Empfänger-Label des eigenen Dienstes
 // KI-Einstellungen: Workers AI ohne Schlüssel; Reserve im selben Cloudflare-Konto
 const KEYLESS_HINT = "Kein API-Schlüssel nötig – der Server nutzt Workers AI in seinem eigenen Cloudflare-Konto.";
 const AI_SAME_ACCOUNT = "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.";
@@ -99,17 +99,31 @@ const LT_CONSENT = "Die Prüfung übernimmt LanguageTool (languagetool.org, Betr
 const LT_OFF = "Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.";
 const LT_PRIVACY = "Die Rechtschreibprüfung ist freiwillig, laut Anbieter erst ab 16 Jahren (mit 16 und 17 nur mit Erlaubnis deiner Eltern) und läuft nur nach deiner Bestätigung";
 const ATTEMPT = /^[0-9a-f]{16}$/;
-// Datenschutz: Angaben der Schule (frei erfunden), Vorschläge für Hessen, Kennzeichnung KI-erzeugter Inhalte
-const SCHOOL = { name: "Musterschule am See", address: "Seestraße 1, 65185 Wiesbaden, Tel. 0611 000000", dpo: "Datenschutzbeauftragte am Schulamt, datenschutz@example.org",
-  url: "https://example.org/datenschutz" };
-const HESSEN_BASIS = "Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs. 1 und § 83a Abs. 1 Nr. 2 Hessisches Schulgesetz (HSchG)";
-const HESSEN_AUTH = "Der Hessische Beauftragte für Datenschutz und Informationsfreiheit, Postfach 3163, 65021 Wiesbaden, poststelle@datenschutz.hessen.de";
-const PRIV_HEADS = ["Wer ist verantwortlich?", "Datenschutzbeauftragte:r deiner Schule", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
+// Datenschutz: verantwortlich ist der Betreiber (fest in index.html, window.FEIBEITSBLATT_OPERATOR – bei einer eigenen Installation
+// hier dieselben Angaben eintragen), keine Schule; Kennzeichnung KI-erzeugter Inhalte
+const OP = { name: "Jan-Rickmer Feindt", addr: "An der Bauna 30, 34270 Schauenburg, Deutschland", email: "j.feindt@kollegium.lg-ks.de" };
+const OP_AUTH = "Der Hessische Beauftragte für Datenschutz und Informationsfreiheit, Gustav-Stresemann-Ring 1, 65189 Wiesbaden";
+const OP_AUTH_URL = "https://datenschutz.hessen.de";
+const OP_RESP = OP.name + ", " + OP.addr + ", E-Mail: " + OP.email + ". Feibeitsblatt ist ein privates, nicht kommerzielles und kostenloses Angebot – kein Angebot einer Schule.";
+const OP_SHORT = "Verantwortlich ist " + OP.name + " – Feibeitsblatt ist ein privates, kostenloses Angebot.";
+const OP_COMPLAIN = "Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren – für den Betreiber zuständig ist: " + OP_AUTH + ", datenschutz.hessen.de (öffnet in neuem Tab).";
+const OP_INFO = "Verantwortlich für den Datenschutz: " + OP.name + " (Betreiber dieser Seite, privates Angebot). ";
+// Rechtsgrundlagen (du-Form): Bearbeiten/Abgeben/KI-Feedback (b), LanguageTool (a), Aufruf/Missbrauchsschutz (f), Speicher im Browser (§ 25 TDDDG)
+const privBases = (withAi, deliver) => [
+  "Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand" + (withAi ? ", der Erstversuch" : "") + " und die Abgabe" +
+    (withAi ? " – und das KI-Feedback, wenn du es anforderst: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " + (withAi ? "diese Funktionen" : "es") + " selbst an.",
+  "Rechtschreibprüfung (LanguageTool): deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Du gibst sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und deiner Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
+    "Du kannst sie jederzeit für die Zukunft widerrufen, indem du die Prüfung nicht mehr nutzt.",
+  "Aufruf und Auslieferung dieser Seite (" + deliver + ") und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – " +
+    "das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen kannst du Widerspruch einlegen (siehe „Deine Rechte“).",
+  "Speichern im Browser deines Geräts (dein Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von dir gewünschte Funktion unbedingt erforderlich.",
+];
+const DELIVER_WORKER = "über Cloudflare; die Checklisten-Seite über GitHub Pages";   // Tests: die Seite kommt vom Worker, der QR-Code führt auf GitHub Pages
+const PRIV_HEADS = ["Wer ist verantwortlich?", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
   "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Musst du mitmachen?", "Entscheidet die KI über dich?", "Deine Rechte"];
 // Angaben-Bildschirm einer Partner- / Gruppenarbeit: derselbe Hinweis in der „ihr“-Form
-const PRIV_HEADS_GROUP = ["Wer ist verantwortlich?", "Datenschutzbeauftragte:r eurer Schule", "Wozu werden eure Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
+const PRIV_HEADS_GROUP = ["Wer ist verantwortlich?", "Wozu werden eure Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
   "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Müsst ihr mitmachen?", "Entscheidet die KI über euch?", "Eure Rechte"];
-const PRIV_MISSING_WARN = "Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch (Name der Schule, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage). Bis dahin sehen die Schüler:innen nur einen allgemeinen Hinweis – das genügt der Informationspflicht nach Art. 13 DSGVO nicht. Bitte tragen Sie die Angaben unter „Datenschutz und Löschfrist“ ein.";
 const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
 const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
 // Partner- / Gruppenarbeit: Texte in der „ihr“-Form dort, wo es um alle geht (Angaben, Datenschutz-Kurzfassung, Rechtschreibprüfung)
@@ -121,14 +135,14 @@ const LT_CONSENT_GROUP = "Die Prüfung übernimmt LanguageTool (languagetool.org
 const GROUP_DATA = "bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen.";
 // GRUPPE_SHOTS_OUT=<Ordner> npm run test:e2e speichert Bildschirmfotos von Arbeitsform, Gruppen-Angaben und Lehrkraft-Liste (375 und 1280 px)
 const SHOTS_OUT = process.env.GRUPPE_SHOTS_OUT || "";
-async function shots(page, name, widths = [375, 1280]) {
-  if (!SHOTS_OUT) return;
-  await mkdir(SHOTS_OUT, { recursive: true });
+async function shots(page, name, widths = [375, 1280], out = SHOTS_OUT) {
+  if (!out) return;
+  await mkdir(out, { recursive: true });
   const vp = page.viewportSize();
   for (const w of widths) {
     await page.setViewportSize({ width: w, height: 900 });
     await page.waitForTimeout(150);
-    await page.screenshot({ path: join(SHOTS_OUT, `${name}-${w}.png`), fullPage: true });
+    await page.screenshot({ path: join(out, `${name}-${w}.png`), fullPage: true });
   }
   await page.setViewportSize(vp);
 }
@@ -253,9 +267,9 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#t-aiwarn")).toBeVisible();
   // Vorauswahl Workers AI ist noch nicht gespeichert: ein Hinweis, keine doppelte Aufforderung
   await expect(page.locator("#t-aiwarn")).toHaveText("Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte wählen Sie unter „KI-Einstellungen“ einen Anbieter (empfohlen: Cloudflare Workers AI, ohne API-Schlüssel) und klicken Sie auf „Speichern“.");
-  // Neuinstallation: automatische Löschung nach 30 Tagen als Vorgabe; die Angaben der Schule für Art. 13 DSGVO fehlen noch
-  await expect(page.locator("#t-privwarn")).toHaveText(PRIV_MISSING_WARN);
-  await expect(page.locator("#t-privinfo")).toHaveText("Abgaben und Erstversuche werden 30 Tage nach dem Eingang automatisch gelöscht (Vorgabe – unter „Datenschutz und Löschfrist“ änderbar).");
+  // Neuinstallation: automatische Löschung nach 30 Tagen als Vorgabe – keine Warnung; verantwortlich ist der Betreiber (fest eingetragen)
+  await expect(page.locator("#t-privwarn")).toBeHidden();
+  await expect(page.locator("#t-privinfo")).toHaveText(OP_INFO + "Abgaben und Erstversuche werden 30 Tage nach dem Eingang automatisch gelöscht (Vorgabe – unter „Datenschutz und Löschfrist“ änderbar).");
   await expect(page.locator("#t-sheets-body")).toContainText("Noch keine Feibeitsblätter");
 
   // Die Einrichtung geht nur einmal (409), und die Tür liefert jetzt die KDF-Parameter fürs Anmelden
@@ -339,7 +353,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.fill("#ai-key", "AIza-e2e-nicht-gespeichert");
   await page.check("#ai-gemini-ok");
   await page.click("#ai-save");
-  expect(await confirmDialog(page, "Anbieter trotz Warnung speichern?", false)).toMatch(/^„Google Gemini“ ist für den Einsatz mit Schüler:innen nicht geeignet: Laut den Zusatzbedingungen .* Speichern Sie diesen Anbieter nur, wenn Ihre Schule ihn ausdrücklich geprüft und freigegeben hat\.$/);
+  expect(await confirmDialog(page, "Anbieter trotz Warnung speichern?", false)).toMatch(/^„Google Gemini“ ist für den Einsatz mit Schüler:innen nicht geeignet: Laut den Zusatzbedingungen .* Speichern Sie diesen Anbieter nur, wenn der Betreiber dieser Seite \(verantwortlich für den Datenschutz\) ihn ausdrücklich geprüft und freigegeben hat\.$/);
   await expect(page.locator("#ai-status")).toHaveText("");
   for (const pv of ["openrouter", "cerebras"]) await expect(page.locator('#ai-prov option[value="' + pv + '"]')).toHaveText(/ – nicht für den Schuleinsatz geeignet$/);
   await page.click("#ai-back");
@@ -432,7 +446,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.fill("#ai2-key", "e2e-reserve-key-5555");
   await page.click("#ai2-save");
   const rtext = await confirmDialog(page, "Weiteren KI-Empfänger hinzufügen?");   // jede Reserve = weiterer Empfänger: ausdrückliche Bestätigung
-  expect(rtext).toContain("„127.0.0.1:"); expect(rtext).toContain("Datenschutzbeauftragte");
+  expect(rtext).toContain("„127.0.0.1:"); expect(rtext).toContain("stimmen Sie sich mit dem Betreiber dieser Seite ab (verantwortlich für den Datenschutz, falls Sie es nicht selbst sind)");
   await expect(page.locator("#ai2-status")).toHaveText(/^Reserve gespeichert\. \d+ passende Modelle gefunden\./, { timeout: 30_000 });
   await expect(page.locator("#ai2-key")).toHaveValue("");
   await expect(page.locator("#ai2-key-hint")).toHaveText("Gespeichert: …5555 – leer lassen, um ihn zu behalten.");
@@ -732,136 +746,246 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
 // Am Worker (Tests: 127.0.0.1) ist die Checklisten-Seite hinter dem QR-Code eine andere Adresse (PUBLIC_URL, GitHub Pages)
 const CHECK_GITHUB = "Nur wenn du eine Checkliste über den QR-Code öffnest: GitHub, Inc. (USA) liefert die Checklisten-Seite (feibeitsblatt.janrickmer.de) aus (GitHub Pages) " +
   "und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.";
-test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitHub Pages) → Lehrkraft trägt Schule, Rechtsgrundlage (Vorschlag Hessen) und Löschfrist ein; Vorschau wie bei den Schüler:innen", async ({ browser }) => {
-  // Schüler:in: Startseite und Angaben-Bildschirm (Zeitpunkt der Erhebung) – noch ohne Schulangaben, Frist 30 Tage (Vorgabe)
+// Über GitHub Pages ausgeliefert: GitHub ist Empfänger für die ganze Seite
+const GITHUB_PAGES_ITEM = "GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.";
+// Liste „Wer bekommt die Daten?“ im ausführlichen Hinweis (H = Ebene der Abschnittsüberschriften) – die Rechtsgrundlagen nennen GitHub Pages auch
+const recipients = (loc, H) => loc.locator(H + '.privh:text-is("Wer bekommt die Daten?") + ul > li');
+// Seite „Impressum & Datenschutz“ (#screen-legal) prüfen: Impressum aus window.FEIBEITSBLATT_OPERATOR, darunter der vollständige
+// Hinweis mit Frist und KI-Empfängern von GET /api/privacy
+async function checkLegal(lp, { days = 30, deliver = DELIVER_WORKER, github = CHECK_GITHUB } = {}) {
+  await expect(lp.locator("#screen-legal")).toHaveClass(/active/);
+  await expect(lp.locator("#legal-h")).toHaveText("Impressum & Datenschutz");
+  await expect(lp.locator("#legal-h")).toBeFocused();
+  await expect(lp.locator("#screen-legal h2").first()).toHaveText("Impressum");
+  await expect(lp.locator(".legal-lead")).toHaveText("Angaben gemäß § 18 Abs. 1 Medienstaatsvertrag (MStV)");
+  expect(await lp.locator("#legal-addr").innerText()).toBe("Jan-Rickmer Feindt\nAn der Bauna 30\n34270 Schauenburg\nDeutschland");
+  await expect(lp.locator("#legal-mail")).toHaveText("E-Mail: " + OP.email);
+  await expect(lp.locator("#legal-mail a")).toHaveAttribute("href", "mailto:" + OP.email);
+  await expect(lp.locator(".legal-free")).toHaveText("Feibeitsblatt ist ein nicht kommerzielles Angebot und wird unentgeltlich bereitgestellt.");
+  await expect(lp.locator("#legal-status")).toHaveText("");
+  const lpriv = lp.locator("#legal-privfull");
+  await expect(lpriv.locator("h2")).toHaveText("Datenschutzerklärung");   // offen, kein details – Abschnitte als h3
+  await expect(lpriv.locator("details")).toHaveCount(0);
+  await expect(lpriv.locator("h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(lpriv).toContainText(OP_RESP);
+  await expect(lpriv.locator('h3.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText(privBases(true, deliver));
+  await expect(lpriv).toContainText("wird " + days + " Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach)");   // Frist von GET /api/privacy
+  await expect(lpriv).toContainText(new RegExp("Nur wenn du das KI-Feedback anforderst: der KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“\\."));   // Empfänger wie bei einem Blatt
+  await expect(lpriv).toContainText("Grundlage einer Übermittlung außerhalb der EU: vom Betreiber dieser Seite beim Anbieter zu prüfen.");
+  await expect(lpriv).toContainText("Wende dich dafür an den Betreiber (E-Mail: " + OP.email + ").");
+  await expect(lpriv).toContainText("Einer Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO).");
+  await expect(lpriv).toContainText(OP_COMPLAIN);
+  await expect(recipients(lpriv, "h3").filter({ hasText: "GitHub" })).toHaveText([github]);
+  const auth = lpriv.locator(`a[href="${OP_AUTH_URL}"]`);
+  await expect(auth).toHaveAttribute("target", "_blank");
+  await expect(auth).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(lp.locator("#legal-other")).toHaveText("Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. " +
+    "Bei Partner- oder Gruppenarbeit gilt alles ebenso für alle in der Gruppe; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. " +
+    "Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.");
+  for (const w of ["Deine Schule", "Datenschutzbeauftragte", "Schulgesetz", "HSchG", "frag deine Lehrkraft"]) await expect(lp.locator("#screen-legal")).not.toContainText(w);
+  await expect(lp.locator("#foot-legal")).toBeHidden();   // auf der Seite selbst kein Link auf sich
+  await expect(lp.locator("#pagefoot")).toContainText("Copyright Jan-Rickmer Feindt");
+}
+// Link „Impressum & Datenschutz“ in der Fußzeile: öffnet die Seite in einem neuen Tab (die erste Seite bleibt, wie sie war)
+async function openLegalTab(page) {
+  const foot = page.locator("#foot-legal");
+  await expect(foot).toBeVisible();
+  await expect(foot).toHaveText("Impressum & Datenschutz (öffnet in neuem Tab)");
+  expect(await foot.evaluate((a) => [a.getAttribute("href"), a.target, a.rel])).toEqual(["#impressum", "_blank", "noopener"]);
+  const ctx = page.context(), errors = [];
+  const loaded = ctx.waitForEvent("response", (r) => new URL(r.url()).pathname === "/api/privacy");
+  const [lp] = await Promise.all([ctx.waitForEvent("page"), foot.click()]);
+  lp.on("pageerror", (e) => errors.push(String(e)));
+  expect((await loaded).status()).toBe(200);
+  expect(new URL(lp.url()).hash).toBe("#impressum");
+  return { lp, errors };
+}
+// PRIVAT_SHOTS_OUT=<Ordner> npm run test:e2e speichert Bildschirmfotos der Seite „Impressum & Datenschutz“, des Lehrkraft-Bereichs
+// „Datenschutz und Löschfrist“ und des Angaben-Bildschirms mit der Kurzfassung (375 und 1280 px)
+const PRIVAT_SHOTS = process.env.PRIVAT_SHOTS_OUT || "";
+test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – „Impressum & Datenschutz“ über die Fußzeile (neuer Tab) und #impressum, auch über GitHub Pages; Lehrkraft: Betreiber schreibgeschützt, Löschfrist, Vorschau", async ({ browser }) => {
+  // Schüler:in: Startseite mit Link in der Fußzeile → neuer Tab, die Startseite bleibt
   const s = await openPage(browser);
   const sp = s.page;
-  await expect(sp.locator("#start-privacy")).toHaveText("Datenschutz: Beim Laden dieser Seite und beim Prüfen des Codes verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts. Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du, nachdem du den Code eingegeben hast.");
+  await expect(sp.locator("#start-privacy")).toHaveText("Datenschutz: Beim Laden dieser Seite und beim Prüfen des Codes verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts. " +
+    "Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – findest du unter „Impressum & Datenschutz“ ganz unten auf der Seite und nach der Eingabe des Codes passend zu deinem Feibeitsblatt.");
+  const { lp, errors } = await openLegalTab(sp);
+  await expect(sp.locator("#screen-start")).toHaveClass(/active/);
+  await checkLegal(lp);
+  await shots(lp, "impressum", [375, 1280], PRIVAT_SHOTS);
+  // „← zur Startseite“: Hash weg, Startseite mit Fokus im Code-Feld
+  await lp.click("#legal-home");
+  await expect(lp.locator("#screen-start")).toHaveClass(/active/);
+  expect(new URL(lp.url()).hash).toBe("");
+  await expect(lp.locator("#code-input")).toBeFocused();
+  await expect(lp.locator("#foot-legal")).toBeVisible();
+  expect(errors).toEqual([]);
+  await lp.close();
+  // direkt über #impressum: nur der Hash ändert sich (hashchange) – und mit „Zurück“ wieder zur Startseite
+  await sp.goto("/#impressum");
+  await checkLegal(sp);
+  await sp.goBack();
+  await expect(sp.locator("#screen-start")).toHaveClass(/active/);
+  // Abruf scheitert: allgemeine Angaben statt falscher (KI-Dienst wird vor dem Senden genannt, Frist nach der Eingabe des Codes)
+  await sp.route("**/api/privacy", (r) => r.abort());
+  await sp.goto("/#impressum");
+  await expect(sp.locator("#legal-status")).toHaveText("Die aktuellen Angaben zum KI-Dienst und zur Löschfrist konnten gerade nicht geladen werden – deshalb stehen hier allgemeine Angaben. " +
+    "Den KI-Dienst nennt dir diese Seite, bevor etwas gesendet wird; die Löschfrist steht nach der Eingabe des Codes auf der Seite „Deine Angaben“.");
+  await expect(sp.locator("#legal-privfull")).toContainText("Nur wenn du das KI-Feedback anforderst: der KI-Dienst, den deine Lehrkraft eingerichtet hat. Diese Seite nennt ihn dir mit Sitz und Grundlage der Übermittlung, bevor etwas gesendet wird.");
+  await expect(sp.locator("#legal-privfull")).toContainText("wird nach der Frist automatisch gelöscht, die deine Lehrkraft festgelegt hat – sie steht nach der Eingabe des Codes auf der Seite „Deine Angaben“");
+  await expect(sp.locator("#legal-privfull")).toContainText(OP_RESP);
+  await sp.unroute("**/api/privacy");
+  await sp.click("#legal-home2");
+  await expect(sp.locator("#screen-start")).toHaveClass(/active/);
+
+  // Angaben-Bildschirm (Zeitpunkt der Erhebung): Kurzfassung und alle Informationen nennen den Betreiber; Frist 30 Tage (Vorgabe)
   await enterCode(sp, S.shown);
   await chooseSingle(sp);
   await expect(sp.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);   // die Angaben gehen schon mit dem KI-Feedback (Erstversuch) an die Lehrkraft
   const short = sp.locator("#p-privacy-short");
-  await expect(short).toHaveText(/^Datenschutz: Verantwortlich ist deine Schule\. Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft\. Nach 30 Tagen werden sie automatisch gelöscht\. Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\.0\.0\.1:\d+ \(Betreiber und Sitz: von der Lehrkraft zu prüfen\)“, bei der Abgabe dann noch einmal in der abgegebenen Fassung\. Auch die Rechtschreibprüfung ist freiwillig\.$/);
+  await expect(short).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft\\. Nach 30 Tagen werden sie automatisch gelöscht\\. " +
+    "Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, bei der Abgabe dann noch einmal in der abgegebenen Fassung\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
+  await shots(sp, "angaben", [375, 1280], PRIVAT_SHOTS);
   const full = sp.locator("#p-privfull");
   expect(await full.evaluate((e) => e.open)).toBe(false);   // aufklappbar
   await full.locator("summary").click();
   await expect(full.locator("summary")).toHaveText("Alle Informationen zum Datenschutz");
   await expect(full.locator("h2.privh")).toHaveText(PRIV_HEADS);   // unter h1 „Deine Angaben“ → h2
-  await expect(full).toContainText("Deine Schule. Deine Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – frag sie danach.");
-  await expect(full).toContainText("Frag deine Lehrkraft nach den Kontaktdaten.");
-  await expect(full).toContainText("Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes.");
+  await expect(full).toContainText(OP_RESP + " Deine Angaben und Antworten liest deine Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen kannst du dich an den Betreiber oder an deine Lehrkraft wenden.");
+  await expect(full.locator('h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText(privBases(true, DELIVER_WORKER));
   await expect(full).toContainText("wird 30 Tage nach dem Eingang auf dem Server automatisch gelöscht");
   await expect(full).toContainText("bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)");
   // nie behaupten, der Server sehe die Antworten nur verschlüsselt: für das KI-Feedback verarbeitet er sie kurz unverschlüsselt
   await expect(full).toContainText("Für das KI-Feedback verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.");
-  await expect(full).toContainText("Grundlage einer Übermittlung außerhalb der EU: von der Schule beim Anbieter zu prüfen.");
+  await expect(full).toContainText("Grundlage einer Übermittlung außerhalb der EU: vom Betreiber dieser Seite beim Anbieter zu prüfen.");
   await expect(full).toContainText("Learneo ist nach dem EU-US Data Privacy Framework zertifiziert");
   await expect(full).toContainText("in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang.");
   // die Checklisten-Seite hinter dem QR-Code eines ausgedruckten Arbeitsblattes verweist hierher: Zweck und Speicherdauer der Häkchen
   // Diese Seite kommt hier vom Worker, der QR-Code führt aber auf GitHub Pages (PUBLIC_URL): dort liegt die Checklisten-Seite
   await expect(full).toContainText("Bekommst du ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste deiner Lehrkraft führen: Dort hakst du ab, was deine Antwort schon erfüllt. Dafür lädt die Checklisten-Seite (feibeitsblatt.janrickmer.de) nur die Checkliste vom Server – ohne Angaben zu dir; die Internetadresse deines Geräts wird dabei wie beim Laden der Seite verarbeitet. Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet.");
   await expect(full).toContainText("Die Häkchen einer solchen Checkliste löscht die Checklisten-Seite (feibeitsblatt.janrickmer.de) beim nächsten Aufruf in diesem Browser, wenn du sie 7 Tage nicht geändert hast; früher geht es mit „Alle Häkchen entfernen“.");
-  await expect(full).toContainText("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren.");
-  await expect(full.locator("a")).toHaveCount(0);   // ohne Angabe kein Link
+  await expect(full).toContainText("Deine Einwilligung zur Rechtschreibprüfung kannst du jederzeit für die Zukunft widerrufen – nutze die Prüfung dann einfach nicht mehr; Prüfungen, die schon stattgefunden haben, bleiben davon unberührt.");
+  await expect(full).toContainText(OP_COMPLAIN);
+  expect(await full.locator("a").evaluateAll((as) => as.map((a) => a.getAttribute("href")))).toEqual(["mailto:" + OP.email, "mailto:" + OP.email, OP_AUTH_URL]);
   // die Seite kommt hier vom Worker: GitHub nur für die Checklisten-Seite hinter dem QR-Code
-  await expect(full.locator("li", { hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
+  await expect(recipients(full, "h2").filter({ hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
   await expect(full).not.toContainText("liefert diese Seite aus");
-  for (const w of ["sieht deine Angaben und Antworten nur verschlüsselt", "erst bei der Abgabe verschlüsselt an die Lehrkraft"]) await expect(sp.locator("#screen-person")).not.toContainText(w);
+  for (const w of ["sieht deine Angaben und Antworten nur verschlüsselt", "erst bei der Abgabe verschlüsselt an die Lehrkraft", "Deine Schule", "Datenschutzbeauftragte", "Schulgesetz"]) await expect(sp.locator("#screen-person")).not.toContainText(w);
   await closePage(s);
 
   // dieselbe Seite über GitHub Pages ausgeliefert (FEIBEITSBLATT_API ≠ ""): GitHub ist ein weiterer Empfänger (IP-Adresse)
   const gctx = await browser.newContext();
   await gctx.addInitScript(() => { window.FEIBEITSBLATT_API = location.origin; });
   const gp = await gctx.newPage();
+  const gerrors = [];
+  gp.on("pageerror", (e) => gerrors.push(String(e)));
   await gp.goto("/");
   await expect(gp.locator("#start-privacy")).toContainText("verarbeiten GitHub, Inc. (USA; liefert diese Seite aus) und Cloudflare, Inc. (USA; betreibt den Server dieser Seite)");
+  const g = await openLegalTab(gp);   // der neue Tab bekommt dasselbe Init-Skript (GitHub Pages)
+  await checkLegal(g.lp, { deliver: "über Cloudflare und GitHub Pages", github: GITHUB_PAGES_ITEM });
+  expect(g.errors).toEqual([]);
+  await g.lp.close();
+  await gp.goto("/#impressum");
+  await checkLegal(gp, { deliver: "über Cloudflare und GitHub Pages", github: GITHUB_PAGES_ITEM });
+  await gp.click("#legal-home");
   await enterCode(gp, S.shown);
   await chooseSingle(gp);
   await gp.locator("#p-privfull summary").click();
-  await expect(gp.locator("#p-privfull li", { hasText: "GitHub" })).toHaveText("GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.");
+  await expect(recipients(gp.locator("#p-privfull"), "h2").filter({ hasText: "GitHub" })).toHaveText([GITHUB_PAGES_ITEM]);
+  await expect(gp.locator('#p-privfull h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText(privBases(true, "über Cloudflare und GitHub Pages"));
   await expect(gp.locator("#p-privfull")).toContainText("Dafür lädt diese Seite nur die Checkliste vom Server");   // hier ist es dieselbe Seite
+  expect(gerrors).toEqual([]);
   await gctx.close();
 
-  // Lehrkraft: Warnung in der Übersicht → „Datenschutz und Löschfrist“
+  // Lehrkraft: keine Warnung (Frist 30 Tage gilt), Infozeile nennt den Betreiber → „Datenschutz und Löschfrist“
   const t = await openPage(browser);
   const page = t.page;
   await teacherLogin(page, PW);
-  await expect(page.locator("#t-privwarn")).toHaveText(PRIV_MISSING_WARN);
+  await expect(page.locator("#t-privwarn")).toBeHidden();
+  await expect(page.locator("#t-privinfo")).toHaveText(OP_INFO + "Abgaben und Erstversuche werden 30 Tage nach dem Eingang automatisch gelöscht (Vorgabe – unter „Datenschutz und Löschfrist“ änderbar).");
   await page.click("#t-privacy");
   await expect(page.locator("#tv-privacy")).toBeVisible();
   await expect(page.locator("#tv-privacy h1")).toHaveText("Datenschutz und Löschfrist");
+  await expect(page.locator("#tv-privacy .sub")).toHaveText("Feibeitsblatt ist ein privates, nicht kommerzielles Angebot, kein Angebot einer Schule. Verantwortlich für die Verarbeitung ist der Betreiber dieser Seite – ihn nennt der Datenschutzhinweis, den die Schüler:innen vor dem Schreiben sehen (Informationspflicht nach Art. 13 DSGVO). Hier legen Sie fest, wann Abgaben und Erstversuche automatisch gelöscht werden.");
+  // Betreiber und Aufsichtsbehörde: schreibgeschützt (fest in index.html), keine Schulfelder und keine Vorlage „Hessen“ mehr
+  await expect(page.locator("#tv-privacy h2.pvh").first()).toHaveText("Verantwortlich (fest in index.html eingetragen)");
+  await expect(page.locator("#pv-operator p")).toHaveText([OP.name + ", " + OP.addr + ", E-Mail: " + OP.email,
+    "Feibeitsblatt ist ein privates, nicht kommerzielles und kostenloses Angebot – kein Angebot einer Schule.",
+    "Zuständige Datenschutz-Aufsichtsbehörde: " + OP_AUTH + ", datenschutz.hessen.de (öffnet in neuem Tab)"]);
+  await expect(page.locator("#pv-operator input, #pv-operator textarea")).toHaveCount(0);
+  await expect(page.locator("#pv-operator-hint a")).toHaveAttribute("href", "#impressum");
+  await expect(page.locator("#pv-operator-hint a")).toHaveAttribute("target", "_blank");
+  for (const id of ["pv-name", "pv-addr", "pv-dpo", "pv-basis", "pv-auth", "pv-url", "pv-hessen"]) await expect(page.locator("#" + id)).toHaveCount(0);
   await expect(page.locator("#pv-days")).toHaveValue("30");
+  await expect(page.locator("#pv-days")).toBeFocused();
   await expect(page.locator("#pv-days option")).toHaveText(["7 Tagen", "14 Tagen", "30 Tagen (Vorgabe)", "60 Tagen", "90 Tagen", "180 Tagen", "365 Tagen"]);
   await expect(page.locator("#pv-status")).toHaveText("Die Löschfrist von 30 Tagen ist die Vorgabe dieser Installation – mit „Speichern“ legen Sie sie selbst fest.");
   await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
   const pv = page.locator("#pv-preview");
   expect(await pv.locator("details.privfull").evaluate((e) => e.open)).toBe(true);   // Vorschau aufgeklappt
   await expect(pv.locator("h3.privh")).toHaveText(PRIV_HEADS);
-  await expect(pv).toContainText("Verantwortlich ist deine Schule.");
+  await expect(pv.locator(".privacy")).toContainText(OP_SHORT);
+  await expect(pv).toContainText(OP_RESP);
   // die Vorschau gilt für diese Adresse (Worker): GitHub nur für die Checklisten-Seite, für die ganze Seite als Zusatz darunter
   // (Zwischenstand-PDF und QR-Code führen auf GitHub Pages)
-  await expect(pv.locator("details.privfull li", { hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
+  await expect(recipients(pv, "h3").filter({ hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
   await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), " +
     "nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
     "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
     "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“).");
-  await page.fill("#pv-name", SCHOOL.name);
-  await page.fill("#pv-addr", SCHOOL.address);
-  await page.fill("#pv-dpo", SCHOOL.dpo);
-  await page.fill("#pv-url", "http://example.org/datenschutz");   // nur https
-  await page.click("#pv-save");
-  await expect(page.locator("#pv-status")).toHaveText("Bitte geben Sie die Datenschutzerklärung der Schule als vollständige Adresse mit https:// an (höchstens 500 Zeichen).");
-  await expect(page.locator("#pv-url")).toHaveClass(/invalid/);
-  await expect(page.locator("#pv-url")).toBeFocused();
-  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value)).toMatchObject({ retentionDays: 30, auto: true });   // nichts gespeichert
-  await page.fill("#pv-url", SCHOOL.url);
-  // Vorschläge für Hessen: leere Felder ohne Nachfrage; eigene Eingaben nur nach Bestätigung ersetzen
-  await expect(page.locator("#pv-hessen-hint")).toContainText("Voraussetzung: Ihre Schule führt Feibeitsblatt selbst ein (Schulleitung, Datenschutzbeauftragte:r). Bitte abstimmen.");
-  await page.click("#pv-hessen");
-  await expect(page.locator("#pv-basis")).toHaveValue(HESSEN_BASIS);
-  await expect(page.locator("#pv-auth")).toHaveValue(HESSEN_AUTH);
-  await page.fill("#pv-auth", "Eigene Angabe");
-  await page.click("#pv-hessen");
-  expect(await confirmDialog(page, "Vorschläge einsetzen?", false)).toBe("Ihre Eingaben bei „Rechtsgrundlage“ und „Aufsichtsbehörde“ werden durch die Vorschläge für Hessen ersetzt.");
-  await expect(page.locator("#pv-auth")).toHaveValue("Eigene Angabe");
-  await page.click("#pv-hessen");
-  await confirmDialog(page, "Vorschläge einsetzen?");
-  await expect(page.locator("#pv-auth")).toHaveValue(HESSEN_AUTH);
-  // Vorschau mit den (noch ungespeicherten) Eingaben – derselbe Baustein wie bei den Schüler:innen
+  // Vorschau mit der (noch ungespeicherten) Frist – derselbe Baustein wie bei den Schüler:innen
   await page.selectOption("#pv-days", String(DAYS));
   await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
-  await expect(pv.locator(".privacy")).toContainText("Verantwortlich ist " + SCHOOL.name + ".");
   await expect(pv.locator(".privacy")).toContainText("Nach " + DAYS + " Tagen werden sie automatisch gelöscht.");
-  await expect(pv).toContainText(SCHOOL.name + ", " + SCHOOL.address + ". Bei Fragen kannst du dich auch an deine Lehrkraft wenden.");
-  await expect(pv).toContainText(SCHOOL.dpo);
-  await expect(pv).toContainText(HESSEN_BASIS);
+  await expect(pv).toContainText("wird " + DAYS + " Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach)");
   await expect(pv).toContainText("Für Übermittlungen in die USA stützt sich Cloudflare auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.");
-  await expect(pv).toContainText("beschweren – zuständig ist: " + HESSEN_AUTH + ".");
-  const link = pv.locator("a");
-  await expect(link).toHaveAttribute("href", SCHOOL.url);
+  await expect(pv).toContainText(OP_COMPLAIN);
+  const link = pv.locator(`a[href="${OP_AUTH_URL}"]`);
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toHaveAttribute("rel", "noopener noreferrer");
   await expect(link.locator(".sr-only")).toHaveText(" (öffnet in neuem Tab)");
+  await shots(page, "lehrkraft-datenschutz", [375, 1280], PRIVAT_SHOTS);
+  // eine ältere, noch gecachte Seite schickte Schulangaben mit: der Server speichert trotzdem nur die Frist
+  await page.route("**/api/teacher/privacy", async (r) => {
+    if (r.request().method() !== "PUT") return r.continue();
+    const body = JSON.parse(r.request().postData());
+    expect(Object.keys(body).sort()).toEqual(["confirmDelete", "retentionDays"]);   // die Seite schickt nur die Frist
+    return r.continue({ postData: JSON.stringify({ ...body, school: { name: "Musterschule am See" } }) });
+  });
   await page.click("#pv-save");
-  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Löschfrist beim nächsten Öffnen eines Feibeitsblattes.");
   await expect(page.locator("#pv-status")).toHaveClass(/\bok\b/);
+  await page.unroute("**/api/teacher/privacy");
   const stored = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value);
-  expect(stored).toMatchObject({ v: 1, retentionDays: DAYS, school: { ...SCHOOL, legalBasis: HESSEN_BASIS, authority: HESSEN_AUTH } });
-  expect(stored.auto).toBeUndefined();   // jetzt von der Lehrkraft festgelegt
+  expect(Object.keys(stored).sort()).toEqual(["retentionDays", "updatedAt", "v"]);   // jetzt von der Lehrkraft festgelegt (kein auto), keine Schule
+  expect(stored).toMatchObject({ v: 1, retentionDays: DAYS });
   await page.click("#pv-back");   // gespeichert → ohne Nachfrage zurück
   await expect(page.locator("#tv-overview")).toBeVisible();
   await expect(page.locator("#t-privwarn")).toBeHidden();
-  await expect(page.locator("#t-privinfo")).toHaveText("Datenschutzhinweis für: " + SCHOOL.name + ". Abgaben und Erstversuche werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht.");
-  // ungespeicherte Änderung → Nachfrage beim Zurückgehen
+  await expect(page.locator("#t-privinfo")).toHaveText(OP_INFO + "Abgaben und Erstversuche werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht.");
+  // früher gespeicherte Angaben einer Schule (ältere Version): das Aufräumen beim Laden der Übersicht entfernt sie, die Frist bleibt
+  await d1Query(`UPDATE settings SET value=json_set(value,'$.school',json('{"name":"Musterschule am See","dpo":"ds@example.org"}')) WHERE key='privacy'`);
+  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value).school.name).toBe("Musterschule am See");
+  await page.locator("#t-sheets-body tr", { hasText: S.shown }).click();
+  await page.click("#t-refresh");   // lädt die Übersicht neu (GET /api/teacher/sheets räumt vorher auf)
+  await expect(page.locator("#t-refresh")).toHaveText("Aktualisieren");
+  await expect.poll(async () => JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value)).toEqual(stored);
+  // ungespeicherte Änderung der Frist → Nachfrage beim Zurückgehen
   await page.click("#t-privacy");
-  await expect(page.locator("#pv-name")).toHaveValue(SCHOOL.name);
   await expect(page.locator("#pv-days")).toHaveValue(String(DAYS));
   await expect(page.locator("#pv-status")).toHaveText("");
-  await page.fill("#pv-name", "Andere Schule");
+  await page.selectOption("#pv-days", "60");
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
   await page.click("#pv-back");
-  await confirmDialog(page, "Ohne Speichern zurück?");
+  expect(await confirmDialog(page, "Ohne Speichern zurück?")).toBe("Die geänderte Löschfrist geht verloren.");
   await expect(page.locator("#tv-overview")).toBeVisible();
-  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value).school.name).toBe(SCHOOL.name);
+  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value).retentionDays).toBe(DAYS);
+  // der Link im Kasten öffnet „Impressum & Datenschutz“ in einem neuen Tab – mit der gespeicherten Frist
+  await page.click("#t-privacy");
+  const [ip] = await Promise.all([page.context().waitForEvent("page"), page.click("#pv-operator-hint a")]);
+  await checkLegal(ip, { days: DAYS });
+  await ip.close();
+  await page.click("#pv-back");
   await closePage(t);
 });
 
@@ -876,21 +1000,21 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(lookup.status).toBe(200);
   await expect(page.locator("#p-sheet")).toContainText(TITLE);
   await expect(page.locator("#p-sheet small")).toHaveText("Code " + S.shown + " · 3 Aufgaben");
-  // Datenschutzhinweis zum Zeitpunkt der Erhebung: mit den Angaben der Schule (Test 1b), alles nur per textContent
-  await expect(page.locator("#p-privacy-short")).toContainText("Verantwortlich ist " + SCHOOL.name + ". Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft. Nach " + DAYS + " Tagen werden sie automatisch gelöscht.");
+  // Datenschutzhinweis zum Zeitpunkt der Erhebung: Betreiber und die in Test 1b gespeicherte Frist, alles nur per textContent
+  await expect(page.locator("#p-privacy-short")).toContainText(OP_SHORT + " Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft. Nach " + DAYS + " Tagen werden sie automatisch gelöscht.");
   await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);
   const pfull = page.locator("#p-privfull");
   await pfull.locator("summary").click();
-  await expect(pfull).toContainText(SCHOOL.name + ", " + SCHOOL.address + ".");
-  await expect(pfull).toContainText(SCHOOL.dpo);
-  await expect(pfull).toContainText(HESSEN_BASIS);
+  await expect(pfull).toContainText(OP_RESP);
+  await expect(pfull.locator('h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText(privBases(true, DELIVER_WORKER));
   await expect(pfull).toContainText("Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU.");
   await expect(pfull).toContainText("LanguageTool (Learneo, Inc., USA)");
-  await expect(pfull).toContainText("zuständig ist: " + HESSEN_AUTH + ".");
+  await expect(pfull).toContainText(OP_COMPLAIN);
   await expect(pfull).toContainText("wird " + DAYS + " Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach)");
-  await expect(pfull.locator("a")).toHaveAttribute("href", SCHOOL.url);
-  await expect(pfull.locator("a")).toHaveAttribute("target", "_blank");
-  expect(await pfull.locator("a").getAttribute("rel")).toBe("noopener noreferrer");
+  const auth = pfull.locator(`a[href="${OP_AUTH_URL}"]`);
+  await expect(auth).toHaveAttribute("target", "_blank");
+  expect(await auth.getAttribute("rel")).toBe("noopener noreferrer");
+  await expect(pfull.locator('a[href^="mailto:"]')).toHaveText([OP.email, OP.email]);   // Verantwortlicher und Kontakt für die Rechte
   await pfull.locator("summary").click();   // wieder zu
 
   // Angaben: Prüfungen der Reihe nach
@@ -1063,7 +1187,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   // darunter alle Informationen (beim Weiterschreiben gibt es keinen Angaben-Bildschirm) – Überschriften unter h2 „Abschluss“ als h3
   await expect(page.locator("#privfull-ed details.privfull summary")).toHaveText("Alle Informationen zum Datenschutz");
   await expect(page.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS);
-  await expect(page.locator("#privfull-ed")).toContainText(SCHOOL.name);
+  await expect(page.locator("#privfull-ed")).toContainText(OP_RESP);
 
   // Abstand zur nächsten Aufgabe: eine Leerzeile
   expect(Math.abs((await gapAfterTask(page, 1)) - lh)).toBeLessThan(1);
@@ -1491,8 +1615,8 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-add")).toHaveText("Person hinzufügen");
   await expect(page.locator("#p-add-hint")).toBeHidden();
   await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT_GROUP);
-  await expect(page.locator("#p-privacy-short")).toHaveText(new RegExp("^Datenschutz: Verantwortlich ist " + SCHOOL.name + "\\. Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur eure Lehrkraft\\. " +
-    "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Das KI-Feedback ist freiwillig: Nur wenn ihr es anfordert, gehen eure Antworten – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: von der Lehrkraft zu prüfen\\)“, " +
+  await expect(page.locator("#p-privacy-short")).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur eure Lehrkraft\\. " +
+    "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Das KI-Feedback ist freiwillig: Nur wenn ihr es anfordert, gehen eure Antworten – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, " +
     "bei der Abgabe dann noch einmal in der abgegebenen Fassung\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
   // auch alle Informationen zum Datenschutz in der „ihr“-Form (derselbe Inhalt; „Welche Daten?“ nennt beide Arbeitsformen)
   await page.locator("#p-privfull summary").click();
@@ -1502,6 +1626,14 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-privfull")).toContainText("Eure Lehrkraft – nur sie kann eure auf dem Server gespeicherten Angaben und Antworten lesen.");
   await expect(page.locator("#p-privfull")).toContainText("Jede und jeder von euch kann Auskunft über die eigenen gespeicherten Daten verlangen");
   await expect(page.locator("#p-privfull")).toContainText("– ohne eure Namenskürzel und die Klasse –");
+  await expect(page.locator("#p-privfull")).toContainText(OP_RESP + " Eure Angaben und Antworten liest eure Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen könnt ihr euch an den Betreiber oder an eure Lehrkraft wenden.");
+  await expect(page.locator('#p-privfull h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText([
+    "Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand, der Erstversuch und die Abgabe – und das KI-Feedback, wenn ihr es anfordert: Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert diese Funktionen selbst an.",
+    "Rechtschreibprüfung (LanguageTool): eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Ihr gebt sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und eurer Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr die Prüfung nicht mehr nutzt.",
+    "Aufruf und Auslieferung dieser Seite (" + DELIVER_WORKER + ") und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen könnt ihr Widerspruch einlegen (siehe „Eure Rechte“).",
+    "Speichern im Browser eures Geräts (euer Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."]);
+  await expect(page.locator("#p-privfull")).toContainText("Wendet euch dafür an den Betreiber (E-Mail: " + OP.email + ").");
+  await expect(page.locator("#p-privfull")).toContainText("Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren – für den Betreiber zuständig ist: " + OP_AUTH + ", datenschutz.hessen.de (öffnet in neuem Tab).");
   expect(await page.locator("#p-privfull").textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
   await page.locator("#p-privfull summary").click();
 
@@ -1804,8 +1936,8 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await expect(page.locator("#screen-person")).not.toHaveClass(/active/);
   await page.locator("#privfull-ed summary").click();
   await expect(page.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS);
-  await expect(page.locator("#privfull-ed")).toContainText(SCHOOL.name + ", " + SCHOOL.address + ".");
-  await expect(page.locator("#privfull-ed")).toContainText(HESSEN_BASIS);
+  await expect(page.locator("#privfull-ed")).toContainText(OP_RESP);
+  await expect(page.locator('#privfull-ed h3.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText(privBases(true, DELIVER_WORKER));
   await expect(page.locator(".ltbtn")).toHaveCount(3);
   await expect(page.locator(".lt-off")).toHaveCount(0);
   for (let i = 0; i < 3; i++) expect(await page.inputValue("#a-" + (i + 1))).toBe(B.first[i]);
@@ -2487,7 +2619,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
   expect(sheets.map((s) => s.code)).toEqual([S.code]);
   const settings = await d1Query("SELECT key, value FROM settings ORDER BY key");
   expect(settings.map((s) => s.key)).toEqual(["ai", "privacy", "teacher"]);
-  expect(Object.keys(JSON.parse(settings[1].value)).sort()).toEqual(["retentionDays", "school", "updatedAt", "v"]);   // nur Angaben der Schule
+  expect(Object.keys(JSON.parse(settings[1].value)).sort()).toEqual(["retentionDays", "updatedAt", "v"]);   // nur die Löschfrist (keine Schulangaben)
   for (const f of forbidden) expect(settings[1].value).not.toContain(f);
   const ai = JSON.parse(settings[0].value);
   expect(ai.apiKey).toBeUndefined();                // mit SETTINGS_SECRET verschlüsselt
@@ -2510,8 +2642,8 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     const j = JSON.parse(body);
     expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "privacy", "publicKey", "tasks", "title"]);
     expect(j.sheet.aiFeedback).toBe(true);
-    expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX, transfer: "von der Schule beim Anbieter zu prüfen" }]);
-    expect(j.sheet.privacy).toEqual({ school: { ...SCHOOL, legalBasis: HESSEN_BASIS, authority: HESSEN_AUTH }, retentionDays: DAYS });   // ohne updatedAt
+    expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX, transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }]);
+    expect(j.sheet.privacy).toEqual({ retentionDays: DAYS });   // nur die Frist (ohne updatedAt; verantwortlich ist der Betreiber, fest in index.html)
     expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, textFmt: [], material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
@@ -3743,14 +3875,14 @@ test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (d
   await expect(row.locator("td").nth(4)).toHaveText("3");   // innerhalb der Frist von 14 Tagen bleibt alles
   await expect(page.locator("#t-subs-sum")).toHaveText("3 Abgaben");
 
-  // Laden scheitert: Formular und „Speichern“ bleiben gesperrt (sonst stünden leere Felder und eine falsche Frist darin, und
-  // „Speichern“ überschriebe die Angaben und löschte ohne Nachfrage); „Erneut laden“ holt den Stand
+  // Laden scheitert: Frist und „Speichern“ bleiben gesperrt (sonst stünde eine falsche Frist darin, und „Speichern“ überschriebe
+  // sie und löschte ohne Nachfrage); „Erneut laden“ holt den Stand
   await page.route("**/api/teacher/privacy", (r) => r.request().method() === "GET"
     ? r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Der Server ist gerade nicht erreichbar.", code: "unavailable" }) })
     : r.continue());
   await page.click("#t-privacy");
-  await expect(page.locator("#pv-status")).toHaveText("Die gespeicherten Angaben konnten nicht geladen werden: Der Server ist gerade nicht erreichbar. Speichern ist erst möglich, wenn sie geladen sind.");
-  for (const id of ["#pv-save", "#pv-days", "#pv-name", "#pv-hessen"]) await expect(page.locator(id)).toBeDisabled();
+  await expect(page.locator("#pv-status")).toHaveText("Die gespeicherte Löschfrist konnte nicht geladen werden: Der Server ist gerade nicht erreichbar. Speichern ist erst möglich, wenn sie geladen ist.");
+  for (const id of ["#pv-save", "#pv-days"]) await expect(page.locator(id)).toBeDisabled();
   await expect(page.locator("#pv-days-effect")).toHaveText("");
   await expect(page.locator("#pv-reload")).toBeVisible();
   await expect(page.locator("#pv-reload")).toBeFocused();
@@ -3758,7 +3890,6 @@ test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (d
   await page.click("#pv-reload");
   await expect(page.locator("#pv-save")).toBeEnabled();
   await expect(page.locator("#pv-reload")).toBeHidden();
-  await expect(page.locator("#pv-name")).toHaveValue(SCHOOL.name);
   await expect(page.locator("#pv-days")).toHaveValue(String(DAYS));
 
   // Kürzen auf 7 Tage: die Seite nennt, was jetzt gelöscht würde, und fragt vor dem Speichern nach (Abbrechen ändert nichts)
@@ -3787,7 +3918,7 @@ test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (d
   expect(await idsNow()).toEqual(ids);
   await page.click("#pv-save");
   await confirmDialog(page, "Ältere Abgaben jetzt löschen?");
-  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes. 2 ältere Einträge wurden gelöscht.");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Löschfrist beim nächsten Öffnen eines Feibeitsblattes. 2 ältere Einträge wurden gelöscht.");
   await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
   expect(await idsNow()).toEqual([ids[0]]);
   // Speichern scheitert (Server-Fehler): nichts gespeichert, nichts gelöscht, die Seite sagt es
@@ -3801,7 +3932,7 @@ test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (d
   expect(await storedDays()).toBe(7);
   // wieder verlängern: gilt auch für schon gespeicherte Abgaben → Hinweis, die Schüler:innen neu zu informieren
   await page.click("#pv-save");
-  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes. Die längere Frist gilt auch für schon gespeicherte Abgaben – informieren Sie die Schüler:innen neu.");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Löschfrist beim nächsten Öffnen eines Feibeitsblattes. Die längere Frist gilt auch für schon gespeicherte Abgaben – informieren Sie die Schüler:innen neu.");
   // zurück: die Übersicht lädt Blätter und Abgaben neu (gelöschte Einträge zählen sofort nicht mehr – ohne „Aktualisieren“)
   await page.click("#pv-back");
   await expect(page.locator("#t-privinfo")).toContainText(DAYS + " Tage nach dem Eingang automatisch gelöscht.");
@@ -4121,7 +4252,9 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   await expect(page.locator("#chk-sheet")).toHaveText("Code " + shown);
   await expect(page.locator("#chk-open")).toBeVisible();
   await expect(page.locator("#chk-body")).toBeHidden();
-  await expect(page.locator("#chk-privacy")).toHaveText("Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Beim Laden dieser Seite und der Checkliste verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts. Alle Informationen zum Datenschutz – auch, wer verantwortlich ist, und was mit den Häkchen geschieht – bekommst du, wenn du das Feibeitsblatt mit seinem Code digital öffnest (auf der Startseite „Weiter“).");
+  await expect(page.locator("#chk-privacy")).toHaveText("Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Beim Laden dieser Seite und der Checkliste verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts. Alle Informationen zum Datenschutz – auch, wer verantwortlich ist, und was mit den Häkchen geschieht – findest du unter „Impressum & Datenschutz“ ganz unten auf der Seite; " +
+    "passend zu deinem Feibeitsblatt auch, wenn du es mit seinem Code digital öffnest (auf der Startseite „Weiter“).");
+  await expect(page.locator("#foot-legal")).toBeVisible();   // der Link dorthin steht auch unter der Checkliste
 
   // Lehrkraft: Grenzen wie der Server; dann einen Punkt ändern, einen ergänzen (Doppeltes und Leerzeilen entfallen) → speichern
   await tp.fill("#ck-2", Array.from({ length: 9 }, (_, k) => "Punkt " + (k + 1)).join("\n"));

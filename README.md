@@ -15,6 +15,10 @@ Technisch besteht Feibeitsblatt aus einer Webseite (`index.html`) und einem klei
 einer D1-Datenbank in der EU), beides im kostenlosen Tarif von Cloudflare. Die Abgaben werden schon im Browser der
 Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
 
+Feibeitsblatt ist ein privates, nicht kommerzielles und kostenloses Angebot – kein Angebot einer Schule. Verantwortlich
+für den Datenschutz ist der Betreiber der jeweiligen Installation; seine Angaben stehen fest ganz oben in `index.html`
+und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, siehe [Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)).
+
 **Inhalt**
 
 - [So arbeiten Schüler:innen](#so-arbeiten-schülerinnen)
@@ -33,7 +37,9 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
 1. **Code eingeben.** Die Seite öffnen und den Code der Lehrkraft eintragen, z. B. `K7Q-M4X`. Groß- und
    Kleinschreibung, Leerzeichen und Bindestrich spielen keine Rolle. Codes haben sechs Zeichen und enthalten nie
    die leicht verwechselbaren Zeichen I, L, O, 0 und 1. Ein Satz unter dem Formular sagt, dass schon beim Laden der
-   Seite die IP-Adresse verarbeitet wird und alle Informationen zum Datenschutz nach dem Code folgen.
+   Seite die IP-Adresse verarbeitet wird und wo alle Informationen zum Datenschutz stehen: unter „Impressum &
+   Datenschutz“ (Link in der Fußzeile jeder Seite; er öffnet die Seite in einem neuen Tab, damit nichts verloren geht)
+   und nach dem Code passend zum Feibeitsblatt.
 2. **Arbeitsform wählen.** Nach dem Code fragt die Seite „Wie arbeitest du?“: **„Einzelarbeit“** oder **„Partner- /
    Gruppenarbeit“** (zu zweit oder in einer Gruppe von bis zu 10 Personen an einem Gerät, gemeinsame Abgabe).
    „← anderen Code eingeben“ führt zurück zur Startseite. Wer über „Weiterschreiben“ oder eine Zwischenstand-PDF
@@ -48,8 +54,8 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    einträgt, trägt die Kürzel der anderen mit ein; der Hinweis unter den Feldern bittet, nur Personen einzutragen, die
    mitarbeiten und davon wissen. „← zurück zur Auswahl“ führt zur Arbeitsform zurück. Dann „Schreibbereich öffnen“.
    Unter den Feldern steht – zum Zeitpunkt, an dem die Angaben erhoben werden – ein kurzer
-   Datenschutzhinweis mit Ihrer Schule und der Löschfrist; „Alle Informationen zum Datenschutz“ klappt den
-   vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Datenschutz-Angaben und Löschfrist](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen));
+   Datenschutzhinweis mit dem Betreiber (verantwortlich) und der Löschfrist; „Alle Informationen zum Datenschutz“ klappt den
+   vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Betreiber und Löschfrist](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen));
    bei Partner- oder Gruppenarbeit stehen beide in der „ihr“-Form (im Schreibbereich bleibt es beim „du“).
    Derselbe Hinweis steht im Schreibbereich unter dem Feedback-Button – auch für alle, die über „Weiterschreiben“
    kommen und die Angaben nicht noch einmal sehen. Der Hinweis unter dem Feld „Klasse“ sagt, wann die Angaben
@@ -372,7 +378,7 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    vorher nach). Die Sicherung („Als PDF-Datei herunterladen“) und „Als Vorlage verwenden“ tragen die Checkliste nicht
    mit: Ein neues Blatt bekommt beim ersten Öffnen einen neuen Vorschlag.
 8. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
-   Löschfrist“ festlegen ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Früher geht es ganz
+   Löschfrist“ festlegen ([Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)). Früher geht es ganz
    unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche werden mitgelöscht).
    Einen einzelnen Eintrag – etwa auf Wunsch einer Schülerin, eines Schülers oder der Eltern – löschen Sie in den
    aufgeklappten Details mit „Diesen Eintrag löschen“ (mit Rückfrage); ältere, ausgeblendete Erstversuche derselben
@@ -381,10 +387,10 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt. Darunter: „Feibeitsblatt
    selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu. Wollen Sie ein Blatt später
    wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6). Mit dem Blatt wird auch seine Checkliste gelöscht.
-9. **Weitere Schaltflächen** oben: „Datenschutz und Löschfrist“ (Angaben der Schule für den Datenschutzhinweis und die
-   automatische Löschung, siehe [Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)),
-   „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und „Abmelden“. Fehlen Angaben der Schule oder
-   eine Löschfrist, warnt die Übersicht in Rot; sonst nennt sie Schule und Frist. Unter der Tabelle zeigt die Übersicht, wie viel Speicher Bilder und PDF-Dateien aller
+9. **Weitere Schaltflächen** oben: „Datenschutz und Löschfrist“ (der Betreiber zum Ansehen und die automatische
+   Löschung, siehe [Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)),
+   „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und „Abmelden“. Fehlt eine Löschfrist, warnt die
+   Übersicht in Rot; sonst nennt sie den Betreiber und die Frist. Unter der Tabelle zeigt die Übersicht, wie viel Speicher Bilder und PDF-Dateien aller
    Feibeitsblätter zusammen belegen (höchstens 200 MB).
 
 ## Einrichtung (einmalig)
@@ -398,6 +404,10 @@ sich ändern und sind teils nur auf Englisch verfügbar; die englischen Namen st
 Liegt das Repository noch nicht in Ihrem eigenen GitHub-Konto: auf der Repository-Seite „Use this template“ →
 „Create a new repository“ (oder „Fork“) wählen. Bei einem Fork sind GitHub Actions zunächst abgeschaltet – einmal
 den Reiter „Actions“ öffnen und die Workflows aktivieren („I understand my workflows, go ahead and enable them“).
+
+Tragen Sie danach ganz oben in `index.html` unter `window.FEIBEITSBLATT_OPERATOR` **Ihre eigenen Angaben als Betreiber**
+ein (siehe [Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)) – sonst nennen Impressum und Datenschutzhinweis Ihrer Installation einen
+anderen Betreiber.
 
 ### Schritt 1: Cloudflare-Konto anlegen
 
@@ -529,34 +539,46 @@ Schlüsselfeld lässt den gespeicherten unverändert – aber nur für denselben
 Sie den Anbieter oder die Basis-URL, verlangt die Seite einen neuen Schlüssel; der alte wird nie an einen anderen
 Dienst geschickt.
 
-### Schritt 9: Datenschutz-Angaben und Löschfrist eintragen
+### Schritt 9: Betreiber prüfen und Löschfrist festlegen
 
 Die Schüler:innen müssen erfahren, wer für ihre Daten verantwortlich ist und wie lange sie gespeichert werden
-(Informationspflicht nach Art. 13 DSGVO). Verantwortlich ist Ihre Schule – stimmen Sie die Angaben mit der Schulleitung
-und der bzw. dem Datenschutzbeauftragten ab.
+(Informationspflicht nach Art. 13 DSGVO). Feibeitsblatt ist ein privates, nicht kommerzielles und kostenloses Angebot –
+kein Angebot einer Schule. Verantwortlich ist der **Betreiber** der Installation; seine Angaben stehen fest ganz oben in
+`index.html`, zusammen mit der für ihn zuständigen Datenschutz-Aufsichtsbehörde:
 
-1. In der Lehrkräfte-Übersicht auf **„Datenschutz und Löschfrist“** klicken.
-2. Eintragen: **Name der Schule**, **Anschrift und Kontakt**, **Kontakt der bzw. des Datenschutzbeauftragten**,
-   **Rechtsgrundlage**; optional die zuständige **Aufsichtsbehörde** und einen **Link zur Datenschutzerklärung** der
-   Schule (nur `https://`). Alles ist einzeilig; Zeilenumbrüche werden zu Leerzeichen.
-3. Für Hessen setzt **„Vorschläge für Hessen einsetzen“** die Rechtsgrundlage „Art. 6 Abs. 1 Buchst. e DSGVO in
-   Verbindung mit § 83 Abs. 1 und § 83a Abs. 1 Nr. 2 Hessisches Schulgesetz (HSchG)“ und als Aufsichtsbehörde den
-   Hessischen Beauftragten für Datenschutz und Informationsfreiheit (Postfach 3163, 65021 Wiesbaden,
-   poststelle@datenschutz.hessen.de) ein; eigene Eingaben ersetzt er nur nach Rückfrage. Voraussetzung für § 83a Abs. 1
-   Nr. 2 HSchG: Ihre Schule führt Feibeitsblatt selbst ein (Schulleitung, Datenschutzbeauftragte:r). Ob das auch das
-   freiwillige KI-Feedback trägt oder Ihre Schule dafür eine Einwilligung verlangt, klären Sie bitte dort.
-4. **Löschfrist** wählen: 7, 14, 30 (Vorgabe), 60, 90, 180 oder 365 Tage. Gezählt wird ab dem Eingang auf dem Server –
+```js
+window.FEIBEITSBLATT_OPERATOR = {
+  name: "Vorname Nachname", street: "Straße Nr.", city: "PLZ Ort", country: "Deutschland",
+  email: "name@example.org",
+  authority: { name: "Name der Aufsichtsbehörde", address: "Anschrift", url: "https://…" },
+};
+```
+
+Daraus entstehen die Seite **„Impressum & Datenschutz“** (Adresse mit `#impressum`, z. B.
+`https://feibeitsblatt.janrickmer.de/#impressum`; der Link „Impressum & Datenschutz“ steht unten auf jeder Seite und
+öffnet sie in einem neuen Tab) mit den Angaben nach § 18 Abs. 1 Medienstaatsvertrag und darunter dem vollständigen
+Datenschutzhinweis, sowie die Angaben „Wer ist verantwortlich?“ und „Deine Rechte“ im Hinweis auf dem Angaben-Bildschirm
+und im Schreibbereich. **Bei einer eigenen Installation** tragen Sie dort Ihre eigenen Angaben und die für Sie zuständige
+Aufsichtsbehörde ein (die E-Mail-Adresse nur in einfacher Form, die Webadresse der Behörde nur mit `https://`) und
+veröffentlichen die Seite neu; die Browser-Tests erwarten dieselben Angaben (`OP` in `test/e2e/feibeitsblatt.spec.mjs`).
+In der Datenbank stehen diese Angaben nicht; Angaben einer Schule, die ältere Versionen dort gespeichert haben, entfernt
+der Server beim nächsten Aufräumen.
+
+1. In der Lehrkräfte-Übersicht auf **„Datenschutz und Löschfrist“** klicken. Oben steht schreibgeschützt der Betreiber
+   mit der Aufsichtsbehörde – prüfen Sie, ob die Angaben stimmen (ändern lassen sie sich nur in `index.html`).
+2. **Löschfrist** wählen: 7, 14, 30 (Vorgabe), 60, 90, 180 oder 365 Tage. Gezählt wird ab dem Eingang auf dem Server –
    bei einem Erstversuch, den die Abgabe später ersetzt, ab der Abgabe. Die Seite zeigt sofort, wie viele ältere
    Einträge die gewählte Frist jetzt löschen würde, und fragt vor dem Speichern nach („Ältere Abgaben jetzt löschen?“) –
    gelöscht wird dann sofort und endgültig. Eine längere Frist gilt auch für schon gespeicherte Abgaben; informieren
    Sie die Schüler:innen dann neu.
-5. Unten zeigt eine **Vorschau** den Hinweis für ein Feibeitsblatt mit KI-Feedback, so wie er unter der Adresse
+3. Unten zeigt eine **Vorschau** den Hinweis für ein Feibeitsblatt mit KI-Feedback, so wie er unter der Adresse
    erscheint, unter der Sie die Seite geöffnet haben (mit den KI-Empfängern aus den KI-Einstellungen). Darunter steht,
    was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
    Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub als Empfänger für die ganze
    Seite (unter der Worker-Adresse nur für die Checklisten-Seite hinter dem QR-Code); bei Blättern ohne Auftrag an die KI
    entfallen die Angaben zum KI-Feedback; bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
-   Angaben-Bildschirm in der „ihr“-Form (derselbe Inhalt). „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
+   Angaben-Bildschirm in der „ihr“-Form (derselbe Inhalt). „Speichern“ – die Schüler:innen sehen die Löschfrist beim
+   nächsten Öffnen eines Feibeitsblattes, die Seite „Impressum & Datenschutz“ sofort.
 
 Gelöscht wird einmal täglich in der Nacht (02:17 Uhr UTC, Cron Trigger) und zusätzlich, wenn Sie die Übersicht öffnen
 (dabei räumt der Server auch abgelaufene Zähler und Sperren ab).
@@ -564,10 +586,7 @@ Feibeitsblätter selbst bleiben, bis Sie sie löschen. Danach hält Cloudflare g
 einem bezahlten Cloudflare-Tarif bis zu 30 Tage) in der Wiederherstellungsfunktion der Datenbank vor (D1 Time Travel).
 **Eine Neuinstallation** (noch ohne Feibeitsblätter) löscht von Anfang an nach 30 Tagen – die Übersicht zeigt dann
 „(Vorgabe …)“, bis Sie die Frist selbst speichern. **Bei einer bestehenden Installation** (nach einem Update) wird erst
-automatisch gelöscht, wenn Sie eine Frist gespeichert haben; bis dahin warnt die Übersicht. Solange die Angaben der
-Schule fehlen, sehen die Schüler:innen einen allgemeinen, ehrlichen Hinweis („Verantwortlich ist deine Schule … frag
-deine Lehrkraft“), und die Übersicht warnt, dass das der Informationspflicht nicht genügt. Was Sie eintragen, prüft
-niemand inhaltlich – es erscheint so bei den Schüler:innen.
+automatisch gelöscht, wenn Sie eine Frist gespeichert haben; bis dahin warnt die Übersicht.
 
 ### Schritt 10: Das erste Feibeitsblatt
 
@@ -791,10 +810,36 @@ Für Entwickler:innen geht das auch per Kommandozeile, z. B.
 
 ## Datenschutz
 
-Feibeitsblatt ist auf Datensparsamkeit und Verschlüsselung ausgelegt. Ob der Einsatz an Ihrer Schule
-datenschutzkonform ist, hängt aber auch von Entscheidungen und Maßnahmen außerhalb der Software ab.
-**Technische Maßnahmen allein können die DSGVO-Konformität nicht garantieren.** Dieser Abschnitt beschreibt
-ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung.
+Feibeitsblatt ist auf Datensparsamkeit und Verschlüsselung ausgelegt. Ob der Betrieb datenschutzkonform ist, hängt
+aber auch von Entscheidungen und Maßnahmen außerhalb der Software ab. **Technische Maßnahmen allein können die
+DSGVO-Konformität nicht garantieren.** Dieser Abschnitt beschreibt ehrlich, was wo gespeichert und wohin gesendet wird;
+er ist keine Rechtsberatung.
+
+### Verantwortlicher und Rechtsgrundlagen
+
+Feibeitsblatt ist ein privates, nicht kommerzielles und kostenloses Angebot – kein Angebot einer Schule. Verantwortlich
+ist der Betreiber, den `window.FEIBEITSBLATT_OPERATOR` ganz oben in `index.html` nennt (für diese Installation Jan-Rickmer
+Feindt; bei einer eigenen Installation Sie selbst, siehe [Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)).
+Abgaben lesen kann nur die Lehrkraft mit dem Lehrkraft-Zugang. Einen Datenschutzbeauftragten nennt der Hinweis nicht.
+Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
+
+- **Bearbeiten und Abgeben** – Angaben (bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder), Zwischenstand,
+  Erstversuch, Abgabe – und das **freiwillige KI-Feedback**, das nur auf Klick angefordert wird: Art. 6 Abs. 1 Buchst. b
+  DSGVO (Nutzung dieses kostenlosen Angebots, die die Schüler:innen selbst anfordern). Bewusst keine Einwilligung für
+  das KI-Feedback und keine Altersabfrage dafür.
+- **Rechtschreibprüfung (LanguageTool):** Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO – erteilt mit dem Klick und der
+  Bestätigung im Dialog (ohne Bestätigung wird nichts gesendet), für die Zukunft widerrufbar, indem man die Prüfung nicht
+  mehr nutzt.
+- **Aufruf und Auslieferung der Seite** (Cloudflare, ggf. GitHub Pages) und **Schutz vor Missbrauch und Überlastung**
+  (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO (berechtigtes Interesse an einer sicheren
+  und zuverlässigen Bereitstellung); dazu nennt der Hinweis das Widerspruchsrecht nach Art. 21 DSGVO.
+- **Speichern im Browser** (Zwischenstand, Häkchen der Checkliste): § 25 Abs. 2 Nr. 2 TDDDG (für die gewünschte Funktion
+  unbedingt erforderlich).
+
+Für Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und den Widerruf nennt der Hinweis den Betreiber (E-Mail);
+weil nur die Lehrkraft die verschlüsselten Abgaben lesen und einzeln löschen kann, verweist er auch auf sie. Beschweren
+kann man sich bei der Aufsichtsbehörde aus `window.FEIBEITSBLATT_OPERATOR` (für diese Installation der Hessische
+Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden).
 
 ### Was gespeichert wird
 
@@ -806,7 +851,8 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
 | Checkliste zum analogen Arbeitsblatt: Vorschlag der KI (Entwurf) und die von Ihnen gespeicherten Punkte | Cloudflare D1 (EU), Tabelle `sheet_checklists` | unverschlüsselt; die gespeicherte Fassung (nie der Entwurf) ist für alle abrufbar, die den Code bzw. den QR-Code kennen | bis Sie das Blatt löschen |
-| Datenschutz-Angaben der Schule (Name, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage, Aufsichtsbehörde, Link) und Löschfrist | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; für alle abrufbar, die einen Code kennen (die Schüler:innen sehen sie im Datenschutzhinweis) | bis Sie sie ändern |
+| Löschfrist (früher gespeicherte Angaben einer Schule entfernt der Server beim Aufräumen) | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; öffentlich abrufbar (Datenschutzhinweis eines Blattes, Seite „Impressum & Datenschutz“ über `GET /api/privacy`) | bis Sie sie ändern |
+| Angaben des Betreibers (Name, Anschrift, E-Mail, Aufsichtsbehörde) | in `index.html` (`window.FEIBEITSBLATT_OPERATOR`), nicht in der Datenbank | öffentlich (Impressum, Datenschutzhinweis) | bis sie in `index.html` geändert werden |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
 | KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert; Workers AI hat keinen) | bis Sie sie ändern |
 | Geschätzter Verbrauch von Workers AI je Tag (Zahl der Anfragen und Neurons, keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
@@ -837,15 +883,16 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 
 - **Aufruf der Seite:** Beim Laden der Seite und beim Abruf eines Blattes verarbeitet Cloudflare (bei GitHub Pages auch
   GitHub) technisch die IP-Adresse des Geräts. Die Startseite sagt das in einem Satz; den vollständigen
-  Datenschutzhinweis nach Art. 13 DSGVO (mit Ihren Angaben aus [Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen))
-  sehen die Schüler:innen auf dem Angaben-Bildschirm und unter dem Feedback-Button. Die Checklisten-Seite hinter dem
-  QR-Code sagt es ebenfalls in einem Satz (dazu: die Häkchen bleiben auf dem Gerät) und verweist für alles Weitere (auch, wer
-  verantwortlich ist) auf den vollständigen Hinweis, der erscheint, wenn man das Blatt mit seinem Code digital öffnet (z. B.
-  über „Feibeitsblatt digital öffnen“ und „Weiter“); dieser beschreibt auch die Checklisten-Seite und wie lange die Häkchen
-  auf dem Gerät bleiben. Der vollständige Hinweis nennt alle
+  Datenschutzhinweis nach Art. 13 DSGVO (Betreiber aus `index.html`, Löschfrist aus [Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen))
+  sehen die Schüler:innen auf dem Angaben-Bildschirm, unter dem Feedback-Button und auf der Seite „Impressum &
+  Datenschutz“ (Link unten auf jeder Seite; dort mit der Löschfrist und den KI-Empfängern von `GET /api/privacy`, ohne
+  Code). Die Checklisten-Seite hinter dem QR-Code sagt es ebenfalls in einem Satz (dazu: die Häkchen bleiben auf dem
+  Gerät) und verweist für alles Weitere (auch, wer verantwortlich ist) auf „Impressum & Datenschutz“ und den Hinweis, der
+  erscheint, wenn man das Blatt mit seinem Code digital öffnet (z. B. über „Feibeitsblatt digital öffnen“ und „Weiter“);
+  der Hinweis beschreibt auch die Checklisten-Seite und wie lange die Häkchen auf dem Gerät bleiben. Der vollständige Hinweis nennt alle
   Empfänger mit der Grundlage der Übermittlung in die USA: Cloudflare und GitHub (EU-US Data Privacy Framework, ersatzweise
   Standardvertragsklauseln), den KI-Dienst (Workers AI wie Cloudflare, Groq: Standardvertragsklauseln laut Groq, andere:
-  „von der Schule beim Anbieter zu prüfen“) und LanguageTool (Learneo ist nach dem Data Privacy Framework zertifiziert,
+  „vom Betreiber dieser Seite beim Anbieter zu prüfen“) und LanguageTool (Learneo ist nach dem Data Privacy Framework zertifiziert,
   ersatzweise Standardvertragsklauseln).
 - **KI-Feedback (freiwillig):** Nur wenn die Schülerin bzw. der Schüler auf „KI um ein Feedback bitten“ klickt und
   den Dialog bestätigt, schickt der Browser den Blatt-Code, die Antworten und die Liste der Empfänger, über die
@@ -868,7 +915,7 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   Standardvertragsklauseln. Groq (Groq LLC; Vertragspartner im EWR: Groq UK Limited), Cerebras (Cerebras Systems
   Inc.) und OpenRouter (OpenRouter, Inc.) haben ihren Sitz in den USA, Google verarbeitet Gemini-Anfragen auch in
   den USA; damit liegt eine **Übermittlung in ein Drittland** vor, deren Grundlage (z. B. eine Zertifizierung nach dem
-  EU-US Data Privacy Framework oder Standardvertragsklauseln) die Schule beim Anbieter prüfen muss. OpenRouter
+  EU-US Data Privacy Framework oder Standardvertragsklauseln) der Betreiber beim Anbieter prüfen muss. OpenRouter
   leitet Anfragen zudem an wechselnde Rechenzentren anderer Anbieter weiter. Der KI-Anbieter verarbeitet die Daten
   nach seinen eigenen Bedingungen; bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe
   [KI-Anbieter](#ki-anbieter)). Der Datenschutzhinweis unter dem Button und der Dialog vor dem Senden nennen jeden
@@ -880,9 +927,9 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   des Geräts. Laut LanguageTool ist seit Dezember 2024 die **Learneo, Inc. (USA)** verantwortlich; Daten können
   Deutschland verlassen. Laut Datenschutzerklärung von Learneo (<https://languagetool.org/legal/privacy>, abgerufen im
   Oktober 2026) ist der Dienst in Europa nicht für Personen unter 16 Jahren gedacht, und wer jünger als 18 ist, soll die
-  Erlaubnis der Eltern einholen. **Ob Schüler:innen die Rechtschreibprüfung überhaupt nutzen
-  dürfen, muss die Schule entscheiden** (die Schulleitung als Verantwortliche, beraten durch die bzw. den
-  Datenschutzbeauftragte:n). Die Altersgrenze stützt sich allein auf die eigene Bestätigung (ein Geburtsjahr
+  Erlaubnis der Eltern einholen. Als Rechtsgrundlage nennt der Datenschutzhinweis die Einwilligung (Art. 6 Abs. 1
+  Buchst. a DSGVO), die mit dem Klick und der Bestätigung im Dialog erteilt und für die Zukunft widerrufen wird, indem man
+  die Prüfung nicht mehr nutzt. Die Altersgrenze stützt sich allein auf die eigene Bestätigung (ein Geburtsjahr
   wird nicht erhoben) – ein Ausweis wird nicht geprüft. Die Texte stehen in `ltConsent` und `LT_OFF_TEXT` in
   `index.html`; eine Einstellung zum vollständigen Abschalten der Prüfung gibt es bisher nicht. Laut derselben
   Erklärung ist Learneo nach dem EU-US Data Privacy Framework (samt Swiss-US und UK Extension) zertifiziert; ersatzweise
@@ -897,26 +944,29 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 
 ### Empfehlungen
 
-1. Klären Sie den Einsatz **vor** der Nutzung mit Schulleitung und **Datenschutzbeauftragten Ihrer Schule** – für
-   Cloudflare (Hosting und Datenbank), den gewählten KI-Anbieter und LanguageTool.
-2. Ein **Auftragsverarbeitungsvertrag (AVV/DPA)** mit den Anbietern ist, soweit erforderlich, von der Schule bzw.
-   dem Schulträger abzuschließen, nicht von der einzelnen Lehrkraft. Ob ein Anbieter für kostenlose Konten einen
-   AVV anbietet, ist beim Anbieter zu prüfen.
+1. Prüfen Sie als Betreiber **vor** der Nutzung Cloudflare (Hosting und Datenbank), den gewählten KI-Anbieter und
+   LanguageTool. Setzen Sie Feibeitsblatt im Unterricht ein, klären Sie außerdem, ob Ihre Schule oder Ihr Land Vorgaben
+   für digitale Werkzeuge macht.
+2. Ein **Auftragsverarbeitungsvertrag (AVV/DPA)** mit den Anbietern ist, soweit erforderlich, vom Betreiber als
+   Verantwortlichem abzuschließen. Ob ein Anbieter für kostenlose Konten einen AVV anbietet, ist beim Anbieter zu
+   prüfen.
 3. **Informieren Sie Schüler:innen und gegebenenfalls die Eltern**, welche Daten wohin gehen. Der eingebaute
-   Datenschutzhinweis nach Art. 13 DSGVO (Angaben-Bildschirm und unter dem Feedback-Button) nennt Verantwortliche,
-   Datenschutzbeauftragte:n, Zweck, Rechtsgrundlage, Daten, alle Empfänger mit Sitz und Übermittlungsgrundlage,
-   Speicherdauer, Freiwilligkeit, Rechte und Beschwerderecht – vollständig aber erst, wenn Sie unter „Datenschutz und
-   Löschfrist“ die Angaben der Schule und die Rechtsgrundlage eingetragen haben ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)).
+   Datenschutzhinweis nach Art. 13 DSGVO (Angaben-Bildschirm, unter dem Feedback-Button und auf der Seite „Impressum &
+   Datenschutz“) nennt den Betreiber als Verantwortlichen, Zweck, Rechtsgrundlagen, Daten, alle Empfänger mit Sitz und
+   Übermittlungsgrundlage, Speicherdauer, Freiwilligkeit, Rechte und Beschwerderecht – mit den Angaben aus
+   `window.FEIBEITSBLATT_OPERATOR` ([Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)).
    Für Eltern eignet sich zusätzlich der [Textbaustein unten](#textbaustein-für-schülerinnen-und-eltern). Wechseln Sie den
    KI-Anbieter, tragen Sie eine Reserve ein oder verlängern Sie die Löschfrist, muss die Information erneuert werden (der
-   Hinweis in der Seite passt sich selbst an). Die API-Konten sollten der Schule gehören, nicht einer Privatperson.
+   Hinweis in der Seite passt sich selbst an). Die Konten bei Cloudflare und beim KI-Anbieter sollten dem Betreiber
+   gehören, der im Hinweis als Verantwortlicher steht.
 4. Weisen Sie die Schüler:innen an, **keine personenbezogenen Daten in die Antworten** zu schreiben (keine Namen,
    Adressen, Gesundheits- oder Familienangaben). Auch Aufgaben und Aufträge an die KI sollten keine enthalten.
 5. **Legen Sie eine Löschfrist fest** (Schritt 9) – Abgaben und Erstversuche werden danach automatisch gelöscht.
    Notieren Sie Bewertungen außerhalb von Feibeitsblatt. Nach der Korrektur können Sie auch früher löschen („Alle
    Abgaben dieses Feibeitsblattes löschen“); nicht mehr benötigte Feibeitsblätter löschen Sie selbst.
-6. **Rechte der Schüler:innen umsetzen.** Der Datenschutzhinweis nennt Sie als Ansprechpartner:in für Auskunft,
-   Berichtigung, Löschung, Einschränkung und Widerspruch. Auskunft: die Einträge dieser Person in der Übersicht
+6. **Rechte der Schüler:innen umsetzen.** Der Datenschutzhinweis nennt den Betreiber (E-Mail) als Ansprechpartner für
+   Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und den Widerruf der Einwilligung zur
+   Rechtschreibprüfung – und, weil nur Sie die verschlüsselten Abgaben lesen und einzeln löschen können, auch Sie. Auskunft: die Einträge dieser Person in der Übersicht
    aufklappen – bei Partner- oder Gruppenarbeit die Zeile ihrer Gruppe (sie enthält die Antworten aller Mitglieder). Hat sie
    abgegeben, blendet die Liste ältere Erstversuche derselben Person (gleiche Klasse, Kürzel und
    Geburtstag, z. B. auf einem anderen Gerät begonnen) bzw. derselben Gruppe (gleiche Klasse und Kürzel) aus – der Zähler über der Liste nennt ihre Anzahl, und in den
@@ -926,8 +976,8 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
    Einträge bleiben. Einträge, die sich nicht entschlüsseln lassen, haben in der Liste einen eigenen Knopf „Eintrag
    löschen“. Falsche Angaben (z. B. ein vertipptes Kürzel): den Eintrag löschen und neu abgeben
    lassen. Eine Gruppenabgabe lässt sich nur als Ganzes löschen – möchte ein Mitglied die Löschung, betrifft das die
-   gemeinsame Abgabe (gegebenenfalls gibt der Rest der Gruppe neu ab). Wie mit einer Einschränkung oder einem Widerspruch umzugehen ist, klären Sie bitte mit der bzw. dem
-   Datenschutzbeauftragten. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage (bei einem bezahlten Tarif bis
+   gemeinsame Abgabe (gegebenenfalls gibt der Rest der Gruppe neu ab). Über eine Einschränkung oder einen Widerspruch
+   entscheidet der Betreiber als Verantwortlicher (sind Sie es nicht selbst, stimmen Sie sich mit ihm ab). Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage (bei einem bezahlten Tarif bis
    zu 30 Tage) in der Datensicherung der Datenbank.
 7. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen. Empfohlen ist Cloudflare Workers AI (kein
    weiterer Empfänger); als „nicht für den Schuleinsatz geeignet“ gekennzeichnet sind Gemini (Altersgrenze 18),
@@ -936,14 +986,18 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 ### Textbaustein für Schüler:innen und Eltern
 
 Platzhalter in eckigen Klammern bitte ersetzen; die Empfängerliste muss zu Ihren KI-Einstellungen passen (sie steht
-auch im Datenschutzhinweis unter dem Feedback-Button).
+auch im Datenschutzhinweis unter dem Feedback-Button und auf der Seite „Impressum & Datenschutz“).
 
 > Liebe Schülerinnen und Schüler, liebe Eltern,
 >
-> im Fach [Fach] nutzen wir die Schreibplattform „Feibeitsblatt“. Verantwortlich ist die [Schule, Anschrift],
-> Datenschutzbeauftragte:r: [Kontakt]. Zweck ist das Üben des Schreibens mit einer automatischen Rückmeldung, die die
-> Antworten nach Vorgaben der Lehrkraft bespricht; Rechtsgrundlage ist [§ … Schulgesetz / Art. 6 Abs. 1 lit. e
-> DSGVO]. Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte – bei Partner- oder
+> im Fach [Fach] nutzen wir die Schreibplattform „Feibeitsblatt“. Feibeitsblatt ist ein privates, nicht kommerzielles
+> und kostenloses Angebot von [Betreiber, Anschrift, E-Mail] – kein Angebot der Schule; verantwortlich für die Daten ist
+> der Betreiber. Alle Informationen stehen auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite von
+> Feibeitsblatt). Zweck ist das Üben des Schreibens mit einer automatischen Rückmeldung, die die Antworten nach Vorgaben
+> der Lehrkraft bespricht. Rechtsgrundlagen sind die Nutzung des kostenlosen Angebots (Art. 6 Abs. 1 Buchst. b DSGVO)
+> für Bearbeiten, Abgeben und das freiwillige KI-Feedback, die Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO) für die
+> Rechtschreibprüfung und das berechtigte Interesse an einer sicheren Bereitstellung (Art. 6 Abs. 1 Buchst. f DSGVO) für
+> den Aufruf der Seite und den Schutz vor Missbrauch. Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte – bei Partner- oder
 > Gruppenarbeit die Namenskürzel aller Mitglieder und die Klasse, ohne Geburtstag; wer sie einträgt, trägt die Kürzel der
 > anderen mit ein –, verschlüsselt, nur für die Lehrkraft lesbar, auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
 > gelöscht (danach noch bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung). Cloudflare stützt Übermittlungen in die USA auf das EU-US
@@ -963,10 +1017,11 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > Arbeit entscheidet die Lehrkraft. Schülerinnen und Schüler ab 18 Jahren – mit 16 und 17 Jahren nur
 > mit Erlaubnis der Eltern – können auf Wunsch eine Rechtschreibprüfung nutzen, die den Text der jeweiligen Antwort an
 > LanguageTool (Learneo, Inc., USA; nach dem EU-US Data Privacy Framework zertifiziert) sendet; vor der ersten Prüfung
-> fragt die Seite danach, ohne Bestätigung wird nichts gesendet. Es besteht ein Recht auf Auskunft, Berichtigung,
-> Löschung, Einschränkung und Widerspruch sowie ein Beschwerderecht bei der Aufsichtsbehörde [z. B. HBDI, Wiesbaden]. Es
-> werden keine Namen, Adressen oder andere personenbezogenen Angaben in die Antworten geschrieben. Bei Fragen
-> wenden Sie sich an [Lehrkraft, Kontakt].
+> fragt die Seite danach, ohne Bestätigung wird nichts gesendet; die Einwilligung lässt sich für die Zukunft widerrufen,
+> indem man die Prüfung nicht mehr nutzt. Es besteht ein Recht auf Auskunft, Berichtigung, Löschung, Einschränkung und
+> Widerspruch sowie ein Beschwerderecht bei der Aufsichtsbehörde [z. B. Der Hessische Beauftragte für Datenschutz und
+> Informationsfreiheit, Wiesbaden]. Es werden keine Namen, Adressen oder andere personenbezogenen Angaben in die
+> Antworten geschrieben. Bei Fragen wenden Sie sich an [Betreiber, E-Mail] oder an [Lehrkraft, Kontakt].
 
 ## Kapazität und Grenzen
 
@@ -1094,7 +1149,6 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
 | Bilder und PDF-Dateien aller Feibeitsblätter zusammen | 200 MB (die Übersicht zeigt den belegten Speicher) |
-| Datenschutz-Angaben der Schule | Name 160, Anschrift 240, Datenschutzbeauftragte:r 300, Rechtsgrundlage 400, Aufsichtsbehörde 240 Zeichen, Link 500 Zeichen (nur `https://`) |
 | Löschfrist | 7 bis 365 Tage (Auswahl 7, 14, 30, 60, 90, 180, 365; Vorgabe einer Neuinstallation 30) |
 
 Diese Zähler gelten je Netzwerkadresse, im Schulnetz also meist für die ganze Schule zusammen; mehrere Klassen
@@ -1115,7 +1169,9 @@ gespeichert.
 | Fehlersuche: Im Dashboard stehen keine Protokolle | Absicht – die gespeicherten Protokolle sind abgeschaltet (siehe [Sicherheit](#sicherheit)). Live mitlesen: `npx wrangler tail` (mit dem API-Token), nichts wird gespeichert. |
 | „Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid.“ | Es ist kein Lehrkraft-Passwort festgelegt (z. B. nach dem Zurücksetzen). `1104` eingeben und ein Passwort festlegen (Schritt 7). |
 | „Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.“ (bzw. „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“) | KI-Einstellungen speichern (Schritt 8). Abgeben (ohne KI-Feedback) geht trotzdem; nach dem Speichern klappt ein neuer Klick auf „KI um ein Feedback bitten“ auch auf schon geöffneten Seiten. |
-| Rote Warnung „Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch …“ bzw. „… werden noch nicht automatisch gelöscht“ in der Übersicht | Unter „Datenschutz und Löschfrist“ die Angaben der Schule eintragen bzw. eine Löschfrist speichern ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Bis dahin sehen die Schüler:innen einen allgemeinen Hinweis. |
+| Rote Warnung „Abgaben und Erstversuche werden noch nicht automatisch gelöscht …“ in der Übersicht | Unter „Datenschutz und Löschfrist“ eine Löschfrist speichern ([Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)). |
+| Impressum und Datenschutzhinweis nennen einen anderen Betreiber | Die Angaben stehen fest ganz oben in `index.html` (`window.FEIBEITSBLATT_OPERATOR`) – bei einer eigenen Installation dort Ihre Angaben eintragen und neu veröffentlichen ([Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)). |
+| Auf „Impressum & Datenschutz“ steht „… konnten gerade nicht geladen werden – deshalb stehen hier allgemeine Angaben.“ | Der Server war nicht erreichbar (`GET /api/privacy`). Die Seite neu laden; Impressum und Betreiber stehen trotzdem dort. |
 | Abgaben sind verschwunden | Vermutlich ist die Löschfrist abgelaufen (die Übersicht nennt sie; aufgeklappt steht je Abgabe, ab wann sie gelöscht wird). Gelöschtes lässt sich nur über D1 Time Travel (bis zu 7 Tage, bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage) für die ganze Datenbank zurückholen – das setzt auch alles andere zurück. |
 | „Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt).“ | Den Workflow „Deploy“ erneut ausführen; er legt das Secret an. Danach den API-Schlüssel eintragen. |
 | „Bitte den API-Schlüssel neu eintragen.“ | `SETTINGS_SECRET` wurde geändert. Schlüssel in den KI-Einstellungen neu eintragen. |
