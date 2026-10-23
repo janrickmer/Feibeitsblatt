@@ -3642,6 +3642,8 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   const TITLE_A = "Wasser und Welt – analog";
   const SOL1 = "- Verdunstung über dem Meer\n- Kondensation zu Wolken\n- Niederschlag als Regen", SOL2 = "Weizen. Reis.";
   const QUELLE = "https://example.org/quelle";
+  // Wikipedia-Adresse mit Umlaut: gedruckt lesbar, die Annotation kodiert; zwei Links direkt hintereinander: getrennt gedruckt
+  const WIKI = "https://de.wikipedia.org/wiki/Gewässer", WIKI_ENC = "https://de.wikipedia.org/wiki/Gew%C3%A4sser", ZWEI = "https://example.org/zwei";
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -3661,8 +3663,10 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   await tp.fill("#bs-1", SOL1);
   const mat1 = rows.nth(0).locator(".bmat-edit");
   await mat1.click();
-  await paste(mat1, `<p>Lies den Text <a href="${QUELLE}">hier klicken</a> und notiere Stichworte.</p>`, "Lies den Text hier klicken und notiere Stichworte.");
-  await expect(mat1.locator("a")).toHaveAttribute("href", QUELLE);
+  await paste(mat1, `<p>Lies den Text <a href="${QUELLE}">hier klicken</a> und notiere Stichworte.</p><p>Mehr: <a href="${WIKI}">Gewässer</a><a href="${ZWEI}">Teil zwei</a>.</p>`,
+    "Lies den Text hier klicken und notiere Stichworte.\nMehr: GewässerTeil zwei.");
+  await expect(mat1.locator("a")).toHaveCount(3);
+  await expect(mat1.locator("a").nth(0)).toHaveAttribute("href", QUELLE);
   // Aufgabe 2: Tabelle mit 3 Spalten und 4 Zeilen
   await tp.fill("#bq-2", "Trage Lebensmittel, ihr Herkunftsland und die Menge ein.");
   await tp.fill("#bs-2", SOL2);
@@ -3711,7 +3715,8 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   await expect(tp.locator("#ck-hint-1")).toHaveText("Höchstens 8 Punkte, je höchstens 160 Zeichen.");
   await expect(tp.locator("#ck-hint-3")).toHaveText("Ohne Auftrag an die KI – Punkte können Sie selbst eintragen. Höchstens 8 Punkte, je höchstens 160 Zeichen.");
   await expect(tp.locator("#ck-hint-4")).toHaveText("Ohne Auftrag an die KI – Punkte können Sie selbst eintragen. Höchstens 8 Punkte, je höchstens 160 Zeichen.");
-  await expect(tp.locator("#ck-1")).toHaveAccessibleName("Punkte der Checkliste – eine Zeile je Punkt");
+  await expect(tp.locator("#ck-1")).toHaveAccessibleName("Punkte der Checkliste zu Aufgabe 1 – eine Zeile je Punkt");
+  await expect(tp.locator("#ck-4")).toHaveAccessibleName("Punkte der Checkliste zu Aufgabe 4 – eine Zeile je Punkt");
   await expect(tp.locator("#ck-open")).toBeHidden();   // noch nichts gespeichert
   await expect(tp.locator("#ck-aiwarn")).toBeHidden();
   let mock = await mockState();
@@ -3734,7 +3739,7 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   await expect(page.locator("#chk-sheet")).toHaveText("Code " + shown);
   await expect(page.locator("#chk-open")).toBeVisible();
   await expect(page.locator("#chk-body")).toBeHidden();
-  await expect(page.locator("#chk-privacy")).toHaveText("Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Beim Laden dieser Seite und der Checkliste verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts.");
+  await expect(page.locator("#chk-privacy")).toHaveText("Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Beim Laden dieser Seite und der Checkliste verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts. Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du nach „Feibeitsblatt digital öffnen“ und „Weiter“.");
 
   // Lehrkraft: Grenzen wie der Server; dann einen Punkt ändern, einen ergänzen (Doppeltes und Leerzeilen entfallen) → speichern
   await tp.fill("#ck-2", Array.from({ length: 9 }, (_, k) => "Punkt " + (k + 1)).join("\n"));
@@ -3781,6 +3786,10 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   expect(text).toContain("Lies den Text " + QUELLE + " und notiere Stichworte.");
   expect(text).not.toContain("hier klicken");
   expect(st.s).toContain(`/A << /S /URI /URI (${QUELLE}) >>`);
+  expect(text).toContain(`Mehr: ${WIKI} ${ZWEI}.`);   // Umlaut lesbar, die beiden Adressen getrennt
+  expect(text).not.toMatch(/Teil zwei|%C3%A4/);
+  expect(st.s).toContain(`/A << /S /URI /URI (${WIKI_ENC}) >>`);
+  expect(st.s).toContain(`/A << /S /URI /URI (${ZWEI}) >>`);
   expect(st.s).toContain("/A << /S /URI /URI (https://feibeitsblatt.janrickmer.de/) >>");
   // Schreiblinien: 8 je Textaufgabe (Aufgaben 1 und 4), Abstand 24 pt, über die volle Breite
   const lineYs = A.contents.map((c) => [...c.matchAll(/q 0\.6 G 0\.5 w 50\.00 ([\d.]+) m 545\.28 \1 l S Q/g)].map((m) => Number(m[1])));
@@ -3880,6 +3889,18 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   expect(await posts()).toHaveLength(1);
   mock = await mockState();
   expect(mock.requests).toHaveLength(1);
+  // Tageskontingent aufgebraucht (Antwort vom Server vorgegeben): der Grund steht nur einmal da, der Editor bleibt stehen
+  const QUOTA = "Das kostenlose Tageskontingent von Cloudflare Workers AI ist aufgebraucht (es gilt für das ganze Cloudflare-Konto). Ab 0:00 Uhr UTC (1:00 Uhr MEZ bzw. 2:00 Uhr MESZ) geht es wieder.";
+  const ckRoute = `**/api/teacher/sheets/${code}/checklist`;
+  await tp.route(ckRoute, (route) => (route.request().method() === "POST"
+    ? route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, code: "ai_quota", error: QUOTA, aiCode: "DAILY_LIMIT" }) })
+    : route.continue()));
+  await tp.click("#ck-regen");
+  await confirmDialog(tp, "Neu vorschlagen lassen?");
+  await expect(tp.locator("#ck-status")).toHaveText("Die KI konnte gerade keine Checkliste vorschlagen. " + QUOTA + " Sie können die Punkte selbst eintragen.");
+  await expect(tp.locator("#ck-1")).toHaveValue(final1.join("\n"));
+  await expect(tp.locator("#ck-regen")).toBeEnabled();
+  await tp.unroute(ckRoute);
   // „Neu von der KI vorschlagen lassen“ fragt erst, ersetzt den Editorinhalt; die gespeicherte Checkliste bleibt öffentlich
   await tp.click("#ck-regen");
   await confirmDialog(tp, "Neu vorschlagen lassen?");

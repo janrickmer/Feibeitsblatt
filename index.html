@@ -5311,9 +5311,10 @@ function ckShort(text, max) {   // Aufgabenstellung einzeilig, am Wortende gekü
   const cut = s.slice(0, max), sp = cut.lastIndexOf(" ");
   return (sp > max * 0.6 ? cut.slice(0, sp) : cut).replace(/[\s,;:.–-]+$/, "") + " …";
 }
+function ckFields(ro) { document.querySelectorAll("#ck-list textarea").forEach((ta) => { ta.readOnly = ro; }); }
 function ckLock(on) {
   ["ck-save", "ck-regen"].forEach((id) => { $(id).disabled = on; });
-  document.querySelectorAll("#ck-list textarea").forEach((ta) => { ta.readOnly = on; });
+  ckFields(on);
 }
 // Editor je Aufgabe: Überschrift, gekürzte Aufgabenstellung, Textfeld (eine Zeile = ein Punkt), Grenzen
 function renderCkEditor(list) {
@@ -5327,7 +5328,7 @@ function renderCkEditor(list) {
     box.appendChild(h("div", { class: "cktask" }, [
       h("h3", { text: "Aufgabe " + n }),
       h("p", { class: "cktext", text: ckShort(t.text, 160) || "–" }),
-      h("label", { for: "ck-" + n, text: "Punkte der Checkliste – eine Zeile je Punkt" }),
+      h("label", { for: "ck-" + n, text: `Punkte der Checkliste zu Aufgabe ${n} – eine Zeile je Punkt` }),
       ta,
       h("p", { class: "fhint", id: "ck-hint-" + n, text: (ckWants(t) ? "" : CK_NO_BRIEF + " ") + CK_LIMIT_HINT })
     ]));
@@ -5372,7 +5373,9 @@ function ckAiFailText(e) {
   if (e.code === "ai_not_configured") return "Es ist kein KI-Dienst eingerichtet, der gerade genutzt werden kann. Bitte prüfen Sie die KI-Einstellungen – die Punkte können Sie auch selbst eintragen." +
     (e.data && e.data.aiCode && e.serverMsg ? " Meldung: " + e.serverMsg : "");
   if (e.code === "ai_busy") return "Die KI konnte gerade keine Checkliste vorschlagen (KI ausgelastet). Sie können die Punkte selbst eintragen oder es in " + waitSpan(e.retryAfter || 60) + " erneut versuchen.";
-  if (e.code === "ai_quota") return "Die KI konnte gerade keine Checkliste vorschlagen (Tageskontingent der KI aufgebraucht). " + CK_FAIL_TAIL + (e.serverMsg ? " " + e.serverMsg : "");
+  if (e.code === "ai_quota") return e.serverMsg   // die Meldung des Servers nennt Kontingent und Uhrzeit schon – nicht doppelt sagen
+    ? "Die KI konnte gerade keine Checkliste vorschlagen. " + e.serverMsg + " Sie können die Punkte selbst eintragen."
+    : "Die KI konnte gerade keine Checkliste vorschlagen (Tageskontingent der KI aufgebraucht). " + CK_FAIL_TAIL;
   if (e.code === "rate_limited") return e.serverMsg || errMsg(e, "t");
   if (e.code === "network" || e.code === "timeout") return `Die KI konnte gerade keine Checkliste vorschlagen (${e.code === "network" ? "keine Verbindung zum Server" : "keine Antwort in der erwarteten Zeit"}). ` + CK_FAIL_TAIL;
   if (e.code === "ai_error") return "Die KI konnte gerade keine Checkliste vorschlagen (Fehler beim KI-Dienst). " + CK_FAIL_TAIL + (e.serverMsg ? " Meldung: " + e.serverMsg : "");
@@ -5382,7 +5385,7 @@ function ckAiFailText(e) {
 async function ckSuggest(run, force) {
   const st = $("ck-status");
   ckLock(true);
-  setStatus(st, "Die KI schlägt eine Checkliste vor …", "busy");
+  setStatus(st, CK.aiFeedback ? "Die KI schlägt eine Checkliste vor …" : "Die Checkliste wird angelegt …", "busy");   // ohne Auftrag fragt der Server keine KI
   try {
     const r = await TA(ckPath(CK.code), { method: "POST", body: force ? { force: true } : {}, timeout: 150000 });
     if (!analogStillWanted(run)) return;
@@ -5411,23 +5414,27 @@ async function openAnalog() {
   $("ck-sheet").textContent = `${sheet.title || "Feibeitsblatt"} · Code ${fmtCode(code)}`;
   $("ck-list").textContent = ""; $("ck-state").textContent = ""; $("ck-aiwarn").classList.add("hidden");
   $("ck-open").classList.add("hidden"); $("ck-regen").classList.toggle("hidden", !CK.aiFeedback);
+  const sb = $("ck-save");
+  sb._hadFocus = false; busy(sb, false);   // ein Speichern eines anderen Blattes, das noch läuft, hinterlässt weder Beschriftung noch Sperre
   ckLock(true);
   setStatus(st, "Wird geladen …", "busy");
   try {
     const r = await TA(ckPath(code));
     if (!analogStillWanted(run)) return;
     CK.aiFeedback = r.aiFeedback !== false; CK.aiReady = r.aiReady !== false;
-    $("ck-regen").classList.toggle("hidden", !CK.aiFeedback);
+    $("ck-regen").classList.toggle("hidden", !CK.aiFeedback || !CK.aiReady);   // ohne nutzbaren KI-Dienst führte der Knopf nur zur nächsten Fehlermeldung
     const w = $("ck-aiwarn");
     w.textContent = CK.aiFeedback && !CK.aiReady ? "Gerade ist kein KI-Dienst eingerichtet, der genutzt werden kann. Deshalb steht im PDF nicht, dass es digital eine KI-Rückmeldung gibt, und die KI kann keine Checkliste vorschlagen – Sie können die Punkte selbst eintragen. Richten Sie das KI-Feedback unter „KI-Einstellungen“ ein, wenn der Satz im PDF stehen soll." : "";
     w.classList.toggle("hidden", !w.textContent);
     const c = r.checklist;
     CK.final = (c && c.final) || null; CK.updatedAt = (c && c.updatedAt) || null;
-    if (c && (c.draft || c.final)) {
-      const list = c.draft || c.final;
-      CK.ai = !!list.ai;
+    const list = (c && (c.draft || c.final)) || null;
+    // Entwurf oder gespeicherte Checkliste vorhanden – oder kein KI-Dienst nutzbar (dann nicht fragen, der Hinweis darüber sagt es):
+    // Editor mit dem Vorhandenen bzw. leer zum Selbsteintragen
+    if (list || (CK.aiFeedback && !CK.aiReady)) {
+      CK.ai = !!(list && list.ai);
       renderCkEditor(list);
-      $("ck-state").textContent = ckStateText(c.draft ? "draft" : "final", c.draft);
+      $("ck-state").textContent = list ? ckStateText(c.draft ? "draft" : "final", c.draft) : "Noch nicht gespeichert.";
       setStatus(st, "", "");
       CK.loaded = true; ckLock(false); ckShowOpen();
       focusSoon("ck-1", 30);
@@ -5496,9 +5503,11 @@ async function ckSave() {
   if (!analogStillWanted(run)) return;
   setStatus(st, "Die Checkliste wird gespeichert …", "busy");
   let r;
+  ckFields(true);   // während des Speicherns nicht tippen: danach baut sich der Editor aus dem Gespeicherten neu auf (Getipptes ginge verloren)
   try { r = await TA(ckPath(code), { method: "PUT", body: { ai: CK.ai && any, tasks: parsed.tasks } }); }
   catch (e) {
     if (handleAuthError(e) || !analogStillWanted(run)) return;
+    ckFields(false);
     setStatus(st, "Nicht gespeichert – " + errMsg(e, "t"), "bad");
     return;
   }
@@ -5522,10 +5531,13 @@ async function ckSave() {
   }
 }
 $("ck-save").addEventListener("click", async () => {
-  const b = $("ck-save");
+  const b = $("ck-save"), run = CK && CK.run;
   if (b.disabled) return;
   busy(b, true, "Wird gespeichert …"); $("ck-regen").disabled = true;
-  try { await ckSave(); } finally { busy(b, false); if (CK && CK.loaded) $("ck-regen").disabled = false; }
+  try { await ckSave(); }
+  finally {   // nur in derselben Ansicht: ein später endendes Speichern eines anderen Blattes gibt dessen Knöpfe nicht mitten in einer Anfrage frei
+    if (CK && CK.run === run) { busy(b, false); if (CK.loaded) $("ck-regen").disabled = false; }
+  }
 });
 
 /* PDF „Analoges Arbeitsblatt“ (ohne Bibliothek, gleiche Bausteine wie die übrigen PDF-Dateien): A4, Ränder 50 pt links/rechts, 56 oben,
@@ -5545,8 +5557,24 @@ function worldPdfPath() {   // alle Gebiete der Weltkarte als PDF-Pfad in SVG-Ko
   if (!worldPdfCache) worldPdfCache = WORLD_MAP.countries.map((c) => c[2].replace(/([ML])(-?[\d.]+),(-?[\d.]+)/g, (_, k, x, y) => `${x} ${y} ${k === "M" ? "m" : "l"}\n`).replace(/Z/g, "h\n")).join("");
   return worldPdfCache;
 }
+// Adresse für den Druck so, wie die Adresszeile des Browsers sie zeigt: prozentkodierte Nicht-ASCII-Zeichen (Umlaute in
+// Wikipedia-Adressen, „B%C3%BCrger“ → „Bürger“) lesbar – nur, wenn sie sich in WinAnsi drucken lassen und weder Leer-, Steuer- noch
+// Formatzeichen sind; sonst bleibt das Stück kodiert. Kodierte ASCII-Zeichen (%20, %2F …) und Punycode-Hosts bleiben, wie sie sind.
+// Die Link-Annotation behält die kodierte Adresse.
+function analogHrefText(href) {
+  return href.replace(/(?:%[89a-fA-F][0-9a-fA-F])+/g, (enc) => {
+    let dec;
+    try { dec = decodeURIComponent(enc); } catch (e) { return enc; }
+    for (const ch of dec) {
+      const cp = ch.codePointAt(0);
+      if (!((cp >= 0xA0 && cp <= 0xFF) || WINANSI[ch]) || /[\p{Z}\p{Cc}\p{Cf}]/u.test(ch)) return enc;
+    }
+    return dec.normalize("NFC") === dec ? dec : enc;
+  });
+}
 // Läufe einer formatierten Zeile (Material, Aufgabenstellung) für den Druck: Links werden zur Adresse (aufeinanderfolgende Läufe
-// desselben Links nur einmal); f → b/i/u
+// desselben Links nur einmal); f → b/i/u. Stoßen zwei Adressen oder eine Adresse und ein Wort ohne Leerraum aneinander (digital
+// zwei getrennt anklickbare Linktexte), kommt ein Leerzeichen dazwischen – sonst sähe man auf Papier nicht, wo die Adresse endet.
 function analogRuns(runs) {
   const out = [];
   let prevH = "";
@@ -5554,7 +5582,11 @@ function analogRuns(runs) {
     const href = r.h || "";
     if (href && href === prevH) continue;
     prevH = href;
-    out.push({ t: href || r.t, b: r.f.includes("b"), i: r.f.includes("i"), u: !href && r.f.includes("u"), h: href });
+    const t = href ? analogHrefText(href) : r.t, last = out[out.length - 1];
+    const glued = last && (href || last.h) && !/\s$/.test(last.t) && !/^\s/.test(t);   // Adresse stößt ohne Leerraum an
+    if (glued && ((href && last.h) || (href ? /[\p{L}\p{N}]$/u.test(last.t) : /^[\p{L}\p{N}]/u.test(t))))
+      out.push({ t: " ", b: false, i: false, u: false, h: "" });
+    out.push({ t, b: r.f.includes("b"), i: r.f.includes("i"), u: !href && r.f.includes("u"), h: href });
   }
   return out;
 }
@@ -5777,8 +5809,6 @@ async function makeAnalogPdf(o) {
     pg.ops.push(`q ${s.toFixed(5)} 0 0 ${s.toFixed(5)} ${f2(ML)} ${f2(H - y - mh)} cm /Wm Do Q`);
     pg.ops.push(`q 0.35 G 0.6 w ${f2(ML)} ${f2(H - y - mh)} ${f2(TW)} ${f2(mh)} re S Q`);
     y += mh + 4;
-    plain("Schreibe zu jeder Karte das passende Land.", 10.5, { lh: 16, color: "0.2 0.2 0.2" });
-    y += 4;
     const known = new Set(cleanImages(t.images, true).map((m) => m.id)), colW = (TW - 24) / 2;
     // zwei Spalten; je Zeile stehen die Linien „Land:“ auf gleicher Höhe, und jede Karte bleibt auf einer Seite zusammen
     const LAND = 24;
@@ -5796,8 +5826,13 @@ async function makeAnalogPdf(o) {
       }
       return yy - top;
     };
+    const pairH = (k) => Math.max(...spec.items.slice(k, k + 2).map((it, j) => item(it, k + j, 0, 0, null))) + LAND + 8;
+    // der Satz bleibt mit dem ersten Kartenpaar zusammen – nie allein unten auf der Seite, während die Liste erst auf der nächsten beginnt
+    if (!fits(16 + 4 + pairH(0))) newPage();
+    plain("Schreibe zu jeder Karte das passende Land.", 10.5, { lh: 16, color: "0.2 0.2 0.2" });
+    y += 4;
     for (let k = 0; k < spec.items.length; k += 2) {
-      const pair = spec.items.slice(k, k + 2), body = Math.max(...pair.map((it, j) => item(it, k + j, 0, 0, null))), hgt = body + LAND + 8;
+      const pair = spec.items.slice(k, k + 2), hgt = pairH(k), body = hgt - LAND - 8;
       if (!fits(hgt)) newPage();
       pair.forEach((it, j) => item(it, k + j, ML + j * (colW + 24), y, y + body + LAND));
       y += hgt + 6;
@@ -7085,8 +7120,9 @@ $("chk-open").addEventListener("click", () => leaveChecklist(CHK.code));
 $("chk-home").addEventListener("click", () => leaveChecklist(""));
 $("chk-retry").addEventListener("click", () => openChecklist(CHK.code));
 $("chk-clear").addEventListener("click", async () => {
+  const code = CHK.code, run = CHK.run;
   if (!(await askConfirm({ title: "Alle Häkchen entfernen?", text: "Alle Häkchen dieser Checkliste werden auf diesem Gerät entfernt.", ok: "Entfernen", cancel: "Abbrechen", safeFirst: true }))) return;
-  if (screen !== "screen-check") return;
+  if (screen !== "screen-check" || CHK.run !== run || CHK.code !== code) return;   // inzwischen eine andere Checkliste (Zurück-Taste): deren Häkchen bleiben
   document.querySelectorAll("#chk-tasks input[type=checkbox]").forEach((cb) => { cb.checked = false; });
   store.del(CHECK_PREFIX + CHK.code);
   CHK.tasks.forEach(checkCount);
@@ -7106,7 +7142,8 @@ const ipSentence = (when) => when + " " + (PAGES_HOST
   : "verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite)") + " technisch die Internetadresse (IP-Adresse) deines Geräts.";
 $("start-privacy").textContent = "Datenschutz: " + ipSentence("Beim Laden dieser Seite und beim Prüfen des Codes") +
   " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du, nachdem du den Code eingegeben hast.";
-$("chk-privacy").textContent = "Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. " + ipSentence("Beim Laden dieser Seite und der Checkliste");
+$("chk-privacy").textContent = "Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. " + ipSentence("Beim Laden dieser Seite und der Checkliste") +
+  " Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du nach „Feibeitsblatt digital öffnen“ und „Weiter“.";
 cleanupDrafts();
 cleanupChecks();
 showResume();

@@ -212,7 +212,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Speichern ab (503, nie Klartext; `npm run dev` setzt ein festes Entwicklungs-Secret); der Schlüssel verlässt den
   Server nie (nur `keyHint`) und bleibt bei leerem Feld nur für denselben Anbieter + baseUrl erhalten. Schüler:innen
   sehen nur `PUBLIC_MSG` (`DAILY_LIMIT` neutral „… Morgen geht es wieder.“ – den Weg ohne KI nennt nur der Browser vor der
-  Abgabe), Details nur `/api/teacher/ai/test`. `custom`-baseUrl `http://` nur für `127.0.0.1`/`localhost`.
+  Abgabe), Details nur in Lehrkraft-Routen (`/api/teacher/ai/test` und der KI-Vorschlag `POST …/sheets/:code/checklist`).
+  `custom`-baseUrl `http://` nur für `127.0.0.1`/`localhost`.
   **Cloudflare Workers AI** (`cloudflare`, `kind:"workers-ai"`, `keyless`, `accountDaily`, `spread:false`, `gapMs` 200, kein
   `perModelGate`): `DEFAULT_PROVIDER` nur als Vorauswahl – nutzbar erst, wenn gespeichert (`usable(e)` = keyless ?
   `explicit && env.AI` : entschlüsselbarer Schlüssel; gilt für `aiRecipients`, Feedback, Test, `hasKey`); nie `apiKeyEnc`
@@ -553,20 +554,28 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Punkte, höchstens 8, Inhalte aus dem Auftrag erlaubt), `buildChecklistMessages` (nur Aufgaben mit Auftrag: Aufgabenstellung,
   `materialText`, Tabellenspalten, Auftrag – nie Antworten), `normalizeChecklist`, `checklistAcceptor`; Mock: System-Prompt mit
   „Checkliste“ → je Zeile des Auftrags „Du beachtest: …“ (`expectedChecklist`). Browser: ohne Entwurf und final sofort `POST`
-  („Die KI schlägt eine Checkliste vor …“), Entwurf → `#ck-state` „Vorschlag der KI – noch nicht gespeichert“; je Aufgabe `#ck-n`
-  (eine Zeile = ein Punkt, `ckParse` mit den Regeln des Servers, `aria-invalid`), `#ck-save` (PUT, dann PDF; ohne Punkte Rückfrage
-  „Ohne QR-Code herunterladen?“), `#ck-regen` (Rückfrage, `force`; ein Fehlschlag lässt den Editor stehen), `#ck-open` (nur mit
-  final), `#ck-status`, `#ck-aiwarn` (Aufträge, aber kein KI-Dienst nutzbar → der KI-Satz fehlt im PDF); KI-Fehler per `ckAiFailText`,
-  keine automatische Wiederholung. PDF `makeAnalogPdf` (`analogImages` lädt Bilder und Kartenbilder per `loadImage` → `pdfJpeg`,
+  („Die KI schlägt eine Checkliste vor …“, ohne Auftrag „Die Checkliste wird angelegt …“; bei `aiFeedback && !aiReady` kein `POST`,
+  leerer Editor), Entwurf → `#ck-state` „Vorschlag der KI – noch nicht gespeichert“; je Aufgabe `#ck-n` (Label „Punkte der
+  Checkliste zu Aufgabe n – …“, eine Zeile = ein Punkt, `ckParse` mit den Regeln des Servers, `aria-invalid`), `#ck-save` (PUT –
+  währenddessen Felder readOnly (`ckFields`), danach baut sich der Editor aus dem Gespeicherten neu –, dann PDF; ohne Punkte Rückfrage
+  „Ohne QR-Code herunterladen?“; das `finally` des Klicks setzt die Knöpfe nur bei unverändertem `CK.run` zurück, `openAnalog` setzt
+  `#ck-save` selbst zurück), `#ck-regen` (Rückfrage, `force`; ein Fehlschlag lässt den Editor stehen; verborgen ohne Auftrag oder
+  ohne nutzbaren KI-Dienst), `#ck-open` (nur mit final), `#ck-status`, `#ck-aiwarn` (Aufträge, aber kein KI-Dienst nutzbar → der
+  KI-Satz fehlt im PDF); KI-Fehler per `ckAiFailText` (`ai_quota` mit der Meldung des Servers, ohne doppelten Grund), keine
+  automatische Wiederholung. PDF `makeAnalogPdf` (`analogImages` lädt Bilder und Kartenbilder per `loadImage` → `pdfJpeg`,
   fehlt eines → Abbruch; PDF-Dateien nur als Namen): A4, Ränder 50/56/60, `/F1`–`/F4` = Helvetica, -Bold, -Oblique, -BoldOblique,
   Inhalte FlateDecode (`deflateBytes`); `analogRuns`/`analogLines` setzen Läufe mit Formatierung, Links **nur als Adresse** (nie
-  der Linktext) mit URI-Annotation, Einzug aus führendem Leerraum, überlange Wörter hart getrennt; Kopf: Titel, Hinweiskasten
-  (Code, `PUBLIC_URL` als Link, KI-Satz nur bei `aiFeedback && aiReady`), Name/Klasse/Datum; je Aufgabe bleiben Überschrift, Text
+  der Linktext) mit URI-Annotation (gedruckt per `analogHrefText`: prozentkodierte Umlaute lesbar wie in der Adresszeile, nur
+  WinAnsi-druckbare Zeichen ohne Leer-/Steuer-/Formatzeichen, sonst kodiert; die Annotation bleibt kodiert; Punycode bleibt),
+  zwischen zwei aneinanderstoßenden Adressen bzw. Adresse und Wort ein Leerzeichen, Einzug aus führendem Leerraum, überlange
+  Wörter hart getrennt; Kopf: Titel, Hinweiskasten (Code, `PUBLIC_URL` als Link, KI-Satz nur bei `aiFeedback && aiReady`),
+  Name/Klasse/Datum; je Aufgabe bleiben Überschrift, Text
   und der erste unteilbare Block zusammen (sonst neue Seite), Bilder wie `makeSheetPdf`, Material mit grauer Linie, „Material zum
   Herunterladen (nur digital): …“; Antwort: `ANALOG_LINES` 8 × `ANALOG_LINE_PT` 24 (`q 0.6 G 0.5 w … S Q`, mindestens 3 auf der
   Seite), Tabelle (`ANALOG_ROW_PT` 48 mit Hilfslinie `q 0.8 G 0.4 w`, Kopf auf jeder Seite), Weltkarte als Form-XObject `/Wm`
-  (`worldPdfPath`, einmal je PDF) mit zweispaltiger Liste und „Land:“-Linien; am Ende (nur mit Punkten) QR-Code `ANALOG_QR_PT` 90
-  (Module als Rechtecke in Modul-Einheiten per `cm`, Ruhezone 4 Module, links im Seitenrand) zu `checkUrlOf(code)` =
+  (`worldPdfPath`, einmal je PDF) mit zweispaltiger Liste und „Land:“-Linien (der Satz „Schreibe zu jeder Karte …“ bleibt mit dem
+  ersten Kartenpaar auf einer Seite); am Ende (nur mit Punkten) QR-Code `ANALOG_QR_PT` 90 (Module als Rechtecke in
+  Modul-Einheiten per `cm`, Ruhezone 4 Module, links im Seitenrand) zu `checkUrlOf(code)` =
   `PUBLIC_URL#checkliste=CODE`; Fußzeile Code · Titel und „Seite n von N“; Datei `Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`;
   nie Aufträge an die KI, Länder, Abgaben oder Checklistenpunkte. QR-Block zwischen `/* QR:BEGIN` und `/* QR:END */`
   (`qrMatrix(text, forceMask?)` → `{size, version, mask, dark}`, Byte-Modus, Stufe M, Version 1–10, nur zur Laufzeit aufrufen;
@@ -575,11 +584,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   in `details`, Checkboxen `#chk-n-k` in `label` ≥ 44 px, Zähler `#chk-c-n`, eine verzögerte Live-Region `#ck-live`; ohne Punkte
   „Deine Lehrkraft hat … keine Checkliste hinterlegt.“; `ai:true` → KI-Hinweis), Häkchen nur in `localStorage`
   `feibeitsblatt:check:<CODE>` = `{t, sig (FNV-1a über die Punkte), ticks}` (`cleanupChecks` nach `DRAFT_DAYS`), „Alle Häkchen
-  entfernen“, „Feibeitsblatt digital öffnen“ (`leaveChecklist`: Hash weg, Startseite mit Code, Fokus auf „Weiter“), Fehler
-  `no_checklist`, unbekannter Code, Netz („Erneut versuchen“). Sicherung und „Als Vorlage“ tragen die Checkliste nicht mit. Tests:
+  entfernen“ (löscht nur, wenn nach dem Dialog noch dieselbe Checkliste offen ist: `CHK.run`/`CHK.code`), `#chk-privacy` (Satz zur
+  IP wie `#start-privacy` und Verweis „Alle Informationen … bekommst du nach „Feibeitsblatt digital öffnen“ und „Weiter“.“ – die
+  Seite selbst zeigt keinen vollständigen Hinweis), „Feibeitsblatt digital öffnen“ (`leaveChecklist`: Hash weg, Startseite mit
+  Code, Fokus auf „Weiter“), Fehler `no_checklist`, unbekannter Code, Netz („Erneut versuchen“). Sicherung und „Als Vorlage“
+  tragen die Checkliste nicht mit. Tests:
   Unit lib/ai/worker/qr, Smoke-Schritt „Checkliste“, E2E 7k (Vorschlag des Mocks, Ändern/Ergänzen, PDF per zlib: Hinweis, Link als
-  Adresse, 16 Schreiblinien, 4 Tabellenzeilen, Kartenpfade, QR → jsQR; erneutes Öffnen ohne KI; Checklisten-Seite; ohne Punkte kein
-  QR); `ANALOG_PDF_OUT=<Ordner> npm run test:e2e` speichert das PDF lokal zum Ansehen (`pdftoppm -r 60 -png`).
+  Adresse, Wikipedia-Adresse mit Umlaut lesbar und zwei aneinanderstoßende Links getrennt, 16 Schreiblinien, 4 Tabellenzeilen,
+  Kartenpfade, QR → jsQR; erneutes Öffnen ohne KI; `ai_quota` per `page.route` ohne doppelten Grund; Checklisten-Seite; ohne Punkte
+  kein QR); `ANALOG_PDF_OUT=<Ordner> npm run test:e2e` speichert das PDF lokal zum Ansehen (`pdftoppm -r 60 -png`).
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-

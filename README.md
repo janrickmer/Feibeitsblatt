@@ -327,7 +327,8 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    `https://feibeitsblatt.janrickmer.de/` aufrufen lässt – und, wenn das Blatt Aufträge an die KI hat und ein KI-Dienst
    eingerichtet ist, dass es dort eine KI-Rückmeldung gibt, die es auf dem Papier nicht gibt –, eine Zeile für Name,
    Klasse und Datum und dann alle Aufgaben: Aufgabenstellung (mit Fett, Kursiv, Unterstrichen), Bilder, Material
-   (Links erscheinen als Adresse, nie als Linktext), die Namen angehängter PDF-Dateien („nur digital“) und Platz für die
+   (Links erscheinen als Adresse, nie als Linktext; Umlaute in Adressen stehen lesbar da, zwei direkt
+   aneinanderstoßende Links trennt ein Leerzeichen), die Namen angehängter PDF-Dateien („nur digital“) und Platz für die
    Antwort: **8 Schreiblinien** im Abstand von 24 pt (etwa 8,5 mm, passend für Handschrift in Schriftgröße 14), bei
    einer Tabelle ein Gitter mit **zwei Schreibzeilen je Tabellenzeile** (der Kopf wiederholt sich auf jeder neuen
    Seite), bei der Weltkarten-Zuordnung eine Umrisskarte ohne Ländernamen und darunter die Karten mit einer Linie für
@@ -336,8 +337,9 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    Material (als reinen Text) und Ihre Aufträge an die KI – keine Abgaben und keine Daten der Schüler:innen – und
    macht daraus kurze, prüfbare Punkte in Du-Form („Du nennst …“), die auch Inhalte aus dem Auftrag nennen dürfen. Der
    Vorschlag wird beim Blatt gespeichert, Neuladen fragt die KI nicht noch einmal; „Neu von der KI vorschlagen lassen“
-   fragt erneut. Prüfen und ändern Sie die Punkte (eine Zeile je Punkt, höchstens 8 je Aufgabe mit je 160 Zeichen;
-   Aufgaben ohne Auftrag an die KI und Weltkarten bekommen keinen Vorschlag, Sie können dort selbst Punkte eintragen).
+   fragt erneut (ohne nutzbaren KI-Dienst fehlt der Knopf, und die Seite fragt die KI gar nicht erst). Prüfen und
+   ändern Sie die Punkte (eine Zeile je Punkt, höchstens 8 je Aufgabe mit je 160 Zeichen; Aufgaben ohne Auftrag an die
+   KI und Weltkarten bekommen keinen Vorschlag, Sie können dort selbst Punkte eintragen).
    **Erst „Speichern und PDF herunterladen“ macht die Checkliste öffentlich:** Über den QR-Code sieht sie jede Person,
    die den Link kennt – schreiben Sie nichts Geheimes hinein und keine fertige Lösung, die die Schüler:innen nicht
    sehen sollen. „Checkliste ansehen“ zeigt sie so, wie die Schüler:innen sie sehen. Ohne Checklistenpunkte enthält
@@ -783,9 +785,10 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
 
-Der Server speichert weder die Anfragen an die KI noch deren Antworten, und er protokolliert keine Schülertexte
-und keine Schlüssel; die gespeicherten Protokolle von Cloudflare (Workers Logs, Aufrufprotokolle, Traces) sind in
-`wrangler.jsonc` abgeschaltet. Gespeichert werden Angaben und Antworten nur verschlüsselt; für das KI-Feedback
+Der Server speichert weder die Anfragen an die KI noch deren Antworten zum Feedback – nur den Vorschlag der KI für die
+Checkliste (aus Ihren Aufgaben, ohne Daten der Schüler:innen) als Entwurf beim Blatt –, und er protokolliert keine
+Schülertexte und keine Schlüssel; die gespeicherten Protokolle von Cloudflare (Workers Logs, Aufrufprotokolle, Traces)
+sind in `wrangler.jsonc` abgeschaltet. Gespeichert werden Angaben und Antworten nur verschlüsselt; für das KI-Feedback
 verarbeitet der Server die Antworten (ohne Angaben zur Person) kurz unverschlüsselt, um sie an den KI-Dienst
 weiterzugeben. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis
 zu 30 Tage) in der Wiederherstellungsfunktion der Datenbank vor (D1 Time Travel). Cloudflare verarbeitet als Hoster
@@ -803,8 +806,10 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 - **Aufruf der Seite:** Beim Laden der Seite und beim Abruf eines Blattes verarbeitet Cloudflare (bei GitHub Pages auch
   GitHub) technisch die IP-Adresse des Geräts. Die Startseite sagt das in einem Satz; den vollständigen
   Datenschutzhinweis nach Art. 13 DSGVO (mit Ihren Angaben aus [Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen))
-  sehen die Schüler:innen auf dem Angaben-Bildschirm und unter dem Feedback-Button. Er nennt alle Empfänger mit der
-  Grundlage der Übermittlung in die USA: Cloudflare und GitHub (EU-US Data Privacy Framework, ersatzweise
+  sehen die Schüler:innen auf dem Angaben-Bildschirm und unter dem Feedback-Button. Die Checklisten-Seite hinter dem
+  QR-Code sagt es ebenfalls in einem Satz und verweist für alles Weitere (auch, wer verantwortlich ist) auf „Feibeitsblatt
+  digital öffnen“ und „Weiter“ – dann erscheint der Angaben-Bildschirm mit dem vollständigen Hinweis. Er nennt alle
+  Empfänger mit der Grundlage der Übermittlung in die USA: Cloudflare und GitHub (EU-US Data Privacy Framework, ersatzweise
   Standardvertragsklauseln), den KI-Dienst (Workers AI wie Cloudflare, Groq: Standardvertragsklauseln laut Groq, andere:
   „von der Schule beim Anbieter zu prüfen“) und LanguageTool (Learneo ist nach dem Data Privacy Framework zertifiziert,
   ersatzweise Standardvertragsklauseln).
