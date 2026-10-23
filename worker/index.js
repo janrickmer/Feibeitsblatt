@@ -120,8 +120,8 @@ export async function ensureSubmissionColumns(db) {
 }
 
 /* Aufräumen: Abgaben und Erstversuche nach der Löschfrist (PURGE_SQL; ohne gespeicherte Frist nichts), abgelaufene Zähler und
-   Sperren, Verbrauchszeilen von Workers AI älter als zwei Tage. Täglich per Cron Trigger (scheduled) und gelegentlich bei
-   API-Aufrufen; die Löschfrist zusätzlich beim Öffnen der Lehrkräfte-Übersicht. */
+   Sperren, Verbrauchszeilen von Workers AI älter als zwei Tage. Täglich per Cron Trigger (scheduled), beim Öffnen der
+   Lehrkräfte-Übersicht (routeSheetsList) und gelegentlich bei anderen API-Aufrufen. */
 const cleanupStatements = (db, now) => [
   db.prepare(PURGE_SQL).bind(now),
   db.prepare("DELETE FROM rate_limits WHERE reset_at<?1").bind(now),
@@ -339,9 +339,10 @@ function parseTasks(text) {
 
 async function routeSheetsList(c) {
   await requireTeacher(c);
-  // Löschfrist auch beim Öffnen der Übersicht anwenden (falls der tägliche Zeitplan fehlt oder scheiterte), damit die Zahlen stimmen –
-  // getrennt vom Lese-Batch und fehlertolerant: scheitert das Löschen (z. B. Tageslimit geschriebener Zeilen), lädt die Übersicht trotzdem
-  await c.db.prepare(PURGE_SQL).bind(c.now).run().catch(() => {});
+  // Beim Öffnen der Übersicht ganz aufräumen wie der tägliche Zeitplan (falls er fehlt oder scheiterte): Löschfrist, damit die Zahlen
+  // stimmen, und abgelaufene Zähler/Sperren (gehashte IP-Adressen nur etwa einen Tag) – getrennt vom Lese-Batch und fehlertolerant:
+  // scheitert das Löschen (z. B. Tageslimit geschriebener Zeilen), lädt die Übersicht trotzdem
+  await c.db.batch(cleanupStatements(c.db, c.now)).catch(() => {});
   const [list, st] = await c.db.batch([
     c.db.prepare(
       "SELECT s.code, s.title, s.created_at, json_array_length(s.tasks) AS task_count, " +
@@ -846,11 +847,13 @@ async function routeFeedback(c) {
   let entries = activeEntries(ai);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
   if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
   // Transparenz: Der Browser schickt mit, über welche Empfänger die Schülerin bzw. der Schüler vor dem Klick informiert war
-  // (ids aus GET /api/sheet). Nur diese dürfen Daten bekommen; hat die Lehrkraft inzwischen den ersten Anbieter geändert
-  // oder eine Reserve ergänzt, bekommt der Browser 409 und zeigt den neuen Hinweis, bevor etwas gesendet wird.
+  // (ids aus GET /api/sheet, in der Reihenfolge des Hinweises: erster Anbieter, dann die Reserve). Nur diese dürfen Daten bekommen,
+  // und die Reihenfolge zählt („nur wenn der erste … nicht antwortet“): Steht der jetzige erste Anbieter dort nicht an erster Stelle
+  // (geändert, mit der Reserve getauscht oder entfernt, sodass die Reserve nachrückt), bekommt der Browser 409 und zeigt den neuen
+  // Hinweis, bevor etwas gesendet wird. Eine neu ergänzte Reserve, über die nicht informiert wurde, bleibt einfach außen vor.
   if (Array.isArray(body.recipients)) {
     const allowed = new Set(body.recipients.filter((x) => typeof x === "string").slice(0, 10));
-    if (!allowed.has(entryId(entries[0]))) throw new HttpError(409, "ai_changed", MSG.aiChanged);
+    if (body.recipients[0] !== entryId(entries[0])) throw new HttpError(409, "ai_changed", MSG.aiChanged);
     entries = entries.filter((e) => allowed.has(entryId(e)));
   }
   // Gesperrte Modelle je Eintrag (einmal gelesen). Model "*" = Tageskontingent des ganzen Kontos aufgebraucht (Workers AI):

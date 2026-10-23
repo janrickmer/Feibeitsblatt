@@ -151,9 +151,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   nur bei nutzbarem ersten Anbieter – eine Reserve ohne gespeicherten ersten lehnt `PUT` mit 400 `aiMainFirst` ab; id =
   Anbieter bzw. `custom:<host>`, label = `recipientLabel` mit Rechtsträger und Sitz) – Datenschutzhinweis **und**
   Bestätigungsdialog der Schüler:innen nennen alle; der Browser schickt `recipients` (ids) mit `POST /api/feedback`,
-  der Server nutzt nur diese Einträge und antwortet 409 `ai_changed`, wenn der erste Anbieter nicht darunter ist
-  (Browser: `reloadRecipients`, Hinweis, nichts gesendet). Reserve nur bei Codes aus `RESERVE_ON` (Verfügbarkeit, zu
-  lang, unbrauchbare Antwort) – nie bei FILTERED/AUTH/CONFIG/PRIVACY_POLICY/REGION/PAYMENT, nie parallel. Gemini
+  der Server nutzt nur diese Einträge und antwortet 409 `ai_changed`, wenn der jetzige erste Anbieter dort nicht an erster
+  Stelle steht (Reihenfolge des Hinweises: geändert, mit der Reserve getauscht oder entfernt, sodass die Reserve nachrückt;
+  eine neu ergänzte Reserve wird nur nicht genutzt, kein 409) (Browser: `reloadRecipients`, Hinweis, nichts gesendet).
+  Reserve nur bei Codes aus `RESERVE_ON` (Verfügbarkeit, zu lang, unbrauchbare Antwort) – nie bei FILTERED/AUTH/CONFIG/PRIVACY_POLICY/REGION/PAYMENT, nie parallel. Gemini
   (erster Anbieter oder Reserve) nur mit `confirmBilling:true` (→ `billingConfirmed`, EWR-Bedingungen).
   **Lastspitzen (30 Anfragen in einer Minute):** `ai_gate`-Schlüssel per `gateKey(provider, key, model)` – je
   Eintrag (`key` = provider bzw. `provider#r` für die Reserve) und bei `perModelGate` (groq, cerebras, gemini) je
@@ -244,15 +245,20 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `schoolAddress` 240, `dpoContact` 300, `privacyUrl` 500 (`cleanHttpsUrl`: nur https, ohne Zugangsdaten), `legalBasis` 400,
   `authority` 240; Frist Ganzzahl `retentionMin`–`retentionMax`), `privacyOut` (prüft Gespeichertes erneut, ungültige Frist
   → `null`), `isPrivacyComplete` (name, address, dpo, legalBasis), `RETENTION_OPTIONS` [7, 14, 30, 60, 90, 180, 365],
-  `PURGE_SQL` und `OLDER_THAN_SQL` – **in lib.js, weil workerd in index.js nur Funktions-Exporte zulässt** („Incorrect
-  type for map entry“). `PURGE_SQL` = ein DELETE mit Unterabfrage auf settings (`json_valid`, `json_type(…)='integer'`,
-  `BETWEEN 7 AND 365` – dieselben Grenzen wie `privacyOut`; ohne gültige Frist NULL → nichts gelöscht) über
+  `PURGE_SQL`, `OLDER_THAN_SQL`, `COUNT_OLDER_SQL`, `SAVE_PRIVACY_SQL` und `DELETE_OLDER_SQL` – **in lib.js, weil workerd in
+  index.js nur Funktions-Exporte zulässt** („Incorrect type for map entry“). `PURGE_SQL` = ein DELETE mit Unterabfrage auf
+  settings (`json_valid`, `json_type(…)='integer'`, `BETWEEN 7 AND 365` – dieselben Grenzen wie `privacyOut`; ohne gültige Frist NULL → nichts gelöscht) über
   `idx_submissions_received`; `OLDER_THAN_SQL` = eine Abfrage mit `SUM(received_at<?n)` je Option. Gelöscht wird
   (`cleanupStatements`: PURGE, rate_limits, ai_skip, ai_usage) im Cron (`scheduled`, now = `scheduledTime`, Fehler nicht
-  abfangen → „Past Cron Events“), im 2-%-Aufräumen und in `routeSheetsList` – dort **getrennt vor dem Lese-Batch und
-  fehlertolerant** (`.catch`), damit die Übersicht auch bei erschöpftem Schreiblimit lädt. `GET /api/teacher/privacy` →
-  `{privacy, complete, defaults, olderThan:{"7":n…}, aiRecipients}`; `PUT` (`{school, retentionDays}`) → ein Batch
-  [UPSERT, PURGE, OLDER_THAN] → `{privacy, complete, deleted, olderThan}`. `routeSetup` legt in einem Batch mit dem
+  abfangen → „Past Cron Events“), im 2-%-Aufräumen und beim Öffnen der Übersicht in `routeSheetsList` – dort die ganzen
+  `cleanupStatements` (auch abgelaufene Zähler und Sperren: ohne Zeitplan gilt „gehashte IP höchstens etwa einen Tag“ sonst
+  nicht), **getrennt vor dem Lese-Batch und fehlertolerant** (`.catch`), damit die Übersicht auch bei erschöpftem Schreiblimit
+  lädt. `GET /api/teacher/privacy` → `{privacy, complete, defaults, olderThan:{"7":n…}, aiRecipients}`; `PUT`
+  (`{school, retentionDays, confirmDelete}`; fehlt `confirmDelete` = 0) → ein Batch (eine Transaktion) [`COUNT_OLDER_SQL`,
+  `SAVE_PRIVACY_SQL` (speichert nur bei ≤ bestätigter Zahl), `DELETE_OLDER_SQL` (löscht nur, wenn genau dieser Wert gespeichert
+  ist), OLDER_THAN] → `{privacy, complete, deleted, olderThan}`; würde mehr gelöscht als bestätigt → 409 `confirm_delete` mit
+  `wouldDelete`/`olderThan`, nichts gespeichert oder gelöscht (der Browser fragt mit der neuen Zahl erneut, höchstens zweimal);
+  `PURGE_SQL` steht nur in `cleanupStatements`. `routeSetup` legt in einem Batch mit dem
   teacher-INSERT `privacy` {30, auto} an – nur wenn dieser Aufruf die Lehrkraft angelegt hat, noch keine Zeile da ist und
   es keine Blätter gibt (bestehende Installationen löschen erst nach dem ersten Speichern; „Passwort vergessen“ behält
   die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy`

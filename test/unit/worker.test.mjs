@@ -442,6 +442,23 @@ test("reserve AI: stored separately (encrypted), tested via ?which=reserve, used
   assert.equal(r.status, 502); assert.equal(mock.state.requests.length, 0, "Reserve ohne Information nie");
   r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: ["custom:127.0.0.1:9", "custom:127.0.0.1:" + mock.port] } });
   assert.equal(r.status, 200); assert.equal(mock.state.requests.length, 1);
+  // Die Reihenfolge zählt: erster Anbieter und Reserve getauscht → 409, nichts gesendet (der Hinweis sagte „nur wenn der erste …“)
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-SECRET-1234",
+    reserve: { provider: "custom", model: "tot", baseUrl: "http://127.0.0.1:9/v1", apiKey: "sk-dead" } } });
+  assert.equal(r.status, 200, r.text);
+  r = await call("GET", "/api/sheet/" + code);
+  assert.deepEqual(r.json.sheet.aiRecipients.map((x) => x.id), ["custom:127.0.0.1:" + mock.port, "custom:127.0.0.1:9"]);
+  const informed = ["custom:127.0.0.1:9", "custom:127.0.0.1:" + mock.port];   // Hinweis von vor dem Tausch
+  mock.reset();
+  r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: informed } });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "ai_changed"); assert.equal(mock.state.requests.length, 0);
+  // … ebenso, wenn der bisherige erste Anbieter entfernt wurde und die Reserve nachrückt
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } });
+  assert.equal(r.status, 200, r.text);
+  r = await call("GET", "/api/sheet/" + code);
+  assert.deepEqual(r.json.sheet.aiRecipients.map((x) => x.id), ["custom:127.0.0.1:" + mock.port]);
+  r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: informed } });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "ai_changed"); assert.equal(mock.state.requests.length, 0);
   // Erster Anbieter wieder der Mock; Reserve entfernen → auch der Hinweis für Schüler:innen verschwindet
   r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-SECRET-1234", reserve: null } });
   assert.equal(r.status, 200, r.text); assert.equal(r.json.reserve, null);
@@ -993,7 +1010,7 @@ test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht so
   }
 });
 
-test("Löschfrist beim Öffnen der Übersicht: abgelaufene Einträge zählen nicht mehr; scheitert das Löschen, lädt die Übersicht trotzdem", async () => {
+test("Aufräumen beim Öffnen der Übersicht: abgelaufene Einträge zählen nicht mehr, abgelaufene Zähler und Sperren verschwinden; scheitert das Löschen, lädt die Übersicht trotzdem", async () => {
   const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
   const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Übersicht", tasks } })).json.code;
   try {
@@ -1005,10 +1022,17 @@ test("Löschfrist beim Öffnen der Übersicht: abgelaufene Einträge zählen nic
     assert.equal(r.status, 200, r.text);
     let row = r.json.sheets.find((x) => x.code === c);
     assert.deepEqual([row.submissionCount, row.firstCount], [2, 1]);   // nichts gelöscht, Übersicht trotzdem da
-    r = await call("GET", "/api/teacher/sheets", { auth });
+    const now = Date.now();
+    d1.db.prepare("INSERT OR REPLACE INTO rate_limits(bucket,count,reset_at) VALUES('list:alt',1,?),('list:neu',1,?)").run(now - 1000, now + 600e3);
+    d1.db.prepare("INSERT OR REPLACE INTO ai_skip(provider,model,until,reason) VALUES('list','alt',?, 'x'),('list','neu',?, 'x')").run(now - 1000, now + 600e3);
+    const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen: das Öffnen der Übersicht räumt selbst auf
+    try { r = await call("GET", "/api/teacher/sheets", { auth }); } finally { Math.random = rnd; }
     row = r.json.sheets.find((x) => x.code === c);
     assert.deepEqual([row.submissionCount, row.firstCount], [1, 0]);
     assert.equal(idsOf(c).includes(oldId), false);
+    assert.deepEqual(d1.db.prepare("SELECT bucket FROM rate_limits WHERE bucket LIKE 'list:%'").all().map((x) => x.bucket), ["list:neu"]);
+    assert.deepEqual(d1.db.prepare("SELECT model FROM ai_skip WHERE provider='list'").all().map((x) => x.model), ["neu"]);
+    d1.db.prepare("DELETE FROM rate_limits WHERE bucket LIKE 'list:%'").run(); d1.db.prepare("DELETE FROM ai_skip WHERE provider='list'").run();
   } finally {
     d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(saved.value);
     await call("DELETE", "/api/teacher/sheets/" + c, { auth });

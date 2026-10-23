@@ -18,7 +18,8 @@
   // Täglich 02:17 UTC (versetzte Minute): Abgaben und Erstversuche nach der Löschfrist der Lehrkraft löschen und aufräumen
   // (Handler `scheduled` in worker/index.js). Braucht 1 der 5 Cron Trigger, die ein Konto im Free-Plan hat; ist das Kontingent
   // voll, meldet `wrangler deploy` „Trigger configuration … was only partially updated“ (der Code ist dann schon hochgeladen) –
-  // gelöscht wird trotzdem beim Öffnen der Lehrkräfte-Übersicht und gelegentlich bei anderen Aufrufen (siehe README).
+  // Abgaben und Zähler werden trotzdem beim Öffnen der Lehrkräfte-Übersicht und gelegentlich bei anderen Aufrufen gelöscht (siehe
+  // README). Die Zeile nicht entfernen: test/unit/config.test.mjs verlangt sie (sonst scheitert schon der Testschritt des Workflows).
   "triggers": { "crons": ["17 2 * * *"] },
   // Keine Protokolle bei Cloudflare speichern: Aufrufprotokolle (invocation logs) enthielten u. a. die URL mit dem Blatt-Code.
   // Nur ein ausdrücklicher Eintrag wird beim Deploy übertragen – ohne ihn gälte die Einstellung im Dashboard (bei neuen Workern
