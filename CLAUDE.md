@@ -224,8 +224,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Reserve → 400 `aiSameAccount` (beide Reihenfolgen). Empfänger-Label „Cloudflare, Inc. (San Francisco, USA) – betreibt
   auch den Server, der die Abgaben speichert“; `recipientSentence`/`renderPrivacy`: bei Cloudflare „auch außerhalb der EU
   möglich“, zusammen mit einem anderen US-Dienst „die übrigen Dienste mit Sitz in den USA … außerhalb der EU“; die Reserve
-  springt ein, wenn der erste „nicht antwortet, ausgelastet ist oder sein Tageskontingent aufgebraucht hat“ (`RESERVE_WHEN`,
-  ebenso im Reserve-Dialog der Lehrkraft). Oberfläche: Optionen „– nicht für den Schuleinsatz geeignet“ (gemini, openrouter, cerebras; `unsuitable` im
+  springt ein, wenn der erste „nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares
+  Feedback liefert“ (`RESERVE_WHEN` – die Worte müssen alle Codes aus `RESERVE_ON` abdecken –, ebenso im Reserve-Dialog der
+  Lehrkraft und im README-Textbaustein). Oberfläche: Optionen „– nicht für den Schuleinsatz geeignet“ (gemini, openrouter, cerebras; `unsuitable` im
   Browser-`PROVIDERS`, `.provwarn` per JS gefüllt, `askConfirm` „Anbieter trotz Warnung speichern?“ nur wenn nicht schon
   gespeichert; bei der Reserve im selben Dialog), Schlüsselfeld `#ai-key-field` bei keyless verborgen (`#ai-keyless-hint`),
   Modellfeld beim Anbieterwechsel leeren, `savedMain()` (nur `saved !== false`; `ai2Save` verlangt ihn, `AI_MAIN_FIRST`),
@@ -258,14 +259,21 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`PRIV_LIMITS` = LIMITS), `privacyShortText` (Kurzfassung, nennt den KI-Dienst), `privacyNoticeDom(p, list, {h, withAi,
   pages, open, id})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit 10 Abschnitten (`.privh`; Angaben `h2`
   `#p-privfull` mit `#p-privacy-short` in `renderPersonPrivacy`, Editor `h3` in `#privfull-ed` aus `renderPrivacy` –
-  beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`); ohne Angaben ein
-  ehrlicher allgemeiner Text („deine Schule … frag deine Lehrkraft“). Empfänger: Lehrkraft; Cloudflare (Server/DB in der
-  EU, gespeichert nur verschlüsselt, für das KI-Feedback **kurz unverschlüsselt im Server, nicht gespeichert** – nie
-  behaupten, Cloudflare sehe die Antworten nur verschlüsselt; mit Workers AI im selben Eintrag als KI-Dienst, Verarbeitung
-  auch außerhalb der EU); GitHub, Inc. nur bei `PAGES_HOST` (`API !== ""`, GitHub Pages); weitere KI-Dienste mit
-  `transfer`; LanguageTool (Learneo, DPF). Alle mit DPF/SCC. `#start-privacy`: ein Satz zur IP beim Laden. Speicherdauer
-  nennt Time Travel „bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)“. `renderPrivacy` und der
-  ausführliche Hinweis dürfen sich nicht widersprechen. Lehrkraft: `#t-privacy` → `#tv-privacy` (`openPrivacy`, Felder
+  beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`: für ein Blatt mit
+  KI-Feedback unter der Adresse der Lehrkraft, darunter `#pv-preview-note` – ist `!PAGES_HOST` und `PUBLIC_HOST` (aus
+  `PUBLIC_URL`) eine andere Adresse, kommt GitHub dazu (Wortlaut `GITHUB_ITEM` wie im Hinweis), und bei Blättern ohne
+  Auftrag an die KI entfallen die Angaben zum KI-Feedback); ohne Angaben ein
+  ehrlicher allgemeiner Text („deine Schule … frag deine Lehrkraft“). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
+  Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
+  nächstgelegenen Cloudflare-Rechenzentrum; gespeichert nur verschlüsselt, für das KI-Feedback **kurz unverschlüsselt im
+  Server, nicht gespeichert** – nie behaupten, Cloudflare sehe die Antworten nur verschlüsselt; mit Workers AI im selben
+  Eintrag als KI-Dienst, Verarbeitung auch außerhalb der EU); GitHub, Inc. nur bei `PAGES_HOST` (`API !== ""`, GitHub
+  Pages); weitere KI-Dienste mit `transfer`; ohne Empfänger (keine KI eingerichtet) `NO_AI_SET` „Ein KI-Dienst ist … gerade
+  nicht eingerichtet – deine Antworten gehen an keine KI.“ – auch in `recipientSentence`/`renderPrivacy`, nie ein
+  Rückfall „KI-Dienst deiner Lehrkraft“; LanguageTool (Learneo, DPF). Alle mit DPF/SCC. `#start-privacy`: ein Satz zur IP
+  beim Laden. Speicherdauer nennt Time Travel „bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)“; den
+  Zwischenstand auf dem Gerät beschreibt `DRAFT_STAY` (gelöscht nur beim nächsten Aufruf der Seite, `cleanupDrafts`) –
+  **nie „höchstens 7 Tage“ zusagen**. `renderPrivacy` und der ausführliche Hinweis dürfen sich nicht widersprechen. Lehrkraft: `#t-privacy` → `#tv-privacy` (`openPrivacy`, Felder
   `#pv-name/-addr/-dpo/-basis/-auth/-url`, `#pv-hessen` = `HESSEN` (Art. 6 Abs. 1 Buchst. e DSGVO i. V. m. § 83 Abs. 1 und
   § 83a Abs. 1 Nr. 2 HSchG; HBDI, Postfach 3163, 65021 Wiesbaden), ersetzt eigene Eingaben nur nach Rückfrage;
   `#pv-days` + `#pv-days-effect` aus `olderThan`; vor dem Löschen Dialog „Ältere Abgaben jetzt löschen?“ (danger);
@@ -520,7 +528,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Schreibmodus scrollt nur `.paperwrap`, nichts liegt über der Schreibfläche (Abgeben ohne KI-Feedback: eigener Punkt
   unten). Zwischenstand in `localStorage` unter `feibeitsblatt:draft:<SHA-256>` (`draftKeyFor`: Code|Kürzel|Geburtstag|
   Klasse; Schlüssel ohne Klartext-Angaben; 7 Tage), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite,
-  „Abbrechen und Zwischenstand löschen“ in der Topbar; alle Zugriffe in try/catch, nach Abgabe löschen. Was sich nicht
+  „Abbrechen und Zwischenstand löschen“ in der Topbar (der Dialog nennt einen schon gesendeten Erstversuch – „sie kann den Eintrag löschen“ – und bei laufender Anfrage „Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.“); alle Zugriffe in try/catch, nach Abgabe löschen. Was sich nicht
   speichern lässt (Speicher voll/gesperrt), hält `heldDrafts` im Arbeitsspeicher (neuer als der gespeicherte Stand; `draftStored`
   liest, `delDraft` löscht beides, `saveDraft` liefert `ok`; `openEditor` speichert so einen Stand sofort erneut und zeigt sonst
   `SAVE_FAILED`). Lehrkraft: Abmeldung nach 20 min ohne Eingabe; Abgaben-Listen seitenweise laden; fremde Payloads vor
@@ -538,7 +546,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `feedbackError` (`S.fbUnavailable`, ohne Empfänger „KI nicht eingerichtet“, bei `ai_quota` `FB_QUOTA`, sonst `FB_NOT_DONE` „Anfrage nicht
   abgeschlossen“; Dialog „Das KI-Feedback hat bisher nicht geklappt (Grund) …“, bei laufender Anfrage „… wird sie
   abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.“); `"none"` bei Blättern ohne Auftrag an
-  die KI (`aiFeedback:false`: kein `#fb-btn`, schlichtes „Jetzt abgeben?“, Hinweis ohne KI-Dienst). Als Fehlversuch
+  die KI (`aiFeedback:false`: kein `#fb-btn`, schlichtes „Jetzt abgeben?“, Hinweis ohne KI-Dienst). Ohne Empfänger
+  (`aiRecipients` leer) lädt `requestFeedback` zuerst per `reloadRecipients()` neu (nur GET); bleibt die Liste leer: kein
+  Dialog, kein POST, `S.fbUnavailable = FB_NO_AI` („KI nicht eingerichtet“, mit `fbUnavailableDay`), gespeichert, Status
+  „Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.“; sonst der normale
+  Dialog mit den echten Empfängern. `fbBlockedNow()` (für `#fb-fallback` und den Hinweis unter „Abgeben“): `FB_NO_AI` gilt
+  nicht mehr, sobald `aiRecipients` gefüllt ist (auch nach `ai_changed` → `renderFeedbackState`); `noAiState` behält den
+  Grund für die Abgabe. Als Fehlversuch
   zählt auch ein Lauf, den die Abgabe abbricht oder der nach `ai_busy` mit „zu lang“ bzw. `ai_changed` endet (Meldung
   dann „dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise
   schon erhalten“ statt „es wurde nichts gesendet“). Ohne Feedback: kein Erstversuch, keine zweite Rückmeldung,

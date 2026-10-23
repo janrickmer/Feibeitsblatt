@@ -174,7 +174,8 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
 > [KI-Einstellungen](#schritt-8-ki-feedback-einrichten) trotzdem ein und testen Sie das Blatt einmal selbst, bevor Sie
 > den Code an die Klasse geben. Ist das KI-Feedback nicht eingerichtet, ist das Tageskontingent von Workers AI
 > aufgebraucht oder schlägt es zweimal hintereinander fehl (Kontingent erschöpft, Anbieter gestört), sehen die
-> Schüler:innen einen Hinweis mit dem Grund. Hat keine Aufgabe
+> Schüler:innen einen Hinweis mit dem Grund. Ohne eingerichtete KI sieht die Seite beim Klick auf „KI um ein Feedback
+> bitten“ erst nach, ob Sie sie inzwischen eingerichtet haben – sonst wird nichts gesendet. Hat keine Aufgabe
 > einen Auftrag an die KI, gibt es keinen Feedback-Button und gar keine KI.
 
 Die Einfügesperre verhindert das übliche Einfügen (Tastenkürzel, Kontextmenü, Ziehen mit der Maus, größere
@@ -483,8 +484,11 @@ und der bzw. dem Datenschutzbeauftragten ab.
    Einträge die gewählte Frist jetzt löschen würde, und fragt vor dem Speichern nach („Ältere Abgaben jetzt löschen?“) –
    gelöscht wird dann sofort und endgültig. Eine längere Frist gilt auch für schon gespeicherte Abgaben; informieren
    Sie die Schüler:innen dann neu.
-5. Unten zeigt eine **Vorschau** genau den Hinweis, den die Schüler:innen sehen (mit den KI-Empfängern aus den
-   KI-Einstellungen). „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
+5. Unten zeigt eine **Vorschau** den Hinweis für ein Feibeitsblatt mit KI-Feedback, so wie er unter der Adresse
+   erscheint, unter der Sie die Seite geöffnet haben (mit den KI-Empfängern aus den KI-Einstellungen). Darunter steht,
+   was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
+   Zwischenstand-PDF), nennt der Hinweis zusätzlich GitHub als Empfänger; bei Blättern ohne Auftrag an die KI entfallen
+   die Angaben zum KI-Feedback. „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
 
 Gelöscht wird einmal täglich in der Nacht (02:17 Uhr UTC, Cron Trigger) und zusätzlich, wenn Sie die Übersicht öffnen.
 Feibeitsblätter selbst bleiben, bis Sie sie löschen. Danach hält Cloudflare gelöschte Daten noch bis zu 7 Tage (bei
@@ -564,7 +568,9 @@ Hinweise:
 - Das Feedback zum Überarbeiten gibt es einmal je Gerät und Angaben, dazu bei der Abgabe die Rückmeldung zur
   abgegebenen Fassung – je Schüler:in also bis zu zwei KI-Anfragen. Der Server kann das nicht erzwingen (wer andere
   Angaben eingibt oder ein zweites Gerät nutzt, kann erneut anfragen). Je Feibeitsblatt sind höchstens 600
-  KI-Anfragen pro Tag möglich – das schützt Ihr Kontingent vor Missbrauch.
+  KI-Anfragen pro Tag möglich – das begrenzt Missbrauch bei Anbietern mit eigenem API-Schlüssel. Das Tageskontingent
+  von Workers AI (10 000 Neurons für das ganze Konto) ist kleiner und kann trotzdem aufgebraucht werden (siehe oben;
+  Abhilfe: eine [Reserve-KI](#reserve-ki-zweiter-anbieter)).
 
 ### Reserve-KI (zweiter Anbieter)
 
@@ -844,7 +850,7 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
 > Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B.
 > Cloudflare Workers AI – Cloudflare, Inc., USA, derselbe Anbieter, der den Server betreibt] gesendet; nur wenn
-> dieser nicht antwortet, ausgelastet ist oder sein Tageskontingent aufgebraucht hat, an
+> dieser nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert, an
 > [Reserve-Dienst mit Sitz, z. B. Groq LLC, USA]. Diese Dienste haben ihren Sitz in den USA; [bei Cloudflare Workers AI:
 > die Datenbank liegt in der EU, die KI-Verarbeitung kann auch außerhalb der EU stattfinden;] die Übermittlung stützt
 > sich auf [EU-US Data Privacy Framework / Standardvertragsklauseln]. Die KI gibt nur Hinweise, keine Noten; über die
@@ -1001,7 +1007,7 @@ gespeichert.
 | Workflow meldet „Zeitplan für die automatische Löschung nicht gesetzt“ bzw. wrangler „Trigger configuration … was only partially updated … Cron schedules“ | Das Cloudflare-Konto hat schon 5 Cron Trigger (Grenze im Free-Plan). Der Worker selbst ist trotzdem veröffentlicht, `SETTINGS_SECRET` wird trotzdem angelegt; gelöscht wird dann nur beim Öffnen der Lehrkräfte-Übersicht und gelegentlich bei anderen Aufrufen. Abhilfe: im Dashboard bei einem anderen Worker einen Cron Trigger entfernen und den Workflow erneut starten – oder, wenn das nicht geht, in `wrangler.jsonc` die Zeile `"triggers"` entfernen (dann öffnen Sie die Übersicht bitte regelmäßig). |
 | Fehlersuche: Im Dashboard stehen keine Protokolle | Absicht – die gespeicherten Protokolle sind abgeschaltet (siehe [Sicherheit](#sicherheit)). Live mitlesen: `npx wrangler tail` (mit dem API-Token), nichts wird gespeichert. |
 | „Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid.“ | Es ist kein Lehrkraft-Passwort festgelegt (z. B. nach dem Zurücksetzen). `1104` eingeben und ein Passwort festlegen (Schritt 7). |
-| „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“ | KI-Einstellungen speichern (Schritt 8). Abgeben (ohne KI-Feedback) geht trotzdem. |
+| „Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.“ (bzw. „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“) | KI-Einstellungen speichern (Schritt 8). Abgeben (ohne KI-Feedback) geht trotzdem; nach dem Speichern klappt ein neuer Klick auf „KI um ein Feedback bitten“ auch auf schon geöffneten Seiten. |
 | Rote Warnung „Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch …“ bzw. „… werden noch nicht automatisch gelöscht“ in der Übersicht | Unter „Datenschutz und Löschfrist“ die Angaben der Schule eintragen bzw. eine Löschfrist speichern ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Bis dahin sehen die Schüler:innen einen allgemeinen Hinweis. |
 | Abgaben sind verschwunden | Vermutlich ist die Löschfrist abgelaufen (die Übersicht nennt sie; aufgeklappt steht je Abgabe, ab wann sie gelöscht wird). Gelöschtes lässt sich nur über D1 Time Travel (bis zu 7 Tage, bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage) für die ganze Datenbank zurückholen – das setzt auch alles andere zurück. |
 | „Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt).“ | Den Workflow „Deploy“ erneut ausführen; er legt das Secret an. Danach den API-Schlüssel eintragen. |

@@ -1105,8 +1105,8 @@
         <p class="status" id="pv-status" aria-live="polite"></p>
       </div>
       <div class="pbox" style="max-width:760px">
-        <h2 class="pvh">So sehen die Schüler:innen den Hinweis</h2>
-        <p class="note" style="margin:0 0 10px">Vorschau mit Ihren Eingaben (auch noch nicht gespeicherten) und den KI-Empfängern aus den KI-Einstellungen. Die Schüler:innen sehen den Hinweis auf der Seite „Deine Angaben“ und unter dem Feedback-Button.</p>
+        <h2 class="pvh">Vorschau des Hinweises für die Schüler:innen</h2>
+        <p class="note" style="margin:0 0 10px">Der Hinweis für ein Feibeitsblatt mit KI-Feedback, so wie er unter dieser Adresse erscheint – mit Ihren Eingaben (auch noch nicht gespeicherten) und den KI-Empfängern aus den KI-Einstellungen. Die Schüler:innen sehen den Hinweis auf der Seite „Deine Angaben“ und unter dem Feedback-Button.</p>
         <div id="pv-preview"></div>
       </div>
     </div>
@@ -2050,7 +2050,6 @@ async function loadSheet(code) {
     answers: sh.tasks.map((t) => cleanAnswer(t && t.answer)),   // je Aufgabe: Antwortart (Textfeld, Tabelle, Weltkarte)
     material: sh.tasks.map((t) => cleanMaterial(t && t.material)),   // je Aufgabe: formatierter Text der Lehrkraft mit Links
     files: sh.tasks.map((t) => cleanFiles(t && t.files)),   // je Aufgabe: PDF-Dateien der Lehrkraft zum Herunterladen
-    aiProvider: typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null,
     aiRecipients: recipientsOf(sh),   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
     aiFeedback: sh.aiFeedback !== false,   // false = keine Aufgabe mit Auftrag an die KI: kein KI-Feedback (ältere Worker: wie bisher)
     privacy: cleanPrivacy(sh.privacy)   // Angaben der Schule und Löschfrist für den Datenschutzhinweis (null = keine eingetragen)
@@ -2070,19 +2069,22 @@ function cleanRecipients(v) {
   return Array.isArray(v) ? v.filter((x) => x && typeof x.id === "string" && typeof x.label === "string").slice(0, 5)
     .map((x) => ({ id: x.id.slice(0, 200), label: x.label.trim().slice(0, 200), transfer: typeof x.transfer === "string" ? x.transfer.trim().slice(0, 200) : "" })) : [];
 }
-// Empfängerliste nach dem Hinweis neu laden (die Lehrkraft hat die KI-Einstellungen geändert → 409 ai_changed)
+// Empfängerliste samt Hinweis neu laden: nach 409 ai_changed (die Lehrkraft hat die KI-Einstellungen geändert) und vor einer Anfrage
+// ohne Empfänger (beim Laden war keine KI eingerichtet) – nur ein GET, ohne Antworten. Hat die Seite das Blatt inzwischen verlassen: nichts.
 async function reloadRecipients() {
+  const sheet = S.sheet;
   const r = await api("GET", "/api/sheet/" + encodeURIComponent(S.code));
+  if (!sheet || S.sheet !== sheet) return;
   const sh = r.sheet || {};
-  S.sheet.aiProvider = typeof sh.aiProvider === "string" && sh.aiProvider.trim() ? sh.aiProvider.trim() : null;
   S.sheet.aiRecipients = recipientsOf(sh);
   S.sheet.privacy = cleanPrivacy(sh.privacy);
   renderPrivacy();
 }
-/* Satz über die Empfänger (erster Anbieter, dann die Reserve) – für Hinweis und Dialog; derselbe Wortlaut, dedupliziert */
+/* Satz über die Empfänger (erster Anbieter, dann die Reserve) – für Hinweis und Dialog; derselbe Wortlaut, dedupliziert.
+   Ohne Empfänger (any: false) ist keine KI eingerichtet: dann nie einen KI-Dienst nennen, sondern NO_AI_SET (wie privacyNoticeDom). */
 function recipientParts() {
   const list = (S.sheet && S.sheet.aiRecipients) || [], q = (t) => "„" + t + "“";
-  const first = list.length ? q(list[0].label) : (S.sheet && S.sheet.aiProvider ? q(S.sheet.aiProvider) : "deiner Lehrkraft");
+  const first = list.length ? q(list[0].label) : "";
   const rest = list.slice(1).map((x) => x.label).filter((l, i, a) => l !== (list[0] && list[0].label) && a.indexOf(l) === i).map(q);
   // Cloudflare (Workers AI) hat Sitz in den USA, die Datenbank liegt in der EU; die KI-Verarbeitung lässt sich aber nicht auf die
   // EU beschränken – deshalb „auch außerhalb der EU möglich“ statt „außerhalb der EU“. Die Aussage über „Dienste mit Sitz in den
@@ -2090,10 +2092,13 @@ function recipientParts() {
   const cf = list.some((x) => x.id === "cloudflare"), usa = list.some((x) => x.id !== "cloudflare" && /USA/.test(x.label));
   return { first, rest, usa, cf, any: list.length > 0 };
 }
-// Wann die Reserve einspringt (wie RESERVE_ON im Worker, in Worten): auch, wenn der erste Dienst sein Tageskontingent aufgebraucht hat
-const RESERVE_WHEN = "nicht antwortet, ausgelastet ist oder sein Tageskontingent aufgebraucht hat";
+// Wann die Reserve einspringt – die Worte müssen alle Codes aus RESERVE_ON im Worker abdecken (Verfügbarkeit, Tageskontingent,
+// „kein brauchbares Feedback“ = Serverfehler, Anfrage zu lang, leere, unbrauchbare oder abgeschnittene Antwort, sonstige HTTP-Fehler)
+const RESERVE_WHEN = "nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert";
+const NO_AI_SET = "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – deine Antworten gehen an keine KI.";
 function recipientSentence() {
   const r = recipientParts();
+  if (!r.any) return NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.";
   return `Deine Antworten gehen – ohne Namenskürzel, Geburtstag und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
     (r.rest.length ? ` Nur wenn dieser Dienst ${RESERVE_WHEN}, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
     (r.cf ? " Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich." : "") +
@@ -2111,6 +2116,7 @@ const RETENTION_MIN = 7, RETENTION_MAX = 365;                                   
 const BACKUP_DAYS = "bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)";              // D1 Time Travel
 const PAGES_HOST = API !== "";   // die Seite kommt nicht vom Worker (GitHub Pages, ohne Kennzeichen feibeitsblatt-host) → GitHub ist ein weiterer Empfänger (IP-Adresse)
 const DPF_SCC = "auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln";
+const GITHUB_ITEM = `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`;
 const privLine = (v) => String(v == null ? "" : v).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ")
   .replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\s+/g, " ").trim();
 function httpsUrl(v) {   // wie cleanHttpsUrl im Worker: nur https, ohne Zugangsdaten → normalisierte Adresse oder ""
@@ -2139,6 +2145,10 @@ function privacyShortText(p, list, withAi) {
         (list.length > 1 ? " (fällt er aus, an eine Reserve)" : "") + ", bei der Abgabe dann noch einmal in der abgegebenen Fassung. Auch die Rechtschreibprüfung ist freiwillig."
       : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.");
 }
+// Zwischenstand auf dem Gerät: gelöscht wird nur beim nächsten Aufruf der Seite (cleanupDrafts) – nie „höchstens 7 Tage“ zusagen
+const DRAFT_STAY = `Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
+  `Ist er älter als ${DRAFT_DAYS} Tage, löscht diese Seite ihn beim nächsten Aufruf in diesem Browser; bis dahin bleibt er gespeichert. ` +
+  `Auf einem geteilten Gerät gib deshalb ab oder lösche ihn („Abbrechen und Zwischenstand löschen“).`;
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
 const FB2_SEND = " Hast du KI-Feedback bekommen, geht bei der Abgabe auch deine abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
   "für eine zweite Rückmeldung, die nur du siehst (nicht, wenn du nach dem ersten Feedback nichts geändert hast).";
@@ -2161,7 +2171,7 @@ function privacyNoticeDom(p, list, opts) {
       ": Dafür bekommt Cloudflare deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden." +
       (cfAt === 0 ? FB2_SEND : "")) +
     ` Für Übermittlungen in die USA stützt sich Cloudflare ${DPF_SCC}.` }));
-  if (o.pages) items.push(h("li", { text: `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.` }));
+  if (o.pages) items.push(h("li", { text: GITHUB_ITEM }));
   ai.forEach((x, i) => {
     if (x.id === "cloudflare") return;
     items.push(h("li", { text: (i === 0
@@ -2170,7 +2180,7 @@ function privacyNoticeDom(p, list, opts) {
       ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || "von der Schule beim Anbieter zu prüfen"}.` }));
   });
   if (!withAi) items.push(h("li", { text: "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI." }));
-  else if (!ai.length) items.push(h("li", { text: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – ohne KI-Feedback gehen deine Antworten an keine KI." }));
+  else if (!ai.length) items.push(h("li", { text: NO_AI_SET }));
   items.push(h("li", { text: "Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
     "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. " +
     "Learneo ist nach dem EU-US Data Privacy Framework zertifiziert; ersatzweise gelten Standardvertragsklauseln." }));
@@ -2197,8 +2207,7 @@ function privacyNoticeDom(p, list, opts) {
     head("Wie lange werden die Daten gespeichert?"),
     para((days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); deine Lehrkraft kann sie auch früher löschen.`
       : `${what} wird gespeichert, bis deine Lehrkraft sie nach der Durchsicht löscht.`) +
-      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät, ` +
-      `höchstens ${DRAFT_DAYS} Tage – wer denselben Browser nutzt, kann ihn lesen; auf einem geteilten Gerät gib deshalb ab oder lösche ihn („Abbrechen und Zwischenstand löschen“).` +
+      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${DRAFT_STAY}` +
       (cfAt >= 0 ? " Workers AI speichert deine Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten " +
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
       (ai.some((x) => x.id !== "cloudflare") ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
@@ -2232,14 +2241,16 @@ function renderPrivacy() {
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     (withAi
       ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
-        `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtstag und Klasse – an den Server dieser Seite geschickt. ` +
+        (!r.any   // keine KI eingerichtet: derselbe Inhalt wie im ausführlichen Hinweis (nie einen KI-Dienst nennen, den es nicht gibt)
+          ? `${NO_AI_SET} Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird. `
+          : `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtstag und Klasse – an den Server dieser Seite geschickt. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
         (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
         [r.cf && ", bei Cloudflare auch außerhalb der EU möglich", r.usa && (r.cf ? ", bei den übrigen Diensten mit Sitz in den USA" : ", bei Sitz in den USA") + " außerhalb der EU"].filter(Boolean).join("") + `. ` +
         `Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI, wenn du vorher KI-Feedback bekommen hast – dafür bekommst du eine zweite Rückmeldung zu deiner abgegebenen Fassung (nicht, wenn du nach dem ersten Feedback nichts geändert hast). ` +
         `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
-        `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `
+        `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `)
       : `Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI. `) +
     `Die Rechtschreibprüfung ist freiwillig, laut Anbieter erst ab 16 Jahren (mit 16 und 17 nur mit Erlaubnis deiner Eltern) und läuft nur nach deiner Bestätigung: Dabei wird nur der Text der jeweiligen Antwort an LanguageTool (`,
     h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
@@ -2250,7 +2261,7 @@ function renderPrivacy() {
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
       : `Deine Abgabe wird zusammen mit Namenskürzel, Geburtstag und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
-    `Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (höchstens ${DRAFT_DAYS} Tage) – ` +
+    `Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (ist er älter als ${DRAFT_DAYS} Tage, löscht ihn diese Seite beim nächsten Aufruf in diesem Browser) – ` +
     `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter).` +
     (withAi ? ` Die KI kann sich irren: Prüfe ihr Feedback selbst.` : ""));
   // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm)
@@ -3376,7 +3387,10 @@ function cleanupDrafts() {
 /* Abbrechen: Zwischenstand und Angaben von diesem Gerät löschen */
 $("ed-cancel").addEventListener("click", async () => {
   if (S.submitted) return;
-  const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." + (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
+  // Ein Erstversuch (erste Fassung + KI-Feedback + Angaben) liegt schon bei der Lehrkraft – das Löschen hier nimmt ihn nicht zurück
+  const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." +
+    (S.feedback && S.firstSent ? " Deine erste Fassung mit dem KI-Feedback und deinen Angaben hat deine Lehrkraft schon verschlüsselt als Erstversuch bekommen; waren deine Angaben falsch, sag ihr Bescheid – sie kann den Eintrag löschen." : "") +
+    (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
   if (!ok) return;
   clearTimeout(saveTimer);
   delDraft(S.draftKey); store.del(LAST_KEY);
@@ -3696,7 +3710,7 @@ function renderFeedbackState() {
     appendFbLists(box, f);
   });
   // „Abgeben“ geht immer; ohne Feedback fragt submitDialog nach. Blätter ohne Auftrag an die KI: kein Feedback-Button.
-  const fbBtn = $("fb-btn"), sub = $("submit-btn"), noAi = !has && !!S.fbUnavailable, aiSheet = S.sheet.aiFeedback || has;
+  const fbBtn = $("fb-btn"), sub = $("submit-btn"), noAi = fbBlockedNow(), aiSheet = S.sheet.aiFeedback || has;
   fbBtn.classList.toggle("hidden", !aiSheet);
   fbBtn.disabled = has || S.busyFeedback;
   fbBtn.textContent = has ? "KI-Feedback erhalten" : "KI um ein Feedback bitten";
@@ -3766,6 +3780,25 @@ async function requestFeedback() {
   let { answers, empty, tooLong } = snapshot();
   if (empty.length === answers.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
   if (tooLong) { setStatus(st, tooLong, "bad"); return; }
+  // Ohne Empfänger war beim Laden keine KI eingerichtet: erst nachsehen, ob die Lehrkraft sie inzwischen eingerichtet hat (nur ein GET).
+  // Bleibt die Liste leer, gibt es keinen Dialog und nichts wird gesendet (Datenminimierung); sonst nennt der Dialog die echten Empfänger.
+  if (!(S.sheet.aiRecipients || []).length) {
+    const sheet = S.sheet;
+    btn.disabled = true;
+    setStatus(st, "Einen Moment …", "busy");
+    let err = null;
+    try { await reloadRecipients(); } catch (e) { err = e; }
+    if (S.sheet !== sheet || S.feedback || S.busyFeedback) return;
+    renderFeedbackState();
+    if (!(S.sheet.aiRecipients || []).length) {
+      if (err) { setStatus(st, errMsg(err, "s"), "bad"); return; }
+      S.fbUnavailable = FB_NO_AI; S.fbUnavailableDay = utcToday();
+      renderFeedbackState(); saveDraft();
+      setStatus(st, "Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.", "bad");
+      return;
+    }
+    setStatus(st, "", "");
+  }
   const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
@@ -3791,7 +3824,7 @@ async function requestFeedback() {
     const serverSide = e instanceof ApiError && e.code !== "bad_answers" && e.code !== "too_long" && e.code !== "bad_request" && e.code !== "not_found";
     // ohne eingerichtete KI und bei aufgebrauchtem Tageskontingent hilft heute kein neuer Versuch: gleich den Grund nennen
     if (serverSide && (e.code === "ai_not_configured" || e.code === "ai_quota" || S.fbFails >= 2)) {
-      S.fbUnavailable = e.code === "ai_not_configured" ? "KI nicht eingerichtet" : e.code === "ai_quota" ? FB_QUOTA : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
+      S.fbUnavailable = e.code === "ai_not_configured" ? FB_NO_AI : e.code === "ai_quota" ? FB_QUOTA : e.code === "ai_busy" || e.code === "rate_limited" ? "KI ausgelastet" : "KI nicht erreichbar";
       S.fbUnavailableDay = utcToday();
       renderFeedbackState();
     }
@@ -3838,6 +3871,7 @@ async function requestFeedback() {
         if (run !== S.fbRun) return;
         unlock();
         if (busySeen) S.fbFails++;   // diese Anfrage ging an keine KI, frühere Versuche dieses Laufs (ausgelastet) womöglich schon
+        renderFeedbackState();   // „KI nicht eingerichtet“ gilt nicht mehr, wenn jetzt Empfänger da sind (fbBlockedNow)
         saveDraft();
         setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – " + (busySeen
           ? "dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise schon erhalten."
@@ -4035,6 +4069,7 @@ $("done-fb-retry").addEventListener("click", () => {
  * "none" = das Blatt hat keinen Auftrag an die KI. Ohne Feedback gibt es keinen Erstversuch, keine zweite Rückmeldung, first = final. */
 const FB_NOT_DONE = "Anfrage nicht abgeschlossen";   // Grund, wenn eine Anfrage lief, aber kein Feedback ankam (ohne S.fbUnavailable)
 const FB_QUOTA = "KI-Kontingent für heute aufgebraucht";   // Grund bei 503 ai_quota (Workers AI: Tageskontingent des Kontos)
+const FB_NO_AI = "KI nicht eingerichtet";   // Grund ohne Empfänger (beim Laden und beim Nachsehen) bzw. bei 503 ai_not_configured
 const laterFor = (reason) => (reason === FB_QUOTA ? "morgen" : "später");
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const utcToday = () => new Date().toISOString().slice(0, 10);
@@ -4045,11 +4080,17 @@ function quotaExpired() {
   S.fbUnavailable = ""; S.fbUnavailableDay = "";
   return true;
 }
+/* Ist das KI-Feedback gerade nicht möglich (#fb-fallback, Hinweis unter „Abgeben“)? „KI nicht eingerichtet“ gilt nicht mehr, sobald die
+   Seite Empfänger kennt (die Lehrkraft hat die KI inzwischen eingerichtet) – die Abgabe trägt den Grund trotzdem weiter (noAiState). */
+function fbBlockedNow() {
+  if (S.feedback || !S.fbUnavailable) return false;
+  return !(S.fbUnavailable === FB_NO_AI && (S.sheet.aiRecipients || []).length);
+}
 function noAiState(wasBusy) {
   if (!S.sheet.aiFeedback) return { mode: "none", reason: "", tried: false };
   quotaExpired();
   const tried = S.fbFails > 0 || !!S.fbUnavailable || wasBusy || S.busyFeedback;
-  const reason = S.fbUnavailable || (!(S.sheet.aiRecipients || []).length ? "KI nicht eingerichtet" : tried ? FB_NOT_DONE : "");
+  const reason = S.fbUnavailable || (!(S.sheet.aiRecipients || []).length ? FB_NO_AI : tried ? FB_NOT_DONE : "");
   return { mode: reason ? "unavailable" : "declined", reason, tried };
 }
 const emptyNums = (answers) => { const out = []; answers.forEach((a, i) => { if (!String(a || "").trim()) out.push(i + 1); }); return out; };
@@ -5833,7 +5874,7 @@ async function ai2Save(quiet) {
   const confirmed = await askConfirm({
     title: "Weiteren KI-Empfänger hinzufügen?",
     text: (def.unsuitable ? "Achtung: " + unsuitableText(provider) + "\n\n" : "") +
-      `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ausgelastet ist, nicht antwortet oder sein Tageskontingent aufgebraucht hat. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
+      `Mit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „${recipientOf(provider, baseUrl)}“ gehen, wenn der erste Anbieter ${RESERVE_WHEN}. Die Schüler:innen sehen diesen Empfänger ab sofort im Datenschutzhinweis und im Dialog vor dem Senden. Bitte prüfen Sie die Bedingungen dieses Anbieters und informieren Sie Schulleitung bzw. Datenschutzbeauftragte sowie Schüler:innen und Eltern über den zusätzlichen Empfänger, bevor Sie die Reserve nutzen.`,
     ok: def.unsuitable ? "Trotzdem speichern" : "Reserve speichern", cancel: "Abbrechen", safeFirst: true
   });
   if (!confirmed) { setStatus(st, "", ""); return false; }
@@ -5960,11 +6001,17 @@ function renderPvEffect() {
   const k = olderNow(Number($("pv-days").value));
   $("pv-days-effect").textContent = k ? `Mit dieser Frist ${k === 1 ? "würde" : "würden"} jetzt ${entriesText(k)} gelöscht.` : "Mit dieser Frist würde jetzt nichts gelöscht.";
 }
-function renderPvPreview() {   // genau der Baustein der Schüler:innen, mit den (auch ungespeicherten) Eingaben
+/* Vorschau: derselbe Baustein wie bei den Schüler:innen, mit den (auch ungespeicherten) Eingaben – für ein Blatt mit KI-Feedback und so,
+   wie der Hinweis unter dieser Adresse erscheint. Darunter, was bei anderen Blättern bzw. über die andere Adresse abweicht. */
+const PUBLIC_HOST = (() => { try { return new URL(PUBLIC_URL).host; } catch (e) { return ""; } })();
+function renderPvPreview() {
   const f = pvForm(), p = cleanPrivacy(f), list = cleanRecipients(T.privacy && T.privacy.aiRecipients), box = $("pv-preview");
   box.textContent = "";
+  const other = !PAGES_HOST && PUBLIC_HOST && PUBLIC_HOST !== location.host;   // die Zwischenstand-PDF führt auf GitHub Pages
   box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true)]),
-    privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull" }));
+    privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull" }),
+    h("p", { class: "fhint", id: "pv-preview-note", text: (other ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${PUBLIC_HOST}, z. B. über den Link in der Zwischenstand-PDF), nennt der Hinweis bei den Empfängern zusätzlich: „${GITHUB_ITEM}“ ` : "") +
+      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback." }));
 }
 function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der Auswahl steht, als eigene Möglichkeit zeigen
   const sel = $("pv-days");

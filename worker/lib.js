@@ -639,7 +639,8 @@ export const RATE = {
   // je Schüler:in bis zu zwei KI-Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung
   feedback: { max: 240, windowMs: 3600e3 },        // KI-Anfragen je IP
   feedback_chars: { max: 800000, windowMs: 3600e3 },   // … gewichtet nach Zeichen der Antworten
-  sheet_feedback: { max: 600, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (schützt das Kontingent der Lehrkraft)
+  sheet_feedback: { max: 600, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (begrenzt Missbrauch je Blatt; das kontoweite
+                                                       // Tageskontingent von Workers AI ist kleiner und bleibt aufbrauchbar – dafür gibt es die Reserve)
   submit: { max: 240, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu zwei Aufrufe)
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
 };

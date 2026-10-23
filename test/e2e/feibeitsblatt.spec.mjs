@@ -754,6 +754,11 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   expect(await pv.locator("details.privfull").evaluate((e) => e.open)).toBe(true);   // Vorschau aufgeklappt
   await expect(pv.locator("h3.privh")).toHaveText(PRIV_HEADS);
   await expect(pv).toContainText("Verantwortlich ist deine Schule.");
+  // die Vorschau gilt für diese Adresse (Worker): GitHub nur als Zusatz darunter, weil die Zwischenstand-PDF auf GitHub Pages führt
+  await expect(pv.locator("details.privfull")).not.toContainText("GitHub");
+  await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF), " +
+    "nennt der Hinweis bei den Empfängern zusätzlich: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
+    "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback.");
   await page.fill("#pv-name", SCHOOL.name);
   await page.fill("#pv-addr", SCHOOL.address);
   await page.fill("#pv-dpo", SCHOOL.dpo);
@@ -1580,6 +1585,12 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   // kein Klartext neben dem Base64-Umschlag („9c“ fehlt in der Liste: als Base64-Zufallstreffer möglich)
   for (const p of ["Richter", "Tom", D.person.geburtsdatum, "vorname", "klasse"]) expect(post.reqBody).not.toContain(p);
   await expect(page.locator("#submit-btn")).toBeEnabled();   // … gibt aber nicht ab
+  // „Abbrechen“ nimmt den Erstversuch nicht zurück – der Dialog sagt es (und wie falsche Angaben gelöscht werden)
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))).firstSent)).toBe(true);
+  await page.click("#ed-cancel");
+  expect(await confirmDialog(page, "Zwischenstand löschen?", false)).toBe("Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen. " +
+    "Deine erste Fassung mit dem KI-Feedback und deinen Angaben hat deine Lehrkraft schon verschlüsselt als Erstversuch bekommen; waren deine Angaben falsch, sag ihr Bescheid – sie kann den Eintrag löschen.");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
   await closePage(s);
 });
 
@@ -2281,12 +2292,12 @@ test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort de
   });
   await enterCode(page, shownQ);
   await fillPerson(page, Q.input);
-  await expect(page.locator("#privacy")).toContainText("an den KI-Dienst „" + CF_RECIPIENT + "“ weiter – nur wenn dieser nicht antwortet, ausgelastet ist oder sein Tageskontingent aufgebraucht hat, nacheinander an „" + GROQ_RECIPIENT + "“ – und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen, bei Cloudflare auch außerhalb der EU möglich, bei den übrigen Diensten mit Sitz in den USA außerhalb der EU. ");
+  await expect(page.locator("#privacy")).toContainText("an den KI-Dienst „" + CF_RECIPIENT + "“ weiter – nur wenn dieser nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert, nacheinander an „" + GROQ_RECIPIENT + "“ – und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen, bei Cloudflare auch außerhalb der EU möglich, bei den übrigen Diensten mit Sitz in den USA außerhalb der EU. ");
   for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), Q.first[i]);
   await page.route("**/api/feedback", quota);
   await page.click("#fb-btn");
   expect(await confirmDialog(page, "KI-Feedback anfordern?")).toContain("Deine Antworten gehen – ohne Namenskürzel, Geburtstag und Klasse – über den Server dieser Seite an den KI-Dienst „" + CF_RECIPIENT + "“. " +
-    "Nur wenn dieser Dienst nicht antwortet, ausgelastet ist oder sein Tageskontingent aufgebraucht hat, geht dieselbe Anfrage danach an „" + GROQ_RECIPIENT + "“. " +
+    "Nur wenn dieser Dienst nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert, geht dieselbe Anfrage danach an „" + GROQ_RECIPIENT + "“. " +
     "Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich. Die übrigen Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU.\n");
   const QUOTA_FALLBACK = "Das KI-Feedback ist gerade nicht möglich (" + QUOTA_REASON + "). Du kannst es morgen noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.";
   await expect(page.locator("#fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht. Du kannst ohne KI-Feedback abgeben oder es morgen noch einmal versuchen.");
@@ -2518,21 +2529,43 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   expect((await mockState()).count).toBe(0);   // die angehaltene Anfrage hat die KI nie erreicht
   await closePage(s5);
 
-  // K: Blatt mit Auftrag an die KI, aber keine KI eingerichtet (Antwort ohne Empfänger nachgestellt) → „KI nicht eingerichtet“
+  // K: Blatt mit Auftrag an die KI, aber keine KI eingerichtet (Antwort ohne Empfänger nachgestellt: beim Laden und beim ersten
+  // Nachsehen, danach „eingerichtet“) → Hinweis und Dialog nennen keinen KI-Dienst; der Feedback-Button sieht nach (nur GET), sendet nichts
   const K = { input: { vorname: "kai", nachname: "ka", geb: "--08-08", klasse: "7b" }, first: ["Mein Gewissen.", "Beim Spielen geschummelt."] };
   const s6 = await openPage(browser);
   const p6 = s6.page;
+  let sheetGets = 0;
   await p6.route("**/api/sheet/" + shownG.replace("-", ""), async (route) => {
     const res = await route.fetch();
     const j = await res.json();
-    delete j.sheet.aiRecipients; delete j.sheet.aiReserve; j.sheet.aiProvider = null;
+    if (++sheetGets <= 2) { delete j.sheet.aiRecipients; delete j.sheet.aiReserve; j.sheet.aiProvider = null; }
     await route.fulfill({ response: res, json: j });
   });
   await enterCode(p6, shownG);
   await fillPerson(p6, K.input);
+  const NO_AI_SET = "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – deine Antworten gehen an keine KI.";
+  await expect(p6.locator("#privacy")).toContainText(NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.");
+  await expect(p6.locator("#privacy")).not.toContainText("KI-Dienst deiner Lehrkraft");
+  await expect(p6.locator("#privfull-ed")).toContainText(NO_AI_SET);   // derselbe Inhalt wie im ausführlichen Hinweis
   for (let i = 0; i < 2; i++) await typeAt(p6, "#a-" + (i + 1), K.first[i]);
   await p6.click("#submit-btn");
-  expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?")).toBe("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI." + toTeacherUnavailable);
+  expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?", false)).toBe("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI." + toTeacherUnavailable);
+  await p6.click("#fb-btn");
+  await expect(p6.locator("#fb-status")).toHaveText("Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.");
+  await expect(p6.locator("#dlg.open")).toHaveCount(0);   // kein Dialog
+  await expect(p6.locator("#fb-fallback")).toHaveText("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.");
+  expect(sheetGets).toBe(2);
+  expect((await draftOf(p6)).fbUnavailable).toBe("KI nicht eingerichtet");
+  // inzwischen eingerichtet: der nächste Klick lädt die Empfänger neu und zeigt den normalen Dialog mit dem echten Empfänger
+  await p6.click("#fb-btn");
+  expect(await confirmDialog(p6, "KI-Feedback anfordern?", false)).toContain("an den KI-Dienst „127.0.0.1:");
+  expect(sheetGets).toBe(3);
+  await expect(p6.locator("#fb-fallback")).toBeHidden();   // „KI nicht eingerichtet“ gilt nicht mehr …
+  await expect(p6.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
+  await expect(p6.locator("#privacy")).toContainText("an den KI-Dienst „127.0.0.1:");
+  expect(await s6.calls((r) => r.path === "/api/feedback")).toEqual([]);   // nichts gesendet
+  await p6.click("#submit-btn");   // … die Abgabe trägt aber den Grund des gescheiterten Versuchs
+  expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("KI nicht eingerichtet"));
   await expect(p6.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await closePage(s6);
 
