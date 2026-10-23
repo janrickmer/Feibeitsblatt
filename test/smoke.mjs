@@ -365,9 +365,9 @@ async function main() {
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.equal(r.json.sheet.aiFeedback, true);   // mindestens eine Aufgabe mit Auftrag an die KI
     assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)",
-      transfer: "von der Schule beim Anbieter zu prüfen" }]);   // Empfänger für den Datenschutzhinweis
-    // Neuinstallation: Löschfrist 30 Tage als Vorgabe, noch keine Schulangaben (öffentlich nur Schule und Frist)
-    assert.deepEqual(r.json.sheet.privacy, { school: { name: "", address: "", dpo: "", url: "", legalBasis: "", authority: "" }, retentionDays: 30 });
+      transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }]);   // Empfänger für den Datenschutzhinweis
+    // Neuinstallation: Löschfrist 30 Tage als Vorgabe (öffentlich nur die Frist; verantwortlich ist der Betreiber, siehe index.html)
+    assert.deepEqual(r.json.sheet.privacy, { retentionDays: 30 });
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
     for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Auftrag an die KI im öffentlichen JSON!");
     assert.equal(/solution|musterl/i.test(r.text), false);
@@ -605,17 +605,23 @@ async function main() {
     step = "Datenschutz und Löschfrist";
     r = await api("GET", "/api/teacher/privacy", undefined, { auth });
     assert.equal(r.status, 200, r.text);
-    assert.deepEqual([r.json.privacy.retentionDays, r.json.privacy.auto, r.json.complete], [30, true, false]);
-    expectErr(await api("PUT", "/api/teacher/privacy", { school: { url: "http://example.org" }, retentionDays: 7 }, { auth }), 400, "bad_request");
+    assert.deepEqual(r.json.privacy, { retentionDays: 30, auto: true });
+    expectErr(await api("PUT", "/api/teacher/privacy", { retentionDays: 3 }, { auth }), 400, "bad_request");
     expectErr(await api("PUT", "/api/teacher/privacy", { retentionDays: 7 }), 401, "unauthorized");   // ohne Anmeldung (zählt nicht als Fehlversuch)
-    const school = { name: "Smoke-Schule", address: "Teststraße 1, 12345 Teststadt", dpo: "ds@example.org", url: "https://example.org/ds", legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO", authority: "" };
-    r = await api("PUT", "/api/teacher/privacy", { school, retentionDays: 7 }, { auth });
-    assert.equal(r.status, 200, r.text); assert.equal(r.json.complete, true); assert.equal(r.json.deleted, 0);
+    // eine ältere, noch gecachte Seite schickt Schulangaben mit: gespeichert wird nur die Frist
+    r = await api("PUT", "/api/teacher/privacy", { school: { name: "Smoke-Schule" }, retentionDays: 7 }, { auth });
+    assert.equal(r.status, 200, r.text); assert.deepEqual(r.json.privacy, { retentionDays: 7, auto: false }); assert.equal(r.json.deleted, 0);
+    assert.equal(r.text.includes("Smoke-Schule"), false);
+    // öffentlich für die Seite „Impressum & Datenschutz“: Frist und KI-Empfänger wie beim Blatt, nicht gecacht
+    r = await api("GET", "/api/privacy");
+    assert.equal(r.status, 200, r.text); assert.equal(r.headers.get("cache-control"), "no-store");
+    assert.deepEqual(r.json, { ok: true, retentionDays: 7, aiRecipients: [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)",
+      transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }] });
     // eigenes Blatt: der Zeitplan (scheduled) löscht nach der Frist – lokal ausgelöst über /cdn-cgi/local/scheduled (time = geplanter
     // Zeitpunkt). Ein Lauf in der Zukunft räumt auch alle Sperr-Zähler ab – deshalb erst ganz am Ende (Schritt „Zeitplan“).
     const cronSheet = await api("POST", "/api/teacher/sheets", { title: "Löschfrist", tasks: [{ text: "Frage" }] }, { auth });
     assert.equal(cronSheet.status, 200, cronSheet.text);
-    assert.deepEqual((await api("GET", "/api/sheet/" + cronSheet.json.code)).json.sheet.privacy, { school, retentionDays: 7 });
+    assert.deepEqual((await api("GET", "/api/sheet/" + cronSheet.json.code)).json.sheet.privacy, { retentionDays: 7 });
     const cronEnv = await makeEnvelope(T.publicKey, { v: 1, sheetCode: cronSheet.json.code, person: { vorname: "Lö", nachname: "Fr", geburtsdatum: "--01-01", klasse: "5a" }, answers: [{ first: "x", final: "x" }] });
     r = await api("POST", "/api/submit", { code: cronSheet.json.code, envelope: cronEnv }); submitCount++;
     assert.equal(r.status, 200, r.text); assert.equal(r.json.retentionDays, 7);
@@ -628,7 +634,7 @@ async function main() {
     const cronSubs = async () => (await api("GET", "/api/teacher/sheets/" + cronSheet.json.code + "/submissions", undefined, { auth })).json.submissions.length;
     await cron(Date.now());
     assert.equal(await cronSubs(), 1, "noch innerhalb der Frist");
-    ok("Datenschutz-Angaben: GET/PUT (https, Frist 7–365), öffentlich mit dem Blatt und mit der Abgabe; Zeitplan läuft (innerhalb der Frist bleibt alles)");
+    ok("Löschfrist: GET/PUT (Frist 7–365, Schulangaben ignoriert), öffentlich mit dem Blatt, über /api/privacy und mit der Abgabe; Zeitplan läuft (innerhalb der Frist bleibt alles)");
 
     step = "KI-Schlüssel abgelehnt";
     r = await api("PUT", "/api/teacher/ai", { provider: "custom", model: "", baseUrl: mock.url, apiKey: "bad" }, { auth });

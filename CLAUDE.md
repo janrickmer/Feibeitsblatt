@@ -31,7 +31,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie `solution`**, d. h. die Aufträge an die KI),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
   `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/sheets/:code/checklist`, `/ai`, `/ai/test`, `/privacy` (Pfade
-  unter `/api/teacher`); öffentlich außerdem `GET /api/sheet/:code/checklist` (siehe Analoges Arbeitsblatt).
+  unter `/api/teacher`); öffentlich außerdem `GET /api/sheet/:code/checklist` (siehe Analoges Arbeitsblatt) und `GET /api/privacy`
+  (siehe Datenschutz-Angaben).
   `DELETE …/sheets/:code/submissions` ohne Body löscht alle Einträge des Blattes, mit JSON `{ids:[…]}` (1–`LIMITS.deleteIds`
   50 positive Ganzzahlen, `validateDeleteIds`; ein Body ohne gültige ids → 400, nie „alle“) nur diese Einträge dieses Blattes
   (eine gebundene Anweisung `… WHERE sheet_code=?1 AND id IN (…)`) → `{deleted}`.
@@ -42,7 +43,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `material` (Absätze aus Läufen, siehe unten), `textFmt` (formatierte Aufgabenstellung, siehe unten; `[]` = nur `text`)
   und `files` (PDF-Dateien, siehe unten). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
   Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
-  `privacy: {school, retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
+  `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
   `POST /api/feedback` antwortet zusätzlich `aiGenerated` (`true` + `digitalSourceType` IPTC `trainedAlgorithmicMedia`,
   wenn die KI gefragt wurde, sonst `false`); `POST /api/submit` liefert `retentionDays` (Frist jetzt, `null` = keine).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
@@ -253,26 +254,30 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   aufgebraucht“, `laterFor` → „morgen“) mit `S.fbUnavailableDay` (UTC-Tag, im Zwischenstand/PDF als `fbUnavailableDay`);
   `quotaExpired()` (openEditor – dann sofort gespeichert –, `renderFeedbackState`, `noAiState`) löscht den Grund an einem
   späteren UTC-Tag, `fbFails` bleibt; keine automatische Wiederholung.
-- **Datenschutz-Angaben und Löschfrist (Art. 13 DSGVO):** settings `privacy` = `{v:1, school:{name, address, dpo, url,
-  legalBasis, authority}, retentionDays 7–365, updatedAt, auto?}` (`auto:true` = Vorgabe 30 einer Neuinstallation).
-  lib.js: `validatePrivacyInput` (einzeilig per `cleanLine`: NFC, `\p{Cc}`/`\p{Cf}` weg; Grenzen `LIMITS.schoolName` 160,
-  `schoolAddress` 240, `dpoContact` 300, `privacyUrl` 500 (`cleanHttpsUrl`: nur https, ohne Zugangsdaten), `legalBasis` 400,
-  `authority` 240; Frist Ganzzahl `retentionMin`–`retentionMax`), `privacyOut` (prüft Gespeichertes erneut, ungültige Frist
-  → `null`), `isPrivacyComplete` (name, address, dpo, legalBasis), `RETENTION_OPTIONS` [7, 14, 30, 60, 90, 180, 365],
+- **Datenschutz-Angaben und Löschfrist (Art. 13 DSGVO):** Feibeitsblatt ist ein privates, nicht kommerzielles Angebot –
+  verantwortlich ist der Betreiber (fest in `index.html`, siehe unten), **keine Schule**; der Server speichert keine Angaben
+  einer Schule mehr. settings `privacy` = `{v:1, retentionDays 7–365, updatedAt, auto?}` (`auto:true` = Vorgabe 30 einer
+  Neuinstallation). lib.js: `validatePrivacyInput` (nur Frist als Ganzzahl `retentionMin`–`retentionMax` und `confirmDelete`;
+  ein mitgeschicktes `school` einer älteren, gecachten Seite wird ignoriert, nie gespeichert), `privacyOut` (→
+  `{retentionDays, auto}`, prüft die Frist erneut, ungültig → `null`; nie Schulangaben), `cleanLine` (Checkliste),
+  `RETENTION_OPTIONS` [7, 14, 30, 60, 90, 180, 365], `DROP_SCHOOL_SQL` (`json_remove(value,'$.school')`, idempotent, nur die
+  Zeile `privacy`, ändert die Frist nicht),
   `PURGE_SQL`, `OLDER_THAN_SQL`, `COUNT_OLDER_SQL`, `SAVE_PRIVACY_SQL` und `DELETE_OLDER_SQL` – **in lib.js, weil workerd in
   index.js nur Funktions-Exporte zulässt** („Incorrect type for map entry“). `PURGE_SQL` = ein DELETE mit Unterabfrage auf
   settings (`json_valid`, `json_type(…)='integer'`, `BETWEEN 7 AND 365` – dieselben Grenzen wie `privacyOut`; ohne gültige Frist NULL → nichts gelöscht) über
   `idx_submissions_received`; `OLDER_THAN_SQL` = eine Abfrage mit `SUM(received_at<?n)` je Option. Gelöscht wird
-  (`cleanupStatements`: PURGE, rate_limits, ai_skip, ai_usage) im Cron (`scheduled`, now = `scheduledTime`, Fehler nicht
+  (`cleanupStatements`: PURGE, DROP_SCHOOL (früher gespeicherte Schulangaben), rate_limits, ai_skip, ai_usage) im Cron (`scheduled`, now = `scheduledTime`, Fehler nicht
   abfangen → „Past Cron Events“), im 2-%-Aufräumen und beim Öffnen der Übersicht in `routeSheetsList` – dort die ganzen
   `cleanupStatements` (auch abgelaufene Zähler und Sperren: ohne Zeitplan gilt „gehashte IP höchstens etwa einen Tag“ sonst
   nicht), **getrennt vor dem Lese-Batch und fehlertolerant** (`.catch`), damit die Übersicht auch bei erschöpftem Schreiblimit
-  lädt. `GET /api/teacher/privacy` → `{privacy, complete, defaults, olderThan:{"7":n…}, aiRecipients}`; `PUT`
-  (`{school, retentionDays, confirmDelete}`; fehlt `confirmDelete` = 0) → ein Batch (eine Transaktion) [`COUNT_OLDER_SQL`,
+  lädt. `GET /api/teacher/privacy` → `{privacy, defaults, olderThan:{"7":n…}, aiRecipients}`; `PUT`
+  (`{retentionDays, confirmDelete}`; fehlt `confirmDelete` = 0) → ein Batch (eine Transaktion) [`COUNT_OLDER_SQL`,
   `SAVE_PRIVACY_SQL` (speichert nur bei ≤ bestätigter Zahl), `DELETE_OLDER_SQL` (löscht nur, wenn genau dieser Wert gespeichert
-  ist), OLDER_THAN] → `{privacy, complete, deleted, olderThan}`; würde mehr gelöscht als bestätigt → 409 `confirm_delete` mit
+  ist), OLDER_THAN] → `{privacy, deleted, olderThan}`; würde mehr gelöscht als bestätigt → 409 `confirm_delete` mit
   `wouldDelete`/`olderThan`, nichts gespeichert oder gelöscht (der Browser fragt mit der neuen Zahl erneut, höchstens zweimal);
-  `PURGE_SQL` steht nur in `cleanupStatements`. `routeSetup` legt in einem Batch mit dem
+  `PURGE_SQL` steht nur in `cleanupStatements`. Öffentlich `GET /api/privacy` (Seite „Impressum & Datenschutz“, ohne Code) →
+  `{ok, retentionDays, aiRecipients}` – dieselbe Logik wie `routePublicSheet` (`privacyOut`, `recipientsFor`), eine Abfrage,
+  `no-store`, kein Rate-Limit, kein `lookup_miss`. `routeSetup` legt in einem Batch mit dem
   teacher-INSERT `privacy` {30, auto} an – nur wenn dieser Aufruf die Lehrkraft angelegt hat, noch keine Zeile da ist und
   es keine Blätter gibt (bestehende Installationen löschen erst nach dem ersten Speichern; „Passwort vergessen“ behält
   die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy`

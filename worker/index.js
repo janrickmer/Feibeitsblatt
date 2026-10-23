@@ -7,7 +7,7 @@ import {
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer,
-  validatePrivacyInput, privacyOut, isPrivacyComplete, PURGE_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
+  validatePrivacyInput, privacyOut, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
   validateChecklist, checklistOut,
 } from "./lib.js";
 import {
@@ -127,11 +127,13 @@ export async function ensureSubmissionColumns(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON submissions(sheet_code, attempt)").run();
 }
 
-/* Aufräumen: Abgaben und Erstversuche nach der Löschfrist (PURGE_SQL; ohne gespeicherte Frist nichts), abgelaufene Zähler und
-   Sperren, Verbrauchszeilen von Workers AI älter als zwei Tage. Täglich per Cron Trigger (scheduled), beim Öffnen der
-   Lehrkräfte-Übersicht (routeSheetsList) und gelegentlich bei anderen API-Aufrufen. */
+/* Aufräumen: Abgaben und Erstversuche nach der Löschfrist (PURGE_SQL; ohne gespeicherte Frist nichts), früher gespeicherte Angaben
+   einer Schule (DROP_SCHOOL_SQL – verantwortlich ist der Betreiber, siehe index.html), abgelaufene Zähler und Sperren,
+   Verbrauchszeilen von Workers AI älter als zwei Tage. Täglich per Cron Trigger (scheduled), beim Öffnen der Lehrkräfte-Übersicht
+   (routeSheetsList) und gelegentlich bei anderen API-Aufrufen. */
 const cleanupStatements = (db, now) => [
   db.prepare(PURGE_SQL).bind(now),
+  db.prepare(DROP_SCHOOL_SQL),
   db.prepare("DELETE FROM rate_limits WHERE reset_at<?1").bind(now),
   db.prepare("DELETE FROM ai_skip WHERE until<?1").bind(now),
   db.prepare("DELETE FROM ai_usage WHERE day<?1").bind(utcDay(now - 2 * 86400e3)),
@@ -309,7 +311,7 @@ async function routeSetup(c) {
   // Eine Neuinstallation (noch ohne Feibeitsblätter) löscht von Anfang an automatisch nach 30 Tagen (auto = Vorgabe, die Lehrkraft
   // kann sie ändern). Nur wenn dieser Aufruf die Lehrkraft angelegt hat und noch keine Frist gespeichert ist: Beim Zurücksetzen
   // des Zugangs („Passwort vergessen“) bleibt eine gespeicherte Frist, und ohne gespeicherte Frist wird weiter nichts gelöscht.
-  const privacy = JSON.stringify({ v: 1, school: {}, retentionDays: LIMITS.retentionDefault, auto: true, updatedAt: c.now });
+  const privacy = JSON.stringify({ v: 1, retentionDays: LIMITS.retentionDefault, auto: true, updatedAt: c.now });
   const [r] = await c.db.batch([
     c.db.prepare("INSERT INTO settings(key,value) VALUES('teacher',?1) ON CONFLICT(key) DO NOTHING").bind(value),
     c.db.prepare("INSERT INTO settings(key,value) SELECT 'privacy',?1 WHERE (SELECT value FROM settings WHERE key='teacher')=?2 " +
@@ -755,28 +757,28 @@ async function routeAiTest(c) {
   return json(res);
 }
 
-/* ---------- Datenschutz-Angaben der Schule und Löschfrist (Lehrkraft) ---------- */
+/* ---------- Löschfrist (Lehrkraft) und Angaben für den Datenschutzhinweis ---------- */
 const DAY_MS = 86400e3;
 const olderThanStmt = (c) => c.db.prepare(OLDER_THAN_SQL).bind(...RETENTION_OPTIONS.map((d) => c.now - d * DAY_MS));
 const olderThanView = (row) => Object.fromEntries(RETENTION_OPTIONS.map((d) => [String(d), Number((row || {})["d" + d]) || 0]));
 const privacyDefaults = { retentionDays: LIMITS.retentionDefault, options: RETENTION_OPTIONS, min: LIMITS.retentionMin, max: LIMITS.retentionMax };
-// GET: gespeicherte Angaben (null = nie gespeichert), vollständig nach Art. 13?, wie viele Einträge jede wählbare Frist jetzt löschen
-// würde, und die KI-Empfänger wie für die Schüler:innen (für die Vorschau des Hinweises)
+// GET: gespeicherte Frist (null = nie gespeichert; auto = Vorgabe einer Neuinstallation), wie viele Einträge jede wählbare Frist jetzt
+// löschen würde, und die KI-Empfänger wie für die Schüler:innen (für die Vorschau des Hinweises)
 async function routePrivacyGet(c) {
   await requireTeacher(c);
   const [st, ai, old] = await c.db.batch([settingStmt(c.db, "privacy"), settingStmt(c.db, "ai"), olderThanStmt(c)]);
   const p = privacyOut(parseSetting(firstRow(st)));
-  return json({ ok: true, privacy: p, complete: isPrivacyComplete(p), defaults: privacyDefaults, olderThan: olderThanView(firstRow(old)),
+  return json({ ok: true, privacy: p, defaults: privacyDefaults, olderThan: olderThanView(firstRow(old)),
     aiRecipients: recipientsFor(await aiConfig(c.env, firstRow(ai))) });
 }
-// PUT {school:{…}, retentionDays, confirmDelete}: speichert (ersetzt) und löscht im selben Batch, was nach der neuen Frist zu alt ist –
+// PUT {retentionDays, confirmDelete}: speichert (ersetzt) und löscht im selben Batch, was nach der neuen Frist zu alt ist –
 // eine Transaktion: scheitert sie, ist nichts gespeichert und nichts gelöscht. Die Oberfläche fragt vorher nach und schickt die
 // bestätigte Zahl (confirmDelete); würde jetzt mehr gelöscht (die Seite war lange offen, die Zahl beim Öffnen nicht ladbar …),
 // bleibt alles, wie es war: 409 confirm_delete mit der aktuellen Zahl (wouldDelete) und olderThan, damit sie neu fragen kann.
 async function routePrivacyPut(c) {
   await requireTeacher(c);
-  const { school, retentionDays, confirmDelete } = validatePrivacyInput(await readJson(c.request));
-  const value = JSON.stringify({ v: 1, school, retentionDays, updatedAt: c.now }), cutoff = c.now - retentionDays * DAY_MS;
+  const { retentionDays, confirmDelete } = validatePrivacyInput(await readJson(c.request));   // ein mitgeschicktes school entfällt
+  const value = JSON.stringify({ v: 1, retentionDays, updatedAt: c.now }), cutoff = c.now - retentionDays * DAY_MS;
   const [cnt, , del, old] = await c.db.batch([
     c.db.prepare(COUNT_OLDER_SQL).bind(cutoff),
     c.db.prepare(SAVE_PRIVACY_SQL).bind(cutoff, value, confirmDelete),
@@ -788,8 +790,16 @@ async function routePrivacyPut(c) {
     throw new HttpError(409, "confirm_delete", `Mit dieser Frist ${n === 1 ? "würde jetzt 1 älterer Eintrag" : "würden jetzt " + n + " ältere Einträge"} gelöscht – ` +
       "mehr, als Sie bestätigt haben. Es wurde nichts gespeichert und nichts gelöscht.", { wouldDelete: n, olderThan: olderThanView(firstRow(old)) });
   }
-  const p = privacyOut(JSON.parse(value));
-  return json({ ok: true, privacy: p, complete: isPrivacyComplete(p), deleted: (del.meta && del.meta.changes) || 0, olderThan: olderThanView(firstRow(old)) });
+  return json({ ok: true, privacy: privacyOut(JSON.parse(value)), deleted: (del.meta && del.meta.changes) || 0, olderThan: olderThanView(firstRow(old)) });
+}
+// GET /api/privacy – öffentlich, für die Seite „Impressum & Datenschutz“ (ohne Code): dieselben Angaben wie im Datenschutzhinweis
+// eines Blattes (routePublicSheet) – Löschfrist (null = keine automatische Löschung) und nur nutzbare KI-Empfänger; eine Abfrage,
+// kein Rate-Limit (keine Codes, nichts zu raten), nicht gecacht (Änderungen der Lehrkraft gelten sofort)
+async function routePublicPrivacy(c) {
+  const [st] = await c.db.batch([c.db.prepare("SELECT key, value FROM settings WHERE key IN ('ai','privacy')")]);
+  const rows = Object.fromEntries((st.results || []).map((r) => [r.key, r]));
+  const pv = privacyOut(parseSetting(rows.privacy));
+  return json({ ok: true, retentionDays: pv ? pv.retentionDays : null, aiRecipients: recipientsFor(await aiConfig(c.env, rows.ai || null)) });
 }
 
 /* ---------- Öffentlich (Schüler:innen) ---------- */
@@ -812,7 +822,7 @@ async function routePublicSheet(c, codeRaw) {
   if (!s) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
   const rows = Object.fromEntries((st.results || []).map((r) => [r.key, r]));
   const teacher = parseSetting(rows.teacher);
-  // Empfänger für den Datenschutzhinweis (recipientsFor); Schulangaben und Löschfrist (privacy, null = nie gespeichert)
+  // Empfänger für den Datenschutzhinweis (recipientsFor); Löschfrist (privacy, null = nie gespeichert)
   const ai = await aiConfig(c.env, rows.ai || null);
   const list = activeEntries(ai);
   const aiProvider = list.length && list[0] === ai ? providerLabel(ai.provider, ai.baseUrl) : null;
@@ -831,7 +841,7 @@ async function routePublicSheet(c, codeRaw) {
       answer: await publicAnswer(t.answer, code, new Set(images.filter((m) => m.mode === "card").map((m) => m.id))) };
   }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}),
-    privacy: pv ? { school: pv.school, retentionDays: pv.retentionDays } : null } });
+    privacy: pv ? { retentionDays: pv.retentionDays } : null } });
 }
 
 const AI_SOURCE_TYPE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
@@ -1068,6 +1078,7 @@ async function routePublicChecklist(c, codeRaw) {
 /* ---------- Routing ---------- */
 const ROUTES = [
   ["/api/health", { GET: async () => json({ ok: true, service: "feibeitsblatt" }) }, { noDb: true }],
+  ["/api/privacy", { GET: routePublicPrivacy }],
   [/^\/api\/sheet\/([^/]+)$/, { GET: routePublicSheet }],
   [/^\/api\/sheet\/([^/]+)\/images\/([^/]+)$/, { GET: routePublicImage }],
   [/^\/api\/sheet\/([^/]+)\/files\/([^/]+)$/, { GET: routePublicFile }],
