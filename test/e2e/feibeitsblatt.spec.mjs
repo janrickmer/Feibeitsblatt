@@ -3424,6 +3424,57 @@ test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (d
   await closePage(t);
 });
 
+test("7j Während die Abgabe gesendet wird: KI-Feedback und „Abbrechen“ sind gesperrt, ein währenddessen geöffneter Dialog schließt sich mit der Bestätigung", async ({ browser }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Abgabe läuft");
+  await tp.fill("#bq-1", TASKS[0].text);
+  await tp.fill("#bs-1", TASKS[0].solution);
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim();
+
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "sam", nachname: "se", geb: "--09-09", klasse: "7b" });
+  await typeAt(page, "#a-1", "Das Gewissen ist eine innere Stimme.");
+  let release;
+  const held = new Promise((r) => { release = r; });
+  await page.route("**/api/submit", async (route) => { await held; await route.continue(); });   // die Abgabe hängt (langsames Netz)
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Ohne KI-Feedback abgeben?");
+  await expect(page.locator("#submit-status")).toHaveText("Deine Abgabe wird verschlüsselt und gesendet …");
+  await expect(page.locator("#fb-btn")).toBeDisabled();   // kein KI-Feedback nach „ohne KI-Feedback abgegeben“
+  await page.click("#ed-cancel");   // „Abbrechen“ fragt nicht erst – die Abgabe käme trotzdem an
+  await expect(page.locator("#submit-status")).toHaveText("Deine Abgabe wird gerade gesendet – abbrechen geht jetzt nicht mehr.");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  // ein Dialog, der während des Sendens aufgeht (Rechtschreibprüfung), bleibt nicht über der Bestätigung stehen
+  await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg.open")).toBeVisible();
+  release();
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#done-btn")).toBeFocused();
+  expect((await s.calls((r) => r.path === "/api/submit")).map((r) => r.status)).toEqual([200]);
+  expect(await s.calls((r) => r.path === "/api/feedback")).toEqual([]);
+  expect(s.lt).toEqual([]);   // nichts an LanguageTool
+  await closePage(s);
+
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Abgabe");
+  await tp.locator("#t-subs-body tr.main").first().click();
+  await expect(tp.locator("#t-subs-body tr.details:visible .moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben.");
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {
   const t = await openPage(browser);
   const { page } = t;

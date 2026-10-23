@@ -2024,7 +2024,8 @@ const S = {
   fbFails: 0, fbUnavailable: "",   // Fehlversuche beim KI-Feedback; ab dem zweiten bzw. ohne eingerichtete KI der Grund als Text
   fbUnavailableDay: "",   // UTC-Tag, an dem der Grund entstand – „Kontingent für heute aufgebraucht“ gilt nur bis 0:00 UTC (quotaExpired)
   fbPending: false,   // eine Anfrage dieses Laufs ist unterwegs (im Zwischenstand: ein Abbruch durch Schließen des Tabs zählt beim nächsten Öffnen als Fehlversuch)
-  submitted: false, busyFeedback: false, ltCache: new Map(),
+  submitted: false, submitting: false,   // submitting: die Abgabe ist bestätigt und wird gesendet (KI-Feedback und „Abbrechen“ gesperrt)
+  busyFeedback: false, ltCache: new Map(),
   ltConsent: false, ltDeclined: false,   // Rechtschreibprüfung: Selbstauskunft im Dialog je geöffnetem Blatt („Trifft nicht zu“ → Buttons weg); nie gespeichert
   attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
   fbRun: 0, fbStop: null, fbAbort: null,   // laufende Feedback-Anfrage: Lauf-Kennung (gegen späte Antworten nach Abbruch/Wechsel), Warten abbrechen, Anfrage abbrechen
@@ -3386,13 +3387,21 @@ function cleanupDrafts() {
   if (!lastSession()) store.del(LAST_KEY);
 }
 /* Abbrechen: Zwischenstand und Angaben von diesem Gerät löschen */
+// Während die Abgabe gesendet wird, ginge sie trotzdem ein – also weder abbrechen noch KI-Feedback anfordern (vor und nach dem Dialog prüfen)
+const SENDING_CANCEL = "Deine Abgabe wird gerade gesendet – abbrechen geht jetzt nicht mehr.";
+const SENDING_FB = "Deine Abgabe wird gerade gesendet – ein KI-Feedback ist jetzt nicht mehr möglich.";
+function submitBusy(el, msg) {
+  if (!S.submitted && !S.submitting) return false;
+  if (!S.submitted) setStatus(el, msg, "busy");
+  return true;
+}
 $("ed-cancel").addEventListener("click", async () => {
-  if (S.submitted) return;
+  if (submitBusy($("submit-status"), SENDING_CANCEL)) return;
   // Ein Erstversuch (erste Fassung + KI-Feedback + Angaben) liegt schon bei der Lehrkraft – das Löschen hier nimmt ihn nicht zurück
   const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." +
     (S.feedback && S.firstSent ? " Deine erste Fassung mit dem KI-Feedback und deinen Angaben hat deine Lehrkraft schon verschlüsselt als Erstversuch bekommen; waren deine Angaben falsch, sag ihr Bescheid – sie kann den Eintrag löschen." : "") +
     (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
-  if (!ok) return;
+  if (!ok || submitBusy($("submit-status"), SENDING_CANCEL)) return;
   clearTimeout(saveTimer);
   delDraft(S.draftKey); store.del(LAST_KEY);
   S.submitted = true;   // nichts mehr speichern
@@ -3713,7 +3722,7 @@ function renderFeedbackState() {
   // „Abgeben“ geht immer; ohne Feedback fragt submitDialog nach. Blätter ohne Auftrag an die KI: kein Feedback-Button.
   const fbBtn = $("fb-btn"), sub = $("submit-btn"), noAi = fbBlockedNow(), aiSheet = S.sheet.aiFeedback || has;
   fbBtn.classList.toggle("hidden", !aiSheet);
-  fbBtn.disabled = has || S.busyFeedback;
+  fbBtn.disabled = has || S.busyFeedback || S.submitting;
   fbBtn.textContent = has ? "KI-Feedback erhalten" : "KI um ein Feedback bitten";
   sub.disabled = S.submitted;
   $("fin-text").textContent = !aiSheet ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab."
@@ -3770,7 +3779,7 @@ function waitBeforeRetry(run, ms, nextTry) {
 $("fb-wait-stop").addEventListener("click", () => { if (S.fbStop) S.fbStop(); });
 
 async function requestFeedback() {
-  if (S.feedback || S.busyFeedback) return;
+  if (S.feedback || S.busyFeedback || submitBusy($("fb-status"), SENDING_FB)) return;
   const st = $("fb-status"), btn = $("fb-btn");
   setStatus(st, "", "");
   const snapshot = () => {   // Antworten jetzt lesen – vor jedem Versuch neu, damit Feedback und erste Fassung zum gesendeten Text passen
@@ -3789,7 +3798,7 @@ async function requestFeedback() {
     setStatus(st, "Einen Moment …", "busy");
     let err = null;
     try { await reloadRecipients(); } catch (e) { err = e; }
-    if (S.sheet !== sheet || S.feedback || S.busyFeedback) return;
+    if (S.sheet !== sheet || S.feedback || S.busyFeedback || submitBusy(st, SENDING_FB)) return;
     renderFeedbackState();
     if (!(S.sheet.aiRecipients || []).length) {
       if (err) { setStatus(st, errMsg(err, "s"), "bad"); return; }
@@ -3810,7 +3819,7 @@ async function requestFeedback() {
     text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; bei der Abgabe gehen deine überarbeiteten Antworten noch einmal denselben Weg, und du bekommst eine Rückmeldung zu deiner abgegebenen Fassung. Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
-  if (!ok) return;
+  if (!ok || submitBusy(st, SENDING_FB)) return;
   const run = ++S.fbRun, t0 = Date.now();
   S.busyFeedback = true; btn.disabled = true;
   let tries = 0, busySeen = 0;
@@ -4142,6 +4151,7 @@ async function submitAll() {
     return;
   }
   if (!ok) return;
+  S.submitting = true; $("fb-btn").disabled = true;   // bis zum Ende des Sendens (finally): kein KI-Feedback, kein „Abbrechen“
   // Erst nach dem Dialog einstufen: eine laufende Anfrage kann inzwischen gescheitert sein (dann gilt ihr Grund)
   const na = withFb ? null : noAiState(wasBusy);
   const stopped = S.busyFeedback;   // eine noch laufende oder wartende Feedback-Anfrage wird mit der Abgabe hinfällig
@@ -4178,6 +4188,7 @@ async function submitAll() {
       recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false };
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
+    closeDlg(false);   // ein während des Sendens geöffneter Dialog (z. B. Rechtschreibprüfung) bleibt nicht über der Bestätigung stehen
     clearEditor();
     show("screen-done");
     focusSoon("done-btn", 30);
@@ -4190,7 +4201,11 @@ async function submitAll() {
     }
     setStatus(st, (e.code === "crypto" ? "Deine Abgabe konnte nicht verschlüsselt werden." : errMsg(e, "s")) +
       " Deine Antworten sind noch da – versuche es gleich noch einmal.", "bad");
-  } finally { busy(btn, false); if (S.submitted) btn.disabled = true; }
+  } finally {
+    S.submitting = false;
+    busy(btn, false); if (S.submitted) btn.disabled = true;
+    else if (S.sheet) renderFeedbackState();   // gescheitert: KI-Feedback wieder möglich
+  }
 }
 $("submit-btn").addEventListener("click", submitAll);
 
@@ -4212,7 +4227,7 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   $("p-err").textContent = ""; $("start-err").textContent = "";
   $("done-del").textContent = ""; $("done-del").classList.add("hidden");

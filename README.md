@@ -134,8 +134,9 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    steht dort „Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Grund).“ Was eine abgebrochene Anfrage
    schon gesendet hatte, hat der KI-Dienst erhalten; der Dialog sagt das. Bis zur Abgabe lässt sich das Feedback
    jederzeit anfordern; kommt es an, während der Abgabe-Dialog offen ist, wird nicht abgegeben, sondern erst das
-   Feedback gezeigt (nach dem Schließen des Dialogs springt der Fokus zum Hinweis „Lies das KI-Feedback …“). War die
-   Abgabe technisch erfolgreich, erscheint die
+   Feedback gezeigt (nach dem Schließen des Dialogs springt der Fokus zum Hinweis „Lies das KI-Feedback …“). Solange
+   die bestätigte Abgabe gesendet wird, lassen sich weder KI-Feedback anfordern noch der Zwischenstand abbrechen – die
+   Abgabe käme ja trotzdem an. War die Abgabe technisch erfolgreich, erscheint die
    Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt; ist eine Löschfrist
    festgelegt, steht darunter, an welchem Tag die Abgabe bei Ihnen automatisch gelöscht wird („… oder kurz danach“,
    mit dem Rat, die Lösungen herunterzuladen). Direkt darunter – noch über
