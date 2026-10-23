@@ -34,16 +34,27 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Kleinschreibung, Leerzeichen und Bindestrich spielen keine Rolle. Codes haben sechs Zeichen und enthalten nie
    die leicht verwechselbaren Zeichen I, L, O, 0 und 1. Ein Satz unter dem Formular sagt, dass schon beim Laden der
    Seite die IP-Adresse verarbeitet wird und alle Informationen zum Datenschutz nach dem Code folgen.
-2. **Angaben machen.** Die ersten drei Buchstaben des Vornamens (bei einem kürzeren Vornamen den ganzen
-   Vornamen), die ersten zwei Buchstaben des Nachnamens, den Geburtstag – nur Tag und Monat, ohne Jahr (er hilft, gleiche
-   Kürzel auseinanderzuhalten) – und die Klasse (z. B. „8b“). Dann
-   „Schreibbereich öffnen“. Unter den Feldern steht – zum Zeitpunkt, an dem die Angaben erhoben werden – ein kurzer
+2. **Arbeitsform wählen.** Nach dem Code fragt die Seite „Wie arbeitest du?“: **„Einzelarbeit“** oder **„Partner- /
+   Gruppenarbeit“** (zu zweit oder in einer Gruppe von bis zu 10 Personen an einem Gerät, gemeinsame Abgabe).
+   „← anderen Code eingeben“ führt zurück zur Startseite. Wer über „Weiterschreiben“ oder eine Zwischenstand-PDF
+   kommt, sieht diese Frage nicht – die Arbeitsform steht dann schon fest.
+3. **Angaben machen.** Bei **Einzelarbeit**: die ersten drei Buchstaben des Vornamens (bei einem kürzeren Vornamen den
+   ganzen Vornamen), die ersten zwei Buchstaben des Nachnamens, den Geburtstag – nur Tag und Monat, ohne Jahr (er hilft,
+   gleiche Kürzel auseinanderzuhalten) – und die Klasse (z. B. „8b“). Bei **Partner- oder Gruppenarbeit** („Eure
+   Angaben“, in der „ihr“-Form): je Person ein Feld mit den ersten drei Buchstaben des Vornamens und den ersten zwei des
+   Nachnamens, z. B. „MaxMu“ (Leerzeichen oder Bindestrich dazwischen sind erlaubt, „max mu“ wird zu „MaxMu“), weitere
+   Personen über „Person hinzufügen“ (mindestens 2, höchstens 10; ab Person 2 lässt sich jedes Feld wieder entfernen),
+   dann einmal die Klasse – **kein Geburtstag**. Doppelte Kürzel in einer Gruppe lehnt die Seite ab. Wer die Angaben
+   einträgt, trägt die Kürzel der anderen mit ein; der Hinweis unter den Feldern bittet, nur Personen einzutragen, die
+   mitarbeiten und davon wissen. „← zurück zur Auswahl“ führt zur Arbeitsform zurück. Dann „Schreibbereich öffnen“.
+   Unter den Feldern steht – zum Zeitpunkt, an dem die Angaben erhoben werden – ein kurzer
    Datenschutzhinweis mit Ihrer Schule und der Löschfrist; „Alle Informationen zum Datenschutz“ klappt den
-   vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Datenschutz-Angaben und Löschfrist](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)).
+   vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Datenschutz-Angaben und Löschfrist](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen));
+   bei Partner- oder Gruppenarbeit stehen beide in der „ihr“-Form (im Schreibbereich bleibt es beim „du“).
    Derselbe Hinweis steht im Schreibbereich unter dem Feedback-Button – auch für alle, die über „Weiterschreiben“
    kommen und die Angaben nicht noch einmal sehen. Der Hinweis unter dem Feld „Klasse“ sagt, wann die Angaben
    verschlüsselt an die Lehrkraft gehen: mit dem KI-Feedback (als Erstversuch), ohne KI-Feedback erst bei der Abgabe.
-3. **Schreiben.** Die Arbeitsaufträge stehen untereinander. Unter jedem steht ein Textfeld, das mit dem Text
+4. **Schreiben.** Die Arbeitsaufträge stehen untereinander. Unter jedem steht ein Textfeld, das mit dem Text
    wächst; alles Folgende rückt dabei nach unten. Zwischen einem Antwortfeld und der nächsten Aufgabe bleibt eine
    leere Zeile Abstand. Einfügen aus der Zwischenablage und Hineinziehen von Text sind gesperrt – es darf nur
    selbst getippt werden. Autokorrektur und Diktierfunktion der Tastatur bleiben möglich. Der Zwischenstand wird
@@ -87,13 +98,14 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Vorschlagsliste), Enter prüft. „Alle Zuordnungen löschen“ fängt nach einer Rückfrage neu an. Ob eine Zuordnung
    stimmt, prüft der Browser selbst; die richtigen Länder bekommt er nicht zu sehen, nur Prüfwerte. Zu dieser
    Antwortart gibt es kein KI-Feedback.
-4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button. Beim ersten Klick
+5. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button. Beim ersten Klick
    erklärt ein Dialog, dass der Text an LanguageTool (Learneo, Inc., USA) geht und dass man den Dienst laut Anbieter nur
    nutzen darf, wenn man mindestens 18 ist oder 16 bzw. 17 und die Eltern es erlaubt haben. Wer das bestätigt („Trifft
    auf mich zu – prüfen“), kann prüfen; wer „Trifft nicht zu“ wählt (oder Esc drückt), schreibt und gibt ohne Nachteil
    ab – für dieses geöffnete Blatt steht dann statt der Buttons nur der Hinweis „Rechtschreibprüfung (LanguageTool):
    erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ Ein Klick neben den Dialog (etwa vertippt auf
-   dem Tablet) schließt ihn nur und gilt nicht als Antwort; die Buttons bleiben. Ohne Bestätigung wird nichts gesendet,
+   dem Tablet) schließt ihn nur und gilt nicht als Antwort; die Buttons bleiben. Bei Partner- oder Gruppenarbeit fragt der
+   Dialog die ganze Gruppe („Trifft auf alle in eurer Gruppe zu – prüfen“ bzw. „Trifft nicht auf alle zu“). Ohne Bestätigung wird nichts gesendet,
    und die Auswahl wird nirgends gespeichert. Die Altersgrenze beruht allein auf dieser Selbstauskunft – ein Geburtsjahr wird
    nicht erhoben; den Button sieht deshalb zunächst jede Schülerin und jeder Schüler, auch in Klassen, in denen alle
    jünger als 16 sind. Die Bestätigung gilt, solange das Blatt geöffnet
@@ -103,25 +115,25 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    erklärt, dass dies die Antwort einer KI ist, die selbst Fehler machen kann, und dass sie nur zum Überarbeiten
    des eigenen Textes dient. Das Antwortfeld selbst bleibt unverändert – Verbesserungen tippen die Schüler:innen
    selbst ein.
-5. **KI um ein Feedback bitten.** Am Ende des Blattes. Der Server gibt die Antworten zusammen mit Ihrem Auftrag an
+6. **KI um ein Feedback bitten.** Am Ende des Blattes. Der Server gibt die Antworten zusammen mit Ihrem Auftrag an
    die KI weiter (siehe Schritt 3 für Lehrkräfte). Je Aufgabe erscheinen kurze Stichpunkte: in **grüner** Schrift
    unter „Das gelingt dir schon“, was die Antwort schon gut macht, und in **roter** Schrift unter „Tipps zum
    Überarbeiten“, was die Schülerin bzw. der Schüler ergänzen, genauer erklären oder richtigstellen kann – als Hinweis
    oder Frage, ohne Noten und ohne die Lösung vorzusagen (außer Ihr Auftrag erlaubt es). Das
    Feedback zum Überarbeiten gibt es **nur einmal**; die Antworten zu diesem Zeitpunkt werden als „erste Fassung“
-   festgehalten (eine zweite Rückmeldung folgt bei der Abgabe, siehe Schritt 6).
+   festgehalten (eine zweite Rückmeldung folgt bei der Abgabe, siehe Schritt 7).
    Der Dialog vor dem Senden nennt den KI-Dienst (Betreiber und Sitz) und, falls eingerichtet, die Reserve-KI. Ist die
    KI ausgelastet (viele Anfragen in derselben Minute), wartet die Seite mit Countdown und wiederholt die Anfrage
    automatisch – bis zu fünf Versuche in etwa vier Minuten, jeweils mit dem aktuellen Text; währenddessen darf
    weitergeschrieben werden, „Nicht länger warten“ bricht ab. Ein Abbruch per „Nicht länger warten“ zählt als ein
    Fehlversuch, ein erschöpfter Zyklus als zwei (ab dem zweiten nennt die Seite den Grund); ebenso zählt eine
    Anfrage, die nie zu Ende kam, weil der Tab geschlossen wurde oder das Gerät ausging – beim nächsten Öffnen. Die
-   Fehlversuche entscheiden den Vermerk bei einer Abgabe ohne KI-Feedback (Schritt 6).
+   Fehlversuche entscheiden den Vermerk bei einer Abgabe ohne KI-Feedback (Schritt 7).
    Mit dem Feedback geht diese erste Fassung samt Feedback außerdem verschlüsselt an die Lehrkraft – als
    **„Erstversuch“**. So sehen Sie auch, wer sich ein Feedback geholt, aber nicht abgegeben hat; die spätere Abgabe
    ersetzt den Erstversuch. Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
    [Datenschutz](#datenschutz)).
-6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Nach einer
+7. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Nach einer
    Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet: erste Fassung, überarbeitete Fassung und das
    KI-Feedback. **Das KI-Feedback ist freiwillig:** „Abgeben“ geht jederzeit (nur ein Blatt mit lauter leeren
    Antworten lässt sich nicht abgeben; leere einzelne Aufgaben nennt der Dialog). Abschluss-Text und beide
@@ -282,7 +294,11 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
    Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ (Tag und Monat,
-   z. B. „04.05.“ – auch bei älteren Abgaben, die noch ein Jahr enthalten) und „Klasse“, sortiert nach Klasse und Namen. Die Kürzel sind farbig: **grün** = Abgabe nach der Überarbeitung, **orange** =
+   z. B. „04.05.“ – auch bei älteren Abgaben, die noch ein Jahr enthalten) und „Klasse“, sortiert nach Klasse und Namen.
+   Eine **Partner- oder Gruppenarbeit** steht in einer Zeile mit allen Kürzeln über beide Kürzel-Spalten (z. B. „MaxMu,
+   LiMu, TimBe“) und dem Kennzeichen „Gruppe (3)“, Geburtstag „–“; Gruppen stehen in ihrer Klasse nach den
+   Einzelarbeiten, die Details beginnen mit „Gruppenarbeit: …“, und „Diesen Eintrag löschen“ löscht die ganze
+   Gruppenabgabe (der Dialog nennt alle Kürzel). Die Kürzel sind farbig: **grün** = Abgabe nach der Überarbeitung, **orange** =
    „Erstversuch ohne Überarbeitung“ – diese Person hat sich nur das KI-Feedback geholt und (noch) nicht abgegeben;
    eine Legende über der Tabelle erklärt die Farben, und die Zusammenfassung lautet dann z. B. „3 Abgaben ·
    1 Erstversuch ohne Überarbeitung“. Aufgeklappt sehen Sie je Aufgabe eine Tabelle mit Spalte 1 „Erste Eingabe
@@ -293,11 +309,13 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    mit allen Karten und ihren richtigen Ländern. Gibt die
    Person später ab, ersetzt die Abgabe ihren Erstversuch; gibt sie von einem anderen Gerät oder nach einem
    neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
-   die Zahl; in den Details der Abgabe lässt er sich unter „… älterer Erstversuch dieser Person“ aufklappen). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“
+   die Zahl; in den Details der Abgabe lässt er sich unter „… älterer Erstversuch dieser Person“ aufklappen). Bei einer
+   Gruppe gilt dasselbe für dieselbe Klasse und dieselben Kürzel – in welcher Reihenfolge sie eingetragen wurden, spielt
+   keine Rolle („… dieser Gruppe“). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“
    und den Hinweis „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“; Liste,
    Farben und Zähler unterscheiden sie nicht. „Alle aufklappen“ öffnet
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
-   Beachten Sie: Kürzel, Geburtstag, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
+   Beachten Sie: Kürzel, Geburtstag, Klasse, die Mitglieder einer Gruppe und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
    Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt. Über der Tabelle steht die Löschfrist,
    aufgeklappt je Abgabe, ab wann sie automatisch gelöscht wird („automatische Löschung ab dem TT.MM.JJJJ“ – im nächsten
    nächtlichen Lauf oder beim nächsten Öffnen der Übersicht).
@@ -537,7 +555,8 @@ und der bzw. dem Datenschutzbeauftragten ab.
    was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
    Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub als Empfänger für die ganze
    Seite (unter der Worker-Adresse nur für die Checklisten-Seite hinter dem QR-Code); bei Blättern ohne Auftrag an die KI
-   entfallen die Angaben zum KI-Feedback. „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
+   entfallen die Angaben zum KI-Feedback; bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
+   Angaben-Bildschirm in der „ihr“-Form (derselbe Inhalt). „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
 
 Gelöscht wird einmal täglich in der Nacht (02:17 Uhr UTC, Cron Trigger) und zusätzlich, wenn Sie die Übersicht öffnen
 (dabei räumt der Server auch abgelaufene Zähler und Sperren ab).
@@ -666,7 +685,8 @@ Passwortfeld. Der Server prüft ihn; falsche Codes zählen als Fehlversuche.
   Browser der Schüler:innen; den privaten Schlüssel speichert der Server nur verschlüsselt mit Ihrem Passwort.
 - Jede Abgabe wird im Browser der Schülerin bzw. des Schülers mit einem neuen Zufallsschlüssel verschlüsselt,
   der wiederum mit Ihrem öffentlichen Schlüssel verschlüsselt wird. Der Server speichert nur diesen
-  verschlüsselten Umschlag – **einschließlich Kürzeln, Geburtstag (Tag und Monat) und Klasse**.
+  verschlüsselten Umschlag – **einschließlich Kürzeln, Geburtstag (Tag und Monat) und Klasse** (bei Partner- oder
+  Gruppenarbeit der Kürzel aller Mitglieder und der Klasse).
 - Technisch: PBKDF2-SHA-256 mit 600 000 Durchläufen und zufälligem Salt, daraus per HKDF-SHA-256 der
   Anmeldeschlüssel und ein AES-GCM-256-Schlüssel; Schlüsselpaar RSA-OAEP mit 3072 Bit (SHA-256); Abgaben mit
   AES-GCM-256 verschlüsselt, der Abgabeschlüssel mit RSA-OAEP. Alle Verfahren stammen aus der eingebauten Web
@@ -783,7 +803,7 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
 | Checkliste zum analogen Arbeitsblatt: Vorschlag der KI (Entwurf) und die von Ihnen gespeicherten Punkte | Cloudflare D1 (EU), Tabelle `sheet_checklists` | unverschlüsselt; die gespeicherte Fassung (nie der Entwurf) ist für alle abrufbar, die den Code bzw. den QR-Code kennen | bis Sie das Blatt löschen |
 | Datenschutz-Angaben der Schule (Name, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage, Aufsichtsbehörde, Link) und Löschfrist | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; für alle abrufbar, die einen Code kennen (die Schüler:innen sehen sie im Datenschutzhinweis) | bis Sie sie ändern |
@@ -792,10 +812,10 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Geschätzter Verbrauch von Workers AI je Tag (Zahl der Anfragen und Neurons, keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach beim täglichen Aufräumen gelöscht (ohne Zeitplan: beim Öffnen der Übersicht) |
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
-| Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtstag, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 | Zwischenstand als PDF-Datei (dieselben Angaben), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
-| „Meine Lösungen“ als PDF nach der Abgabe (Kürzel, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
+| „Meine Lösungen“ als PDF nach der Abgabe (Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten zum Feedback – nur den Vorschlag der KI für die
 Checkliste (aus Ihren Aufgaben, ohne Daten der Schüler:innen) als Entwurf beim Blatt –, und er protokolliert keine
@@ -897,14 +917,16 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
    Abgaben dieses Feibeitsblattes löschen“); nicht mehr benötigte Feibeitsblätter löschen Sie selbst.
 6. **Rechte der Schüler:innen umsetzen.** Der Datenschutzhinweis nennt Sie als Ansprechpartner:in für Auskunft,
    Berichtigung, Löschung, Einschränkung und Widerspruch. Auskunft: die Einträge dieser Person in der Übersicht
-   aufklappen. Hat sie abgegeben, blendet die Liste ältere Erstversuche derselben Person (gleiche Klasse, Kürzel und
-   Geburtstag, z. B. auf einem anderen Gerät begonnen) aus – der Zähler über der Liste nennt ihre Anzahl, und in den
+   aufklappen – bei Partner- oder Gruppenarbeit die Zeile ihrer Gruppe (sie enthält die Antworten aller Mitglieder). Hat sie
+   abgegeben, blendet die Liste ältere Erstversuche derselben Person (gleiche Klasse, Kürzel und
+   Geburtstag, z. B. auf einem anderen Gerät begonnen) bzw. derselben Gruppe (gleiche Klasse und Kürzel) aus – der Zähler über der Liste nennt ihre Anzahl, und in den
    Details der Abgabe zeigt „… ältere Erstversuche dieser Person“ sie beim Aufklappen mit erster Fassung und KI-Feedback;
    für eine vollständige Auskunft gehören sie dazu. Löschung: in den aufgeklappten Details „Diesen Eintrag löschen“ – das
    löscht den Eintrag samt dieser ausgeblendeten Erstversuche (auch sehr viele, in mehreren Schritten), alle anderen
    Einträge bleiben. Einträge, die sich nicht entschlüsseln lassen, haben in der Liste einen eigenen Knopf „Eintrag
    löschen“. Falsche Angaben (z. B. ein vertipptes Kürzel): den Eintrag löschen und neu abgeben
-   lassen. Wie mit einer Einschränkung oder einem Widerspruch umzugehen ist, klären Sie bitte mit der bzw. dem
+   lassen. Eine Gruppenabgabe lässt sich nur als Ganzes löschen – möchte ein Mitglied die Löschung, betrifft das die
+   gemeinsame Abgabe (gegebenenfalls gibt der Rest der Gruppe neu ab). Wie mit einer Einschränkung oder einem Widerspruch umzugehen ist, klären Sie bitte mit der bzw. dem
    Datenschutzbeauftragten. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage (bei einem bezahlten Tarif bis
    zu 30 Tage) in der Datensicherung der Datenbank.
 7. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen. Empfohlen ist Cloudflare Workers AI (kein
@@ -921,8 +943,9 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > im Fach [Fach] nutzen wir die Schreibplattform „Feibeitsblatt“. Verantwortlich ist die [Schule, Anschrift],
 > Datenschutzbeauftragte:r: [Kontakt]. Zweck ist das Üben des Schreibens mit einer automatischen Rückmeldung, die die
 > Antworten nach Vorgaben der Lehrkraft bespricht; Rechtsgrundlage ist [§ … Schulgesetz / Art. 6 Abs. 1 lit. e
-> DSGVO]. Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
-> lesbar – auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
+> DSGVO]. Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte – bei Partner- oder
+> Gruppenarbeit die Namenskürzel aller Mitglieder und die Klasse, ohne Geburtstag; wer sie einträgt, trägt die Kürzel der
+> anderen mit ein –, verschlüsselt, nur für die Lehrkraft lesbar, auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
 > gelöscht (danach noch bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung). Cloudflare stützt Übermittlungen in die USA auf das EU-US
 > Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. [Falls die Seite über GitHub Pages aufgerufen wird:
 > Beim Laden der Seite verarbeitet auch GitHub, Inc. (USA) die IP-Adresse.] [Falls Sie ausgedruckte Arbeitsblätter mit
@@ -1114,6 +1137,8 @@ gespeichert.
 | „Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ (statt der Buttons, darunter ggf. „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) | Kein Fehler: Im Dialog vor der ersten Rechtschreibprüfung wurde „Trifft nicht zu“ gewählt oder Esc gedrückt. Für dieses geöffnete Blatt gibt es dann keine Prüf-Buttons mehr; Schreiben und Abgeben gehen ganz normal weiter. (Ein Klick neben den Dialog schließt ihn nur: Die Buttons bleiben, darunter steht dann nur „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) Wer sich vertan hat, lädt die Seite neu und öffnet das Blatt wieder (z. B. über „Weiterschreiben“) – dann fragt der Dialog wieder. |
 | „Zwischenstand konnte auf diesem Gerät nicht gespeichert werden“ (oben im Schreibbereich) | Der Browser lässt nichts mehr speichern – meist ist der Speicher für Website-Daten voll oder gesperrt (z. B. privates Fenster). Die Antworten bleiben erhalten, solange die Seite offen ist; zur Sicherheit „Zwischenstand als PDF-Datei sichern“ oder gleich abgeben. Nach einem Neuladen wäre ein nicht gespeicherter Stand weg. |
 | „Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.“ | Tag und Monat passen nicht zusammen (der 29. Februar ist erlaubt). Gefragt sind nur Tag und Monat des Geburtstags, kein Jahr. |
+| „Für Partner- oder Gruppenarbeit tragt bitte mindestens zwei Personen ein. Arbeitest du allein, wähle „Einzelarbeit“.“ | Bei „Partner- / Gruppenarbeit“ ist nur eine Person eingetragen. Mit „Person hinzufügen“ ein weiteres Feld öffnen – oder mit „← zurück zur Auswahl“ „Einzelarbeit“ wählen. |
+| „Person 1 und Person 2 haben dasselbe Kürzel („MaxMu“) …“ | Zwei Felder ergeben dasselbe Kürzel (Groß- und Kleinschreibung zählen nicht). Meist ist eine Person doppelt eingetragen; heißen zwei wirklich so, lässt eine einen Buchstaben weg (z. B. „MaMu“). |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |
 

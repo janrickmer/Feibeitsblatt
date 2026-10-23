@@ -106,9 +106,32 @@ const HESSEN_BASIS = "Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs.
 const HESSEN_AUTH = "Der Hessische Beauftragte für Datenschutz und Informationsfreiheit, Postfach 3163, 65021 Wiesbaden, poststelle@datenschutz.hessen.de";
 const PRIV_HEADS = ["Wer ist verantwortlich?", "Datenschutzbeauftragte:r deiner Schule", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
   "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Musst du mitmachen?", "Entscheidet die KI über dich?", "Deine Rechte"];
+// Angaben-Bildschirm einer Partner- / Gruppenarbeit: derselbe Hinweis in der „ihr“-Form
+const PRIV_HEADS_GROUP = ["Wer ist verantwortlich?", "Datenschutzbeauftragte:r eurer Schule", "Wozu werden eure Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
+  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Müsst ihr mitmachen?", "Entscheidet die KI über euch?", "Eure Rechte"];
 const PRIV_MISSING_WARN = "Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch (Name der Schule, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage). Bis dahin sehen die Schüler:innen nur einen allgemeinen Hinweis – das genügt der Informationspflicht nach Art. 13 DSGVO nicht. Bitte tragen Sie die Angaben unter „Datenschutz und Löschfrist“ ein.";
 const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
 const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
+// Partner- / Gruppenarbeit: Texte in der „ihr“-Form dort, wo es um alle geht (Angaben, Datenschutz-Kurzfassung, Rechtschreibprüfung)
+const MEMBERS_HINT = "Tragt für jede Person die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens in ein Feld ein, z. B. „MaxMu“ für Max Mustermann (bei kürzerem Vornamen den ganzen Vornamen). Tragt nur Personen ein, die mitarbeiten – alle sollten wissen, dass ihre Kürzel mit eurer Abgabe an die Lehrkraft gehen.";
+const KLASSE_HINT_GROUP = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät.";
+const LT_CONSENT_GROUP = "Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird nur der Text dieser Antwort an LanguageTool gesendet – ohne eure Namen oder eure Angaben, aber mit der Internetadresse eures Geräts. Die Prüfung ist freiwillig.\n\n" +
+  "Laut Anbieter darf LanguageTool nur nutzen, wer\n• mindestens 18 Jahre alt ist oder\n• 16 oder 17 Jahre alt ist und die Erlaubnis der Eltern hat.\n\n" +
+  "Trifft das auf alle in eurer Gruppe zu? Wenn nicht, wählt „Trifft nicht auf alle zu“ – ihr schreibt und gebt ganz normal ab, ohne Nachteil.\nDie Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.";
+const GROUP_DATA = "bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen.";
+// GRUPPE_SHOTS_OUT=<Ordner> npm run test:e2e speichert Bildschirmfotos von Arbeitsform, Gruppen-Angaben und Lehrkraft-Liste (375 und 1280 px)
+const SHOTS_OUT = process.env.GRUPPE_SHOTS_OUT || "";
+async function shots(page, name, widths = [375, 1280]) {
+  if (!SHOTS_OUT) return;
+  await mkdir(SHOTS_OUT, { recursive: true });
+  const vp = page.viewportSize();
+  for (const w of widths) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: join(SHOTS_OUT, `${name}-${w}.png`), fullPage: true });
+  }
+  await page.setViewportSize(vp);
+}
 const DAYS = 14;   // Löschfrist, die die Lehrkraft in Test 1b speichert
 const deDate = (ms) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(ms));
 // KI-Kennzeichnung einer Box: [data-ai-generated, data-ai-content, data-digital-source-type] (null = nicht gekennzeichnet)
@@ -158,7 +181,16 @@ async function enterCode(page, typed) {
   await page.fill("#code-input", typed);
   await page.press("#code-input", "Enter");
 }
+// Nach dem Code fragt die Seite nach der Arbeitsform: „Einzelarbeit“ → Angaben wie bisher (Kürzel, Geburtstag, Klasse)
+async function chooseSingle(page) {
+  await expect(page.locator("#screen-mode")).toHaveClass(/active/);
+  await expect(page.locator("#mode-single")).toBeFocused();
+  await page.click("#mode-single");
+  await expect(page.locator("#screen-person")).toHaveClass(/active/);
+}
 async function fillPerson(page, input) {
+  await expect(page.locator("#screen-mode.active, #screen-person.active")).toHaveCount(1);   // nach dem Code (Blatt geladen) oder schon gewählt
+  if (await page.locator("#screen-mode.active").count()) await chooseSingle(page);
   await expect(page.locator("#p-vorname")).toBeFocused();   // die Seite setzt den Fokus kurz nach dem Öffnen; danach stiehlt sie ihn nicht mehr
   await page.fill("#p-vorname", input.vorname);
   await page.fill("#p-nachname", input.nachname);
@@ -706,7 +738,7 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   const sp = s.page;
   await expect(sp.locator("#start-privacy")).toHaveText("Datenschutz: Beim Laden dieser Seite und beim Prüfen des Codes verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts. Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du, nachdem du den Code eingegeben hast.");
   await enterCode(sp, S.shown);
-  await expect(sp.locator("#screen-person")).toHaveClass(/active/);
+  await chooseSingle(sp);
   await expect(sp.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);   // die Angaben gehen schon mit dem KI-Feedback (Erstversuch) an die Lehrkraft
   const short = sp.locator("#p-privacy-short");
   await expect(short).toHaveText(/^Datenschutz: Verantwortlich ist deine Schule\. Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft\. Nach 30 Tagen werden sie automatisch gelöscht\. Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\.0\.0\.1:\d+ \(Betreiber und Sitz: von der Lehrkraft zu prüfen\)“, bei der Abgabe dann noch einmal in der abgegebenen Fassung\. Auch die Rechtschreibprüfung ist freiwillig\.$/);
@@ -744,7 +776,7 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   await gp.goto("/");
   await expect(gp.locator("#start-privacy")).toContainText("verarbeiten GitHub, Inc. (USA; liefert diese Seite aus) und Cloudflare, Inc. (USA; betreibt den Server dieser Seite)");
   await enterCode(gp, S.shown);
-  await expect(gp.locator("#screen-person")).toHaveClass(/active/);
+  await chooseSingle(gp);
   await gp.locator("#p-privfull summary").click();
   await expect(gp.locator("#p-privfull li", { hasText: "GitHub" })).toHaveText("GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.");
   await expect(gp.locator("#p-privfull")).toContainText("Dafür lädt diese Seite nur die Checkliste vom Server");   // hier ist es dieselbe Seite
@@ -771,7 +803,8 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   await expect(pv.locator("details.privfull li", { hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
   await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), " +
     "nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
-    "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback.");
+    "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
+    "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“).");
   await page.fill("#pv-name", SCHOOL.name);
   await page.fill("#pv-addr", SCHOOL.address);
   await page.fill("#pv-dpo", SCHOOL.dpo);
@@ -832,13 +865,13 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   await closePage(t);
 });
 
-test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld wächst, LanguageTool, KI-Feedback, Überarbeiten, Abgabe", async ({ browser }) => {
+test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfügen gesperrt, Feld wächst, LanguageTool, KI-Feedback, Überarbeiten, Abgabe", async ({ browser }) => {
   const s = await openPage(browser, { clipboard: true });
   const { page } = s;
 
   // Code klein, mit Bindestrich und Leerzeichen → wird normalisiert (Enter löst aus)
   await enterCode(page, " " + S.code.slice(0, 3).toLowerCase() + " - " + S.code.slice(3).toLowerCase() + " ");
-  await expect(page.locator("#screen-person")).toHaveClass(/active/);
+  await chooseSingle(page);
   const [lookup] = await s.calls((r) => r.path.startsWith("/api/sheet/"));
   expect(lookup.status).toBe(200);
   await expect(page.locator("#p-sheet")).toContainText(TITLE);
@@ -1388,11 +1421,347 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await closePage(s);
 });
 
+test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → Kürzel aller Mitglieder (hinzufügen, entfernen, Grenzen) und einmal die Klasse → KI-Feedback ohne Kürzel, Weiterschreiben, Zwischenstand-PDF, Abgabe → Lehrkraft sieht alle Kürzel als eine Gruppe", async ({ browser }) => {
+  // eigenes Blatt mit zwei Aufgaben mit Auftrag an die KI; am Ende gelöscht (die folgenden Tests zählen die Einträge des Hauptblattes)
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  const GTITLE = "Gruppenarbeit – Gewissen";
+  await tp.fill("#b-title", GTITLE);
+  for (let i = 0; i < 2; i++) { await tp.fill("#bq-" + (i + 1), TASKS[i].text); await tp.fill("#bs-" + (i + 1), TASKS[i].solution); }
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim();
+  const G = { first: ["Das Gewissen ist eine innere Instanz, die zwischen richtig und falsch unterscheidet.", "Wir haben einmal geflunkert."], rev2: " Die Begründung: Lügen ist unfair." };
+  const NAMES = ["MaxMu", "LiMu", "TimBe"];
+
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  // Arbeitsform: zwei große Buttons mit Erklärzeile, Fokus auf „Einzelarbeit“
+  await expect(page.locator("#screen-mode")).toHaveClass(/active/);
+  await expect(page.locator("#mode-h")).toHaveText("Wie arbeitest du?");
+  await expect(page.locator("#m-sheet")).toContainText(GTITLE);
+  await expect(page.locator("#m-sheet small")).toHaveText("Code " + shown + " · 2 Aufgaben");
+  await expect(page.locator("#mode-single")).toBeFocused();
+  await expect(page.getByRole("button", { name: "Einzelarbeit", exact: true })).toHaveAttribute("id", "mode-single");
+  await expect(page.getByRole("button", { name: "Partner- / Gruppenarbeit", exact: true })).toHaveAttribute("id", "mode-group");
+  await expect(page.locator("#mode-single-d")).toHaveText("Du bearbeitest das Feibeitsblatt allein.");
+  await expect(page.locator("#mode-group-d")).toHaveText("Ihr bearbeitet es zu zweit oder in einer Gruppe (bis zu 10 Personen) an einem Gerät und gebt gemeinsam ab.");
+  await expect(page.locator("#mode-group")).toHaveAttribute("aria-describedby", "mode-group-d");
+  await shots(page, "1-arbeitsform");
+  // „anderen Code eingeben“ führt zur Startseite (der Code steht noch im Feld)
+  await expect(page.locator("#m-back")).toHaveText("← anderen Code eingeben");
+  await page.click("#m-back");
+  await expect(page.locator("#screen-start")).toHaveClass(/active/);
+  await expect(page.locator("#code-input")).toBeFocused();
+  await page.press("#code-input", "Enter");
+  await expect(page.locator("#screen-mode")).toHaveClass(/active/);
+  // Einzelarbeit wie bisher; der Backlink dort führt zurück zur Auswahl
+  await page.click("#mode-single");
+  await expect(page.locator("#person-h")).toHaveText("Deine Angaben");
+  await expect(page.locator("#p-vorname")).toBeFocused();
+  await expect(page.locator("#p-gtag")).toBeVisible();
+  await expect(page.locator("#p-group")).toBeHidden();
+  await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);
+  await page.locator("#p-privfull summary").click();   // Einzelarbeit: alle Informationen in der „du“-Form, „Welche Daten?“ nennt beide Formen
+  await expect(page.locator("#p-privfull h2.privh")).toHaveText(PRIV_HEADS);
+  await expect(page.locator("#p-privfull")).toContainText("Bei Einzelarbeit die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr) und deine Klasse; " + GROUP_DATA + " Außerdem deine Antworten");
+  await page.locator("#p-privfull summary").click();
+  await expect(page.locator("#p-back")).toHaveText("← zurück zur Auswahl");
+  await page.click("#p-back");
+  await expect(page.locator("#screen-mode")).toHaveClass(/active/);
+  await expect(page.locator("#mode-single")).toBeFocused();
+
+  // Partner- / Gruppenarbeit: „ihr“-Form, ein Feld je Person, kein Geburtstag
+  await page.click("#mode-group");
+  await expect(page.locator("#screen-person")).toHaveClass(/active/);
+  await expect(page.locator("#person-h")).toHaveText("Eure Angaben");
+  await expect(page.locator("#p-sub")).toHaveText("Bitte tragt eure Angaben ein. Danach öffnet sich der Schreibbereich.");
+  await expect(page.locator("#p-members-hint")).toHaveText(MEMBERS_HINT);
+  await expect(page.locator("#p-group legend")).toHaveText("Kürzel aller Personen");
+  await expect(page.locator("#p-single")).toBeHidden();
+  await expect(page.locator("#p-gtag")).toBeHidden();
+  await expect(page.locator("#p-members input")).toHaveCount(1);
+  await expect(page.locator("#p-m-1")).toBeFocused();
+  expect(await page.$eval("#p-m-1", (e) => [e.labels[0].textContent, e.autocomplete, e.getAttribute("autocorrect"), e.spellcheck, e.maxLength, e.placeholder]))
+    .toEqual(["Person 1", "off", "off", false, 8, "z. B. MaxMu"]);
+  await expect(page.locator("#p-members button")).toHaveCount(0);   // Person 1 bleibt immer
+  await expect(page.locator("#p-add")).toHaveText("Person hinzufügen");
+  await expect(page.locator("#p-add-hint")).toBeHidden();
+  await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT_GROUP);
+  await expect(page.locator("#p-privacy-short")).toHaveText(new RegExp("^Datenschutz: Verantwortlich ist " + SCHOOL.name + "\\. Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur eure Lehrkraft\\. " +
+    "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Das KI-Feedback ist freiwillig: Nur wenn ihr es anfordert, gehen eure Antworten – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: von der Lehrkraft zu prüfen\\)“, " +
+    "bei der Abgabe dann noch einmal in der abgegebenen Fassung\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
+  // auch alle Informationen zum Datenschutz in der „ihr“-Form (derselbe Inhalt; „Welche Daten?“ nennt beide Arbeitsformen)
+  await page.locator("#p-privfull summary").click();
+  await expect(page.locator("#p-privfull h2.privh")).toHaveText(PRIV_HEADS_GROUP);
+  await expect(page.locator("#p-privfull")).toContainText("Bei Partner- oder Gruppenarbeit (so wie bei euch) die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – " +
+    "wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen; bei Einzelarbeit die ersten Buchstaben des Vor- und Nachnamens, der Geburtstag (Tag und Monat, ohne Jahr) und die Klasse. Außerdem eure Antworten");
+  await expect(page.locator("#p-privfull")).toContainText("Eure Lehrkraft – nur sie kann eure auf dem Server gespeicherten Angaben und Antworten lesen.");
+  await expect(page.locator("#p-privfull")).toContainText("Jede und jeder von euch kann Auskunft über die eigenen gespeicherten Daten verlangen");
+  await expect(page.locator("#p-privfull")).toContainText("– ohne eure Namenskürzel und die Klasse –");
+  expect(await page.locator("#p-privfull").textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
+  await page.locator("#p-privfull summary").click();
+
+  // Prüfungen: leeres Feld, eine Person, Zeichen, doppeltes Kürzel, Form; Fehler in #p-err, Feld markiert und fokussiert
+  const err = page.locator("#p-err");
+  const tryGroup = async (msg, focus) => {
+    await page.click("#p-btn");
+    await expect(err).toHaveText(msg);
+    await expect(page.locator("#screen-person")).toHaveClass(/active/);
+    await expect(page.locator(focus)).toBeFocused();
+  };
+  await tryGroup("Bitte tragt für Person 1 die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens ein (z. B. „MaxMu“).", "#p-m-1");
+  await expect(page.locator("#p-m-1")).toHaveClass(/invalid/);
+  await page.fill("#p-m-1", "max mu");
+  await tryGroup("Für Partner- oder Gruppenarbeit tragt bitte mindestens zwei Personen ein. Arbeitest du allein, wähle „Einzelarbeit“.", "#p-add");
+  await expect(page.locator("#p-m-1")).not.toHaveClass(/invalid/);
+  await page.click("#p-add");
+  await expect(page.locator("#p-m-2")).toBeFocused();
+  await expect(page.locator("#p-members label")).toHaveText(["Person 1", "Person 2"]);
+  await expect(page.locator("#p-members button")).toHaveCount(1);
+  await expect(page.locator("#p-members button")).toHaveAttribute("aria-label", "Person 2 entfernen");
+  await tryGroup("Bitte tragt für Person 2 die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens ein (z. B. „MaxMu“) – oder entfernt das leere Feld.", "#p-m-2");
+  await page.fill("#p-m-2", "Li7");
+  await tryGroup("Bei Person 2 sind nur Buchstaben erlaubt – zwischen Vor- und Nachnamen auch ein Leerzeichen oder ein Bindestrich.", "#p-m-2");
+  await page.fill("#p-m-2", "MAXMU");   // ohne Groß-/Kleinschreibung dasselbe Kürzel
+  await tryGroup("Person 1 und Person 2 haben dasselbe Kürzel („MaxMu“). Bitte prüft eure Eingaben – heißen zwei von euch wirklich so, lasst bei einer Person einen Buchstaben weg (z. B. „MaMu“ statt „MaxMu“).", "#p-m-2");
+  await expect(page.locator("#p-m-2")).toHaveClass(/invalid/);
+  await page.fill("#p-m-2", "li-mu");
+  await page.click("#p-add");
+  await page.keyboard.type("Tom Berg");
+  await tryGroup("Bitte tragt für Person 3 die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens ein, z. B. „MaxMu“ (bei kürzerem Vornamen den ganzen Vornamen).", "#p-m-3");
+  // Person 3 entfernen: Person 4 rückt nach (Nummer, Beschriftung, Entfernen-Knopf), der Fokus bleibt an dieser Stelle
+  await page.click("#p-add");
+  await expect(page.locator("#p-m-4")).toBeFocused();
+  await page.keyboard.type("tim be");
+  await page.getByRole("button", { name: "Person 3 entfernen" }).click();
+  await expect(page.locator("#p-members input")).toHaveCount(3);
+  await expect(page.locator("#p-m-3")).toHaveValue("tim be");
+  await expect(page.locator("#p-m-3")).toBeFocused();
+  await expect(page.locator("#p-members label")).toHaveText(["Person 1", "Person 2", "Person 3"]);
+  await expect(page.locator("#p-members button")).toHaveCount(2);
+  expect(await page.locator("#p-members button").evaluateAll((b) => b.map((x) => x.getAttribute("aria-label")))).toEqual(["Person 2 entfernen", "Person 3 entfernen"]);
+  await expect(err).toHaveText("");   // die Meldung betraf das entfernte Feld
+  await expect(page.locator("#p-members input.invalid")).toHaveCount(0);
+  // betrifft die Meldung ein Feld vor der entfernten Zeile, bleibt sie samt Markierung (die Nummer stimmt weiter)
+  const EMPTY2 = "Bitte tragt für Person 2 die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens ein (z. B. „MaxMu“) – oder entfernt das leere Feld.";
+  await page.fill("#p-m-2", "");
+  await page.click("#p-add");
+  await page.keyboard.type("ali ka");
+  await tryGroup(EMPTY2, "#p-m-2");
+  await page.getByRole("button", { name: "Person 4 entfernen" }).click();
+  await expect(page.locator("#p-members input")).toHaveCount(3);
+  await expect(err).toHaveText(EMPTY2);
+  await expect(page.locator("#p-m-2")).toHaveClass(/invalid/);
+  await page.fill("#p-m-2", "li-mu");
+  // höchstens 10 Personen: danach ist „Person hinzufügen“ gesperrt
+  for (let n = 4; n <= 10; n++) { await page.click("#p-add"); await expect(page.locator("#p-m-" + n)).toBeFocused(); }
+  await expect(page.locator("#p-members input")).toHaveCount(10);
+  await expect(page.locator("#p-add")).toBeDisabled();
+  await expect(page.locator("#p-add-hint")).toBeVisible();
+  await expect(page.locator("#p-add-hint")).toHaveText("Höchstens 10 Personen.");
+  // gesperrt per aria-disabled: per Tab erreichbar, der Grund steht in der Beschreibung; der Hinweis ist eine Statusmeldung
+  await expect(page.locator("#p-add")).toHaveAttribute("aria-disabled", "true");
+  await expect(page.locator("#p-add")).toHaveAttribute("aria-describedby", "p-add-hint");
+  await expect(page.locator("#p-add-hint")).toHaveAttribute("role", "status");
+  await page.keyboard.press("Tab"); await expect(page.getByRole("button", { name: "Person 10 entfernen" })).toBeFocused();
+  await page.keyboard.press("Tab"); await expect(page.locator("#p-add")).toBeFocused();
+  await expect(page.locator("#p-add")).toHaveAccessibleDescription("Höchstens 10 Personen.");
+  await page.keyboard.press("Enter");   // tut nichts
+  await expect(page.locator("#p-members input")).toHaveCount(10);
+  await expect(page.locator("#p-add")).toBeFocused();
+  await page.getByRole("button", { name: "Person 10 entfernen" }).click();
+  await expect(page.locator("#p-m-9")).toBeFocused();   // das letzte Feld entfernt → das vorige
+  await expect(page.locator("#p-add")).toBeEnabled();
+  await expect(page.locator("#p-add")).toHaveAttribute("aria-disabled", "false");
+  await expect(page.locator("#p-add-hint")).toBeHidden();
+  await expect(page.locator("#p-add-hint")).toHaveText("");
+  for (let n = 9; n >= 4; n--) await page.getByRole("button", { name: `Person ${n} entfernen` }).click();
+  await expect(page.locator("#p-members input")).toHaveCount(3);
+  // Enter springt ins nächste Feld, am Ende zur Klasse (einmal für die ganze Gruppe)
+  await page.focus("#p-m-1");
+  await page.keyboard.press("Enter"); await expect(page.locator("#p-m-2")).toBeFocused();
+  await page.keyboard.press("Enter"); await expect(page.locator("#p-m-3")).toBeFocused();
+  await page.keyboard.press("Enter"); await expect(page.locator("#p-klasse")).toBeFocused();
+  await page.click("#p-btn");
+  await expect(err).toHaveText("Bitte gebt eure Klasse ein (z. B. 8b).");
+  await expect(page.locator("#p-klasse")).toHaveClass(/invalid/);
+  // eine Person hinzufügen und wieder entfernen: die Meldung betrifft die Klasse – sie bleibt samt Markierung stehen
+  await page.click("#p-add");
+  await page.getByRole("button", { name: "Person 4 entfernen" }).click();
+  await expect(page.locator("#p-m-3")).toBeFocused();
+  await expect(err).toHaveText("Bitte gebt eure Klasse ein (z. B. 8b).");
+  await expect(page.locator("#p-klasse")).toHaveClass(/invalid/);
+  await page.fill("#p-klasse", "8b!");
+  await page.click("#p-btn");
+  await expect(err).toHaveText("Bitte gebt eure Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
+  await shots(page, "2a-gruppe-fehler", [375]);
+  await page.fill("#p-klasse", "8 b");
+  if (SHOTS_OUT) await page.evaluate(() => { document.getElementById("p-err").textContent = ""; document.getElementById("p-klasse").classList.remove("invalid"); document.activeElement.blur(); });   // Foto ohne die alte Meldung
+  await shots(page, "2-gruppe-angaben");
+  await page.press("#p-klasse", "Enter");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#who-lbl")).toHaveText("Gruppe");
+  await expect(page.locator("#who-name")).toHaveText("MaxMu, LiMu, TimBe · Klasse 8b");
+  await shots(page, "2b-editor", [375]);
+  await expect(page.locator("#privacy")).toContainText("werden deine erste Fassung und das Feedback zusammen mit den Namenskürzeln der Gruppe und der Klasse verschlüsselt");
+  await expect(page.locator("#privacy")).toContainText("werden nur deine Antworten – ohne die Namenskürzel der Gruppe und die Klasse – an den Server dieser Seite geschickt");
+  await expect(page.locator("#privacy")).not.toContainText("Geburtstag");
+  // auch der ausführliche Hinweis im Schreibbereich („du“-Form) nennt bei der Gruppe keinen Geburtstag beim KI-Dienst
+  await expect(page.locator("#privfull-ed")).toContainText("– ohne die Namenskürzel der Gruppe und die Klasse – und verarbeitet sie");
+  await expect(page.locator("#privfull-ed")).not.toContainText("ohne Namenskürzel, Geburtstag und Klasse");
+  for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), G.first[i]);
+
+  // Rechtschreibprüfung: die Altersgrenze gilt für alle, die mitschreiben – der Dialog fragt die ganze Gruppe
+  await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg-ok")).toHaveText("Trifft auf alle in eurer Gruppe zu – prüfen");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Trifft nicht auf alle zu");
+  await expect(page.locator("#dlg-cancel")).toBeFocused();
+  expect(await confirmDialog(page, "Rechtschreibung und Grammatik prüfen")).toBe(LT_CONSENT_GROUP);
+  await expect(page.locator("#t-1 .lt-out .lt-text")).toHaveText("Keine Rechtschreib- oder Grammatikfehler gefunden.");
+  expect(s.lt.map((r) => r.params.text)).toEqual([G.first[0]]);   // nur der Text der Antwort
+
+  // KI-Feedback: weder Kürzel noch Klasse gehen an den Server oder die KI (der Dialog nennt keinen Geburtstag)
+  await mockReset();
+  await page.click("#fb-btn");
+  const fbDlg = await confirmDialog(page, "KI-Feedback anfordern?");
+  expect(fbDlg).toContain("Deine Antworten gehen – ohne die Namenskürzel der Gruppe und die Klasse – über den Server dieser Seite an den KI-Dienst „");
+  expect(fbDlg).not.toContain("Geburtstag");
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  const [fbCall] = await s.calls((r) => r.path === "/api/feedback");
+  expect(Object.keys(JSON.parse(fbCall.reqBody)).sort()).toEqual(["answers", "code", "recipients"]);
+  const prompt = JSON.stringify((await mockState()).requests.map((r) => r.messages));
+  expect(prompt).toContain(G.first[1]);
+  for (const w of [...NAMES, "Klasse 8b"]) { expect(prompt).not.toContain(w); expect(fbCall.reqBody).not.toContain(w); }
+  await expect.poll(async () => (await s.calls((r) => r.path === "/api/submit" && r.status === 200)).length, { timeout: 30_000 }).toBe(1);   // Erstversuch
+  const firstSub = JSON.parse((await s.calls((r) => r.path === "/api/submit"))[0].reqBody);
+  expect(firstSub.stage).toBe("first");
+  for (const w of NAMES) expect(JSON.stringify(firstSub)).not.toContain(w);   // nur verschlüsselt
+
+  // Neu laden → „Weiterschreiben?“ nennt die Gruppe → direkt in den Schreibbereich
+  await typeAt(page, "#a-2", G.rev2);
+  await page.waitForTimeout(700);
+  await page.reload();
+  await expect(page.locator("#resume-box")).toBeVisible();
+  await expect(page.locator("#resume-text")).toHaveText("Auf diesem Gerät liegt ein Zwischenstand der Gruppe MaxMu, LiMu, TimBe · Klasse 8b (Code " + shown + "). Seid ihr das?");
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#who-name")).toHaveText("MaxMu, LiMu, TimBe · Klasse 8b");
+  expect(await page.inputValue("#a-2")).toBe(G.first[1] + G.rev2);
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible();
+  // dieselbe Gruppe in anderer Reihenfolge (gleiches Gerät, zweiter Tab) findet denselben Zwischenstand
+  const tab2 = await s.context.newPage();
+  await tab2.goto("/");
+  await enterCode(tab2, shown);
+  await tab2.click("#mode-group");
+  await tab2.fill("#p-m-1", "TimBe"); await tab2.click("#p-add"); await tab2.keyboard.type("limu"); await tab2.click("#p-add"); await tab2.keyboard.type("Max Mu");
+  await tab2.fill("#p-klasse", "8b");
+  await tab2.click("#p-btn");
+  await expect(tab2.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(tab2.locator("#save-state")).toHaveText("Zwischenstand von diesem Gerät wiederhergestellt");
+  await expect(tab2.locator("#who-name")).toHaveText("TimBe, Limu, MaxMu · Klasse 8b");   // „limu“ ohne Groß-/Kleinwechsel bleibt ein Teil – gleich ohne Groß-/Kleinschreibung
+  expect(await tab2.inputValue("#a-2")).toBe(G.first[1] + G.rev2);
+  await tab2.close();
+
+  // Zwischenstand-PDF: Gruppe sichtbar und im Datensatz (ohne Geburtstag) → auf einem anderen Gerät wieder hochladen
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#ed-pdf")]);
+  expect(dl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Zwischenstand-" + shown + "-\\d{4}-\\d\\d-\\d\\d_\\d\\d-\\d\\d\\.pdf$"));
+  const dpdf = await readFile(await dl.path());
+  expect(pdfShownText(dpdf)).toContain("Gruppe: MaxMu, LiMu, TimBe · Klasse 8b");
+  const i0 = dpdf.indexOf("/FbDraft 1"), d0 = dpdf.indexOf("stream\n", i0) + 7, d1 = dpdf.indexOf("\nendstream", d0);
+  const draft = JSON.parse(dpdf.subarray(d0, d1).toString("utf8"));
+  expect(draft.person).toEqual({ gruppe: NAMES, klasse: "8b" });
+  expect(draft.answers).toEqual([G.first[0], G.first[1] + G.rev2]);
+  const fresh = await openPage(browser);
+  await fresh.page.setInputFiles("#start-pdf-file", await dl.path());
+  await expect(fresh.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(fresh.page.locator("#who-lbl")).toHaveText("Gruppe");
+  await expect(fresh.page.locator("#who-name")).toHaveText("MaxMu, LiMu, TimBe · Klasse 8b");
+  await expect(fresh.page.locator("#save-state")).toHaveText("Zwischenstand aus der PDF-Datei übernommen");
+  expect(await fresh.page.inputValue("#a-2")).toBe(G.first[1] + G.rev2);
+  await closePage(fresh);
+
+  // Ein anderes Gerät: dieselbe Gruppe in anderer Reihenfolge holt ebenfalls KI-Feedback (eigener Erstversuch), gibt aber nicht ab
+  const o = await openPage(browser);
+  await enterCode(o.page, shown);
+  await o.page.click("#mode-group");
+  await o.page.fill("#p-m-1", "TimBe"); await o.page.click("#p-add"); await o.page.keyboard.type("LiMu"); await o.page.click("#p-add"); await o.page.keyboard.type("maxmu");
+  await o.page.fill("#p-klasse", "8b");
+  await o.page.click("#p-btn");
+  await expect(o.page.locator("#screen-editor")).toHaveClass(/active/);
+  for (let i = 0; i < 2; i++) await typeAt(o.page, "#a-" + (i + 1), "Unsere erste Idee " + (i + 1) + ".");
+  await requestFeedback(o.page);
+  await expect.poll(async () => (await o.calls((r) => r.path === "/api/submit" && r.status === 200)).length, { timeout: 30_000 }).toBe(1);
+  await closePage(o);
+  // Einzelarbeit derselben Klasse (gibt ohne KI-Feedback ab) – steht in der Liste vor der Gruppe
+  const e = await openPage(browser);
+  await enterCode(e.page, shown);
+  await fillPerson(e.page, { vorname: "eva", nachname: "zo", geb: "--07-07", klasse: "8b" });
+  for (let i = 0; i < 2; i++) await typeAt(e.page, "#a-" + (i + 1), "Meine Antwort " + (i + 1) + ".");
+  await e.page.click("#submit-btn");
+  await confirmDialog(e.page, "Ohne KI-Feedback abgeben?");
+  await expect(e.page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await closePage(e);
+
+  // Abgabe der Gruppe → Lösungs-PDF nennt die Gruppe (Kopf und Fußzeile), der Dateiname keine Kürzel
+  await page.click("#submit-btn");
+  const subDlg = await confirmDialog(page, "Jetzt abgeben?");
+  expect(subDlg).toContain("Deine Antworten gehen – ohne die Namenskürzel der Gruppe und die Klasse – über den Server");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb .fbbox")).toHaveCount(2, { timeout: 60_000 });
+  const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  expect(sdl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Loesungen-" + shown + "-\\d{4}-\\d\\d-\\d\\d\\.pdf$"));
+  const sol = pdfShownText(await readFile(await sdl.path()));
+  expect(sol).toMatch(/Gruppe: MaxMu, LiMu, TimBe · Klasse 8b · abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr · Code /);
+  expect(sol).toContain("Feibeitsblatt · " + GTITLE + " · Gruppe MaxMu, LiMu, TimBe · Seite 1 von ");
+  expect(sol).not.toContain("undefined");
+  await closePage(s);
+
+  // Lehrkraft: Einzelarbeit unverändert, die Gruppe in einer Zeile mit allen Kürzeln und „Gruppe (3)“; der Erstversuch derselben
+  // Gruppe (andere Reihenfolge, anderes Gerät) ist ausgeblendet
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("2 Abgaben · 1 älterer Erstversuch von Schüler:innen, die inzwischen abgegeben haben, wird nicht angezeigt");
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(2);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Zo", "Eva", "07.07.", "8b"]);
+  await expect(mains.nth(1).locator("td:not(.arrowcol)")).toHaveText(["MaxMu, LiMu, TimBe Gruppe (3)", "–", "8b"]);
+  await expect(mains.nth(1).locator("td.grpcell .grpnames")).toHaveText("MaxMu, LiMu, TimBe");
+  await expect(mains.nth(1).locator("td.grpcell .grpbadge")).toHaveText("Gruppe (3)");
+  await expect(mains.nth(1).locator("td.grpcell")).toHaveAttribute("colspan", "2");
+  await expect(mains.nth(1).locator("td.grpcell")).toHaveClass(/st-final/);
+  expect(await mains.nth(1).locator(".sr-only").evaluateAll((x) => x.map((e) => e.closest("td").className))).toEqual(["arrowcol"]);   // Screenreader-Text nur in der Pfeilspalte
+  await shots(tp, "3-lehrkraft-liste");
+  await mains.nth(1).click();
+  const det = tp.locator("#t-subs-body tr.details:visible");
+  await expect(det.locator(".detbox:not(.older) > .dgroup")).toHaveText("Gruppenarbeit: MaxMu, LiMu, TimBe");
+  const older = det.locator("details.dolder");
+  await expect(older.locator("summary")).toHaveText("1 älterer Erstversuch dieser Gruppe (in der Liste ausgeblendet)");
+  await older.locator("summary").click();
+  await expect(older.locator(".detbox.older .dgroup")).toHaveText("Gruppenarbeit: TimBe, LiMu, MaxMu");
+  await expect(older.locator(".detbox.older .moodle-hint")).toHaveText("Eine frühere Bearbeitung derselben Gruppe (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Gruppe inzwischen abgegeben hat.");
+  await shots(tp, "4-lehrkraft-details", [1280]);
+  // „Diesen Eintrag löschen“ nennt alle Kürzel und löscht die ganze Gruppenabgabe samt dem ausgeblendeten Erstversuch
+  await det.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
+  expect(await confirmDialog(tp, "Diesen Eintrag löschen?")).toMatch(/^Die Abgabe der Gruppe MaxMu, LiMu, TimBe \(Klasse 8b\) vom \d\d\.\d\d\.\d{4}, \d\d:\d\d wird endgültig aus der Datenbank gelöscht – mitsamt einem älteren, ausgeblendeten Erstversuch derselben Gruppe\. Alle anderen Einträge bleiben\. Das lässt sich nicht rückgängig machen\.$/);
+  await expect(tp.locator("#t-subs-status")).toHaveText("2 Einträge gelöscht.");
+  await expect(mains).toHaveCount(1);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Zo", "Eva", "07.07.", "8b"]);
+  // aufräumen: das Blatt samt der Einzelabgabe löschen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
 test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt eine KI-Anfrage fehl", async ({ browser }) => {
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, S.shown);
-  await expect(page.locator("#screen-person")).toHaveClass(/active/);
+  await chooseSingle(page);
   await fillPerson(page, B.input);
   await expect(page.locator("#who-name")).toHaveText("Özg · Ün · 15.01. · Klasse 7a");
   // Ohne Geburtsjahr kennt die Seite das Alter nicht: Der Button steht bei jedem Textfeld, B (unter 16) lehnt im Dialog ab → nichts geht raus

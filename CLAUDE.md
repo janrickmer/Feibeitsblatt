@@ -1,7 +1,7 @@
 # Feibeitsblatt – Hinweise für die Entwicklung
 
 Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit-Messung): Lehrkraft legt Aufgaben +
-Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
+Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu einer
 Checkliste drucken. Oberfläche und Doku deutsch;
@@ -77,12 +77,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
   Lehrkraft-Ansicht: Kürzel `.st-final` (grün) / `.st-first` (orange, `#b85c00`), Legende `#t-subs-legend`,
   Zusammenfassung `subsSummary`; Erstversuche einer Person, die (anders) schon abgegeben hat, werden ausgeblendet
-  (`T.subsHidden` = `[{id, who, s}]` per `subWho` – Klasse, Kürzel, Geburtstag –, in Lösch-Dialogen mitgezählt; die Details
-  der Abgabe zeigen sie in `details.dolder` „n ältere Erstversuche dieser Person (in der Liste ausgeblendet)“, gebaut beim
+  (`T.subsHidden` = `[{id, who, s}]` per `subWho` – Klasse, Kürzel, Geburtstag; bei einer Gruppe Klasse + sortierte Kürzel, die
+  Reihenfolge der Eingabe zählt nicht –, in Lösch-Dialogen mitgezählt; die Details
+  der Abgabe zeigen sie in `details.dolder` „n ältere Erstversuche dieser Person (bzw. Gruppe) (in der Liste ausgeblendet)“, gebaut beim
   Aufklappen per `buildDetail(x.s, true)` ohne Löschknopf – sonst wäre die Auskunft unvollständig); Details:
   „Erstversuch ohne Überarbeitung – noch nicht abgegeben“, Spalte 2 „(noch nicht überarbeitet)“, am Ende „Diesen Eintrag
-  löschen“ (`deleteEntry`, danger-Dialog mit Kürzel, Geburtstag, Klasse; löscht die ausgeblendeten Erstversuche derselben
-  Person und zuletzt die id selbst in Blöcken zu `DELETE_IDS_MAX` = `LIMITS.deleteIds` (50) – scheitert ein Block, bleibt der
+  löschen“ (`deleteEntry`, danger-Dialog mit Kürzel, Geburtstag, Klasse bzw. „der Gruppe MaxMu, LiMu (Klasse 8b)“; löscht die
+  ausgeblendeten Erstversuche derselben Person bzw. Gruppe und zuletzt die id selbst in Blöcken zu `DELETE_IDS_MAX` = `LIMITS.deleteIds` (50) – scheitert ein Block, bleibt der
   Rest unter der Abgabe –, lädt Liste und Zähler neu, Status in `#t-subs-status`) – so setzt die Lehrkraft Löschwünsche um.
   Nicht entschlüsselbare Einträge (`tr.errrow`) haben einen eigenen Knopf „Eintrag löschen“. Screenreader-Text in der Pfeilspalte, nie im Kürzel (Tests lesen die Zellen).
 - **Zwischenstand als PDF (ohne Bibliothek):** `makeDraftPdf(d)` baut eine A4-Seite (Helvetica/-Bold, WinAnsi,
@@ -92,7 +93,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readDraftPdf` sucht die Kennzeichen
   im Latin-1-String, liest `/Length` (direkt oder Verweis, sonst bis `endstream`) und entpackt `FlateDecode` per
   `DecompressionStream` – neu gespeicherte PDFs bleiben lesbar; `cleanDraft` prüft wie die Eingabefelder (Code,
-  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`). Startseite: `#start-pdf` →
+  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`). Startseite: `#start-pdf` →
   `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB, Blatt laden, Aufgabenzahl prüfen, bei neuerem
   lokalen Stand nachfragen) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
@@ -312,7 +313,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **LanguageTool:** direkt aus dem Browser, nur auf Klick (Nutzungsbedingungen: keine automatisierten Anfragen).
   Altersgrenze des Anbieters (ab 18, mit 16/17 nur mit Erlaubnis der Eltern) **nur als Selbstauskunft** (es gibt kein
   Geburtsjahr): Button bei jedem Textfeld; vor der ersten Prüfung je geöffnetem Blatt der Dialog `ltConsent` (Wortlaut fest,
-  OK „Trifft auf mich zu – prüfen“, Abbrechen „Trifft nicht zu“, `safeFirst`) – ohne Bestätigung wird nichts gesendet.
+  OK „Trifft auf mich zu – prüfen“, Abbrechen „Trifft nicht zu“, `safeFirst`; bei Partner-/Gruppenarbeit eine Fassung für alle,
+  „Trifft auf alle in eurer Gruppe zu – prüfen“ / „Trifft nicht auf alle zu“) – ohne Bestätigung wird nichts gesendet.
   „Trifft nicht zu“ (auch Esc) → `ltDecline`: `S.ltDeclined`, alle `.ltbtn` → Hinweis `span.ltstat.lt-off` (`LT_OFF_TEXT`,
   Fokus auf den Hinweis der Aufgabe); nichts speichern. Klick neben den Dialog (vertippt) ist keine Antwort: `askConfirm`
   mit `backdrop: null` → `ltConsent` liefert `null`, nur die Meldung „Ohne Bestätigung wird nichts …“, Buttons bleiben.
@@ -542,7 +544,44 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`test/unit/bday.test.mjs`). E2E 3e (feste Uhrzeit per `page.clock`; mehrere alte Stände, voller Speicher, Speichern
   scheitert, Zwischenstand-PDF mit vollem bzw. unmöglichem Geburtstag, neuerer alter Stand auf dem Gerät beim PDF-Import,
   Ablauf), 7g (Lehrkraft-Ansicht mit alten Abgaben/Erstversuchen). Der Server sieht den Geburtstag nie (nur im
-  verschlüsselten Umschlag).
+  verschlüsselten Umschlag). Partner- und Gruppenarbeit fragt **keinen** Geburtstag ab (siehe unten); `adoptLegacyDraft`
+  sucht nur für Einzelarbeit.
+- **Einzelarbeit / Partner- und Gruppenarbeit:** Nach gültigem Code (`startGo` → `openMode`, nicht bei „Weiterschreiben“ und
+  Zwischenstand-PDF) `#screen-mode` „Wie arbeitest du?“ mit `button.modebtn#mode-single` „Einzelarbeit“ / `#mode-group`
+  „Partner- / Gruppenarbeit“ (Name per `aria-labelledby` auf `.mt`, Erklärzeile `.md` per `aria-describedby`; Fokus auf
+  `#mode-single`), `#m-back` „← anderen Code eingeben“ (`resetStudent`). Beide führen zu `#screen-person` (`openPerson(group)`,
+  `S.groupMode`; `#p-back` „← zurück zur Auswahl“ fokussiert die gewählte Form): Einzelarbeit unverändert (`#p-single`),
+  Gruppe „Eure Angaben“ (`#p-sub`, `#p-group` mit Hinweis `#p-members-hint`): `#p-members` mit `div.pm-row` (Label „Person n“,
+  `input#p-m-n`, `maxlength` 8, Einzelarbeit-Attribute; ab Person 2 `.iconbtn.x` `aria-label` „Person n entfernen“ – Fokus danach
+  auf die nachgerückte, sonst die vorige Person; eine Meldung zu einem Kürzelfeld vor der entfernten Zeile bleibt samt `.invalid`
+  (ihre Nummern stimmen weiter), sonst verschwindet sie; eine zur Klasse bleibt immer (`pErrAt`); `renumberMembers` nummeriert neu), `#p-add` „Person hinzufügen“ (fokussiert das neue Feld; ab `GROUP_MAX`
+  10 `aria-disabled` statt `disabled` – bleibt per Tab erreichbar –, `aria-describedby` → `#p-add-hint` `role="status"`, Text
+  „Höchstens 10 Personen.“ nur bei voller Liste, sonst leer), Enter → nächstes Feld bzw. `#p-klasse`; die
+  Klasse einmal (Hinweis `KLASSE_HINT_AI_G`/`_NO_AI_G` in „ihr“-Form), kein Geburtstag. `groupGo` → `checkGroup`: je Feld
+  `parseKuerzel` (NFC, Leerzeichen/Bindestrich als Trenner, sonst `LETTERS`; Vorname 2–3, Nachname 1–2, ohne Trenner 3–5;
+  geteilt am Trenner bzw. Groß-/Kleinwechsel „LiMu“, sonst bei 5 Buchstaben 3 + 2, sonst ein Teil; je Teil `nameCase` →
+  „MaxMu“; erneut geprüft unverändert), erstes leeres Feld gemeldet, doppelte Kürzel ohne Groß-/Kleinschreibung, weniger als
+  `GROUP_MIN` 2 → „… Arbeitest du allein, wähle „Einzelarbeit“.“ (Fokus `#p-add`); Meldungen in `#p-err` („ihr“-Form), Feld
+  `.invalid` + Fokus. Reine Helfer (`LETTERS`, `nameCase`, `KLASSE_RE`, `normKlasse`, `parseKuerzel`, `checkGroup`, `isGroup`,
+  `groupSorted`, `cleanGroup`) zwischen `/* GROUP:BEGIN` und `/* GROUP:END */` (`test/unit/group.test.mjs`). Datenmodell
+  `person = {gruppe: ["MaxMu", …], klasse}` (Einzelarbeit unverändert `{vorname, nachname, geburtsdatum, klasse}`), überall über
+  `isGroup`/`personLabel` („MaxMu, LiMu · Klasse 8b“)/`personOut` (Zwischenstand-PDF, Erstversuch, Abgabe): `draftKeyFor` =
+  Code|gruppe|sortierte Kürzel|Klasse (dieselbe Gruppe in anderer Reihenfolge findet ihren Zwischenstand), `lastSession`/`cleanDraft`
+  per `cleanGroup` (2–10, Kürzelform, Klasse), „Weiterschreiben?“ „… der Gruppe … Seid ihr das?“, Topbar `#who-lbl` „Gruppe“,
+  Zwischenstand-PDF „Gruppe:“, Lösungs-PDF „Gruppe: …“ im Kopf und „Gruppe …“ in der Fußzeile (nach Breite: erst Titel kürzen,
+  notfalls „Gruppe (n)“), Dateinamen ohne Kürzel. „ihr“ nur, wo es um alle geht: Angaben-Bildschirm der Gruppe,
+  `privacyShortText(p, list, withAi, group)`, `privacyNoticeDom(…, {group: true})` nur in `#p-privfull` der Gruppe (Bausteine
+  `PRIV_IHR` statt `PRIV_DU`, derselbe Inhalt; „Eure Rechte“: „Jede und jeder von euch kann …“), `ltConsent` (OK „Trifft auf alle in
+  eurer Gruppe zu – prüfen“, Abbrechen „Trifft nicht auf alle zu“, sonst gleiches Verhalten), „Weiterschreiben?“; im Schreibbereich
+  bleibt es beim „du“ (auch `#privfull-ed`), nur ohne Geburtstag: `renderPrivacy` „zusammen mit den Namenskürzeln der Gruppe und
+  der Klasse“, `noPersonData()` „ohne die Namenskürzel der Gruppe und die Klasse“ in `renderPrivacy` und `recipientSentence`
+  (Feedback- und Abgabe-Dialog), im ausführlichen Hinweis `#privfull-ed` per `privacyNoticeDom(…, {noBday: true})` beim KI-Dienst. `privacyNoticeDom` „Welche Daten?“ nennt beide Formen (wer einträgt, trägt die Kürzel der anderen
+  mit ein); `#pv-preview-note` nennt die „ihr“-Form. Lehrkraft: `loadSubs` kappt
+  auf `GROUP_MAX` Kürzel × 20 Zeichen; Sortierung je Klasse erst Einzelarbeiten, dann Gruppen; Zeile `td.grpcell` (`colspan` 2,
+  `.grpnames` + `.grpbadge` „Gruppe (n)“, Geburtstag „–“; Einzelzeilen unverändert), Details `p.dgroup` „Gruppenarbeit: …“,
+  Hinweise „derselben Gruppe“/„Diese Gruppe hat …“. Server und KI unverändert (Personendaten nur im verschlüsselten payload).
+  E2E 2b (eigenes Blatt, wird gelöscht; `GRUPPE_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos); E2E-Helfer `chooseSingle`
+  (`fillPerson` wählt „Einzelarbeit“ selbst).
 - **Analoges Arbeitsblatt + Checkliste (QR-Code):** Lehrkraft: `#t-analog` „Analoges Arbeitsblatt als PDF herunterladen“ im
   ausgewählten Blatt → `openAnalog` → `#tv-analog` (Abbruchzähler `T.analogRun` wie `T.importRun`/`T.exportRun`: steigt in
   `teacherView` beim Verlassen und bei `logout`, `analogStillWanted`; `ckLeaveQuestion()` nur für `#ck-back` – abmelden lässt sich
@@ -594,7 +633,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Titel und „Seite n von N“; Datei `Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`; nie Aufträge an die KI, Länder, Abgaben oder
   Checklistenpunkte. QR-Block zwischen `/* QR:BEGIN` und `/* QR:END */` (`qrMatrix(text, forceMask?)` → `{size, version, mask, dark}`,
   Byte-Modus, Stufe M, Version 1–10, nur zur Laufzeit aufrufen; `test/unit/qr.test.mjs` mit jsQR 1.4.0). Schüler:innen:
-  `#checkliste=<CODE>` (beim Laden; `hashchange` nur von Start, Angaben und Checkliste aus) → `#screen-check`
+  `#checkliste=<CODE>` (beim Laden; `hashchange` nur von Start, Arbeitsform, Angaben und Checkliste aus) → `#screen-check`
   (`openChecklist`/`renderChecklist`: Aufgaben mit Punkten als `fieldset.chkset`, lange Texte in `details`, Checkboxen `#chk-n-k` in
   `label` ≥ 44 px, Zähler `#chk-c-n`, eine verzögerte Live-Region `#ck-live`; ohne Punkte „Deine Lehrkraft hat … keine Checkliste
   hinterlegt.“; `ai:true` → KI-Hinweis), Häkchen nur in `localStorage` `feibeitsblatt:check:<CODE>` = `{t, sig (FNV-1a über die
@@ -620,7 +659,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   wachsen per `scrollHeight` (ResizeObserver auf `#sheet`); eine Leerzeile Abstand zur nächsten Aufgabe; im
   Schreibmodus scrollt nur `.paperwrap`, nichts liegt über der Schreibfläche (Abgeben ohne KI-Feedback: eigener Punkt
   unten). Zwischenstand in `localStorage` unter `feibeitsblatt:draft:<SHA-256>` (`draftKeyFor`: Code|Kürzel|Geburtstag|
-  Klasse; Schlüssel ohne Klartext-Angaben; 7 Tage), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite,
+  Klasse, Gruppe Code|gruppe|sortierte Kürzel|Klasse; Schlüssel ohne Klartext-Angaben; 7 Tage), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite,
   „Abbrechen und Zwischenstand löschen“ in der Topbar (der Dialog nennt einen schon gesendeten Erstversuch – „sie kann den Eintrag löschen“ – und bei laufender Anfrage „Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.“); alle Zugriffe in try/catch, nach Abgabe löschen. Was sich nicht
   speichern lässt (Speicher voll/gesperrt), hält `heldDrafts` im Arbeitsspeicher (neuer als der gespeicherte Stand; `draftStored`
   liest, `delDraft` löscht beides, `saveDraft` liefert `ok`; `openEditor` speichert so einen Stand sofort erneut und zeigt sonst

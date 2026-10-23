@@ -67,6 +67,24 @@
   .bday-row{display:flex; gap:12px}
   .bday-item{flex:0 0 6.5em}
   .bday-item label{text-transform:none; letter-spacing:0; font-size:13.5px; color:var(--ink); margin:0 0 4px}
+  /* Arbeitsform (#screen-mode) und Kürzel der Gruppe (#p-group) */
+  .modes{display:grid; gap:12px; margin:22px 0 4px}
+  .modebtn{
+    display:grid; grid-template-columns:44px 1fr; column-gap:14px; align-items:center; width:100%; text-align:left;
+    padding:16px 18px; border:1.5px solid var(--line); border-radius:12px; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); cursor:pointer; transition:border-color .15s, background .15s, transform .06s;
+  }
+  .modebtn:hover{border-color:var(--accent2); background:var(--paper2)}
+  .modebtn:active{transform:translateY(1px)}
+  .modebtn .modeico{grid-row:1 / span 2; width:40px; height:40px; fill:none; stroke:var(--accent); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round}
+  .modebtn .mt{font-family:var(--serif); font-size:19px; font-weight:600; line-height:1.3}
+  .modebtn .md{font-size:13.5px; color:var(--muted); line-height:1.45; margin-top:2px}
+  .members > .fhint{margin:0 0 10px}
+  .pm-row{display:grid; grid-template-columns:5.2em minmax(0, 1fr) 44px; gap:10px; align-items:center; margin:0 0 8px}
+  .pm-row label{margin:0; text-transform:none; letter-spacing:0; font-size:14px; color:var(--ink)}
+  .pm-row .iconbtn{width:44px; height:44px; font-size:16px}
+  .pm-add{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:2px}
+  .pm-add .fhint{margin:0}
   input[type=text],input[type=password],input[type=url],select{
     width:100%; font-family:var(--serif); font-size:18px; color:var(--ink);
     background:var(--paper); border:1px solid var(--line); border-radius:9px;
@@ -97,6 +115,8 @@
   .btn:disabled:hover{background:var(--ink)}
   .btn.ghost:disabled:hover{background:transparent}
   .btn.danger:disabled:hover{background:var(--red)}
+  .btn[aria-disabled="true"]{opacity:.55; cursor:default; transform:none}
+  .btn.ghost[aria-disabled="true"]:hover{background:transparent}
   .err{color:var(--red); font-size:13.5px; min-height:18px; margin:2px 0 0}
   .err:empty{min-height:0}
   .card .err{min-height:18px}
@@ -131,6 +151,8 @@
   .pdfrow .fhint{margin:6px 0 0}
   .st-first{color:#b85c00; font-weight:600}   /* Erstversuch ohne Überarbeitung */
   .st-final{color:var(--green); font-weight:600}   /* Abgabe nach der Überarbeitung */
+  .grpbadge{display:inline-block; margin-left:6px; padding:0 7px; border:1px solid var(--line); border-radius:999px; background:var(--soft);
+    font-family:var(--sans); font-size:11.5px; font-weight:600; line-height:1.6; color:var(--muted); white-space:nowrap; vertical-align:1px}   /* Partner- / Gruppenarbeit in der Liste */
   .legend{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:4px 0 8px}
   .fbwait{font-family:var(--sans); font-size:13px; color:var(--muted); margin:4px 0 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap}
   .done-check{width:104px; height:104px; margin:6px auto 2px; display:block}
@@ -547,6 +569,7 @@
   details.dolder > .detbox:first-of-type{border-top:0}
   table.batch tr.errrow td .btn{font-style:normal; margin-left:6px; vertical-align:baseline}
   .dmeta{font-size:13px; color:var(--muted); margin:0 0 10px}
+  .dgroup{font-size:14px; margin:-4px 0 12px; overflow-wrap:anywhere}
   .dtask{margin:16px 0 0}
   .dtask:first-of-type{margin-top:4px}
   .dtask-text{font-family:var(--serif); font-weight:700; font-size:15.5px; margin:0 0 6px; white-space:pre-wrap; overflow-wrap:anywhere}
@@ -617,7 +640,7 @@
   .modal .row{justify-content:flex-end; margin-top:0}
 
   /* ---------- Fokus, Bewegung, kleine Bildschirme ---------- */
-  .btn:focus-visible,.linkbtn:focus-visible,.backlink:focus-visible,.iconbtn:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent2); outline-offset:2px}
+  .btn:focus-visible,.modebtn:focus-visible,.linkbtn:focus-visible,.backlink:focus-visible,.iconbtn:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent2); outline-offset:2px}
   @media (prefers-reduced-motion: reduce){ .btn,.spinner,.arrow,textarea,input{transition:none; animation:none} }
   @media (max-width:640px){
     .task.has-thumbs{grid-template-columns:minmax(0,1fr); grid-template-areas:"q" "thumbs" "body"; column-gap:0}
@@ -626,6 +649,9 @@
     .start-wrap{padding:28px 16px 32px}
     .card{padding:30px 22px}
     .card h1{font-size:27px}
+    .modebtn{padding:14px; grid-template-columns:34px 1fr; column-gap:12px}
+    .modebtn .modeico{width:34px; height:34px}
+    .modebtn .mt{font-size:18px}
     .topbar{padding:10px 16px}
     .topbar .right{align-items:flex-start; text-align:left}
     .stitle{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}   /* der Titel steht ohnehin auf dem Blatt */
@@ -691,35 +717,70 @@
   </div>
 </section>
 
-<!-- ============ ANGABEN ============ -->
+<!-- ============ ARBEITSFORM: Einzelarbeit oder Partner- / Gruppenarbeit ============ -->
+<section id="screen-mode" class="screen" aria-labelledby="mode-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <p class="sheetline" id="m-sheet"></p>
+      <h1 id="mode-h">Wie arbeitest du?</h1>
+      <div class="modes">
+        <button type="button" class="modebtn" id="mode-single" aria-labelledby="mode-single-t" aria-describedby="mode-single-d">
+          <svg class="modeico" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="20" cy="13" r="6.5"/><path d="M8 34c0-7 5.4-12 12-12s12 5 12 12"/></svg>
+          <span class="mt" id="mode-single-t">Einzelarbeit</span>
+          <span class="md" id="mode-single-d">Du bearbeitest das Feibeitsblatt allein.</span>
+        </button>
+        <button type="button" class="modebtn" id="mode-group" aria-labelledby="mode-group-t" aria-describedby="mode-group-d">
+          <svg class="modeico" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="14" cy="14" r="5.5"/><circle cx="27" cy="12" r="4.5"/><path d="M3.5 34c0-6.2 4.7-10.5 10.5-10.5S24.5 27.8 24.5 34"/><path d="M24 22.6c1-.4 2-.6 3-.6 5.2 0 9.5 3.9 9.5 9.6"/></svg>
+          <span class="mt" id="mode-group-t">Partner- / Gruppenarbeit</span>
+          <span class="md" id="mode-group-d">Ihr bearbeitet es zu zweit oder in einer Gruppe (bis zu 10 Personen) an einem Gerät und gebt gemeinsam ab.</span>
+        </button>
+      </div>
+      <button type="button" class="backlink" id="m-back">← anderen Code eingeben</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ANGABEN (Einzelarbeit: Kürzel, Geburtstag, Klasse; Gruppe: Kürzel aller Mitglieder, Klasse) ============ -->
 <section id="screen-person" class="screen" aria-labelledby="person-h">
   <div class="start-wrap">
     <div class="card">
       <p class="brand">Feibeitsblatt</p>
       <p class="sheetline" id="p-sheet"></p>
       <h1 id="person-h">Deine Angaben</h1>
-      <p class="sub">Bitte trage deine Angaben ein. Danach öffnet sich der Schreibbereich.</p>
-      <div class="field">
-        <label for="p-vorname">Vorname – die ersten drei Buchstaben</label>
-        <input type="text" id="p-vorname" maxlength="3" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="p-vorname-hint">
-        <p class="fhint" id="p-vorname-hint">Bei kürzerem Vornamen den ganzen Vornamen.</p>
-      </div>
-      <div class="field">
-        <label for="p-nachname">Nachname – die ersten zwei Buchstaben</label>
-        <input type="text" id="p-nachname" maxlength="2" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
-      </div>
-      <fieldset class="field bday" role="group" aria-describedby="p-geb-hint">
-        <legend>Geburtstag (Tag und Monat)</legend>
-        <p class="fhint" id="p-geb-hint">Zum Beispiel 4 und 5 für den 4. Mai – ohne Jahr. Damit kann deine Lehrkraft Abgaben mit gleichen Kürzeln auseinanderhalten.</p>
-        <div class="bday-row">
-          <div class="bday-item">
-            <label for="p-gtag">Tag</label>
-            <input type="text" id="p-gtag" inputmode="numeric" maxlength="2" autocomplete="bday-day" autocorrect="off" spellcheck="false" enterkeyhint="next">
+      <p class="sub" id="p-sub">Bitte trage deine Angaben ein. Danach öffnet sich der Schreibbereich.</p>
+      <div id="p-single">
+        <div class="field">
+          <label for="p-vorname">Vorname – die ersten drei Buchstaben</label>
+          <input type="text" id="p-vorname" maxlength="3" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="p-vorname-hint">
+          <p class="fhint" id="p-vorname-hint">Bei kürzerem Vornamen den ganzen Vornamen.</p>
+        </div>
+        <div class="field">
+          <label for="p-nachname">Nachname – die ersten zwei Buchstaben</label>
+          <input type="text" id="p-nachname" maxlength="2" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+        </div>
+        <fieldset class="field bday" role="group" aria-describedby="p-geb-hint">
+          <legend>Geburtstag (Tag und Monat)</legend>
+          <p class="fhint" id="p-geb-hint">Zum Beispiel 4 und 5 für den 4. Mai – ohne Jahr. Damit kann deine Lehrkraft Abgaben mit gleichen Kürzeln auseinanderhalten.</p>
+          <div class="bday-row">
+            <div class="bday-item">
+              <label for="p-gtag">Tag</label>
+              <input type="text" id="p-gtag" inputmode="numeric" maxlength="2" autocomplete="bday-day" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
+            <div class="bday-item">
+              <label for="p-gmonat">Monat</label>
+              <input type="text" id="p-gmonat" inputmode="numeric" maxlength="2" autocomplete="bday-month" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            </div>
           </div>
-          <div class="bday-item">
-            <label for="p-gmonat">Monat</label>
-            <input type="text" id="p-gmonat" inputmode="numeric" maxlength="2" autocomplete="bday-month" autocorrect="off" spellcheck="false" enterkeyhint="next">
-          </div>
+        </fieldset>
+      </div>
+      <fieldset class="field members hidden" id="p-group" aria-describedby="p-members-hint">
+        <legend>Kürzel aller Personen</legend>
+        <p class="fhint" id="p-members-hint">Tragt für jede Person die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens in ein Feld ein, z. B. „MaxMu“ für Max Mustermann (bei kürzerem Vornamen den ganzen Vornamen). Tragt nur Personen ein, die mitarbeiten – alle sollten wissen, dass ihre Kürzel mit eurer Abgabe an die Lehrkraft gehen.</p>
+        <div id="p-members"></div>
+        <div class="pm-add">
+          <button type="button" class="btn ghost small" id="p-add" aria-describedby="p-add-hint">Person hinzufügen</button>
+          <span class="fhint" id="p-add-hint" role="status"></span>
         </div>
       </fieldset>
       <div class="field">
@@ -730,7 +791,7 @@
       <div class="pprivacy" id="p-privacy"></div>
       <p class="err" id="p-err" aria-live="polite"></p>
       <button type="button" class="btn block" id="p-btn">Schreibbereich öffnen</button>
-      <button type="button" class="backlink" id="p-back">← anderen Code eingeben</button>
+      <button type="button" class="backlink" id="p-back">← zurück zur Auswahl</button>
     </div>
   </div>
 </section>
@@ -738,7 +799,7 @@
 <!-- ============ SCHREIBFLÄCHE ============ -->
 <section id="screen-editor" class="screen" aria-label="Schreibbereich">
   <div class="topbar">
-    <div class="who"><span class="lbl">Verfasser:in</span><span id="who-name"></span></div>
+    <div class="who"><span class="lbl" id="who-lbl">Verfasser:in</span><span id="who-name"></span></div>
     <div class="right">
       <div class="stitle" id="ed-title"></div>
       <div class="count" id="save-state"></div>
@@ -1370,6 +1431,72 @@ function legacyBirthDates(bday, now = new Date()) {
   return out;
 }
 /* BDAY:END */
+/* ---------- Partner- / Gruppenarbeit: statt Kürzel und Geburtstag einer Person die Kürzel aller Mitglieder und einmal die Klasse ----------
+ * Je Person ein Feld: die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens („MaxMu“; Leerzeichen oder
+ * Bindestrich als Trenner erlaubt). Kein Geburtstag (Datensparsamkeit). Gespeichert als person = {gruppe: ["MaxMu", …], klasse}
+ * (Einzelarbeit unverändert {vorname, nachname, geburtsdatum, klasse}); dieselbe Kürzelform überall (Anzeige, Schlüssel, Vergleich). */
+/* GROUP:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/group.test.mjs liest diesen Block) */
+const LETTERS = /^[\p{L}\p{M}]+$/u;
+function nameCase(s) { const a = Array.from(s); return a.length ? a[0].toLocaleUpperCase("de-DE") + a.slice(1).join("").toLocaleLowerCase("de-DE") : ""; }
+const KLASSE_RE = /^[\p{L}\p{N}/-]{1,10}$/u;
+const normKlasse = (v) => String(v == null ? "" : v).replace(/[\s.]+/g, "");   // „8 b“, „8.b“ und „8b“ sind dieselbe Klasse
+const GROUP_MIN = 2, GROUP_MAX = 10;   // Personen je Partner- bzw. Gruppenarbeit
+const KZ_SEP = /[\s\u002D\u2010\u2011\u2013]+/u;   // Leerzeichen oder Bindestrich (auch ‐ ‑ –) zwischen Vor- und Nachnamen
+const KZ_EDGE = /^[\s\u002D\u2010\u2011\u2013]+|[\s\u002D\u2010\u2011\u2013]+$/gu;
+/* Eingabe einer Person → {k: "MaxMu"} oder {err: "empty" | "chars" | "form"}. Mit Trenner oder Groß-/Kleinwechsel („LiMu“) wird
+   dort geteilt, sonst bei 5 Buchstaben 3 + 2, sonst bleibt es ein Teil; jeder Teil per nameCase. Vorname 2–3, Nachname 1–2
+   Buchstaben, ohne Trenner zusammen 3–5. Das Ergebnis ergibt erneut geprüft dasselbe (Zwischenstand, Zwischenstand-PDF). */
+function parseKuerzel(raw) {
+  const s = String(raw == null ? "" : raw).normalize("NFC").replace(KZ_EDGE, "");
+  if (!s) return { err: "empty" };
+  const parts = s.split(KZ_SEP);
+  if (parts.some((x) => !LETTERS.test(x))) return { err: "chars" };
+  const len = (x) => Array.from(x).length, fits = (v, n) => len(v) >= 2 && len(v) <= 3 && len(n) >= 1 && len(n) <= 2;
+  if (parts.length > 2) return { err: "form" };
+  if (parts.length === 2) return fits(parts[0], parts[1]) ? { k: nameCase(parts[0]) + nameCase(parts[1]) } : { err: "form" };
+  const a = Array.from(s);
+  if (a.length < 3 || a.length > 5) return { err: "form" };
+  const up = (c) => c !== c.toLowerCase() && c === c.toUpperCase(), low = (c) => c !== c.toUpperCase() && c === c.toLowerCase();
+  for (const i of [2, 3]) {   // Groß-/Kleinwechsel an einer Stelle, an der beide Teile passen
+    if (i < a.length && up(a[i]) && low(a[i - 1]) && fits(a.slice(0, i).join(""), a.slice(i).join(""))) return { k: nameCase(a.slice(0, i).join("")) + nameCase(a.slice(i).join("")) };
+  }
+  return { k: a.length === 5 ? nameCase(a.slice(0, 3).join("")) + nameCase(a.slice(3).join("")) : nameCase(s) };
+}
+/* Alle Felder der Gruppe → {gruppe: [Kürzel …]} oder {err: Meldung, at: Feld (Index; -1 = „Person hinzufügen“)} */
+function checkGroup(values) {
+  const list = Array.isArray(values) ? values : [], out = [];
+  const lc = (k) => k.toLocaleLowerCase("de-DE");
+  for (let i = 0; i < list.length; i++) {
+    const r = parseKuerzel(list[i]), n = i + 1;
+    if (r.err === "empty") return { err: `Bitte tragt für Person ${n} die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens ein (z. B. „MaxMu“)${i ? " – oder entfernt das leere Feld" : ""}.`, at: i };
+    if (r.err === "chars") return { err: `Bei Person ${n} sind nur Buchstaben erlaubt – zwischen Vor- und Nachnamen auch ein Leerzeichen oder ein Bindestrich.`, at: i };
+    if (r.err) return { err: `Bitte tragt für Person ${n} die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens ein, z. B. „MaxMu“ (bei kürzerem Vornamen den ganzen Vornamen).`, at: i };
+    const dup = out.findIndex((k) => lc(k) === lc(r.k));
+    if (dup >= 0) return { err: `Person ${dup + 1} und Person ${n} haben dasselbe Kürzel („${r.k}“). Bitte prüft eure Eingaben – heißen zwei von euch wirklich so, lasst bei einer Person einen Buchstaben weg (z. B. „MaMu“ statt „MaxMu“).`, at: i };
+    out.push(r.k);
+  }
+  if (out.length < GROUP_MIN) return { err: "Für Partner- oder Gruppenarbeit tragt bitte mindestens zwei Personen ein. Arbeitest du allein, wähle „Einzelarbeit“.", at: -1 };
+  if (out.length > GROUP_MAX) return { err: `Höchstens ${GROUP_MAX} Personen.`, at: GROUP_MAX };
+  return { gruppe: out };
+}
+const isGroup = (p) => !!(p && typeof p === "object" && Array.isArray(p.gruppe));
+// Kürzel klein und sortiert: dieselbe Gruppe in anderer Reihenfolge ist dieselbe Gruppe (Zwischenstand-Schlüssel, Lehrkraft-Ansicht)
+const groupSorted = (g) => g.map((k) => String(k == null ? "" : k).toLocaleLowerCase("de-DE")).sort();
+/* Gespeicherte Gruppe (Zwischenstand, „Weiterschreiben?“, Zwischenstand-PDF) mit denselben Regeln wie die Eingabe → {gruppe, klasse} oder null */
+function cleanGroup(pr) {
+  if (!isGroup(pr) || pr.gruppe.length < GROUP_MIN || pr.gruppe.length > GROUP_MAX) return null;
+  const r = checkGroup(pr.gruppe.map((k) => (typeof k === "string" ? k : ""))), klasse = normKlasse(pr.klasse);
+  return r.gruppe && KLASSE_RE.test(klasse) ? { gruppe: r.gruppe, klasse } : null;
+}
+/* GROUP:END */
+/* Angaben zeigen (Topbar, „Weiterschreiben?“, Zwischenstand-PDF): „Max · Mu · 04.05. · Klasse 8b“ bzw. „MaxMu, LiMu · Klasse 8b“ */
+function personLabel(p) {
+  return isGroup(p) ? `${p.gruppe.join(", ")} · Klasse ${p.klasse}` : `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}`;
+}
+/* Angaben für Zwischenstand-PDF, Erstversuch und Abgabe – nur die Felder der jeweiligen Arbeitsform */
+function personOut(p) {
+  return isGroup(p) ? { gruppe: p.gruppe.slice(), klasse: p.klasse } : { vorname: p.vorname, nachname: p.nachname, geburtsdatum: p.geburtsdatum, klasse: p.klasse };
+}
 function fmtCode(c) { c = String(c || ""); return c.length === 6 ? c.slice(0, 3) + "-" + c.slice(3) : c; }
 function normCode(s) { return String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
 function listNums(arr) { return arr.length === 1 ? String(arr[0]) : arr.slice(0, -1).join(", ") + " und " + arr[arr.length - 1]; }
@@ -2111,6 +2238,7 @@ if (window.ResizeObserver) { const ro = new ResizeObserver(growAll); ro.observe(
  * ===================================================================== */
 const S = {
   code: "", sheet: null, pub: null, person: null, draftKey: "",
+  groupMode: false,   // auf dem Angaben-Bildschirm gewählt: Partner- / Gruppenarbeit (danach zählt isGroup(S.person))
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
   fbFails: 0, fbUnavailable: "",   // Fehlversuche beim KI-Feedback; ab dem zweiten bzw. ohne eingerichtete KI der Grund als Text
   fbUnavailableDay: "",   // UTC-Tag, an dem der Grund entstand – „Kontingent für heute aufgebraucht“ gilt nur bis 0:00 UTC (quotaExpired)
@@ -2189,10 +2317,12 @@ function recipientParts() {
 // „kein brauchbares Feedback“ = Serverfehler, Anfrage zu lang, leere, unbrauchbare oder abgeschnittene Antwort, sonstige HTTP-Fehler)
 const RESERVE_WHEN = "nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert";
 const NO_AI_SET = "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – deine Antworten gehen an keine KI.";
+// ohne welche Angaben die Antworten an die KI gehen (Schreibbereich, Dialoge) – eine Gruppe hat keinen Geburtstag angegeben
+const noPersonData = () => (isGroup(S.person) ? "ohne die Namenskürzel der Gruppe und die Klasse" : "ohne Namenskürzel, Geburtstag und Klasse");
 function recipientSentence() {
   const r = recipientParts();
   if (!r.any) return NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.";
-  return `Deine Antworten gehen – ohne Namenskürzel, Geburtstag und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
+  return `Deine Antworten gehen – ${noPersonData()} – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
     (r.rest.length ? ` Nur wenn dieser Dienst ${RESERVE_WHEN}, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
     (r.cf ? " Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich." : "") +
     (r.usa ? (r.cf ? " Die übrigen Dienste mit Sitz in den USA" : " Dienste mit Sitz in den USA") + " verarbeiten deine Texte außerhalb der EU." : "");
@@ -2229,12 +2359,14 @@ function cleanPrivacy(v) {
 }
 // Kurzfassung (nennt auch den KI-Dienst: auf dem Server wird nur verschlüsselt gespeichert, das KI-Feedback aber geht an einen Dienst –
 // nach dem KI-Feedback bei der Abgabe noch einmal, zweite Rückmeldung)
-function privacyShortText(p, list, withAi) {
+// group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe)
+function privacyShortText(p, list, withAi, group) {
   const sc = (p && p.school) || {}, days = p && p.retentionDays;
-  return `Verantwortlich ist ${sc.name || "deine Schule"}. Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft. ` +
-    (days ? `Nach ${days} Tagen werden sie automatisch gelöscht. ` : "Deine Lehrkraft löscht sie nach der Durchsicht. ") +
+  const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst" };
+  return `Verantwortlich ist ${sc.name || w.d + " Schule"}. Auf dem Server werden ${w.d} Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur ${w.d} Lehrkraft. ` +
+    (days ? `Nach ${days} Tagen werden sie automatisch gelöscht. ` : `${w.D} Lehrkraft löscht sie nach der Durchsicht. `) +
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
-      : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „${list[0].label}“` +
+      : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn ${w.du} es ${w.anf}, gehen ${w.d} Antworten – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
         (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") + ", bei der Abgabe dann noch einmal in der abgegebenen Fassung. Auch die Rechtschreibprüfung ist freiwillig."
       : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.");
 }
@@ -2258,75 +2390,118 @@ const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnes
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
 const FB2_SEND = " Hast du KI-Feedback bekommen, geht bei der Abgabe auch deine abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
   "für eine zweite Rückmeldung, die nur du siehst (nicht, wenn du nach dem ersten Feedback nichts geändert hast).";
+// Dieselben Bausteine in der „ihr“-Form – nur für den ausführlichen Hinweis auf dem Angaben-Bildschirm einer Gruppe (privacyNoticeDom
+// mit group); inhaltlich gleich, im Schreibbereich bleibt es beim „du“
+const PRIV_IHR = {
+  draftStay: `Euer Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
+    `Ist er älter als ${DRAFT_DAYS} Tage, löscht diese Seite ihn beim nächsten Aufruf in diesem Browser; bis dahin bleibt er gespeichert. ` +
+    `Auf einem geteilten Gerät gebt deshalb ab oder löscht ihn („Abbrechen und Zwischenstand löschen“).`,
+  checkPurpose: " Bekommt ihr ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste eurer Lehrkraft führen: Dort hakt ihr ab, " +
+    `was eure Antwort schon erfüllt. Dafür lädt ${CHECK_PAGE} nur die Checkliste vom Server – ohne Angaben zu euch; die Internetadresse eures Geräts wird dabei ` +
+    "wie beim Laden der Seite verarbeitet. Eure Häkchen bleiben auf diesem Gerät und werden nicht gesendet.",
+  checkStay: ` Die Häkchen einer solchen Checkliste löscht ${CHECK_PAGE} beim nächsten Aufruf in diesem Browser, wenn ihr sie ${DRAFT_DAYS} Tage nicht geändert ` +
+    "habt; früher geht es mit „Alle Häkchen entfernen“.",
+  checkGithub: `Nur wenn ihr eine Checkliste über den QR-Code öffnet: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
+    `und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
+  github: `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
+  fb2Send: " Habt ihr KI-Feedback bekommen, geht bei der Abgabe auch eure abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
+    "für eine zweite Rückmeldung, die nur ihr seht (nicht, wenn ihr nach dem ersten Feedback nichts geändert habt).",
+  noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
+};
+const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
 /* Alle Informationen (Art. 13 Abs. 1 und 2): p = Angaben (cleanPrivacy) oder null, list = KI-Empfänger [{id, label, transfer}],
-   opts: h (Ebene der Abschnittsüberschriften), withAi (Blatt mit KI-Feedback), pages (Seite über GitHub Pages), open, id */
+   opts: h (Ebene der Abschnittsüberschriften), withAi (Blatt mit KI-Feedback), pages (Seite über GitHub Pages), open, id,
+   group (Angaben-Bildschirm einer Partner- / Gruppenarbeit: alles in der „ihr“-Form, derselbe Inhalt) */
 function privacyNoticeDom(p, list, opts) {
   const o = opts || {}, H = o.h || "h3", withAi = o.withAi !== false, sc = (p && p.school) || {}, days = p ? p.retentionDays : null;
-  const head = (t) => h(H, { class: "privh", text: t }), para = (t) => h("p", { text: t });
+  const g = !!o.group, t = (du, ihr) => (g ? ihr : du), B = g ? PRIV_IHR : PRIV_DU;
+  const head = (x) => h(H, { class: "privh", text: x }), para = (x) => h("p", { text: x });
   const ai = withAi ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
   const cfAt = ai.findIndex((x) => x.id === "cloudflare");
   const firstName = ai.length ? (ai[0].id === "cloudflare" ? "Cloudflare (Workers AI)" : "„" + ai[0].label + "“") : "";
-  const items = [h("li", { text: "Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen." })];
+  const items = [h("li", { text: t("Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen.",
+    "Eure Lehrkraft – nur sie kann eure auf dem Server gespeicherten Angaben und Antworten lesen.") })];
   // Cloudflare betreibt Server und Datenbank; mit Workers AI ist Cloudflare zugleich der KI-Dienst (ein Eintrag statt zwei)
   items.push(h("li", { text: "Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU. " +
-    "Gespeichert werden deine Angaben und Antworten dort nur verschlüsselt." +
-    (withAi ? " Für das KI-Feedback verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht." : "") +
-    " Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) deines Geräts." +
-    (cfAt < 0 ? "" : (cfAt === 0 ? " Wenn du das KI-Feedback anforderst, ist Cloudflare zugleich der KI-Dienst (Workers AI)"
+    t("Gespeichert werden deine Angaben und Antworten dort nur verschlüsselt.", "Gespeichert werden eure Angaben und Antworten dort nur verschlüsselt.") +
+    (withAi ? t(" Für das KI-Feedback verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.",
+      " Für das KI-Feedback verarbeitet der Server eure Antworten – ohne eure Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.") : "") +
+    t(" Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) deines Geräts.", " Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) eures Geräts.") +
+    (cfAt < 0 ? "" : (cfAt === 0 ? t(" Wenn du das KI-Feedback anforderst, ist Cloudflare zugleich der KI-Dienst (Workers AI)", " Wenn ihr das KI-Feedback anfordert, ist Cloudflare zugleich der KI-Dienst (Workers AI)")
       : ` Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}, ist Cloudflare zugleich der KI-Dienst (Workers AI, Reserve)`) +
-      ": Dafür bekommt Cloudflare deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden." +
-      (cfAt === 0 ? FB2_SEND : "")) +
+      t(": Dafür bekommt Cloudflare deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden.",
+        ": Dafür bekommt Cloudflare eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden.") +
+      (cfAt === 0 ? B.fb2Send : "")) +
     ` Für Übermittlungen in die USA stützt sich Cloudflare ${DPF_SCC}.` }));
-  if (o.pages) items.push(h("li", { text: GITHUB_ITEM }));
-  else if (CHECK_HOST) items.push(h("li", { text: CHECK_GITHUB_ITEM }));   // nur die Checklisten-Seite kommt von GitHub Pages
+  if (o.pages) items.push(h("li", { text: B.github }));
+  else if (CHECK_HOST) items.push(h("li", { text: B.checkGithub }));   // nur die Checklisten-Seite kommt von GitHub Pages
   ai.forEach((x, i) => {
     if (x.id === "cloudflare") return;
     items.push(h("li", { text: (i === 0
-      ? `Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ohne Namenskürzel, Geburtstag und Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.${FB2_SEND}`
+      ? t(`Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${o.noBday ? "ohne die Namenskürzel der Gruppe und die Klasse" : "ohne Namenskürzel, Geburtstag und Klasse"} – und verarbeitet sie nach seinen eigenen Bedingungen.`,
+        `Nur wenn ihr das KI-Feedback anfordert: der KI-Dienst „${x.label}“. Er bekommt eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft – ohne eure Namenskürzel und die Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`) + B.fb2Send
       : `Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}: der KI-Dienst „${x.label}“ (Reserve). Er bekommt dieselben Daten und verarbeitet sie nach seinen eigenen Bedingungen.`) +
       ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || "von der Schule beim Anbieter zu prüfen"}.` }));
   });
-  if (!withAi) items.push(h("li", { text: "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI." }));
-  else if (!ai.length) items.push(h("li", { text: NO_AI_SET }));
-  items.push(h("li", { text: "Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
-    "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. " +
+  if (!withAi) items.push(h("li", { text: t("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.", "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – eure Antworten gehen an keine KI.") }));
+  else if (!ai.length) items.push(h("li", { text: B.noAiSet }));
+  items.push(h("li", { text: t("Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
+    "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. ",
+  "Nur wenn ihr die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis der Eltern): " +
+    "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne eure Angaben, aber mit der Internetadresse eures Geräts. ") +
     "Learneo ist nach dem EU-US Data Privacy Framework zertifiziert; ersatzweise gelten Standardvertragsklauseln." }));
-  const what = withAi ? "Deine Abgabe – und ein Erstversuch, falls du nach dem KI-Feedback nicht abgibst –" : "Deine Abgabe";
+  const what = withAi ? t("Deine Abgabe – und ein Erstversuch, falls du nach dem KI-Feedback nicht abgibst –", "Eure Abgabe – und ein Erstversuch, falls ihr nach dem KI-Feedback nicht abgebt –")
+    : t("Deine Abgabe", "Eure Abgabe");
   const kids = [
     head("Wer ist verantwortlich?"),
-    para(sc.name ? sc.name + (sc.address ? ", " + sc.address + "." : ". Die Anschrift hat deine Lehrkraft hier noch nicht eingetragen – frag sie danach.") + " Bei Fragen kannst du dich auch an deine Lehrkraft wenden."
-      : "Deine Schule. Deine Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – frag sie danach."),
-    head("Datenschutzbeauftragte:r deiner Schule"),
-    para(sc.dpo || "Frag deine Lehrkraft nach den Kontaktdaten."),
-    head("Wozu werden deine Daten verarbeitet?"),
-    para(withAi ? "Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst und – wenn du möchtest – Rückmeldungen einer KI zum Überarbeiten bekommst. " +
-      "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und das KI-Feedback zu deiner ersten Fassung; die Rückmeldung zu deiner abgegebenen Fassung siehst nur du." + CHECK_PURPOSE
-      : "Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten." + CHECK_PURPOSE),
+    para(sc.name ? sc.name + (sc.address ? ", " + sc.address + "." : t(". Die Anschrift hat deine Lehrkraft hier noch nicht eingetragen – frag sie danach.", ". Die Anschrift hat eure Lehrkraft hier noch nicht eingetragen – fragt sie danach.")) +
+      t(" Bei Fragen kannst du dich auch an deine Lehrkraft wenden.", " Bei Fragen könnt ihr euch auch an eure Lehrkraft wenden.")
+      : t("Deine Schule. Deine Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – frag sie danach.", "Eure Schule. Eure Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – fragt sie danach.")),
+    head(t("Datenschutzbeauftragte:r deiner Schule", "Datenschutzbeauftragte:r eurer Schule")),
+    para(sc.dpo || t("Frag deine Lehrkraft nach den Kontaktdaten.", "Fragt eure Lehrkraft nach den Kontaktdaten.")),
+    head(t("Wozu werden deine Daten verarbeitet?", "Wozu werden eure Daten verarbeitet?")),
+    para((withAi ? t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst und – wenn du möchtest – Rückmeldungen einer KI zum Überarbeiten bekommst. " +
+      "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und das KI-Feedback zu deiner ersten Fassung; die Rückmeldung zu deiner abgegebenen Fassung siehst nur du.",
+    "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt und – wenn ihr möchtet – Rückmeldungen einer KI zum Überarbeiten bekommt. " +
+      "Eure Lehrkraft sieht eure Antworten (mit KI-Feedback eure erste und eure überarbeitete Fassung) und das KI-Feedback zu eurer ersten Fassung; die Rückmeldung zu eurer abgegebenen Fassung seht nur ihr.")
+      : t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten.", "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt. Eure Lehrkraft sieht eure Antworten.")) + B.checkPurpose),
     head("Rechtsgrundlage"),
-    para(sc.legalBasis || "Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes."),
+    para(sc.legalBasis || t("Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes.",
+      "Eure Schule nennt euch die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz eures Bundeslandes.")),
     head("Welche Daten?"),
-    para("Die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr), deine Klasse, deine Antworten" +
+    para(t("Bei Einzelarbeit die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr) und deine Klasse; " +
+      "bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – " +
+      "wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen. Außerdem deine Antworten",
+    "Bei Partner- oder Gruppenarbeit (so wie bei euch) die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – " +
+      "wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen; bei Einzelarbeit die ersten Buchstaben des Vor- und " +
+      "Nachnamens, der Geburtstag (Tag und Monat, ohne Jahr) und die Klasse. Außerdem eure Antworten") +
       (withAi ? ", die KI-Rückmeldungen, bei einer Abgabe ohne KI-Feedback ein Vermerk dazu (war das KI-Feedback nicht möglich, mit dem Grund)" : "") +
-      " und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) deines Geräts; gespeichert wird sie nicht im Klartext, " +
+      t(" und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) deines Geräts; gespeichert wird sie nicht im Klartext, ",
+        " und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) eures Geräts; gespeichert wird sie nicht im Klartext, ") +
       "sondern nur unkenntlich gemacht in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang."),
     head("Wer bekommt die Daten?"),
     h("ul", null, items),
     head("Wie lange werden die Daten gespeichert?"),
-    para((days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); deine Lehrkraft kann sie auch früher löschen.`
-      : `${what} wird gespeichert, bis deine Lehrkraft sie nach der Durchsicht löscht.`) +
-      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${DRAFT_STAY}${CHECK_STAY}` +
-      (cfAt >= 0 ? " Workers AI speichert deine Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten " +
+    para((days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); ${t("deine", "eure")} Lehrkraft kann sie auch früher löschen.`
+      : `${what} wird gespeichert, bis ${t("deine", "eure")} Lehrkraft sie nach der Durchsicht löscht.`) +
+      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${B.draftStay}${B.checkStay}` +
+      (cfAt >= 0 ? ` Workers AI speichert ${t("deine", "eure")} Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten ` +
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
       (ai.some((x) => x.id !== "cloudflare") ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
-    head("Musst du mitmachen?"),
-    para("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. " +
-      (withAi ? "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig: Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht."
-        : "Die Rechtschreibprüfung ist freiwillig: Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.")),
-    withAi ? head("Entscheidet die KI über dich?") : null,
-    withAi ? para("Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.") : null,
-    head("Deine Rechte"),
-    para("Du kannst Auskunft über deine gespeicherten Daten verlangen und sie berichtigen, löschen oder einschränken lassen. Du kannst der Verarbeitung widersprechen. " +
-      "Wende dich dafür an deine Lehrkraft oder an die bzw. den Datenschutzbeauftragten deiner Schule. Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren" +
+    head(t("Musst du mitmachen?", "Müsst ihr mitmachen?")),
+    para(t("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. ",
+      "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
+      (withAi ? "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig: " : "Die Rechtschreibprüfung ist freiwillig: ") +
+      t("Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.", "Ihr könnt auch ohne sie abgeben, ohne dass euch daraus ein Nachteil entsteht.")),
+    withAi ? head(t("Entscheidet die KI über dich?", "Entscheidet die KI über euch?")) : null,
+    withAi ? para(t("Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.",
+      "Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über eure Arbeit entscheidet eure Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüft sie selbst.")) : null,
+    head(t("Deine Rechte", "Eure Rechte")),
+    // Gruppe: die Rechte hat jede Person für sich
+    para(t("Du kannst Auskunft über deine gespeicherten Daten verlangen und sie berichtigen, löschen oder einschränken lassen. Du kannst der Verarbeitung widersprechen. " +
+      "Wende dich dafür an deine Lehrkraft oder an die bzw. den Datenschutzbeauftragten deiner Schule. Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren",
+    "Jede und jeder von euch kann Auskunft über die eigenen gespeicherten Daten verlangen und sie berichtigen, löschen oder einschränken lassen und der Verarbeitung widersprechen. " +
+      "Wendet euch dafür an eure Lehrkraft oder an die bzw. den Datenschutzbeauftragten eurer Schule. Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren") +
       (sc.authority ? ` – zuständig ist: ${sc.authority}.` : ".")),
     sc.url ? h("p", { class: "privlink" }, [h("a", { href: sc.url, target: "_blank", rel: "noopener noreferrer" }, ["Datenschutzerklärung der Schule", h("span", { class: "sr-only", text: " (öffnet in neuem Tab)" })])]) : null,
   ];
@@ -2335,22 +2510,25 @@ function privacyNoticeDom(p, list, opts) {
 // Angaben-Bildschirm: Kurzfassung + alle Informationen (Zeitpunkt der Erhebung); Klasse-Hinweis passend zum Blatt
 const KLASSE_HINT_AI = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
 const KLASSE_HINT_NO_AI = "z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
+const KLASSE_HINT_AI_G = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät.";
+const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der Abgabe verschlüsselt an eure Lehrkraft. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät.";
 function renderPersonPrivacy() {
-  const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy");
+  const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
-  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback)]),
-    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull" }));
-  $("p-klasse-hint").textContent = sh.aiFeedback ? KLASSE_HINT_AI : KLASSE_HINT_NO_AI;
+  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g)]),
+    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g }));
+  $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
 }
 function renderPrivacy() {
   const r = recipientParts(), withAi = S.sheet.aiFeedback, days = S.sheet.privacy && S.sheet.privacy.retentionDays;
+  const who = isGroup(S.person) ? "den Namenskürzeln der Gruppe und der Klasse" : "Namenskürzel, Geburtstag und Klasse";   // Gruppe: kein Geburtstag
   $("privacy").textContent = "";
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     (withAi
       ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
         (!r.any   // keine KI eingerichtet: derselbe Inhalt wie im ausführlichen Hinweis (nie einen KI-Dienst nennen, den es nicht gibt)
           ? `${NO_AI_SET} Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird. `
-          : `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtstag und Klasse – an den Server dieser Seite geschickt. ` +
+          : `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ${noPersonData()} – an den Server dieser Seite geschickt. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
         (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
@@ -2363,10 +2541,10 @@ function renderPrivacy() {
     h("a", { href: "https://languagetool.org", target: "_blank", rel: "noopener", text: "languagetool.org" }),
     `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
     (withAi
-      ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit Namenskürzel, Geburtstag und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
+      ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
         `Deine Abgabe nach der Überarbeitung ersetzt ihn. Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund). ` +
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
-      : `Deine Abgabe wird zusammen mit Namenskürzel, Geburtstag und Klasse verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
+      : `Deine Abgabe wird zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
     `Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (ist er älter als ${DRAFT_DAYS} Tage, löscht ihn diese Seite beim nächsten Aufruf in diesem Browser) – ` +
     `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter).` +
@@ -2374,7 +2552,8 @@ function renderPrivacy() {
   // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm)
   const full = $("privfull-ed");
   full.textContent = "";
-  full.appendChild(privacyNoticeDom(S.sheet.privacy, S.sheet.aiRecipients || [], { h: "h3", withAi, pages: PAGES_HOST, id: "privfull-ed-d" }));
+  // im Schreibbereich bleibt es beim „du“; eine Gruppe hat aber keinen Geburtstag angegeben (noBday, wie noPersonData)
+  full.appendChild(privacyNoticeDom(S.sheet.privacy, S.sheet.aiRecipients || [], { h: "h3", withAi, pages: PAGES_HOST, id: "privfull-ed-d", noBday: isGroup(S.person) }));
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -2392,7 +2571,7 @@ async function startGo() {
     err.textContent = "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code. (In Codes kommen I, L, O, 0 und 1 nicht vor.)"; return;
   }
   busy(btn, true, "Einen Moment …");
-  try { await loadSheet(code); openPerson(); }
+  try { await loadSheet(code); openMode(); }
   catch (e) { err.textContent = startErr(e); }
   finally { busy(btn, false); }
 }
@@ -2404,6 +2583,7 @@ function lastSession() {
   try {
     const d = JSON.parse(store.get(LAST_KEY) || "null");
     if (!d || d.v !== 1 || !d.code || !d.person || !(d.t > Date.now() - DRAFT_DAYS * 864e5)) return null;
+    if (isGroup(d.person)) { d.person = cleanGroup(d.person); return d.person ? d : null; }   // Partner- / Gruppenarbeit (ohne Geburtstag)
     const g = bdayOf(d.person.geburtsdatum);
     if (!g) return null;
     if (g !== d.person.geburtsdatum) {   // Übergang: altes volles Geburtsdatum sofort auf Tag und Monat kürzen
@@ -2419,10 +2599,10 @@ async function showResume() {
   let has = false;
   try { const x = JSON.parse((await draftRaw(d.code, d.person)) || "null"); has = !!(x && Array.isArray(x.answers) && x.answers.some((a) => String(a || "").trim())); } catch (e) { has = false; }
   if (!has) { store.del(LAST_KEY); box.classList.add("hidden"); return; }
-  const p = d.person;
+  const p = d.person, grp = isGroup(p);
   $("resume-text").textContent = "";
-  $("resume-text").append("Auf diesem Gerät liegt ein Zwischenstand von ", h("b", { text: `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}` }),
-    ` (Code ${fmtCode(d.code)}). Bist du das?`);
+  $("resume-text").append(grp ? "Auf diesem Gerät liegt ein Zwischenstand der Gruppe " : "Auf diesem Gerät liegt ein Zwischenstand von ", h("b", { text: personLabel(p) }),
+    ` (Code ${fmtCode(d.code)}). ${grp ? "Seid ihr das?" : "Bist du das?"}`);
   box.classList.remove("hidden");
 }
 $("resume-btn").addEventListener("click", async () => {
@@ -2476,21 +2656,40 @@ async function importDraftPdf(file) {
 $("start-pdf").addEventListener("click", () => { const f = $("start-pdf-file"); f.value = ""; f.click(); });
 $("start-pdf-file").addEventListener("change", () => { const f = $("start-pdf-file").files && $("start-pdf-file").files[0]; if (f) importDraftPdf(f); });
 
-/* ---------- 2. Angaben ---------- */
-function openPerson() {
-  const sl = $("p-sheet"); sl.textContent = "";
-  sl.appendChild(document.createTextNode(S.sheet.title));
-  sl.appendChild(h("small", { text: `Code ${fmtCode(S.code)} · ${S.sheet.tasks.length} ${S.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}` }));
-  $("p-err").textContent = "";
+/* ---------- 2. Arbeitsform: Einzelarbeit oder Partner- / Gruppenarbeit (nach dem Code; „Weiterschreiben“ und die
+   Zwischenstand-PDF kennen sie schon) ---------- */
+function sheetLine(el) {
+  el.textContent = "";
+  el.append(S.sheet.title, h("small", { text: `Code ${fmtCode(S.code)} · ${S.sheet.tasks.length} ${S.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}` }));
+}
+function openMode(focusId) {
+  sheetLine($("m-sheet"));
+  show("screen-mode");
+  focusSoon(focusId || "mode-single", 30);
+}
+$("mode-single").addEventListener("click", () => openPerson(false));
+$("mode-group").addEventListener("click", () => openPerson(true));
+$("m-back").addEventListener("click", () => { resetStudent(); show("screen-start"); showResume(); focusSoon("code-input", 30); });
+
+/* ---------- 3. Angaben (Einzelarbeit: Kürzel, Geburtstag, Klasse; Gruppe: je Person ein Kürzelfeld, einmal die Klasse) ---------- */
+function openPerson(group) {
+  S.groupMode = !!group;
+  sheetLine($("p-sheet"));
+  $("person-h").textContent = group ? "Eure Angaben" : "Deine Angaben";
+  $("p-sub").textContent = group ? "Bitte tragt eure Angaben ein. Danach öffnet sich der Schreibbereich." : "Bitte trage deine Angaben ein. Danach öffnet sich der Schreibbereich.";
+  $("p-single").classList.toggle("hidden", !!group);
+  $("p-group").classList.toggle("hidden", !group);
+  if (!memberInputs().length) addMember(false);
+  $("p-err").textContent = ""; pErrAt = null;
   PERSON_FIELDS.forEach((id) => $(id).classList.remove("invalid"));
+  memberInputs().forEach((f) => f.classList.remove("invalid"));
   renderPersonPrivacy();
   show("screen-person");
-  focusSoon("p-vorname", 30);
+  focusSoon(group ? "p-m-1" : "p-vorname", 30);
 }
-const LETTERS = /^[\p{L}\p{M}]+$/u;
-function nameCase(s) { const a = Array.from(s); return a.length ? a[0].toLocaleUpperCase("de-DE") + a.slice(1).join("").toLocaleLowerCase("de-DE") : ""; }
 const PERSON_FIELDS = ["p-vorname", "p-nachname", "p-gtag", "p-gmonat", "p-klasse"];
 async function personGo() {
+  if (S.groupMode) return groupGo();
   const err = $("p-err"); err.textContent = "";
   const fields = { v: $("p-vorname"), n: $("p-nachname"), d: $("p-gtag"), m: $("p-gmonat"), k: $("p-klasse") };
   Object.values(fields).forEach((f) => f.classList.remove("invalid"));
@@ -2505,25 +2704,93 @@ async function personGo() {
   if (nl < 1 || nl > 2) return fail(fields.n, "Bitte gib die ersten zwei Buchstaben deines Nachnamens ein.");
   const b = parseBdayInput(fields.d.value, fields.m.value);
   if (b.err) return fail(fields[b.field], b.err);
-  const k = fields.k.value.replace(/[\s.]+/g, "").trim();   // „8 b“, „8.b“ und „8b“ sind dieselbe Klasse
+  const k = normKlasse(fields.k.value);
   if (!k) return fail(fields.k, "Bitte gib deine Klasse ein (z. B. 8b).");
-  if (!/^[\p{L}\p{N}/-]{1,10}$/u.test(k)) return fail(fields.k, "Bitte gib deine Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
+  if (!KLASSE_RE.test(k)) return fail(fields.k, "Bitte gib deine Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
   S.person = { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: b.iso, klasse: k };   // Geburtstag "--MM-TT"
   const btn = $("p-btn"); busy(btn, true, "Einen Moment …");
   try { await openEditor(); } finally { busy(btn, false); }
 }
+/* Partner- / Gruppenarbeit: alle Kürzelfelder (checkGroup: 2–10 Personen, Kürzelform, keine doppelten) und die Klasse */
+let pErrAt = null;   // Feld, zu dem die Meldung in #p-err gehört (removeMember)
+async function groupGo() {
+  const err = $("p-err"), inputs = memberInputs(), kf = $("p-klasse");
+  err.textContent = ""; pErrAt = null;
+  inputs.concat([kf]).forEach((f) => f.classList.remove("invalid"));
+  const fail = (f, msg) => { if (f.tagName === "INPUT") f.classList.add("invalid"); err.textContent = msg; pErrAt = f; f.focus(); };
+  const r = checkGroup(inputs.map((f) => f.value));
+  // zu wenige Personen: weiter mit „Person hinzufügen“
+  if (r.err) return fail(inputs[r.at] || (inputs.length >= GROUP_MAX ? inputs[0] : $("p-add")), r.err);
+  const k = normKlasse(kf.value);
+  if (!k) return fail(kf, "Bitte gebt eure Klasse ein (z. B. 8b).");
+  if (!KLASSE_RE.test(k)) return fail(kf, "Bitte gebt eure Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
+  S.person = { gruppe: r.gruppe, klasse: k };
+  const btn = $("p-btn"); busy(btn, true, "Einen Moment …");
+  try { await openEditor(); } finally { busy(btn, false); }
+}
+/* Kürzelfelder der Gruppe: anfangs eines, „Person hinzufügen“ bis GROUP_MAX, ab Person 2 je ein Entfernen-Knopf; Nummern und
+   Beschriftungen nach jeder Änderung neu (renumberMembers) */
+const memberInputs = () => Array.from($("p-members").querySelectorAll("input"));
+function renumberMembers() {
+  const rows = Array.from($("p-members").children);
+  rows.forEach((row, i) => {
+    const n = i + 1, inp = row.querySelector("input"), del = row.querySelector("button");
+    inp.id = "p-m-" + n;
+    row.querySelector("label").htmlFor = inp.id; row.querySelector("label").textContent = "Person " + n;
+    if (del) del.setAttribute("aria-label", "Person " + n + " entfernen");
+  });
+  // aria-disabled statt disabled: der Knopf bleibt per Tab erreichbar und nennt den Grund (aria-describedby); der Hinweis ist eine
+  // Statusmeldung (role="status", leer solange Platz ist) – angesagt, sobald die Grenze erreicht ist, ohne dass der Fokus wandert
+  const full = rows.length >= GROUP_MAX, hint = $("p-add-hint"), t = full ? `Höchstens ${GROUP_MAX} Personen.` : "";
+  $("p-add").setAttribute("aria-disabled", String(full));
+  if (hint.textContent !== t) hint.textContent = t;
+}
+function addMember(focus) {
+  const box = $("p-members"), first = !box.children.length;
+  if (box.children.length >= GROUP_MAX) return;
+  const inp = h("input", { type: "text", maxlength: "8", autocomplete: "off", autocorrect: "off", spellcheck: "false", enterkeyhint: "next", placeholder: first ? "z. B. MaxMu" : null });
+  const row = h("div", { class: "pm-row" }, [h("label"), inp]);
+  if (!first) {
+    const del = h("button", { type: "button", class: "iconbtn x", text: "✕" });
+    del.addEventListener("click", () => removeMember(row));
+    row.appendChild(del);
+  }
+  onEnter(inp, () => { const list = memberInputs(); (list[list.indexOf(inp) + 1] || $("p-klasse")).focus(); });
+  box.appendChild(row);
+  renumberMembers();
+  if (focus) inp.focus();
+}
+function removeMember(row) {
+  const rows = Array.from($("p-members").children), i = rows.indexOf(row);
+  if (i < 1) return;
+  // Betrifft die Meldung ein Kürzelfeld vor der entfernten Zeile, behalten dessen Nummern ihren Wert (auch „Person a und Person b“:
+  // beide liegen davor) – sie gilt weiter. Sonst haben sich die Nummern verschoben: weg damit. Eine Meldung zur Klasse bleibt stehen.
+  const errRow = pErrAt && pErrAt !== $("p-klasse") ? rows.findIndex((r) => r.contains(pErrAt)) : -1;
+  row.remove();
+  renumberMembers();
+  if (pErrAt !== $("p-klasse") && !(errRow >= 0 && errRow < i)) {
+    $("p-err").textContent = ""; pErrAt = null;
+    memberInputs().forEach((f) => f.classList.remove("invalid"));
+  }
+  const list = memberInputs();
+  (list[i] || list[i - 1]).focus();   // die nächste Person rückt nach – sonst die vorige
+}
+function resetMembers() { $("p-members").textContent = ""; renumberMembers(); }
+$("p-add").addEventListener("click", () => addMember(true));
 $("p-btn").addEventListener("click", personGo);
 onEnter($("p-vorname"), () => $("p-nachname").focus());
 onEnter($("p-nachname"), () => $("p-gtag").focus());
 onEnter($("p-gtag"), () => $("p-gmonat").focus());   // kein automatischer Sprung nach zwei Ziffern (verwirrt, stört die Tastatur)
 onEnter($("p-gmonat"), () => $("p-klasse").focus());
 onEnter($("p-klasse"), personGo, $("p-btn"));
-$("p-back").addEventListener("click", () => { resetStudent(); show("screen-start"); showResume(); focusSoon("code-input", 30); });
+$("p-back").addEventListener("click", () => { $("p-err").textContent = ""; openMode(S.groupMode ? "mode-group" : "mode-single"); });
 
-/* ---------- 3. Schreibfläche ---------- */
-/* Schlüssel des Zwischenstands: nur ein Hash – Kürzel, Geburtstag und Klasse stehen nicht lesbar im Speicher */
+/* ---------- 4. Schreibfläche ---------- */
+/* Schlüssel des Zwischenstands: nur ein Hash – Kürzel, Geburtstag und Klasse stehen nicht lesbar im Speicher. Gruppe: Code|gruppe|
+   sortierte Kürzel|Klasse – dieselbe Gruppe in anderer Reihenfolge findet ihren Zwischenstand wieder */
 async function draftKeyFor(code, p) {
-  return "feibeitsblatt:draft:" + await sha256hex([code, p.vorname, p.nachname, p.geburtsdatum, p.klasse].join("|").toLocaleLowerCase("de-DE"));
+  const parts = isGroup(p) ? [code, "gruppe", ...groupSorted(p.gruppe), p.klasse] : [code, p.vorname, p.nachname, p.geburtsdatum, p.klasse];
+  return "feibeitsblatt:draft:" + await sha256hex(parts.join("|").toLocaleLowerCase("de-DE"));
 }
 /* Übergang (Umstellung auf Tag und Monat): Bis dahin entstand der Schlüssel mit dem vollen Geburtsdatum. Liegt unter dem neuen
    Schlüssel nichts, werden die passenden alten Schlüssel gesucht (legacyBirthDates: höchstens 77 SHA-256, nach
@@ -2533,6 +2800,7 @@ async function draftKeyFor(code, p) {
    Speicher für denselben Stand. Scheitert das Speichern trotzdem, bleibt der Stand in heldDrafts (nie verloren, solange die
    Seite offen ist). */
 async function adoptLegacyDraft(code, p, key) {
+  if (isGroup(p)) return null;   // Gruppen gab es vor der Umstellung nicht
   const dates = legacyBirthDates(p.geburtsdatum);
   if (!dates.length || !store.keys().some((k) => k && k.indexOf("feibeitsblatt:draft:") === 0)) return null;
   let best = null;
@@ -2567,7 +2835,8 @@ async function openEditor() {
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltConsent = false; S.ltDeclined = false;   // Selbstauskunft zu LanguageTool gilt nur, solange dieses Blatt geöffnet ist
   S.draftKey = await draftKeyFor(S.code, p);
-  $("who-name").textContent = `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}`;
+  $("who-lbl").textContent = isGroup(p) ? "Gruppe" : "Verfasser:in";
+  $("who-name").textContent = personLabel(p);
   $("ed-title").textContent = sh.title;
   $("sheet-title").textContent = sh.title;
   $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.`;
@@ -3143,7 +3412,7 @@ function makeDraftPdf(d, withAi = true) {   // withAi = false: Blatt ohne Auftra
   const row = (label, val) => { put(M, y, label, 11, true); y = para(M + 100, y, val, 11, false, TW - 100, 15); };
   row("Feibeitsblatt:", `${d.sheetTitle || "Feibeitsblatt"} (Code ${fmtCode(d.code)})`);
   row("Gesichert am:", fmtDT(when) + " Uhr");
-  row("Angaben:", `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}`);
+  if (isGroup(p)) row("Gruppe:", personLabel(p)); else row("Angaben:", personLabel(p));
   const fbState = Array.isArray(d.feedback) ? "schon erhalten"
     : d.fbPending ? "angefordert, beim Sichern noch nicht erhalten"   // beim Öffnen dieser Datei zählt das als Fehlversuch
     : d.fbUnavailable || d.fbFails > 0 ? `bisher nicht geklappt (${d.fbUnavailable || FB_NOT_DONE})` : "nicht angefordert";
@@ -3303,13 +3572,20 @@ function cleanDraft(o) {
   if (!CODE_RE.test(code) || !/[A-Z]/.test(code) || !/[0-9]/.test(code)) return null;
   const pr = o.person && typeof o.person === "object" ? o.person : null;
   if (!pr) return null;
-  const v = String(pr.vorname || "").trim().normalize("NFC"), n = String(pr.nachname || "").trim().normalize("NFC");
-  const vl = Array.from(v).length, nl = Array.from(n).length;
-  if (!LETTERS.test(v) || vl < 2 || vl > 3 || !LETTERS.test(n) || nl < 1 || nl > 2) return null;
-  const g = bdayOf(pr.geburtsdatum);   // ältere Dateien: volles Datum → das Jahr wird verworfen
-  if (!g) return null;
-  const k = String(pr.klasse || "").replace(/[\s.]+/g, "");
-  if (!/^[\p{L}\p{N}/-]{1,10}$/u.test(k)) return null;
+  let person;
+  if (isGroup(pr)) {   // Partner- / Gruppenarbeit: dieselben Regeln wie auf dem Angaben-Bildschirm (2–10 Kürzel, Klasse)
+    person = cleanGroup(pr);
+    if (!person) return null;
+  } else {
+    const v = String(pr.vorname || "").trim().normalize("NFC"), n = String(pr.nachname || "").trim().normalize("NFC");
+    const vl = Array.from(v).length, nl = Array.from(n).length;
+    if (!LETTERS.test(v) || vl < 2 || vl > 3 || !LETTERS.test(n) || nl < 1 || nl > 2) return null;
+    const g = bdayOf(pr.geburtsdatum);   // ältere Dateien: volles Datum → das Jahr wird verworfen
+    if (!g) return null;
+    const k = normKlasse(pr.klasse);
+    if (!KLASSE_RE.test(k)) return null;
+    person = { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: g, klasse: k };
+  }
   if (!Array.isArray(o.answers) || !o.answers.length || o.answers.length > 30) return null;
   const answers = o.answers.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER));
   let first = null, feedback = null;
@@ -3318,8 +3594,7 @@ function cleanDraft(o) {
   }
   return {
     v: 1, code, sheetTitle: String(o.sheetTitle || "").slice(0, 200), t: Number.isFinite(o.t) ? o.t : 0,
-    person: { vorname: nameCase(v), nachname: nameCase(n), geburtsdatum: g, klasse: k },
-    answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
+    person, answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
     fbUnavailableDay: typeof o.fbUnavailableDay === "string" && DAY_RE.test(o.fbUnavailableDay) ? o.fbUnavailableDay : "",
     fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0, fbPending: o.fbPending === true && !feedback,
@@ -3336,8 +3611,7 @@ $("ed-pdf").addEventListener("click", () => {
   if (S.submitted || !S.sheet || !S.person) return;
   try {
     saveDraft();
-    const d = Object.assign(draftRecord(), { kind: "feibeitsblatt-draft", code: S.code, sheetTitle: S.sheet.title,
-      person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse } });
+    const d = Object.assign(draftRecord(), { kind: "feibeitsblatt-draft", code: S.code, sheetTitle: S.sheet.title, person: personOut(S.person) });
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
     downloadBlob(new Blob([makeDraftPdf(d, S.sheet.aiFeedback || !!S.feedback)], { type: "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
     setSaveState("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf", false);
@@ -3378,10 +3652,10 @@ function makeSolutionsPdf(sub) {
     }
   };
   const gap = (n) => { y += n; if (y > H - BOTTOM) newPage(); };
-  const p = sub.person || {}, when = toDate(sub.receivedAt) || new Date();
+  const p = sub.person || {}, when = toDate(sub.receivedAt) || new Date(), grp = isGroup(p);
   para("Meine Lösungen – " + (sub.title || "Feibeitsblatt"), 17, true);
   gap(4);
-  para(`${p.vorname} · ${p.nachname} · Klasse ${p.klasse} · abgegeben am ${fmtDT(when)} Uhr · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
+  para(`${grp ? "Gruppe: " + p.gruppe.join(", ") : p.vorname + " · " + p.nachname} · Klasse ${p.klasse} · abgegeben am ${fmtDT(when)} Uhr · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
   const fb2 = sub.feedback2 && Array.isArray(sub.feedback2.results) ? sub.feedback2 : null;
   // Was je Aufgabe gedruckt wird – vorab, damit der Kopf sagen kann, ob KI-Rückmeldungen darin stehen
   const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
@@ -3434,8 +3708,14 @@ function makeSolutionsPdf(sub) {
     gap(16);
   });
   // Fußzeile je Seite, dann Objekte zusammensetzen (Kopf, Katalog, Seitenbaum, Schriften, je Seite Seite + Inhalt, Info)
-  const total = pages.length;
-  pages.forEach((ops, i) => ops.push(`BT 0.45 0.45 0.45 rg /F1 9 Tf ${M.toFixed(2)} 36 Td ${pdfStr("Feibeitsblatt · " + (sub.title || "") + " · " + p.vorname + " " + p.nachname + " · Seite " + (i + 1) + " von " + total)} Tj ET`));
+  const total = pages.length, who = grp ? "Gruppe " + p.gruppe.join(", ") : p.vorname + " " + p.nachname;
+  const foot = (tt, w, i) => "Feibeitsblatt · " + tt + " · " + w + " · Seite " + (i + 1) + " von " + total;
+  // Die Zeile muss in den Satzspiegel passen: erst den Titel kürzen, bei einer Gruppe mit vielen Kürzeln notfalls „Gruppe (n)“
+  const wide = (t, w) => pdfWidth(foot(t, w, total - 1), 9, false) > TW;
+  const fit = (w) => { let t = sub.title || ""; if (!wide(t, w)) return t; while (t.length > 1 && wide(t + "…", w)) t = t.slice(0, -1); return t.trimEnd() + "…"; };
+  let whoF = who, short = fit(whoF);
+  if (grp && wide(short, whoF)) { whoF = `Gruppe (${p.gruppe.length})`; short = fit(whoF); }
+  pages.forEach((ops, i) => ops.push(`BT 0.45 0.45 0.45 rg /F1 9 Tf ${M.toFixed(2)} 36 Td ${pdfStr(foot(short, whoF, i))} Tj ET`));
   const parts = [], offsets = [];
   let pos = 0;
   const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
@@ -3677,10 +3957,18 @@ const LT_ERR = {
 };
 /* Vor der ersten Prüfung je geöffnetem Blatt: Hinweis, wohin der Text geht, und Selbstauskunft zur Altersgrenze des Anbieters
    (ein Alter kennt die Seite nicht – der Geburtstag hat kein Jahr). → true (bestätigt), false („Trifft nicht zu“, auch Esc)
-   oder null (Klick neben den Dialog, z. B. vertippt auf dem Tablet: nur geschlossen, keine Antwort). */
+   oder null (Klick neben den Dialog, z. B. vertippt auf dem Tablet: nur geschlossen, keine Antwort). Bei Partner- / Gruppenarbeit gilt
+   die Altersgrenze für alle, die mitschreiben – der Dialog fragt die ganze Gruppe. */
 async function ltConsent() {
   if (S.ltConsent) return true;
-  const ok = await askConfirm({
+  const ok = await askConfirm(isGroup(S.person) ? {
+    title: "Rechtschreibung und Grammatik prüfen",
+    text: "Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird nur der Text dieser Antwort an LanguageTool gesendet – ohne eure Namen oder eure Angaben, aber mit der Internetadresse eures Geräts. Die Prüfung ist freiwillig.\n\n" +
+      "Laut Anbieter darf LanguageTool nur nutzen, wer\n• mindestens 18 Jahre alt ist oder\n• 16 oder 17 Jahre alt ist und die Erlaubnis der Eltern hat.\n\n" +
+      "Trifft das auf alle in eurer Gruppe zu? Wenn nicht, wählt „Trifft nicht auf alle zu“ – ihr schreibt und gebt ganz normal ab, ohne Nachteil.\n" +
+      "Die Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.",
+    ok: "Trifft auf alle in eurer Gruppe zu – prüfen", cancel: "Trifft nicht auf alle zu", safeFirst: true, backdrop: null
+  } : {
     title: "Rechtschreibung und Grammatik prüfen",
     text: "Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird nur der Text dieser Antwort an LanguageTool gesendet – ohne deinen Namen oder deine Angaben, aber mit der Internetadresse deines Geräts. Die Prüfung ist freiwillig.\n\n" +
       "Laut Anbieter darfst du LanguageTool nur nutzen, wenn du\n• mindestens 18 Jahre alt bist oder\n• 16 oder 17 Jahre alt bist und deine Eltern es dir erlaubt haben.\n\n" +
@@ -4036,7 +4324,7 @@ async function sendFirstAttempt() {
   try {
     const payload = {
       v: 1, stage: "first", sheetCode: S.code, sheetTitle: S.sheet.title,
-      person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse },
+      person: personOut(S.person),
       answers: S.first.map((a) => ({ first: a, final: null })),
       feedback: S.feedback.map(fbOut), feedbackAt: S.feedbackAt, submittedAt: null
     };
@@ -4288,7 +4576,7 @@ async function submitAll() {
   try {
     const payload = {
       v: 1, stage: "final", sheetCode: S.code, sheetTitle: S.sheet.title,
-      person: { vorname: S.person.vorname, nachname: S.person.nachname, geburtsdatum: S.person.geburtsdatum, klasse: S.person.klasse },
+      person: personOut(S.person),
       answers: S.tas.map((t, i) => ({ first: withFb ? S.first[i] : t.value, final: t.value })),
       feedback: withFb ? S.feedback.map(fbOut) : null,
       feedbackAt: withFb ? S.feedbackAt : null, submittedAt: new Date().toISOString()
@@ -4353,8 +4641,9 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
+  resetMembers();   // Kürzelfelder der Gruppe: wieder ein leeres Feld beim nächsten Öffnen
   $("p-err").textContent = ""; $("start-err").textContent = "";
   $("done-del").textContent = ""; $("done-del").classList.add("hidden");
 }
@@ -4623,8 +4912,9 @@ async function selectSheet(code) {
   } catch (e) { if (!handleAuthError(e)) setStatus($("t-subs-status"), errMsg(e, "t"), "bad"); }
 }
 // Dieselbe Person: Klasse, Kürzel und Geburtstag als "--MM-TT" (ältere Abgaben tragen noch das volle Datum – gleiche Person vor/nach
-// der Umstellung)
-const subWho = (x) => x.p ? [x.p.person.klasse, x.p.person.nachname, x.p.person.vorname, bdayOf(x.p.person.geburtsdatum) || x.p.person.geburtsdatum].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|") : "";
+// der Umstellung). Dieselbe Gruppe: Klasse und die sortierten Kürzel (Reihenfolge der Eingabe egal)
+const subWho = (x) => !x.p ? "" : isGroup(x.p.person) ? [x.p.person.klasse, "gruppe", ...groupSorted(x.p.person.gruppe)].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|")
+  : [x.p.person.klasse, x.p.person.nachname, x.p.person.vorname, bdayOf(x.p.person.geburtsdatum) || x.p.person.geburtsdatum].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|");
 async function loadSubs() {
   const code = T.sel, st = $("t-subs-status");
   setStatus(st, "Abgaben werden geladen und entschlüsselt …", "busy");
@@ -4648,7 +4938,9 @@ async function loadSubs() {
         if (!p || typeof p !== "object" || !p.person || typeof p.person !== "object" || !Array.isArray(p.answers)) p = null;
         else {   // nur plausible Größen anzeigen (ein manipulierter Umschlag darf den Browser nicht lahmlegen)
           const cut = (v, n) => String(v == null ? "" : v).slice(0, n);
-          p.person = { vorname: cut(p.person.vorname, 20), nachname: cut(p.person.nachname, 20), geburtsdatum: cut(p.person.geburtsdatum, 10), klasse: cut(p.person.klasse, 20) };
+          p.person = isGroup(p.person)   // Partner- / Gruppenarbeit: höchstens GROUP_MAX Kürzel
+            ? { gruppe: p.person.gruppe.slice(0, GROUP_MAX).map((k) => cut(k, 20)), klasse: cut(p.person.klasse, 20) }
+            : { vorname: cut(p.person.vorname, 20), nachname: cut(p.person.nachname, 20), geburtsdatum: cut(p.person.geburtsdatum, 10), klasse: cut(p.person.klasse, 20) };
           p.answers = p.answers.slice(0, 30).map((a) => ({ first: cut(a && a.first, MAX_ANSWER + 100), final: cut(a && a.final, MAX_ANSWER + 100) }));
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
           p.noAi = NO_AI_MODES.has(p.noAi) ? p.noAi : "";   // ohne KI-Feedback: ohne Anfrage / nicht möglich / Blatt ohne KI
@@ -4665,9 +4957,11 @@ async function loadSubs() {
     out.forEach((x) => (x.stage === "first" && x.p && finals.has(subWho(x)) ? hidden : shown).push(x));
     hidden.sort((a, b) => (a.receivedAt || 0) - (b.receivedAt || 0));
     T.subsHidden = hidden.map((x) => ({ id: x.id, who: subWho(x), s: x }));
-    const key = (x) => x.p ? [String(x.p.person.klasse || ""), String(x.p.person.nachname || ""), String(x.p.person.vorname || "")] : ["￿", "", ""];
+    // sortiert nach Klasse und Namen; Gruppen stehen in ihrer Klasse nach den Einzelarbeiten (nach ihren Kürzeln)
+    const key = (x) => !x.p ? ["￿", "", "", ""] : isGroup(x.p.person) ? [String(x.p.person.klasse || ""), "1", x.p.person.gruppe.join(", "), ""]
+      : [String(x.p.person.klasse || ""), "0", String(x.p.person.nachname || ""), String(x.p.person.vorname || "")];
     const coll = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
-    shown.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
+    shown.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 4; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
     T.subs = shown;
     setStatus(st, "", "");
     renderSubs();
@@ -4701,11 +4995,13 @@ function renderSubs() {
       return;
     }
     const pr = s.p.person, cls = isFirst ? "st-first" : "st-final";
+    // Partner- / Gruppenarbeit: alle Kürzel in einer Zelle über beide Kürzel-Spalten, dazu „Gruppe (n)“; kein Geburtstag
+    const names = isGroup(pr) ? [h("td", { class: cls + " grpcell", colspan: "2" }, [h("span", { class: "grpnames", text: pr.gruppe.join(", ") }), " ", h("span", { class: "grpbadge", text: `Gruppe (${pr.gruppe.length})` })]),
+      h("td", { class: "nowrap", text: "–" })]
+      : [h("td", { class: cls, text: String(pr.nachname || "") }), h("td", { class: cls, text: String(pr.vorname || "") }), h("td", { class: "nowrap", text: fmtBday(pr.geburtsdatum) })];
     const main = h("tr", { class: "clickable main " + (isFirst ? "row-first" : "row-final"), tabindex: "0", "aria-expanded": "false", "aria-controls": "sd-" + idx }, [
       h("td", { class: "arrowcol" }, [h("span", { class: "arrow", "aria-hidden": "true", text: "▸" }), h("span", { class: "sr-only", text: isFirst ? "Erstversuch ohne Überarbeitung" : "Abgabe nach der Überarbeitung" })]),
-      h("td", { class: cls, text: String(pr.nachname || "") }),
-      h("td", { class: cls, text: String(pr.vorname || "") }),
-      h("td", { class: "nowrap", text: fmtBday(pr.geburtsdatum) }),
+      ...names,
       h("td", { text: String(pr.klasse || "") })
     ]);
     const det = h("tr", { class: "details hidden", id: "sd-" + idx }, [h("td", { colspan: "5" })]);
@@ -4740,10 +5036,13 @@ function buildDetail(s, older) {
   const keep = retentionDaysT(), got = toDate(s.receivedAt);   // Löschfrist gilt ab dem Eingang (ein Erstversuch: ab seinem Eingang)
   if (keep && got) meta.push("automatische Löschung ab dem " + fmtD(got.getTime() + keep * 864e5));   // gelöscht im nächsten nächtlichen Lauf oder beim Öffnen der Übersicht
   box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
+  const grp = isGroup(p.person);
+  if (grp) box.appendChild(h("p", { class: "dgroup", text: "Gruppenarbeit: " + p.person.gruppe.join(", ") }));
   if (older) {
-    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Eine frühere Bearbeitung derselben Person (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Person inzwischen abgegeben hat." }));
+    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: grp ? "Eine frühere Bearbeitung derselben Gruppe (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Gruppe inzwischen abgegeben hat."
+      : "Eine frühere Bearbeitung derselben Person (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Person inzwischen abgegeben hat." }));
   } else if (isFirst) {
-    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Diese Schülerin oder dieser Schüler hat das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
+    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: (grp ? "Diese Gruppe hat" : "Diese Schülerin oder dieser Schüler hat") + " das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
   } else if (noFb && noAiNote(p)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: noAiNote(p) }));
   }
@@ -4787,7 +5086,7 @@ function buildDetail(s, older) {
   // Aufklappen gebaut; „Diesen Eintrag löschen“ löscht sie mit
   const olderOnes = older ? [] : T.subsHidden.filter((x) => x.s && x.who === subWho(s));
   if (olderOnes.length) {
-    const d = h("details", { class: "tasksdet dolder" }, [h("summary", { text: (olderOnes.length === 1 ? "1 älterer Erstversuch" : olderOnes.length + " ältere Erstversuche") + " dieser Person (in der Liste ausgeblendet)" })]);
+    const d = h("details", { class: "tasksdet dolder" }, [h("summary", { text: (olderOnes.length === 1 ? "1 älterer Erstversuch" : olderOnes.length + " ältere Erstversuche") + (grp ? " dieser Gruppe" : " dieser Person") + " (in der Liste ausgeblendet)" })]);
     d.addEventListener("toggle", () => { if (d.open && d.children.length === 1) olderOnes.forEach((x) => d.appendChild(buildDetail(x.s, true))); });
     box.appendChild(d);
   }
@@ -4800,15 +5099,16 @@ function buildDetail(s, older) {
 }
 const DELETE_IDS_MAX = 50;   // Einträge je Löschauftrag (= LIMITS.deleteIds im Worker) – mehr gehen in mehreren Aufrufen
 async function deleteEntry(s, btn) {
-  const code = T.sel, isFirst = s.stage === "first", pr = s.p && s.p.person, when = fmtDT(s.receivedAt);
+  const code = T.sel, isFirst = s.stage === "first", pr = s.p && s.p.person, when = fmtDT(s.receivedAt), grp = isGroup(pr), same = grp ? "derselben Gruppe" : "derselben Person";
   // die ausgeblendeten zuerst, der Eintrag selbst zuletzt: scheitert ein Teil, bleibt der Rest unter derselben Abgabe und lässt sich
   // mit einem weiteren Klick löschen
   const hidden = s.p ? T.subsHidden.filter((x) => x.who === subWho(s)) : [], ids = hidden.map((x) => x.id).concat([s.id]);
   const ok = await askConfirm({ title: "Diesen Eintrag löschen?",
-    text: (pr ? `${isFirst ? "Der Erstversuch" : "Die Abgabe"} von ${pr.nachname} · ${pr.vorname} (Geburtstag ${fmtBday(pr.geburtsdatum)}, Klasse ${pr.klasse}) vom ${when}`
+    text: (grp ? `${isFirst ? "Der Erstversuch" : "Die Abgabe"} der Gruppe ${pr.gruppe.join(", ")} (Klasse ${pr.klasse}) vom ${when}`
+      : pr ? `${isFirst ? "Der Erstversuch" : "Die Abgabe"} von ${pr.nachname} · ${pr.vorname} (Geburtstag ${fmtBday(pr.geburtsdatum)}, Klasse ${pr.klasse}) vom ${when}`
       : isFirst ? `Der Erstversuch vom ${when}, der sich nicht entschlüsseln lässt,` : `Die Abgabe vom ${when}, die sich nicht entschlüsseln lässt,`) +
       " wird endgültig aus der Datenbank gelöscht" +
-      (hidden.length ? ` – mitsamt ${hidden.length === 1 ? "einem älteren, ausgeblendeten Erstversuch" : hidden.length + " älteren, ausgeblendeten Erstversuchen"} derselben Person` : "") +
+      (hidden.length ? ` – mitsamt ${hidden.length === 1 ? "einem älteren, ausgeblendeten Erstversuch" : hidden.length + " älteren, ausgeblendeten Erstversuchen"} ${same}` : "") +
       ". Alle anderen Einträge bleiben. Das lässt sich nicht rückgängig machen.",
     ok: "Eintrag löschen", cancel: "Abbrechen", danger: true });
   if (!ok || T.sel !== code) return;
@@ -4837,7 +5137,7 @@ async function deleteEntry(s, btn) {
   renderSheets();
   await loadSubs();
   const err = st.textContent;   // err: die Liste ließ sich nicht neu laden
-  const msg = `${k === 1 ? "1 Eintrag" : k + " Einträge"} gelöscht.` + (failed ? " Nicht alle – " + errMsg(failed, "t") + " Bitte klicken Sie bei dieser Person noch einmal auf „Diesen Eintrag löschen“." : "") + (err ? " " + err : "");
+  const msg = `${k === 1 ? "1 Eintrag" : k + " Einträge"} gelöscht.` + (failed ? " Nicht alle – " + errMsg(failed, "t") + ` Bitte klicken Sie bei ${grp ? "dieser Gruppe" : "dieser Person"} noch einmal auf „Diesen Eintrag löschen“.` : "") + (err ? " " + err : "");
   setStatus(st, msg, failed || err ? "bad" : "ok");
   const rows = document.querySelectorAll("#t-subs-body tr.main");
   try { (rows[Math.min(at, rows.length - 1)] || $("t-refresh")).focus(); } catch (e) { /* egal */ }
@@ -6921,7 +7221,7 @@ function renderPvPreview() {
   box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true)]),
     privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull" }),
     h("p", { class: "fhint", id: "pv-preview-note", text: (CHECK_HOST ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${CHECK_HOST}, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „${GITHUB_ITEM}“ ` : "") +
-      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback." }));
+      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
 }
 function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der Auswahl steht, als eigene Möglichkeit zeigen
   const sel = $("pv-days");
@@ -7072,7 +7372,7 @@ window.addEventListener("beforeunload", (e) => {
  * nur auf diesem Gerät: localStorage feibeitsblatt:check:<CODE> = {t, sig, ticks: {n: [Index …]}}; ändern sich die Punkte (sig), beginnt
  * die Liste leer; Einträge ohne Änderung seit DRAFT_DAYS löscht die Seite beim Laden. Ohne Speicher funktioniert alles, nur ohne Erinnern. */
 const CHECK_PREFIX = "feibeitsblatt:check:";
-const CHECK_SCREENS = new Set(["screen-start", "screen-person", "screen-check"]);   // von hier aus öffnet ein neuer #checkliste= die Checkliste
+const CHECK_SCREENS = new Set(["screen-start", "screen-mode", "screen-person", "screen-check"]);   // von hier aus öffnet ein neuer #checkliste= die Checkliste
 const CHK = { code: "", run: 0, tasks: [], sig: "", liveTimer: 0 };
 function checkHashCode() {   // "#checkliste=K7Q-M4X" → "K7QM4X"; kein solcher Hash → null
   const m = /^#checkliste=([^&]*)/i.exec(location.hash || "");
