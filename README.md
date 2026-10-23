@@ -154,7 +154,9 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    mit Auftrag an die KI, deren Text sich inhaltlich geändert hat; für alle anderen gilt die erste Rückmeldung weiter
    („Unverändert abgegeben – wie beim ersten Feedback.“). So bekommt eine unveränderte Antwort nie ein anderes Urteil.
    Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (ohne KI-Feedback
-   abgegeben, KI nicht eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung. Die zweite Rückmeldung bleibt nur im Browser: Sie wird
+   abgegeben, KI nicht eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung; ebenso, wenn beim
+   Weiterschreiben kein KI-Dienst mehr eingerichtet ist (dann sagt der Abgabe-Dialog das, und nichts wird noch einmal
+   gesendet). Die zweite Rückmeldung bleibt nur im Browser: Sie wird
    nicht gespeichert und geht nicht an Sie als Lehrkraft.
    Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
    Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
@@ -282,7 +284,7 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    mit allen Karten und ihren richtigen Ländern. Gibt die
    Person später ab, ersetzt die Abgabe ihren Erstversuch; gibt sie von einem anderen Gerät oder nach einem
    neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
-   die Zahl). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“
+   die Zahl; in den Details der Abgabe lässt er sich unter „… älterer Erstversuch dieser Person“ aufklappen). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“
    und den Hinweis „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“; Liste,
    Farben und Zähler unterscheiden sie nicht. „Alle aufklappen“ öffnet
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
@@ -315,7 +317,8 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche werden mitgelöscht).
    Einen einzelnen Eintrag – etwa auf Wunsch einer Schülerin, eines Schülers oder der Eltern – löschen Sie in den
    aufgeklappten Details mit „Diesen Eintrag löschen“ (mit Rückfrage); ältere, ausgeblendete Erstversuche derselben
-   Person werden dabei mitgelöscht, alle anderen Einträge bleiben.
+   Person werden dabei mitgelöscht, alle anderen Einträge bleiben. Ein Eintrag, der sich nicht entschlüsseln lässt,
+   hat in der Liste einen eigenen Knopf „Eintrag löschen“.
    Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt. Darunter: „Feibeitsblatt
    selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu. Wollen Sie ein Blatt später
    wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6).
@@ -836,9 +839,13 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
    Abgaben dieses Feibeitsblattes löschen“); nicht mehr benötigte Feibeitsblätter löschen Sie selbst.
 6. **Rechte der Schüler:innen umsetzen.** Der Datenschutzhinweis nennt Sie als Ansprechpartner:in für Auskunft,
    Berichtigung, Löschung, Einschränkung und Widerspruch. Auskunft: die Einträge dieser Person in der Übersicht
-   aufklappen. Löschung: in den aufgeklappten Details „Diesen Eintrag löschen“ – das
-   löscht den Eintrag samt älterer, ausgeblendeter Erstversuche derselben Person (gleiche Klasse, Kürzel und Geburtstag),
-   alle anderen Einträge bleiben. Falsche Angaben (z. B. ein vertipptes Kürzel): den Eintrag löschen und neu abgeben
+   aufklappen. Hat sie abgegeben, blendet die Liste ältere Erstversuche derselben Person (gleiche Klasse, Kürzel und
+   Geburtstag, z. B. auf einem anderen Gerät begonnen) aus – der Zähler über der Liste nennt ihre Anzahl, und in den
+   Details der Abgabe zeigt „… ältere Erstversuche dieser Person“ sie beim Aufklappen mit erster Fassung und KI-Feedback;
+   für eine vollständige Auskunft gehören sie dazu. Löschung: in den aufgeklappten Details „Diesen Eintrag löschen“ – das
+   löscht den Eintrag samt dieser ausgeblendeten Erstversuche (auch sehr viele, in mehreren Schritten), alle anderen
+   Einträge bleiben. Einträge, die sich nicht entschlüsseln lassen, haben in der Liste einen eigenen Knopf „Eintrag
+   löschen“. Falsche Angaben (z. B. ein vertipptes Kürzel): den Eintrag löschen und neu abgeben
    lassen. Wie mit einer Einschränkung oder einem Widerspruch umzugehen ist, klären Sie bitte mit der bzw. dem
    Datenschutzbeauftragten. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage (bei einem bezahlten Tarif bis
    zu 30 Tage) in der Datensicherung der Datenbank.

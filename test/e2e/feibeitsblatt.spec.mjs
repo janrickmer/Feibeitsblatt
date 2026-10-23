@@ -2550,15 +2550,20 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   for (let i = 0; i < 2; i++) await typeAt(p6, "#a-" + (i + 1), K.first[i]);
   await p6.click("#submit-btn");
   expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?", false)).toBe("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI." + toTeacherUnavailable);
-  await p6.click("#fb-btn");
+  await p6.focus("#fb-btn");
+  await p6.keyboard.press("Enter");   // per Tastatur: während des Nachsehens ist der Button gesperrt – danach hat er den Fokus wieder
   await expect(p6.locator("#fb-status")).toHaveText("Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.");
+  await expect(p6.locator("#fb-btn")).toBeFocused();
   await expect(p6.locator("#dlg.open")).toHaveCount(0);   // kein Dialog
   await expect(p6.locator("#fb-fallback")).toHaveText("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.");
   expect(sheetGets).toBe(2);
   expect((await draftOf(p6)).fbUnavailable).toBe("KI nicht eingerichtet");
-  // inzwischen eingerichtet: der nächste Klick lädt die Empfänger neu und zeigt den normalen Dialog mit dem echten Empfänger
-  await p6.click("#fb-btn");
+  // inzwischen eingerichtet: der nächste Klick lädt die Empfänger neu und zeigt den normalen Dialog mit dem echten Empfänger;
+  // „Weiterschreiben“ gibt den Fokus an den Button zurück (nicht an body, obwohl er während des Nachsehens gesperrt war)
+  await p6.focus("#fb-btn");
+  await p6.keyboard.press("Enter");
   expect(await confirmDialog(p6, "KI-Feedback anfordern?", false)).toContain("an den KI-Dienst „127.0.0.1:");
+  await expect(p6.locator("#fb-btn")).toBeFocused();
   expect(sheetGets).toBe(3);
   await expect(p6.locator("#fb-fallback")).toBeHidden();   // „KI nicht eingerichtet“ gilt nicht mehr …
   await expect(p6.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
@@ -2767,7 +2772,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await closePage(t);
 });
 
-test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Erstversuchen mit vollem Geburtsdatum nur Tag und Monat; Erstversuch (altes Format) und Abgabe (neues Format) derselben Person gehören zusammen – „Diesen Eintrag löschen“ löscht beide, alle anderen bleiben", async ({ browser, request }) => {
+test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Erstversuchen mit vollem Geburtsdatum nur Tag und Monat; Erstversuch (altes Format) und Abgabe (neues Format) derselben Person gehören zusammen – die Details der Abgabe zeigen den ausgeblendeten Erstversuch, „Diesen Eintrag löschen“ löscht beide (auch sehr viele, in Blöcken), alle anderen bleiben; ein nicht lesbarer Eintrag lässt sich einzeln löschen", async ({ browser, request }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -2802,24 +2807,52 @@ test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Ers
   await expect(mains.nth(1).locator("td.st-first")).toHaveCount(2);
   await expect(mains.nth(2).locator("td:not(.arrowcol)")).toHaveText(["Wo", "Kim", "03.02.", "9c"]);
 
-  // Löschwunsch einer Person: „Diesen Eintrag löschen“ löscht Kims Abgabe samt dem ausgeblendeten Erstversuch, alle anderen bleiben
+  // Auskunft: die Details von Kims Abgabe zeigen den in der Liste ausgeblendeten älteren Erstversuch auf Wunsch (erst beim
+  // Aufklappen gebaut, ohne eigenen Löschknopf)
   await mains.nth(2).click();
   const detKim = tp.locator("#t-subs-body tr.details:visible");
   await expect(detKim).toHaveCount(1);
+  const olderKim = detKim.locator("details.dolder");
+  await expect(olderKim.locator("summary")).toHaveText("1 älterer Erstversuch dieser Person (in der Liste ausgeblendet)");
+  await expect(olderKim.locator(".detbox")).toHaveCount(0);
+  await olderKim.locator("summary").click();
+  await expect(olderKim.locator(".detbox.older")).toHaveCount(1);
+  await expect(olderKim.locator(".dmeta")).toHaveText(/^Älterer Erstversuch vom \d\d\.\d\d\.\d{4}, \d\d:\d\d \(ohne Überarbeitung\) · KI-Feedback am /);
+  await expect(olderKim.locator("table.cmp tbody td")).toHaveText([kimFirst.answers[0].first, "(noch nicht überarbeitet)"]);
+  await expect(olderKim.locator("button")).toHaveCount(0);
+  await expect(detKim.getByRole("button", { name: "Diesen Eintrag löschen" })).toHaveCount(1);
+  // Löschwunsch einer Person: „Diesen Eintrag löschen“ löscht Kims Abgabe samt dem ausgeblendeten Erstversuch, alle anderen bleiben
   await detKim.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
   await expect(tp.locator("#dlg-ok")).toHaveText("Eintrag löschen");
   expect(await confirmDialog(tp, "Diesen Eintrag löschen?", false)).toMatch(/^Die Abgabe von Wo · Kim \(Geburtstag 03\.02\., Klasse 9c\) vom \d\d\.\d\d\.\d{4}, \d\d:\d\d wird endgültig aus der Datenbank gelöscht – mitsamt einem älteren, ausgeblendeten Erstversuch derselben Person\. Alle anderen Einträge bleiben\. Das lässt sich nicht rückgängig machen\.$/);
   expect(await d1Query(`SELECT COUNT(*) AS n FROM submissions WHERE sheet_code='${code}'`)).toEqual([{ n: 4 }]);   // Abbrechen ändert nichts
+
+  // Viele ausgeblendete Erstversuche mit Kims Angaben (z. B. über das öffentliche /api/submit angelegt) – mehr, als der Server je
+  // Löschauftrag annimmt (50) – und ein Eintrag, der sich nicht entschlüsseln lässt
+  await d1Query(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 54) INSERT INTO submissions (sheet_code, received_at, envelope, stage, attempt) SELECT s.sheet_code, s.received_at + n.i, s.envelope, 'first', printf('%016x', n.i) FROM submissions s, n WHERE s.sheet_code='${code}' AND s.attempt='0123456789abcdef'`);
+  await d1Query(`INSERT INTO submissions (sheet_code, received_at, envelope, stage) VALUES ('${code}', ${Date.now()}, '{"v":1,"ek":"AAAA","iv":"AAAAAAAAAAAAAAAA","ct":"AAAA"}', 'final')`);
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben · 1 Erstversuch ohne Überarbeitung · 55 ältere Erstversuche von Schüler:innen, die inzwischen abgegeben haben, werden nicht angezeigt");
+  const errRow = tp.locator("#t-subs-body tr.errrow");
+  await expect(errRow).toHaveCount(1);
+  await expect(errRow).toContainText("konnte nicht entschlüsselt werden");
+  await errRow.getByRole("button", { name: "Eintrag löschen" }).click();
+  expect(await confirmDialog(tp, "Diesen Eintrag löschen?")).toMatch(/^Die Abgabe vom \d\d\.\d\d\.\d{4}, \d\d:\d\d, die sich nicht entschlüsseln lässt, wird endgültig aus der Datenbank gelöscht\. Alle anderen Einträge bleiben\. Das lässt sich nicht rückgängig machen\.$/);
+  await expect(tp.locator("#t-subs-status")).toHaveText("1 Eintrag gelöscht.");
+  await expect(errRow).toHaveCount(0);
+  await expect(mains).toHaveCount(3);
+  await mains.nth(2).click();
+  await expect(detKim.locator("details.dolder summary")).toHaveText("55 ältere Erstversuche dieser Person (in der Liste ausgeblendet)");
   await detKim.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
-  await confirmDialog(tp, "Diesen Eintrag löschen?");
-  await expect(tp.locator("#t-subs-status")).toHaveText("2 Einträge gelöscht.");
+  expect(await confirmDialog(tp, "Diesen Eintrag löschen?")).toContain(" – mitsamt 55 älteren, ausgeblendeten Erstversuchen derselben Person. ");
+  await expect(tp.locator("#t-subs-status")).toHaveText("56 Einträge gelöscht.");
   await expect(tp.locator("#t-subs-sum")).toHaveText("1 Abgabe · 1 Erstversuch ohne Überarbeitung");
   await expect(mains).toHaveCount(2);
   await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Ol", "Ole", "30.11.", "9c"]);
   await expect(mains.nth(1).locator("td:not(.arrowcol)")).toHaveText(["Un", "Ute", "15.06.", "9c"]);
-  const [delCall] = await t.calls((r) => r.method === "DELETE" && r.path.endsWith("/submissions"));
-  const delIds = JSON.parse(delCall.reqBody).ids;
-  expect(delIds).toHaveLength(2);
+  const delCalls = (await t.calls((r) => r.method === "DELETE" && r.path.endsWith("/submissions"))).map((r) => [r.status, JSON.parse(r.reqBody).ids]);
+  expect(delCalls.map(([st, ids]) => [st, ids.length])).toEqual([[200, 1], [200, 50], [200, 6]]);   // der nicht lesbare, dann Kim in zwei Blöcken
+  const delIds = delCalls.flatMap(([, ids]) => ids);
   const left = (await d1Query(`SELECT id, stage FROM submissions WHERE sheet_code='${code}' ORDER BY id`));
   expect(left.map((r) => r.stage)).toEqual(["final", "first"]);   // Ole (Abgabe) und Ute (Erstversuch)
   expect(left.some((r) => delIds.includes(r.id))).toBe(false);
@@ -3424,7 +3457,7 @@ test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (d
   await closePage(t);
 });
 
-test("7j Während die Abgabe gesendet wird: KI-Feedback und „Abbrechen“ sind gesperrt, ein währenddessen geöffneter Dialog schließt sich mit der Bestätigung", async ({ browser }) => {
+test("7j Während die Abgabe gesendet wird: KI-Feedback und „Abbrechen“ sind gesperrt, ein währenddessen geöffneter Dialog schließt sich mit der Bestätigung; ein Nachsehen der Empfänger verwandelt keinen offenen Abgabe-Dialog; erstes Feedback, aber beim Weiterschreiben kein Empfänger → keine zweite Rückmeldung, nichts gesendet", async ({ browser }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -3464,11 +3497,98 @@ test("7j Während die Abgabe gesendet wird: KI-Feedback und „Abbrechen“ sind
   expect(s.lt).toEqual([]);   // nichts an LanguageTool
   await closePage(s);
 
+  // Beim Laden kennt die Seite keinen KI-Dienst; „KI um ein Feedback bitten“ sieht nach (GET, hier angehalten) – währenddessen
+  // öffnet die Schülerin „Abgeben“. Die Antwort (KI inzwischen eingerichtet) verwandelt den offenen Dialog nicht in „KI-Feedback
+  // anfordern?“: dieselbe Frage, derselbe Text, nichts geht an die KI; die Abgabe trägt den Grund, den der Dialog genannt hat
+  const code = shown.replace("-", "");
+  const noAiSheet = (j) => { delete j.sheet.aiRecipients; delete j.sheet.aiReserve; j.sheet.aiProvider = null; };
+  const s2 = await openPage(browser);
+  const p2 = s2.page;
+  let gets2 = 0, releaseGet;
+  const heldGet = new Promise((r) => { releaseGet = r; });
+  await p2.route("**/api/sheet/" + code, async (route) => {
+    const n = ++gets2;
+    if (n === 2) await heldGet;
+    const res = await route.fetch();
+    const j = await res.json();
+    if (n === 1) noAiSheet(j);
+    await route.fulfill({ response: res, json: j });
+  });
+  await enterCode(p2, shown);
+  await fillPerson(p2, { vorname: "ria", nachname: "ra", geb: "--04-04", klasse: "7b" });
+  await typeAt(p2, "#a-1", "Das Gewissen meldet sich.");
+  await p2.click("#fb-btn");
+  await expect(p2.locator("#fb-status")).toHaveText("Einen Moment …");
+  await expect(p2.locator("#submit-btn")).toBeEnabled();   // Abgeben geht auch jetzt
+  await p2.click("#submit-btn");
+  await expect(p2.locator("#dlg-title")).toHaveText("Ohne KI-Feedback abgeben?");
+  const asked = await p2.locator("#dlg-text").textContent();
+  expect(asked).toMatch(/^Das KI-Feedback ist gerade nicht möglich \(KI nicht eingerichtet\)\./);
+  releaseGet();
+  await expect(p2.locator("#privacy")).toContainText("an den KI-Dienst „127.0.0.1:");   // die Antwort ist angekommen
+  await p2.waitForTimeout(300);
+  await expect(p2.locator("#dlg-title")).toHaveText("Ohne KI-Feedback abgeben?");
+  await expect(p2.locator("#dlg-ok")).toHaveText("Ohne KI-Feedback abgeben");
+  await expect(p2.locator("#dlg-text")).toHaveText(asked);
+  await expect(p2.locator("#fb-status")).toHaveText("");
+  expect(await confirmDialog(p2, "Ohne KI-Feedback abgeben?")).toBe(asked);
+  await expect(p2.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await s2.calls((r) => r.path === "/api/feedback")).toEqual([]);
+  expect((await s2.calls((r) => r.path === "/api/submit")).map((r) => [r.status, JSON.parse(r.reqBody).stage])).toEqual([[200, "final"]]);
+  await closePage(s2);
+
+  // Erstes KI-Feedback geholt und überarbeitet; beim Weiterschreiben kennt die Seite keinen KI-Dienst mehr (z. B. inzwischen
+  // entfernt): Hinweis, Abgabe-Dialog und Bestätigung sagen, dass es keine zweite Rückmeldung gibt – nichts geht noch einmal an
+  // den Server
+  const FB2_NO_AI = "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht – ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet";
+  await mockMode("ok");
+  await mockReset();
+  const s3 = await openPage(browser);
+  const p3 = s3.page;
+  let strip = false;
+  await p3.route("**/api/sheet/" + code, async (route) => {
+    const res = await route.fetch();
+    const j = await res.json();
+    if (strip) noAiSheet(j);
+    await route.fulfill({ response: res, json: j });
+  });
+  await enterCode(p3, shown);
+  await fillPerson(p3, { vorname: "tom", nachname: "to", geb: "--06-06", klasse: "7b" });
+  await typeAt(p3, "#a-1", "Das Gewissen ist eine innere Stimme.");
+  await requestFeedback(p3);
+  await expect.poll(async () => (await s3.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage), { timeout: 30_000 }).toEqual(["first"]);
+  await typeAt(p3, "#a-1", " Es meldet sich nach einer Tat.");
+  await p3.waitForTimeout(700);
+  strip = true;
+  await p3.reload();
+  await p3.click("#resume-btn");
+  await expect(p3.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(p3.locator("#t-1 .fbbox")).toBeVisible();
+  await expect(p3.locator("#submit-hint")).toHaveText("Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " + FB2_NO_AI + ".");
+  await p3.click("#submit-btn");
+  expect(await confirmDialog(p3, "Jetzt abgeben?")).toBe("Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" + FB2_NO_AI + "; an die KI wird nichts gesendet.");
+  await expect(p3.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(p3.locator("#done-fb-status")).toHaveText(FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen.");
+  await expect(p3.locator("#done-fb-retry")).toBeHidden();
+  await p3.waitForTimeout(300);
+  expect((await s3.calls((r) => r.path === "/api/feedback")).length).toBe(1);   // nur das erste Feedback
+  expect((await s3.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage)).toEqual(["first", "final"]);
+  expect((await mockState()).count).toBe(1);
+  const [dl3] = await Promise.all([p3.waitForEvent("download"), p3.click("#done-pdf")]);
+  expect(pdfShownText(await readFile(await dl3.path()))).toContain("Eine KI-Rückmeldung zu deiner abgegebenen Fassung gab es diesmal nicht.");
+  await closePage(s3);
+
   await tp.click("#b-res-back");
   await expect(tp.locator("#t-sel-code")).toHaveText(shown);
-  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Abgabe");
-  await tp.locator("#t-subs-body tr.main").first().click();
-  await expect(tp.locator("#t-subs-body tr.details:visible .moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben.");
+  await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben");
+  const mains = tp.locator("#t-subs-body tr.main");
+  for (const [k, n] of ["Ra", "Se", "To"].entries()) await expect(mains.nth(k).locator("td:not(.arrowcol)").nth(0)).toHaveText(n);
+  await tp.click("#t-expand-all");
+  const det = (k) => tp.locator("#t-subs-body tr.details").nth(k);
+  await expect(det(0).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");
+  await expect(det(1).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben.");
+  await expect(det(2).locator(".moodle-hint")).toHaveCount(0);
+  await expect(det(2).locator(".dtask").nth(0).locator("table.cmp tbody td")).toHaveText(["Das Gewissen ist eine innere Stimme.", "Das Gewissen ist eine innere Stimme. Es meldet sich nach einer Tat."]);
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");

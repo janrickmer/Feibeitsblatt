@@ -74,10 +74,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
   Lehrkraft-Ansicht: Kürzel `.st-final` (grün) / `.st-first` (orange, `#b85c00`), Legende `#t-subs-legend`,
   Zusammenfassung `subsSummary`; Erstversuche einer Person, die (anders) schon abgegeben hat, werden ausgeblendet
-  (`T.subsHidden` = `[{id, who}]` per `subWho` – Klasse, Kürzel, Geburtstag –, in Lösch-Dialogen mitgezählt); Details:
+  (`T.subsHidden` = `[{id, who, s}]` per `subWho` – Klasse, Kürzel, Geburtstag –, in Lösch-Dialogen mitgezählt; die Details
+  der Abgabe zeigen sie in `details.dolder` „n ältere Erstversuche dieser Person (in der Liste ausgeblendet)“, gebaut beim
+  Aufklappen per `buildDetail(x.s, true)` ohne Löschknopf – sonst wäre die Auskunft unvollständig); Details:
   „Erstversuch ohne Überarbeitung – noch nicht abgegeben“, Spalte 2 „(noch nicht überarbeitet)“, am Ende „Diesen Eintrag
-  löschen“ (`deleteEntry`, danger-Dialog mit Kürzel, Geburtstag, Klasse; löscht die id samt den ausgeblendeten Erstversuchen
-  derselben Person, lädt Liste und Zähler neu, Status in `#t-subs-status`) – so setzt die Lehrkraft Löschwünsche um. Screenreader-Text in der Pfeilspalte, nie im Kürzel (Tests lesen die Zellen).
+  löschen“ (`deleteEntry`, danger-Dialog mit Kürzel, Geburtstag, Klasse; löscht die ausgeblendeten Erstversuche derselben
+  Person und zuletzt die id selbst in Blöcken zu `DELETE_IDS_MAX` = `LIMITS.deleteIds` (50) – scheitert ein Block, bleibt der
+  Rest unter der Abgabe –, lädt Liste und Zähler neu, Status in `#t-subs-status`) – so setzt die Lehrkraft Löschwünsche um.
+  Nicht entschlüsselbare Einträge (`tr.errrow`) haben einen eigenen Knopf „Eintrag löschen“. Screenreader-Text in der Pfeilspalte, nie im Kürzel (Tests lesen die Zellen).
 - **Zwischenstand als PDF (ohne Bibliothek):** `makeDraftPdf(d)` baut eine A4-Seite (Helvetica/-Bold, WinAnsi,
   `pdfStr` oktal-maskiert, Breiten aus `PDF_W_REG/BOLD` für den Umbruch) mit orangem Kasten, URI-Link-Annotation
   auf `PUBLIC_URL` (`window.FEIBEITSBLATT_PUBLIC`) und dem Datensatz (`draftRecord()` + `kind:"feibeitsblatt-draft"`,
@@ -232,7 +236,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   möglich“, zusammen mit einem anderen US-Dienst „die übrigen Dienste mit Sitz in den USA … außerhalb der EU“; die Reserve
   springt ein, wenn der erste „nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares
   Feedback liefert“ (`RESERVE_WHEN` – die Worte müssen alle Codes aus `RESERVE_ON` abdecken –, ebenso im Reserve-Dialog der
-  Lehrkraft und im README-Textbaustein). Oberfläche: Optionen „– nicht für den Schuleinsatz geeignet“ (gemini, openrouter, cerebras; `unsuitable` im
+  Lehrkraft, in der Kurzfassung `privacyShortText` und im README-Textbaustein). Oberfläche: Optionen „– nicht für den Schuleinsatz geeignet“ (gemini, openrouter, cerebras; `unsuitable` im
   Browser-`PROVIDERS`, `.provwarn` per JS gefüllt, `askConfirm` „Anbieter trotz Warnung speichern?“ nur wenn nicht schon
   gespeichert; bei der Reserve im selben Dialog), Schlüsselfeld `#ai-key-field` bei keyless verborgen (`#ai-keyless-hint`),
   Modellfeld beim Anbieterwechsel leeren, `savedMain()` (nur `saved !== false`; `ai2Save` verlangt ihn, `AI_MAIN_FIRST`),
@@ -562,7 +566,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`aiRecipients` leer) lädt `requestFeedback` zuerst per `reloadRecipients()` neu (nur GET); bleibt die Liste leer: kein
   Dialog, kein POST, `S.fbUnavailable = FB_NO_AI` („KI nicht eingerichtet“, mit `fbUnavailableDay`), gespeichert, Status
   „Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.“; sonst der normale
-  Dialog mit den echten Empfängern. `fbBlockedNow()` (für `#fb-fallback` und den Hinweis unter „Abgeben“): `FB_NO_AI` gilt
+  Dialog mit den echten Empfängern. Während des GET ist nur `#fb-btn` gesperrt (danach Fokus zurück, falls er auf `body`
+  fiel); ist inzwischen ein anderer Dialog offen (Abgabe, Abbrechen, Rechtschreibprüfung), fragt `requestFeedback` nicht
+  hinein, sondern endet still. `askConfirm` selbst beantwortet einen zweiten Aufruf bei offenem Dialog sofort mit `null`
+  (keine Antwort) und lässt den offenen unverändert. Die Einstufung nach dem Dialog bleibt „nicht möglich (Grund)“, wenn der
+  Dialog das gesagt hat (`said` in `submitAll`), auch wenn währenddessen Empfänger auftauchten. Liegt ein erstes Feedback vor,
+  aber die Seite kennt keinen Empfänger (z. B. weitergeschrieben, nachdem die KI entfernt wurde): Abgabe-Dialog,
+  `#submit-hint` und `#done-fb-status` sagen `FB2_NO_AI` („Eine KI-Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal
+  nicht – …“), `requestFinalFeedback` sendet nichts (auch nicht an den Server) und ruft `finalFeedbackGone`. `fbBlockedNow()` (für `#fb-fallback` und den Hinweis unter „Abgeben“): `FB_NO_AI` gilt
   nicht mehr, sobald `aiRecipients` gefüllt ist (auch nach `ai_changed` → `renderFeedbackState`); `noAiState` behält den
   Grund für die Abgabe. Als Fehlversuch
   zählt auch ein Lauf, den die Abgabe abbricht oder der nach `ai_busy` mit „zu lang“ bzw. `ai_changed` endet (Meldung
@@ -574,7 +585,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `#fb-btn` und `#fb-status` frei. `S.submitting` (nach dem Bestätigen bis zum `finally`, dort bei einem Fehlschlag
   `renderFeedbackState`): `#fb-btn` gesperrt, `requestFeedback` und `#ed-cancel` brechen vor **und** nach ihrem Dialog ab
   (`submitBusy`, Status „Deine Abgabe wird gerade gesendet – …“ in `#fb-status` bzw. `#submit-status`); im Erfolgszweig
-  schließt `closeDlg(false)` einen offenen Dialog vor `show("screen-done")` (E2E 7j: `/api/submit` angehalten).
+  schließt `closeDlg(null)` (keine Antwort – beim LanguageTool-Dialog nicht „Trifft nicht zu“) einen offenen Dialog vor
+  `show("screen-done")` (E2E 7j: `/api/submit` angehalten; dort auch: Nachsehen der Empfänger hinter offenem Abgabe-Dialog,
+  erstes Feedback ohne Empfänger nach Weiterschreiben).
   Lehrkraft (`noAiNote`, neutral): „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“
   (alte Abgaben ohne `noAi` = nicht möglich), eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“ (`table.cmp.one`); Liste, Legende, Zähler unverändert. Lösungs-PDF: derselbe Satz im Kopf (nicht
   bei `none`); Zwischenstand-PDF „Stand: … KI-Feedback schon erhalten / angefordert, beim Sichern noch nicht erhalten
@@ -603,7 +616,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (Hinweis mit Schulangaben, `#privfull-ed` nach Weiterschreiben, KI-Kennzeichnung, `#done-del`, Lösungs-PDF mit/ohne XMP
   samt Aufbauprüfung `pdfStructure`), 7i (Kürzen mit Nachfrage, Verlängern, Cron lokal); Unit: `scheduled` auf der
   gemeinsamen D1 (und einmal frisch importiert `?scheduled`), `d1.failIf` für ein scheiterndes PURGE, `Math.random`
-  gestubbt beim Zählen der D1-Abfragen.
+  gestubbt beim Zählen der D1-Abfragen und in Tests mit zurückdatierten Einträgen (`noRandomCleanup`: sonst löscht das
+  2-%-Aufräumen sie gelegentlich vor der Prüfung).
   Lokal: `npx wrangler dev --local --ip 127.0.0.1 --port <p> --persist-to <dir> --show-interactive-dev-session=false`.
   KI im Test: Anbieter `custom`, baseUrl `http://127.0.0.1:<port>/v1` (Mock); LanguageTool per
   `page.route("https://api.languagetool.org/**")`. In der Sandbox: echte KI-Anbieter und LanguageTool nicht

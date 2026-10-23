@@ -953,7 +953,11 @@ async function submitAt(c, ago, stage = "final") {   // Abgabe bzw. Erstversuch,
 }
 const idsOf = (c) => d1.db.prepare("SELECT id FROM submissions WHERE sheet_code=? ORDER BY id").all(c).map((x) => x.id);
 
+// Das gelegentliche Aufräumen (2 % der Anfragen) löschte sonst zurückdatierte Einträge nach der gespeicherten Frist, bevor der Test sie zählt
+const noRandomCleanup = () => { const rnd = Math.random; Math.random = () => 0.5; return () => { Math.random = rnd; }; };
+
 test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht sofort (Batch); öffentlich ohne updatedAt/auto und ohne zusätzliche D1-Abfrage", async () => {
+  const restoreRandom = noRandomCleanup();
   const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
   const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "DS", tasks } })).json.code;
   try {
@@ -1007,10 +1011,12 @@ test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht so
   } finally {
     d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(saved.value);
     await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    restoreRandom();
   }
 });
 
 test("Aufräumen beim Öffnen der Übersicht: abgelaufene Einträge zählen nicht mehr, abgelaufene Zähler und Sperren verschwinden; scheitert das Löschen, lädt die Übersicht trotzdem", async () => {
+  const restoreRandom = noRandomCleanup();
   const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
   const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Übersicht", tasks } })).json.code;
   try {
@@ -1036,6 +1042,7 @@ test("Aufräumen beim Öffnen der Übersicht: abgelaufene Einträge zählen nich
   } finally {
     d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(saved.value);
     await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    restoreRandom();
   }
 });
 

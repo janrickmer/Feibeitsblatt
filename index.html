@@ -516,6 +516,10 @@
   .subhead h3{margin:0}
   .detbox{max-width:100%; contain:inline-size}
   .ddel{margin-top:6px}
+  details.dolder{margin:16px 0 0}
+  details.dolder > .detbox{padding:10px 14px 14px; border-top:1px solid var(--line)}
+  details.dolder > .detbox:first-of-type{border-top:0}
+  table.batch tr.errrow td .btn{font-style:normal; margin-left:6px; vertical-align:baseline}
   .dmeta{font-size:13px; color:var(--muted); margin:0 0 10px}
   .dtask{margin:16px 0 0}
   .dtask:first-of-type{margin-top:4px}
@@ -1478,9 +1482,12 @@ function show(id) {
 
 /* Bestätigungsdialog → Promise<boolean>. Bei endgültigen Schritten (danger, safeFirst) bekommt „Abbrechen“ den Fokus,
    damit ein doppeltes Enter nichts Unumkehrbares bestätigt. Ein Klick auf den Hintergrund gilt wie „Abbrechen“ – außer
-   o.backdrop gibt einen eigenen Wert vor (ltConsent: null = nur geschlossen, keine Antwort). */
+   o.backdrop gibt einen eigenen Wert vor (ltConsent: null = nur geschlossen, keine Antwort).
+   Es gibt nur einen Dialog: Ist schon einer offen (z. B. kommt eine Antwort des Servers an, während „Ohne KI-Feedback abgeben?“
+   offen ist), bekommt der zweite Aufruf sofort null (= keine Antwort) – Text und Antwort des offenen Dialogs bleiben unverändert. */
 let dlgResolve = null, dlgReturn = null, dlgOpenedAt = 0, dlgBackdrop = false;
 function askConfirm(o) {
+  if (dlgResolve) return Promise.resolve(null);
   return new Promise((resolve) => {
     dlgResolve = resolve; dlgReturn = document.activeElement; dlgOpenedAt = Date.now();
     dlgBackdrop = "backdrop" in o ? o.backdrop : false;
@@ -2144,7 +2151,7 @@ function privacyShortText(p, list, withAi) {
     (days ? `Nach ${days} Tagen werden sie automatisch gelöscht. ` : "Deine Lehrkraft löscht sie nach der Durchsicht. ") +
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
       : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „${list[0].label}“` +
-        (list.length > 1 ? " (fällt er aus, an eine Reserve)" : "") + ", bei der Abgabe dann noch einmal in der abgegebenen Fassung. Auch die Rechtschreibprüfung ist freiwillig."
+        (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") + ", bei der Abgabe dann noch einmal in der abgegebenen Fassung. Auch die Rechtschreibprüfung ist freiwillig."
       : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.");
 }
 // Zwischenstand auf dem Gerät: gelöscht wird nur beim nächsten Aufruf der Seite (cleanupDrafts) – nie „höchstens 7 Tage“ zusagen
@@ -3728,7 +3735,8 @@ function renderFeedbackState() {
   $("fin-text").textContent = !aiSheet ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab."
     : "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
   $("submit-hint").textContent = has
-    ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. Nach der Abgabe bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung."
+    ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " +
+      (recipientParts().any ? "Nach der Abgabe bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung." : FB2_NO_AI + ".")
     : noAi ? "Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : !aiSheet ? "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
@@ -3800,6 +3808,8 @@ async function requestFeedback() {
     try { await reloadRecipients(); } catch (e) { err = e; }
     if (S.sheet !== sheet || S.feedback || S.busyFeedback || submitBusy(st, SENDING_FB)) return;
     renderFeedbackState();
+    // Der gesperrte Button hat den Fokus verloren (Chromium: body) – zurückgeben, bevor ein Dialog ihn sich als Rücksprung merkt
+    if (document.activeElement === document.body) { try { btn.focus({ preventScroll: true }); } catch (x) { /* egal */ } }
     if (!(S.sheet.aiRecipients || []).length) {
       if (err) { setStatus(st, errMsg(err, "s"), "bad"); return; }
       S.fbUnavailable = FB_NO_AI; S.fbUnavailableDay = utcToday();
@@ -3808,6 +3818,9 @@ async function requestFeedback() {
       return;
     }
     setStatus(st, "", "");
+    // Während des Nachsehens wurde ein anderer Dialog geöffnet (z. B. „Ohne KI-Feedback abgeben?“, „Zwischenstand löschen?“,
+    // Rechtschreibprüfung): nicht hineinfragen – die Entscheidung dort gilt; das KI-Feedback lässt sich danach neu anfordern
+    if ($("dlg").classList.contains("open")) return;
   }
   const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
@@ -3953,6 +3966,9 @@ function fb2Changes(firsts, finals, feedback) {
   });
 }
 const fb2TooLong = (finals) => finals.reduce((n, a) => n + String(a || "").length, 0) > MAX_ANSWERS_TOTAL;   // wie validateAnswers im Worker
+// Erstes KI-Feedback liegt vor (Zwischenstand), aber die Seite kennt jetzt keinen Empfänger (KI entfernt oder nicht nutzbar):
+// keine zweite Rückmeldung – die abgegebenen Antworten gehen dann gar nicht erst an den Server (Abgabe-Dialog, Hinweis, Bestätigung)
+const FB2_NO_AI = "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht – ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet";
 function resetFinalFeedback() {
   $("done-fb").classList.add("hidden"); $("done-fb-list").textContent = "";
   setStatus($("done-fb-status"), "", ""); $("done-fb-retry").classList.add("hidden");
@@ -4035,6 +4051,12 @@ async function requestFinalFeedback() {
     finalFeedbackGone(sub);
     return;
   }
+  if (!sub.recipients.length) {   // wie im Abgabe-Dialog angekündigt: ohne Empfänger nichts senden (auch nicht an den Server)
+    sub.fb2State = "failed";
+    setStatus(st, FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen.", "");
+    finalFeedbackGone(sub);
+    return;
+  }
   const run = ++S.fbRun, t0 = Date.now();
   sub.fb2State = "loading";
   for (let tries = 1; ; tries++) {
@@ -4104,7 +4126,8 @@ function noAiState(wasBusy) {
   return { mode: reason ? "unavailable" : "declined", reason, tried };
 }
 const emptyNums = (answers) => { const out = []; answers.forEach((a, i) => { if (!String(a || "").trim()) out.push(i + 1); }); return out; };
-function submitDialog(withFb, finals) {
+// na: Einstufung ohne KI-Feedback zum Zeitpunkt des Dialogs (noAiState) – submitAll hält sich danach an das, was hier steht
+function submitDialog(withFb, finals, na) {
   const empty = emptyNums(finals);   // ganz leere Blätter lässt submitAll gar nicht erst abgeben
   const emptyLine = empty.length ? `Achtung: ${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n` : "";
   const lock = "Nach der Abgabe kannst du deine Antworten nicht mehr ändern.";
@@ -4114,9 +4137,9 @@ function submitDialog(withFb, finals) {
       text: emptyLine + lock + " Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" +
         (unchanged ? "An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet; die Rückmeldung bleibt dieselbe."
           : tooLong ? "Deine Antworten sind zusammen zu lang für eine zweite KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet."
+          : !recipientParts().any ? FB2_NO_AI + "; an die KI wird nichts gesendet."   // z. B. weitergeschrieben, nachdem die KI entfernt wurde
           : "Danach bekommst du eine KI-Rückmeldung zu deiner abgegebenen Fassung. " + recipientSentence()) };
   }
-  const na = noAiState(false);
   if (na.mode === "none") return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiterschreiben", safeFirst: true,
     text: emptyLine + lock + " Deine Antworten gehen verschlüsselt an deine Lehrkraft; nur sie kann sie lesen." };
   const base = { title: "Ohne KI-Feedback abgeben?", ok: "Ohne KI-Feedback abgeben", cancel: "Weiterschreiben", safeFirst: true };
@@ -4139,8 +4162,8 @@ async function submitAll() {
   setStatus(st, "", "");
   const finals = S.tas.map((t) => t.value);
   if (emptyNums(finals).length === finals.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
-  const withFb = !!S.feedback, wasBusy = S.busyFeedback;
-  const ok = await askConfirm(submitDialog(withFb, finals));
+  const withFb = !!S.feedback, wasBusy = S.busyFeedback, said = withFb ? null : noAiState(false);
+  const ok = await askConfirm(submitDialog(withFb, finals, said));
   if (S.submitted) return;
   if (!!S.feedback !== withFb) {   // während der Dialog offen war, ist das angeforderte KI-Feedback angekommen: erst zeigen, nichts abgeben
     if (ok) setStatus(st, "Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.", "");
@@ -4152,8 +4175,11 @@ async function submitAll() {
   }
   if (!ok) return;
   S.submitting = true; $("fb-btn").disabled = true;   // bis zum Ende des Sendens (finally): kein KI-Feedback, kein „Abbrechen“
-  // Erst nach dem Dialog einstufen: eine laufende Anfrage kann inzwischen gescheitert sein (dann gilt ihr Grund)
-  const na = withFb ? null : noAiState(wasBusy);
+  // Erst nach dem Dialog einstufen: eine laufende Anfrage kann inzwischen gescheitert sein (dann gilt ihr Grund). Hat der Dialog
+  // aber „nicht möglich (Grund)“ gesagt, bleibt es dabei – auch wenn ein Nachsehen (requestFeedback) während des offenen Dialogs
+  // die inzwischen eingerichtete KI gefunden hat: Die Lehrkraft sieht, was der Dialog angekündigt hat.
+  let na = withFb ? null : noAiState(wasBusy);
+  if (na && na.mode === "declined" && said.mode === "unavailable") na = said;
   const stopped = S.busyFeedback;   // eine noch laufende oder wartende Feedback-Anfrage wird mit der Abgabe hinfällig
   stopFeedbackRun();
   if (stopped) { S.fbFails++; S.fbPending = false; }   // zählt wie „Nicht länger warten“: scheitert die Abgabe, gilt ein neuer Anlauf nie als „declined“
@@ -4188,7 +4214,7 @@ async function submitAll() {
       recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false };
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
-    closeDlg(false);   // ein während des Sendens geöffneter Dialog (z. B. Rechtschreibprüfung) bleibt nicht über der Bestätigung stehen
+    closeDlg(null);   // ein während des Sendens geöffneter Dialog (z. B. Rechtschreibprüfung) bleibt nicht über der Bestätigung stehen – ohne Antwort (null, nicht „Trifft nicht zu“)
     clearEditor();
     show("screen-done");
     focusSoon("done-btn", 30);
@@ -4528,12 +4554,14 @@ async function loadSubs() {
       } catch (e) { p = null; }
       out.push({ id: s.id, receivedAt: s.receivedAt, stage: s.stage === "first" ? "first" : "final", p });
     }
-    // Erstversuche von Schüler:innen, die (z. B. von einem anderen Gerät aus) inzwischen abgegeben haben, sind überholt: ausgeblendet,
-    // aber mit id und Person gemerkt (Lösch-Dialoge zählen sie mit, „Diesen Eintrag löschen“ löscht sie mit)
+    // Erstversuche von Schüler:innen, die (z. B. von einem anderen Gerät aus) inzwischen abgegeben haben, sind überholt: in der Liste
+    // ausgeblendet, aber samt Inhalt gemerkt – die Details der Abgabe zeigen sie auf Wunsch (Auskunft), Lösch-Dialoge zählen sie mit,
+    // „Diesen Eintrag löschen“ löscht sie mit
     const finals = new Set(out.filter((x) => x.stage === "final" && x.p).map(subWho));
     const shown = [], hidden = [];
     out.forEach((x) => (x.stage === "first" && x.p && finals.has(subWho(x)) ? hidden : shown).push(x));
-    T.subsHidden = hidden.map((x) => ({ id: x.id, who: subWho(x) }));
+    hidden.sort((a, b) => (a.receivedAt || 0) - (b.receivedAt || 0));
+    T.subsHidden = hidden.map((x) => ({ id: x.id, who: subWho(x), s: x }));
     const key = (x) => x.p ? [String(x.p.person.klasse || ""), String(x.p.person.nachname || ""), String(x.p.person.vorname || "")] : ["￿", "", ""];
     const coll = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
     shown.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
@@ -4562,8 +4590,11 @@ function renderSubs() {
   if (!n) { tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: "Zu diesem Feibeitsblatt ist noch nichts abgegeben worden." })])); return; }
   T.subs.forEach((s, idx) => {
     const isFirst = s.stage === "first";
-    if (!s.p) {
-      tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: `${isFirst ? "Erstversuch" : "Abgabe"} vom ${fmtDT(s.receivedAt)} konnte nicht entschlüsselt werden (beschädigt oder mit einem anderen Schlüssel verschlüsselt).` })]));
+    if (!s.p) {   // nicht lesbar: nur ein Hinweis – löschen lässt er sich trotzdem (z. B. auf Wunsch oder als Datenmüll)
+      const del = h("button", { type: "button", class: "btn danger small", text: "Eintrag löschen" });
+      del.addEventListener("click", () => deleteEntry(s, del));
+      tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5" }, [
+        h("span", { text: `${isFirst ? "Erstversuch" : "Abgabe"} vom ${fmtDT(s.receivedAt)} konnte nicht entschlüsselt werden (beschädigt oder mit einem anderen Schlüssel verschlüsselt).` }), " ", del])]));
       return;
     }
     const pr = s.p.person, cls = isFirst ? "st-first" : "st-final";
@@ -4595,17 +4626,20 @@ function noAiNote(p) {
   if (p.noAi === "declined") return "Ohne KI-Feedback abgegeben.";
   return "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich" + (p.feedbackError ? " (" + p.feedbackError + ")" : "") + ".";
 }
-function buildDetail(s) {
+// older: ein in der Liste ausgeblendeter älterer Erstversuch derselben Person (in den Details ihrer Abgabe, ohne eigenen Löschknopf)
+function buildDetail(s, older) {
   const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [], isFirst = s.stage === "first";
-  const box = h("div", { class: "detbox" });
+  const box = h("div", { class: "detbox" + (older ? " older" : "") });
   const noFb = !isFirst && !Array.isArray(p.feedback);   // eine Fassung: die abgegebene
-  const meta = [isFirst ? "Erstversuch ohne Überarbeitung – noch nicht abgegeben" : `Abgegeben am ${fmtDT(s.receivedAt)}`];
+  const meta = [older ? `Älterer Erstversuch vom ${fmtDT(s.receivedAt)} (ohne Überarbeitung)` : isFirst ? "Erstversuch ohne Überarbeitung – noch nicht abgegeben" : `Abgegeben am ${fmtDT(s.receivedAt)}`];
   if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
   else if (noFb) meta.push("ohne KI-Feedback");
   const keep = retentionDaysT(), got = toDate(s.receivedAt);   // Löschfrist gilt ab dem Eingang (ein Erstversuch: ab seinem Eingang)
   if (keep && got) meta.push("automatische Löschung ab dem " + fmtD(got.getTime() + keep * 864e5));   // gelöscht im nächsten nächtlichen Lauf oder beim Öffnen der Übersicht
   box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
-  if (isFirst) {
+  if (older) {
+    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Eine frühere Bearbeitung derselben Person (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Person inzwischen abgegeben hat." }));
+  } else if (isFirst) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: "Diese Schülerin oder dieser Schüler hat das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
   } else if (noFb && noAiNote(p)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: noAiNote(p) }));
@@ -4646,39 +4680,64 @@ function buildDetail(s) {
       f ? fbEl : null
     ]));
   }
+  // Ausgeblendete ältere Erstversuche derselben Person (Auskunft nach Art. 15 DSGVO: alles, was zu ihr gespeichert ist) – erst beim
+  // Aufklappen gebaut; „Diesen Eintrag löschen“ löscht sie mit
+  const olderOnes = older ? [] : T.subsHidden.filter((x) => x.s && x.who === subWho(s));
+  if (olderOnes.length) {
+    const d = h("details", { class: "tasksdet dolder" }, [h("summary", { text: (olderOnes.length === 1 ? "1 älterer Erstversuch" : olderOnes.length + " ältere Erstversuche") + " dieser Person (in der Liste ausgeblendet)" })]);
+    d.addEventListener("toggle", () => { if (d.open && d.children.length === 1) olderOnes.forEach((x) => d.appendChild(buildDetail(x.s, true))); });
+    box.appendChild(d);
+  }
+  if (older) return box;
   // Lösch- oder Einschränkungswunsch einer Person (Art. 17/18 DSGVO): nur dieser Eintrag – samt ausgeblendeter Erstversuche derselben Person
   const del = h("button", { type: "button", class: "btn danger small", text: "Diesen Eintrag löschen" });
   del.addEventListener("click", () => deleteEntry(s, del));
   box.appendChild(h("div", { class: "ddel" }, [del]));
   return box;
 }
+const DELETE_IDS_MAX = 50;   // Einträge je Löschauftrag (= LIMITS.deleteIds im Worker) – mehr gehen in mehreren Aufrufen
 async function deleteEntry(s, btn) {
-  const code = T.sel, pr = s.p.person, who = subWho(s), isFirst = s.stage === "first";
-  const hidden = T.subsHidden.filter((x) => x.who === who), ids = [s.id].concat(hidden.map((x) => x.id));
+  const code = T.sel, isFirst = s.stage === "first", pr = s.p && s.p.person, when = fmtDT(s.receivedAt);
+  // die ausgeblendeten zuerst, der Eintrag selbst zuletzt: scheitert ein Teil, bleibt der Rest unter derselben Abgabe und lässt sich
+  // mit einem weiteren Klick löschen
+  const hidden = s.p ? T.subsHidden.filter((x) => x.who === subWho(s)) : [], ids = hidden.map((x) => x.id).concat([s.id]);
   const ok = await askConfirm({ title: "Diesen Eintrag löschen?",
-    text: `${isFirst ? "Der Erstversuch" : "Die Abgabe"} von ${pr.nachname} · ${pr.vorname} (Geburtstag ${fmtBday(pr.geburtsdatum)}, Klasse ${pr.klasse}) vom ${fmtDT(s.receivedAt)} wird endgültig aus der Datenbank gelöscht` +
+    text: (pr ? `${isFirst ? "Der Erstversuch" : "Die Abgabe"} von ${pr.nachname} · ${pr.vorname} (Geburtstag ${fmtBday(pr.geburtsdatum)}, Klasse ${pr.klasse}) vom ${when}`
+      : isFirst ? `Der Erstversuch vom ${when}, der sich nicht entschlüsseln lässt,` : `Die Abgabe vom ${when}, die sich nicht entschlüsseln lässt,`) +
+      " wird endgültig aus der Datenbank gelöscht" +
       (hidden.length ? ` – mitsamt ${hidden.length === 1 ? "einem älteren, ausgeblendeten Erstversuch" : hidden.length + " älteren, ausgeblendeten Erstversuchen"} derselben Person` : "") +
       ". Alle anderen Einträge bleiben. Das lässt sich nicht rückgängig machen.",
     ok: "Eintrag löschen", cancel: "Abbrechen", danger: true });
   if (!ok || T.sel !== code) return;
   const st = $("t-subs-status"), at = T.subs.indexOf(s);
   busy(btn, true, "Wird gelöscht …");
-  try {
-    const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code) + "/submissions", { method: "DELETE", body: { ids } });
+  let k = 0, failed = null;
+  // in Blöcken (der Server nimmt höchstens DELETE_IDS_MAX je Aufruf)
+  for (let i = 0; i < ids.length && !failed; i += DELETE_IDS_MAX) {
+    const part = ids.slice(i, i + DELETE_IDS_MAX);
+    try {
+      const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code) + "/submissions", { method: "DELETE", body: { ids: part } });
+      k += Number.isInteger(r.deleted) ? r.deleted : part.length;
+    } catch (e) {
+      if (handleAuthError(e)) return;
+      failed = e;
+    }
     if (T.sel !== code) return;
-    await loadSheets(true);   // Zähler in der Liste der Feibeitsblätter
-    if (T.sel !== code) return;
-    renderSheets();
-    await loadSubs();
-    const k = Number.isInteger(r.deleted) ? r.deleted : ids.length, err = st.textContent;   // err: die Liste ließ sich nicht neu laden
-    setStatus(st, `${k === 1 ? "1 Eintrag" : k + " Einträge"} gelöscht.` + (err ? " " + err : ""), err ? "bad" : "ok");
-    const rows = document.querySelectorAll("#t-subs-body tr.main");
-    try { (rows[Math.min(at, rows.length - 1)] || $("t-refresh")).focus(); } catch (e) { /* egal */ }
-  } catch (e) {
-    if (handleAuthError(e)) return;
-    busy(btn, false);
-    setStatus(st, "Nicht gelöscht – " + errMsg(e, "t"), "bad");
   }
+  if (failed && !k) {
+    busy(btn, false);
+    setStatus(st, "Nicht gelöscht – " + errMsg(failed, "t"), "bad");
+    return;
+  }
+  await loadSheets(true);   // Zähler in der Liste der Feibeitsblätter
+  if (T.sel !== code) return;
+  renderSheets();
+  await loadSubs();
+  const err = st.textContent;   // err: die Liste ließ sich nicht neu laden
+  const msg = `${k === 1 ? "1 Eintrag" : k + " Einträge"} gelöscht.` + (failed ? " Nicht alle – " + errMsg(failed, "t") + " Bitte klicken Sie bei dieser Person noch einmal auf „Diesen Eintrag löschen“." : "") + (err ? " " + err : "");
+  setStatus(st, msg, failed || err ? "bad" : "ok");
+  const rows = document.querySelectorAll("#t-subs-body tr.main");
+  try { (rows[Math.min(at, rows.length - 1)] || $("t-refresh")).focus(); } catch (e) { /* egal */ }
 }
 $("t-expand-all").addEventListener("click", () => {
   const rows = Array.from(document.querySelectorAll("#t-subs-body tr.main"));
