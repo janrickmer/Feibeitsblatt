@@ -697,6 +697,9 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await closePage(t);
 });
 
+// Am Worker (Tests: 127.0.0.1) ist die Checklisten-Seite hinter dem QR-Code eine andere Adresse (PUBLIC_URL, GitHub Pages)
+const CHECK_GITHUB = "Nur wenn du eine Checkliste über den QR-Code öffnest: GitHub, Inc. (USA) liefert die Checklisten-Seite (feibeitsblatt.janrickmer.de) aus (GitHub Pages) " +
+  "und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.";
 test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitHub Pages) → Lehrkraft trägt Schule, Rechtsgrundlage (Vorschlag Hessen) und Löschfrist ein; Vorschau wie bei den Schüler:innen", async ({ browser }) => {
   // Schüler:in: Startseite und Angaben-Bildschirm (Zeitpunkt der Erhebung) – noch ohne Schulangaben, Frist 30 Tage (Vorgabe)
   const s = await openPage(browser);
@@ -723,11 +726,14 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   await expect(full).toContainText("Learneo ist nach dem EU-US Data Privacy Framework zertifiziert");
   await expect(full).toContainText("in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang.");
   // die Checklisten-Seite hinter dem QR-Code eines ausgedruckten Arbeitsblattes verweist hierher: Zweck und Speicherdauer der Häkchen
-  await expect(full).toContainText("Bekommst du ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste deiner Lehrkraft führen: Dort hakst du ab, was deine Antwort schon erfüllt. Dafür lädt diese Seite nur die Checkliste vom Server – ohne Angaben zu dir; die Internetadresse deines Geräts wird dabei wie beim Laden der Seite verarbeitet. Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet.");
-  await expect(full).toContainText("Die Häkchen einer solchen Checkliste löscht diese Seite beim nächsten Aufruf in diesem Browser, wenn du sie 7 Tage nicht geändert hast; früher geht es mit „Alle Häkchen entfernen“.");
+  // Diese Seite kommt hier vom Worker, der QR-Code führt aber auf GitHub Pages (PUBLIC_URL): dort liegt die Checklisten-Seite
+  await expect(full).toContainText("Bekommst du ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste deiner Lehrkraft führen: Dort hakst du ab, was deine Antwort schon erfüllt. Dafür lädt die Checklisten-Seite (feibeitsblatt.janrickmer.de) nur die Checkliste vom Server – ohne Angaben zu dir; die Internetadresse deines Geräts wird dabei wie beim Laden der Seite verarbeitet. Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet.");
+  await expect(full).toContainText("Die Häkchen einer solchen Checkliste löscht die Checklisten-Seite (feibeitsblatt.janrickmer.de) beim nächsten Aufruf in diesem Browser, wenn du sie 7 Tage nicht geändert hast; früher geht es mit „Alle Häkchen entfernen“.");
   await expect(full).toContainText("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren.");
   await expect(full.locator("a")).toHaveCount(0);   // ohne Angabe kein Link
-  await expect(full).not.toContainText("GitHub");   // die Seite kommt hier vom Worker
+  // die Seite kommt hier vom Worker: GitHub nur für die Checklisten-Seite hinter dem QR-Code
+  await expect(full.locator("li", { hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
+  await expect(full).not.toContainText("liefert diese Seite aus");
   for (const w of ["sieht deine Angaben und Antworten nur verschlüsselt", "erst bei der Abgabe verschlüsselt an die Lehrkraft"]) await expect(sp.locator("#screen-person")).not.toContainText(w);
   await closePage(s);
 
@@ -741,6 +747,7 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   await expect(gp.locator("#screen-person")).toHaveClass(/active/);
   await gp.locator("#p-privfull summary").click();
   await expect(gp.locator("#p-privfull li", { hasText: "GitHub" })).toHaveText("GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.");
+  await expect(gp.locator("#p-privfull")).toContainText("Dafür lädt diese Seite nur die Checkliste vom Server");   // hier ist es dieselbe Seite
   await gctx.close();
 
   // Lehrkraft: Warnung in der Übersicht → „Datenschutz und Löschfrist“
@@ -759,10 +766,11 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   expect(await pv.locator("details.privfull").evaluate((e) => e.open)).toBe(true);   // Vorschau aufgeklappt
   await expect(pv.locator("h3.privh")).toHaveText(PRIV_HEADS);
   await expect(pv).toContainText("Verantwortlich ist deine Schule.");
-  // die Vorschau gilt für diese Adresse (Worker): GitHub nur als Zusatz darunter, weil die Zwischenstand-PDF auf GitHub Pages führt
-  await expect(pv.locator("details.privfull")).not.toContainText("GitHub");
-  await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF), " +
-    "nennt der Hinweis bei den Empfängern zusätzlich: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
+  // die Vorschau gilt für diese Adresse (Worker): GitHub nur für die Checklisten-Seite, für die ganze Seite als Zusatz darunter
+  // (Zwischenstand-PDF und QR-Code führen auf GitHub Pages)
+  await expect(pv.locator("details.privfull li", { hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
+  await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), " +
+    "nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
     "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback.");
   await page.fill("#pv-name", SCHOOL.name);
   await page.fill("#pv-addr", SCHOOL.address);
@@ -3994,6 +4002,56 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   const HEAD = ["Land", "Hauptstadt", "Besonderheit", "Einwohnerzahl", "(geschätzt,", "2024)", "Fläche", "Sprache", "Währung", "Donaudampfs-", "chifffahrtskapi-", "tän"];
   expect(headCells.map((p) => p.t).slice(0, HEAD.length)).toEqual(HEAD);   // (der Kopf wiederholt sich auf einer neuen Seite)
   expect(headCells.length % HEAD.length).toBe(0);
+
+  // Frische Seite (Bilder nicht im Zwischenspeicher): Scheitert das Speichern, während „Zurück zur Übersicht?“ offen ist, fragt die
+  // Bestätigung neu – jetzt gingen ungespeicherte Änderungen verloren; während das PDF entsteht, sind die Felder gesperrt
+  const t2 = await openPage(browser);
+  const tp2 = t2.page;
+  await teacherLogin(tp2, PW);
+  await tp2.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await tp2.click("#t-analog");
+  await expect(tp2.locator("#ck-1")).toHaveValue("Während des Speicherns zurück");
+  await tp2.fill("#ck-1", "Gleich scheitert das Speichern");
+  let failPut;
+  const putFails = new Promise((r) => { failPut = r; });
+  await tp2.route(ckRoute, async (route) => { if (route.request().method() !== "PUT") return route.continue(); await putFails; return route.abort("failed"); });
+  await tp2.click("#ck-save");
+  await expect(tp2.locator("#ck-status")).toHaveText("Die Checkliste wird gespeichert …");
+  await tp2.click("#ck-back");
+  await expect(tp2.locator("#dlg-title")).toHaveText("Zurück zur Übersicht?");
+  failPut();
+  await expect(tp2.locator("#ck-status")).toHaveText(/^Nicht gespeichert – /);
+  await tp2.click("#dlg-ok");   // die Rückfrage versprach, dass weiter gespeichert wird – das stimmt nicht mehr
+  expect(await confirmDialog(tp2, "Ohne Speichern zurück?", false)).toBe("Ihre Änderungen an der Checkliste gehen verloren.");
+  await expect(tp2.locator("#tv-analog")).toBeVisible();
+  await expect(tp2.locator("#ck-1")).toHaveValue("Gleich scheitert das Speichern");
+  await expect(tp2.locator("#ck-1")).toHaveJSProperty("readOnly", false);
+  await tp2.unroute(ckRoute);
+  // Das PDF anhalten: die Kompression seiner Inhalte wartet (die Bilder liegen schon im Speicher der Seite)
+  await tp2.evaluate(() => {
+    const Orig = window.CompressionStream;
+    let go;
+    const gate = new Promise((r) => { go = r; });
+    window.__pdfGo = go; window.__pdfWaits = 0;
+    window.CompressionStream = class {
+      constructor(f) {
+        window.__pdfWaits++;
+        const c = new Orig(f);
+        this.writable = c.writable;
+        this.readable = c.readable.pipeThrough(new TransformStream({ async transform(ch, ctl) { await gate; ctl.enqueue(ch); } }));
+      }
+    };
+  });
+  const dl4 = tp2.waitForEvent("download");
+  await tp2.click("#ck-save");
+  await expect.poll(() => tp2.evaluate(() => window.__pdfWaits)).toBeGreaterThan(0);   // gespeichert, das PDF entsteht
+  await expect(tp2.locator("#ck-status")).toHaveText(/^Gespeichert\. /);
+  await expect(tp2.locator("#ck-1")).toHaveJSProperty("readOnly", true);
+  await tp2.evaluate(() => window.__pdfGo());
+  await dl4;
+  await expect(tp2.locator("#ck-1")).toHaveJSProperty("readOnly", false);
+  expect((await (await request.get(`/api/sheet/${code}/checklist`)).json()).tasks[0].points).toEqual(["Gleich scheitert das Speichern"]);
+  await closePage(t2);
 
   // aufräumen: Blatt löschen – die Checkliste verschwindet mit
   await tp.click("#ck-back");

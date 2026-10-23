@@ -349,7 +349,8 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    die den Link kennt – schreiben Sie nichts Geheimes hinein und keine fertige Lösung, die die Schüler:innen nicht sehen
    sollen. „Checkliste ansehen“ öffnet genau die Adresse des QR-Codes und zeigt die Checkliste so, wie die Schüler:innen
    sie sehen. Gehen Sie zurück, während noch gespeichert wird, läuft das Speichern weiter – nur das PDF wird dann nicht
-   heruntergeladen (die Seite sagt das vorher). Ohne Checklistenpunkte enthält das PDF keinen QR-Code (die Seite fragt
+   heruntergeladen (die Seite sagt das vorher; scheitert das Speichern, während die Frage offen ist, fragt sie neu, ob Sie
+   die Änderungen verwerfen wollen). Während das PDF entsteht, lassen sich die Punkte nicht ändern. Ohne Checklistenpunkte enthält das PDF keinen QR-Code (die Seite fragt
    vorher nach). Die Sicherung („Als PDF-Datei herunterladen“) und „Als Vorlage verwenden“ tragen die Checkliste nicht
    mit: Ein neues Blatt bekommt beim ersten Öffnen einen neuen Vorschlag.
 8. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
@@ -534,8 +535,9 @@ und der bzw. dem Datenschutzbeauftragten ab.
 5. Unten zeigt eine **Vorschau** den Hinweis für ein Feibeitsblatt mit KI-Feedback, so wie er unter der Adresse
    erscheint, unter der Sie die Seite geöffnet haben (mit den KI-Empfängern aus den KI-Einstellungen). Darunter steht,
    was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
-   Zwischenstand-PDF), nennt der Hinweis zusätzlich GitHub als Empfänger; bei Blättern ohne Auftrag an die KI entfallen
-   die Angaben zum KI-Feedback. „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
+   Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub als Empfänger für die ganze
+   Seite (unter der Worker-Adresse nur für die Checklisten-Seite hinter dem QR-Code); bei Blättern ohne Auftrag an die KI
+   entfallen die Angaben zum KI-Feedback. „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
 
 Gelöscht wird einmal täglich in der Nacht (02:17 Uhr UTC, Cron Trigger) und zusätzlich, wenn Sie die Übersicht öffnen
 (dabei räumt der Server auch abgelaufene Zähler und Sperren ab).
@@ -1128,7 +1130,8 @@ Datenbank; Schüler:innen und Lehrkraft können jede davon verwenden.
 (derzeit `https://feibeitsblatt.janrickmer.de/`). Der Hinweis und der **QR-Code des analogen Arbeitsblattes** (Schritt 7)
 führen immer dorthin, ebenso der Link in der Zwischenstand-PDF der Schüler:innen – Schüler:innen, die die Checkliste über
 den QR-Code öffnen, laden die Seite also über GitHub Pages (GitHub verarbeitet dabei die IP-Adresse; der Hinweis auf der
-Checklisten-Seite nennt das). Nutzen Sie GitHub Pages nicht (oder unter einer anderen Adresse), tragen Sie dort Ihre
+Checklisten-Seite nennt das, und der vollständige Datenschutzhinweis nennt GitHub auch unter der Worker-Adresse – dort nur
+für die Checklisten-Seite). Nutzen Sie GitHub Pages nicht (oder unter einer anderen Adresse), tragen Sie dort Ihre
 Adresse ein, z. B. die Worker-Adresse – sonst führen QR-Code und Hinweis ins Leere bzw. zu einer fremden Installation.
 „Checkliste ansehen“ öffnet genau diese Adresse; so sehen Sie vor dem Ausdrucken, ob der QR-Code funktioniert.
 

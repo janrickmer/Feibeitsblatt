@@ -280,7 +280,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `#p-privfull` mit `#p-privacy-short` in `renderPersonPrivacy`, Editor `h3` in `#privfull-ed` aus `renderPrivacy` –
   beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`: für ein Blatt mit
   KI-Feedback unter der Adresse der Lehrkraft, darunter `#pv-preview-note` – ist `!PAGES_HOST` und `PUBLIC_HOST` (aus
-  `PUBLIC_URL`) eine andere Adresse, kommt GitHub dazu (Wortlaut `GITHUB_ITEM` wie im Hinweis), und bei Blättern ohne
+  `PUBLIC_URL`) eine andere Adresse (`CHECK_HOST`), nennt der Hinweis über GitHub Pages GitHub für die ganze Seite (Wortlaut
+  `GITHUB_ITEM` wie im Hinweis) statt nur für die Checklisten-Seite, und bei Blättern ohne
   Auftrag an die KI entfallen die Angaben zum KI-Feedback); ohne Angaben ein
   ehrlicher allgemeiner Text („deine Schule … frag deine Lehrkraft“). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
   Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
@@ -544,9 +545,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   verschlüsselten Umschlag).
 - **Analoges Arbeitsblatt + Checkliste (QR-Code):** Lehrkraft: `#t-analog` „Analoges Arbeitsblatt als PDF herunterladen“ im
   ausgewählten Blatt → `openAnalog` → `#tv-analog` (Abbruchzähler `T.analogRun` wie `T.importRun`/`T.exportRun`: steigt in
-  `teacherView` beim Verlassen und bei `logout`, `analogStillWanted`; `ckLeaveQuestion(logout)` für `#ck-back` und Abmelden: während
-  des PUT (`CK.saving` "put") „… Das Speichern läuft weiter … – das PDF wird dann aber nicht heruntergeladen.“, während das PDF
-  entsteht ("pdf") ebenso, sonst bei `ckDirty` „Ohne Speichern zurück?“; `ckUnsaved` → beforeunload). D1 `sheet_checklists` = JSON
+  `teacherView` beim Verlassen und bei `logout`, `analogStillWanted`; `ckLeaveQuestion()` nur für `#ck-back` – abmelden lässt sich
+  nur aus der Übersicht: während des PUT (`CK.saving` "put") „… Das Speichern läuft weiter … – das PDF wird dann aber nicht
+  heruntergeladen.“, während das PDF entsteht ("pdf") ebenso (kind "busy"), sonst bei `ckDirty` „Ohne Speichern zurück?“ ("dirty");
+  nach der Antwort wird neu bewertet – hat sich die Art geändert (Speichern inzwischen gescheitert), wird noch einmal gefragt;
+  solange die Frage offen ist (`CK.leaving`), wartet `ckSave` mit dem Download; `ckUnsaved` → beforeunload). D1 `sheet_checklists` = JSON
   `{v:1, ai, tasks:[{n, points}]}` in `draft` (Vorschlag der KI, nie öffentlich) und `final`, gelöscht mit dem Blatt. Routen: `GET
   …/sheets/:code/checklist` → `{checklist:{draft, final, updatedAt}|null, aiFeedback, aiReady}`; `POST {force?}`: schon Entwurf oder
   final und kein force → keine KI (`generated:false`), keine Aufgabe mit Auftrag → leerer Entwurf `ai:false` + `noAi`, sonst `askAI`
@@ -556,13 +559,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   sonst 400 „Aufgabe n: …“) → final, draft NULL; öffentlich nur final mit Titel und reinem Aufgabentext (ohne final 404
   `no_checklist`, zählt nicht als `lookup_miss`; `no-store`). ai.js: `CHECKLIST_SYSTEM` (Du-Form, 1–6 prüfbare Punkte – nur so viele,
   wie Aufgabe und Auftrag hergeben, nie einen erfinden –, höchstens 8, Inhalte aus dem Auftrag erlaubt, außer der Auftrag verlangt,
-  die Lösung nicht zu verraten: dann allgemein, „Du nennst drei Ursachen.“), `buildChecklistMessages` (nur Aufgaben mit Auftrag:
+  die Lösung nicht zu verraten: dann allgemein, „Du nennst drei Ursachen.“ – die Schutzregel für Daten zwischen `<<<`/`>>>` nimmt genau
+  diese Angabe des Auftrags ausdrücklich aus), `buildChecklistMessages` (nur Aufgaben mit Auftrag:
   Aufgabenstellung, `materialText`, Tabellenspalten, Auftrag – nie Antworten), `normalizeChecklist`, `checklistAcceptor`; Mock:
   System-Prompt mit „Checkliste“ → je Zeile des Auftrags „Du beachtest: …“ (`expectedChecklist`). Browser: ohne Entwurf und final
   sofort `POST` („Die KI schlägt eine Checkliste vor …“, ohne Auftrag „Die Checkliste wird angelegt …“; bei `aiFeedback && !aiReady`
   kein `POST`, leerer Editor), Entwurf → `#ck-state` „Vorschlag der KI – noch nicht gespeichert“; je Aufgabe `#ck-n` (Label „Punkte
   der Checkliste zu Aufgabe n – …“, eine Zeile = ein Punkt, `ckParse` mit den Regeln des Servers, `aria-invalid`), `#ck-save` (PUT –
-  währenddessen Felder readOnly (`ckFields`), danach baut sich der Editor aus dem Gespeicherten neu –, dann PDF; ohne Punkte Rückfrage
+  währenddessen Felder readOnly (`ckFields`), danach baut sich der Editor aus dem Gespeicherten neu, gesperrt bis das PDF fertig ist
+  (frei im `finally` desselben `CK.run`) –, dann PDF; ohne Punkte Rückfrage
   „Ohne QR-Code herunterladen?“; das `finally` des Klicks setzt die Knöpfe nur bei unverändertem `CK.run` zurück, `openAnalog` setzt
   `#ck-save` selbst zurück), `#ck-regen` (Rückfrage, `force`; ein Fehlschlag lässt den Editor stehen; `ckSuggest` gibt den Fokus
   danach an `#ck-regen`/`#ck-save` zurück, wenn er durchs Sperren auf `body` fiel; verborgen ohne Auftrag oder ohne nutzbaren
@@ -597,7 +602,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Checkliste offen ist: `CHK.run`/`CHK.code`), `#chk-privacy` (Satz zur IP wie `#start-privacy` und Verweis „Alle Informationen …
   bekommst du, wenn du das Feibeitsblatt mit seinem Code digital öffnest (auf der Startseite „Weiter“).“ – passt in jedem Zustand,
   auch ohne `#chk-open`; die Seite selbst zeigt keinen vollständigen Hinweis, dafür beschreibt `privacyNoticeDom` die
-  Checklisten-Seite: `CHECK_PURPOSE` unter „Wozu …“, `CHECK_STAY` unter „Wie lange …“), „Feibeitsblatt digital öffnen“
+  Checklisten-Seite: `CHECK_PURPOSE` unter „Wozu …“, `CHECK_STAY` unter „Wie lange …“; am Worker (`!PAGES_HOST`, `PUBLIC_HOST` ≠
+  `location.host` → `CHECK_HOST`) heißt sie dort „die Checklisten-Seite (Host)“ statt „diese Seite“, und die Empfänger nennen
+  `CHECK_GITHUB_ITEM` (GitHub nur für die Checklisten-Seite; auf GitHub Pages gilt `GITHUB_ITEM` für alles)), „Feibeitsblatt digital öffnen“
   (`leaveChecklist`: Hash weg, Startseite mit Code, Fokus auf „Weiter“), Fehler `no_checklist`, unbekannter Code, Netz („Erneut
   versuchen“). Sicherung und „Als Vorlage“ tragen die Checkliste nicht mit. Tests: Unit lib/ai/worker/qr, Smoke-Schritt „Checkliste“,
   E2E 7k (Vorschlag des Mocks, Ändern/Ergänzen, PDF per zlib: Hinweis, Link als Adresse, Wikipedia-Adresse mit Umlaut lesbar, zwei
