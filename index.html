@@ -6286,6 +6286,171 @@ cleanupDrafts();
 showResume();
 setTimeout(() => { if (screen === "screen-start") $("code-input").focus(); }, 50);
 
+/* ---------- QR-Code (Link zur Checkliste auf dem analogen Arbeitsblatt; nur zur Laufzeit gebraucht) ----------
+ * Eigene Umsetzung nach ISO/IEC 18004, nur was gebraucht wird: Byte-Modus (UTF-8, ohne ECI-Kennung – die Adresse ist reines
+ * ASCII), Fehlerkorrektur M (etwa 15 % der Codewörter wiederherstellbar), kleinste passende Version 1–10 (höchstens 213 Bytes).
+ * qrMatrix(text, forceMask?) → {size, version, mask, dark}: dark[y * size + x] = 1 für ein dunkles Modul (x = Spalte, y = Zeile,
+ * 0/0 oben links), ohne Ruhezone – beim Zeichnen ringsum 4 helle Module frei lassen. Zu langer Text → RangeError. */
+/* QR:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/qr.test.mjs liest diesen Block) */
+const QR_MAX_VERSION = 10;
+// Stufe M je Version (Index = Version): Codewörter insgesamt und [Fehlerkorrektur-Codewörter je Block, Zahl der Blöcke]
+// (ISO/IEC 18004, Tabelle 9); bei ungleicher Teilung haben die letzten Blöcke ein Datencodewort mehr
+const QR_TOTAL = [0, 26, 44, 70, 100, 134, 172, 196, 242, 292, 346];
+const QR_EC_M = [null, [10, 1], [16, 1], [26, 1], [18, 2], [24, 2], [16, 4], [18, 4], [22, 4], [22, 5], [26, 5]];
+// Mittelpunkte der Ausrichtungsmuster (Zeilen wie Spalten; Anhang E), außer dort, wo ein Suchmuster liegt
+const QR_ALIGN = [null, [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]];
+// Masken 0–7 (i = Zeile, j = Spalte): true = Datenmodul umkehren
+const QR_MASKS = [
+  (i, j) => (i + j) % 2 === 0,
+  (i) => i % 2 === 0,
+  (i, j) => j % 3 === 0,
+  (i, j) => (i + j) % 3 === 0,
+  (i, j) => (Math.floor(i / 2) + Math.floor(j / 3)) % 2 === 0,
+  (i, j) => (i * j) % 2 + (i * j) % 3 === 0,
+  (i, j) => ((i * j) % 2 + (i * j) % 3) % 2 === 0,
+  (i, j) => ((i + j) % 2 + (i * j) % 3) % 2 === 0,
+];
+function qrDataCodewords(v) { return QR_TOTAL[v] - QR_EC_M[v][0] * QR_EC_M[v][1]; }
+/* so viele Bytes passen in Version v: davor 4 Bit Modus und die Zeichenzahl (8 Bit bis Version 9, dann 16) */
+function qrCapacity(v) { return Math.floor((qrDataCodewords(v) * 8 - 4 - (v < 10 ? 8 : 16)) / 8); }
+/* Multiplikation in GF(256) mit dem Polynom x^8 + x^4 + x^3 + x^2 + 1 (0x11D) */
+function qrMul(a, b) {
+  let r = 0;
+  for (let i = 7; i >= 0; i--) { r = (r << 1) ^ ((r >>> 7) * 0x11d); if ((b >>> i) & 1) r ^= a; }
+  return r;
+}
+/* n Fehlerkorrektur-Codewörter (Reed-Solomon): Rest von data · x^n geteilt durch den Generator (x − α^0) … (x − α^(n−1)), α = 2 */
+function qrRsEcc(data, n) {
+  const g = new Uint8Array(n);   // Generator ohne die führende 1, höchste Potenz zuerst; anfangs das Polynom 1
+  g[n - 1] = 1;
+  for (let i = 0, root = 1; i < n; i++, root = qrMul(root, 2))
+    for (let j = 0; j < n; j++) g[j] = qrMul(g[j], root) ^ (j + 1 < n ? g[j + 1] : 0);
+  const r = new Uint8Array(n);
+  for (const b of data) {
+    const f = b ^ r[0];
+    r.copyWithin(0, 1); r[n - 1] = 0;
+    for (let j = 0; j < n; j++) r[j] ^= qrMul(g[j], f);
+  }
+  return r;
+}
+/* Format-Info (15 Bit): Stufe M (00) und Maske, BCH(15,5) mit dem Generator 0x537, dann XOR 0x5412 */
+function qrFormatBits(mask) {
+  const d = mask & 7; let r = d << 10;
+  for (let i = 14; i >= 10; i--) if ((r >>> i) & 1) r ^= 0x537 << (i - 10);
+  return ((d << 10) | r) ^ 0x5412;
+}
+/* Versions-Info ab Version 7 (18 Bit): Version (6 Bit), BCH(18,6) mit dem Generator 0x1F25 */
+function qrVersionBits(v) {
+  let r = v << 12;
+  for (let i = 17; i >= 12; i--) if ((r >>> i) & 1) r ^= 0x1f25 << (i - 12);
+  return (v << 12) | r;
+}
+/* beide Stellen [x, y] von Bit i (0 = niederwertigstes) der Format-Info: um das Suchmuster oben links (Spalte 8 von oben, dann
+   Zeile 8 nach links, Taktmuster ausgelassen) und geteilt – Bits 0–7 unter dem oben rechts, Bits 8–14 neben dem unten links */
+function qrFormatCells(size, i) {
+  return [i < 6 ? [8, i] : i < 8 ? [8, i + 1] : i === 8 ? [7, 8] : [14 - i, 8], i < 8 ? [size - 1 - i, 8] : [8, size - 15 + i]];
+}
+/* Funktionsmuster der Version v: dark (1 = dunkel) und fn (1 = kein Datenmodul); die Format-Info wird nur freigehalten */
+function qrBase(v) {
+  const size = 17 + 4 * v, dark = new Uint8Array(size * size), fn = new Uint8Array(size * size);
+  const set = (x, y, d) => { dark[y * size + x] = d ? 1 : 0; fn[y * size + x] = 1; };
+  for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }   // Taktmuster in Zeile und Spalte 6
+  for (const [cx, cy] of [[3, 3], [size - 4, 3], [3, size - 4]])                          // Suchmuster 7 × 7 mit hellem Rand (Separator)
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+      const x = cx + dx, y = cy + dy, d = Math.max(Math.abs(dx), Math.abs(dy));
+      if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4);
+    }
+  const al = QR_ALIGN[v], last = al.length - 1;                                             // Ausrichtungsmuster 5 × 5
+  for (let a = 0; a <= last; a++) for (let b = 0; b <= last; b++) {
+    if ((a === 0 && b === 0) || (a === 0 && b === last) || (a === last && b === 0)) continue;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(al[b] + dx, al[a] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+  }
+  for (let i = 0; i < 15; i++) for (const [x, y] of qrFormatCells(size, i)) set(x, y, 0);
+  set(8, size - 8, 1);                                                                      // dunkles Modul
+  if (v >= 7) {                                                                             // Versions-Info oben rechts und unten links (6 × 3)
+    const bits = qrVersionBits(v);
+    for (let i = 0; i < 18; i++) { const a = size - 11 + i % 3, b = Math.floor(i / 3), d = (bits >>> i) & 1; set(a, b, d); set(b, a, d); }
+  }
+  return { size, dark, fn };
+}
+/* Bytes → Codewörter der Version v in Sendereihenfolge: Modus 0100 (Byte), Zeichenzahl, Daten, Endmarke (bis 4 Nullbits),
+   auffüllen bis zur Bytegrenze, Füllbytes 0xEC/0x11; auf die Blöcke verteilt, je Block die Fehlerkorrektur, dann verschränkt
+   (erst die Datencodewörter aller Blöcke reihum, dann ebenso die Fehlerkorrektur) */
+function qrCodewords(bytes, v) {
+  const [ec, nb] = QR_EC_M[v], total = QR_TOTAL[v], nData = total - ec * nb, data = new Uint8Array(nData);
+  let bit = 0;
+  const put = (val, len) => { for (let i = len - 1; i >= 0; i--, bit++) if ((val >>> i) & 1) data[bit >>> 3] |= 0x80 >>> (bit & 7); };
+  put(4, 4); put(bytes.length, v < 10 ? 8 : 16);
+  for (const b of bytes) put(b, 8);
+  bit += Math.min(4, nData * 8 - bit);
+  for (let k = (bit + 7) >>> 3, p = 0xec; k < nData; k++, p ^= 0xec ^ 0x11) data[k] = p;
+  const short = Math.floor(total / nb) - ec, nShort = nb - total % nb, blocks = [], ecs = [];
+  for (let b = 0, o = 0; b < nb; b++) {
+    const len = short + (b < nShort ? 0 : 1), blk = data.subarray(o, o + len);
+    blocks.push(blk); ecs.push(qrRsEcc(blk, ec)); o += len;
+  }
+  const out = new Uint8Array(total); let n = 0;
+  for (let i = 0; i <= short; i++) for (const blk of blocks) if (i < blk.length) out[n++] = blk[i];
+  for (let i = 0; i < ec; i++) for (const e of ecs) out[n++] = e[i];
+  return out;
+}
+/* Strafpunkte (ISO/IEC 18004, 7.8.3) – kleiner = besser lesbar: N1 je Folge ab 5 gleichen Modulen 3 + (Länge − 5), N2 je 2 × 2
+   gleiche Module 3, N3 je 1:1:3:1:1 (dunkel-hell-dunkel-hell-dunkel) mit 4 hellen Modulen davor oder danach 40 (außerhalb des
+   Symbols = hell, die Ruhezone), N4 je volle 5 % Abweichung vom Anteil 50 % dunkel 10 */
+function qrPenalty(dark, size) {
+  let p = 0, n = 0;
+  for (let t = 0; t < 2; t++) for (let a = 0; a < size; a++) {   // t = 0: Zeile a, t = 1: Spalte a
+    const m = (b) => (b < 0 || b >= size ? 0 : t ? dark[b * size + a] : dark[a * size + b]);
+    for (let b = 1, run = 1; b <= size; b++) {
+      if (b < size && m(b) === m(b - 1)) run++;
+      else { if (run >= 5) p += run - 2; run = 1; }
+    }
+    for (let b = 0; b + 7 <= size; b++)
+      if (m(b) && !m(b + 1) && m(b + 2) && m(b + 3) && m(b + 4) && !m(b + 5) && m(b + 6) &&
+          (!(m(b - 4) | m(b - 3) | m(b - 2) | m(b - 1)) || !(m(b + 7) | m(b + 8) | m(b + 9) | m(b + 10)))) p += 40;
+  }
+  for (let y = 0; y + 1 < size; y++) for (let x = 0; x + 1 < size; x++) {
+    const c = dark[y * size + x];
+    if (c === dark[y * size + x + 1] && c === dark[(y + 1) * size + x] && c === dark[(y + 1) * size + x + 1]) p += 3;
+  }
+  for (let i = 0; i < dark.length; i++) n += dark[i];
+  return p + 10 * Math.floor(Math.abs(20 * n - 10 * dark.length) / dark.length);
+}
+/* Text → QR-Code: Stufe M, kleinste passende Version, die Maske mit den wenigsten Strafpunkten (bei Gleichstand die kleinere
+   Nummer) oder forceMask 0–7 */
+function qrMatrix(text, forceMask) {
+  if (forceMask != null && !(Number.isInteger(forceMask) && forceMask >= 0 && forceMask <= 7)) throw new RangeError("Die QR-Maske muss 0 bis 7 sein.");
+  const bytes = new TextEncoder().encode(String(text == null ? "" : text));
+  let v = 1;
+  while (v <= QR_MAX_VERSION && bytes.length > qrCapacity(v)) v++;
+  if (v > QR_MAX_VERSION) throw new RangeError(`Zu lang für einen QR-Code (${bytes.length} Bytes, höchstens ${qrCapacity(QR_MAX_VERSION)}).`);
+  const { size, dark: base, fn } = qrBase(v), cw = qrCodewords(bytes, v), nBits = cw.length * 8;
+  // Datenbits im Zickzack: Spaltenpaare von rechts nach links, abwechselnd aufwärts und abwärts, die Taktspalte 6 ausgelassen;
+  // frei bleibende Module (Restbits: 7 bei Version 2–6) bleiben 0 und werden mit maskiert
+  let k = 0, up = true;
+  for (let right = size - 1; right >= 1; right -= 2, up = !up) {
+    if (right === 6) right = 5;
+    for (let n = 0; n < size; n++) {
+      const y = up ? size - 1 - n : n;
+      for (let x = right; x >= right - 1; x--) {
+        const idx = y * size + x;
+        if (!fn[idx] && k < nBits) { base[idx] = (cw[k >>> 3] >>> (7 - (k & 7))) & 1; k++; }
+      }
+    }
+  }
+  let best = null;
+  for (let mask = 0; mask < 8; mask++) {
+    if (forceMask != null && mask !== forceMask) continue;
+    const dark = base.slice(), f = QR_MASKS[mask], bits = qrFormatBits(mask);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fn[y * size + x] && f(y, x)) dark[y * size + x] ^= 1;
+    for (let i = 0; i < 15; i++) for (const [x, y] of qrFormatCells(size, i)) dark[y * size + x] = (bits >>> i) & 1;
+    const penalty = forceMask != null ? 0 : qrPenalty(dark, size);
+    if (!best || penalty < best.penalty) best = { mask, dark, penalty };
+  }
+  return { size, version: v, mask: best.mask, dark: best.dark };
+}
+/* QR:END */
+
 /* ---------- Weltkarte (Daten für die Weltkarten-Zuordnung; nur zur Laufzeit gelesen, deshalb hier am Ende) ---------- */
 /* WORLDMAP:BEGIN – erzeugt von scripts/worldmap.mjs, nicht von Hand ändern */
 // Natural Earth 1:110m (gemeinfrei) über world-atlas@2 (ISC); Equal-Earth-Projektion, viewBox 0 0 1000 520; je Eintrag [ISO-Kennung ("" = nicht anklickbar), deutscher Name, SVG-Pfad, Anker x, Anker y]
