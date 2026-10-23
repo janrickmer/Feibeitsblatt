@@ -1546,6 +1546,17 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   expect(await page.locator("#p-members button").evaluateAll((b) => b.map((x) => x.getAttribute("aria-label")))).toEqual(["Person 2 entfernen", "Person 3 entfernen"]);
   await expect(err).toHaveText("");   // die Meldung betraf das entfernte Feld
   await expect(page.locator("#p-members input.invalid")).toHaveCount(0);
+  // betrifft die Meldung ein Feld vor der entfernten Zeile, bleibt sie samt Markierung (die Nummer stimmt weiter)
+  const EMPTY2 = "Bitte tragt für Person 2 die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens ein (z. B. „MaxMu“) – oder entfernt das leere Feld.";
+  await page.fill("#p-m-2", "");
+  await page.click("#p-add");
+  await page.keyboard.type("ali ka");
+  await tryGroup(EMPTY2, "#p-m-2");
+  await page.getByRole("button", { name: "Person 4 entfernen" }).click();
+  await expect(page.locator("#p-members input")).toHaveCount(3);
+  await expect(err).toHaveText(EMPTY2);
+  await expect(page.locator("#p-m-2")).toHaveClass(/invalid/);
+  await page.fill("#p-m-2", "li-mu");
   // höchstens 10 Personen: danach ist „Person hinzufügen“ gesperrt
   for (let n = 4; n <= 10; n++) { await page.click("#p-add"); await expect(page.locator("#p-m-" + n)).toBeFocused(); }
   await expect(page.locator("#p-members input")).toHaveCount(10);
@@ -1599,6 +1610,9 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#privacy")).toContainText("werden deine erste Fassung und das Feedback zusammen mit den Namenskürzeln der Gruppe und der Klasse verschlüsselt");
   await expect(page.locator("#privacy")).toContainText("werden nur deine Antworten – ohne die Namenskürzel der Gruppe und die Klasse – an den Server dieser Seite geschickt");
   await expect(page.locator("#privacy")).not.toContainText("Geburtstag");
+  // auch der ausführliche Hinweis im Schreibbereich („du“-Form) nennt bei der Gruppe keinen Geburtstag beim KI-Dienst
+  await expect(page.locator("#privfull-ed")).toContainText("– ohne die Namenskürzel der Gruppe und die Klasse – und verarbeitet sie");
+  await expect(page.locator("#privfull-ed")).not.toContainText("ohne Namenskürzel, Geburtstag und Klasse");
   for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), G.first[i]);
 
   // Rechtschreibprüfung: die Altersgrenze gilt für alle, die mitschreiben – der Dialog fragt die ganze Gruppe

@@ -2438,7 +2438,7 @@ function privacyNoticeDom(p, list, opts) {
   ai.forEach((x, i) => {
     if (x.id === "cloudflare") return;
     items.push(h("li", { text: (i === 0
-      ? t(`Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ohne Namenskürzel, Geburtstag und Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`,
+      ? t(`Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${o.noBday ? "ohne die Namenskürzel der Gruppe und die Klasse" : "ohne Namenskürzel, Geburtstag und Klasse"} – und verarbeitet sie nach seinen eigenen Bedingungen.`,
         `Nur wenn ihr das KI-Feedback anfordert: der KI-Dienst „${x.label}“. Er bekommt eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft – ohne eure Namenskürzel und die Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`) + B.fb2Send
       : `Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}: der KI-Dienst „${x.label}“ (Reserve). Er bekommt dieselben Daten und verarbeitet sie nach seinen eigenen Bedingungen.`) +
       ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || "von der Schule beim Anbieter zu prüfen"}.` }));
@@ -2552,7 +2552,8 @@ function renderPrivacy() {
   // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm)
   const full = $("privfull-ed");
   full.textContent = "";
-  full.appendChild(privacyNoticeDom(S.sheet.privacy, S.sheet.aiRecipients || [], { h: "h3", withAi, pages: PAGES_HOST, id: "privfull-ed-d" }));
+  // im Schreibbereich bleibt es beim „du“; eine Gruppe hat aber keinen Geburtstag angegeben (noBday, wie noPersonData)
+  full.appendChild(privacyNoticeDom(S.sheet.privacy, S.sheet.aiRecipients || [], { h: "h3", withAi, pages: PAGES_HOST, id: "privfull-ed-d", noBday: isGroup(S.person) }));
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -2762,11 +2763,12 @@ function addMember(focus) {
 function removeMember(row) {
   const rows = Array.from($("p-members").children), i = rows.indexOf(row);
   if (i < 1) return;
+  // Betrifft die Meldung ein Kürzelfeld vor der entfernten Zeile, behalten dessen Nummern ihren Wert (auch „Person a und Person b“:
+  // beide liegen davor) – sie gilt weiter. Sonst haben sich die Nummern verschoben: weg damit. Eine Meldung zur Klasse bleibt stehen.
+  const errRow = pErrAt && pErrAt !== $("p-klasse") ? rows.findIndex((r) => r.contains(pErrAt)) : -1;
   row.remove();
   renumberMembers();
-  // eine Meldung zu den Kürzelfeldern gilt nach dem Entfernen nicht mehr (die Nummern haben sich verschoben); eine zur Klasse
-  // bleibt samt Markierung stehen
-  if (pErrAt !== $("p-klasse")) {
+  if (pErrAt !== $("p-klasse") && !(errRow >= 0 && errRow < i)) {
     $("p-err").textContent = ""; pErrAt = null;
     memberInputs().forEach((f) => f.classList.remove("invalid"));
   }
