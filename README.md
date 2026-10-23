@@ -3,9 +3,10 @@
 Feibeitsblatt ist ein Schreibeditor für Arbeitsblätter im Stil des Feiditors. Sie als Lehrkraft legen Aufgaben
 an – je Aufgabe mit einem Auftrag an die KI, worauf sie beim Feedback achten soll – und erhalten dafür einen kurzen Code. Mit diesem Code öffnen die Schüler:innen das
 Arbeitsblatt, tippen ihre Antworten selbst (Einfügen ist gesperrt), lassen Rechtschreibung und Grammatik prüfen,
-holen sich einmal ein KI-Feedback zum Inhalt, überarbeiten ihre Antworten und geben ab; bei der Abgabe bekommen
+holen sich (freiwillig) einmal ein KI-Feedback zum Inhalt, überarbeiten ihre Antworten und geben ab; bei der Abgabe bekommen
 sie eine zweite KI-Rückmeldung zu ihrer abgegebenen Fassung. In der
-Lehrkräfte-Übersicht sehen Sie alle Abgaben – die erste Fassung und die überarbeitete Fassung nebeneinander.
+Lehrkräfte-Übersicht sehen Sie alle Abgaben – die erste Fassung und die überarbeitete Fassung nebeneinander (bei
+einer Abgabe ohne KI-Feedback nur die abgegebene Fassung).
 Anders als im Feiditor werden keine Tippzeiten gemessen.
 
 Technisch besteht Feibeitsblatt aus einer Webseite (`index.html`) und einem kleinen Server (Cloudflare Worker mit
@@ -29,10 +30,17 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
 
 1. **Code eingeben.** Die Seite öffnen und den Code der Lehrkraft eintragen, z. B. `K7Q-M4X`. Groß- und
    Kleinschreibung, Leerzeichen und Bindestrich spielen keine Rolle. Codes haben sechs Zeichen und enthalten nie
-   die leicht verwechselbaren Zeichen I, L, O, 0 und 1.
+   die leicht verwechselbaren Zeichen I, L, O, 0 und 1. Ein Satz unter dem Formular sagt, dass schon beim Laden der
+   Seite die IP-Adresse verarbeitet wird und alle Informationen zum Datenschutz nach dem Code folgen.
 2. **Angaben machen.** Die ersten drei Buchstaben des Vornamens (bei einem kürzeren Vornamen den ganzen
-   Vornamen), die ersten zwei Buchstaben des Nachnamens, das Geburtsdatum und die Klasse (z. B. „8b“). Dann
-   „Schreibbereich öffnen“.
+   Vornamen), die ersten zwei Buchstaben des Nachnamens, den Geburtstag – nur Tag und Monat, ohne Jahr (er hilft, gleiche
+   Kürzel auseinanderzuhalten) – und die Klasse (z. B. „8b“). Dann
+   „Schreibbereich öffnen“. Unter den Feldern steht – zum Zeitpunkt, an dem die Angaben erhoben werden – ein kurzer
+   Datenschutzhinweis mit Ihrer Schule und der Löschfrist; „Alle Informationen zum Datenschutz“ klappt den
+   vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Datenschutz-Angaben und Löschfrist](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)).
+   Derselbe Hinweis steht im Schreibbereich unter dem Feedback-Button – auch für alle, die über „Weiterschreiben“
+   kommen und die Angaben nicht noch einmal sehen. Der Hinweis unter dem Feld „Klasse“ sagt, wann die Angaben
+   verschlüsselt an die Lehrkraft gehen: mit dem KI-Feedback (als Erstversuch), ohne KI-Feedback erst bei der Abgabe.
 3. **Schreiben.** Die Arbeitsaufträge stehen untereinander. Unter jedem steht ein Textfeld, das mit dem Text
    wächst; alles Folgende rückt dabei nach unten. Zwischen einem Antwortfeld und der nächsten Aufgabe bleibt eine
    leere Zeile Abstand. Einfügen aus der Zwischenablage und Hineinziehen von Text sind gesperrt – es darf nur
@@ -77,11 +85,16 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Vorschlagsliste), Enter prüft. „Alle Zuordnungen löschen“ fängt nach einer Rückfrage neu an. Ob eine Zuordnung
    stimmt, prüft der Browser selbst; die richtigen Länder bekommt er nicht zu sehen, nur Prüfwerte. Zu dieser
    Antwortart gibt es kein KI-Feedback.
-4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button – aber nur, wenn
-   die Schülerin oder der Schüler laut Geburtsdatum mindestens 16 Jahre alt ist (darunter steht an seiner Stelle der
-   Hinweis „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“). Beim ersten Klick erklärt ein
-   Dialog, dass der Text an LanguageTool (Learneo, Inc., USA) geht, und verlangt die Bestätigung „Ich bin mindestens
-   16 Jahre alt – prüfen“; ohne Bestätigung wird nichts gesendet. Die Bestätigung gilt, solange das Blatt geöffnet
+4. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button. Beim ersten Klick
+   erklärt ein Dialog, dass der Text an LanguageTool (Learneo, Inc., USA) geht und dass man den Dienst laut Anbieter nur
+   nutzen darf, wenn man mindestens 18 ist oder 16 bzw. 17 und die Eltern es erlaubt haben. Wer das bestätigt („Trifft
+   auf mich zu – prüfen“), kann prüfen; wer „Trifft nicht zu“ wählt (oder Esc drückt), schreibt und gibt ohne Nachteil
+   ab – für dieses geöffnete Blatt steht dann statt der Buttons nur der Hinweis „Rechtschreibprüfung (LanguageTool):
+   erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ Ein Klick neben den Dialog (etwa vertippt auf
+   dem Tablet) schließt ihn nur und gilt nicht als Antwort; die Buttons bleiben. Ohne Bestätigung wird nichts gesendet,
+   und die Auswahl wird nirgends gespeichert. Die Altersgrenze beruht allein auf dieser Selbstauskunft – ein Geburtsjahr wird
+   nicht erhoben; den Button sieht deshalb zunächst jede Schülerin und jeder Schüler, auch in Klassen, in denen alle
+   jünger als 16 sind. Die Bestätigung gilt, solange das Blatt geöffnet
    ist. Der Button schickt dann nur den Text dieser einen Antwort an den Prüfdienst LanguageTool. Darunter erscheint
    in kleiner Schrift der Text mit korrigierter Rechtschreibung, Grammatik, Groß- und Kleinschreibung, Getrennt- und Zusammenschreibung und
    Zeichensetzung; die Änderungen sind markiert. Inhalt und Stil werden nie verändert. Ein ausgegrauter Hinweis
@@ -98,21 +111,41 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Der Dialog vor dem Senden nennt den KI-Dienst (Betreiber und Sitz) und, falls eingerichtet, die Reserve-KI. Ist die
    KI ausgelastet (viele Anfragen in derselben Minute), wartet die Seite mit Countdown und wiederholt die Anfrage
    automatisch – bis zu fünf Versuche in etwa vier Minuten, jeweils mit dem aktuellen Text; währenddessen darf
-   weitergeschrieben werden, „Nicht länger warten“ bricht ab. Erst ein erschöpfter Zyklus zählt als Fehlversuch.
+   weitergeschrieben werden, „Nicht länger warten“ bricht ab. Ein Abbruch per „Nicht länger warten“ zählt als ein
+   Fehlversuch, ein erschöpfter Zyklus als zwei (ab dem zweiten nennt die Seite den Grund); ebenso zählt eine
+   Anfrage, die nie zu Ende kam, weil der Tab geschlossen wurde oder das Gerät ausging – beim nächsten Öffnen. Die
+   Fehlversuche entscheiden den Vermerk bei einer Abgabe ohne KI-Feedback (Schritt 6).
    Mit dem Feedback geht diese erste Fassung samt Feedback außerdem verschlüsselt an die Lehrkraft – als
    **„Erstversuch“**. So sehen Sie auch, wer sich ein Feedback geholt, aber nicht abgegeben hat; die spätere Abgabe
    ersetzt den Erstversuch. Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
    [Datenschutz](#datenschutz)).
-6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Der Button
-   „Abgeben“ ist bis dahin ausgegraut. Nach einer Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet:
-   erste Fassung, überarbeitete Fassung und das KI-Feedback. War die Abgabe technisch erfolgreich, erscheint die
-   Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt. Direkt darunter – noch über
+6. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Nach einer
+   Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet: erste Fassung, überarbeitete Fassung und das
+   KI-Feedback. **Das KI-Feedback ist freiwillig:** „Abgeben“ geht jederzeit (nur ein Blatt mit lauter leeren
+   Antworten lässt sich nicht abgeben; leere einzelne Aufgaben nennt der Dialog). Abschluss-Text und beide
+   Feedback-Dialoge sagen: „Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir
+   daraus ein Nachteil entsteht.“ Der Abgabe-Dialog ohne KI-Feedback sagt es ebenfalls – wörtlich, wenn keine Anfrage
+   lief, sonst „… ohne dass dir daraus ein Nachteil entsteht“; läuft gerade eine Anfrage, sagt er stattdessen, dass sie
+   abgebrochen wird. Wer ohne KI-Feedback abgibt, bestätigt das in einem eigenen Dialog („Ohne KI-Feedback
+   abgeben?“); hat sie bzw. er nie eine Anfrage gestellt, geht dabei nichts an die KI. Ohne Feedback gibt es keinen
+   Erstversuch und keine zweite Rückmeldung, und Sie sehen in den Abgaben nur eine Fassung mit dem neutralen Hinweis
+   „Ohne KI-Feedback abgegeben.“ War das KI-Feedback nicht möglich – keine KI eingerichtet, Anbieter ausgefallen, ein
+   Versuch gescheitert, eine laufende Anfrage mit der Abgabe abgebrochen oder nie zu Ende gekommen (Tab geschlossen) –,
+   steht dort „Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Grund).“ Was eine abgebrochene Anfrage
+   schon gesendet hatte, hat der KI-Dienst erhalten; der Dialog sagt das. Bis zur Abgabe lässt sich das Feedback
+   jederzeit anfordern; kommt es an, während der Abgabe-Dialog offen ist, wird nicht abgegeben, sondern erst das
+   Feedback gezeigt (nach dem Schließen des Dialogs springt der Fokus zum Hinweis „Lies das KI-Feedback …“). Solange
+   die bestätigte Abgabe gesendet wird, lassen sich weder KI-Feedback anfordern noch der Zwischenstand abbrechen – die
+   Abgabe käme ja trotzdem an. War die Abgabe technisch erfolgreich, erscheint die
+   Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt; ist eine Löschfrist
+   festgelegt, steht darunter, an welchem Tag die Abgabe bei Ihnen automatisch gelöscht wird („… oder kurz danach“,
+   mit dem Rat, die Lösungen herunterzuladen). Direkt darunter – noch über
    der KI-Rückmeldung zur abgegebenen Fassung – steht der Button **„Lade dir deine Lösungen herunter und speichere sie
    in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, Fassungen und KI-Rückmeldungen) und darunter
    klein und blass: „Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte
    erlernt hast.“
    **Zweite KI-Rückmeldung:** Direkt nach der Abgabe gehen die abgegebenen Antworten auf demselben Weg wie beim
-   ersten Feedback noch einmal an die KI (ohne Kürzel, Geburtsdatum und Klasse; der Abgabe-Dialog nennt die
+   ersten Feedback noch einmal an die KI (ohne Kürzel, Geburtstag und Klasse; der Abgabe-Dialog nennt die
    Empfänger). Unter dem Download-Button erscheint dann „KI-Rückmeldung zu deiner abgegebenen Fassung“: je Aufgabe neue
    Stichpunkte „Das gelingt dir schon“ und „Tipps zum Weiterlernen“ – ohne Zählung, denn der Auftrag ist keine Liste
    zum Abhaken. Die Abgabe ist zu diesem Zeitpunkt schon
@@ -120,21 +153,33 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    Feedback; klappt es vorübergehend nicht, gibt es „Rückmeldung erneut anfordern“. Neu beurteilt werden nur Aufgaben
    mit Auftrag an die KI, deren Text sich inhaltlich geändert hat; für alle anderen gilt die erste Rückmeldung weiter
    („Unverändert abgegeben – wie beim ersten Feedback.“). So bekommt eine unveränderte Antwort nie ein anderes Urteil.
-   Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (KI nicht
-   eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung. Die zweite Rückmeldung bleibt nur im Browser: Sie wird
+   Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (ohne KI-Feedback
+   abgegeben, KI nicht eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung; ebenso, wenn beim
+   Weiterschreiben kein KI-Dienst mehr eingerichtet ist (dann sagt der Abgabe-Dialog das, und nichts wird noch einmal
+   gesendet). Die zweite Rückmeldung bleibt nur im Browser: Sie wird
    nicht gespeichert und geht nicht an Sie als Lehrkraft.
    Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
    Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
    heruntergeladen, bevor die zweite Rückmeldung da ist, steht das in der Datei, und die Seite erinnert daran, sie
-   danach noch einmal herunterzuladen. Sie entsteht im Browser und enthält kein Geburtsdatum. Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
+   danach noch einmal herunterzuladen. Sie entsteht im Browser und enthält keinen Geburtstag. Stehen KI-Rückmeldungen
+   darin, sagt die erste Seite das („Die Rückmeldungen in dieser Datei hat eine KI erzeugt …“), und die Metadaten der
+   Datei kennzeichnen sie maschinenlesbar (siehe [Sicherheit](#sicherheit), KI-Kennzeichnung). Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
    Lösungen bleiben nur bis „Neues Feibeitsblatt öffnen“ für den Download im Arbeitsspeicher.
 
-> **Wichtig:** Abgeben ist normalerweise erst nach dem KI-Feedback möglich. Richten Sie deshalb die
-> [KI-Einstellungen](#schritt-8-ki-feedback-einrichten) ein und testen Sie das Blatt einmal selbst, bevor Sie den
-> Code an die Klasse geben. **Niemand sitzt fest:** Ist das KI-Feedback nicht eingerichtet oder schlägt es zweimal
-> hintereinander fehl (Kontingent erschöpft, Anbieter gestört), wird „Abgeben“ trotzdem freigeschaltet. Die
-> Abgabe enthält dann nur die aktuelle Fassung, und Sie sehen in der Übersicht den Hinweis „Ohne KI-Feedback
-> abgegeben“. Hat keine Aufgabe einen Auftrag an die KI, ist gar keine KI nötig.
+> **Wichtig:** Das KI-Feedback ist freiwillig. Die Handreichung „Künstliche Intelligenz (KI) in Schule und
+> Unterricht“ des Hessischen Kultusministeriums (Juli 2023) sagt auf S. 10 allgemein, der Einsatz KI-gestützter
+> Anwendungen könne für Lehrkräfte sowie Schülerinnen und Schüler „derzeit nur auf freiwilliger Basis erfolgen“. Auf
+> S. 17 – dort im Zusammenhang mit volljährigen Schüler:innen, die einen eigenen KI-Zugang nutzen – verlangt sie,
+> darauf zu achten, „dass Schülerinnen und Schülern, die keine KI-Anwendung nutzen, hierdurch kein Nachteil
+> entsteht“. Sinngemäß auf das KI-Feedback übertragen heißt das: **Bitte werten Sie eine Abgabe ohne KI-Feedback nicht
+> anders** und geben Sie bei Bedarf selbst eine Rückmeldung – die Oberfläche verspricht den Schüler:innen, dass ihnen
+> daraus kein Nachteil entsteht, einlösen können das nur Sie. Richten Sie die
+> [KI-Einstellungen](#schritt-8-ki-feedback-einrichten) trotzdem ein und testen Sie das Blatt einmal selbst, bevor Sie
+> den Code an die Klasse geben. Ist das KI-Feedback nicht eingerichtet, ist das Tageskontingent von Workers AI
+> aufgebraucht oder schlägt es zweimal hintereinander fehl (Kontingent erschöpft, Anbieter gestört), sehen die
+> Schüler:innen einen Hinweis mit dem Grund. Ohne eingerichtete KI sieht die Seite beim Klick auf „KI um ein Feedback
+> bitten“ erst nach, ob Sie sie inzwischen eingerichtet haben – sonst wird nichts gesendet. Hat keine Aufgabe
+> einen Auftrag an die KI, gibt es keinen Feedback-Button und gar keine KI.
 
 Die Einfügesperre verhindert das übliche Einfügen (Tastenkürzel, Kontextmenü, Ziehen mit der Maus, größere
 Einfügungen aus der Zwischenablage einer Handy- oder Tablet-Tastatur). Kurze Stücke von wenigen Wörtern lassen sich
@@ -227,8 +272,8 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    PDF-Dateien und Antwortarten (samt Karten und Kartenbildern) und ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
-   Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ und „Klasse“,
-   sortiert nach Klasse und Namen. Die Kürzel sind farbig: **grün** = Abgabe nach der Überarbeitung, **orange** =
+   Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ (Tag und Monat,
+   z. B. „04.05.“ – auch bei älteren Abgaben, die noch ein Jahr enthalten) und „Klasse“, sortiert nach Klasse und Namen. Die Kürzel sind farbig: **grün** = Abgabe nach der Überarbeitung, **orange** =
    „Erstversuch ohne Überarbeitung“ – diese Person hat sich nur das KI-Feedback geholt und (noch) nicht abgegeben;
    eine Legende über der Tabelle erklärt die Farben, und die Zusammenfassung lautet dann z. B. „3 Abgaben ·
    1 Erstversuch ohne Überarbeitung“. Aufgeklappt sehen Sie je Aufgabe eine Tabelle mit Spalte 1 „Erste Eingabe
@@ -239,10 +284,14 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    mit allen Karten und ihren richtigen Ländern. Gibt die
    Person später ab, ersetzt die Abgabe ihren Erstversuch; gibt sie von einem anderen Gerät oder nach einem
    neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
-   die Zahl). Abgaben ohne KI-Feedback (siehe oben) sind entsprechend gekennzeichnet. „Alle aufklappen“ öffnet
+   die Zahl; in den Details der Abgabe lässt er sich unter „… älterer Erstversuch dieser Person“ aufklappen). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“
+   und den Hinweis „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“; Liste,
+   Farben und Zähler unterscheiden sie nicht. „Alle aufklappen“ öffnet
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
-   Beachten Sie: Kürzel, Geburtsdatum, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
-   Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt.
+   Beachten Sie: Kürzel, Geburtstag, Klasse und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
+   Server prüft sie nicht, und abgeben kann jede Person, die den Code kennt. Über der Tabelle steht die Löschfrist,
+   aufgeklappt je Abgabe, ab wann sie automatisch gelöscht wird („automatische Löschung ab dem TT.MM.JJJJ“ – im nächsten
+   nächtlichen Lauf oder beim nächsten Öffnen der Übersicht).
 6. **Als PDF-Datei sichern und wiederverwenden.** Bei einem ausgewählten Feibeitsblatt lädt „Als PDF-Datei
    herunterladen“ eine PDF-Datei herunter (`Feibeitsblatt-<Code>-<Titel>.pdf`, Umlaute im Namen umschrieben). Sie zeigt Titel, Aufgabenstellungen,
    Material (als Text, Links mit Adresse) und die Bilder; die Namen angehängter PDF-Dateien stehen darunter. Im
@@ -263,12 +312,20 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    PDF-Material an eine Aufgabe hängen – sonst bekämen Schüler:innen die Aufträge an die KI bzw. fremde Angaben. Sichtbar in
    der PDF sind nur Zeichen des Zeichensatzes Windows-1252; andere Zeichen, z. B. griechische Buchstaben oder Emoji,
    erscheinen dort als „?“. In den Hintergrunddaten bleiben sie erhalten.
-7. **Löschen.** Ganz unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche
-   werden mitgelöscht). Ohne diesen Klick bleiben die Abgaben verschlüsselt gespeichert. Darunter: „Feibeitsblatt
+7. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
+   Löschfrist“ festlegen ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Früher geht es ganz
+   unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche werden mitgelöscht).
+   Einen einzelnen Eintrag – etwa auf Wunsch einer Schülerin, eines Schülers oder der Eltern – löschen Sie in den
+   aufgeklappten Details mit „Diesen Eintrag löschen“ (mit Rückfrage); ältere, ausgeblendete Erstversuche derselben
+   Person werden dabei mitgelöscht, alle anderen Einträge bleiben. Ein Eintrag, der sich nicht entschlüsseln lässt,
+   hat in der Liste einen eigenen Knopf „Eintrag löschen“.
+   Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt. Darunter: „Feibeitsblatt
    selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu. Wollen Sie ein Blatt später
    wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6).
-8. **Weitere Schaltflächen** oben: „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und
-   „Abmelden“. Unter der Tabelle zeigt die Übersicht, wie viel Speicher Bilder und PDF-Dateien aller
+8. **Weitere Schaltflächen** oben: „Datenschutz und Löschfrist“ (Angaben der Schule für den Datenschutzhinweis und die
+   automatische Löschung, siehe [Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)),
+   „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und „Abmelden“. Fehlen Angaben der Schule oder
+   eine Löschfrist, warnt die Übersicht in Rot; sonst nennt sie Schule und Frist. Unter der Tabelle zeigt die Übersicht, wie viel Speicher Bilder und PDF-Dateien aller
    Feibeitsblätter zusammen belegen (höchstens 200 MB).
 
 ## Einrichtung (einmalig)
@@ -304,6 +361,9 @@ Der Workflow braucht einen Schlüssel („API-Token“), mit dem er in Ihrem Nam
    Resources“ „Alle Zonen“ / „All zones“ (bzw. „All zones from an account“) wählen – das geht auch ohne eigene
    Domain.
 5. „Weiter zur Zusammenfassung“ / „Continue to summary“ → „Token erstellen“ / „Create Token“.
+   (Der Worker nutzt außerdem Cloudflare Workers AI. Ob das Veröffentlichen dafür eine weitere Berechtigung braucht,
+   dokumentiert Cloudflare nicht – vermutlich nicht. Scheitert `wrangler deploy` mit einem Rechtefehler zu Workers AI,
+   im Token zusätzlich **Konto → Workers AI → Lesen** ergänzen; siehe [Häufige Probleme](#häufige-probleme).)
 6. Den angezeigten Token sofort kopieren – er wird nur einmal angezeigt. Er ist ein Geheimnis: nirgends
    veröffentlichen, nicht per E-Mail verschicken.
 
@@ -338,14 +398,19 @@ Was der Workflow dabei tut:
 4. Er legt die Datenbank `feibeitsblatt-db` an, **in der EU** (`--jurisdiction eu`), falls es sie noch nicht
    gibt. Der Speicherort lässt sich nur beim Anlegen festlegen, später nicht mehr ändern. Die Tabellen legt der
    Server beim ersten Aufruf selbst an.
-5. Er veröffentlicht den Worker samt Seite (`wrangler deploy`).
+5. Er veröffentlicht den Worker samt Seite (`wrangler deploy`). Dabei setzt wrangler auch den täglichen Zeitplan
+   (Cron Trigger, 02:17 Uhr UTC) für die automatische Löschung und schaltet die gespeicherten Protokolle von
+   Cloudflare ab (Workers Logs, Aufrufprotokolle, Traces – siehe [Sicherheit](#sicherheit)).
 6. Er erzeugt einmalig das Worker-Secret `SETTINGS_SECRET` (32 Zufallsbytes), mit dem der Server Ihren
-   KI-API-Schlüssel verschlüsselt speichert. Ein vorhandenes Secret wird nie überschrieben; lässt sich nicht
-   feststellen, ob es existiert, bricht der Workflow mit einer Fehlermeldung ab (dann einfach erneut starten).
+   KI-API-Schlüssel verschlüsselt speichert und die Zähler für Sperren pseudonymisiert (gehashte IP-Adressen) – es
+   wird also auch gebraucht, wenn Sie Cloudflare Workers AI ohne API-Schlüssel nutzen. Ein vorhandenes Secret wird nie überschrieben; lässt sich nicht
+   feststellen, ob es existiert, bricht der Workflow mit einer Fehlermeldung ab (dann einfach erneut starten). Dieser
+   Schritt läuft auch dann, wenn Schritt 5 nur am Zeitplan gescheitert ist (siehe [Häufige Probleme](#häufige-probleme)).
 7. Er gibt die Adresse der Seite aus.
 
 Spätere Veröffentlichungen (z. B. nach einem Update) lassen Datenbank, Passwort, Feibeitsblätter und Abgaben
-unverändert.
+unverändert. Updates am besten außerhalb des Unterrichts ausrollen und danach geöffnete Seiten neu laden (siehe
+[GitHub Pages](#optional-github-pages-oder-eigene-domain)).
 
 **Nie vor dem ersten Workflow-Lauf von Hand `wrangler deploy` ausführen:** wrangler würde die Datenbank dann
 selbst anlegen – ohne EU-Festlegung, und das lässt sich später nicht ändern. Kontrolle: Im Cloudflare-Dashboard
@@ -381,21 +446,69 @@ Lehrkräfte-Übersicht übernehmen. Ist das passiert, setzen Sie den Zugang wie 
 ### Schritt 8: KI-Feedback einrichten
 
 1. In der Lehrkräfte-Übersicht auf „KI-Einstellungen“ klicken.
-2. Anbieter wählen. **Für Klassen empfohlen: Groq** (Vorgabe) – siehe [KI-Anbieter](#ki-anbieter).
-3. Beim Anbieter einen kostenlosen API-Schlüssel erstellen (Groq: <https://console.groq.com/keys>) und in das Feld
-   „API-Schlüssel“ einfügen. Das Feld „Modell“ leer lassen (dann wählt der Server das Vorgabemodell).
-4. „Speichern“ klicken. Der Server prüft den Schlüssel, ermittelt die verfügbaren Modelle und merkt sich die
-   besten als Ausweichmodelle. Klappt die Prüfung nicht, wird trotzdem gespeichert und ein Hinweis angezeigt.
-5. „Verbindung testen“ klicken. Erscheint eine kurze Beispielantwort, funktioniert das KI-Feedback.
+2. Vorausgewählt ist **Cloudflare Workers AI (Empfehlung)** – es läuft im selben Cloudflare-Konto wie der Server und
+   braucht **keinen API-Schlüssel**, siehe [KI-Anbieter](#ki-anbieter). Das Feld „Modell“ leer lassen (dann nimmt der
+   Server das Vorgabemodell).
+3. **„Speichern“ klicken.** Erst damit ist das KI-Feedback aktiv – die Vorauswahl allein schickt nichts an eine KI
+   (auch nach einem Update bleibt ein bisher gespeicherter Anbieter unverändert).
+4. „Verbindung testen“ klicken. Erscheint eine kurze Beispielantwort, funktioniert das KI-Feedback. Bei Workers AI
+   zeigt der Test auch, wie viele Token er verbraucht hat (davon im „Denkmodus“: sollte 0 sein); darunter steht der
+   geschätzte Verbrauch des Tages.
+5. Optional eine [Reserve-KI](#reserve-ki-zweiter-anbieter) eintragen, z. B. Groq mit einem kostenlosen API-Schlüssel
+   (<https://console.groq.com/keys>) – sie springt ein, wenn das Tageskontingent von Workers AI aufgebraucht ist.
 
-Der Schlüssel wird nur auf dem Server gespeichert (verschlüsselt mit `SETTINGS_SECRET`; ohne dieses Secret lehnt
+Für einen anderen Anbieter: Anbieter wählen, beim Anbieter einen API-Schlüssel erstellen und in das Feld
+„API-Schlüssel“ einfügen, „Speichern“ (der Server prüft den Schlüssel, ermittelt die verfügbaren Modelle und merkt sich
+die besten als Ausweichmodelle; klappt die Prüfung nicht, wird trotzdem gespeichert und ein Hinweis angezeigt), dann
+„Verbindung testen“. Anbieter, die für den Schuleinsatz nicht geeignet sind, sind in der Auswahl gekennzeichnet; die
+Seite speichert sie nur nach einer ausdrücklichen Bestätigung.
+
+Ein API-Schlüssel wird nur auf dem Server gespeichert (verschlüsselt mit `SETTINGS_SECRET`; ohne dieses Secret lehnt
 der Server das Speichern ab) und nie an die Browser der Schüler:innen übertragen. In den Einstellungen sehen Sie
 nur die letzten vier Zeichen („gespeichert: …abcd“). Ein neuer Schlüssel ersetzt den alten; ein leeres
 Schlüsselfeld lässt den gespeicherten unverändert – aber nur für denselben Anbieter und dieselbe Adresse. Wechseln
 Sie den Anbieter oder die Basis-URL, verlangt die Seite einen neuen Schlüssel; der alte wird nie an einen anderen
 Dienst geschickt.
 
-### Schritt 9: Das erste Feibeitsblatt
+### Schritt 9: Datenschutz-Angaben und Löschfrist eintragen
+
+Die Schüler:innen müssen erfahren, wer für ihre Daten verantwortlich ist und wie lange sie gespeichert werden
+(Informationspflicht nach Art. 13 DSGVO). Verantwortlich ist Ihre Schule – stimmen Sie die Angaben mit der Schulleitung
+und der bzw. dem Datenschutzbeauftragten ab.
+
+1. In der Lehrkräfte-Übersicht auf **„Datenschutz und Löschfrist“** klicken.
+2. Eintragen: **Name der Schule**, **Anschrift und Kontakt**, **Kontakt der bzw. des Datenschutzbeauftragten**,
+   **Rechtsgrundlage**; optional die zuständige **Aufsichtsbehörde** und einen **Link zur Datenschutzerklärung** der
+   Schule (nur `https://`). Alles ist einzeilig; Zeilenumbrüche werden zu Leerzeichen.
+3. Für Hessen setzt **„Vorschläge für Hessen einsetzen“** die Rechtsgrundlage „Art. 6 Abs. 1 Buchst. e DSGVO in
+   Verbindung mit § 83 Abs. 1 und § 83a Abs. 1 Nr. 2 Hessisches Schulgesetz (HSchG)“ und als Aufsichtsbehörde den
+   Hessischen Beauftragten für Datenschutz und Informationsfreiheit (Postfach 3163, 65021 Wiesbaden,
+   poststelle@datenschutz.hessen.de) ein; eigene Eingaben ersetzt er nur nach Rückfrage. Voraussetzung für § 83a Abs. 1
+   Nr. 2 HSchG: Ihre Schule führt Feibeitsblatt selbst ein (Schulleitung, Datenschutzbeauftragte:r). Ob das auch das
+   freiwillige KI-Feedback trägt oder Ihre Schule dafür eine Einwilligung verlangt, klären Sie bitte dort.
+4. **Löschfrist** wählen: 7, 14, 30 (Vorgabe), 60, 90, 180 oder 365 Tage. Gezählt wird ab dem Eingang auf dem Server –
+   bei einem Erstversuch, den die Abgabe später ersetzt, ab der Abgabe. Die Seite zeigt sofort, wie viele ältere
+   Einträge die gewählte Frist jetzt löschen würde, und fragt vor dem Speichern nach („Ältere Abgaben jetzt löschen?“) –
+   gelöscht wird dann sofort und endgültig. Eine längere Frist gilt auch für schon gespeicherte Abgaben; informieren
+   Sie die Schüler:innen dann neu.
+5. Unten zeigt eine **Vorschau** den Hinweis für ein Feibeitsblatt mit KI-Feedback, so wie er unter der Adresse
+   erscheint, unter der Sie die Seite geöffnet haben (mit den KI-Empfängern aus den KI-Einstellungen). Darunter steht,
+   was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
+   Zwischenstand-PDF), nennt der Hinweis zusätzlich GitHub als Empfänger; bei Blättern ohne Auftrag an die KI entfallen
+   die Angaben zum KI-Feedback. „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
+
+Gelöscht wird einmal täglich in der Nacht (02:17 Uhr UTC, Cron Trigger) und zusätzlich, wenn Sie die Übersicht öffnen
+(dabei räumt der Server auch abgelaufene Zähler und Sperren ab).
+Feibeitsblätter selbst bleiben, bis Sie sie löschen. Danach hält Cloudflare gelöschte Daten noch bis zu 7 Tage (bei
+einem bezahlten Cloudflare-Tarif bis zu 30 Tage) in der Wiederherstellungsfunktion der Datenbank vor (D1 Time Travel).
+**Eine Neuinstallation** (noch ohne Feibeitsblätter) löscht von Anfang an nach 30 Tagen – die Übersicht zeigt dann
+„(Vorgabe …)“, bis Sie die Frist selbst speichern. **Bei einer bestehenden Installation** (nach einem Update) wird erst
+automatisch gelöscht, wenn Sie eine Frist gespeichert haben; bis dahin warnt die Übersicht. Solange die Angaben der
+Schule fehlen, sehen die Schüler:innen einen allgemeinen, ehrlichen Hinweis („Verantwortlich ist deine Schule … frag
+deine Lehrkraft“), und die Übersicht warnt, dass das der Informationspflicht nicht genügt. Was Sie eintragen, prüft
+niemand inhaltlich – es erscheint so bei den Schüler:innen.
+
+### Schritt 10: Das erste Feibeitsblatt
 
 1. „Neues Feibeitsblatt erstellen“ → Titel, Aufgaben und Aufträge an die KI eintragen → „Code generieren“.
 2. Den Code in einem privaten Browserfenster (oder auf einem zweiten Gerät) selbst als Schüler:in ausprobieren:
@@ -405,7 +518,8 @@ Dienst geschickt.
 
 ## KI-Anbieter
 
-Das KI-Feedback läuft über Ihren eigenen API-Schlüssel bei einem Anbieter Ihrer Wahl. Je Schülerin bzw. Schüler
+Das KI-Feedback läuft über Cloudflare Workers AI (ohne API-Schlüssel, im Cloudflare-Konto des Servers) oder über Ihren
+eigenen API-Schlüssel bei einem anderen Anbieter. Je Schülerin bzw. Schüler
 und Feibeitsblatt stellt der Server in der Regel **eine** Anfrage mit allen Aufgaben, die einen Auftrag an die KI haben;
 bei Überlastung oder unbrauchbaren Antworten können daraus bis zu acht Versuche werden, und Schüler:innen können
 nach einem Fehlschlag erneut klicken. Der Server hält je Anbieter einen Mindestabstand zwischen den Anfragen ein,
@@ -419,20 +533,36 @@ Vorankündigung.
 
 | Anbieter | Schlüssel | Limits (Stand Oktober 2026, nicht bestätigt – bitte beim Anbieter prüfen) | Datenschutz und Hinweise |
 |---|---|---|---|
-| **Groq** (Vorgabe, für Klassen empfohlen) | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Limits je Modell**: bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag, etwa 100 000 pro Tag bei Llama 3.3 70B (Angaben Dritter, Stand Oktober 2026; die für Ihr Konto gültigen Werte stehen in der Groq-Konsole unter „Limits“). Gecachte Token zählen bei Groq nicht gegen diese Limits – Feibeitsblatt stellt die Anfrage so, dass Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt aus dem Cache kommen (siehe [Kapazität](#kapazität-und-grenzen)). Ist ein Modell erschöpft oder ausgelastet, wechselt der Server automatisch zum nächsten. | Sehr schnell. Prüfen Sie die Datenschutzbedingungen von Groq, bevor Schülertexte gesendet werden. |
-| **OpenRouter** | kostenloses Konto, <https://openrouter.ai/settings/keys> | nur kostenlose Modelle (`:free`). **Ohne einmaligen Guthabenkauf nur 50 kostenlose Anfragen pro Tag für das ganze Konto** – das reicht nicht für eine Klasse. Nach einem einmaligen Kauf von 10 US-$ Guthaben 1000 pro Tag. | Die kostenlosen Modelle laufen bei Drittanbietern, die Eingaben protokollieren oder zum Training verwenden dürfen. Das muss im Konto unter <https://openrouter.ai/settings/privacy> erlaubt sein, sonst antwortet die API „No endpoints found matching your data policy“. |
-| **Google Gemini** | Google AI Studio, <https://aistudio.google.com/app/apikey> | kostenloses Kontingent mit Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus. | Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Googles Bedingungen nur die bezahlten Dienste; dafür verlangt Google ein **hinterlegtes Abrechnungskonto**. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage. |
-| **Cerebras** | Konsole von Cerebras, <https://cloud.cerebras.ai> | **nicht bestätigt** – die Angaben Dritter widersprechen sich; bitte in der Konsole prüfen. | Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden. |
+| **Cloudflare Workers AI** (vorausgewählt, Empfehlung) | keiner – der Server nutzt Workers AI im eigenen Cloudflare-Konto (Binding `AI` in `wrangler.jsonc`); aktiv erst nach „Speichern“ | kostenlos **10 000 „Neurons“ pro Tag für das ganze Cloudflare-Konto** (alle Modelle zusammen, Neustart 0:00 Uhr UTC = 1:00 Uhr MEZ bzw. 2:00 Uhr MESZ), höchstens 300 Anfragen pro Minute (Cloudflare-Doku, Stand 17.09./20.10.2026). Eine Feedback-Anfrage kostet mit dem Vorgabemodell Gemma 4 etwa 20–50 Neurons, mit viel Material mehr (siehe [Kapazität](#kapazität-und-grenzen)). Ausweichmodelle: GLM-4.7-Flash, dann Qwen3-30B. Mit dem Plan „Workers Paid“ wird Verbrauch darüber berechnet (0,011 US-$ je 1 000 Neurons). | Empfänger ist **Cloudflare, Inc. (San Francisco, USA)** – derselbe Anbieter, der den Server betreibt, kein weiterer KI-Dienstleister. Laut Cloudflare (Doku „Data usage“, Stand 16.10.2026) speichert Workers AI Ein- und Ausgaben nicht über die Beantwortung hinaus und nutzt sie nicht zum Training – mit begrenzten Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare. **Die Datenbank liegt in der EU, die KI-Verarbeitung kann aber auch außerhalb der EU stattfinden** – Cloudflare bietet für Workers AI keine Beschränkung auf die EU an („Regional Services“ ist mit Workers AI nicht kompatibel). Die Übermittlung stützt sich laut Cloudflare auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. Der Server nutzt **kein AI Gateway** (das würde Anfragen protokollieren). Der Denkmodus der Modelle wird abgeschaltet; ob das wirkt, zeigt der Verbindungstest (Token „im Denkmodus“: 0). |
+| **Groq** | kostenloses Konto ohne Kreditkarte, <https://console.groq.com/keys> | je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu **Token-Limits je Modell**: bei gpt-oss-120b etwa 8 000 Token pro Minute und 200 000 pro Tag, etwa 100 000 pro Tag bei Llama 3.3 70B (Angaben Dritter, Stand Oktober 2026; die für Ihr Konto gültigen Werte stehen in der Groq-Konsole unter „Limits“). Gecachte Token zählen bei Groq nicht gegen diese Limits – Feibeitsblatt stellt die Anfrage so, dass Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt aus dem Cache kommen (siehe [Kapazität](#kapazität-und-grenzen)). Ist ein Modell erschöpft oder ausgelastet, wechselt der Server automatisch zum nächsten. | Sehr schnell; gut als Reserve-KI. Rechtsträger ist **Groq LLC (USA)**, Vertragspartner für Kund:innen im EWR ist Groq UK Limited (London); Kundendaten liegen laut Groq in den USA, verarbeitet wird auch in anderen Ländern (Datenschutzerklärung ab 12.11.2025, Services Agreement 22.06.2026). Prüfen Sie die Bedingungen, bevor Schülertexte gesendet werden. |
+| **OpenRouter** – *nicht für den Schuleinsatz geeignet* | kostenloses Konto, <https://openrouter.ai/settings/keys> | nur kostenlose Modelle (`:free`). **Ohne einmaligen Guthabenkauf nur 50 kostenlose Anfragen pro Tag für das ganze Konto** – das reicht nicht für eine Klasse. Nach einem einmaligen Kauf von 10 US-$ Guthaben 1000 pro Tag. | Die kostenlosen Modelle laufen oft bei Unteranbietern, die Eingaben protokollieren oder zum Training nutzen dürfen; viele kostenlose Modelle sind nur erreichbar, wenn Sie das im Konto unter <https://openrouter.ai/settings/privacy> erlauben (sonst antwortet die API „No endpoints found matching your data policy“). |
+| **Google Gemini** – *nicht für den Schuleinsatz geeignet* | Google AI Studio, <https://aistudio.google.com/app/apikey> | kostenloses Kontingent mit Minuten- und Tageslimits je Modell; für manche Schlüssel liegt das Tageslimit neuer Modelle bei 0. Der Server weicht dann auf ein anderes Modell aus. | Im kostenlosen Kontingent darf Google Eingaben zur Produktverbesserung nutzen und von Menschen prüfen lassen. Für Nutzer:innen im EWR gelten laut Googles Bedingungen nur die bezahlten Dienste; dafür verlangt Google ein **hinterlegtes Abrechnungskonto**. Ohne Abrechnungskonto kommt Gemini für Schulen in Deutschland daher nicht infrage. Vor allem aber verlangen die Zusatzbedingungen der Gemini-API (Stand 28.04.2026), dass Nutzer:innen mindestens 18 Jahre alt sind; die API darf nicht in Diensten eingesetzt werden, die sich an Minderjährige richten oder wahrscheinlich von ihnen genutzt werden. |
+| **Cerebras** – *nicht für den Schuleinsatz geeignet* | Konsole von Cerebras, <https://cloud.cerebras.ai> | kein dauerhaft kostenloses Kontingent mehr: nur ein einmaliges Startguthaben (5 US-$ für 30 Tage, mit hinterlegter Zahlungsmethode); danach pausiert der Zugang, bis Sie Guthaben kaufen (Preisseite, Oktober 2026). | Prüfen Sie die Datenschutzbedingungen von Cerebras, bevor Schülertexte gesendet werden. |
 | **Anderer OpenAI-kompatibler Dienst** | je nach Dienst | je nach Dienst | Basis-URL mit `https://` und ohne Schrägstrich am Ende (z. B. `https://api.mistral.ai/v1`), dazu die Modell-ID. Bedingungen des Dienstes prüfen. |
 
 Hinweise:
 
-- **Groq ist die Vorgabe**, weil es hohe Tageslimits je Modell hat und der Server über mehrere Modelle ausweichen
-  kann (die beim Speichern ermittelte Rangliste); damit reicht es für ganze Klassen am ehesten. Bei vielen Klassen
-  am selben Tag kann das Kontingent trotzdem erschöpft sein.
-- Ist das Kontingent aufgebraucht, sehen die Schüler:innen „Das KI-Kontingent für heute ist aufgebraucht. Bitte
-  frag deine Lehrkraft.“ Ihre Antworten bleiben auf dem Gerät gespeichert; nach dem zweiten Fehlschlag können sie
-  ohne KI-Feedback abgeben oder es später auf demselben Gerät noch einmal versuchen.
+- **Cloudflare Workers AI ist die Empfehlung**, weil es keinen API-Schlüssel und keinen weiteren Dienstleister braucht:
+  Die Schülertexte gehen nur an Cloudflare, das ohnehin den Server betreibt. Workers AI ist vorausgewählt, aber erst
+  aktiv, wenn Sie „Speichern“ klicken – bestehende Installationen behalten nach einem Update ihren Anbieter.
+- **Gekennzeichnet als „nicht für den Schuleinsatz geeignet“** sind Google Gemini (Altersgrenze 18 in den
+  API-Bedingungen), OpenRouter (kostenlose Modelle bei Unteranbietern, die protokollieren oder trainieren dürfen) und
+  Cerebras (kein dauerhaft kostenloses Kontingent). Die Seite speichert sie nur nach einer ausdrücklichen Bestätigung;
+  bestehende Einstellungen laufen weiter.
+- **Das Tageskontingent von Workers AI gilt für das ganze Cloudflare-Konto**, also für alle Klassen zusammen. Ein
+  großes Feibeitsblatt (viel Material, lange Aufträge an die KI, viele Aufgaben) oder sehr viele Anfragen – auch
+  absichtlich, von einer einzelnen Person – können es aufbrauchen; die Grenzen je Netzwerk und Blatt (siehe
+  [Kapazität](#kapazität-und-grenzen)) liegen höher als das, was 10 000 Neurons hergeben. Den geschätzten Verbrauch des
+  Tages zeigen die KI-Einstellungen („Heute (UTC) geschätzt verbraucht: ca. … von 10.000 Neurons“), den genauen das
+  Cloudflare-Dashboard unter „Workers AI“.
+- Ist das Kontingent aufgebraucht, sehen die Schüler:innen „Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es
+  wieder.“ – vor der Abgabe ergänzt die Seite, dass sie ohne KI-Feedback abgeben können. Bei Workers AI fragt der
+  Server bis 0:00 Uhr UTC gar nicht mehr nach (die Reserve-KI übernimmt, falls eingerichtet), und eine Abgabe ohne
+  KI-Feedback ist mit dem Grund „KI-Kontingent für heute aufgebraucht“ vermerkt. Ein erfolgreicher „Verbindung
+  testen“ (z. B. nach einem Wechsel auf Workers Paid) hebt diese Sperre auf. Die Antworten bleiben auf dem Gerät
+  gespeichert; das KI-Feedback lässt sich am nächsten Tag auf demselben Gerät noch einmal anfordern. Der Grund gilt nur
+  für den Tag, an dem er entstand: Wer erst am nächsten Tag weiterschreibt, liest kein „morgen“ mehr, und eine Abgabe
+  ohne neuen Versuch trägt dann den allgemeinen Grund „Anfrage nicht abgeschlossen“.
 - Was die KI tut: Sie berät nach Ihrem Auftrag. Je Aufgabe schreibt sie kurze Stichpunkte, an die Schülerin bzw. den
   Schüler gerichtet – bis zu drei unter „Das gelingt dir schon“ (nur Zutreffendes) und bis zu fünf unter „Tipps zum
   Überarbeiten“ (das Wichtigste zuerst, als Hinweis oder Frage zum Weiterdenken); sachliche Fehler benennt sie
@@ -446,29 +576,39 @@ Hinweise:
 - Das Feedback zum Überarbeiten gibt es einmal je Gerät und Angaben, dazu bei der Abgabe die Rückmeldung zur
   abgegebenen Fassung – je Schüler:in also bis zu zwei KI-Anfragen. Der Server kann das nicht erzwingen (wer andere
   Angaben eingibt oder ein zweites Gerät nutzt, kann erneut anfragen). Je Feibeitsblatt sind höchstens 600
-  KI-Anfragen pro Tag möglich – das schützt Ihr Kontingent vor Missbrauch.
+  KI-Anfragen pro Tag möglich – das begrenzt Missbrauch bei Anbietern mit eigenem API-Schlüssel. Das Tageskontingent
+  von Workers AI (10 000 Neurons für das ganze Konto) ist kleiner und kann trotzdem aufgebraucht werden (siehe oben;
+  Abhilfe: eine [Reserve-KI](#reserve-ki-zweiter-anbieter)).
 
 ### Reserve-KI (zweiter Anbieter)
 
 Unter „KI-Einstellungen“ gibt es den Block **„Reserve-KI (optional)“**: ein zweiter Anbieter mit eigenem
-API-Schlüssel (Anbieter, Modell, Schlüssel, „Reserve speichern“, „Reserve testen“, „Reserve entfernen“). Der Server
+API-Schlüssel bzw. Cloudflare Workers AI ohne Schlüssel (Anbieter, Modell, Schlüssel, „Reserve speichern“, „Reserve
+testen“, „Reserve entfernen“). Speichern lässt sie sich erst, wenn ein erster Anbieter gespeichert ist – sie springt
+nur für ihn ein; ist der erste Anbieter nicht nutzbar (z. B. Schlüssel unlesbar, Binding fehlt), bekommt auch die
+Reserve keine Schülertexte, und die Übersicht sagt, dass nur ohne KI-Feedback abgegeben werden kann. Der Server
 fragt immer zuerst den ersten Anbieter – mit allen seinen Ausweichmodellen – und nur bei **Verfügbarkeitsproblemen**
 die Reserve: ausgelastet (HTTP 429), Tageskontingent erreicht, keine oder zu langsame Antwort, Serverfehler, Anfrage
 zu lang oder keine verwertbare Antwort. **Nie** bei einem Inhaltsfilter des ersten Anbieters (die Schüler:innen sehen
 „Die KI hat diese Antworten nicht bewertet“) und nie bei Fehlkonfiguration (falscher Schlüssel, fehlende Freigabe) –
 dann ist die Lehrkraft gefragt. Es wird nie an beide gleichzeitig gesendet. Am sinnvollsten ist ein **anderer**
-Anbieter (z. B. Groq als erster, dazu ein zweiter Dienst, für den Sie einen Schlüssel haben): Dann addieren sich zwei
-Kontingente, und ein Ausfall eines Anbieters trifft die Klasse nicht. Ein zweites kostenloses Konto beim **selben**
-Anbieter ist keine Lösung – die Limits gelten dort je Organisation, und mehrere Gratis-Konten verstoßen meist gegen
-die Bedingungen.
+Anbieter (z. B. **Workers AI als erster Anbieter, Groq als Reserve**): Dann addieren sich zwei Kontingente, und ein
+Ausfall eines Anbieters trifft die Klasse nicht. Ist das Tageskontingent von Workers AI aufgebraucht, fragt der Server
+Workers AI bis 0:00 Uhr UTC nicht mehr und gibt der Reserve das volle Zeitbudget. Workers AI als erster Anbieter **und**
+als Reserve lehnt die Seite ab – beide teilten sich dasselbe Kontingent des Cloudflare-Kontos. Ein zweites kostenloses
+Konto beim **selben** Anbieter ist ebenfalls keine Lösung – die Limits gelten dort je Organisation, und mehrere
+Gratis-Konten verstoßen meist gegen die Bedingungen.
 
 **Datenschutz:** Jede Reserve ist ein weiterer Empfänger der Schülertexte. Beim Speichern fragt die Seite deshalb
 ausdrücklich nach („Weiteren KI-Empfänger hinzufügen?“) und nennt den Empfänger mit Sitz; die Schüler:innen sehen
 beide Empfänger im Datenschutzhinweis unter dem Button **und** im Dialog vor dem Senden. Der Browser schickt mit
-der Anfrage mit, über welche Empfänger informiert wurde – ändern Sie die KI-Einstellungen, während ein Blatt
-geöffnet ist, bekommt die Schülerin bzw. der Schüler statt einer Antwort den Hinweis, den neuen Datenschutzhinweis
-zu lesen, und muss erneut klicken; es wird nichts gesendet. Für Google Gemini müssen Sie (als erster Anbieter wie
-als Reserve) bestätigen, dass ein Abrechnungskonto hinterlegt ist. Beide Schlüssel liegen nur verschlüsselt auf dem
+der Anfrage mit, über welche Empfänger informiert wurde, und zwar in der Reihenfolge des Hinweises. Ändern Sie den
+ersten Anbieter, tauschen Sie erster Anbieter und Reserve oder entfernen Sie den ersten (die Reserve rückt nach),
+während ein Blatt geöffnet ist, bekommt die Schülerin bzw. der Schüler statt einer Antwort den Hinweis, den neuen
+Datenschutzhinweis zu lesen, und muss erneut klicken; es wird nichts gesendet. Eine neu eingetragene Reserve nutzt
+eine schon geöffnete Seite einfach nicht, bis sie neu geladen ist. Für Google Gemini müssen Sie (als erster Anbieter wie
+als Reserve) bestätigen, dass ein Abrechnungskonto hinterlegt ist; ist der Anbieter als „nicht für den Schuleinsatz
+geeignet“ gekennzeichnet, steht die Warnung im selben Dialog. Beide Schlüssel liegen nur verschlüsselt auf dem
 Server. Ohne Reserve ändert sich nichts.
 
 ## Sicherheit
@@ -484,7 +624,7 @@ Passwortfeld. Der Server prüft ihn; falsche Codes zählen als Fehlversuche.
   Browser der Schüler:innen; den privaten Schlüssel speichert der Server nur verschlüsselt mit Ihrem Passwort.
 - Jede Abgabe wird im Browser der Schülerin bzw. des Schülers mit einem neuen Zufallsschlüssel verschlüsselt,
   der wiederum mit Ihrem öffentlichen Schlüssel verschlüsselt wird. Der Server speichert nur diesen
-  verschlüsselten Umschlag – **einschließlich Kürzeln, Geburtsdatum und Klasse**.
+  verschlüsselten Umschlag – **einschließlich Kürzeln, Geburtstag (Tag und Monat) und Klasse**.
 - Technisch: PBKDF2-SHA-256 mit 600 000 Durchläufen und zufälligem Salt, daraus per HKDF-SHA-256 der
   Anmeldeschlüssel und ein AES-GCM-256-Schlüssel; Schlüsselpaar RSA-OAEP mit 3072 Bit (SHA-256); Abgaben mit
   AES-GCM-256 verschlüsselt, der Abgabeschlüssel mit RSA-OAEP. Alle Verfahren stammen aus der eingebauten Web
@@ -526,11 +666,30 @@ Muss eine Sperre ausnahmsweise sofort aufgehoben werden, löscht in der D1-Konso
 - Die Tipps des KI-Feedbacks beruhen auf Ihrem Auftrag an die KI und können verraten, was darin steht. Für Prüfungen,
   bei denen die Lösung geheim bleiben muss, gehört sie deshalb nicht in den Auftrag.
 
-**API-Schlüssel der KI.** Er liegt ausschließlich verschlüsselt (AES-GCM mit dem Worker-Secret `SETTINGS_SECRET`)
+**API-Schlüssel der KI.** Cloudflare Workers AI braucht keinen – der Server ruft es über das Binding `AI` im eigenen
+Konto auf. Ein API-Schlüssel anderer Anbieter liegt ausschließlich verschlüsselt (AES-GCM mit dem Worker-Secret `SETTINGS_SECRET`)
 in der Datenbank und wird nie an Browser ausgeliefert. Fehlt `SETTINGS_SECRET`, lehnt der Server das Speichern
 eines Schlüssels ab (Meldung „Der Server ist noch nicht vollständig eingerichtet …“) – dann den Workflow „Deploy“
 erneut ausführen, der das Secret anlegt. Wurde `SETTINGS_SECRET` geändert, meldet die Seite „Bitte den
 API-Schlüssel neu eintragen.“
+
+**Keine gespeicherten Protokolle bei Cloudflare.** `wrangler.jsonc` schaltet Workers Logs samt Aufrufprotokollen
+(sie enthielten u. a. die aufgerufene Adresse mit dem Blatt-Code), Traces und Issues ausdrücklich ab – ohne diesen
+Eintrag gälte die Einstellung im Dashboard, die bei neuen Workern laut Cloudflare eingeschaltet ist. Der Server
+protokolliert ohnehin nichts Inhaltliches. Zur Fehlersuche lässt sich live mitlesen (`npx wrangler tail`, nichts wird
+gespeichert); im Dashboard bleiben zusammengefasste Zahlen und unter „Trigger Events“ die letzten Läufe des
+Zeitplans (ohne Inhalte). Logs bitte nicht einschalten. Kontrolle nach dem ersten Veröffentlichen: im Dashboard beim
+Worker `feibeitsblatt` unter „Settings“ → „Observability“ sind Workers Logs und Traces aus, unter „Trigger Events“ steht
+der Cron `17 2 * * *`; am Tag danach zeigt „Past Cron Events“ einen erfolgreichen Lauf.
+
+**KI-Kennzeichnung (Art. 50 KI-VO).** KI-Rückmeldungen sind sichtbar beschriftet („KI-Feedback zu Aufgabe n“,
+„KI-Rückmeldung zu deiner abgegebenen Fassung“, „Angezeigtes KI-Feedback“) und zusätzlich maschinenlesbar
+gekennzeichnet: Die Antwort von `/api/feedback` trägt `aiGenerated: true` und den IPTC Digital Source Type
+`trainedAlgorithmicMedia`; jede Box mit KI-Stichpunkten hat `data-ai-generated="true"`, `data-ai-content` und
+`data-digital-source-type` mit diesem Wert; die Lösungs-PDF hat dann einen sichtbaren Hinweis, Subject und Keywords im
+Dokument-Info und XMP-Metadaten mit `Iptc4xmpExt:DigitalSourceType` = `compositeSynthetic` (Text der Schüler:innen
+gemischt mit KI-Text). Ob das als „wirksame, interoperable“ Kennzeichnung im Sinne der KI-VO genügt, ist rechtlich
+offen; für Text gibt es keinen festen Standard.
 
 **Optional: anderer Türcode.** Wer statt 1104 eine andere Ziffernfolge (4–12 Ziffern) verwenden möchte, legt im
 Cloudflare-Dashboard beim Worker `feibeitsblatt` unter „Einstellungen“ / „Settings“ → „Variablen und Secrets“ /
@@ -540,8 +699,9 @@ kleine Lücke zwischen Veröffentlichung und Passwort-Festlegung (siehe Schritt 
 
 ### Passwort vergessen oder Zugang zurücksetzen
 
-Damit setzen Sie das Passwort zurück. Bisherige Abgaben bleiben danach unlesbar; Feibeitsblätter und
-KI-Einstellungen bleiben erhalten.
+Damit setzen Sie das Passwort zurück. Bisherige Abgaben bleiben danach unlesbar; Feibeitsblätter,
+KI-Einstellungen sowie Datenschutz-Angaben und Löschfrist bleiben erhalten. War noch keine Löschfrist gespeichert, legt
+das neue Passwort keine fest, solange es noch Feibeitsblätter gibt (nur eine leere Installation startet mit 30 Tagen).
 
 1. Am besten zu einer Zeit, in der niemand an einem Feibeitsblatt schreibt. (Wer ein Blatt vor dem Zurücksetzen
    geöffnet hat und danach abgibt, verschlüsselt noch mit dem alten Schlüssel; diese Abgabe ist dann unlesbar.)
@@ -578,37 +738,62 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtsdatum, Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | bis Sie die Abgaben oder das Blatt löschen |
-| Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt oder Sie löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
+| Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
+| Datenschutz-Angaben der Schule (Name, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage, Aufsichtsbehörde, Link) und Löschfrist | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; für alle abrufbar, die einen Code kennen (die Schüler:innen sehen sie im Datenschutzhinweis) | bis Sie sie ändern |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
-| KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert) | bis Sie sie ändern |
-| Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach gelegentlich gelöscht |
-| Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtsdatum, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert; Workers AI hat keinen) | bis Sie sie ändern |
+| Geschätzter Verbrauch von Workers AI je Tag (Zahl der Anfragen und Neurons, keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
+| Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach beim täglichen Aufräumen gelöscht (ohne Zeitplan: beim Öffnen der Übersicht) |
+| IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
+| Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtstag, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 | Zwischenstand als PDF-Datei (dieselben Angaben), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
-| „Meine Lösungen“ als PDF nach der Abgabe (Kürzel, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtsdatum), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
+| „Meine Lösungen“ als PDF nach der Abgabe (Kürzel, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten, und er protokolliert keine Schülertexte
-und keine Schlüssel. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage in der
-Wiederherstellungsfunktion der Datenbank vor (D1 Time Travel). Cloudflare verarbeitet als Hoster technisch bedingt
-Verbindungsdaten wie IP-Adressen; die Einzelheiten regeln Cloudflares eigene Bedingungen (nicht im Einzelnen
-geprüft). Cloudflare ist ein Unternehmen mit Sitz in den USA; die Speicherung in der EU-Jurisdiktion ändert daran
-nichts. Auf gemeinsam genutzten Geräten kann, wer denselben Browser benutzt, einen nicht abgegebenen Zwischenstand
+und keine Schlüssel; die gespeicherten Protokolle von Cloudflare (Workers Logs, Aufrufprotokolle, Traces) sind in
+`wrangler.jsonc` abgeschaltet. Gespeichert werden Angaben und Antworten nur verschlüsselt; für das KI-Feedback
+verarbeitet der Server die Antworten (ohne Angaben zur Person) kurz unverschlüsselt, um sie an den KI-Dienst
+weiterzugeben. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis
+zu 30 Tage) in der Wiederherstellungsfunktion der Datenbank vor (D1 Time Travel). Cloudflare verarbeitet als Hoster
+technisch bedingt Verbindungsdaten wie IP-Adressen; die Einzelheiten regeln Cloudflares eigene Bedingungen (nicht im
+Einzelnen geprüft). Cloudflare ist ein Unternehmen mit Sitz in den USA; die Speicherung in der EU-Jurisdiktion ändert
+daran nichts. Für Übermittlungen in die USA stützt sich Cloudflare laut seiner Datenschutzerklärung (gültig ab
+04.11.2025) auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. Wird die Seite über GitHub
+Pages ausgeliefert, verarbeitet zusätzlich GitHub, Inc. (USA) beim Laden der Seite die IP-Adresse (Übermittlung laut
+GitHub ebenfalls über das Data Privacy Framework bzw. Standardvertragsklauseln); der Datenschutzhinweis nennt GitHub
+dann automatisch. Auf gemeinsam genutzten Geräten kann, wer denselben Browser benutzt, einen nicht abgegebenen Zwischenstand
 sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen abgeben oder den Zwischenstand löschen.
 
 ### Was wohin gesendet wird
 
-- **KI-Feedback:** Der Browser schickt den Blatt-Code, die Antworten und die Liste der Empfänger, über die
-  informiert wurde, an den Server dieser Seite (Cloudflare). Der Server leitet **Aufgabenstellungen und den Text des
+- **Aufruf der Seite:** Beim Laden der Seite und beim Abruf eines Blattes verarbeitet Cloudflare (bei GitHub Pages auch
+  GitHub) technisch die IP-Adresse des Geräts. Die Startseite sagt das in einem Satz; den vollständigen
+  Datenschutzhinweis nach Art. 13 DSGVO (mit Ihren Angaben aus [Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen))
+  sehen die Schüler:innen auf dem Angaben-Bildschirm und unter dem Feedback-Button. Er nennt alle Empfänger mit der
+  Grundlage der Übermittlung in die USA: Cloudflare und GitHub (EU-US Data Privacy Framework, ersatzweise
+  Standardvertragsklauseln), den KI-Dienst (Workers AI wie Cloudflare, Groq: Standardvertragsklauseln laut Groq, andere:
+  „von der Schule beim Anbieter zu prüfen“) und LanguageTool (Learneo ist nach dem Data Privacy Framework zertifiziert,
+  ersatzweise Standardvertragsklauseln).
+- **KI-Feedback (freiwillig):** Nur wenn die Schülerin bzw. der Schüler auf „KI um ein Feedback bitten“ klickt und
+  den Dialog bestätigt, schickt der Browser den Blatt-Code, die Antworten und die Liste der Empfänger, über die
+  informiert wurde, an den Server dieser Seite (Cloudflare). Wer ohne vorherige Anfrage ohne KI-Feedback abgibt, dessen
+  Antworten gehen an keine KI (auch nicht bei der Abgabe). Der Server leitet **Aufgabenstellungen und den Text des
   Materials (jeweils als reinen Text ohne Link-Adressen), Ihre Aufträge an die KI und die Antworten** an den ersten KI-Anbieter weiter – nur für Aufgaben mit
-  Auftrag an die KI. Nur wenn dieser ausgelastet ist, nicht antwortet, einen Serverfehler meldet, die Anfrage als zu lang
-  ablehnt oder keine verwertbare Antwort liefert, geht dieselbe Anfrage danach an die eingetragene
+  Auftrag an die KI. Nur wenn dieser ausgelastet ist, sein Tageskontingent aufgebraucht hat, nicht antwortet, einen
+  Serverfehler meldet, die Anfrage als zu lang ablehnt oder keine verwertbare Antwort liefert, geht dieselbe Anfrage danach an die eingetragene
   [Reserve-KI](#reserve-ki-zweiter-anbieter) – nie an beide gleichzeitig, nie nach einem Inhaltsfilter. Ein Dienst,
   der erst nach dem Senden ausfällt (z. B. Zeitüberschreitung), hat die Texte trotzdem erhalten. **Bei der Abgabe**
-  geschieht dasselbe noch einmal mit den abgegebenen (überarbeiteten) Antworten für die zweite Rückmeldung – nicht,
-  wenn seit dem ersten Feedback nichts geändert wurde, und nur an die Empfänger, über die informiert wurde. Ist die KI
+  geschieht dasselbe noch einmal mit den abgegebenen (überarbeiteten) Antworten für die zweite Rückmeldung – nur nach
+  einem ersten Feedback, nicht, wenn seit dem ersten Feedback nichts geändert wurde, und nur an die Empfänger, über die
+  informiert wurde. Ist die KI
   ausgelastet, wiederholt der Browser die Anfrage bis zu viermal automatisch (jeweils mit dem aktuellen Text); im
   ungünstigsten Fall erhalten also beide Dienste dieselben Antworten mehrfach. **Nie** gesendet werden Kürzel,
-  Geburtsdatum und Klasse; der Server bekommt sie dabei gar nicht. Groq (Groq, Inc.), Cerebras (Cerebras Systems
+  Geburtstag und Klasse; der Server bekommt sie dabei gar nicht. Mit **Cloudflare Workers AI** ist Cloudflare
+  (Cloudflare, Inc., San Francisco, USA) zugleich Hoster und KI-Dienst: Die Datenbank liegt in der EU, die
+  KI-Verarbeitung kann aber auch außerhalb der EU stattfinden (Cloudflare bietet dafür keine EU-Beschränkung an);
+  laut Cloudflare stützt sich die Übermittlung auf das EU-US Data Privacy Framework, ersatzweise auf
+  Standardvertragsklauseln. Groq (Groq LLC; Vertragspartner im EWR: Groq UK Limited), Cerebras (Cerebras Systems
   Inc.) und OpenRouter (OpenRouter, Inc.) haben ihren Sitz in den USA, Google verarbeitet Gemini-Anfragen auch in
   den USA; damit liegt eine **Übermittlung in ein Drittland** vor, deren Grundlage (z. B. eine Zertifizierung nach dem
   EU-US Data Privacy Framework oder Standardvertragsklauseln) die Schule beim Anbieter prüfen muss. OpenRouter
@@ -616,18 +801,20 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   nach seinen eigenen Bedingungen; bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe
   [KI-Anbieter](#ki-anbieter)). Der Datenschutzhinweis unter dem Button und der Dialog vor dem Senden nennen jeden
   möglichen Empfänger mit Rechtsträger und Sitz.
-- **Rechtschreibprüfung:** Sie wird nur Schüler:innen angeboten, die laut eingegebenem Geburtsdatum **mindestens
-  16 Jahre** alt sind, und erst nach einer ausdrücklichen Bestätigung im Browser (Altersangabe und Hinweis, wohin der
-  Text geht; einmal je geöffnetem Blatt). Nur auf Klick schickt der Browser dann **nur den Text dieser einen
+- **Rechtschreibprüfung:** Sie ist freiwillig und arbeitet erst nach einer ausdrücklichen Bestätigung im Browser
+  (Hinweis, wohin der Text geht, und Selbstauskunft „mindestens 18 – oder 16 bzw. 17 mit Erlaubnis der Eltern“; einmal
+  je geöffnetem Blatt; wer „Trifft nicht zu“ wählt, sieht für dieses Blatt keine Prüf-Buttons mehr). Nur auf Klick schickt der Browser dann **nur den Text dieser einen
   Antwort** direkt an LanguageTool (`api.languagetool.org`) – ohne Namen oder Angaben zur Person, aber naturgemäß mit der IP-Adresse
   des Geräts. Laut LanguageTool ist seit Dezember 2024 die **Learneo, Inc. (USA)** verantwortlich; Daten können
-  Deutschland verlassen. Nach Hinweisen des Anbieters ist der Dienst nicht für Nutzer:innen unter 16 Jahren
-  gedacht. (Diese Angaben stammen aus Zusammenfassungen; die Seiten von LanguageTool konnten bei der Entwicklung
-  nicht direkt gelesen werden.) **Ob Schüler:innen die Rechtschreibprüfung überhaupt nutzen
+  Deutschland verlassen. Laut Datenschutzerklärung von Learneo (<https://languagetool.org/legal/privacy>, abgerufen im
+  Oktober 2026) ist der Dienst in Europa nicht für Personen unter 16 Jahren gedacht, und wer jünger als 18 ist, soll die
+  Erlaubnis der Eltern einholen. **Ob Schüler:innen die Rechtschreibprüfung überhaupt nutzen
   dürfen, muss die Schule entscheiden** (die Schulleitung als Verantwortliche, beraten durch die bzw. den
-  Datenschutzbeauftragte:n). Die Altersgrenze stützt sich auf das selbst eingegebene Geburtsdatum und die eigene
-  Bestätigung – ein Ausweis wird nicht geprüft. Die Grenze steht als `LT_MIN_AGE` in `index.html`; eine Einstellung
-  zum vollständigen Abschalten der Prüfung gibt es bisher nicht.
+  Datenschutzbeauftragte:n). Die Altersgrenze stützt sich allein auf die eigene Bestätigung (ein Geburtsjahr
+  wird nicht erhoben) – ein Ausweis wird nicht geprüft. Die Texte stehen in `ltConsent` und `LT_OFF_TEXT` in
+  `index.html`; eine Einstellung zum vollständigen Abschalten der Prüfung gibt es bisher nicht. Laut derselben
+  Erklärung ist Learneo nach dem EU-US Data Privacy Framework (samt Swiss-US und UK Extension) zertifiziert; ersatzweise
+  gelten Standardvertragsklauseln.
 - Die Seite lädt keine externen Schriften, Bibliotheken oder Tracker.
 
 ### Empfehlungen
@@ -637,18 +824,34 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 2. Ein **Auftragsverarbeitungsvertrag (AVV/DPA)** mit den Anbietern ist, soweit erforderlich, von der Schule bzw.
    dem Schulträger abzuschließen, nicht von der einzelnen Lehrkraft. Ob ein Anbieter für kostenlose Konten einen
    AVV anbietet, ist beim Anbieter zu prüfen.
-3. **Informieren Sie Schüler:innen und gegebenenfalls die Eltern**, welche Daten wohin gehen – z. B. mit dem
-   [Textbaustein unten](#textbaustein-für-schülerinnen-und-eltern). Der Hinweis unter dem Feedback-Button nennt den
-   Weg der Daten (Server, KI-Anbieter mit Sitz, Reserve-KI, LanguageTool, Speicherung bis zum Löschen); die
-   Bedingungen der Anbieter und die Rechtsgrundlage müssen Sie zusätzlich mitteilen. Wechseln Sie den Anbieter oder
-   tragen Sie eine Reserve ein, muss die Information erneuert werden. Die API-Konten sollten der Schule gehören,
-   nicht einer Privatperson.
+3. **Informieren Sie Schüler:innen und gegebenenfalls die Eltern**, welche Daten wohin gehen. Der eingebaute
+   Datenschutzhinweis nach Art. 13 DSGVO (Angaben-Bildschirm und unter dem Feedback-Button) nennt Verantwortliche,
+   Datenschutzbeauftragte:n, Zweck, Rechtsgrundlage, Daten, alle Empfänger mit Sitz und Übermittlungsgrundlage,
+   Speicherdauer, Freiwilligkeit, Rechte und Beschwerderecht – vollständig aber erst, wenn Sie unter „Datenschutz und
+   Löschfrist“ die Angaben der Schule und die Rechtsgrundlage eingetragen haben ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)).
+   Für Eltern eignet sich zusätzlich der [Textbaustein unten](#textbaustein-für-schülerinnen-und-eltern). Wechseln Sie den
+   KI-Anbieter, tragen Sie eine Reserve ein oder verlängern Sie die Löschfrist, muss die Information erneuert werden (der
+   Hinweis in der Seite passt sich selbst an). Die API-Konten sollten der Schule gehören, nicht einer Privatperson.
 4. Weisen Sie die Schüler:innen an, **keine personenbezogenen Daten in die Antworten** zu schreiben (keine Namen,
    Adressen, Gesundheits- oder Familienangaben). Auch Aufgaben und Aufträge an die KI sollten keine enthalten.
-5. **Löschen Sie die Abgaben nach der Korrektur** („Alle Abgaben dieses Feibeitsblattes löschen“) und nicht mehr
-   benötigte Feibeitsblätter.
-6. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen (Gemini im EWR nur mit Abrechnungskonto;
-   kostenlose OpenRouter-Modelle dürfen Eingaben protokollieren).
+5. **Legen Sie eine Löschfrist fest** (Schritt 9) – Abgaben und Erstversuche werden danach automatisch gelöscht.
+   Notieren Sie Bewertungen außerhalb von Feibeitsblatt. Nach der Korrektur können Sie auch früher löschen („Alle
+   Abgaben dieses Feibeitsblattes löschen“); nicht mehr benötigte Feibeitsblätter löschen Sie selbst.
+6. **Rechte der Schüler:innen umsetzen.** Der Datenschutzhinweis nennt Sie als Ansprechpartner:in für Auskunft,
+   Berichtigung, Löschung, Einschränkung und Widerspruch. Auskunft: die Einträge dieser Person in der Übersicht
+   aufklappen. Hat sie abgegeben, blendet die Liste ältere Erstversuche derselben Person (gleiche Klasse, Kürzel und
+   Geburtstag, z. B. auf einem anderen Gerät begonnen) aus – der Zähler über der Liste nennt ihre Anzahl, und in den
+   Details der Abgabe zeigt „… ältere Erstversuche dieser Person“ sie beim Aufklappen mit erster Fassung und KI-Feedback;
+   für eine vollständige Auskunft gehören sie dazu. Löschung: in den aufgeklappten Details „Diesen Eintrag löschen“ – das
+   löscht den Eintrag samt dieser ausgeblendeten Erstversuche (auch sehr viele, in mehreren Schritten), alle anderen
+   Einträge bleiben. Einträge, die sich nicht entschlüsseln lassen, haben in der Liste einen eigenen Knopf „Eintrag
+   löschen“. Falsche Angaben (z. B. ein vertipptes Kürzel): den Eintrag löschen und neu abgeben
+   lassen. Wie mit einer Einschränkung oder einem Widerspruch umzugehen ist, klären Sie bitte mit der bzw. dem
+   Datenschutzbeauftragten. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage (bei einem bezahlten Tarif bis
+   zu 30 Tage) in der Datensicherung der Datenbank.
+7. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen. Empfohlen ist Cloudflare Workers AI (kein
+   weiterer Empfänger); als „nicht für den Schuleinsatz geeignet“ gekennzeichnet sind Gemini (Altersgrenze 18),
+   OpenRouter (kostenlose Modelle dürfen Eingaben protokollieren) und Cerebras (kein dauerhaftes Gratiskontingent).
 
 ### Textbaustein für Schüler:innen und Eltern
 
@@ -660,14 +863,24 @@ auch im Datenschutzhinweis unter dem Feedback-Button).
 > im Fach [Fach] nutzen wir die Schreibplattform „Feibeitsblatt“. Verantwortlich ist die [Schule, Anschrift],
 > Datenschutzbeauftragte:r: [Kontakt]. Zweck ist das Üben des Schreibens mit einer automatischen Rückmeldung, die die
 > Antworten nach Vorgaben der Lehrkraft bespricht; Rechtsgrundlage ist [§ … Schulgesetz / Art. 6 Abs. 1 lit. e
-> DSGVO]. Gespeichert werden Namenskürzel, Geburtsdatum, Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
-> lesbar – auf Servern von Cloudflare (Datenbank in der EU) bis zur Löschung nach der Durchsicht, spätestens [Frist].
-> Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
-> Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B. Groq, Inc., USA] gesendet; nur wenn
-> dieser nicht antwortet oder ausgelastet ist, an
-> [Reserve-Dienst mit Sitz]. Diese Dienste haben ihren Sitz in den USA; die Übermittlung stützt sich auf [EU-US
-> Data Privacy Framework / Standardvertragsklauseln]. Schülerinnen und Schüler ab 16 Jahren können auf Wunsch eine
-> Rechtschreibprüfung nutzen, die den Text der jeweiligen Antwort an LanguageTool (Learneo, Inc., USA) sendet. Es
+> DSGVO]. Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte – verschlüsselt, nur für die Lehrkraft
+> lesbar – auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
+> gelöscht (danach noch bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung). Cloudflare stützt Übermittlungen in die USA auf das EU-US
+> Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. [Falls die Seite über GitHub Pages aufgerufen wird:
+> Beim Laden der Seite verarbeitet auch GitHub, Inc. (USA) die IP-Adresse.]
+> Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
+> keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine zur abgegebenen Fassung) werden nur die Antworttexte (ohne
+> Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B.
+> Cloudflare Workers AI – Cloudflare, Inc., USA, derselbe Anbieter, der den Server betreibt] gesendet; nur wenn
+> dieser nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert, an
+> [Reserve-Dienst mit Sitz, z. B. Groq LLC, USA]. Diese Dienste haben ihren Sitz in den USA; [bei Cloudflare Workers AI:
+> die Datenbank liegt in der EU, die KI-Verarbeitung kann auch außerhalb der EU stattfinden;] die Übermittlung stützt
+> sich auf [EU-US Data Privacy Framework / Standardvertragsklauseln]. Die KI gibt nur Hinweise, keine Noten; über die
+> Arbeit entscheidet die Lehrkraft. Schülerinnen und Schüler ab 18 Jahren – mit 16 und 17 Jahren nur
+> mit Erlaubnis der Eltern – können auf Wunsch eine Rechtschreibprüfung nutzen, die den Text der jeweiligen Antwort an
+> LanguageTool (Learneo, Inc., USA; nach dem EU-US Data Privacy Framework zertifiziert) sendet; vor der ersten Prüfung
+> fragt die Seite danach, ohne Bestätigung wird nichts gesendet. Es besteht ein Recht auf Auskunft, Berichtigung,
+> Löschung, Einschränkung und Widerspruch sowie ein Beschwerderecht bei der Aufsichtsbehörde [z. B. HBDI, Wiesbaden]. Es
 > werden keine Namen, Adressen oder andere personenbezogenen Angaben in die Antworten geschrieben. Bei Fragen
 > wenden Sie sich an [Lehrkraft, Kontakt].
 
@@ -686,12 +899,36 @@ Prüfungen je Person (180 am Tag) liegen weit unter jeder Grenze; ein Tageslimit
 es nur, wenn mehr als 20 Personen **in derselben Minute** aus demselben Schulnetz prüfen – dann hilft Warten.
 
 **KI-Anbieter:** siehe [Tabelle oben](#ki-anbieter). Zusätzlich hält der Server je Anbieter einen Mindestabstand
-zwischen Anfragen ein (Groq 2,5 s, OpenRouter 3,5 s, Gemini 4 s, Cerebras 2 s, andere 1 s) und lässt höchstens etwa
+zwischen Anfragen ein (Workers AI 0,2 s, Groq 2,5 s, OpenRouter 3,5 s, Gemini 4 s, Cerebras 2 s, andere 1 s) und lässt höchstens etwa
 eine Minute Wartezeit zu. Fordern viele Schüler:innen gleichzeitig ein Feedback an, erhalten einige „Gerade fragen
 sehr viele gleichzeitig. Bitte versuche es in einer Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage
 bis zu etwa 100 Sekunden dauern.
 
-Rechenbeispiel für **60 Schüler:innen am Tag mit je etwa 600 Wörtern** bei Groq (Vorgabe gpt-oss-120b; die
+**Cloudflare Workers AI** rechnet in „Neurons“ (kostenlos 10 000 pro Tag für das ganze Konto, Neustart 0:00 Uhr UTC).
+Laut Preisliste (Stand 20.10.2026) kostet das Vorgabemodell Gemma 4 je Million Token 9 091 Neurons Eingabe und
+27 273 Neurons Ausgabe; einen Rabatt für wiederkehrende (gecachte) Eingaben gibt es dafür nicht – jede Anfrage zahlt
+Anweisungen, Aufgaben, Material und Aufträge an die KI voll. Rechenbeispiel (Schätzung; die echten Token-Zahlen hängen
+vom Blatt ab):
+
+- Eine Feedback-Anfrage mit 1 800–4 000 Token Eingabe und 200–500 Token Ausgabe kostet etwa **22–50 Neurons**
+  (GLM-4.7-Flash 17–40, Qwen3-30B 14–34). Viel Material oder viele Aufgaben machen sie teurer – bei sehr großen
+  Blättern über 100 Neurons je Anfrage.
+- 180 Anfragen am Tag (etwa drei Klassen mit je 30 Schüler:innen und je zwei Anfragen) brauchen also etwa
+  **3 900–9 000 Neurons**, 40–90 % des Tageskontingents. Für mehr reicht es nicht sicher; dafür ist die Reserve-KI da
+  (oder die Abgabe ohne KI-Feedback).
+- Der Denkmodus der Modelle ist abgeschaltet (er würde die Ausgabe vervielfachen); der Verbindungstest zeigt, ob das
+  wirkt. Die Ausgabegrenze ist großzügig (800 + 300 Token je Aufgabe) – berechnet werden nur erzeugte Token.
+- Ist das Kontingent aufgebraucht (Cloudflare-Fehler 3036), merkt sich der Server das bis 0:00 Uhr UTC und fragt
+  Workers AI bis dahin nicht mehr: Die Reserve-KI übernimmt mit vollem Zeitbudget, sonst bekommen die Schüler:innen
+  sofort die Meldung „Das KI-Kontingent für heute ist aufgebraucht …“ und können ohne KI-Feedback abgeben (diese
+  Anfragen zählen nicht gegen die Grenzen je Netzwerk und Blatt). Ist ein Modell nur kurz ausgelastet (Fehler 3040),
+  weicht der Server auf das nächste aus. Lehnt ein Modell eine Anfrage aus unbekanntem Grund ab, versucht der Server
+  sie noch einmal ohne JSON-Modus (der Denkmodus bleibt aus), dann ohne die Einstellung für den Denkmodus und erst dann
+  das nächste Modell; gesperrt wird das Modell dafür nur fünf Minuten, nicht den ganzen Tag.
+- Den geschätzten Verbrauch (aus den Token-Zahlen der Antworten) zeigen die KI-Einstellungen; Verbindungstests und
+  andere Nutzung von Workers AI im selben Konto zählen mit. Genau steht er im Cloudflare-Dashboard unter „Workers AI“.
+
+Rechenbeispiel für **60 Schüler:innen am Tag mit je etwa 600 Wörtern** bei Groq (gpt-oss-120b; die
 Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole prüfen):
 
 - Eine Feedback-Anfrage besteht aus den Anweisungen (≈ 800 Token), Aufgaben und Aufträgen an die KI (≈ 300–800),
@@ -700,13 +937,13 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 - Jede Schülerin und jeder Schüler stellt bis zu **zwei** solche Anfragen: das Feedback zum Überarbeiten und bei der
   Abgabe die Rückmeldung zur abgegebenen Fassung (die zweite entfällt, wenn nichts geändert wurde). 60 Schüler:innen
   sind also bis zu 120 Anfragen, ohne Cache 300 000–500 000 Token – deutlich über dem Tageslimit von etwa 200 000
-  Token des Vorgabe-Modells. Deshalb macht Feibeitsblatt mehrere Dinge:
+  Token von gpt-oss-120b. Deshalb macht Feibeitsblatt mehrere Dinge:
   1. **Anfrage in Cache-freundlicher Reihenfolge.** Der für alle Schüler:innen eines Blattes gleiche Teil (Anweisungen,
      Aufgaben, Material, Aufträge an die KI) steht vorn, die Antworten stehen hinten. Groq cacht solche Präfixe
      automatisch (für die gpt-oss-Modelle, laut Groq „best effort“, Cache einige Stunden gültig), und **gecachte
      Token zählen nicht gegen die Minuten- und Tageslimits**. Ab der zweiten Anfrage zum selben Blatt kosten dann im
      Wesentlichen nur noch Antworten und Ausgabe, grob 1 500–2 000 Token: 120 Anfragen ≈ 180 000–240 000 Token, also
-     etwa das Tageslimit des Vorgabe-Modells; was darüber hinausgeht, übernehmen die weiteren Modelle (Punkt 2), die
+     etwa das Tageslimit von gpt-oss-120b; was darüber hinausgeht, übernehmen die weiteren Modelle (Punkt 2), die
      jeweils ein eigenes Tageslimit haben. Je Minute gehen so etwa 4–5 statt 2 Anfragen durch ein Modell.
   2. **Alle Modelle gleichzeitig nutzen.** Bei Groq, Cerebras und Gemini gelten die Minutenlimits **je Modell**.
      Der Server verteilt gleichzeitige Anfragen deshalb von Anfang an auf alle Modelle des Anbieters (versetztes
@@ -748,6 +985,10 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
   lädt nichts neu. Bilder und PDF-Dateien aller Feibeitsblätter zusammen dürfen höchstens 200 MB belegen (als
   Base64 rund 270 MB); so bleibt in der 500-MB-Datenbank genug Platz für Abgaben. Die Lehrkräfte-Übersicht zeigt
   den belegten Speicher an.
+- Cron Trigger: höchstens 5 je Konto; Feibeitsblatt braucht einen (tägliche Löschung). Das automatische Löschen nutzt
+  einen Index auf dem Eingangszeitpunkt; je gelöschter Abgabe zählt D1 etwa vier geschriebene Zeilen (mit den
+  Indizes) – weit unter dem Tageslimit. Scheitert das Löschen beim Öffnen der Übersicht (z. B. weil das Tageslimit
+  der geschriebenen Zeilen erreicht ist), lädt die Übersicht trotzdem.
 
 **Grenzen in Feibeitsblatt:**
 
@@ -763,11 +1004,13 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
 | KI-Anfragen je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 800 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
-| KI-Anfragen je Feibeitsblatt | 600 pro Tag |
+| KI-Anfragen je Feibeitsblatt | 600 pro Tag (bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
 | Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
 | Bilder und PDF-Dateien aller Feibeitsblätter zusammen | 200 MB (die Übersicht zeigt den belegten Speicher) |
+| Datenschutz-Angaben der Schule | Name 160, Anschrift 240, Datenschutzbeauftragte:r 300, Rechtsgrundlage 400, Aufsichtsbehörde 240 Zeichen, Link 500 Zeichen (nur `https://`) |
+| Löschfrist | 7 bis 365 Tage (Auswahl 7, 14, 30, 60, 90, 180, 365; Vorgabe einer Neuinstallation 30) |
 
 Diese Zähler gelten je Netzwerkadresse, im Schulnetz also meist für die ganze Schule zusammen; mehrere Klassen
 parallel können die Stundenlimits erreichen. Die Meldungen lauten dann „Gerade wurden von diesem Netzwerk sehr
@@ -783,11 +1026,18 @@ gespeichert.
 | Workflow scheitert beim Anlegen der Datenbank | Dem Token fehlt „Konto → D1 → Bearbeiten“ (Schritt 2). Token anpassen oder neu erstellen und das Secret ersetzen. |
 | Workflow scheitert bei der workers.dev-Subdomain | Im Cloudflare-Dashboard einmal „Workers & Pages“ öffnen und dort eine Subdomain wählen, dann den Workflow erneut starten. |
 | Workflow scheitert bei „SETTINGS_SECRET sicherstellen“ | Die Secret-Liste war nicht abrufbar; den Workflow einfach erneut starten. |
+| Workflow meldet „Zeitplan für die automatische Löschung nicht gesetzt“ bzw. wrangler „Trigger configuration … was only partially updated … Cron schedules“ | Das Cloudflare-Konto hat schon 5 Cron Trigger (Grenze im Free-Plan). Der Worker selbst ist trotzdem veröffentlicht, `SETTINGS_SECRET` wird trotzdem angelegt; gelöscht werden Abgaben und Zähler dann nur beim Öffnen der Lehrkräfte-Übersicht und gelegentlich bei anderen Aufrufen. Abhilfe: im Dashboard bei einem anderen Worker einen Cron Trigger entfernen und den Workflow erneut starten. Geht das nicht, können Sie die rote Markierung des Workflows hinnehmen – der Worker ist veröffentlicht; öffnen Sie die Übersicht dann bitte regelmäßig, damit gelöscht wird. Die Zeile `"triggers"` in `wrangler.jsonc` bitte nicht entfernen: Dann scheitern schon die Unit-Tests, und es wird gar nichts mehr veröffentlicht. |
+| Fehlersuche: Im Dashboard stehen keine Protokolle | Absicht – die gespeicherten Protokolle sind abgeschaltet (siehe [Sicherheit](#sicherheit)). Live mitlesen: `npx wrangler tail` (mit dem API-Token), nichts wird gespeichert. |
 | „Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid.“ | Es ist kein Lehrkraft-Passwort festgelegt (z. B. nach dem Zurücksetzen). `1104` eingeben und ein Passwort festlegen (Schritt 7). |
-| „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“ | KI-Einstellungen speichern (Schritt 8). Bis dahin können Schüler:innen nur ohne KI-Feedback abgeben. |
+| „Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.“ (bzw. „Die Lehrkraft hat das KI-Feedback noch nicht eingerichtet.“) | KI-Einstellungen speichern (Schritt 8). Abgeben (ohne KI-Feedback) geht trotzdem; nach dem Speichern klappt ein neuer Klick auf „KI um ein Feedback bitten“ auch auf schon geöffneten Seiten. |
+| Rote Warnung „Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch …“ bzw. „… werden noch nicht automatisch gelöscht“ in der Übersicht | Unter „Datenschutz und Löschfrist“ die Angaben der Schule eintragen bzw. eine Löschfrist speichern ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Bis dahin sehen die Schüler:innen einen allgemeinen Hinweis. |
+| Abgaben sind verschwunden | Vermutlich ist die Löschfrist abgelaufen (die Übersicht nennt sie; aufgeklappt steht je Abgabe, ab wann sie gelöscht wird). Gelöschtes lässt sich nur über D1 Time Travel (bis zu 7 Tage, bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage) für die ganze Datenbank zurückholen – das setzt auch alles andere zurück. |
 | „Der Server ist noch nicht vollständig eingerichtet (SETTINGS_SECRET fehlt).“ | Den Workflow „Deploy“ erneut ausführen; er legt das Secret an. Danach den API-Schlüssel eintragen. |
 | „Bitte den API-Schlüssel neu eintragen.“ | `SETTINGS_SECRET` wurde geändert. Schlüssel in den KI-Einstellungen neu eintragen. |
-| „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder in den KI-Einstellungen einen anderen Anbieter bzw. Schlüssel eintragen. Schüler:innen können nach dem zweiten Fehlschlag ohne KI-Feedback abgeben. |
+| „Das KI-Kontingent für heute ist aufgebraucht.“ | Tageslimit des Anbieters erreicht. Morgen erneut versuchen oder eine Reserve-KI bzw. einen anderen Anbieter eintragen. Schüler:innen können jederzeit ohne KI-Feedback abgeben; wer es versucht hat, ist in den Abgaben als „das KI-Feedback war nicht möglich“ vermerkt – bei Workers AI mit dem Grund „KI-Kontingent für heute aufgebraucht“, bei anderen Anbietern mit einem allgemeinen Grund wie „Anfrage nicht abgeschlossen“ oder (nach zwei Fehlversuchen) „KI nicht erreichbar“. Bei Workers AI zeigen die KI-Einstellungen „Tageskontingent aufgebraucht bis …“; ein erfolgreicher „Verbindung testen“ (z. B. nach einem Wechsel auf Workers Paid) hebt die Sperre vorzeitig auf. |
+| „Workers AI ist für diesen Worker nicht eingerichtet (Binding „AI“ fehlt).“ | Der veröffentlichte Worker ist älter als die aktuelle `wrangler.jsonc`. Den Workflow „Deploy“ erneut ausführen. |
+| „Workers AI antwortet nur im Cloudflare-Betrieb – in der lokalen Entwicklung …“ | Kein Fehler: Unter `wrangler dev --local` (`npm run dev`, Tests) gibt es keine Verbindung zu Workers AI. Lokal „Anderer OpenAI-kompatibler Dienst“ mit der Test-KI wählen (siehe [Entwicklung](#entwicklung)). |
+| Workflow scheitert bei `wrangler deploy` mit einem Rechtefehler zu Workers AI („AI“, „ai“) | Vermutlich fehlt dem Token eine Berechtigung (nicht dokumentiert). Im Token zusätzlich „Konto → Workers AI → Lesen“ ergänzen und den Workflow erneut starten; bis dahin bleibt die bisherige Version online. |
 | „Die KI ist gerade ausgelastet.“ / „Gerade fragen sehr viele gleichzeitig.“ | Minutenlimit des Anbieters oder Warteschlange voll; nach einer Minute erneut versuchen. |
 | „Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich.“ | Die Anfrage überschreitet das Limit aller verfügbaren Modelle. Aufträge an die KI und Aufgaben kürzen oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen. |
 | „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
@@ -796,10 +1046,12 @@ gespeichert.
 | „konnte nicht geladen werden – erneut versuchen“ an einer PDF-Datei | Die Verbindung ist beim Herunterladen abgerissen. Noch einmal auf die Datei klicken. |
 | „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
 | „Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in …“ | Kein Fehler: Die Minutenlimits aller Modelle sind gerade ausgeschöpft; die Seite wiederholt von selbst (bis zu fünf Versuche in etwa vier Minuten). Weiterschreiben ist möglich; „Nicht länger warten“ bricht ab. Kommt das ständig vor, Feedback gestaffelt anfordern lassen oder eine Reserve-KI eintragen. |
-| „Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis …“ | Sie haben den ersten Anbieter geändert oder eine Reserve eingetragen, während das Blatt geöffnet war. Die Seite hat den Hinweis neu geladen; die Schülerin bzw. der Schüler liest ihn und klickt erneut. Nichts ging verloren. |
-| „Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.“ | Der KI-Anbieter hat die Anfrage mit seinem Inhaltsfilter abgelehnt. Absichtlich geht sie dann **nicht** an die Reserve. Sehen Sie sich die Antworten an; nach zwei Fehlversuchen kann ohne KI-Feedback abgegeben werden. |
+| „Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis …“ (nach automatischen Wiederholungen: „… – dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise schon erhalten. …“) | Sie haben den ersten Anbieter geändert, erster Anbieter und Reserve getauscht oder den ersten Anbieter entfernt, während das Blatt geöffnet war (eine neu eingetragene Reserve allein löst das nicht aus – sie wird auf dieser Seite nur nicht genutzt). Die Seite hat den Hinweis neu geladen; die Schülerin bzw. der Schüler liest ihn und klickt erneut. Die Antworten bleiben erhalten. In der zweiten Form zählt der Lauf als Fehlversuch, weil frühere Versuche schon beim bisherigen Dienst angekommen sein können. |
+| „Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.“ | Der KI-Anbieter hat die Anfrage mit seinem Inhaltsfilter abgelehnt. Absichtlich geht sie dann **nicht** an die Reserve. Sehen Sie sich die Antworten an; abgeben (ohne KI-Feedback) geht trotzdem. |
 | „In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.“ beim Hochladen einer PDF | Es wurde nicht die Original-PDF aus „Zwischenstand als PDF-Datei sichern“ hochgeladen, sondern z. B. ein Screenshot, ein Ausdruck oder eine „Drucken als PDF“-Kopie – die enthalten die eingebetteten Daten nicht. Nur die heruntergeladene Datei selbst (unverändert) funktioniert; ein Neuspeichern in einem PDF-Programm, das die eingebettete Datei behält, ist unproblematisch. |
-| „Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.“ (statt des Buttons) | Kein Fehler: Laut eingegebenem Geburtsdatum ist die Schülerin oder der Schüler jünger als 16; die Prüfung wird dann nicht angeboten (Altersgrenze `LT_MIN_AGE` in `index.html`). Bei einem Tippfehler im Geburtsdatum oben „Abbrechen und Zwischenstand löschen“ wählen und den Code neu eingeben. |
+| „Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ (statt der Buttons, darunter ggf. „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) | Kein Fehler: Im Dialog vor der ersten Rechtschreibprüfung wurde „Trifft nicht zu“ gewählt oder Esc gedrückt. Für dieses geöffnete Blatt gibt es dann keine Prüf-Buttons mehr; Schreiben und Abgeben gehen ganz normal weiter. (Ein Klick neben den Dialog schließt ihn nur: Die Buttons bleiben, darunter steht dann nur „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) Wer sich vertan hat, lädt die Seite neu und öffnet das Blatt wieder (z. B. über „Weiterschreiben“) – dann fragt der Dialog wieder. |
+| „Zwischenstand konnte auf diesem Gerät nicht gespeichert werden“ (oben im Schreibbereich) | Der Browser lässt nichts mehr speichern – meist ist der Speicher für Website-Daten voll oder gesperrt (z. B. privates Fenster). Die Antworten bleiben erhalten, solange die Seite offen ist; zur Sicherheit „Zwischenstand als PDF-Datei sichern“ oder gleich abgeben. Nach einem Neuladen wäre ein nicht gespeicherter Stand weg. |
+| „Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.“ | Tag und Monat passen nicht zusammen (der 29. Februar ist erlaubt). Gefragt sind nur Tag und Monat des Geburtstags, kein Jahr. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |
 
@@ -832,20 +1084,31 @@ Datenbank; Schüler:innen und Lehrkraft können jede davon verwenden.
 GitHub Pages veröffentlicht den Inhalt des Branches `main` – also auch nach jeder Änderung automatisch, so wie der
 Workflow den Worker neu veröffentlicht.
 
+**Updates nicht während des Unterrichts ausrollen.** GitHub Pages erlaubt Browsern, die Seite bis zu 10 Minuten
+zwischenzuspeichern (`Cache-Control: max-age=600`, geprüft im Oktober 2026); unter der `workers.dev`-Adresse fragt der
+Browser jedes Mal neu. In diesen Minuten laufen alte und neue Seite nebeneinander – bei der Umstellung des Geburtstags
+auf Tag und Monat lehnt eine alte Seite z. B. eine neue Zwischenstand-PDF als „kein Zwischenstand“ ab. Nach dem
+Ausrollen deshalb alle geöffneten Seiten (Schüler:innen und Ihre Lehrkraft-Ansicht) einmal neu laden.
+
 Zu beachten:
 
 - Auf GitHub Pages gelten die Sicherheits-Header aus `_headers` nicht (GitHub Pages kann keine eigenen Header setzen).
   Die Content-Security-Policy ist deshalb zusätzlich als `<meta>`-Zeile in `index.html` hinterlegt; nur der Schutz
   gegen das Einbetten in fremde Seiten (`frame-ancestors`) fehlt dort.
-- Die Seite selbst kommt dann von GitHub (USA); Daten fließen weiterhin nur zum Worker (Cloudflare, Datenbank in der
-  EU), zum KI-Anbieter und bei der Rechtschreibprüfung zu LanguageTool – daran ändert sich nichts.
+- Die Seite selbst kommt dann von GitHub (USA): Beim Laden verarbeitet GitHub die IP-Adresse. Die Seite erkennt das
+  (`window.FEIBEITSBLATT_API` ≠ "") und nennt GitHub dann im Datenschutzhinweis und auf der Startseite als weiteren
+  Empfänger. Alle übrigen Daten fließen weiterhin nur zum Worker (Cloudflare, Datenbank in der EU), zum KI-Anbieter und
+  bei der Rechtschreibprüfung zu LanguageTool.
 - Die Bilder und PDF-Dateien zu Aufgaben kommen weiterhin vom Worker; die Seite bettet Bilder als `data:`-Adressen
   ein und baut PDF-Dateien im Browser zusammen (`blob:`), ein eigener Eintrag in der CSP ist dafür nicht nötig.
 - Eine eigene Domain lässt sich alternativ direkt beim Worker einrichten („Workers & Pages“ → `feibeitsblatt` →
   „Settings“ → „Domains & Routes“ → „Add“ → „Custom domain“). Das setzt voraus, dass die Domain bei Cloudflare
   verwaltet wird, also ihre Nameserver auf Cloudflare zeigen (vorher alle vorhandenen DNS-Einträge wie E-Mail bei
   Cloudflare nachtragen). Ein bloßer CNAME-Eintrag beim bisherigen Anbieter auf die `workers.dev`-Adresse genügt
-  **nicht** – Cloudflare beantwortet fremde Hostnamen dort nicht (nicht im Einzelnen geprüft).
+  **nicht** – Cloudflare beantwortet fremde Hostnamen dort nicht (nicht im Einzelnen geprüft). Die Seite erkennt die
+  Worker-Kopie auch unter der eigenen Domain (`npm run build` setzt in `dist/index.html` das Kennzeichen
+  `<meta name="feibeitsblatt-host" content="worker">`): Sie ruft den Server dann über dieselbe Adresse auf und nennt
+  GitHub nicht als Empfänger.
 
 ## Entwicklung
 
@@ -858,7 +1121,7 @@ Voraussetzungen: Node.js ab Version 22. Abhängigkeiten: `npm ci` (nur Entwicklu
 | `npm run dev` | baut und startet den Worker lokal (`wrangler dev --local`, Standard: <http://localhost:8787>) mit lokaler D1-Datenbank unter `.wrangler/` und einem festen Entwicklungs-`SETTINGS_SECRET` |
 | `npm test` | Unit-Tests (`node --test`, Dateien `test/unit/*.test.mjs`) |
 | `npm run test:e2e` | Browser-Tests mit Playwright (KI und LanguageTool werden dabei simuliert); braucht einmalig `npx playwright install chromium` und die freien Ports 8787/8790 – vorher `npm run dev` beenden |
-| `node test/smoke.mjs` | API-Durchlauf gegen einen echten `wrangler dev --local` mit Test-KI (Ports 8811/8812) |
+| `node test/smoke.mjs` | API-Durchlauf gegen einen echten `wrangler dev --local` mit Test-KI (Ports 8811/8812), auch der tägliche Zeitplan |
 | `node scripts/worldmap.mjs` | erzeugt die Weltkarte neu und schreibt sie in `index.html` (`--check` prüft nur) |
 | `node test/fixtures/make-fixture.mjs` | erzeugt die Testdatei `test/fixtures/02_Feibeitsblatt_Ein-Auto-eine-Welt.pdf` neu |
 
@@ -870,17 +1133,34 @@ Pfeile) und bettet das Ergebnis (≈ 120 KB) in `index.html` ein – die Seite l
 Nordzypern und Somaliland haben in den Daten keine ISO-Kennung und sind nicht anklickbar. Natural Earth zeichnet
 tatsächliche Grenzverläufe („de facto“); abweichend davon gehört die Krim hier zur Ukraine.
 
+**Workers AI lokal:** `wrangler.jsonc` enthält das Binding `"ai": { "binding": "AI", "remote": true }`. Unter
+`wrangler dev --local` (so starten `npm run dev`, Smoke- und Browser-Tests) braucht es kein Cloudflare-Konto; `env.AI`
+ist dann zwar vorhanden, jeder Aufruf scheitert aber („Binding AI needs to be run remotely“) – „Verbindung testen“
+meldet das. Die Unit-Tests ersetzen das Binding durch eine Attrappe (`mockAIBinding` in `test/mock-ai.mjs`); echte
+Antworten von Workers AI gibt es erst nach dem Veröffentlichen.
+
 **Lokale Test-KI:** `node test/mock-ai.mjs --port 8812` startet einen OpenAI-kompatiblen Test-Server. In den
 KI-Einstellungen dann „Anderer OpenAI-kompatibler Dienst“ wählen, Basis-URL `http://127.0.0.1:8812/v1`, ein
 beliebiger API-Schlüssel (der Schlüssel `bad` simuliert einen abgelehnten Schlüssel) und z. B. das Modell
 `openai/gpt-oss-120b`. `http://` ist nur für `127.0.0.1` und `localhost` erlaubt. Die Rechtschreibprüfung ruft
 auch lokal den echten LanguageTool-Dienst auf; in den Tests wird er simuliert.
 
+**Zeitplan lokal auslösen:** Unter `wrangler dev` startet
+`curl "http://localhost:8787/cdn-cgi/local/scheduled?cron=17+2+*+*+*&format=json"` den täglichen Lauf (Löschfrist,
+Aufräumen); mit `&time=<Millisekunden>` gilt ein anderer geplanter Zeitpunkt (ein späterer löscht auch alle
+abgelaufenen Sperr-Zähler).
+
 **Lokale Secrets** (optional, z. B. `SETTINGS_SECRET`, `TEACHER_DOOR_CODE`) gehören in die Datei `.dev.vars`;
 sie ist von Git ausgeschlossen. Ohne `SETTINGS_SECRET` lässt sich auch lokal kein KI-Schlüssel speichern.
 
 **Nie `wrangler deploy` von Hand vor dem ersten Lauf des Workflows „Deploy“** – sonst entsteht die Datenbank
 außerhalb der EU (siehe Schritt 5).
+
+**Übergang Geburtstag ohne Jahr – vor dem Ausrollen prüfen:** Zwischenstände, die Schüler:innen vor der Umstellung auf
+dem Gerät gespeichert haben, liegen unter einem Speicherschlüssel mit vollem Geburtsdatum. Die Seite sucht sie nur bis
+zum Datum `BDAY_LEGACY_UNTIL` in `index.html` (derzeit 15.11.2026). Dieses Datum darf nicht früher liegen als
+Ausrolltag + 7 Tage (so lange bleiben Zwischenstände liegen) + einige Tage Puffer; sonst vor dem Ausrollen verschieben –
+andernfalls findet die Seite diese Zwischenstände stillschweigend nicht mehr.
 
 **Aufbau:**
 
@@ -891,7 +1171,7 @@ außerhalb der EU (siehe Schritt 5).
 | `worker/index.js` | Cloudflare Worker: API unter `/api/…`, Datenbank, Sperren, Lehrkraft-Anmeldung |
 | `worker/lib.js` | Hilfsfunktionen: Prüfung der Eingaben, Codes, Lastbegrenzung, Verschlüsselung des API-Schlüssels |
 | `worker/ai.js` | KI-Anbieter, Prompt für das Feedback, Auswertung der Antworten, Ausweichmodelle |
-| `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, statische Seite aus `dist/`) |
+| `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, Workers AI ohne AI Gateway, statische Seite aus `dist/`, täglicher Zeitplan für die Löschfrist, Protokolle aus) |
 | `scripts/build.mjs` | Build-Skript für `dist/` |
 | `scripts/worldmap.mjs` | erzeugt die eingebettete Weltkarte (Natural Earth über world-atlas, Equal Earth, deutsche Namen) |
 | `test/` | Unit-Tests, API-Durchlauf, Test-KI, Browser-Tests |

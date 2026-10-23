@@ -9,7 +9,27 @@
   "workers_dev": true,
   // Statische Seite aus ./dist (npm run build); /api/* geht immer zuerst an den Worker
   "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
-  "d1_databases": [{ "binding": "DB", "database_name": "feibeitsblatt-db" }]
-  // Optional (Dashboard oder `wrangler secret put`): SETTINGS_SECRET (verschlüsselt den KI-Schlüssel),
-  // TEACHER_DOOR_CODE (Vorgabe "1104").
+  "d1_databases": [{ "binding": "DB", "database_name": "feibeitsblatt-db" }],
+  // Cloudflare Workers AI (KI-Anbieter „cloudflare“, ohne API-Schlüssel; aktiv erst, wenn die Lehrkraft ihn speichert).
+  // Kein AI Gateway: der Worker übergibt nie die Option `gateway`. "remote": true unterdrückt nur die Warnung von wrangler –
+  // unter `wrangler dev --local` (npm run dev, Tests) ist env.AI vorhanden, jeder Aufruf scheitert aber mit
+  // „Binding AI needs to be run remotely“ (dafür gibt es die Mock-KI als „Anderer OpenAI-kompatibler Dienst“).
+  "ai": { "binding": "AI", "remote": true },
+  // Täglich 02:17 UTC (versetzte Minute): Abgaben und Erstversuche nach der Löschfrist der Lehrkraft löschen und aufräumen
+  // (Handler `scheduled` in worker/index.js). Braucht 1 der 5 Cron Trigger, die ein Konto im Free-Plan hat; ist das Kontingent
+  // voll, meldet `wrangler deploy` „Trigger configuration … was only partially updated“ (der Code ist dann schon hochgeladen) –
+  // Abgaben und Zähler werden trotzdem beim Öffnen der Lehrkräfte-Übersicht und gelegentlich bei anderen Aufrufen gelöscht (siehe
+  // README). Die Zeile nicht entfernen: test/unit/config.test.mjs verlangt sie (sonst scheitert schon der Testschritt des Workflows).
+  "triggers": { "crons": ["17 2 * * *"] },
+  // Keine Protokolle bei Cloudflare speichern: Aufrufprotokolle (invocation logs) enthielten u. a. die URL mit dem Blatt-Code.
+  // Nur ein ausdrücklicher Eintrag wird beim Deploy übertragen – ohne ihn gälte die Einstellung im Dashboard (bei neuen Workern
+  // laut Doku: an). Zur Fehlersuche live, ohne Speicherung: npx wrangler tail. Logs nie einschalten.
+  "observability": {
+    "enabled": false,
+    "logs": { "enabled": false, "invocation_logs": false },
+    "traces": { "enabled": false },
+    "issues": { "enabled": false }
+  }
+  // Optional (Dashboard oder `wrangler secret put`): SETTINGS_SECRET (verschlüsselt den KI-Schlüssel und ist der Pfeffer der
+  // Rate-Limit-Zähler – auch mit Workers AI nötig), TEACHER_DOOR_CODE (Vorgabe "1104").
 }

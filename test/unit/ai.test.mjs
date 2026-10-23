@@ -5,7 +5,8 @@ import { DatabaseSync } from "node:sqlite";
 import {
   callAI, testKey, anonymize, safeData, extractJsonObject, rankModels, buildGeminiBody, buildOpenAIBody, PROVIDERS,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI, NO_SOLUTION_NOTE, FEEDBACK_CAPS,
-  reserveSlot, skipQuery, skipStatements, pickFallbacks, providerLabel, PUBLIC_MSG, TTL, AIError, gateKey, FEEDBACK_SYSTEM } from "../../worker/ai.js";
+  reserveSlot, skipQuery, skipStatements, pickFallbacks, providerLabel, PUBLIC_MSG, TTL, AIError, gateKey, FEEDBACK_SYSTEM,
+  recipientLabel, nextUtcMidnight, CF_LOCAL, CF_NO_BINDING, CF_MODELS, parseWorkersAI, cfUsage, cfNeurons, DEFAULT_PROVIDER } from "../../worker/ai.js";
 import { parseFeedbackPrompt, mockFeedback } from "../mock-ai.mjs";
 
 const realFetch = globalThis.fetch;
@@ -111,8 +112,12 @@ test("anonymize/safeData", () => {
 });
 
 /* ---------- Neu: Anbieter, reasoning_effort, Basis-URL ---------- */
-test("groq is first provider; labels for the privacy note", () => {
-  assert.equal(Object.keys(PROVIDERS)[0], "groq");
+test("cloudflare is first provider (only preselected); labels for the privacy note", () => {
+  assert.equal(Object.keys(PROVIDERS)[0], "cloudflare"); assert.equal(DEFAULT_PROVIDER, "cloudflare");
+  assert.equal(providerLabel("cloudflare"), "Cloudflare Workers AI");
+  assert.equal(recipientLabel("cloudflare"), "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert");
+  assert.equal(recipientLabel("groq"), "Groq LLC (USA) – Vertragspartner im EWR: Groq UK Limited (London); Datenhaltung in den USA, Verarbeitung auch in anderen Ländern");
+  assert.equal(PUBLIC_MSG.DAILY_LIMIT, "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.");   // neutral: gilt auch nach der Abgabe
   assert.equal(providerLabel("groq"), "Groq");
   assert.equal(providerLabel("gemini"), "Google Gemini");
   assert.equal(providerLabel("custom", "https://api.cerebras.ai/v1"), "api.cerebras.ai");
@@ -404,4 +409,147 @@ test("feedback prompt: Leitsatz, Injection-Schutz, keine Noten, JSON-Form mit gu
   ]) assert.ok(FEEDBACK_SYSTEM.includes(part), part);
   assert.ok(FEEDBACK_SYSTEM.length < 3500, "Prompt kurz halten (Token-Kontingent): " + FEEDBACK_SYSTEM.length);
   assert.equal(buildFeedbackMessages([{ text: "A", solution: "- x" }], ["y"]).messages[0].content, FEEDBACK_SYSTEM);
+});
+
+/* ---------- Cloudflare Workers AI über ein gefälschtes Binding (env.AI.run → Response wie mit returnRawResponse) ---------- */
+const GEMMA = "@cf/google/gemma-4-26b-a4b-it", GLM = "@cf/zai-org/glm-4.7-flash", QWEN = "@cf/qwen/qwen3-30b-a3b-fp8";
+function fakeAI(steps) {
+  const ai = { calls: [], async run(model, inputs, opts) {
+    ai.calls.push({ model, inputs, opts });
+    const st = steps.shift();
+    if (!st) throw new Error("kein Schritt mehr");
+    if (st.throw) throw new Error(st.throw);
+    if (st.hang) return new Promise((_, rej) => opts.signal.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError"))));
+    return new Response(JSON.stringify(st.body), { status: st.status || 200, headers: { "content-type": "application/json" } });
+  } };
+  return ai;
+}
+const chat = (content, model = GEMMA, usage = { prompt_tokens: 3000, completion_tokens: 300, total_tokens: 3300, completion_tokens_details: { reasoning_tokens: 0 } }) =>
+  ({ body: { id: "x", object: "chat.completion", model, choices: [{ index: 0, message: { role: "assistant", content, reasoning_content: "denk" }, finish_reason: "stop" }], usage } });
+const cfErr = (status, internalCode, description) => ({ status, body: { internalCode, description, name: "AiError" } });
+const CF = (ai, extra = {}) => ({ provider: "cloudflare", ai, model: "", fallbacks: [GEMMA, GLM, QWEN], key: "cloudflare", ...extra });
+
+test("workers ai: Gemma mit Denkmodus aus, max_completion_tokens, JSON-Modus; immer genau zwei Optionen (nie gateway); Verbrauch geschätzt", async () => {
+  const ai = fakeAI([chat("{\"ok\":true}")]);
+  const r = await callAI(CF(ai), msgs, { temperature: 0.1, outTokens: 1500 });
+  assert.deepEqual(r.json, { ok: true }); assert.equal(calls.length, 0, "kein fetch");
+  const c = ai.calls[0];
+  assert.equal(c.model, GEMMA);
+  assert.deepEqual(Object.keys(c.opts).sort(), ["returnRawResponse", "signal"]); assert.equal(c.opts.returnRawResponse, true); assert.equal(c.opts.gateway, undefined);
+  assert.deepEqual(c.inputs.chat_template_kwargs, { enable_thinking: false });
+  assert.equal(c.inputs.max_completion_tokens, 1500); assert.equal(c.inputs.max_tokens, undefined);
+  assert.deepEqual(c.inputs.response_format, { type: "json_object" }); assert.equal(c.inputs.temperature, 0.1);
+  assert.deepEqual(c.inputs.messages, msgs);
+  assert.deepEqual(r.usage, { prompt_tokens: 3000, completion_tokens: 300, reasoning_tokens: 0 });
+  assert.equal(r.cost.requests, 1); assert.ok(Math.abs(r.cost.neurons - (3000 * 9091 + 300 * 27273) / 1e6) < 1e-9);
+  // ohne Ausgabegrenze: 2048 (sonst teils nur 256 Token → abgeschnittenes JSON)
+  const ai2 = fakeAI([chat("{\"ok\":1}")]);
+  await callAI(CF(ai2), msgs);
+  assert.equal(ai2.calls[0].inputs.max_completion_tokens, 2048);
+});
+test("workers ai: feste Reihenfolge – startAt versetzt nichts, ein gewähltes Modell geht vor, die Vorgabe folgt", async () => {
+  let ai = fakeAI([chat("{\"ok\":1}")]);
+  await callAI(CF(ai), msgs, { startAt: 2 });
+  assert.equal(ai.calls[0].model, GEMMA);
+  ai = fakeAI([cfErr(429, 3040, "Capacity temporarily exceeded, please try again."), chat("{\"ok\":2}")]);
+  const r = await callAI(CF(ai, { model: QWEN, fallbacks: [] }), msgs, { startAt: 1 });
+  assert.deepEqual(ai.calls.map((c) => c.model), [QWEN, GEMMA]); assert.deepEqual(r.json, { ok: 2 });
+  assert.equal(ai.calls[0].inputs.max_tokens, 2048, "Qwen: max_tokens");
+});
+test("workers ai: 3036 (Tageskontingent) im internalCode-, errors[]- und Wurf-Format → DAILY_LIMIT für das ganze Konto bis 0:00 UTC, ohne Modellwechsel", async () => {
+  const daily = "You have used up your daily free allocation of 10,000 neurons. Please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage.";
+  for (const step of [cfErr(429, 3036, daily), { status: 429, body: { errors: [{ code: 3036, message: "AiError: " + daily }], success: false } }, { throw: "3036: " + daily }, { throw: "InferenceUpstreamError: 3036: " + daily }]) {
+    const ai = fakeAI([step]);
+    await assert.rejects(callAI(CF(ai), msgs), (e) => e.code === "DAILY_LIMIT" && e.accountWide === true && e.until === nextUtcMidnight() && /10\.000 Neurons/.test(e.message) && /0:00 Uhr UTC/.test(e.message));
+    assert.equal(ai.calls.length, 1);
+  }
+  assert.equal(new Date(nextUtcMidnight(Date.UTC(2026, 9, 22, 23, 59))).toISOString(), "2026-10-23T00:00:00.000Z");
+});
+test("workers ai: 3040 (Kapazität) → nächstes Modell mit kurzer Sperre; 5007/5035 → Modell 24 h gesperrt; 3006 → zu lang (nächstes Modell); 3023 → FORBIDDEN ohne Wechsel", async () => {
+  let ai = fakeAI([cfErr(429, 3040, "Capacity temporarily exceeded, please try again."), chat("{\"ok\":2}", GLM)]);
+  let r = await callAI(CF(ai), msgs);
+  assert.deepEqual(r.json, { ok: 2 }); assert.equal(ai.calls[1].model, GLM);
+  assert.ok(r.rotated[0].ttlMs >= 5000 && r.rotated[0].ttlMs <= 30000, String(r.rotated[0].ttlMs));
+  for (const code of [5007, 5035]) {
+    ai = fakeAI([cfErr(code === 5007 ? 400 : 403, code, "No such model or task"), chat("{\"ok\":3}")]);
+    r = await callAI(CF(ai, { model: "@cf/x/y" }), msgs);
+    assert.deepEqual(r.json, { ok: 3 }); assert.equal(r.rotated[0].model, "@cf/x/y"); assert.equal(r.rotated[0].ttlMs, TTL.gone);
+  }
+  ai = fakeAI([cfErr(413, 3006, "Request is too large"), chat("{\"ok\":4}", GLM)]);
+  r = await callAI(CF(ai), msgs);
+  assert.deepEqual(r.json, { ok: 4 }); assert.match(r.rotated[0].reason, /zu lang/);
+  ai = fakeAI([cfErr(403, 3023, "Account blocked")]);
+  await assert.rejects(callAI(CF(ai), msgs), (e) => e.code === "FORBIDDEN" && /gesperrt/.test(e.message));
+  assert.equal(ai.calls.length, 1);
+});
+test("workers ai: unbekannte Ablehnung (400 „Bad input“) → dasselbe Modell erst ohne JSON-Modus (Denkmodus bleibt aus), dann ohne chat_template_kwargs, dann das nächste Modell (nur kurz gesperrt) – nie Abbruch der Kette", async () => {
+  const bad = cfErr(400, 5006, "AiError: Bad input: Error: oneOf at '/' not met");
+  const ai = fakeAI([bad, bad, bad, chat("{\"ok\":5}", GLM)]);
+  const r = await callAI(CF(ai), msgs);
+  assert.deepEqual(r.json, { ok: 5 });
+  assert.deepEqual(ai.calls.map((c) => [c.model, !!c.inputs.chat_template_kwargs, !!c.inputs.response_format]),
+    [[GEMMA, true, true], [GEMMA, true, false], [GEMMA, false, false], [GLM, true, true]]);
+  // eine Ablehnung unbekannter Ursache sperrt das Modell nur 5 Minuten (nicht 24 h wie ein fehlendes Modell, CF_GONE)
+  assert.deepEqual(r.rotated.map((x) => [x.model, x.ttlMs]), [[GEMMA, TTL.soft]]);
+  // eine kurze Störung: schon der Versuch ohne JSON-Modus klappt – der Denkmodus bleibt aus, kein Modellwechsel
+  const ai1 = fakeAI([bad, chat("{\"ok\":4}")]);
+  const r1 = await callAI(CF(ai1), msgs);
+  assert.deepEqual(r1.json, { ok: 4 }); assert.deepEqual(r1.rotated, []);
+  assert.deepEqual(ai1.calls.map((c) => [!!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[true, true], [true, false]]);
+  // nennt die Meldung den JSON-Modus, fällt er weg; nennt sie chat_template_kwargs, zuerst die kwargs
+  const ai2 = fakeAI([{ status: 400, body: { errors: [{ code: 5006, message: "JSON Mode couldn't be met" }] } }, chat("{\"ok\":6}")]);
+  await callAI(CF(ai2), msgs);
+  assert.deepEqual(ai2.calls.map((c) => [!!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[true, true], [true, false]]);
+  const ai3 = fakeAI([cfErr(400, 5006, "Error: additionalProperties: chat_template_kwargs is not allowed"), chat("{\"ok\":7}", QWEN)]);
+  await callAI(CF(ai3, { model: QWEN }), msgs);
+  assert.deepEqual(ai3.calls.map((c) => [c.model, !!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[QWEN, true, true], [QWEN, false, true]]);
+  // ohne JSON-Modus (z. B. ein Aufruf mit json:false): gleich die kwargs
+  const ai5 = fakeAI([bad, chat("ok")]);
+  await callAI(CF(ai5), msgs, { json: false });
+  assert.deepEqual(ai5.calls.map((c) => [!!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[true, false], [false, false]]);
+  // HTTP 405 (5019, veraltete Schnittstelle) zählt genauso
+  const ai4 = fakeAI([cfErr(405, 5019, "Deprecated SDK version"), cfErr(405, 5019, "x"), cfErr(405, 5019, "x"), chat("{\"ok\":8}", GLM)]);
+  assert.deepEqual((await callAI(CF(ai4), msgs)).json, { ok: 8 });
+});
+test("workers ai: 3040, 3040, dann 400 beim letzten Modell → RATE_LIMIT mit Wartezeit (ai_busy) statt HTTP-Fehler", async () => {
+  const cap = cfErr(429, 3040, "Capacity temporarily exceeded, please try again."), bad = cfErr(400, 5006, "AiError: Bad input: Error: oneOf at '/' not met");
+  const ai = fakeAI([cap, cap, bad, bad, bad]);
+  await assert.rejects(callAI(CF(ai), msgs, { deadlineMs: 14000, minLeftMs: 0 }), (e) => e.code === "RATE_LIMIT" && e.retryAfterMs === 10000);
+  assert.deepEqual(ai.calls.map((c) => c.model), [GEMMA, GLM, QWEN, QWEN, QWEN]);
+});
+test("workers ai: ältere Modelle ({response} als Text oder Objekt), REST-Umschlag {result}, Denkspur wird ignoriert, abgeschnitten → nächstes Modell", async () => {
+  let ai = fakeAI([{ body: { response: "{\"a\":1}", usage: {} } }]);
+  assert.deepEqual((await callAI(CF(ai, { model: "@cf/meta/llama-3.1-8b-instruct-fp8" }), msgs)).json, { a: 1 });
+  assert.equal(ai.calls[0].inputs.chat_template_kwargs, undefined); assert.equal(ai.calls[0].inputs.max_tokens, 2048);
+  ai = fakeAI([{ body: { response: { a: 2 } } }]);
+  assert.deepEqual((await callAI(CF(ai, { model: "@cf/meta/llama-3.1-8b-instruct-fp8" }), msgs)).json, { a: 2 });
+  ai = fakeAI([{ body: { result: chat("{\"a\":3}").body, success: true, errors: [], messages: [] } }]);
+  const r = await callAI(CF(ai), msgs);
+  assert.deepEqual(r.json, { a: 3 }); assert.equal(r.usage.prompt_tokens, 3000);
+  assert.equal(parseWorkersAI(chat("{\"b\":1}").body), "{\"b\":1}");   // reasoning_content bleibt außen vor
+  assert.deepEqual(cfUsage({ usage: { prompt_tokens: 10, completion_tokens: 5, completion_tokens_details: { reasoning_tokens: 3 } } }), { prompt_tokens: 10, completion_tokens: 5, reasoning_tokens: 3 });
+  ai = fakeAI([{ body: { choices: [{ message: { content: "" }, finish_reason: "length" }] } }, chat("{\"a\":4}", GLM)]);
+  assert.deepEqual((await callAI(CF(ai), msgs)).json, { a: 4 });
+});
+test("workers ai: lokal (wrangler dev --local) → CONFIG mit Hinweis ohne weitere Versuche; ohne Binding → CONFIG; Zeitüberschreitung → nächstes Modell", async () => {
+  const ai = fakeAI([{ throw: "Binding AI needs to be run remotely" }]);
+  await assert.rejects(callAI(CF(ai), msgs), (e) => e.code === "CONFIG" && e.message === CF_LOCAL);
+  assert.equal(ai.calls.length, 1);
+  await assert.rejects(callAI({ provider: "cloudflare", model: "" }, msgs), (e) => e.code === "CONFIG" && e.message === CF_NO_BINDING);
+  await assert.rejects(callAI({ provider: "cloudflare", model: "", ai: {} }, msgs), (e) => e.code === "CONFIG");
+  const ai2 = fakeAI([{ hang: true }, chat("{\"ok\":9}", GLM)]);
+  assert.deepEqual((await callAI(CF(ai2), msgs, { timeoutMs: 1200, minLeftMs: 0 })).json, { ok: 9 });
+});
+test("workers ai: testKey liefert die feste Liste ohne Netz; Feedback-Prompt geht unverändert durch; Kosten-Überschlag (Preisliste 20.10.2026)", async () => {
+  const t = await testKey({ provider: "cloudflare" });
+  assert.deepEqual(t.models.map((m) => m.id), [GEMMA, GLM, QWEN]); assert.equal(calls.length, 0);
+  assert.match(t.tierNote, /10\.000 Neurons pro Tag für das ganze Cloudflare-Konto/);
+  const { messages, nrs } = buildFeedbackMessages([{ text: "A", solution: "- Licht" }], ["Licht"]);
+  const ai = fakeAI([chat(JSON.stringify({ aufgaben: [{ nr: 1, gut: ["Licht"], tipps: [] }] }))]);
+  const r = await callAI(CF(ai), messages, { accept: feedbackAcceptor(nrs) });
+  assert.deepEqual(ai.calls[0].inputs.messages, messages.map((m) => ({ role: m.role, content: m.content })));
+  assert.equal(r.json.aufgaben[0].gut[0], "Licht");
+  const n = (i, o) => cfNeurons(GEMMA, { prompt_tokens: i, completion_tokens: o });
+  assert.ok(Math.abs(n(1800, 200) - 21.8) < 0.1); assert.ok(Math.abs(n(4000, 500) - 50.0) < 0.1);
+  assert.ok(cfNeurons("@cf/unbekannt/x", { prompt_tokens: 1e6, completion_tokens: 0 }) >= Math.max(...Object.values(CF_MODELS).map((m) => m.neurons[0])), "unbekannt: vorsichtig geschätzt");
 });

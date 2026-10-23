@@ -3,12 +3,24 @@
 // openAIText, extractJsonObject, anonymize/safeData, Modell-Rangliste) – serverseitig, ohne CORS-Themen.
 // Dazu: Feedback-Prompt (Auftrag der Lehrkraft ↔ Schülerantwort), Normalisierung, globaler Mindestabstand (ai_gate)
 // und Ausweich-Liste erschöpfter Modelle (ai_skip) in D1.
+// Cloudflare Workers AI (Anbieter „cloudflare“) läuft über das Binding env.AI (wrangler.jsonc "ai") ohne API-Schlüssel und
+// ohne AI Gateway; unter `wrangler dev --local` (Entwicklung, Tests) ist das Binding da, jeder Aufruf scheitert aber.
 import { isAllowedBase, materialText } from "./lib.js";
 
 // reasoning: "effort" = reasoning_effort (Groq/Cerebras), "object" = reasoning:{effort} (OpenRouter) – nur gpt-oss
 export const PROVIDERS = {
+  // Cloudflare Workers AI über das Binding env.AI: kein API-Schlüssel (keyless), kein AI Gateway – nie die Option `gateway`
+  // übergeben (ein Gateway, auch „default“, protokolliert Ein- und Ausgaben). Das Tageskontingent (10.000 Neurons) gilt für
+  // das ganze Konto und alle Modelle (accountDaily), das Minutenlimit (300/min) je Konto und Aufgabentyp → kein perModelGate,
+  // kein Versetzen des Startmodells (spread:false): erst die Vorgabe, dann die Ausweichmodelle in fester Reihenfolge.
+  cloudflare: { label: "Cloudflare Workers AI", kind: "workers-ai", keyless: true, accountDaily: true, spread: false,
+    defaultModel: "@cf/google/gemma-4-26b-a4b-it", fallbacks: ["@cf/zai-org/glm-4.7-flash", "@cf/qwen/qwen3-30b-a3b-fp8"],
+    gapMs: 200, recipient: "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert",
+    transfer: "EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln", keyHint: "" },
   groq: { label: "Groq", kind: "openai", base: "https://api.groq.com/openai/v1", defaultModel: "openai/gpt-oss-120b",
-    gapMs: 2500, perModelGate: true, recipient: "Groq, Inc. (USA)",
+    gapMs: 2500, perModelGate: true,
+    recipient: "Groq LLC (USA) – Vertragspartner im EWR: Groq UK Limited (London); Datenhaltung in den USA, Verarbeitung auch in anderen Ländern",
+    transfer: "Standardvertragsklauseln",
     maxTokensField: "max_completion_tokens", reasoning: "effort", keyHint: " Bitte unter console.groq.com → API Keys prüfen." },
   openrouter: { label: "OpenRouter", kind: "openai", base: "https://openrouter.ai/api/v1", freeOnly: true,
     keyCheck: ["/key", "/auth/key"], defaultModel: "openai/gpt-oss-120b:free", gapMs: 3500, reasoning: "object",
@@ -23,7 +35,25 @@ export const PROVIDERS = {
     maxTokensField: "max_completion_tokens", reasoning: "effort", keyHint: " Bitte in der Cerebras-Konsole prüfen." },
   custom: { label: "Eigener Dienst", kind: "openai", base: "", defaultModel: "", gapMs: 1000, keyHint: "" },
 };
-export const DEFAULT_PROVIDER = "groq";
+// Vorauswahl der Oberfläche, solange die Lehrkraft nichts gespeichert hat – aktiv (Empfänger von Schülertexten) wird ein
+// Anbieter erst durch „Speichern“ (siehe usable() in index.js)
+export const DEFAULT_PROVIDER = "cloudflare";
+// Workers AI je Modell (Modellseiten unter developers.cloudflare.com/workers-ai/models/…, abgerufen 22.10.2026):
+// maxField = Feld für die Ausgabegrenze; think = chat_template_kwargs.enable_thinking:false mitschicken (der Denkmodus ist bei
+// Gemma 4 und GLM-4.7-Flash dokumentiert und standardmäßig an – er kostet Neurons; bei Qwen3 ist das Feld nicht dokumentiert,
+// ein Versuch mit Rückfall). GLM und Qwen dokumentieren im Schema nur die Prompt-Form, `messages` nur in den Beispielen; den
+// JSON-Modus nennen nur die Modellschemata. Lehnt ein Modell die Anfrage ab, folgen Versuche ohne kwargs bzw. ohne JSON-Modus.
+// neurons = [je Mio. Eingabe-Token, je Mio. Ausgabe-Token] laut Preisliste (20.10.2026) – nur für die Verbrauchsschätzung.
+export const CF_MODELS = {
+  "@cf/google/gemma-4-26b-a4b-it": { maxField: "max_completion_tokens", think: true, neurons: [9091, 27273] },
+  "@cf/zai-org/glm-4.7-flash": { maxField: "max_completion_tokens", think: true, neurons: [5500, 36400] },
+  "@cf/qwen/qwen3-30b-a3b-fp8": { maxField: "max_tokens", think: true, neurons: [4625, 30475] },
+};
+const CF_PRICE_UNKNOWN = [9091, 36400];   // anderes @cf/-Modell: vorsichtig mit den höchsten Preisen der festen Liste schätzen
+export const CF_DAILY_NEURONS = 10000;
+export const nextUtcMidnight = (now = Date.now()) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1); };
+export const utcDay = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
+const thousands = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");   // wie toLocaleString("de-DE") in der Oberfläche
 // Schlüssel für den Mindestabstand (ai_gate): je Modell, wo der Anbieter je Modell begrenzt (groq, cerebras, gemini) –
 // gleichzeitige Anfragen verteilen sich dann auf die Minutenkontingente aller Modelle; sonst je Anbieter-Eintrag.
 // `key` ist der Eintrag (erster Anbieter = provider, Reserve = provider + "#r"): getrennte Schlüssel = getrennte Kontingente.
@@ -32,6 +62,10 @@ export function gateKey(provider, key, model) {
   return p && p.perModelGate && model ? key + "|" + String(model).slice(0, 120) : key;
 }
 export const RATE_LIMIT_TTL = { min: 5000, max: 90000, fallback: 30000 };   // Sperre eines Modells nach einem Minutenlimit (429)
+/* Grundlage der Übermittlung in ein Drittland (Art. 13 Abs. 1 Buchst. f DSGVO) laut Anbieter – nur wo sie belegt ist (Cloudflare:
+   Datenschutzerklärung, gültig ab 04.11.2025; Groq: Doku „Your Data“, abgerufen 22.10.2026); sonst muss die Schule sie prüfen */
+export const TRANSFER_UNKNOWN = "von der Schule beim Anbieter zu prüfen";
+export const recipientTransfer = (provider) => ((PROVIDERS[provider] || {}).transfer || TRANSFER_UNKNOWN);
 /* Empfänger für den Datenschutzhinweis der Schüler:innen: Rechtsträger und Sitz, beim eigenen Dienst der Host */
 export function recipientLabel(provider, baseUrl) {
   const p = PROVIDERS[provider]; if (!p) return null;
@@ -45,7 +79,7 @@ export class AIError extends Error {
 export const PUBLIC_MSG = {
   RATE_LIMIT: "Die KI ist gerade ausgelastet. Bitte versuche es in einer Minute noch einmal.",
   BUSY: "Gerade fragen sehr viele gleichzeitig. Bitte versuche es in einer Minute noch einmal.",
-  DAILY_LIMIT: "Das KI-Kontingent für heute ist aufgebraucht. Bitte frag deine Lehrkraft.",
+  DAILY_LIMIT: "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.",
   TIMEOUT: "Die KI hat zu lange gebraucht. Bitte versuche es noch einmal.",
   TOO_LARGE: "Dieses Feibeitsblatt ist für die eingestellte KI zu umfangreich. Bitte sag deiner Lehrkraft Bescheid.",
   FILTERED: "Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.",
@@ -68,8 +102,12 @@ function baseOf(cfg, p) {
   return str(cfg.provider === "custom" ? cfg.base : p.base).trim().replace(/\/+$/, "");
 }
 
-/* Fehlertext aus OpenAI-/OpenRouter-/Google-Fehlerobjekt (Check: errText) */
+/* Fehlertext aus OpenAI-/OpenRouter-/Google-Fehlerobjekt (Check: errText); Workers AI: {internalCode, description} bzw.
+   {errors:[{code, message}]} → „NNNN: …“ */
 function errText(data) {
+  if (data && data.internalCode != null) return (str(data.internalCode) + ": " + str(data.description || data.message)).slice(0, 600);
+  if (data && Array.isArray(data.errors) && data.errors[0] && typeof data.errors[0] === "object")
+    return (str(data.errors[0].code) + ": " + str(data.errors[0].message)).slice(0, 600);
   const e = data && data.error; if (!e) return "";
   if (typeof e === "string") return e.slice(0, 400);
   let m = str(e.message); const md = e.metadata || {};
@@ -111,6 +149,47 @@ export function buildGeminiBody(messages, o) {
   if (sys) body.systemInstruction = { parts: [{ text: sys }] };
   return body;
 }
+// Workers AI: Eingaben im Chat-Format; die Ausgabegrenze (o.outTokens) ist großzügig – berechnet werden nur erzeugte Token,
+// ohne Angabe gelten teils nur 256 Token (abgeschnittenes JSON)
+export function buildWorkersAIInputs(model, messages, o, jsonMode, thinkOff = true) {
+  const m = CF_MODELS[model] || {};
+  const inputs = { messages: messages.map((x) => ({ role: x.role, content: str(x.content) })) };
+  if (o.temperature != null) inputs.temperature = o.temperature;
+  inputs[m.maxField || "max_tokens"] = o.outTokens || 2048;
+  if (jsonMode) inputs.response_format = { type: "json_object" };
+  if (thinkOff && m.think) inputs.chat_template_kwargs = { enable_thinking: false };
+  return inputs;
+}
+// Antwort des Bindings (returnRawResponse): chat.completion (Gemma 4, GLM, Qwen3) oder {response, usage} (ältere Modelle,
+// im JSON-Modus ist response ein Objekt). Ein Umschlag wie bei der REST-API ({result, success}) wird vorsichtshalber ausgepackt.
+const cfBody = (data) => (data && !Array.isArray(data.choices) && data.response == null && data.result && typeof data.result === "object" ? data.result : data);
+export function parseWorkersAI(data) {
+  const d = cfBody(data);
+  if (d && Array.isArray(d.choices)) return parseOpenAI(d);
+  const r = d && d.response;
+  if (r && typeof r === "object") return JSON.stringify(r);
+  if (typeof r === "string" && r.trim()) return r;
+  throw new AIError("EMPTY", "Leere Antwort der KI.", { soft: true });
+}
+// Token-Zahlen (ohne Inhalt) für die Verbrauchsschätzung und den Verbindungstest
+export function cfUsage(data) {
+  const u = cfBody(data) && cfBody(data).usage;
+  if (!u || typeof u !== "object") return null;
+  const n = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)) : 0);
+  const det = u.completion_tokens_details && typeof u.completion_tokens_details === "object" ? u.completion_tokens_details : {};
+  return { prompt_tokens: n(u.prompt_tokens), completion_tokens: n(u.completion_tokens), reasoning_tokens: n(det.reasoning_tokens ?? u.reasoning_tokens) };
+}
+export function cfNeurons(model, u) {
+  const [i, o] = (CF_MODELS[model] || {}).neurons || CF_PRICE_UNKNOWN;
+  return u ? (u.prompt_tokens * i + u.completion_tokens * o) / 1e6 : 0;
+}
+const CF_GONE = new Set([5007, 3042, 5035, 5016, 5018, 3041]);   // Modell unbekannt, nicht freigegeben oder nur mit Workers Paid
+const CF_STATUS = { 3036: 429, 3040: 429, 3006: 413, 3007: 408, 3008: 408, 5007: 400, 3042: 404, 3023: 403, 5035: 403, 5016: 403, 5018: 403, 3041: 403 };
+function cfCode(data, emsg) {
+  const c = Number(data && (data.internalCode ?? (Array.isArray(data.errors) && data.errors[0] ? data.errors[0].code : undefined)));
+  return Number.isFinite(c) && c > 0 ? c : Number((/^(\d{4}):/.exec(emsg) || [])[1]) || 0;
+}
+const isResponse = (x) => !!x && typeof x === "object" && typeof x.text === "function" && typeof x.status === "number" && !!x.headers;
 function buildRequest(p, base, key, model, messages, o, jsonMode, reasoning, extraHeaders) {
   if (p.kind === "gemini") return {
     url: base + "/models/" + encodeURIComponent(model) + ":generateContent",
@@ -159,31 +238,40 @@ export function extractJsonObject(text) {
   throw new AIError("BAD_JSON", "Antwort der KI war kein gültiges JSON.", { soft: true });
 }
 
+export const CF_NO_BINDING = "Workers AI ist für diesen Worker nicht eingerichtet (Binding „AI“ fehlt). Bitte den Workflow „Deploy“ erneut ausführen – die aktuelle wrangler.jsonc enthält es.";
+export const CF_LOCAL = "Workers AI antwortet nur im Cloudflare-Betrieb – in der lokalen Entwicklung (wrangler dev --local) gibt es keine Verbindung. Zum Testen bitte „Anderer OpenAI-kompatibler Dienst“ mit der Mock-KI wählen.";
+const TOO_LONG_RE = /context|too large|too long|reduce the length|maximum .*tokens|token limit/i;
+
 /* ---------- Kern: callAI ---------- */
 /**
- * cfg:  { provider, apiKey, model?, fallbacks?: string[], skip?: string[] (ans Ende), base? (nur custom), title?, referer? }
+ * cfg:  { provider, apiKey, model?, fallbacks?: string[], skip?: string[] (ans Ende), base? (nur custom), title?, referer?,
+ *         ai? (Workers AI: das Binding env.AI) }
  * msgs: [{ role: "system"|"user"|"assistant", content }]
- * opts: { json=true, geminiSchema, temperature=0.2, maxTokens, timeoutMs=45000, deadlineMs=85000,
+ * opts: { json=true, geminiSchema, temperature=0.2, maxTokens, outTokens (nur Workers AI), timeoutMs=45000, deadlineMs=85000,
  *         maxAttempts=8, maxWaitMs=20000, reasoning=true, accept?: (json) => boolean,
  *         beforeAttempt?: async (provider, gapMs, remainingMs) => void }
- * →    { text, json?, model, provider, rotated: [{model, reason, ttlMs}] }  |  throws AIError (mit e.rotated)
+ * →    { text, json?, model, provider, rotated: [{model, reason, ttlMs}], cost: {requests, neurons}, usage? }
+ *      |  throws AIError (mit e.rotated und e.cost) – cost zählt bei Workers AI jede beantwortete Anfrage (Neurons geschätzt)
  */
 export async function callAI(cfg, messages, opts = {}) {
-  const rotated = [];
-  try { return await callAIInner(cfg, messages, opts, rotated); }
-  catch (e) { if (e instanceof AIError) e.rotated = rotated; throw e; }   // auch bei Fehlern erschöpfte Modelle merken
+  const rotated = [], cost = { requests: 0, neurons: 0 };
+  try { return await callAIInner(cfg, messages, opts, rotated, cost); }
+  catch (e) { if (e instanceof AIError) { e.rotated = rotated; e.cost = cost; } throw e; }   // auch bei Fehlern erschöpfte Modelle und Verbrauch merken
 }
-async function callAIInner(cfg, messages, opts, rotated) {
+async function callAIInner(cfg, messages, opts, rotated, cost) {
   const p = PROVIDERS[cfg.provider];
   if (!p) throw new AIError("CONFIG", "Unbekannter KI-Anbieter „" + str(cfg.provider) + "“.");
-  const key = str(cfg.apiKey).trim();
-  if (!key) throw new AIError("NO_KEY", "Kein API-Schlüssel hinterlegt.");
-  const base = baseOf(cfg, p);
-  if (!isAllowedBase(base)) throw new AIError("CONFIG", "Keine gültige Basis-URL für den Dienst hinterlegt (https://…/v1).");
+  const key = str(cfg.apiKey).trim(), cf = p.kind === "workers-ai";
+  if (!key && !p.keyless) throw new AIError("NO_KEY", "Kein API-Schlüssel hinterlegt.");
+  if (cf && !(cfg.ai && typeof cfg.ai.run === "function")) throw new AIError("CONFIG", CF_NO_BINDING);
+  const base = cf ? "" : baseOf(cfg, p);
+  if (!cf && !isAllowedBase(base)) throw new AIError("CONFIG", "Keine gültige Basis-URL für den Dienst hinterlegt (https://…/v1).");
   const o = { json: true, temperature: p.kind === "gemini" ? null : 0.2, timeoutMs: 45000, deadlineMs: 85000,
     maxAttempts: 8, maxWaitMs: 20000, minLeftMs: 15000, startAt: 0, reasoning: true, ...opts };
   const skip = new Set(cfg.skip || []);
-  const all = [...new Set([cfg.model, ...(cfg.fallbacks || []), p.defaultModel])].filter((m) => m && !(p.retired && p.retired.test(m)));
+  // Workers AI (spread:false): feste Reihenfolge – gewähltes Modell, sonst die Vorgabe, dann die Ausweichmodelle; kein Ranking
+  const all = [...new Set([cfg.model, ...(p.spread === false ? [p.defaultModel] : []), ...(cfg.fallbacks || []), p.defaultModel, ...(p.fallbacks || [])])]
+    .filter((m) => m && !(p.retired && p.retired.test(m)));
   const queue = [...all.filter((m) => !skip.has(m)), ...all.filter((m) => skip.has(m))];   // erschöpfte Modelle nur als letzte Wahl
   if (!queue.length) throw new AIError("NO_MODEL", "Kein Modell verfügbar – bitte in den KI-Einstellungen eines eintragen.");
   // OpenRouter-Zuordnung ist optional (ohne Header: keine öffentliche App-Seite in den Rankings)
@@ -195,9 +283,11 @@ async function callAIInner(cfg, messages, opts, rotated) {
   // Startmodell versetzen (o.startAt): 30 gleichzeitige Anfragen laufen dann nicht alle dieselbe Reihenfolge, sondern
   // verteilen sich von Anfang an auf die Modelle des Anbieters; erschöpfte Modelle bleiben hinten.
   const fresh = queue.filter((m) => !skip.has(m)), stale = queue.filter((m) => skip.has(m));
-  const off = fresh.length ? (((Number(o.startAt) || 0) % fresh.length) + fresh.length) % fresh.length : 0;
+  const off = fresh.length && p.spread !== false ? (((Number(o.startAt) || 0) % fresh.length) + fresh.length) % fresh.length : 0;
   const order = [...fresh.slice(off), ...fresh.slice(0, off), ...stale];
-  let qi = 0, jsonMode = !!o.json, reasoning = !!o.reasoning, lastErr = null, minRetryMs = 0, waited = false;
+  let qi = 0, jsonMode = !!o.json, reasoning = !!o.reasoning, lastErr = null, minRetryMs = 0, waited = false, usage = null;
+  // Workers AI: je Modell, ob es chat_template_kwargs bzw. den JSON-Modus abgelehnt hat (dann ohne erneut)
+  const thinkRejected = new Set(), jsonRejected = new Set();
   const noteRetry = (ms) => { if (ms > 0) minRetryMs = minRetryMs ? Math.min(minRetryMs, ms) : ms; };
   const clampTtl = (ms) => Math.min(RATE_LIMIT_TTL.max, Math.max(RATE_LIMIT_TTL.min, ms || RATE_LIMIT_TTL.fallback));
   const rotate = (model, reason, ttlMs) => {   // Ausweichen auf das nächste Modell; ttlMs > 0 sperrt das Modell sofort für alle Anfragen (onRotate)
@@ -226,31 +316,50 @@ async function callAIInner(cfg, messages, opts, rotated) {
       }
     }
     const started = Date.now();
-    const req = buildRequest(p, base, key, model, messages, o, jsonMode, reasoning, extraHeaders);
+    const req = cf ? null : buildRequest(p, base, key, model, messages, o, jsonMode, reasoning, extraHeaders);
     const ac = new AbortController(), timer = setTimeout(() => ac.abort(), Math.max(1000, Math.min(o.timeoutMs, left())));
     let r, raw = "", data = null;
     try {
-      r = await fetch(req.url, { ...req.init, signal: ac.signal });
+      if (cf) {
+        // Immer genau diese zwei Optionen: das Binding merkt sich die Optionen am geteilten Objekt (gleichzeitige Aufrufe mit
+        // anderen Optionen würden sich stören). returnRawResponse liefert die Antwort mit HTTP-Status wie fetch. Nie `gateway`.
+        const inputs = buildWorkersAIInputs(model, messages, o, jsonMode && !jsonRejected.has(model), !thinkRejected.has(model));
+        r = await cfg.ai.run(model, inputs, { returnRawResponse: true, signal: ac.signal });
+        if (!isResponse(r)) r = new Response(JSON.stringify(r), { status: 200, headers: { "content-type": "application/json" } });
+      } else r = await fetch(req.url, { ...req.init, signal: ac.signal });
       raw = await r.text();
       try { data = JSON.parse(raw); } catch {}
     } catch (e) {
-      const timeout = ac.signal.aborted;
-      lastErr = timeout
-        ? new AIError("TIMEOUT", "Zeitüberschreitung – " + p.label + " hat für „" + model + "“ nicht rechtzeitig geantwortet.", { retryAfterMs: 15000 })
-        : new AIError("NETWORK", "Netzwerkfehler – Anfrage an " + hostOf(base) + " nicht möglich.");
-      if (!timeout && tries[model] < 2 && left() > o.minLeftMs + 2000) { await sleep(1500 * tries[model]); continue; }
-      // Eine Zeitüberschreitung sperrt das Modell nur, wenn der Versuch wirklich Zeit hatte (volle timeoutMs, höchstens 30 s) – sonst war das Budget schuld
-      if (timeout && Date.now() - started < Math.min(o.timeoutMs, 30000) - 500) { next(); continue; }
-      rotate(model, timeout ? "antwortet zu langsam" : "nicht erreichbar", timeout ? TTL.slow : TTL.soft);
-      continue;
+      const em = str(e && e.message);
+      if (cf && /needs to be run remotely/i.test(em)) throw new AIError("CONFIG", CF_LOCAL);   // wrangler dev --local
+      // Binding ohne returnRawResponse (andere Laufzeit): InferenceUpstreamError „3036: …“ → wie eine Fehlerantwort behandeln
+      const up = cf && !ac.signal.aborted ? /^(?:[A-Za-z]*Error:\s*)?(\d{4}):\s*([\s\S]*)$/.exec(em) : null;
+      if (up) { data = { internalCode: Number(up[1]), description: up[2].slice(0, 500) }; raw = JSON.stringify(data); r = new Response(raw, { status: CF_STATUS[up[1]] || 500 }); }
+      else {
+        const timeout = ac.signal.aborted;
+        lastErr = timeout
+          ? new AIError("TIMEOUT", "Zeitüberschreitung – " + p.label + " hat für „" + model + "“ nicht rechtzeitig geantwortet.", { retryAfterMs: 15000 })
+          : new AIError("NETWORK", "Netzwerkfehler – Anfrage an " + (cf ? "Workers AI" : hostOf(base)) + " nicht möglich.");
+        if (!timeout && tries[model] < 2 && left() > o.minLeftMs + 2000) { await sleep(1500 * tries[model]); continue; }
+        // Eine Zeitüberschreitung sperrt das Modell nur, wenn der Versuch wirklich Zeit hatte (volle timeoutMs, höchstens 30 s) – sonst war das Budget schuld
+        if (timeout && Date.now() - started < Math.min(o.timeoutMs, 30000) - 500) { next(); continue; }
+        rotate(model, timeout ? "antwortet zu langsam" : "nicht erreichbar", timeout ? TTL.slow : TTL.soft);
+        continue;
+      }
     } finally { clearTimeout(timer); }
 
+    if (cf && r.ok) {   // jede beantwortete Anfrage verbraucht Neurons (auch wenn die Antwort unbrauchbar ist)
+      const u = cfUsage(data);
+      cost.requests++; cost.neurons += cfNeurons(model, u);
+      if (u) usage = u;
+    }
     const emsg = errText(data);
-    const okBody = r.ok && data && (p.kind === "gemini" || !data.error);   // manche Dienste melden Fehler mit HTTP 200
+    const okBody = r.ok && data && (p.kind === "gemini" || (!data.error && data.success !== false));   // manche Dienste melden Fehler mit HTTP 200
     if (okBody) {
       try {
-        const text = p.kind === "gemini" ? parseGemini(data) : parseOpenAI(data);
-        const out = { provider: cfg.provider, model: str(p.kind === "gemini" ? data.modelVersion : data.model) || model, text, rotated };
+        const text = p.kind === "gemini" ? parseGemini(data) : cf ? parseWorkersAI(data) : parseOpenAI(data);
+        const out = { provider: cfg.provider, model: str(p.kind === "gemini" ? data.modelVersion : data.model) || model, text, rotated, cost };
+        if (usage) out.usage = usage;
         if (o.json) {
           out.json = extractJsonObject(text);
           if (o.accept && !o.accept(out.json)) throw new AIError("BAD_JSON", "Antwort der KI hatte nicht das erwartete Format.", { soft: true });
@@ -263,13 +372,46 @@ async function callAIInner(cfg, messages, opts, rotated) {
         continue;
       }
     }
-    const status = !r.ok ? r.status
+    let status = !r.ok ? r.status
       : (data && data.error && Number.isInteger(data.error.code) && data.error.code >= 400) ? data.error.code : 502;
+    const ic = cf ? cfCode(data, emsg) : 0;
+    if (cf) {
+      // Tageskontingent (3036) gilt für das ganze Konto und alle Modelle: kein Modellwechsel; routeFeedback sperrt bis 0:00 UTC
+      if (ic === 3036 || ic === 4006 || (status === 429 && /daily free allocation|neurons/i.test(emsg)))
+        throw new AIError("DAILY_LIMIT", "Das kostenlose Tageskontingent von Workers AI (" + thousands(CF_DAILY_NEURONS) + " Neurons je Cloudflare-Konto) ist aufgebraucht" +
+          withMsg(emsg) + ". Es steht ab 0:00 Uhr UTC (1:00 Uhr MEZ bzw. 2:00 Uhr MESZ) wieder zur Verfügung.", { status, accountWide: true, until: nextUtcMidnight() });
+      if (ic === 3023) throw new AIError("FORBIDDEN", "Workers AI ist für dieses Cloudflare-Konto gesperrt" + withMsg(emsg) + ".", { status });
+      if (status === 401) throw new AIError("FORBIDDEN", "Workers AI hat die Anfrage abgelehnt (HTTP 401" + withMsg(emsg) + ").", { status });
+      if (CF_GONE.has(ic)) {
+        lastErr = new AIError("NOT_FOUND", "Modell „" + model + "“ ist bei Workers AI nicht verfügbar oder nicht freigegeben" + withMsg(emsg) + ". Bitte in den KI-Einstellungen ein anderes Modell wählen.", { status });
+        rotate(model, "ist bei Workers AI nicht verfügbar (" + ic + ")", TTL.gone);
+        continue;
+      }
+      if (ic === 3040) status = 429;                               // Kapazität erschöpft: wie ein Minutenlimit (nächstes Modell)
+      else if (ic === 3006) status = 413;
+      else if (ic === 3007 || ic === 3008) status = 408;
+      // Jede andere Ablehnung (4xx, z. B. 5006 „Bad input“ bei einem Schema ohne messages/kwargs, 5019 HTTP 405): dasselbe Modell
+      // erst ohne JSON-Modus (der Denkmodus bleibt aus – mit ihm würde die Antwort ein Vielfaches kosten), dann ohne
+      // chat_template_kwargs; nennt die Meldung chat_template_kwargs/enable_thinking, fallen zuerst die kwargs weg. Danach das
+      // nächste Modell, gesperrt nur kurz (TTL.soft): Die Ursache ist unbekannt, eine einzelne seltsame Anfrage oder eine kurze
+      // Störung soll die Modellfolge nicht für einen ganzen Tag ändern (dauerhaft fehlende Modelle erkennt CF_GONE). Nie ein
+      // Abbruch der ganzen Kette; frühere Wartezeiten (minRetryMs) bleiben für ai_busy erhalten.
+      if (status >= 400 && status < 500 && ![403, 404, 408, 413, 429].includes(status) && !TOO_LONG_RE.test(emsg)) {
+        const thinkOn = !!(CF_MODELS[model] || {}).think && !thinkRejected.has(model), jsonOn = jsonMode && !jsonRejected.has(model);
+        const thinkFirst = thinkOn && (!jsonOn || /chat_template_kwargs|enable_thinking|thinking/i.test(emsg));
+        if (thinkFirst) { thinkRejected.add(model); tries[model]--; continue; }
+        if (jsonOn) { jsonRejected.add(model); tries[model]--; continue; }
+        if (thinkOn) { thinkRejected.add(model); tries[model]--; continue; }
+        lastErr = new AIError("HTTP", "Workers AI lehnt die Anfrage für „" + model + "“ ab (HTTP " + status + withMsg(emsg || raw.slice(0, 200)) + ").", { status });
+        rotate(model, "lehnt die Anfrage ab (HTTP " + status + ")", TTL.soft);
+        continue;
+      }
+    }
 
     if (p.kind !== "gemini" && (status === 400 || status === 422) && reasoning && usesReasoning(p, model) && /reasoning/i.test(emsg)) {
       reasoning = false; tries[model]--; continue;                 // Dienst kennt reasoning_effort nicht: ohne erneut
     }
-    if (p.kind !== "gemini" && status === 400 && jsonMode && /response_format|json_object|json mode|json_schema|json/i.test(emsg)) {
+    if (p.kind !== "gemini" && !cf && status === 400 && jsonMode && /response_format|json_object|json mode|json_schema|json/i.test(emsg)) {
       jsonMode = false; tries[model]--; continue;                  // Modell ohne JSON-Modus: ohne erneut (Check 1997)
     }
     if (p.kind === "gemini" && status === 400 && /api key/i.test(emsg))
@@ -284,7 +426,7 @@ async function callAIInner(cfg, messages, opts, rotated) {
     if (status === 404 && /data policy|privacy/i.test(emsg))
       throw new AIError("PRIVACY_POLICY", "OpenRouter lässt kostenlose Modelle für dieses Konto nicht zu („" + emsg + "“). Bitte unter openrouter.ai → Settings → Privacy die kostenlosen Endpunkte erlauben.", { status });
     // Anfrage zu groß für dieses Modell (Groq: HTTP 413 „tokens per minute“, sonst 400/422 „context length“): anderes Modell
-    if (status === 413 || ((status === 400 || status === 422) && /context|too large|too long|reduce the length|maximum .*tokens|token limit/i.test(emsg))) {
+    if (status === 413 || ((status === 400 || status === 422) && TOO_LONG_RE.test(emsg))) {
       lastErr = new AIError("TOO_LARGE", "Die Anfrage ist für das Modell „" + model + "“ zu lang (HTTP " + status + withMsg(emsg) + "). " +
         "Bitte kürzere Aufgaben bzw. Aufträge an die KI verwenden oder in den KI-Einstellungen ein Modell mit größerem Kontingent wählen.", { status });
       rotate(model, "lehnt die Anfrage als zu lang ab (HTTP " + status + ")", TTL.soft);
@@ -296,9 +438,9 @@ async function callAIInner(cfg, messages, opts, rotated) {
       const hard = status === 429 && (p.kind === "gemini"
         ? limit0 || (/PerDay|per day|daily/i.test(raw) && !/PerMinute|per minute/i.test(raw))   // Google: Quote steht in message/details
         : HARD_LIMIT_RE.test(emsg));
-      if (status === 429 && hard && cfg.provider === "openrouter")   // Tageslimit gilt kontoweit für alle :free-Modelle
+      if (status === 429 && hard && cfg.provider === "openrouter")   // Tageslimit gilt kontoweit für alle :free-Modelle (Workers AI: oben)
         throw new AIError("DAILY_LIMIT", "Tageslimit von OpenRouter für kostenlose Modelle erreicht (HTTP 429" + withMsg(emsg) + "). Morgen erneut versuchen oder einmalig Guthaben kaufen (dann gilt das höhere Tageslimit).", { status });
-      const ra = retryAfterMs(r, raw), wait = ra || (status === 429 ? 10000 : 3000 * tries[model]);
+      const ra = retryAfterMs(r, raw) || (ic === 3040 ? 10000 : 0), wait = ra || (status === 429 ? 10000 : 3000 * tries[model]);
       // Minutenlimit (429, nicht hart) und ein weiteres Modell in der Liste: sofort wechseln statt warten – jedes Modell hat
       // bei Groq/Cerebras/Gemini ein eigenes Minutenkontingent, so verteilen sich gleichzeitige Anfragen von selbst. Das
       // 429-Modell wird nur für die gemeldete Wartezeit (5–90 s) gesperrt, nicht 5 Minuten. Ohne Alternative: kurz warten.
@@ -336,6 +478,11 @@ async function callAIInner(cfg, messages, opts, rotated) {
 /* ---------- Verbindungstest + Modellliste (Check: fetchModelsOpenAI / fetchModelsGemini) ---------- */
 export async function testKey(cfg, timeoutMs = 15000) {
   const p = PROVIDERS[cfg.provider]; if (!p) throw new AIError("CONFIG", "Unbekannter KI-Anbieter.");
+  if (p.kind === "workers-ai") {   // kein Schlüssel, keine Modellliste übers Netz: feste Auswahl (Vorgabe zuerst)
+    const ids = [...new Set([p.defaultModel, ...(p.fallbacks || [])])];
+    return { models: ids.map((id) => ({ id, name: id, score: 100 })), defaultModel: p.defaultModel,
+      tierNote: "Kostenloses Kontingent: " + thousands(CF_DAILY_NEURONS) + " Neurons pro Tag für das ganze Cloudflare-Konto (Neustart 0:00 Uhr UTC)." };
+  }
   const key = str(cfg.apiKey).trim(); if (!key) throw new AIError("NO_KEY", "Bitte einen API-Schlüssel eintragen.");
   const base = baseOf(cfg, p);
   if (!isAllowedBase(base)) throw new AIError("CONFIG", "Bitte zuerst die Basis-URL des Dienstes eintragen (https://…/v1).");
@@ -530,7 +677,7 @@ export const FEEDBACK_SCHEMA_GEMINI = {
  */
 const MATERIAL_CAP = 4000;   // Zeichen Material je Aufgabe im Prompt
 const answerType = (t) => (t && t.answer && typeof t.answer === "object" ? t.answer.type : "text");
-const wantsFeedback = (t) => !!str(t.solution).trim() && answerType(t) !== "map";   // Weltkarten-Zuordnung: nie an die KI
+export const wantsFeedback = (t) => !!str(t.solution).trim() && answerType(t) !== "map";   // Weltkarten-Zuordnung: nie an die KI
 export function buildFeedbackMessages(tasks, answers) {
   const nrs = [], blocks = [], replies = [];
   tasks.forEach((t, i) => {

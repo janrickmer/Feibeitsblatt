@@ -1,7 +1,7 @@
 # Feibeitsblatt – Hinweise für die Entwicklung
 
 Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit-Messung): Lehrkraft legt Aufgaben +
-Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback,
+Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
@@ -9,38 +9,56 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Architektur:** `index.html` = ganze Oberfläche in EINER Datei (keine externen Bibliotheken/Fonts).
   `npm run build` (`scripts/build.mjs`) kopiert `index.html` + `_headers` nach `dist/`; der Worker liefert `dist/`
   als Workers Static Assets aus. `wrangler.jsonc`: `run_worker_first: ["/api/*"]`, sonst `env.ASSETS.fetch(request)`;
-  D1-Binding `DB` → `feibeitsblatt-db` per Name (kein `database_id`); kein `nodejs_compat`. Worker-Code und
-  Konfiguration nie in `dist/`.
+  D1-Binding `DB` → `feibeitsblatt-db` per Name (kein `database_id`); kein `nodejs_compat`; Workers AI per
+  `"ai": {"binding": "AI", "remote": true}` (kein AI Gateway; `remote:true` nur gegen die Warnung – unter `--local` ist
+  `env.AI` da, `run()` wirft „Binding AI needs to be run remotely“); `triggers.crons: ["17 2 * * *"]` (Handler `scheduled`:
+  Löschfrist + Aufräumen) und `observability` ausdrücklich aus (`enabled`, `logs.enabled`, `logs.invocation_logs`,
+  `traces.enabled`, `issues.enabled` = false – ohne Eintrag gälte das Dashboard; Aufrufprotokolle enthielten die URL mit
+  dem Blatt-Code). **Logs nie einschalten**, Fehlersuche live per `wrangler tail`; `test/unit/config.test.mjs` prüft beides.
+  Worker-Code und Konfiguration nie in `dist/`.
   - `worker/index.js`: Routing, D1, Rate-Limits, Lehrkraft-Auth. `worker/lib.js`: Validierung, Codes, Buckets,
-    `sealSecret`/`openSecret`. `worker/ai.js`: Anbieter (groq = Vorgabe, openrouter, gemini, cerebras, custom),
+    `sealSecret`/`openSecret`. `worker/ai.js`: Anbieter (cloudflare = Vorauswahl/Empfehlung, groq, openrouter, gemini, cerebras, custom),
     `callAI`, `testKey`, Feedback-Prompt, `reserveSlot` – portiert aus janrickmer/check-des-feind-t-es.
   - Frontend ruft `API + "/api/…"` mit `API = window.FEIBEITSBLATT_API` (kleines Skript ganz oben): `""` = gleiche
-    Herkunft auf `*.workers.dev`/localhost, sonst `window.FEIBEITSBLATT_WORKER` (`https://feibeitsblatt.feindt.
+    Herkunft auf `*.workers.dev`/localhost und überall, wo die Worker-Kopie läuft (`scripts/build.mjs` setzt in `dist/index.html`
+    hinter `<meta charset>` das Kennzeichen `<meta name="feibeitsblatt-host" content="worker">` – auch für eine eigene Domain am
+    Worker; davon hängt auch `PAGES_HOST` ab, GitHub als Empfänger), sonst `window.FEIBEITSBLATT_WORKER` (`https://feibeitsblatt.feindt.
     workers.dev`). Die Seite liegt zusätzlich auf GitHub Pages unter `feibeitsblatt.janrickmer.de` (`CNAME`,
     `.nojekyll`, Quelle Branch `main` Ordner `/`): dort gelten keine `_headers`, deshalb steht die CSP auch als
     `<meta http-equiv>` in `index.html` – Worker-Adresse dort (`connect-src`) und im Skript immer zusammen ändern.
 - **API:** JSON, `{ok:true, …}` bzw. `{ok:false, error:"deutsche Meldung", code}`; CORS `*`, keine Cookies, Auth nur
   per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie `solution`**, d. h. die Aufträge an die KI),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
-  `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/ai`, `/ai/test` (Pfade unter `/api/teacher`).
+  `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/ai`, `/ai/test`, `/privacy` (Pfade unter `/api/teacher`).
+  `DELETE …/sheets/:code/submissions` ohne Body löscht alle Einträge des Blattes, mit JSON `{ids:[…]}` (1–`LIMITS.deleteIds`
+  50 positive Ganzzahlen, `validateDeleteIds`; ein Body ohne gültige ids → 400, nie „alle“) nur diese Einträge dieses Blattes
+  (eine gebundene Anweisung `… WHERE sheet_code=?1 AND id IN (…)`) → `{deleted}`.
   Bilder: `POST /api/teacher/sheets/:code/images` (JSON `{task (1-basiert), mode: thumb|inline|card, data: Base64}` →
   `{image:{id, task, pos, mode, mime, w, h, bytes}}`), öffentlich `GET /api/sheet/:code/images/:id` →
   `{mime, w, h, data: Base64}` mit `Cache-Control: public, max-age=31536000, immutable`; `GET /api/sheet/:code` und
   `GET /api/teacher/sheets/:code` liefern je Aufgabe `images: [{id, mode, w, h, alt}]` (nie Bilddaten),
   `material` (Absätze aus Läufen, siehe unten), `textFmt` (formatierte Aufgabenstellung, siehe unten; `[]` = nur `text`)
-  und `files` (PDF-Dateien, siehe unten).
+  und `files` (PDF-Dateien, siehe unten). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
+  Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
+  `privacy: {school, retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
+  `POST /api/feedback` antwortet zusätzlich `aiGenerated` (`true` + `digitalSourceType` IPTC `trainedAlgorithmicMedia`,
+  wenn die KI gefragt wurde, sonst `false`); `POST /api/submit` liefert `retentionDays` (Frist jetzt, `null` = keine).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
   `/door`, Blatt-Codes enthalten immer Buchstaben. `GET …/submissions?after=<id>` liefert seitenweise (≤ 50 bzw.
   ≤ 8 MB je Seite, `next` = letzte id oder `null`); das Frontend schleift über `next`. `GET /api/health` ohne
   Datenbank. KI-Fehler, bei denen Warten hilft (BUSY, RATE_LIMIT, TIMEOUT) → 429 `ai_busy` mit `retryAfter`,
-  sonst 502 `ai_error`; ohne `SETTINGS_SECRET` → 503 `server_not_configured`.
+  Tageskontingent von Workers AI (kontoweit) → 503 `ai_quota` ohne `retryAfter`, sonst 502 `ai_error`; ohne
+  `SETTINGS_SECRET` → 503 `server_not_configured` (nur beim Speichern eines API-Schlüssels). `GET`/`PUT /api/teacher/ai`
+  liefern je Eintrag `hasKey` (= nutzbar), `ready`, `saved`, `keyless`, `keyError?` und dazu `quotaUntil` (Sperre "*"
+  oder `null`) und `usage: {day, requests, neurons, limit}` (Workers AI heute, UTC); `/ai/test` bei Workers AI `usage`
+  (prompt/completion/reasoning_tokens, nie Inhalt).
 - **Codes:** 6 Zeichen aus `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (≥ 1 Buchstabe, ≥ 1 Ziffer), Anzeige `K7Q-M4X`,
   Eingabe normalisieren (Großbuchstaben, nur `A–Z0–9`), Erzeugung mit `crypto.getRandomValues` ohne Modulo-Bias.
-- **D1-Schema:** `settings(key, value)` (`teacher` = `{authHash, kdf, publicKey, encPrivateKey}`, `ai`), `sheets`,
+- **D1-Schema:** `settings(key, value)` (`teacher` = `{authHash, kdf, publicKey, encPrivateKey}`, `ai`, `privacy`), `sheets`,
   `submissions(id, sheet_code, received_at, envelope, stage TEXT DEFAULT 'final', attempt TEXT)` + Indizes
-  (`sheet_code, id` und `sheet_code, attempt`), `sheet_images(id, sheet_code, task, pos, mode, mime,
+  (`sheet_code, id`, `sheet_code, attempt` und `received_at` für die Löschfrist), `sheet_images(id, sheet_code, task, pos, mode, mime,
   w, h, bytes, data TEXT = Base64, created_at)` + Index (`sheet_code, task, pos`), `rate_limits`, `ai_gate`,
-  `ai_skip`. Angelegt per
+  `ai_skip`, `ai_usage(day 'YYYY-MM-DD' UTC, provider, requests, neurons, PK(day, provider))`. Angelegt per
   `CREATE TABLE IF NOT EXISTS` beim ersten Request je Isolate (ein `batch`), keine Migrationen → Schemaänderungen
   nur additiv und idempotent im `SCHEMA`-Array; nachträgliche Spalten wie `stage`/`attempt` per
   `ensureSubmissionColumns` (`PRAGMA table_info` → `ALTER TABLE … ADD COLUMN`, Fehler bei Wettlauf zweier Isolates
@@ -52,10 +70,18 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   scheitert das Senden, wird es beim nächsten Öffnen nachgeholt – `S.firstSent`). Gleiche `attempt` → `UPDATE`
   derselben Zeile (`replaced`), ein Erstversuch überschreibt nie eine Abgabe (`kept:true`); ohne `attempt` wird
   eingefügt. `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
+  `#p-klasse-hint` sagt es den Schüler:innen so: Angaben gehen mit dem KI-Feedback (Erstversuch), ohne KI-Feedback erst
+  bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
   Lehrkraft-Ansicht: Kürzel `.st-final` (grün) / `.st-first` (orange, `#b85c00`), Legende `#t-subs-legend`,
   Zusammenfassung `subsSummary`; Erstversuche einer Person, die (anders) schon abgegeben hat, werden ausgeblendet
-  (`T.subsHidden`, in Lösch-Dialogen mitgezählt); Details: „Erstversuch ohne Überarbeitung – noch nicht abgegeben“,
-  Spalte 2 „(noch nicht überarbeitet)“. Screenreader-Text in der Pfeilspalte, nie im Kürzel (Tests lesen die Zellen).
+  (`T.subsHidden` = `[{id, who, s}]` per `subWho` – Klasse, Kürzel, Geburtstag –, in Lösch-Dialogen mitgezählt; die Details
+  der Abgabe zeigen sie in `details.dolder` „n ältere Erstversuche dieser Person (in der Liste ausgeblendet)“, gebaut beim
+  Aufklappen per `buildDetail(x.s, true)` ohne Löschknopf – sonst wäre die Auskunft unvollständig); Details:
+  „Erstversuch ohne Überarbeitung – noch nicht abgegeben“, Spalte 2 „(noch nicht überarbeitet)“, am Ende „Diesen Eintrag
+  löschen“ (`deleteEntry`, danger-Dialog mit Kürzel, Geburtstag, Klasse; löscht die ausgeblendeten Erstversuche derselben
+  Person und zuletzt die id selbst in Blöcken zu `DELETE_IDS_MAX` = `LIMITS.deleteIds` (50) – scheitert ein Block, bleibt der
+  Rest unter der Abgabe –, lädt Liste und Zähler neu, Status in `#t-subs-status`) – so setzt die Lehrkraft Löschwünsche um.
+  Nicht entschlüsselbare Einträge (`tr.errrow`) haben einen eigenen Knopf „Eintrag löschen“. Screenreader-Text in der Pfeilspalte, nie im Kürzel (Tests lesen die Zellen).
 - **Zwischenstand als PDF (ohne Bibliothek):** `makeDraftPdf(d)` baut eine A4-Seite (Helvetica/-Bold, WinAnsi,
   `pdfStr` oktal-maskiert, Breiten aus `PDF_W_REG/BOLD` für den Umbruch) mit orangem Kasten, URI-Link-Annotation
   auf `PUBLIC_URL` (`window.FEIBEITSBLATT_PUBLIC`) und dem Datensatz (`draftRecord()` + `kind:"feibeitsblatt-draft"`,
@@ -63,12 +89,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readDraftPdf` sucht die Kennzeichen
   im Latin-1-String, liest `/Length` (direkt oder Verweis, sonst bis `endstream`) und entpackt `FlateDecode` per
   `DecompressionStream` – neu gespeicherte PDFs bleiben lesbar; `cleanDraft` prüft wie die Eingabefelder (Code,
-  Kürzel, Datum, Klasse, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`). Startseite: `#start-pdf` →
+  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`). Startseite: `#start-pdf` →
   `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB, Blatt laden, Aufgabenzahl prüfen, bei neuerem
   lokalen Stand nachfragen) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
   **Bestätigung nach der Abgabe** (`#screen-done`, nur nach HTTP 200 von `/api/submit`): großer grüner Haken
-  (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, dann **ganz oben über der zweiten KI-Rückmeldung**
+  (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, `#done-del` (nur mit Frist: Löschdatum =
+  `receivedAt` + `retentionDays` aus der Antwort von `/api/submit`, „oder kurz danach“), dann **ganz oben über der zweiten KI-Rückmeldung**
   Button `#done-pdf` „Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“ und
   direkt darunter klein und blass `#done-pdf-note` (`.donenote`, `aria-describedby`) „Es ist möglich, dass du mit diesen
   Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.“, danach `#done-status` (Meldungen zum Download). `S.lastSubmission` (Code, Titel, Aufgabentexte, person, answers
@@ -77,8 +104,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Aufgabenstellung, abgegebene Fassung + „KI-Rückmeldung zur abgegebenen Fassung:“ (`sub.feedback2`, ohne Zählung;
   Punkte „• Gelingt schon: …“ grün, „• Tipp: …“ rot), bei Überarbeitung erste Fassung + „KI-Feedback zur ersten Fassung:“ (unverändert abgegeben:
   „KI-Feedback (gilt auch für die abgegebene Fassung):“), fehlt `feedback2` noch, ein Hinweis unter dem Kopf;
-  Fußzeile „Seite n von N“;
-  Dateiname `Feibeitsblatt-Loesungen-<Code>-<Datum>.pdf`, ohne Geburtsdatum.
+  Fußzeile „Seite n von N“; nur mit KI-Stichpunkten (`hasAi`, vorab aus `items` berechnet) die KI-Kennzeichnung: sichtbar
+  `AI_PDF_NOTE` unter dem Kopf, `/Subject` + `/Keywords` im Info-Dict, XMP-Stream (`xmpPacket`, UTF-8, `/Length` in Bytes,
+  letztes Objekt `6 + 2·Seiten`, `/Metadata` im Katalog) mit `Iptc4xmpExt:DigitalSourceType` `compositeSynthetic`;
+  Dateiname `Feibeitsblatt-Loesungen-<Code>-<Datum>.pdf`, ohne Geburtstag.
 - **Zweite KI-Rückmeldung zur abgegebenen Fassung (nur im Browser, kein eigener Server-Endpunkt):** `submitAll`
   gibt **zuerst** ab (die Abgabe hängt nie von der KI ab), merkt sich in `S.lastSubmission` die Empfänger-ids
   (`recipients`) und ruft danach `requestFinalFeedback()` – nur mit erstem Feedback (`S.feedback`; ohne KI keine
@@ -93,7 +122,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `S.fbRun`/`S.fbAbort` (`resetStudent` → `stopFeedbackRun` bricht ab), bei `ai_busy` automatische Wiederholung wie beim
   ersten Feedback (`FB_TRIES`, `FB_MAX_MS`, Zufallsanteil, `waitFinalFeedback` mit Zähler `#done-fb-wait` außerhalb der
   Live-Region `#done-fb-status`), sonst `finalFeedbackFailed` + `#done-fb-retry` „Rückmeldung erneut anfordern“
-  (höchstens `FB2_MANUAL` 3, nur bei vorübergehenden Fehlern `FB2_TRANSIENT`/429/5xx; endgültig → `finalFeedbackGone`,
+  (höchstens `FB2_MANUAL` 3, nur bei vorübergehenden Fehlern `FB2_TRANSIENT`/429/5xx, nie bei `ai_quota`; endgültig → `finalFeedbackGone`,
   `fb2Final`). Anzeige `renderFinalFeedback` in
   `#done-fb-list` unter dem Download-Button: je Aufgabe `.fbbox#done-fb-n` **ohne Zählung** (der Auftrag ist keine Liste zum
   Abhaken; nur bei `kept[i]` ohne `same` ein `.fb-sum` „Unverändert abgegeben – wie beim ersten Feedback.“) und denselben
@@ -126,12 +155,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `apiKeyEnc`, `fallbacks`); `PUT /api/teacher/ai` mit `reserve:{…}` bzw. `reserve:null` (ohne `provider` bleibt der
   erste Anbieter unberührt), `POST …/ai/test?which=reserve`; `routeFeedback` versucht erst den ersten Anbieter (mit
   Reserve: `deadlineMs` 60 s), dann die Reserve (eigenes `ai_gate`/`ai_skip` je Anbieter), Gesamtbudget 100 s;
-  `GET /api/sheet/:code` liefert `aiRecipients: [{id, label}]` (nur Einträge mit entschlüsselbarem Schlüssel; id =
+  `GET /api/sheet/:code` liefert `aiRecipients: [{id, label, transfer}]` (`recipientsFor`; transfer = Grundlage der
+  Übermittlung aus `PROVIDERS[].transfer` – cloudflare DPF + SCC, groq SCC, sonst `TRANSFER_UNKNOWN`; `activeEntries`: nur nutzbare Einträge, `usable`, die Reserve
+  nur bei nutzbarem ersten Anbieter – eine Reserve ohne gespeicherten ersten lehnt `PUT` mit 400 `aiMainFirst` ab; id =
   Anbieter bzw. `custom:<host>`, label = `recipientLabel` mit Rechtsträger und Sitz) – Datenschutzhinweis **und**
   Bestätigungsdialog der Schüler:innen nennen alle; der Browser schickt `recipients` (ids) mit `POST /api/feedback`,
-  der Server nutzt nur diese Einträge und antwortet 409 `ai_changed`, wenn der erste Anbieter nicht darunter ist
-  (Browser: `reloadRecipients`, Hinweis, nichts gesendet). Reserve nur bei Codes aus `RESERVE_ON` (Verfügbarkeit, zu
-  lang, unbrauchbare Antwort) – nie bei FILTERED/AUTH/CONFIG/PRIVACY_POLICY/REGION/PAYMENT, nie parallel. Gemini
+  der Server nutzt nur diese Einträge und antwortet 409 `ai_changed`, wenn der jetzige erste Anbieter dort nicht an erster
+  Stelle steht (Reihenfolge des Hinweises: geändert, mit der Reserve getauscht oder entfernt, sodass die Reserve nachrückt;
+  eine neu ergänzte Reserve wird nur nicht genutzt, kein 409) (Browser: `reloadRecipients`, Hinweis, nichts gesendet).
+  Reserve nur bei Codes aus `RESERVE_ON` (Verfügbarkeit, zu lang, unbrauchbare Antwort) – nie bei FILTERED/AUTH/CONFIG/PRIVACY_POLICY/REGION/PAYMENT, nie parallel. Gemini
   (erster Anbieter oder Reserve) nur mit `confirmBilling:true` (→ `billingConfirmed`, EWR-Bedingungen).
   **Lastspitzen (30 Anfragen in einer Minute):** `ai_gate`-Schlüssel per `gateKey(provider, key, model)` – je
   Eintrag (`key` = provider bzw. `provider#r` für die Reserve) und bei `perModelGate` (groq, cerebras, gemini) je
@@ -142,8 +174,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`skipStatements`: `until=MAX(...)`, eine lange Sperre wird nie verkürzt), `TTL.slow` 60 s nur bei echter
   Zeitüberschreitung, kein Versuch unter `minLeftMs` 15 s, am Ende einmal bis zur frühesten Sperre warten, Fehler
   tragen `retryAfterMs` → `retryAfterOfErr` (5–60 s) im 429 `ai_busy`. routeFeedback: Budget 100 s, erster Anbieter
-  45 s (mit Reserve) und 6 Versuche, Reserve ≤ 40 s/3 Versuche nur bei ≥ 35 s Rest; höchstens 18 D1-Abfragen je
-  Aufruf (Unit-Test zählt). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
+  45 s (mit Reserve) und 6 Versuche, Reserve ≤ 40 s/3 Versuche nur bei ≥ 35 s Rest. D1-Abfragen je Feedback (Anweisungen
+  eines Batches einzeln, Schema schon angelegt): Erfolg im ersten Versuch ≤ 18; je Versuch ≤ 3, dazu Aufräumen, Zählung,
+  Verbrauch, Erstattung → höchstens 32 ohne, 42 mit Reserve (Unit-Tests: Erfolg über Workers AI ≤ 18, volle Warteschlangen
+  mit Reserve ≤ 42; jeder Aufruf ≤ 50). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
   `FB_MAX_MS` 4 min, Wartezeit = retryAfter × (1 + 0–30 %) + 0–3 s, ein `setTimeout` auf einen absoluten Zeitpunkt +
   `visibilitychange`, Sekundenzähler in `#fb-wait` (aria-hidden) außerhalb der Live-Region `#fb-status`, Felder nur
   während einer laufenden Anfrage readOnly, vor jedem Versuch `answers` neu lesen (`S.first` = gesendete Fassung),
@@ -174,13 +208,108 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Modell). API-Schlüssel at rest **nur** AES-GCM mit `env.SETTINGS_SECRET` – fehlt es, lehnt der Server das
   Speichern ab (503, nie Klartext; `npm run dev` setzt ein festes Entwicklungs-Secret); der Schlüssel verlässt den
   Server nie (nur `keyHint`) und bleibt bei leerem Feld nur für denselben Anbieter + baseUrl erhalten. Schüler:innen
-  sehen nur `PUBLIC_MSG`, Details nur `/api/teacher/ai/test`. `custom`-baseUrl `http://` nur für
-  `127.0.0.1`/`localhost`.
+  sehen nur `PUBLIC_MSG` (`DAILY_LIMIT` neutral „… Morgen geht es wieder.“ – den Weg ohne KI nennt nur der Browser vor der
+  Abgabe), Details nur `/api/teacher/ai/test`. `custom`-baseUrl `http://` nur für `127.0.0.1`/`localhost`.
+  **Cloudflare Workers AI** (`cloudflare`, `kind:"workers-ai"`, `keyless`, `accountDaily`, `spread:false`, `gapMs` 200, kein
+  `perModelGate`): `DEFAULT_PROVIDER` nur als Vorauswahl – nutzbar erst, wenn gespeichert (`usable(e)` = keyless ?
+  `explicit && env.AI` : entschlüsselbarer Schlüssel; gilt für `aiRecipients`, Feedback, Test, `hasKey`); nie `apiKeyEnc`
+  (Schlüssel → 400 `aiKeyless`, Modell nur `@cf/`/`@hf/`, kein `SETTINGS_SECRET` nötig, ohne Binding Warnung bzw. keyError
+  `CF_NO_BINDING`). `callAIInner`: `cfg.ai.run(model, buildWorkersAIInputs(…), {returnRawResponse: true, signal})` – **immer
+  genau diese zwei Optionen** (das Binding speichert sie am geteilten Objekt), **nie `gateway`**; Nicht-Response wird verpackt,
+  „needs to be run remotely“ → CONFIG `CF_LOCAL`, geworfenes „NNNN: …“ → Fehlerantwort. Modelle fest: Gemma 4 → GLM-4.7-Flash →
+  Qwen3-30B (`CF_MODELS`: `maxField`, `think` = `chat_template_kwargs.enable_thinking:false`, `neurons` je Mio. Token),
+  `outTokens` = min(8192, 800 + 300 × Aufgaben), Test 200. Codes: 3036 → DAILY_LIMIT `accountWide`, `until` = nächstes 0:00
+  UTC, kein Modellwechsel; 3040 → wie Minutenlimit (10 s); 3006 → zu lang; 3007/3008 → 408; `CF_GONE` (5007, 3042, 5035,
+  5016, 5018, 3041) → Modell 24 h; 3023/401 → FORBIDDEN; **jede andere 4xx**: dasselbe Modell erst ohne JSON-Modus (der
+  Denkmodus bleibt aus – mit ihm kostet die Antwort ein Vielfaches), dann ohne kwargs (nennt die Meldung
+  `chat_template_kwargs`/`enable_thinking`/`thinking`, zuerst die kwargs), dann nächstes Modell, gesperrt nur `TTL.soft`
+  (5 min – eine einzelne seltsame Anfrage ändert die Modellfolge nicht für einen Tag) – `minRetryMs` bleibt, also am Ende
+  eher `ai_busy` als `ai_error`. `parseWorkersAI` (choices, `{response}` als Text/Objekt, packt `{result}` aus),
+  `cfUsage`/`cfNeurons`: `callAI` liefert `cost {requests, neurons}` (auch an Fehlern) → ein Upsert in `ai_usage` im
+  `waitUntil`-Batch (keine zusätzliche Abfrage je Versuch), Aufräumen > 2 Tage. Kontoweite Sperre = `ai_skip` mit model `"*"`
+  unter `entryKey` (bei `accountDaily` ohne `#r`, für erste und Reserve-Rolle gleich): `routeFeedback` fragt dann nicht,
+  ohne Reserve schon **vor** `countAll` 503 `ai_quota` (nichts gezählt), mit Reserve bekommt diese das volle Budget (`lead`:
+  deadline = Rest, 6 Versuche); ein Treffer im Aufruf erstattet die Zählung (DAILY_LIMIT ∈ `AI_REFUND`). Speichern löscht
+  `"*"` nicht (`model<>'*'`), ein erfolgreicher Test eines keyless-Eintrags schon. Workers AI als erster Anbieter **und**
+  Reserve → 400 `aiSameAccount` (beide Reihenfolgen). Empfänger-Label „Cloudflare, Inc. (San Francisco, USA) – betreibt
+  auch den Server, der die Abgaben speichert“; `recipientSentence`/`renderPrivacy`: bei Cloudflare „auch außerhalb der EU
+  möglich“, zusammen mit einem anderen US-Dienst „die übrigen Dienste mit Sitz in den USA … außerhalb der EU“; die Reserve
+  springt ein, wenn der erste „nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares
+  Feedback liefert“ (`RESERVE_WHEN` – die Worte müssen alle Codes aus `RESERVE_ON` abdecken –, ebenso im Reserve-Dialog der
+  Lehrkraft, in der Kurzfassung `privacyShortText` und im README-Textbaustein). Oberfläche: Optionen „– nicht für den Schuleinsatz geeignet“ (gemini, openrouter, cerebras; `unsuitable` im
+  Browser-`PROVIDERS`, `.provwarn` per JS gefüllt, `askConfirm` „Anbieter trotz Warnung speichern?“ nur wenn nicht schon
+  gespeichert; bei der Reserve im selben Dialog), Schlüsselfeld `#ai-key-field` bei keyless verborgen (`#ai-keyless-hint`),
+  Modellfeld beim Anbieterwechsel leeren, `savedMain()` (nur `saved !== false`; `ai2Save` verlangt ihn, `AI_MAIN_FIRST`),
+  `#ai-usage`/`#ai2-usage` (`renderCfUsage`, „Tageskontingent aufgebraucht bis …“, `.over` rot), Test zeigt `testUsageText`;
+  Zahlen per `groupInt` bzw. `thousands` (ai.js) als „10.000“ wie `toLocaleString("de-DE")`; Konflikt-Hinweise („Reserve ist
+  schon Workers AI“ u. ä.) räumt `clearStaleClash` nach Speichern/Entfernen weg. `#t-aiwarn`: gespeicherter, aber nicht
+  nutzbarer Anbieter → nur `keyError` + `AI_WARN_UNTIL` („Bis dahin … nur ohne KI-Feedback“), die Aufforderung „wählen Sie …
+  Speichern“ nur bei `saved:false`. Browser: `ai_quota` → sofort `S.fbUnavailable = FB_QUOTA` („KI-Kontingent für heute
+  aufgebraucht“, `laterFor` → „morgen“) mit `S.fbUnavailableDay` (UTC-Tag, im Zwischenstand/PDF als `fbUnavailableDay`);
+  `quotaExpired()` (openEditor – dann sofort gespeichert –, `renderFeedbackState`, `noAiState`) löscht den Grund an einem
+  späteren UTC-Tag, `fbFails` bleibt; keine automatische Wiederholung.
+- **Datenschutz-Angaben und Löschfrist (Art. 13 DSGVO):** settings `privacy` = `{v:1, school:{name, address, dpo, url,
+  legalBasis, authority}, retentionDays 7–365, updatedAt, auto?}` (`auto:true` = Vorgabe 30 einer Neuinstallation).
+  lib.js: `validatePrivacyInput` (einzeilig per `cleanLine`: NFC, `\p{Cc}`/`\p{Cf}` weg; Grenzen `LIMITS.schoolName` 160,
+  `schoolAddress` 240, `dpoContact` 300, `privacyUrl` 500 (`cleanHttpsUrl`: nur https, ohne Zugangsdaten), `legalBasis` 400,
+  `authority` 240; Frist Ganzzahl `retentionMin`–`retentionMax`), `privacyOut` (prüft Gespeichertes erneut, ungültige Frist
+  → `null`), `isPrivacyComplete` (name, address, dpo, legalBasis), `RETENTION_OPTIONS` [7, 14, 30, 60, 90, 180, 365],
+  `PURGE_SQL`, `OLDER_THAN_SQL`, `COUNT_OLDER_SQL`, `SAVE_PRIVACY_SQL` und `DELETE_OLDER_SQL` – **in lib.js, weil workerd in
+  index.js nur Funktions-Exporte zulässt** („Incorrect type for map entry“). `PURGE_SQL` = ein DELETE mit Unterabfrage auf
+  settings (`json_valid`, `json_type(…)='integer'`, `BETWEEN 7 AND 365` – dieselben Grenzen wie `privacyOut`; ohne gültige Frist NULL → nichts gelöscht) über
+  `idx_submissions_received`; `OLDER_THAN_SQL` = eine Abfrage mit `SUM(received_at<?n)` je Option. Gelöscht wird
+  (`cleanupStatements`: PURGE, rate_limits, ai_skip, ai_usage) im Cron (`scheduled`, now = `scheduledTime`, Fehler nicht
+  abfangen → „Past Cron Events“), im 2-%-Aufräumen und beim Öffnen der Übersicht in `routeSheetsList` – dort die ganzen
+  `cleanupStatements` (auch abgelaufene Zähler und Sperren: ohne Zeitplan gilt „gehashte IP höchstens etwa einen Tag“ sonst
+  nicht), **getrennt vor dem Lese-Batch und fehlertolerant** (`.catch`), damit die Übersicht auch bei erschöpftem Schreiblimit
+  lädt. `GET /api/teacher/privacy` → `{privacy, complete, defaults, olderThan:{"7":n…}, aiRecipients}`; `PUT`
+  (`{school, retentionDays, confirmDelete}`; fehlt `confirmDelete` = 0) → ein Batch (eine Transaktion) [`COUNT_OLDER_SQL`,
+  `SAVE_PRIVACY_SQL` (speichert nur bei ≤ bestätigter Zahl), `DELETE_OLDER_SQL` (löscht nur, wenn genau dieser Wert gespeichert
+  ist), OLDER_THAN] → `{privacy, complete, deleted, olderThan}`; würde mehr gelöscht als bestätigt → 409 `confirm_delete` mit
+  `wouldDelete`/`olderThan`, nichts gespeichert oder gelöscht (der Browser fragt mit der neuen Zahl erneut, höchstens zweimal);
+  `PURGE_SQL` steht nur in `cleanupStatements`. `routeSetup` legt in einem Batch mit dem
+  teacher-INSERT `privacy` {30, auto} an – nur wenn dieser Aufruf die Lehrkraft angelegt hat, noch keine Zeile da ist und
+  es keine Blätter gibt (bestehende Installationen löschen erst nach dem ersten Speichern; „Passwort vergessen“ behält
+  die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy`
+  (`PRIV_LIMITS` = LIMITS), `privacyShortText` (Kurzfassung, nennt den KI-Dienst), `privacyNoticeDom(p, list, {h, withAi,
+  pages, open, id})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit 10 Abschnitten (`.privh`; Angaben `h2`
+  `#p-privfull` mit `#p-privacy-short` in `renderPersonPrivacy`, Editor `h3` in `#privfull-ed` aus `renderPrivacy` –
+  beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`: für ein Blatt mit
+  KI-Feedback unter der Adresse der Lehrkraft, darunter `#pv-preview-note` – ist `!PAGES_HOST` und `PUBLIC_HOST` (aus
+  `PUBLIC_URL`) eine andere Adresse, kommt GitHub dazu (Wortlaut `GITHUB_ITEM` wie im Hinweis), und bei Blättern ohne
+  Auftrag an die KI entfallen die Angaben zum KI-Feedback); ohne Angaben ein
+  ehrlicher allgemeiner Text („deine Schule … frag deine Lehrkraft“). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
+  Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
+  nächstgelegenen Cloudflare-Rechenzentrum; gespeichert nur verschlüsselt, für das KI-Feedback **kurz unverschlüsselt im
+  Server, nicht gespeichert** – nie behaupten, Cloudflare sehe die Antworten nur verschlüsselt; mit Workers AI im selben
+  Eintrag als KI-Dienst, Verarbeitung auch außerhalb der EU); GitHub, Inc. nur bei `PAGES_HOST` (`API !== ""`, GitHub
+  Pages); weitere KI-Dienste mit `transfer`; ohne Empfänger (keine KI eingerichtet) `NO_AI_SET` „Ein KI-Dienst ist … gerade
+  nicht eingerichtet – deine Antworten gehen an keine KI.“ – auch in `recipientSentence`/`renderPrivacy`, nie ein
+  Rückfall „KI-Dienst deiner Lehrkraft“; LanguageTool (Learneo, DPF). Alle mit DPF/SCC. `#start-privacy`: ein Satz zur IP
+  beim Laden. Speicherdauer nennt Time Travel „bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)“; den
+  Zwischenstand auf dem Gerät beschreibt `DRAFT_STAY` (gelöscht nur beim nächsten Aufruf der Seite, `cleanupDrafts`) –
+  **nie „höchstens 7 Tage“ zusagen**. `renderPrivacy` und der ausführliche Hinweis dürfen sich nicht widersprechen. Lehrkraft: `#t-privacy` → `#tv-privacy` (`openPrivacy`, Felder
+  `#pv-name/-addr/-dpo/-basis/-auth/-url`, `#pv-hessen` = `HESSEN` (Art. 6 Abs. 1 Buchst. e DSGVO i. V. m. § 83 Abs. 1 und
+  § 83a Abs. 1 Nr. 2 HSchG; HBDI, Postfach 3163, 65021 Wiesbaden), ersetzt eigene Eingaben nur nach Rückfrage;
+  `#pv-days` + `#pv-days-effect` aus `olderThan`; vor dem Löschen Dialog „Ältere Abgaben jetzt löschen?“ (danger);
+  Fehler als „Nicht gespeichert – …“; `pvDirty` → „Ohne Speichern zurück?“). Übersicht: `loadPrivacyState` → `#t-privinfo`
+  / `#t-privwarn` (fehlende Angaben, keine Frist), `#t-subs-retention`, je Abgabe in `buildDetail` „automatische Löschung
+  am TT.MM.JJJJ“ – `renderRetentionHint` leert gebaute Details (`tr.details._s`) und baut aufgeklappte sofort neu, damit das
+  Datum nach einer Friständerung stimmt. Lokal auslösen: `/cdn-cgi/local/scheduled?cron=17+2+*+*+*&time=<ms>&format=json` (ein `time` in der
+  Zukunft räumt auch alle Sperr-Zähler ab – im Smoke-Test deshalb ganz am Ende).
+- **KI-Kennzeichnung (Art. 50 Abs. 2 KI-VO):** `markAi(el, kind, on)` setzt `data-ai-generated="true"`, `data-ai-content`
+  (`feedback` | `feedback-final`) und `data-digital-source-type` = IPTC `…/trainedAlgorithmicMedia` – nur bei Boxen mit
+  Stichpunkten (`hasAiPoints`), nie beim Hinweis ohne KI: Editor `#t-n .fbbox` (`renderFeedbackState`, entfernt sie beim
+  Leeren), `#done-fb-n` (`renderFinalFeedback`), Lehrkraft `.dfb` (`buildDetail`). Dazu `aiGenerated` in `/api/feedback`,
+  `feedbackAi` im Zwischenstand (`draftRecord`; `cleanDraft` liest es nicht) und die XMP-Metadaten der Lösungs-PDF.
 - **LanguageTool:** direkt aus dem Browser, nur auf Klick (Nutzungsbedingungen: keine automatisierten Anfragen).
-  Altersgrenze (DSGVO/Anbieter): Button nur, wenn `ageOf(geburtsdatum) >= LT_MIN_AGE` (16, `S.ltAllowed`), sonst
-  statt des Buttons der Hinweis `.lt-off`; vor der ersten Prüfung je geöffnetem Blatt ein Bestätigungsdialog
-  (`ltConsent`, `S.ltConsent`, `safeFirst`) – ohne Bestätigung wird nichts gesendet; beides in `resetStudent`
-  zurücksetzen.
+  Altersgrenze des Anbieters (ab 18, mit 16/17 nur mit Erlaubnis der Eltern) **nur als Selbstauskunft** (es gibt kein
+  Geburtsjahr): Button bei jedem Textfeld; vor der ersten Prüfung je geöffnetem Blatt der Dialog `ltConsent` (Wortlaut fest,
+  OK „Trifft auf mich zu – prüfen“, Abbrechen „Trifft nicht zu“, `safeFirst`) – ohne Bestätigung wird nichts gesendet.
+  „Trifft nicht zu“ (auch Esc) → `ltDecline`: `S.ltDeclined`, alle `.ltbtn` → Hinweis `span.ltstat.lt-off` (`LT_OFF_TEXT`,
+  Fokus auf den Hinweis der Aufgabe); nichts speichern. Klick neben den Dialog (vertippt) ist keine Antwort: `askConfirm`
+  mit `backdrop: null` → `ltConsent` liefert `null`, nur die Meldung „Ohne Bestätigung wird nichts …“, Buttons bleiben.
+  `S.ltConsent`/`S.ltDeclined` in `openEditor`/`resetStudent` zurücksetzen (nach Neuladen fragt der Dialog wieder).
   `POST https://api.languagetool.org/v2/check`, Body `URLSearchParams`, **keine eigenen Header** (simple request,
   kein Preflight), `credentials:"omit"`, `referrerPolicy:"no-referrer"`; `language=de-DE`, `disabledCategories`
   (Stil u. a.), `enabledRules=GERMAN_WORD_REPEAT_RULE`; kein `preferredVariants`/`enabledOnly`/`level`. Offsets =
@@ -384,18 +513,87 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`cleanSheetRecord`: `capFmt(cleanMaterial(…), TASK_TEXT_MAX)`) tragen `textFmt` mit. E2E 7e: Fett per Strg+B, Link per
   Dialog, Einfügen aus HTML, Schüler:innen-Ansicht, Mock-Prompt ohne Link-Adresse, Lehrkraft-Ansichten, Vorlage,
   Sicherung → Import → neues Blatt.
+- **Geburtstag ohne Jahr (Datensparsamkeit):** Die Angaben-Seite fragt nur Tag und Monat ab (`fieldset.bday`, Legende
+  „Geburtstag (Tag und Monat)“, zwei Textfelder `#p-gtag`/`#p-gmonat` mit `inputmode="numeric"`, `maxlength` 2,
+  `autocomplete="bday-day"`/`"bday-month"` (WCAG 2.2, 1.3.5; die übrigen Angaben `off`), kein automatischer Feldwechsel;
+  `parseBdayInput`: Ziffern anderer Schriften (`\p{Nd}`) per `asciiDigits` → 0–9, Tag 1–31, Monat 1–12, der 29.02. ist
+  erlaubt, „Den 31. April gibt es nicht …“). Gespeichert als `"--MM-TT"` (verkürzte Form aus ISO 8601:2000, seit 2004 nicht
+  mehr in der Norm; XML Schema gMonthDay) im **historischen Feld `geburtsdatum`** (`person` in `feibeitsblatt:last`, im
+  Datensatz der Zwischenstand-PDF, im Erstversuch und in der Abgabe; der Zwischenstand selbst enthält keine Person); Anzeige
+  überall `fmtBday` → „TT.MM.“. Ältere Daten tragen `"JJJJ-MM-TT"`: `bdayOf` liest beides **dauerhaft** und verwirft das
+  Jahr (Zwischenstand-PDF-Import über `cleanDraft`, `lastSession` schreibt sofort gekürzt zurück, Lehrkraft-Ansicht zeigt auch
+  alte Abgaben ohne Jahr, `who()` für ausgeblendete Erstversuche vergleicht `bdayOf`). Übergang auf dem Gerät:
+  `adoptLegacyDraft` (über `draftRaw` in `showResume`/`importDraftPdf` und in `openEditor`) sucht einen Zwischenstand unter
+  alten Schlüsseln (`legacyBirthDates`: 1950 bis heute, höchstens 77 SHA-256), der jüngste zieht um, alle gefundenen alten
+  Schlüssel werden sofort gelöscht – **vor** dem Speichern unter dem neuen Schlüssel (bei vollem Speicher passt derselbe Stand
+  dann); scheitert es trotzdem, bleibt er in `heldDrafts` (siehe Frontend-Regeln), nie verloren. Bis `BDAY_LEGACY_UNTIL`
+  ("2026-11-15", Ortszeit), danach sofort `[]`/`null` – **vor dem Ausrollen prüfen: `BDAY_LEGACY_UNTIL` ≥ Ausrolltag +
+  `DRAFT_DAYS` (7) + einige Tage Puffer, sonst das Datum verschieben** (die Tests lesen es selbst). **Danach dürfen
+  `adoptLegacyDraft`, `legacyBirthDates`, `BDAY_LEGACY_UNTIL` und in E2E 3e die Teile 1, 1b, 1c, 2, 4 und der Import mit
+  neuerem Stand auf dem Gerät entfallen, `bdayOf` bleibt.** Alte Stände verschwinden spätestens nach `DRAFT_DAYS` beim
+  nächsten Öffnen der Seite auf diesem Gerät. Die reinen Helfer stehen zwischen `/* BDAY:BEGIN` und `/* BDAY:END */`
+  (`test/unit/bday.test.mjs`). E2E 3e (feste Uhrzeit per `page.clock`; mehrere alte Stände, voller Speicher, Speichern
+  scheitert, Zwischenstand-PDF mit vollem bzw. unmöglichem Geburtstag, neuerer alter Stand auf dem Gerät beim PDF-Import,
+  Ablauf), 7g (Lehrkraft-Ansicht mit alten Abgaben/Erstversuchen). Der Server sieht den Geburtstag nie (nur im
+  verschlüsselten Umschlag).
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
   Clips), `insertReplacementText` ≤ 60, Komposition/Diktat ≤ 2000; Sprung-Fallback im `input`). Antwortfelder
   wachsen per `scrollHeight` (ResizeObserver auf `#sheet`); eine Leerzeile Abstand zur nächsten Aufgabe; im
-  Schreibmodus scrollt nur `.paperwrap`, nichts liegt über der Schreibfläche. Abgeben erst nach dem (einmaligen)
-  KI-Feedback – **außer** die KI ist nicht eingerichtet oder zweimal hintereinander ausgefallen: dann
-  `S.fbUnavailable`, Abgabe mit `feedback:null`, `feedbackError`, `first = final`; die Lehrkraft-Ansicht zeigt
-  „Ohne KI-Feedback abgegeben“. Zwischenstand in `localStorage` unter `feibeitsblatt:draft:<SHA-256>` (Schlüssel
-  ohne Klartext-Angaben; 7 Tage), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite, „Abbrechen und
-  Zwischenstand löschen“ in der Topbar; alle Zugriffe in try/catch, nach Abgabe löschen. Lehrkraft: Abmeldung nach
-  20 min ohne Eingabe; Abgaben-Listen seitenweise laden; fremde Payloads vor dem Rendern kappen (≤ 30 Antworten).
+  Schreibmodus scrollt nur `.paperwrap`, nichts liegt über der Schreibfläche (Abgeben ohne KI-Feedback: eigener Punkt
+  unten). Zwischenstand in `localStorage` unter `feibeitsblatt:draft:<SHA-256>` (`draftKeyFor`: Code|Kürzel|Geburtstag|
+  Klasse; Schlüssel ohne Klartext-Angaben; 7 Tage), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite,
+  „Abbrechen und Zwischenstand löschen“ in der Topbar (der Dialog nennt einen schon gesendeten Erstversuch – „sie kann den Eintrag löschen“ – und bei laufender Anfrage „Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.“); alle Zugriffe in try/catch, nach Abgabe löschen. Was sich nicht
+  speichern lässt (Speicher voll/gesperrt), hält `heldDrafts` im Arbeitsspeicher (neuer als der gespeicherte Stand; `draftStored`
+  liest, `delDraft` löscht beides, `saveDraft` liefert `ok`; `openEditor` speichert so einen Stand sofort erneut und zeigt sonst
+  `SAVE_FAILED`). Lehrkraft: Abmeldung nach 20 min ohne Eingabe; Abgaben-Listen seitenweise laden; fremde Payloads vor
+  dem Rendern kappen (≤ 30 Antworten).
+- **Das KI-Feedback ist freiwillig** (Handreichung KI des HKM, Juli 2023: S. 10 allgemein „derzeit nur auf
+  freiwilliger Basis“; S. 17 kein Nachteil ohne KI – dort für volljährige Schüler:innen, sinngemäß übertragen).
+  „Abgeben“ ist nie wegen fehlenden Feedbacks gesperrt (nur ein ganz leeres Blatt: Meldung wie beim Feedback; leere
+  Aufgaben nennt der Dialog); vorgesehen bleibt Feedback → überarbeiten → abgeben, ohne Druck: `FB_VOLUNTARY` („… ohne
+  dass dir daraus ein Nachteil entsteht“) in `#fin-text` und beiden Feedback-Dialogen. Ohne Feedback fragt
+  `submitDialog` „Ohne KI-Feedback abgeben?“; eingestuft wird **nach** dem Dialog (`noAiState(wasBusy)`) →
+  verschlüsselt `noAi`: `"declined"` nur, wenn nie eine Anfrage lief (`S.fbFails === 0`, keine laufende Anfrage, kein
+  `S.fbUnavailable`, `aiRecipients` nicht leer; vor dem Senden speichert `requestFeedback` `S.fbPending` im
+  Zwischenstand, jeder Ausgang des Laufs – `unlock`, Erfolg, Abgabe – setzt es zurück; findet `openEditor` den Vermerk
+  (Tab geschlossen, Absturz), zählt das einmal als Fehlversuch und wird sofort gespeichert); sonst `"unavailable"` +
+  `feedbackError` (`S.fbUnavailable`, ohne Empfänger „KI nicht eingerichtet“, bei `ai_quota` `FB_QUOTA`, sonst `FB_NOT_DONE` „Anfrage nicht
+  abgeschlossen“; Dialog „Das KI-Feedback hat bisher nicht geklappt (Grund) …“, bei laufender Anfrage „… wird sie
+  abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.“); `"none"` bei Blättern ohne Auftrag an
+  die KI (`aiFeedback:false`: kein `#fb-btn`, schlichtes „Jetzt abgeben?“, Hinweis ohne KI-Dienst). Ohne Empfänger
+  (`aiRecipients` leer) lädt `requestFeedback` zuerst per `reloadRecipients()` neu (nur GET); bleibt die Liste leer: kein
+  Dialog, kein POST, `S.fbUnavailable = FB_NO_AI` („KI nicht eingerichtet“, mit `fbUnavailableDay`), gespeichert, Status
+  „Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.“; sonst der normale
+  Dialog mit den echten Empfängern. Während des GET ist nur `#fb-btn` gesperrt (danach Fokus zurück, falls er auf `body`
+  fiel); ist inzwischen ein anderer Dialog offen (Abgabe, Abbrechen, Rechtschreibprüfung), fragt `requestFeedback` nicht
+  hinein, sondern endet still. `askConfirm` selbst beantwortet einen zweiten Aufruf bei offenem Dialog sofort mit `null`
+  (keine Antwort) und lässt den offenen unverändert. Die Einstufung nach dem Dialog bleibt „nicht möglich (Grund)“, wenn der
+  Dialog das gesagt hat (`said` in `submitAll`), auch wenn währenddessen Empfänger auftauchten. Liegt ein erstes Feedback vor,
+  aber die Seite kennt keinen Empfänger (z. B. weitergeschrieben, nachdem die KI entfernt wurde): Abgabe-Dialog,
+  `#submit-hint` und `#done-fb-status` sagen `FB2_NO_AI` („Eine KI-Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal
+  nicht – …“), `requestFinalFeedback` sendet nichts (auch nicht an den Server) und ruft `finalFeedbackGone`. `fbBlockedNow()` (für `#fb-fallback` und den Hinweis unter „Abgeben“): `FB_NO_AI` gilt
+  nicht mehr, sobald `aiRecipients` gefüllt ist (auch nach `ai_changed` → `renderFeedbackState`); `noAiState` behält den
+  Grund für die Abgabe. Als Fehlversuch
+  zählt auch ein Lauf, den die Abgabe abbricht oder der nach `ai_busy` mit „zu lang“ bzw. `ai_changed` endet (Meldung
+  dann „dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise
+  schon erhalten“ statt „es wurde nichts gesendet“). Ohne Feedback: kein Erstversuch, keine zweite Rückmeldung,
+  `feedback:null`, `first = final`; bis zur Abgabe umkehrbar. Kommt ein Feedback, während der Dialog offen ist, wird
+  nicht abgegeben (Fokus bleibt im Dialog; nach dem Schließen bei beiden Antworten auf `#revise-hint`, beim Bestätigen
+  zusätzlich `#submit-status`); scheitert eine Abgabe, die eine Anfrage abgebrochen hat, gibt der `catch` Felder,
+  `#fb-btn` und `#fb-status` frei. `S.submitting` (nach dem Bestätigen bis zum `finally`, dort bei einem Fehlschlag
+  `renderFeedbackState`): `#fb-btn` gesperrt, `requestFeedback` und `#ed-cancel` brechen vor **und** nach ihrem Dialog ab
+  (`submitBusy`, Status „Deine Abgabe wird gerade gesendet – …“ in `#fb-status` bzw. `#submit-status`); im Erfolgszweig
+  schließt `closeDlg(null)` (keine Antwort – beim LanguageTool-Dialog nicht „Trifft nicht zu“) einen offenen Dialog vor
+  `show("screen-done")` (E2E 7j: `/api/submit` angehalten; dort auch: Nachsehen der Empfänger hinter offenem Abgabe-Dialog,
+  erstes Feedback ohne Empfänger nach Weiterschreiben).
+  Lehrkraft (`noAiNote`, neutral): „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“
+  (alte Abgaben ohne `noAi` = nicht möglich), eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“ (`table.cmp.one`); Liste, Legende, Zähler unverändert. Lösungs-PDF: derselbe Satz im Kopf (nicht
+  bei `none`); Zwischenstand-PDF „Stand: … KI-Feedback schon erhalten / angefordert, beim Sichern noch nicht erhalten
+  (`fbPending`) / bisher nicht geklappt (Grund) / nicht angefordert“, ohne KI-Hinweise bei Blättern ohne KI. E2E 3b, 4
+  und 7f (G–P, u. a. Tab zu während der Anfrage, Scheitern hinter dem Dialog, abgebrochene wartende Anfrage, alte
+  Abgabe ohne `noAi`; Blatt ohne Auftrag) prüfen Dialoge und Hinweise wörtlich.
 - **Rate-Limits** (`rate_limits`, festes Fenster, `rlHit` atomar per Upsert … RETURNING): `door`, `auth`
   10/15 min und `auth_all` 200/h (nur Fehlversuche – richtige Codes/Passwörter gehen **immer** durch, laufende
   Sitzungen ebenso; über dem Limit bremst `requireTeacher` Fehlversuche um 2 s), `lookup_miss` 30/10 min (gültige
@@ -407,8 +605,19 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Je Blatt höchstens 400 Abgaben / 40 MB. Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
   als Pfeffer), IPv6 vorher auf /64 gekürzt (`ipKey`) – nie Klartext-IPs speichern. Schulnetz = eine IP für viele.
 - **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`); `node test/smoke.mjs` (API gegen echten
-  `wrangler dev --local` + `test/mock-ai.mjs`, Ports 8811/8812); `npm run test:e2e` (Playwright 1.56.1, Ports
-  8787/8790, frischer Zustand je Lauf – nicht parallel zu `npm run dev`).
+  `wrangler dev --local` + `test/mock-ai.mjs`, Ports 8811/8812, am Ende auch der Zeitplan); `npm run test:e2e` (Playwright 1.56.1, Ports
+  8787/8790, frischer Zustand je Lauf – nicht parallel zu `npm run dev`). Workers AI ist lokal nie erreichbar: Unit-Tests
+  nutzen ein gefälschtes `env.AI` (`fakeAI` in ai.test.mjs, `mockAIBinding(mock)` aus `test/mock-ai.mjs` mit `mode`
+  ok/cf3036/cf3040/cf400/local in worker.test.mjs), der Smoke-Test prüft den lokalen CONFIG-Pfad, E2E 1 die Oberfläche
+  (Speichern als erster Anbieter und als Reserve; per `page.route` vorgegeben: erfolgreicher Test mit Token-Zahlen,
+  Tageskontingent-Sperre, fehlendes Binding, „Trotzdem speichern“ bei Gemini – PUT nie zum Server) und 7h `ai_quota` per
+  `page.route` (Empfänger Workers AI + Groq im Hinweis, Zwischenstand von gestern ohne „morgen“). Datenschutz: E2E 1b
+  (allgemeiner Hinweis, GitHub Pages per `addInitScript` → `FEIBEITSBLATT_API`, Formular, Hessen, Vorschau), 2/3/3b/4/5
+  (Hinweis mit Schulangaben, `#privfull-ed` nach Weiterschreiben, KI-Kennzeichnung, `#done-del`, Lösungs-PDF mit/ohne XMP
+  samt Aufbauprüfung `pdfStructure`), 7i (Kürzen mit Nachfrage, Verlängern, Cron lokal); Unit: `scheduled` auf der
+  gemeinsamen D1 (und einmal frisch importiert `?scheduled`), `d1.failIf` für ein scheiterndes PURGE, `Math.random`
+  gestubbt beim Zählen der D1-Abfragen und in Tests mit zurückdatierten Einträgen (`noRandomCleanup`: sonst löscht das
+  2-%-Aufräumen sie gelegentlich vor der Prüfung).
   Lokal: `npx wrangler dev --local --ip 127.0.0.1 --port <p> --persist-to <dir> --show-interactive-dev-session=false`.
   KI im Test: Anbieter `custom`, baseUrl `http://127.0.0.1:<port>/v1` (Mock); LanguageTool per
   `page.route("https://api.languagetool.org/**")`. In der Sandbox: echte KI-Anbieter und LanguageTool nicht
@@ -417,11 +626,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `CLOUDFLARE_API_TOKEN` nur Hinweis (CI bleibt grün). Sonst `npm ci` → `npm test` → `npm run build` →
   workers.dev-Subdomain sicherstellen → D1 `--jurisdiction eu` anlegen, falls nicht vorhanden (Ort nur beim
   Anlegen wählbar – deshalb **nie `wrangler deploy` von Hand vor dem ersten Workflow-Lauf**) → `npx wrangler
-  deploy` → `SETTINGS_SECRET` einmalig erzeugen (**nie überschreiben**: sonst ist der gespeicherte KI-Schlüssel
-  unlesbar; ist die Secret-Liste nicht abrufbar, schlägt der Schritt fehl). Das Cloudflare-Token nur als Step-`env`
+  deploy` (Schritt `id: deploy`; scheitert nur das Setzen der Zeitpläne – wrangler „Cron schedules“, Konto hat schon 5 Cron
+  Trigger –, ist der Code schon hochgeladen, der Schritt meldet es als `::error`) → `SETTINGS_SECRET` einmalig erzeugen
+  (`if: !cancelled() && (steps.deploy.outcome == 'success' || steps.deploy.outputs.uploaded == 'true')` – `uploaded` setzt der
+  Deploy-Schritt nur beim Scheitern am Zeitplan; ebenso „Adresse ausgeben“; **nie
+  überschreiben**: sonst ist der gespeicherte KI-Schlüssel unlesbar; ist die Secret-Liste nicht abrufbar, schlägt der
+  Schritt fehl). Das Cloudflare-Token nur als Step-`env`
   der Schritte, die es brauchen (nie bei `npm ci`/`npm test`); Actions per Commit-SHA gepinnt. wrangler `4.145.0`
   exakt gepinnt (package.json/package-lock.json). Token: Vorlage „Edit Cloudflare Workers“ + „Konto → D1 →
-  Bearbeiten“. Der Workflow läuft nur für `main` – existiert der Branch nicht, muss die Lehrkraft ihn anlegen
+  Bearbeiten“ (scheitert `wrangler deploy` am AI-Binding mit einem Rechtefehler: „Konto → Workers AI → Lesen“ – vermutet,
+  nicht dokumentiert). `SETTINGS_SECRET` bleibt auch mit Workers AI nötig (Pfeffer der Rate-Limit-Buckets). Der Workflow läuft nur für `main` – existiert der Branch nicht, muss die Lehrkraft ihn anlegen
   (README Schritt 5).
 - **Öffentlich:** README, diese Datei und der ganze Code sind öffentlich – keine Schlüssel, Tokens, Passwörter
   oder echten Schülerdaten (auch nicht in Tests). Der Türcode 1104 ist absichtlich öffentlich; geschützt wird

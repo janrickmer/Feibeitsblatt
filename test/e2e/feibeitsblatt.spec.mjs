@@ -35,8 +35,8 @@ const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ2
 
 // Schüler:in A: tippt Kürzel klein/groß gemischt, überarbeitet nach dem Feedback
 const A = {
-  input: { vorname: "max", nachname: "MU", geb: "2009-05-04", klasse: " 8b " },
-  person: { vorname: "Max", nachname: "Mu", geburtsdatum: "2009-05-04", klasse: "8b" },
+  input: { vorname: "max", nachname: "MU", geb: "--05-04", klasse: " 8b " },
+  person: { vorname: "Max", nachname: "Mu", geburtsdatum: "--05-04", klasse: "8b" },
   lines1: ["Das Gewissn ist eine innere Instanz.", "Es unterscheidet zwischen gut und böse.", "Man hört es im Kopf."],
   line4: "Das finde ich sehr toll.",
   a2start: "Eine konkrete ", a2rest: "Situation: Ich habe meine Schwester angelogen.",
@@ -51,31 +51,87 @@ const A_LT = "Das Gewissen ist eine innere Instanz.\nEs unterscheidet zwischen G
 
 // Schüler:in B: Umlaute im Kürzel, andere Klasse; gibt ohne Überarbeitung ab
 const B = {
-  input: { vorname: "özg", nachname: "ün", geb: "2012-01-15", klasse: "7a" },
-  person: { vorname: "Özg", nachname: "Ün", geburtsdatum: "2012-01-15", klasse: "7a" },
+  input: { vorname: "özg", nachname: "ün", geb: "--01-15", klasse: "7a" },
+  person: { vorname: "Özg", nachname: "Ün", geburtsdatum: "--01-15", klasse: "7a" },
   first: ["Das Gewissen ist eine innere Stimme.", "Keine Ahnung, ehrlich gesagt.", "Schlecht, dann rede ich darüber."],
 };
 B.final = B.first.slice();
 // Schüler:in C: Die KI fällt zweimal aus → Abgabe ohne KI-Feedback (sortiert als Letzte: Klasse 9c)
 const C = {
-  input: { vorname: "lea", nachname: "sc", geb: "2012-06-30", klasse: "9 c" },   // „9 c“ → Klasse 9c
-  person: { vorname: "Lea", nachname: "Sc", geburtsdatum: "2012-06-30", klasse: "9c" },
+  input: { vorname: "lea", nachname: "sc", geb: "--02-29", klasse: "9 c" },   // „9 c“ → Klasse 9c; Geburtstag am 29. Februar
+  person: { vorname: "Lea", nachname: "Sc", geburtsdatum: "--02-29", klasse: "9c" },
   first: ["Das Gewissen sagt mir, was richtig ist.", "Ich habe einmal gelogen und mich danach schlecht gefühlt.", "Ich schäme mich dann."],
 };
 // Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → „Erstversuch ohne Überarbeitung“ (orange in der Lehrkraft-Ansicht)
 const D = {
-  input: { vorname: "tom", nachname: "ze", geb: "2010-02-02", klasse: "9c" },
-  person: { vorname: "Tom", nachname: "Ze", geburtsdatum: "2010-02-02", klasse: "9c" },
+  input: { vorname: "tom", nachname: "ze", geb: "--02-02", klasse: "9c" },
+  person: { vorname: "Tom", nachname: "Ze", geburtsdatum: "--02-02", klasse: "9c" },
   first: ["Das Gewissen ist so etwas wie ein innerer Richter.", "Ich habe beim Test abgeschrieben und mich danach mies gefühlt.", "Ich will es dann wiedergutmachen."],
 };
-// Schüler:in E: die KI bleibt ausgelastet → bricht das Warten zweimal ab, darf dann ohne KI-Feedback abgeben (gibt nicht ab)
+// Schüler:in E: die KI bleibt ausgelastet → bricht das Warten zweimal ab, sieht dann den Grund (gibt nicht ab)
 const E = {
-  input: { vorname: "ida", nachname: "kr", geb: "2011-09-09", klasse: "8b" },
+  input: { vorname: "ida", nachname: "kr", geb: "--09-09", klasse: "8b" },
   first: ["Das Gewissen ist wie eine innere Stimme.", "Ich habe gelogen.", "Nicht gut."],
 };
 const RECIPIENT_SUFFIX = " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";   // Empfänger-Label des eigenen Dienstes
+// KI-Einstellungen: Workers AI ohne Schlüssel; Reserve im selben Cloudflare-Konto
+const KEYLESS_HINT = "Kein API-Schlüssel nötig – der Server nutzt Workers AI in seinem eigenen Cloudflare-Konto.";
+const AI_SAME_ACCOUNT = "Cloudflare Workers AI ist schon der erste Anbieter. Eine Reserve im selben Cloudflare-Konto bringt kein zusätzliches Kontingent – bitte einen anderen Anbieter wählen.";
+const AI_SAME_RESERVE = "Die Reserve-KI ist schon Cloudflare Workers AI – beide teilten sich dasselbe Kontingent des Cloudflare-Kontos. Bitte zuerst die Reserve ändern oder entfernen.";
+const AI_MAIN_FIRST = "Bitte zuerst den ersten Anbieter speichern – die Reserve-KI springt nur für ihn ein.";
+const CF_TIER = "Kostenloses Kontingent: 10.000 Neurons pro Tag für das ganze Cloudflare-Konto (Neustart 0:00 Uhr UTC).";
+const CF_RECIPIENT = "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert";
+const GROQ_RECIPIENT = "Groq LLC (USA) – Vertragspartner im EWR: Groq UK Limited (London); Datenhaltung in den USA, Verarbeitung auch in anderen Ländern";
+const QUOTA_REASON = "KI-Kontingent für heute aufgebraucht";
+const FB_VOLUNTARY = "Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.";
+const FIN_TEXT = "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
+const SUBMIT_HINT_NO_FB = "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
+// Abgabe-Dialog ohne KI-Feedback, wenn das KI-Feedback nicht möglich war (Grund) bzw. noch nie versucht wurde
+const NO_FB_TAIL = " Du kannst es später noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI. Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.";
+const noFbDialog = (reason) => "Das KI-Feedback hat bisher nicht geklappt (" + reason + ")." + NO_FB_TAIL;
 const ORANGE = "rgb(184, 92, 0)";   // .st-first
+// Rechtschreibprüfung: Selbstauskunft im Dialog (Altersgrenze des Anbieters) und Hinweis nach „Trifft nicht zu“
+const LT_CONSENT = "Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird nur der Text dieser Antwort an LanguageTool gesendet – ohne deinen Namen oder deine Angaben, aber mit der Internetadresse deines Geräts. Die Prüfung ist freiwillig.\n\n" +
+  "Laut Anbieter darfst du LanguageTool nur nutzen, wenn du\n• mindestens 18 Jahre alt bist oder\n• 16 oder 17 Jahre alt bist und deine Eltern es dir erlaubt haben.\n\n" +
+  "Trifft das nicht auf dich zu, wähle „Trifft nicht zu“ – du schreibst und gibst ganz normal ab, ohne Nachteil.\nDie Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.";
+const LT_OFF = "Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.";
+const LT_PRIVACY = "Die Rechtschreibprüfung ist freiwillig, laut Anbieter erst ab 16 Jahren (mit 16 und 17 nur mit Erlaubnis deiner Eltern) und läuft nur nach deiner Bestätigung";
 const ATTEMPT = /^[0-9a-f]{16}$/;
+// Datenschutz: Angaben der Schule (frei erfunden), Vorschläge für Hessen, Kennzeichnung KI-erzeugter Inhalte
+const SCHOOL = { name: "Musterschule am See", address: "Seestraße 1, 65185 Wiesbaden, Tel. 0611 000000", dpo: "Datenschutzbeauftragte am Schulamt, datenschutz@example.org",
+  url: "https://example.org/datenschutz" };
+const HESSEN_BASIS = "Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs. 1 und § 83a Abs. 1 Nr. 2 Hessisches Schulgesetz (HSchG)";
+const HESSEN_AUTH = "Der Hessische Beauftragte für Datenschutz und Informationsfreiheit, Postfach 3163, 65021 Wiesbaden, poststelle@datenschutz.hessen.de";
+const PRIV_HEADS = ["Wer ist verantwortlich?", "Datenschutzbeauftragte:r deiner Schule", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
+  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Musst du mitmachen?", "Entscheidet die KI über dich?", "Deine Rechte"];
+const PRIV_MISSING_WARN = "Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch (Name der Schule, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage). Bis dahin sehen die Schüler:innen nur einen allgemeinen Hinweis – das genügt der Informationspflicht nach Art. 13 DSGVO nicht. Bitte tragen Sie die Angaben unter „Datenschutz und Löschfrist“ ein.";
+const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
+const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
+const DAYS = 14;   // Löschfrist, die die Lehrkraft in Test 1b speichert
+const deDate = (ms) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(ms));
+// KI-Kennzeichnung einer Box: [data-ai-generated, data-ai-content, data-digital-source-type] (null = nicht gekennzeichnet)
+const aiMarks = (loc) => loc.evaluate((e) => [e.getAttribute("data-ai-generated"), e.getAttribute("data-ai-content"), e.getAttribute("data-digital-source-type")]);
+// Aufbau einer im Browser erzeugten PDF-Datei prüfen: startxref → xref, jeder Eintrag zeigt auf „n 0 obj“, /Size stimmt, jede /Length
+// endet genau vor „endstream“ → {s (Latin-1), count, objAt(n) → Text des Objekts}
+function pdfStructure(buf) {
+  const s = buf.toString("latin1");
+  const sx = Number(/startxref\n(\d+)\n%%EOF\n$/.exec(s)[1]);
+  const head = /^xref\n0 (\d+)\n/.exec(s.slice(sx));
+  expect(head, "xref an startxref").not.toBeNull();
+  const count = Number(head[1]), rows = s.slice(sx + head[0].length).split("\n").slice(0, count), offs = [];
+  expect(rows[0]).toBe("0000000000 65535 f ");
+  for (let i = 1; i < count; i++) {
+    expect(rows[i]).toMatch(/^\d{10} 00000 n $/);
+    offs[i] = Number(rows[i].slice(0, 10));
+    expect(s.slice(offs[i], offs[i] + String(i).length + 6), "xref-Eintrag " + i).toBe(i + " 0 obj");
+  }
+  expect(s).toContain("/Size " + count + " /Root 1 0 R /Info 5 0 R");
+  for (const m of s.matchAll(/\/Length (\d+) >>\nstream\n/g)) {
+    const start = m.index + m[0].length;
+    expect(s.slice(start + Number(m[1]), start + Number(m[1]) + 10), "/Length bei Byte " + m.index).toBe("\nendstream");
+  }
+  return { s, count, objAt: (n) => s.slice(offs[n], s.indexOf("endobj", offs[n])) };
+}
 
 const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [], pdf: null };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe, pdf: PDF-Datei zu Aufgabe 2)
 // PDF-Datei der Lehrkraft zu Aufgabe 2 (600 KB → zwei Teile beim Hochladen und Herunterladen)
@@ -89,7 +145,11 @@ const MATERIAL_1 = [
   [{ t: "Hinweis:", f: "u" }, { t: " " }, { t: "Quelle 2", h: LINK_URL2 }, { t: " – Verlag" }],
 ];
 const MATERIAL_2 = [[{ t: "Siehe " }, { t: "Kapitel 3", f: "b" }, { t: " und böse sowie " }, { t: "gut", h: "https://example.org/x" }, { t: "." }]];
-const fmtDe = (iso) => iso.split("-").reverse().join(".");
+const fmtBd = (b) => b.slice(5) + "." + b.slice(2, 4) + ".";   // "--05-04" → "04.05."
+// Sichtbarer Text einer im Browser erzeugten PDF-Datei: alle „(…) Tj“ in Reihenfolge (WinAnsi-Oktal → Zeichen), mit Leerzeichen verbunden
+const WIN = { 0x84: "„", 0x93: "“", 0x95: "•", 0x96: "–" };
+const pdfShownText = (buf) => [...buf.toString("latin1").matchAll(/\(((?:\\[\s\S]|[^\\)])*)\) Tj/g)]
+  .map((m) => m[1].replace(/\\([0-7]{3}|[\s\S])/g, (_, c) => (c.length === 3 ? WIN[parseInt(c, 8)] || String.fromCharCode(parseInt(c, 8)) : c))).join(" ");
 
 /* ---------- Hilfen für den Schreibbereich ---------- */
 async function enterCode(page, typed) {
@@ -100,7 +160,9 @@ async function fillPerson(page, input) {
   await expect(page.locator("#p-vorname")).toBeFocused();   // die Seite setzt den Fokus kurz nach dem Öffnen; danach stiehlt sie ihn nicht mehr
   await page.fill("#p-vorname", input.vorname);
   await page.fill("#p-nachname", input.nachname);
-  await page.fill("#p-geb", input.geb);
+  const [, mm, dd] = /^--(\d\d)-(\d\d)$/.exec(input.geb);   // Geburtstag "--MM-TT" → Felder Tag und Monat (ohne führende Null)
+  await page.fill("#p-gtag", String(+dd));
+  await page.fill("#p-gmonat", String(+mm));
   await page.fill("#p-klasse", input.klasse);
   await page.click("#p-btn");
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
@@ -111,7 +173,7 @@ async function typeAt(page, sel, text) {
   await page.keyboard.type(text);
 }
 async function requestFeedback(page) {
-  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#submit-btn")).toBeEnabled();   // das KI-Feedback ist freiwillig: Abgeben geht immer
   await page.click("#fb-btn");
   await confirmDialog(page, "KI-Feedback anfordern?");
   await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
@@ -141,6 +203,9 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
 
   // lokal (127.0.0.1) spricht die Seite ihren eigenen Ursprung an; nur außerhalb von workers.dev/localhost die Worker-Adresse
   expect(await page.evaluate(() => [window.FEIBEITSBLATT_API, /^https:\/\/[a-z0-9.-]+\.workers\.dev$/.test(window.FEIBEITSBLATT_WORKER)])).toEqual(["", true]);
+  // die Worker-Kopie (dist/) trägt das Kennzeichen aus scripts/build.mjs – die Kopie im Repository (GitHub Pages) nicht
+  expect(await page.evaluate(() => document.querySelectorAll('meta[name="feibeitsblatt-host"][content="worker"]').length)).toBe(1);
+  expect(await readFile(new URL("../../index.html", import.meta.url), "utf8")).not.toContain('<meta name="feibeitsblatt-host"');
   expect(await page.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]').content)).toContain("connect-src 'self' https://api.languagetool.org " + await page.evaluate(() => window.FEIBEITSBLATT_WORKER));
   await enterCode(page, "1104");
   await expect(page.locator("#screen-tsetup")).toHaveClass(/active/);
@@ -152,6 +217,11 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#screen-teacher")).toHaveClass(/active/, { timeout: 60_000 });
   await expect(page.locator("#tv-overview h1")).toHaveText("Lehrkräfte-Übersicht");
   await expect(page.locator("#t-aiwarn")).toBeVisible();
+  // Vorauswahl Workers AI ist noch nicht gespeichert: ein Hinweis, keine doppelte Aufforderung
+  await expect(page.locator("#t-aiwarn")).toHaveText("Das KI-Feedback ist noch nicht eingerichtet. Schüler:innen können dann nur ohne KI-Feedback abgeben – bitte wählen Sie unter „KI-Einstellungen“ einen Anbieter (empfohlen: Cloudflare Workers AI, ohne API-Schlüssel) und klicken Sie auf „Speichern“.");
+  // Neuinstallation: automatische Löschung nach 30 Tagen als Vorgabe; die Angaben der Schule für Art. 13 DSGVO fehlen noch
+  await expect(page.locator("#t-privwarn")).toHaveText(PRIV_MISSING_WARN);
+  await expect(page.locator("#t-privinfo")).toHaveText("Abgaben und Erstversuche werden 30 Tage nach dem Eingang automatisch gelöscht (Vorgabe – unter „Datenschutz und Löschfrist“ änderbar).");
   await expect(page.locator("#t-sheets-body")).toContainText("Noch keine Feibeitsblätter");
 
   // Die Einrichtung geht nur einmal (409), und die Tür liefert jetzt die KDF-Parameter fürs Anmelden
@@ -161,11 +231,141 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   const door = await (await request.post("/api/teacher/door", { data: { doorCode: "1104" } })).json();
   expect(door).toMatchObject({ ok: true, setup: true, kdf: { iterations: 600000 } });
 
-  // KI-Einstellungen: anderer OpenAI-kompatibler Dienst = Mock-KI
+  // KI-Einstellungen: Vorauswahl Cloudflare Workers AI – ohne Schlüssel, aktiv erst nach „Speichern“; lokal (wrangler dev --local)
+  // antwortet Workers AI nie, der Verbindungstest sagt das
   await page.click("#t-ai");
   await expect(page.locator("#tv-ai")).toBeVisible();
   await expect(page.locator("#ai-save")).toBeEnabled();
-  await expect(page.locator("#ai-prov")).toHaveValue("groq");
+  await expect(page.locator("#ai-prov")).toHaveValue("cloudflare");
+  await expect(page.locator("#ai-prov option:checked")).toHaveText("Cloudflare Workers AI – Empfehlung (ohne API-Schlüssel)");
+  const cfInfo = page.locator('.provinfo[data-prov="cloudflare"]');
+  await expect(cfInfo).toBeVisible();
+  await expect(cfInfo).toContainText("Die Datenbank liegt in der EU, die KI-Verarbeitung durch Workers AI kann aber auch außerhalb der EU stattfinden");
+  await expect(cfInfo).toContainText("Der Server nutzt kein AI Gateway");
+  await expect(page.locator("#ai-key-field")).toBeHidden();
+  await expect(page.locator("#ai-keyless-hint")).toHaveText(KEYLESS_HINT + " Aktiv wird Workers AI erst, wenn Sie „Speichern“ klicken.");
+  await expect(page.locator("#ai-usage")).toHaveText("Heute (UTC) geschätzt verbraucht: ca. 0 von 10.000 Neurons (0 Anfragen) – genau im Cloudflare-Dashboard unter „Workers AI“.");
+  await expect(page.locator("#ai-usage")).not.toHaveClass(/\bover\b/);
+  await page.click("#ai-test");   // nicht gespeichert: nichts wird getestet
+  await expect(page.locator("#ai-status")).toHaveText("Bitte zuerst „Speichern“ klicken – erst dann ist Workers AI aktiv.");
+  // Eine Reserve ohne gespeicherten ersten Anbieter wäre der einzige Empfänger: abgelehnt, bevor ein Dialog kommt
+  await expect(page.locator("#ai2-prov")).toHaveValue("groq");
+  await page.fill("#ai2-key", "gsk-e2e-nicht-gespeichert");
+  await page.click("#ai2-save");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#ai2-status")).toHaveText(AI_MAIN_FIRST);
+  await page.fill("#ai2-key", "");
+  await page.click("#ai-save");
+  await expect(page.locator("#ai-status")).toHaveText("Gespeichert. " + CF_TIER + " Mit „Verbindung testen“ prüfen Sie, ob die KI antwortet.");
+  await expect(page.locator("#ai2-status")).toHaveText("");   // der Hinweis der Reserve gilt nicht mehr
+  await expect(page.locator("#ai-keyless-hint")).toHaveText(KEYLESS_HINT);
+  await page.click("#ai-test");
+  await expect(page.locator("#ai-status")).toHaveText(/lokalen Entwicklung \(wrangler dev --local\) gibt es keine Verbindung/, { timeout: 60_000 });
+  await expect(page.locator("#ai-status")).toHaveClass(/\bbad\b/);
+  // Erfolgreicher Test über Workers AI (lokal nicht erreichbar → Antwort des Servers vorgegeben): Token-Zahlen ohne Inhalt
+  const cfTest = { ok: true, which: "main", provider: "cloudflare", label: "Cloudflare Workers AI", model: "@cf/google/gemma-4-26b-a4b-it", sample: "Verbindung steht.",
+    fallbacks: [], modelCount: 3, rotated: [], tierNote: CF_TIER, usage: { prompt_tokens: 1234, completion_tokens: 12, reasoning_tokens: 0 } };
+  await page.route("**/api/teacher/ai/test", (route) => route.fulfill({ json: cfTest }));
+  await page.click("#ai-test");
+  await expect(page.locator("#ai-status")).toHaveText("Verbindung erfolgreich: Cloudflare Workers AI, Modell „@cf/google/gemma-4-26b-a4b-it“. Testantwort: „Verbindung steht.“ " + CF_TIER + " Token dieses Tests: 1.234 Eingabe, 12 Ausgabe (davon 0 im Denkmodus).");
+  await expect(page.locator("#ai-status")).toHaveClass(/\bok\b/);
+  await page.unroute("**/api/teacher/ai/test");
+  // Eine Reserve im selben Cloudflare-Konto: sofort ein Hinweis, „Reserve speichern“ fragt gar nicht erst
+  await page.selectOption("#ai2-prov", "cloudflare");
+  await expect(page.locator("#ai2-status")).toHaveText(AI_SAME_ACCOUNT);
+  await expect(page.locator("#ai2-key-field")).toBeHidden();
+  await page.click("#ai2-save");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#ai2-status")).toHaveText(AI_SAME_ACCOUNT);
+  // Ungeeignete Reserve: die Warnung steht im selben Dialog wie der weitere Empfänger (ein Dialog, nicht zwei); Abbrechen speichert nichts
+  await page.selectOption("#ai2-prov", "gemini");
+  await expect(page.locator("#ai2-status")).toHaveText("");
+  await expect(page.locator("#ai2-info .provwarn")).toHaveText(/^Nicht für den Schuleinsatz geeignet: Laut den Zusatzbedingungen der Gemini-API/);
+  await page.fill("#ai2-key", "AIza-e2e-nicht-gespeichert");
+  await page.check("#ai2-gemini-ok");
+  await page.click("#ai2-save");
+  await expect(page.locator("#dlg-ok")).toHaveText("Trotzdem speichern");
+  expect(await confirmDialog(page, "Weiteren KI-Empfänger hinzufügen?", false)).toMatch(/^Achtung: „Google Gemini“ ist für den Einsatz mit Schüler:innen nicht geeignet: Laut den Zusatzbedingungen [\s\S]* freigegeben hat\.\n\nMit dieser Reserve kann jede Feedback-Anfrage zusätzlich an „Google \(Gemini-API/);
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#ai2-key-hint")).toHaveText("Keine Reserve-KI eingerichtet.");
+  await page.fill("#ai2-key", "");
+  await page.selectOption("#ai2-prov", "groq");
+  await expect(page.locator("#ai2-status")).toHaveText("");
+  // Ungeeignete Anbieter: gekennzeichnet (Option, roter Hinweis), Speichern nur nach Bestätigung – Abbrechen speichert nichts
+  await page.fill("#ai-model", "@cf/test/x");
+  await page.selectOption("#ai-prov", "gemini");
+  await expect(page.locator("#ai-model")).toHaveValue("");   // eine Modell-ID passt nur zu ihrem Anbieter
+  await expect(page.locator("#ai-prov option:checked")).toHaveText("Google Gemini – nicht für den Schuleinsatz geeignet");
+  const warn = page.locator('.provinfo[data-prov="gemini"] .provwarn');
+  await expect(warn).toBeVisible();
+  await expect(warn).toHaveText(/^Nicht für den Schuleinsatz geeignet: Laut den Zusatzbedingungen der Gemini-API \(Stand 28\.04\.2026\) müssen Nutzer:innen mindestens 18 Jahre alt sein/);
+  await expect(warn).toHaveCSS("color", RED);
+  await expect(page.locator("#ai-key-field")).toBeVisible();
+  await expect(page.locator("#ai-key-hint")).toHaveText("Noch kein Schlüssel gespeichert.");
+  await page.fill("#ai-key", "AIza-e2e-nicht-gespeichert");
+  await page.check("#ai-gemini-ok");
+  await page.click("#ai-save");
+  expect(await confirmDialog(page, "Anbieter trotz Warnung speichern?", false)).toMatch(/^„Google Gemini“ ist für den Einsatz mit Schüler:innen nicht geeignet: Laut den Zusatzbedingungen .* Speichern Sie diesen Anbieter nur, wenn Ihre Schule ihn ausdrücklich geprüft und freigegeben hat\.$/);
+  await expect(page.locator("#ai-status")).toHaveText("");
+  for (const pv of ["openrouter", "cerebras"]) await expect(page.locator('#ai-prov option[value="' + pv + '"]')).toHaveText(/ – nicht für den Schuleinsatz geeignet$/);
+  await page.click("#ai-back");
+  await expect(page.locator("#t-aiinfo")).toHaveText("KI-Feedback über Cloudflare Workers AI.");   // gespeichert bleibt Workers AI
+  // „Trotzdem speichern“: die Übersicht kennzeichnet den Anbieter weiter. Gespeichert wird hier nur scheinbar (Antworten des
+  // Servers vorgegeben) – ein echter Gemini-Schlüssel wäre nötig; der Serverweg steht in den Unit-Tests.
+  const geminiView = (j) => ({ ...j, provider: "gemini", label: "Google Gemini", model: "", defaultModel: "gemini-flash-latest", baseUrl: "", hasKey: true, ready: true,
+    saved: true, keyless: false, keyHint: "…wert", keyError: undefined, quotaUntil: null });
+  let geminiSaved = false, lastView = null;
+  await page.route("**/api/teacher/ai", async (route) => {
+    if (route.request().method() === "PUT") {   // nie zum Server
+      geminiSaved = true;
+      return route.fulfill({ json: { ...geminiView(lastView), warning: "Gespeichert, aber die Verbindung konnte nicht geprüft werden: Netzwerkfehler." } });
+    }
+    lastView = await (await route.fetch()).json();
+    return route.fulfill({ json: geminiSaved ? geminiView(lastView) : lastView });
+  });
+  await page.click("#t-ai");
+  await expect(page.locator("#ai-save")).toBeEnabled();   // openAi hat die Einstellungen geladen
+  await page.selectOption("#ai-prov", "gemini");
+  await page.fill("#ai-key", "AIza-e2e-nur-scheinbar-wert");
+  await page.check("#ai-gemini-ok");
+  await page.click("#ai-save");
+  await confirmDialog(page, "Anbieter trotz Warnung speichern?");
+  await expect(page.locator("#ai-status")).toHaveText("Gespeichert, aber die Verbindung konnte nicht geprüft werden: Netzwerkfehler.");
+  await page.click("#ai-back");
+  await expect(page.locator("#t-aiinfo")).toHaveText("KI-Feedback über Google Gemini – nicht für den Schuleinsatz geeignet.");
+  await page.unroute("**/api/teacher/ai");
+  // Tageskontingent aufgebraucht (Sperre bis 0:00 UTC) – lokal nicht herbeizuführen: Verbrauch und Sperre in der Antwort vorgegeben
+  const until = Date.now() + 3 * 3600e3, untilText = await page.evaluate((ms) => {   // wie fmtUntil (Ortszeit des Browsers)
+    const d = new Date(ms);
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " um " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+  }, until);
+  await page.route("**/api/teacher/ai", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    const res = await route.fetch();
+    return route.fulfill({ json: { ...(await res.json()), quotaUntil: until, usage: { day: "2026-10-22", requests: 37, neurons: 10012, limit: 10000 } } });
+  });
+  await page.click("#t-ai");
+  await expect(page.locator("#ai-save")).toBeEnabled();
+  await expect(page.locator("#ai-usage")).toHaveText("Heute (UTC) geschätzt verbraucht: ca. 10.012 von 10.000 Neurons (37 Anfragen) – genau im Cloudflare-Dashboard unter „Workers AI“. Tageskontingent aufgebraucht bis " + untilText + " (Neustart 0:00 Uhr UTC).");
+  await expect(page.locator("#ai-usage")).toHaveClass(/\bover\b/);
+  await expect(page.locator("#ai-usage")).toHaveCSS("color", RED);
+  await page.click("#ai-back");
+  await expect(page.locator("#t-aiinfo")).toHaveText("KI-Feedback über Cloudflare Workers AI. Das Tageskontingent von Cloudflare Workers AI ist aufgebraucht bis " + untilText + " (Neustart 0:00 Uhr UTC).");
+  await page.unroute("**/api/teacher/ai");
+  // Gespeichert, aber nicht nutzbar (älterer Deploy ohne Binding „AI“): nur der Grund – keine Aufforderung, etwas zu speichern
+  const noBinding = "Workers AI ist für diesen Worker nicht eingerichtet (Binding „AI“ fehlt). Bitte den Workflow „Deploy“ erneut ausführen – die aktuelle wrangler.jsonc enthält es.";
+  await page.route("**/api/teacher/ai", async (route) => route.fulfill({ json: { ...(await (await route.fetch()).json()), hasKey: false, ready: false, keyError: noBinding } }));
+  await page.click("#t-ai");
+  await expect(page.locator("#ai-save")).toBeEnabled();
+  await page.click("#ai-back");
+  await expect(page.locator("#t-aiwarn")).toHaveText(noBinding + " Bis dahin können Schüler:innen nur ohne KI-Feedback abgeben.");
+  await expect(page.locator("#t-aiinfo")).toBeHidden();
+  await page.unroute("**/api/teacher/ai");
+  await page.click("#t-ai");
+  await expect(page.locator("#ai-save")).toBeEnabled();
+  await expect(page.locator("#ai-prov")).toHaveValue("cloudflare");
+  await expect(page.locator("#ai-key")).toHaveValue("");
+  // anderer OpenAI-kompatibler Dienst = Mock-KI
   await page.selectOption("#ai-prov", "custom");
   await expect(page.locator("#ai-base-field")).toBeVisible();
   await expect(page.locator('.provinfo[data-prov="custom"]')).toBeVisible();
@@ -213,6 +413,21 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await confirmDialog(page, "Reserve-KI entfernen?");
   await expect(page.locator("#ai2-status")).toHaveText("Reserve-KI entfernt.");
   await expect(page.locator("#ai2-key-hint")).toHaveText("Keine Reserve-KI eingerichtet.");
+  // Workers AI als Reserve (ohne Schlüssel): eigener Text im Entfernen-Dialog; der Konflikt-Hinweis beim ersten Anbieter
+  // („Reserve ist schon Workers AI“) verschwindet mit dem Entfernen
+  await page.selectOption("#ai2-prov", "cloudflare");
+  await expect(page.locator("#ai2-key-field")).toBeHidden();
+  await page.click("#ai2-save");
+  expect(await confirmDialog(page, "Weiteren KI-Empfänger hinzufügen?")).toContain("„" + CF_RECIPIENT + "“");
+  await expect(page.locator("#ai2-status")).toHaveText("Reserve gespeichert. " + CF_TIER + " Mit „Reserve testen“ prüfen Sie, ob sie antwortet.", { timeout: 30_000 });
+  await page.selectOption("#ai-prov", "cloudflare");
+  await expect(page.locator("#ai-status")).toHaveText(AI_SAME_RESERVE);
+  await page.click("#ai2-remove");
+  expect(await confirmDialog(page, "Reserve-KI entfernen?")).toBe("Die Reserve-KI (Cloudflare Workers AI) wird entfernt. Der erste Anbieter bleibt unverändert.");
+  await expect(page.locator("#ai2-status")).toHaveText("Reserve-KI entfernt.");
+  await expect(page.locator("#ai-status")).toHaveText("");
+  await page.selectOption("#ai-prov", "custom");
+  await expect(page.locator("#ai-model")).toHaveValue(AI_MODEL);   // gespeicherter Anbieter: sein Modell kommt zurück
   await page.click("#ai-back");
   await expect(page.locator("#t-aiinfo")).toHaveText(/^KI-Feedback über Eigener Dienst \(Modell: openai\/gpt-oss-120b\)\.$/);
   await expect(page.locator("#t-aiwarn")).toBeHidden();
@@ -480,6 +695,130 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await closePage(t);
 });
 
+test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitHub Pages) → Lehrkraft trägt Schule, Rechtsgrundlage (Vorschlag Hessen) und Löschfrist ein; Vorschau wie bei den Schüler:innen", async ({ browser }) => {
+  // Schüler:in: Startseite und Angaben-Bildschirm (Zeitpunkt der Erhebung) – noch ohne Schulangaben, Frist 30 Tage (Vorgabe)
+  const s = await openPage(browser);
+  const sp = s.page;
+  await expect(sp.locator("#start-privacy")).toHaveText("Datenschutz: Beim Laden dieser Seite und beim Prüfen des Codes verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts. Alle Informationen zum Datenschutz – auch, wer verantwortlich ist – bekommst du, nachdem du den Code eingegeben hast.");
+  await enterCode(sp, S.shown);
+  await expect(sp.locator("#screen-person")).toHaveClass(/active/);
+  await expect(sp.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);   // die Angaben gehen schon mit dem KI-Feedback (Erstversuch) an die Lehrkraft
+  const short = sp.locator("#p-privacy-short");
+  await expect(short).toHaveText(/^Datenschutz: Verantwortlich ist deine Schule\. Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft\. Nach 30 Tagen werden sie automatisch gelöscht\. Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\.0\.0\.1:\d+ \(Betreiber und Sitz: von der Lehrkraft zu prüfen\)“, bei der Abgabe dann noch einmal in der abgegebenen Fassung\. Auch die Rechtschreibprüfung ist freiwillig\.$/);
+  const full = sp.locator("#p-privfull");
+  expect(await full.evaluate((e) => e.open)).toBe(false);   // aufklappbar
+  await full.locator("summary").click();
+  await expect(full.locator("summary")).toHaveText("Alle Informationen zum Datenschutz");
+  await expect(full.locator("h2.privh")).toHaveText(PRIV_HEADS);   // unter h1 „Deine Angaben“ → h2
+  await expect(full).toContainText("Deine Schule. Deine Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – frag sie danach.");
+  await expect(full).toContainText("Frag deine Lehrkraft nach den Kontaktdaten.");
+  await expect(full).toContainText("Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes.");
+  await expect(full).toContainText("wird 30 Tage nach dem Eingang auf dem Server automatisch gelöscht");
+  await expect(full).toContainText("bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)");
+  // nie behaupten, der Server sehe die Antworten nur verschlüsselt: für das KI-Feedback verarbeitet er sie kurz unverschlüsselt
+  await expect(full).toContainText("Für das KI-Feedback verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.");
+  await expect(full).toContainText("Grundlage einer Übermittlung außerhalb der EU: von der Schule beim Anbieter zu prüfen.");
+  await expect(full).toContainText("Learneo ist nach dem EU-US Data Privacy Framework zertifiziert");
+  await expect(full).toContainText("in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang.");
+  await expect(full).toContainText("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren.");
+  await expect(full.locator("a")).toHaveCount(0);   // ohne Angabe kein Link
+  await expect(full).not.toContainText("GitHub");   // die Seite kommt hier vom Worker
+  for (const w of ["sieht deine Angaben und Antworten nur verschlüsselt", "erst bei der Abgabe verschlüsselt an die Lehrkraft"]) await expect(sp.locator("#screen-person")).not.toContainText(w);
+  await closePage(s);
+
+  // dieselbe Seite über GitHub Pages ausgeliefert (FEIBEITSBLATT_API ≠ ""): GitHub ist ein weiterer Empfänger (IP-Adresse)
+  const gctx = await browser.newContext();
+  await gctx.addInitScript(() => { window.FEIBEITSBLATT_API = location.origin; });
+  const gp = await gctx.newPage();
+  await gp.goto("/");
+  await expect(gp.locator("#start-privacy")).toContainText("verarbeiten GitHub, Inc. (USA; liefert diese Seite aus) und Cloudflare, Inc. (USA; betreibt den Server dieser Seite)");
+  await enterCode(gp, S.shown);
+  await expect(gp.locator("#screen-person")).toHaveClass(/active/);
+  await gp.locator("#p-privfull summary").click();
+  await expect(gp.locator("#p-privfull li", { hasText: "GitHub" })).toHaveText("GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.");
+  await gctx.close();
+
+  // Lehrkraft: Warnung in der Übersicht → „Datenschutz und Löschfrist“
+  const t = await openPage(browser);
+  const page = t.page;
+  await teacherLogin(page, PW);
+  await expect(page.locator("#t-privwarn")).toHaveText(PRIV_MISSING_WARN);
+  await page.click("#t-privacy");
+  await expect(page.locator("#tv-privacy")).toBeVisible();
+  await expect(page.locator("#tv-privacy h1")).toHaveText("Datenschutz und Löschfrist");
+  await expect(page.locator("#pv-days")).toHaveValue("30");
+  await expect(page.locator("#pv-days option")).toHaveText(["7 Tagen", "14 Tagen", "30 Tagen (Vorgabe)", "60 Tagen", "90 Tagen", "180 Tagen", "365 Tagen"]);
+  await expect(page.locator("#pv-status")).toHaveText("Die Löschfrist von 30 Tagen ist die Vorgabe dieser Installation – mit „Speichern“ legen Sie sie selbst fest.");
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
+  const pv = page.locator("#pv-preview");
+  expect(await pv.locator("details.privfull").evaluate((e) => e.open)).toBe(true);   // Vorschau aufgeklappt
+  await expect(pv.locator("h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(pv).toContainText("Verantwortlich ist deine Schule.");
+  // die Vorschau gilt für diese Adresse (Worker): GitHub nur als Zusatz darunter, weil die Zwischenstand-PDF auf GitHub Pages führt
+  await expect(pv.locator("details.privfull")).not.toContainText("GitHub");
+  await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF), " +
+    "nennt der Hinweis bei den Empfängern zusätzlich: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
+    "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback.");
+  await page.fill("#pv-name", SCHOOL.name);
+  await page.fill("#pv-addr", SCHOOL.address);
+  await page.fill("#pv-dpo", SCHOOL.dpo);
+  await page.fill("#pv-url", "http://example.org/datenschutz");   // nur https
+  await page.click("#pv-save");
+  await expect(page.locator("#pv-status")).toHaveText("Bitte geben Sie die Datenschutzerklärung der Schule als vollständige Adresse mit https:// an (höchstens 500 Zeichen).");
+  await expect(page.locator("#pv-url")).toHaveClass(/invalid/);
+  await expect(page.locator("#pv-url")).toBeFocused();
+  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value)).toMatchObject({ retentionDays: 30, auto: true });   // nichts gespeichert
+  await page.fill("#pv-url", SCHOOL.url);
+  // Vorschläge für Hessen: leere Felder ohne Nachfrage; eigene Eingaben nur nach Bestätigung ersetzen
+  await expect(page.locator("#pv-hessen-hint")).toContainText("Voraussetzung: Ihre Schule führt Feibeitsblatt selbst ein (Schulleitung, Datenschutzbeauftragte:r). Bitte abstimmen.");
+  await page.click("#pv-hessen");
+  await expect(page.locator("#pv-basis")).toHaveValue(HESSEN_BASIS);
+  await expect(page.locator("#pv-auth")).toHaveValue(HESSEN_AUTH);
+  await page.fill("#pv-auth", "Eigene Angabe");
+  await page.click("#pv-hessen");
+  expect(await confirmDialog(page, "Vorschläge einsetzen?", false)).toBe("Ihre Eingaben bei „Rechtsgrundlage“ und „Aufsichtsbehörde“ werden durch die Vorschläge für Hessen ersetzt.");
+  await expect(page.locator("#pv-auth")).toHaveValue("Eigene Angabe");
+  await page.click("#pv-hessen");
+  await confirmDialog(page, "Vorschläge einsetzen?");
+  await expect(page.locator("#pv-auth")).toHaveValue(HESSEN_AUTH);
+  // Vorschau mit den (noch ungespeicherten) Eingaben – derselbe Baustein wie bei den Schüler:innen
+  await page.selectOption("#pv-days", String(DAYS));
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
+  await expect(pv.locator(".privacy")).toContainText("Verantwortlich ist " + SCHOOL.name + ".");
+  await expect(pv.locator(".privacy")).toContainText("Nach " + DAYS + " Tagen werden sie automatisch gelöscht.");
+  await expect(pv).toContainText(SCHOOL.name + ", " + SCHOOL.address + ". Bei Fragen kannst du dich auch an deine Lehrkraft wenden.");
+  await expect(pv).toContainText(SCHOOL.dpo);
+  await expect(pv).toContainText(HESSEN_BASIS);
+  await expect(pv).toContainText("Für Übermittlungen in die USA stützt sich Cloudflare auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.");
+  await expect(pv).toContainText("beschweren – zuständig ist: " + HESSEN_AUTH + ".");
+  const link = pv.locator("a");
+  await expect(link).toHaveAttribute("href", SCHOOL.url);
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(link.locator(".sr-only")).toHaveText(" (öffnet in neuem Tab)");
+  await page.click("#pv-save");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.");
+  await expect(page.locator("#pv-status")).toHaveClass(/\bok\b/);
+  const stored = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value);
+  expect(stored).toMatchObject({ v: 1, retentionDays: DAYS, school: { ...SCHOOL, legalBasis: HESSEN_BASIS, authority: HESSEN_AUTH } });
+  expect(stored.auto).toBeUndefined();   // jetzt von der Lehrkraft festgelegt
+  await page.click("#pv-back");   // gespeichert → ohne Nachfrage zurück
+  await expect(page.locator("#tv-overview")).toBeVisible();
+  await expect(page.locator("#t-privwarn")).toBeHidden();
+  await expect(page.locator("#t-privinfo")).toHaveText("Datenschutzhinweis für: " + SCHOOL.name + ". Abgaben und Erstversuche werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht.");
+  // ungespeicherte Änderung → Nachfrage beim Zurückgehen
+  await page.click("#t-privacy");
+  await expect(page.locator("#pv-name")).toHaveValue(SCHOOL.name);
+  await expect(page.locator("#pv-days")).toHaveValue(String(DAYS));
+  await expect(page.locator("#pv-status")).toHaveText("");
+  await page.fill("#pv-name", "Andere Schule");
+  await page.click("#pv-back");
+  await confirmDialog(page, "Ohne Speichern zurück?");
+  await expect(page.locator("#tv-overview")).toBeVisible();
+  expect(JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value).school.name).toBe(SCHOOL.name);
+  await closePage(t);
+});
+
 test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld wächst, LanguageTool, KI-Feedback, Überarbeiten, Abgabe", async ({ browser }) => {
   const s = await openPage(browser, { clipboard: true });
   const { page } = s;
@@ -491,6 +830,22 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(lookup.status).toBe(200);
   await expect(page.locator("#p-sheet")).toContainText(TITLE);
   await expect(page.locator("#p-sheet small")).toHaveText("Code " + S.shown + " · 3 Aufgaben");
+  // Datenschutzhinweis zum Zeitpunkt der Erhebung: mit den Angaben der Schule (Test 1b), alles nur per textContent
+  await expect(page.locator("#p-privacy-short")).toContainText("Verantwortlich ist " + SCHOOL.name + ". Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft. Nach " + DAYS + " Tagen werden sie automatisch gelöscht.");
+  await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);
+  const pfull = page.locator("#p-privfull");
+  await pfull.locator("summary").click();
+  await expect(pfull).toContainText(SCHOOL.name + ", " + SCHOOL.address + ".");
+  await expect(pfull).toContainText(SCHOOL.dpo);
+  await expect(pfull).toContainText(HESSEN_BASIS);
+  await expect(pfull).toContainText("Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU.");
+  await expect(pfull).toContainText("LanguageTool (Learneo, Inc., USA)");
+  await expect(pfull).toContainText("zuständig ist: " + HESSEN_AUTH + ".");
+  await expect(pfull).toContainText("wird " + DAYS + " Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach)");
+  await expect(pfull.locator("a")).toHaveAttribute("href", SCHOOL.url);
+  await expect(pfull.locator("a")).toHaveAttribute("target", "_blank");
+  expect(await pfull.locator("a").getAttribute("rel")).toBe("noopener noreferrer");
+  await pfull.locator("summary").click();   // wieder zu
 
   // Angaben: Prüfungen der Reihe nach
   const err = page.locator("#p-err");
@@ -500,24 +855,37 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
     await expect(err).toHaveText(msg);
     await expect(page.locator("#screen-person")).toHaveClass(/active/);
   };
-  const nextYear = new Date().getFullYear() + 1;
   await tryPerson(null, "", "Bitte gib die ersten drei Buchstaben deines Vornamens ein.");
   await expect(page.locator("#p-vorname")).toHaveClass(/invalid/);
   await tryPerson("#p-vorname", "M4x", "Beim Vornamen sind nur Buchstaben erlaubt.");
   await tryPerson("#p-vorname", "M", "Bitte gib die ersten drei Buchstaben deines Vornamens ein (bei kürzerem Vornamen den ganzen Vornamen).");
   await tryPerson("#p-vorname", A.input.vorname, "Bitte gib die ersten zwei Buchstaben deines Nachnamens ein.");
   await tryPerson("#p-nachname", "M1", "Beim Nachnamen sind nur Buchstaben erlaubt.");
-  await tryPerson("#p-nachname", A.input.nachname, "Bitte gib dein Geburtsdatum ein.");
-  await tryPerson("#p-geb", nextYear + "-01-01", "Bitte prüfe dein Geburtsdatum.");
-  await tryPerson("#p-geb", "1949-12-31", "Bitte prüfe dein Geburtsdatum.");
-  await tryPerson("#p-geb", A.input.geb, "Bitte gib deine Klasse ein (z. B. 8b).");
+  await tryPerson("#p-nachname", A.input.nachname, "Bitte gib deinen Geburtstag ein (Tag und Monat).");
+  await expect(page.locator("#p-gtag")).toHaveClass(/invalid/);
+  await expect(page.locator("#p-gtag")).toBeFocused();
+  await tryPerson("#p-gtag", "0", "Bitte gib beim Tag eine Zahl von 1 bis 31 ein.");
+  await tryPerson("#p-gtag", "32", "Bitte gib beim Tag eine Zahl von 1 bis 31 ein.");
+  await tryPerson("#p-gtag", "30", "Bitte gib den Monat deines Geburtstags ein.");
+  await expect(page.locator("#p-gmonat")).toBeFocused();
+  await tryPerson("#p-gmonat", "13", "Bitte gib beim Monat eine Zahl von 1 bis 12 ein (z. B. 5 für Mai).");
+  await tryPerson("#p-gmonat", "2", "Den 30. Februar gibt es nicht. Bitte prüfe deinen Geburtstag.");
+  await expect(page.locator("#p-gtag")).toBeFocused();
+  await tryPerson("#p-gtag", "29", "Bitte gib deine Klasse ein (z. B. 8b).");   // 29. Februar gibt es
+  await expect(page.locator("#p-gtag")).not.toHaveClass(/invalid/);
+  await page.fill("#p-gtag", "٣١"); await tryPerson("#p-gmonat", "٤", "Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.");   // Ziffern anderer Schriften zählen wie 0–9
+  await page.fill("#p-gtag", "04"); await page.fill("#p-gmonat", "5");          // führende Null ist erlaubt
+  // Autofill-Werte für den Geburtstag (WCAG 2.2, 1.3.5); die übrigen Angaben ohne Autofill
+  expect(await page.$eval("#p-gtag", (e) => [e.inputMode, e.maxLength, e.autocomplete, e.labels[0].textContent])).toEqual(["numeric", 2, "bday-day", "Tag"]);
+  expect(await page.$eval("#p-gmonat", (e) => [e.inputMode, e.maxLength, e.autocomplete, e.labels[0].textContent, e.closest("fieldset").querySelector("legend").textContent])).toEqual(["numeric", 2, "bday-month", "Monat", "Geburtstag (Tag und Monat)"]);
+  for (const id of ["#p-vorname", "#p-nachname", "#p-klasse"]) expect(await page.$eval(id, (e) => e.autocomplete)).toBe("off");
   await tryPerson("#p-klasse", "8b!", "Bitte gib deine Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
   await page.fill("#p-klasse", A.input.klasse);
   await page.click("#p-btn");
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
 
   // Schreibbereich
-  await expect(page.locator("#who-name")).toHaveText("Max · Mu · 04.05.2009 · Klasse 8b");
+  await expect(page.locator("#who-name")).toHaveText("Max · Mu · 04.05. · Klasse 8b");
   await expect(page.locator("#ed-title")).toHaveText(TITLE);
   await expect(page.locator("#sheet-title")).toHaveText(TITLE);
   await expect(page.locator("#tasks .task-label")).toHaveText(["Aufgabe 1", "Aufgabe 2", "Aufgabe 3"]);
@@ -628,20 +996,28 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(lookup.body.length).toBeLessThan(20_000);
   expect(JSON.parse(lookup.body).sheet.tasks[0].images.map((m) => m.id)).toEqual(S.imgs.map((m) => m.id));
   expect((await s.calls((r) => /\/api\/sheet\/[^/]+\/images\//.test(r.path))).map((r) => r.status)).toEqual([200, 200]);
-  await expect(page.locator("#submit-btn")).toBeDisabled();
-  await expect(page.locator("#submit-hint")).toHaveText("Der Button „Abgeben“ wird freigeschaltet, sobald du das KI-Feedback erhalten hast.");
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  await expect(page.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
+  await expect(page.locator("#fin-text")).toHaveText(FIN_TEXT);
   await expect(page.locator("#fb-btn")).toHaveText("KI um ein Feedback bitten");
   await expect(page.locator("#fb-btn")).toBeEnabled();
   const aiProvider = JSON.parse(lookup.body).sheet.aiProvider;
   expect(aiProvider).toMatch(/^127\.0\.0\.1:\d+$/);
   const privacy = page.locator("#privacy");
-  await expect(privacy).toContainText("ohne Namenskürzel, Geburtsdatum und Klasse");
+  await expect(privacy).toContainText("ohne Namenskürzel, Geburtstag und Klasse");
   await expect(privacy).toContainText("„" + aiProvider + RECIPIENT_SUFFIX + "“");   // Empfänger mit Betreiber-Hinweis
   await expect(privacy).toContainText("wiederholt diese Seite die Anfrage automatisch (bis zu 5 Versuche");
   await expect(privacy).toContainText("speichert selbst nichts davon");
   await expect(privacy).toContainText("Bei der Abgabe gehen deine überarbeiteten Antworten auf demselben Weg noch einmal an die KI");
   await expect(privacy).toContainText("LanguageTool");
+  await expect(privacy).toContainText("(Cloudflare, Inc., USA; Datenbank in der EU)");
+  await expect(privacy).toContainText("Erstversuch und Abgabe werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen.");
+  await expect(privacy).not.toContainText("Die Lehrkraft löscht alles nach der Durchsicht.");
   expect(await privacy.evaluate((e) => getComputedStyle(e).color)).toBe("rgb(111, 103, 90)");
+  // darunter alle Informationen (beim Weiterschreiben gibt es keinen Angaben-Bildschirm) – Überschriften unter h2 „Abschluss“ als h3
+  await expect(page.locator("#privfull-ed details.privfull summary")).toHaveText("Alle Informationen zum Datenschutz");
+  await expect(page.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(page.locator("#privfull-ed")).toContainText(SCHOOL.name);
 
   // Abstand zur nächsten Aufgabe: eine Leerzeile
   expect(Math.abs((await gapAfterTask(page, 1)) - lh)).toBeLessThan(1);
@@ -715,20 +1091,17 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await typeAt(page, "#a-3", A.a3);
   for (let i = 0; i < 3; i++) expect(await page.inputValue("#a-" + (i + 1))).toBe(A.first[i]);
 
-  // Rechtschreibung und Grammatik (LanguageTool-Attrappe): A ist 17 → Button da, aber erst nach Altersbestätigung
+  // Rechtschreibung und Grammatik (LanguageTool-Attrappe): Button bei jedem Textfeld, aber erst nach der Selbstauskunft im Dialog
+  // (ohne Geburtsjahr kennt die Seite das Alter nicht); „Trifft nicht zu“ prüft Test 3
   await expect(page.locator("#t-1 .ltbtn")).toHaveText("Rechtschreibung und Grammatik prüfen");
   await expect(page.locator(".ltbtn")).toHaveCount(3);
   await expect(page.locator(".lt-off")).toHaveCount(0);
   await page.click("#t-1 .ltbtn");
-  await expect(page.locator("#dlg-ok")).toHaveText("Ich bin mindestens 16 Jahre alt – prüfen");
-  await expect(page.locator("#dlg-cancel")).toHaveText("Nicht prüfen");
-  const consent = await confirmDialog(page, "Rechtschreibung und Grammatik prüfen", false);   // erst ablehnen
-  for (const p of ["LanguageTool", "Learneo, Inc., USA", "ab 16 Jahren", "mindestens 16 Jahre alt", "solange dieses Feibeitsblatt geöffnet ist"]) expect(consent).toContain(p);
-  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("Ohne Bestätigung wird nichts an LanguageTool gesendet.");
-  await expect(page.locator("#t-1 .lt-out")).toBeHidden();
-  expect(s.lt).toHaveLength(0);                                   // ohne Bestätigung geht nichts raus
-  await page.click("#t-1 .ltbtn");
-  await confirmDialog(page, "Rechtschreibung und Grammatik prüfen");   // jetzt bestätigen
+  await expect(page.locator("#dlg-ok")).toHaveText("Trifft auf mich zu – prüfen");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Trifft nicht zu");
+  await expect(page.locator("#dlg-cancel")).toBeFocused();   // der sichere Knopf hat den Fokus
+  expect(s.lt).toHaveLength(0);                               // vor der Bestätigung geht nichts raus
+  expect(await confirmDialog(page, "Rechtschreibung und Grammatik prüfen")).toBe(LT_CONSENT);
   const out = page.locator("#t-1 .lt-out");
   await expect(out).toBeVisible();
   expect(s.lt).toHaveLength(1);
@@ -755,7 +1128,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(s.lt).toHaveLength(1);
 
   // KI-Feedback (eine Anfrage an die KI, nur Aufgaben mit Auftrag an die KI, keine Personendaten)
-  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#submit-btn")).toBeEnabled();
   await mockReset();
   await requestFeedback(page);
   const fbReq = await s.calls((r) => r.path === "/api/feedback");
@@ -769,7 +1142,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   const prompt = JSON.stringify(ms.requests[0].messages);
   expect(prompt).toContain("innere Instanz");
   expect(prompt).not.toContain(A.a3);                                   // Aufgabe ohne Auftrag geht nicht an die KI
-  for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt).not.toContain(p);
+  for (const p of [A.person.geburtsdatum, fmtBd(A.person.geburtsdatum), "8b", "Max"]) expect(prompt).not.toContain(p);
   // Format der Nachricht: erst Aufgaben, Material und Aufträge der Lehrkraft (je Blatt gleich → Präfix-Caching), dann die Antworten
   const user = ms.requests[0].messages.find((m) => m.role === "user").content;
   expect(user.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 1, 2):\n\n### Aufgabe 1\nAufgabenstellung:\n<<<\n" + TASKS[0].text + "\n>>>\n")).toBe(true);
@@ -795,6 +1168,13 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#t-1 .fb-sub.fb-miss")).toHaveText("Tipps zum Überarbeiten");
   await expect(page.locator("#t-1 .fb-sub + ul.fb-list")).toHaveCount(2);   // jede Überschrift steht direkt über ihrer Liste
   await expect(page.locator("#t-3 .fb-note")).toHaveText(NO_SOLUTION_NOTE);
+  // maschinenlesbare KI-Kennzeichnung (Art. 50 Abs. 2 KI-VO): Boxen mit KI-Stichpunkten, nicht der Hinweis ohne KI; die Antwort ebenso
+  expect(await aiMarks(page.locator("#t-1 .fbbox"))).toEqual(["true", "feedback", AI_SOURCE]);
+  expect(await aiMarks(page.locator("#t-2 .fbbox"))).toEqual(["true", "feedback", AI_SOURCE]);
+  expect(await aiMarks(page.locator("#t-3 .fbbox"))).toEqual([null, null, null]);
+  expect(JSON.parse(fbReq[0].body)).toMatchObject({ aiGenerated: true, digitalSourceType: AI_SOURCE });
+  // der Zwischenstand vermerkt es ebenfalls (cleanDraft liest das Feld nicht)
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:"))))).feedbackAi).toEqual({ aiGenerated: true, digitalSourceType: AI_SOURCE });
   await expect(page.locator("#fb-btn")).toBeDisabled();
   await expect(page.locator("#fb-btn")).toHaveText("KI-Feedback erhalten");
   await expect(page.locator("#revise-hint")).toBeVisible();
@@ -811,7 +1191,8 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(fp.stage).toBe("first");
   expect(fp.attempt).toMatch(ATTEMPT);
   expect(Object.keys(fp.envelope).sort()).toEqual(["ct", "ek", "iv", "v"]);
-  for (const p of ["Gewissn", "Schwester", "Max", "2009-05-04", "vorname"]) expect(firstPost.reqBody).not.toContain(p);
+  // kein Klartext neben dem Umschlag (der Umschlag selbst ist Base64 – Klartext oder ein „-“ wie in „--05-04“ kann darin nicht stehen)
+  for (const p of ["Gewissn", "Schwester", "Max", A.person.geburtsdatum, "vorname"]) expect(firstPost.reqBody).not.toContain(p);
 
   // Überarbeiten → die Prüfung von Aufgabe 1 bezieht sich jetzt auf einen älteren Stand
   await typeAt(page, "#a-1", A.rev1);
@@ -848,7 +1229,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(fresh.page.locator("#screen-start")).toHaveClass(/active/);
   await fresh.page.setInputFiles("#start-pdf-file", pdfPath);
   await expect(fresh.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
-  await expect(fresh.page.locator("#who-name")).toHaveText("Max · Mu · 04.05.2009 · Klasse 8b");
+  await expect(fresh.page.locator("#who-name")).toHaveText("Max · Mu · 04.05. · Klasse 8b");
   for (let i = 0; i < 3; i++) expect(await fresh.page.inputValue("#a-" + (i + 1))).toBe(A.final[i]);
   await expect(fresh.page.locator("#save-state")).toHaveText("Zwischenstand aus der PDF-Datei übernommen");
   await expect(fresh.page.locator("#t-1 .fbbox")).toBeVisible();
@@ -887,6 +1268,11 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   await expect(page.locator("#done-pdf-note")).toHaveText("Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.");
   await expect(page.locator("#done-pdf")).toHaveAttribute("aria-describedby", "done-pdf-note");
   expect(await page.$eval("#done-pdf", (e) => e.nextElementSibling.id)).toBe("done-pdf-note");   // Hinweis direkt unter dem Button
+  // Löschdatum laut Frist beim Server (Antwort von /api/submit), zwischen Zeitpunkt und Download-Button
+  const subRes = JSON.parse((await s.calls((r) => r.path === "/api/submit"))[1].body);
+  expect(subRes.retentionDays).toBe(DAYS);
+  await expect(page.locator("#done-del")).toHaveText("Bei deiner Lehrkraft wird deine Abgabe nach " + DAYS + " Tagen automatisch gelöscht (am " + deDate(subRes.receivedAt + DAYS * 864e5) + " oder kurz danach). Wenn du deine Lösungen behalten möchtest, lade sie dir herunter.");
+  expect(await page.$eval("#done-del", (e) => [e.previousElementSibling.id, e.nextElementSibling.id])).toEqual(["done-time", "done-pdf"]);
   const [pdfBox, noteBox, fbBox] = await Promise.all(["#done-pdf", "#done-pdf-note", "#done-fb"].map((sel) => page.locator(sel).boundingBox()));
   expect(pdfBox.y + pdfBox.height).toBeLessThanOrEqual(noteBox.y);
   expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(fbBox.y);                              // Button und Hinweis über der Rückmeldung
@@ -908,7 +1294,18 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(sol).toContain("(Meine L\\366sung \\(abgegebene Fassung\\):) Tj");
   expect(sol).toContain("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj");   // A hat überarbeitet
   expect(sol).toContain("Max \\267 Mu \\267 Klasse 8b");
-  expect(sol).not.toContain("2009-05-04"); expect(sol).not.toContain("04.05.2009");   // kein Geburtsdatum in der Datei
+  expect(sol).not.toContain("--05-04"); expect(sol).not.toMatch(/04\.05\.(?!\d)/);   // kein Geburtstag in der Datei („04.05.2026“ wäre ein Abgabedatum)
+  // KI-Kennzeichnung: sichtbarer Hinweis, Subject/Keywords, XMP mit IPTC „compositeSynthetic“ (Schülertext + KI-Text); Aufbau gültig
+  expect(pdfShownText(Buffer.from(sol, "latin1"))).toContain("Die Rückmeldungen in dieser Datei hat eine KI erzeugt (KI-Feedback). Sie können Fehler enthalten.");
+  const st1 = pdfStructure(Buffer.from(sol, "latin1"));
+  const xmpNo = Number(/\/Type \/Catalog \/Pages 2 0 R \/Metadata (\d+) 0 R/.exec(st1.objAt(1))[1]);
+  expect(xmpNo).toBe(st1.count - 1);   // das letzte Objekt
+  expect(st1.objAt(xmpNo)).toMatch(/^\d+ 0 obj\n<< \/Type \/Metadata \/Subtype \/XML \/Length \d+ >>\nstream\n/);
+  expect(st1.objAt(5)).toMatch(/\/Subject <FEFF[0-9a-f]+> \/Keywords <FEFF[0-9a-f]+>/);
+  const xmp = Buffer.from(/stream\n([\s\S]*)\nendstream/.exec(st1.objAt(xmpNo))[1], "latin1").toString("utf8");
+  expect(xmp).toContain("<Iptc4xmpExt:DigitalSourceType>http://cv.iptc.org/newscodes/digitalsourcetype/compositeSynthetic</Iptc4xmpExt:DigitalSourceType>");
+  expect(xmp).toContain("<rdf:li xml:lang=\"x-default\">Meine Lösungen – " + TITLE + "</rdf:li>");   // UTF-8, Titel XML-maskiert
+  expect(await page.evaluate((x) => { const d = new DOMParser().parseFromString(x.slice(x.indexOf("<x:xmpmeta"), x.indexOf("<?xpacket end")), "application/xml"); return d.getElementsByTagName("parsererror").length; }, xmp)).toBe(0);
 
   // der erste Versuch der zweiten Rückmeldung scheitert → Hinweis, Abgabe unberührt, „Rückmeldung erneut anfordern“
   releaseFb2();
@@ -948,12 +1345,17 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(ms2.count).toBe(2);   // erstes Feedback + zweite Rückmeldung (der gescheiterte Versuch kam nicht bei der KI an)
   const prompt2 = JSON.stringify(ms2.requests[1].messages);
   expect(prompt2).toContain("Es meldet sich als schlechtes Gewissen.");
-  for (const p of ["2009-05-04", "04.05.2009", "8b", "Max"]) expect(prompt2).not.toContain(p);
+  for (const p of [A.person.geburtsdatum, fmtBd(A.person.geburtsdatum), "8b", "Max"]) expect(prompt2).not.toContain(p);
   // die PDF-Datei enthält jetzt beide Rückmeldungen
   const [sdl2] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
   const sol2 = (await readFile(await sdl2.path())).toString("latin1");
   expect(sol2).toContain("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj");   // ohne Zählung
+  pdfStructure(Buffer.from(sol2, "latin1"));
+  expect(sol2).toContain("/Metadata ");
+  // auch nach der Abgabe gekennzeichnet: Boxen der zweiten Rückmeldung (nicht Aufgabe 3 ohne Auftrag an die KI)
+  expect(await aiMarks(page.locator("#done-fb-1"))).toEqual(["true", "feedback-final", AI_SOURCE]);
+  expect(await aiMarks(page.locator("#done-fb-3"))).toEqual([null, null, null]);
   expect(sol2).toContain("(KI-Feedback zur ersten Fassung:) Tj");
   expect(sol2).not.toContain("lag beim Herunterladen noch nicht vor");
   for (const c of exp2[0].covered) expect(sol2).toContain("(\\225 Gelingt schon: " + c.slice(0, 20));   // • = \225 (WinAnsi)
@@ -967,7 +1369,7 @@ test("2 Schüler:in A: Code → Angaben → Schreiben, Einfügen gesperrt, Feld 
   expect(sb.stage).toBe("final");
   expect(sb.attempt).toBe(fp.attempt);                           // ersetzt den Erstversuch auf dem Server
   expect(Object.keys(sb.envelope).sort()).toEqual(["ct", "ek", "iv", "v"]);
-  for (const p of ["Gewissn", "Schwester", "Max", "2009-05-04", "vorname"]) expect(sub[1].reqBody).not.toContain(p);
+  for (const p of ["Gewissn", "Schwester", "Max", A.person.geburtsdatum, "vorname"]) expect(sub[1].reqBody).not.toContain(p);   // kein Klartext neben dem Umschlag (s. o.)
   expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")))).toEqual([]);
   S.sheetBodies.push(lookup.body);
   await closePage(s);
@@ -979,15 +1381,63 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await enterCode(page, S.shown);
   await expect(page.locator("#screen-person")).toHaveClass(/active/);
   await fillPerson(page, B.input);
-  await expect(page.locator("#who-name")).toHaveText("Özg · Ün · 15.01.2012 · Klasse 7a");
-  // B ist laut Geburtsdatum unter 16: keine Rechtschreibprüfung, nur ein Hinweis – Absatz zum Feedback-Hinweis stimmt
-  await expect(page.locator(".ltbtn")).toHaveCount(0);
-  await expect(page.locator(".lt-off")).toHaveCount(3);
-  await expect(page.locator("#t-1 .lt-off")).toHaveText("Die Rechtschreibprüfung (LanguageTool) gibt es erst ab 16 Jahren.");
-  await expect(page.locator("#privacy")).toContainText("erst ab 16 Jahren und nur nach deiner Bestätigung");
+  await expect(page.locator("#who-name")).toHaveText("Özg · Ün · 15.01. · Klasse 7a");
+  // Ohne Geburtsjahr kennt die Seite das Alter nicht: Der Button steht bei jedem Textfeld, B (unter 16) lehnt im Dialog ab → nichts geht raus
+  await expect(page.locator(".ltbtn")).toHaveCount(3);
+  await expect(page.locator(".lt-off")).toHaveCount(0);
+  await expect(page.locator("#privacy")).toContainText(LT_PRIVACY);
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), B.first[i]);
+  await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg-title")).toHaveText("Rechtschreibung und Grammatik prüfen");
+  await expect(page.locator("#dlg-cancel")).toBeFocused();
+  // Klick neben den Dialog (z. B. vertippt auf dem Tablet): schließt nur – nichts gesendet, keine Antwort, die Buttons bleiben
+  await page.waitForTimeout(450);                                        // (ein Klick direkt nach dem Öffnen zählt absichtlich nicht)
+  await page.mouse.click(5, 5);
+  await expect(page.locator("#dlg")).not.toHaveClass(/open/);
+  await expect(page.locator(".ltbtn")).toHaveCount(3);
+  await expect(page.locator(".lt-off")).toHaveCount(0);
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("Ohne Bestätigung wird nichts an LanguageTool gesendet.");
+  await expect(page.locator("#t-1 .ltbtn")).toBeFocused();
+  expect(s.lt).toHaveLength(0);
+  await page.click("#t-1 .ltbtn");                                       // der Dialog fragt wieder
+  await expect(page.locator("#dlg-title")).toHaveText("Rechtschreibung und Grammatik prüfen");
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("");
+  await page.keyboard.press("Escape");                                   // Esc gilt wie „Trifft nicht zu“
+  await expect(page.locator("#dlg")).not.toHaveClass(/open/);
+  await expect(page.locator(".ltbtn")).toHaveCount(0);                   // für dieses geöffnete Blatt kein Button mehr …
+  await expect(page.locator(".lt-off")).toHaveText([LT_OFF, LT_OFF, LT_OFF]);   // … sondern der Hinweis
+  await expect(page.locator("#t-1 .lt-off")).toBeFocused();
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("Ohne Bestätigung wird nichts an LanguageTool gesendet.");
+  expect(s.lt).toHaveLength(0);
+  await typeAt(page, "#a-1", " Ja.");                                    // Weiterschreiben räumt die Meldung weg
+  await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("");
+  await page.keyboard.press("Backspace"); await page.keyboard.press("Backspace"); await page.keyboard.press("Backspace"); await page.keyboard.press("Backspace");
+  expect(await page.inputValue("#a-1")).toBe(B.first[0]);
+  // gespeichert wird die Auswahl nicht: nach dem Neuladen („Weiterschreiben“) gibt es die Buttons wieder
+  await page.waitForTimeout(700);
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  // „Weiterschreiben“ überspringt den Angaben-Bildschirm – der vollständige Datenschutzhinweis steht deshalb auch im Editor
+  await expect(page.locator("#screen-person")).not.toHaveClass(/active/);
+  await page.locator("#privfull-ed summary").click();
+  await expect(page.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(page.locator("#privfull-ed")).toContainText(SCHOOL.name + ", " + SCHOOL.address + ".");
+  await expect(page.locator("#privfull-ed")).toContainText(HESSEN_BASIS);
+  await expect(page.locator(".ltbtn")).toHaveCount(3);
+  await expect(page.locator(".lt-off")).toHaveCount(0);
+  for (let i = 0; i < 3; i++) expect(await page.inputValue("#a-" + (i + 1))).toBe(B.first[i]);
+  // der Knopf „Trifft nicht zu“ selbst wirkt wie Esc
+  await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Trifft nicht zu");
+  await page.click("#dlg-cancel");
+  await expect(page.locator("#dlg")).not.toHaveClass(/open/);
+  await expect(page.locator(".ltbtn")).toHaveCount(0);
+  await expect(page.locator(".lt-off")).toHaveText([LT_OFF, LT_OFF, LT_OFF]);
+  await expect(page.locator("#t-1 .lt-off")).toBeFocused();
+  expect(s.lt).toHaveLength(0);
 
-  // KI lehnt ab (Mock: HTTP 401) → kurze Meldung ohne Interna, Feedback erneut möglich, „Abgeben“ bleibt gesperrt
+  // KI lehnt ab (Mock: HTTP 401) → kurze Meldung ohne Interna, Feedback erneut möglich; „Abgeben“ ging die ganze Zeit
   await mockMode("401");
   try {
     await page.click("#fb-btn");
@@ -1000,12 +1450,13 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   expect(JSON.parse(failed[0].body)).toMatchObject({ ok: false, code: "ai_error" });
   expect(failed[0].body).not.toContain(AI_KEY);
   await expect(page.locator("#fb-btn")).toBeEnabled();
-  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  await expect(page.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
   await expect(page.locator("#fb-fallback")).toBeHidden();
   await expect(page.locator("#t-1 .fbbox")).toBeHidden();
   expect(await page.$eval("#a-1", (e) => e.readOnly)).toBe(false);
 
-  // zweiter Fehlschlag → Abgabe ohne KI-Feedback wird freigeschaltet (niemand sitzt fest), Feedback bleibt möglich
+  // zweiter Fehlschlag → Hinweis, dass das KI-Feedback gerade nicht möglich ist (die Lehrkraft sieht den Grund), Feedback bleibt möglich
   await mockMode("500");
   try {
     await page.click("#fb-btn");
@@ -1051,12 +1502,12 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await closePage(s);
 });
 
-test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback", async ({ browser }) => {
+test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback (der Dialog nennt den Grund)", async ({ browser }) => {
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, S.shown);
   await fillPerson(page, C.input);
-  await expect(page.locator("#who-name")).toHaveText("Lea · Sc · 30.06.2012 · Klasse 9c");
+  await expect(page.locator("#who-name")).toHaveText("Lea · Sc · 29.02. · Klasse 9c");
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), C.first[i]);
   await mockMode("500");
   try {
@@ -1071,11 +1522,17 @@ test("3b Schüler:in C: KI fällt zweimal aus → Abgabe ohne KI-Feedback", asyn
   await expect(page.locator("#t-1 .fbbox")).toBeHidden();
   await expect(page.locator("#submit-btn")).toBeEnabled();
   await page.click("#submit-btn");
-  const text = await confirmDialog(page, "Jetzt abgeben?");
-  expect(text).toContain("ohne KI-Feedback");
-  expect(text).not.toContain("KI-Rückmeldung zu deiner abgegebenen Fassung");
+  await expect(page.locator("#dlg-ok")).toHaveText("Ohne KI-Feedback abgeben");
+  expect(await confirmDialog(page, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("KI nicht erreichbar"));
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#done-fb")).toBeHidden();   // ohne erstes Feedback keine zweite Rückmeldung
+  await expect(page.locator("#done-del")).toContainText("nach " + DAYS + " Tagen automatisch gelöscht");
+  // Lösungs-PDF ohne KI-Inhalt: keine KI-Kennzeichnung (kein Hinweis, kein XMP, kein Subject/Keywords), Aufbau gültig
+  const [dlC] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const pdfC = await readFile(await dlC.path());
+  const stC = pdfStructure(pdfC);
+  for (const w of ["/Metadata", "compositeSynthetic", "/Keywords", "/Subject"]) expect(stC.s).not.toContain(w);
+  expect(pdfShownText(pdfC)).not.toContain("hat eine KI erzeugt");
   const sub = await s.calls((r) => r.path === "/api/submit");
   expect(sub.map((r) => r.status)).toEqual([200]);
   expect((await s.calls((r) => r.path === "/api/feedback")).length).toBe(2);   // nur die zwei gescheiterten Versuche
@@ -1087,7 +1544,7 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   const { page } = s;
   await enterCode(page, S.shown);
   await fillPerson(page, D.input);
-  await expect(page.locator("#who-name")).toHaveText("Tom · Ze · 02.02.2010 · Klasse 9c");
+  await expect(page.locator("#who-name")).toHaveText("Tom · Ze · 02.02. · Klasse 9c");
   for (let i = 0; i < 3; i++) await typeAt(page, "#a-" + (i + 1), D.first[i]);
   // Ausgelastete KI: zweimal 429 ai_busy (Attrappe über route, retryAfter 5 s) → die Seite wartet mit Countdown und wiederholt
   // von selbst; währenddessen darf weitergeschrieben werden, der dritte Versuch schickt den aktuellen Text und geht durch
@@ -1096,12 +1553,13 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
     if (busy < 2) { busy++; await route.fulfill({ status: 429, contentType: "application/json", headers: { "retry-after": "5" }, body: JSON.stringify({ ok: false, error: "Die KI ist gerade ausgelastet.", code: "ai_busy", aiCode: "RATE_LIMIT", retryAfter: 5 }) }); return; }
     await route.continue();
   });
-  await expect(page.locator("#submit-btn")).toBeDisabled();
+  await expect(page.locator("#submit-btn")).toBeEnabled();
   await page.click("#fb-btn");
   const dlgText = await confirmDialog(page, "KI-Feedback anfordern?");
+  expect(dlgText).toContain(FB_VOLUNTARY);
   expect(dlgText).toContain("an den KI-Dienst „127.0.0.1:");                       // der Empfänger steht im Dialog, nicht nur im Kleingedruckten
   expect(dlgText).toContain(RECIPIENT_SUFFIX + "“");
-  expect(dlgText).toContain("ohne Namenskürzel, Geburtsdatum und Klasse");
+  expect(dlgText).toContain("ohne Namenskürzel, Geburtstag und Klasse");
   await expect(page.locator("#fb-status")).toContainText("Versuch 2 von 5", { timeout: 20_000 });
   await expect(page.locator("#fb-status")).toContainText("die KI ist ausgelastet");
   await expect(page.locator("#fb-wait")).toBeVisible();
@@ -1124,12 +1582,19 @@ test("3c Schüler:in D: holt nur das KI-Feedback und gibt nicht ab → Erstversu
   const body = JSON.parse(post.reqBody);
   expect(body.stage).toBe("first");
   expect(body.attempt).toMatch(ATTEMPT);
-  for (const p of ["Richter", "Tom", "2010-02-02", "vorname", "klasse"]) expect(post.reqBody).not.toContain(p);   // („9c“ wäre als Base64-Zufallstreffer möglich)
+  // kein Klartext neben dem Base64-Umschlag („9c“ fehlt in der Liste: als Base64-Zufallstreffer möglich)
+  for (const p of ["Richter", "Tom", D.person.geburtsdatum, "vorname", "klasse"]) expect(post.reqBody).not.toContain(p);
   await expect(page.locator("#submit-btn")).toBeEnabled();   // … gibt aber nicht ab
+  // „Abbrechen“ nimmt den Erstversuch nicht zurück – der Dialog sagt es (und wie falsche Angaben gelöscht werden)
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))).firstSent)).toBe(true);
+  await page.click("#ed-cancel");
+  expect(await confirmDialog(page, "Zwischenstand löschen?", false)).toBe("Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen. " +
+    "Deine erste Fassung mit dem KI-Feedback und deinen Angaben hat deine Lehrkraft schon verschlüsselt als Erstversuch bekommen; waren deine Angaben falsch, sag ihr Bescheid – sie kann den Eintrag löschen.");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
   await closePage(s);
 });
 
-test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zählt als Fehlversuch; nach dem zweiten Abbruch ist Abgeben ohne KI möglich", async ({ browser }) => {
+test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zählt als Fehlversuch; nach dem zweiten Abbruch nennt die Seite den Grund (KI ausgelastet)", async ({ browser }) => {
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, S.shown);
@@ -1147,7 +1612,7 @@ test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zä
     await expect(page.locator("#fb-status")).toHaveText("Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
     await expect(page.locator("#fb-wait")).toBeHidden();
     await expect(page.locator("#fb-btn")).toBeEnabled();
-    if (cycle === 1) { await expect(page.locator("#fb-fallback")).toBeHidden(); await expect(page.locator("#submit-btn")).toBeDisabled(); }
+    if (cycle === 1) { await expect(page.locator("#fb-fallback")).toBeHidden(); await expect(page.locator("#submit-btn")).toBeEnabled(); }
   }
   expect(n).toBe(2);   // je Zyklus genau eine Anfrage – nach dem Abbruch wird nichts mehr gesendet
   await expect(page.locator("#fb-fallback")).toBeVisible();
@@ -1156,6 +1621,144 @@ test("3d Schüler:in E: KI bleibt ausgelastet → „Nicht länger warten“ zä
   const draft = JSON.parse(await page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))));
   expect(draft).toMatchObject({ fbFails: 2, fbUnavailable: "KI ausgelastet" });   // Fehlversuche überdauern ein Neuladen
   expect(await s.calls((r) => r.path === "/api/submit")).toEqual([]);           // nichts beim Server (E gibt nicht ab)
+  await closePage(s);
+});
+
+test("3e Übergang: Zwischenstände und Zwischenstand-PDFs mit vollem Geburtsdatum bleiben nutzbar (der jüngste gewinnt), unmögliche Geburtstage nicht – danach liegt nur noch Tag und Monat auf dem Gerät; nach BDAY_LEGACY_UNTIL wird nicht mehr gesucht", async ({ browser }) => {
+  const s = await openPage(browser);
+  const { page } = s;
+  // Feste Uhrzeit im Browser vor bzw. nach dem Ende des Übergangs – so hängt der Test nicht vom heutigen Datum ab
+  const until = /const BDAY_LEGACY_UNTIL = "(\d{4}-\d{2}-\d{2})";/.exec(await readFile(new URL("../../index.html", import.meta.url), "utf8"))[1];
+  const T_IN = new Date(until + "T10:00:00").getTime() - 14 * 864e5, T_OUT = new Date(until + "T10:00:00").getTime() + 864e5;
+  await page.clock.setFixedTime(T_IN);
+  const OLD = { vorname: "Ole", nachname: "Al", geburtsdatum: "2010-03-07", klasse: "8a" };   // so speicherte die Seite bis zur Umstellung
+  const OLD2 = { ...OLD, geburtsdatum: "2011-03-07" };                                         // gleiche Angaben, anderes Jahr
+  const NEW = { ...OLD, geburtsdatum: "--03-07" };
+  // Speicherschlüssel wie draftKeyFor in index.html: SHA-256 über Code|Kürzel|Geburtstag|Klasse (klein geschrieben)
+  const keyOf = (p) => "feibeitsblatt:draft:" + createHash("sha256").update([S.code, p.vorname, p.nachname, p.geburtsdatum, p.klasse].join("|").toLocaleLowerCase("de-DE")).digest("hex");
+  const oldKey = keyOf(OLD), oldKey2 = keyOf(OLD2), newKey = keyOf(NEW);
+  expect(new Set([oldKey, oldKey2, newKey]).size).toBe(3);
+  const draft = { v: 1, t: T_IN - 2 * 3600e3, answers: ["Alter Stand eins.", "", "Alter Stand drei."], first: null, feedback: null, feedbackAt: null, fbUnavailable: "", fbFails: 0, attempt: "00112233445566aa", firstSent: false };
+  const draft2 = { ...draft, t: T_IN - 3600e3, answers: ["Jüngerer Stand eins.", "", "Jüngerer Stand drei."], attempt: "00112233445566bb" };
+  const stored = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:")).sort());
+  const values = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:")).map((k) => localStorage.getItem(k)).join("\n"));
+  const setItems = (pairs) => page.evaluate((pairs) => { for (const [k, v] of pairs) localStorage.setItem(k, JSON.stringify(v)); }, pairs);
+  const restored = async (state, d = draft) => {
+    await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+    await expect(page.locator("#who-name")).toHaveText("Ole · Al · 07.03. · Klasse 8a");
+    expect(await page.inputValue("#a-1")).toBe(d.answers[0]);
+    expect(await page.inputValue("#a-3")).toBe(d.answers[2]);
+    await expect(page.locator("#save-state")).toHaveText(state);
+    expect(await stored()).toEqual([newKey, "feibeitsblatt:last"].sort());   // umgezogen, alte Schlüssel weg
+    expect(JSON.parse(await page.evaluate(() => localStorage.getItem("feibeitsblatt:last"))).person).toEqual(NEW);
+    for (const g of [OLD.geburtsdatum, OLD2.geburtsdatum]) expect(await values()).not.toContain(g);
+  };
+  const cancel = async () => {
+    await page.click("#ed-cancel");
+    await confirmDialog(page, "Zwischenstand löschen?");
+    await expect(page.locator("#screen-start")).toHaveClass(/active/);
+    expect(await stored()).toEqual([]);
+  };
+
+  // 1) „Weiterschreiben“ nach Neuladen: Angaben und Speicherschlüssel noch mit vollem Datum → Anzeige ohne Jahr, Umzug beim Laden
+  await setItems([[oldKey, draft], ["feibeitsblatt:last", { v: 1, t: T_IN - 2 * 3600e3, code: S.code, person: OLD }]]);
+  await page.reload();
+  await expect(page.locator("#resume-text")).toHaveText(`Auf diesem Gerät liegt ein Zwischenstand von Ole · Al · 07.03. · Klasse 8a (Code ${S.shown}). Bist du das?`);
+  expect(await stored()).toEqual([newKey, "feibeitsblatt:last"].sort());
+  await page.click("#resume-btn");
+  await restored("Zwischenstand von diesem Gerät wiederhergestellt");
+  await cancel();
+
+  // 1b) Speicher des Geräts voll: Der Umzug löscht zuerst den alten Schlüssel – derselbe Stand passt dann unter den neuen
+  const fill = () => page.evaluate(() => {   // bis zum Quota-Fehler füllen (zuletzt Zeichen für Zeichen)
+    let n = 0;
+    for (let size = 1 << 20; size >= 1;) { try { localStorage.setItem("fill:" + n, "x".repeat(size)); n++; } catch (e) { size >>= 1; } }
+    return n;
+  });
+  const unfill = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("fill:")).forEach((k) => localStorage.removeItem(k)));
+  await setItems([[oldKey, draft], ["feibeitsblatt:last", { v: 1, t: T_IN - 2 * 3600e3, code: S.code, person: OLD }]]);
+  expect(await fill()).toBeGreaterThan(0);
+  expect(await page.evaluate(() => { try { localStorage.setItem("fill:probe", "x"); return true; } catch (e) { return false; } })).toBe(false);
+  await page.reload();
+  await expect(page.locator("#resume-text")).toContainText("Ole · Al · 07.03. · Klasse 8a");
+  await page.click("#resume-btn");
+  await restored("Zwischenstand von diesem Gerät wiederhergestellt");
+  await cancel();
+  await unfill();
+
+  // 1c) Scheitert das Speichern unter dem neuen Schlüssel trotzdem, bleibt der Stand für diese Sitzung im Arbeitsspeicher: Die
+  //     Antworten sind da, die Statuszeile sagt, dass nicht gespeichert werden konnte; „Abbrechen und Zwischenstand löschen“ löscht
+  //     auch diese Kopie
+  await setItems([[oldKey, draft]]);
+  await page.evaluate((k) => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, v) { if (key === k) throw new DOMException("Speicher voll", "QuotaExceededError"); return set.call(this, key, v); };
+  }, newKey);
+  await enterCode(page, S.shown);
+  await fillPerson(page, { vorname: "ole", nachname: "al", geb: "--03-07", klasse: "8a" });
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe(draft.answers[0]);
+  expect(await page.inputValue("#a-3")).toBe(draft.answers[2]);
+  await expect(page.locator("#save-state")).toHaveText("Zwischenstand konnte auf diesem Gerät nicht gespeichert werden");
+  await expect(page.locator("#save-state")).toHaveClass(/\bbad\b/);
+  expect(await stored()).toEqual(["feibeitsblatt:last"]);   // alter Schlüssel weg, neuer nicht speicherbar
+  await cancel();
+  await enterCode(page, S.shown);
+  await fillPerson(page, { vorname: "ole", nachname: "al", geb: "--03-07", klasse: "8a" });
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe("");            // nichts mehr da – auch nicht im Arbeitsspeicher
+  await cancel();
+  await page.reload();                                       // Speicher wieder normal
+
+  // 2) Code und Angaben neu eingegeben (nur Tag und Monat): von zwei alten Ständen (verschiedene Jahre) gilt der jüngste,
+  //    beide alten Schlüssel verschwinden (mit Tag und Monat lassen sie sich nicht mehr unterscheiden)
+  await setItems([[oldKey, draft], [oldKey2, draft2]]);
+  await enterCode(page, S.shown);
+  await fillPerson(page, { vorname: "ole", nachname: "al", geb: "--03-07", klasse: "8a" });
+  await restored("Zwischenstand von diesem Gerät wiederhergestellt", draft2);
+  await cancel();
+
+  // 3) Zwischenstand-PDF aus der Zeit davor (eingebetteter Datensatz mit vollem Datum, wie ihn makeDraftPdf schrieb) → das Jahr wird verworfen
+  const draftPdf = (person) => {
+    const rec = Buffer.from(JSON.stringify({ ...draft, kind: "feibeitsblatt-draft", code: S.code, sheetTitle: TITLE, person }), "utf8");
+    return Buffer.concat([Buffer.from(`%PDF-1.7\n6 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbDraft 1 /Length ${rec.length} >>\nstream\n`), rec, Buffer.from("\nendstream\nendobj\n%%EOF\n")]);
+  };
+  // … liegt auf dem Gerät (noch unter einem alten Schlüssel) ein neuerer Stand, fragt die Seite; „Neueren Stand von diesem Gerät“
+  // nimmt den umgezogenen Stand
+  await setItems([[oldKey2, draft2]]);
+  await page.setInputFiles("#start-pdf-file", { name: "alt.pdf", mimeType: "application/pdf", buffer: draftPdf(OLD) });
+  await expect(page.locator("#dlg-title")).toHaveText("Neuerer Zwischenstand auf diesem Gerät");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Neueren Stand von diesem Gerät");
+  await page.click("#dlg-cancel");
+  await restored("Zwischenstand von diesem Gerät wiederhergestellt", draft2);
+  await cancel();
+  // … sonst gilt die PDF-Datei
+  await page.setInputFiles("#start-pdf-file", { name: "alt.pdf", mimeType: "application/pdf", buffer: draftPdf(OLD) });
+  await restored("Zwischenstand aus der PDF-Datei übernommen");
+  await cancel();
+  // … aber kein Zwischenstand mit einem Geburtstag, den es nicht gibt
+  for (const [k, g] of ["--02-30", "--13-01", "2011-02-29"].entries()) {
+    await page.evaluate(() => { document.getElementById("start-err").textContent = ""; });
+    await page.setInputFiles("#start-pdf-file", { name: `falsch-${k}.pdf`, mimeType: "application/pdf", buffer: draftPdf({ ...NEW, geburtsdatum: g }) });
+    await expect(page.locator("#start-err")).toContainText("In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.");
+    await expect(page.locator("#screen-start")).toHaveClass(/active/);
+  }
+  expect(await stored()).toEqual([]);
+
+  // 4) Nach BDAY_LEGACY_UNTIL sucht die Seite nicht mehr unter alten Schlüsseln (nach DRAFT_DAYS gibt es dort ohnehin nichts mehr)
+  await page.clock.setFixedTime(T_OUT);
+  await setItems([[oldKey, { ...draft, t: T_OUT - 3600e3 }]]);
+  await enterCode(page, S.shown);
+  await fillPerson(page, { vorname: "ole", nachname: "al", geb: "--03-07", klasse: "8a" });
+  await expect(page.locator("#save-state")).toHaveText("Zwischenstand wird auf diesem Gerät gespeichert");
+  expect(await page.inputValue("#a-1")).toBe("");
+  expect(await stored()).toEqual([oldKey, "feibeitsblatt:last"].sort());
+  await page.click("#ed-cancel");
+  await confirmDialog(page, "Zwischenstand löschen?");
+  await expect(page.locator("#screen-start")).toHaveClass(/active/);
+  expect(await stored()).toEqual([oldKey]);   // bleibt liegen, bis cleanupDrafts ihn nach DRAFT_DAYS löscht
+  await page.evaluate(() => localStorage.clear());
+  expect(await s.calls((r) => r.path === "/api/submit")).toEqual([]);   // nichts beim Server
   await closePage(s);
 });
 
@@ -1185,10 +1788,10 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   for (let i = 0; i < 4; i++) await expect(mains.nth(i)).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#t-subs-body tr.details:visible")).toHaveCount(0);
   const cells = (i) => mains.nth(i).locator("td:not(.arrowcol)");
-  await expect(cells(0)).toHaveText([B.person.nachname, B.person.vorname, fmtDe(B.person.geburtsdatum), B.person.klasse]);
-  await expect(cells(1)).toHaveText([A.person.nachname, A.person.vorname, fmtDe(A.person.geburtsdatum), A.person.klasse]);
-  await expect(cells(2)).toHaveText([C.person.nachname, C.person.vorname, fmtDe(C.person.geburtsdatum), C.person.klasse]);
-  await expect(cells(3)).toHaveText([D.person.nachname, D.person.vorname, fmtDe(D.person.geburtsdatum), D.person.klasse]);
+  await expect(cells(0)).toHaveText([B.person.nachname, B.person.vorname, fmtBd(B.person.geburtsdatum), B.person.klasse]);
+  await expect(cells(1)).toHaveText([A.person.nachname, A.person.vorname, fmtBd(A.person.geburtsdatum), A.person.klasse]);
+  await expect(cells(2)).toHaveText([C.person.nachname, C.person.vorname, fmtBd(C.person.geburtsdatum), C.person.klasse]);
+  await expect(cells(3)).toHaveText([D.person.nachname, D.person.vorname, fmtBd(D.person.geburtsdatum), D.person.klasse]);
   await expect(page.locator("#t-subs-body")).not.toContainText(A.first[1]);   // Lösungen erst nach dem Aufklappen
   // Kürzel: grün bei Abgaben nach der Überarbeitung (A, B, C), orange beim Erstversuch ohne Überarbeitung (D); Screenreader-Text dazu
   for (let i = 0; i < 3; i++) {
@@ -1207,7 +1810,11 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(mains.nth(1)).toHaveAttribute("aria-expanded", "true");
   const det = page.locator("#t-subs-body tr.details:visible");
   await expect(det).toHaveCount(1);
-  await expect(det.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · KI-Feedback am \d\d\.\d\d\.\d{4}, \d\d:\d\d$/);
+  await expect(det.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · KI-Feedback am \d\d\.\d\d\.\d{4}, \d\d:\d\d · automatische Löschung ab dem \d\d\.\d\d\.\d{4}$/);
+  const [, gotA, delA] = /^Abgegeben am (\d\d\.\d\d\.\d{4}).* automatische Löschung ab dem (\d\d\.\d\d\.\d{4})$/.exec(await det.locator(".dmeta").textContent()) || [];
+  const dmy = (x) => { const [d, m, y] = x.split(".").map(Number); return Date.UTC(y, m - 1, d); };
+  expect([DAYS - 1, DAYS]).toContain(Math.round((dmy(delA) - dmy(gotA)) / 864e5));   // Eingang + Frist (Ortszeit: bei Zeitumstellung kurz nach Mitternacht ein Tag weniger)
+  await expect(page.locator("#t-subs-retention")).toHaveText("Abgaben und Erstversuche werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht. Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt.");
   const tasks = det.locator(".dtask");
   await expect(tasks).toHaveCount(3);
   const expA = expectedResults(TASKS, A.first);
@@ -1229,27 +1836,30 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
     for (const c of expA[i].covered) await expect(fb.locator("ul.fb-ok")).toContainText(c);
     for (const m of expA[i].missing) await expect(fb.locator("ul.fb-miss")).toContainText(m);
   }
+  expect(await aiMarks(tasks.nth(0).locator(".dfb"))).toEqual(["true", "feedback", AI_SOURCE]);   // KI-Kennzeichnung auch hier
+  expect(await aiMarks(tasks.nth(2).locator(".dfb"))).toEqual([null, null, null]);                  // Aufgabe 3: nur der Hinweis ohne KI
   expect(await tasks.nth(0).locator(".dfb ul.fb-ok").evaluate((e) => getComputedStyle(e).color)).toBe(GREEN);
   expect(await tasks.nth(0).locator(".dfb ul.fb-miss").evaluate((e) => getComputedStyle(e).color)).toBe(RED);
   await expect(tasks.nth(0).locator(".dfb p.fb-ok")).toHaveText("Gelingt schon:");
   await expect(tasks.nth(0).locator(".dfb p.fb-miss")).toHaveText("Tipps zum Überarbeiten:");
   await expect(det).not.toContainText("ngesprochen");
 
-  // C: ohne KI-Feedback abgegeben → Hinweis, beide Spalten gleich
+  // C: ohne KI-Feedback abgegeben, weil die KI ausfiel → Hinweis mit Grund, nur eine Spalte (die abgegebene Fassung)
   await mains.nth(2).click();
   const detC = page.locator("#t-subs-body tr.details").nth(2);
-  await expect(detC.locator(".moodle-hint")).toContainText("Ohne KI-Feedback abgegeben");
-  await expect(detC.locator(".dmeta")).not.toContainText("KI-Feedback am");
+  await expect(detC.locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");
+  await expect(detC.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · ohne KI-Feedback · automatische Löschung ab dem \d\d\.\d\d\.\d{4}$/);
+  await expect(detC.locator(".dtask").nth(0).locator("table.cmp thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback)"]);
   const tdC = detC.locator(".dtask").nth(0).locator("table.cmp tbody td");
+  await expect(tdC).toHaveCount(1);
   expect(await tdC.nth(0).textContent()).toBe(C.first[0]);
-  expect(await tdC.nth(1).textContent()).toBe(C.first[0] + "(unverändert)");
   await expect(detC.locator(".dfb")).toHaveCount(0);
   await mains.nth(2).click();
 
   // D: Erstversuch ohne Überarbeitung → Hinweis, Spalte 1 = erste Fassung, Spalte 2 „(noch nicht überarbeitet)“, Feedback dabei
   await mains.nth(3).click();
   const detD = page.locator("#t-subs-body tr.details").nth(3);
-  await expect(detD.locator(".dmeta")).toHaveText(/^Erstversuch ohne Überarbeitung – noch nicht abgegeben · KI-Feedback am \d\d\.\d\d\.\d{4}, \d\d:\d\d$/);
+  await expect(detD.locator(".dmeta")).toHaveText(/^Erstversuch ohne Überarbeitung – noch nicht abgegeben · KI-Feedback am \d\d\.\d\d\.\d{4}, \d\d:\d\d · automatische Löschung ab dem \d\d\.\d\d\.\d{4}$/);
   await expect(detD.locator(".dmeta")).toHaveClass(/st-first/);
   await expect(detD.locator(".moodle-hint")).toContainText("hat das KI-Feedback angefordert, aber (noch) nicht abgegeben");
   const tdD = detD.locator(".dtask").nth(0).locator("table.cmp tbody td");
@@ -1366,7 +1976,7 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
     expect(blob(m.ref).equals(srv)).toBe(true);
     expect([m.bytes, m.sha256]).toEqual([srv.length, sha(srv)]);
   }
-  for (const p of [...A.first, ...A.final, A.person.vorname, "2009-05-04"]) expect(JSON.stringify(rec)).not.toContain(p);   // keine Abgaben
+  for (const p of [...A.first, ...A.final, A.person.vorname, A.person.geburtsdatum]) expect(JSON.stringify(rec)).not.toContain(p);   // keine Abgaben
 
   // eine fremde PDF und ein Zwischenstand von Schüler:innen → Meldung, der Editor öffnet sich nicht
   await page.setInputFiles("#t-import-file", { name: "fremd.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n") });
@@ -1476,9 +2086,12 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
   expect(rows.map((r) => r.stage)).toEqual(["final", "final", "final", "first"]);   // A (Erstversuch → Abgabe, eine Zeile), B, C, D
   for (const r of rows) expect(r.attempt).toMatch(ATTEMPT);
   expect(new Set(rows.map((r) => r.attempt)).size).toBe(4);
+  // Klartext, der nur verschlüsselt gespeichert sein darf. Im Umschlag selbst (Base64, geprüft per Regex) kann keiner dieser Texte
+  // stehen – die Liste fängt Klartext neben dem Umschlag und unten in allen Dateien des lokalen Zustands (Logs, WAL)
   const forbidden = [...A.first, ...A.final, ...B.first, ...C.first, ...D.first].flatMap((a) => a.split("\n")).concat(
     ["Gewissn", "Schwester angelogen", "Lügen ist unfair", "innere Stimme", "Keine Ahnung", "innerer Richter",
-      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', '"Tom"', '"Ze"', "2009-05-04", "2012-01-15", "2012-06-30", "2010-02-02", "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError"]);
+      '"Max"', '"Mu"', '"8b"', '"Özg"', '"Ün"', '"7a"', "Özg", '"Lea"', '"9c"', '"Tom"', '"Ze"', ...[A, B, C, D].map((x) => x.person.geburtsdatum),
+      "vorname", "nachname", "geburtsdatum", "klasse", "person", "feedbackError", "unavailable"]);   // C: noAi "unavailable"
   for (const r of rows) {
     expect(r.sheet_code).toBe(S.code);
     expect(Object.keys(r).sort()).toEqual(["attempt", "envelope", "id", "received_at", "sheet_code", "stage"]);
@@ -1491,12 +2104,14 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
   const sheets = await d1Query("SELECT code, title, tasks FROM sheets");
   expect(sheets.map((s) => s.code)).toEqual([S.code]);
   const settings = await d1Query("SELECT key, value FROM settings ORDER BY key");
-  expect(settings.map((s) => s.key)).toEqual(["ai", "teacher"]);
+  expect(settings.map((s) => s.key)).toEqual(["ai", "privacy", "teacher"]);
+  expect(Object.keys(JSON.parse(settings[1].value)).sort()).toEqual(["retentionDays", "school", "updatedAt", "v"]);   // nur Angaben der Schule
+  for (const f of forbidden) expect(settings[1].value).not.toContain(f);
   const ai = JSON.parse(settings[0].value);
   expect(ai.apiKey).toBeUndefined();                // mit SETTINGS_SECRET verschlüsselt
   expect(Object.keys(ai.apiKeyEnc).sort()).toEqual(["ct", "iv"]);
   expect(settings[0].value).not.toContain(AI_KEY);
-  expect(settings[1].value).not.toContain(PW);
+  expect(settings[2].value).not.toContain(PW);
 
   // Rohbytes aller Dateien des lokalen Zustands (inkl. WAL); Gegenprobe: Aufgabentext und Umschlag sind auffindbar
   const control = [TASKS[0].text, '"ek":"', '"apiKeyEnc"'];
@@ -1511,8 +2126,10 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     expect(res.status()).toBe(200);
     const body = await res.text();
     const j = JSON.parse(body);
-    expect(Object.keys(j.sheet).sort()).toEqual(["aiProvider", "aiRecipients", "code", "publicKey", "tasks", "title"]);
-    expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX }]);
+    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "privacy", "publicKey", "tasks", "title"]);
+    expect(j.sheet.aiFeedback).toBe(true);
+    expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX, transfer: "von der Schule beim Anbieter zu prüfen" }]);
+    expect(j.sheet.privacy).toEqual({ school: { ...SCHOOL, legalBasis: HESSEN_BASIS, authority: HESSEN_AUTH }, retentionDays: DAYS });   // ohne updatedAt
     expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, textFmt: [], material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
@@ -1603,7 +2220,7 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, shownF);
-  await fillPerson(page, { vorname: "ina", nachname: "fe", geb: "2009-09-09", klasse: "8a" });
+  await fillPerson(page, { vorname: "ina", nachname: "fe", geb: "--09-09", klasse: "8a" });
   for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), F.first[i]);
   await mockReset();
   await requestFeedback(page);
@@ -1647,6 +2264,604 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await t.page.click("#t-del-sheet");
   await confirmDialog(t.page, "Feibeitsblatt löschen?");
   await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort den Weg ohne KI-Feedback (kein automatischer Versuch), R nach der Abgabe keine Wiederholung der zweiten Rückmeldung; die Lehrkraft sieht den Grund", async ({ browser }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Kontingent");
+  for (let i = 0; i < 2; i++) { await tp.fill("#bq-" + (i + 1), TASKS[i].text); await tp.fill("#bs-" + (i + 1), TASKS[i].solution); }
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shownQ = (await tp.locator("#b-res-code").textContent()).trim();
+  const quota = (route) => route.fulfill({ status: 503, contentType: "application/json",
+    body: JSON.stringify({ ok: false, error: "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.", code: "ai_quota", aiCode: "DAILY_LIMIT" }) });
+
+  // Q: schon die erste Anfrage trifft auf das aufgebrauchte Kontingent. Empfänger wie bei Workers AI als erstem Anbieter und Groq als
+  // Reserve (Antwort des Servers ergänzt): Hinweis und Dialog sagen, wann die Reserve einspringt, und widersprechen sich beim Sitz nicht
+  const Q = { input: { vorname: "quirin", nachname: "qu", geb: "--11-11", klasse: "8a" }, first: ["Das Gewissen ist eine innere Stimme.", "Ich habe gelogen."] };
+  const s = await openPage(browser);
+  const { page } = s;
+  const codeQ = shownQ.replace("-", "");
+  await page.route((u) => u.pathname === "/api/sheet/" + codeQ, async (route) => {
+    const res = await route.fetch(), j = await res.json();
+    return route.fulfill({ json: { ...j, sheet: { ...j.sheet, aiProvider: "Cloudflare Workers AI", aiRecipients: [{ id: "cloudflare", label: CF_RECIPIENT }, { id: "groq", label: GROQ_RECIPIENT }] } } });
+  });
+  await enterCode(page, shownQ);
+  await fillPerson(page, Q.input);
+  await expect(page.locator("#privacy")).toContainText("an den KI-Dienst „" + CF_RECIPIENT + "“ weiter – nur wenn dieser nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert, nacheinander an „" + GROQ_RECIPIENT + "“ – und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen, bei Cloudflare auch außerhalb der EU möglich, bei den übrigen Diensten mit Sitz in den USA außerhalb der EU. ");
+  for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), Q.first[i]);
+  await page.route("**/api/feedback", quota);
+  await page.click("#fb-btn");
+  expect(await confirmDialog(page, "KI-Feedback anfordern?")).toContain("Deine Antworten gehen – ohne Namenskürzel, Geburtstag und Klasse – über den Server dieser Seite an den KI-Dienst „" + CF_RECIPIENT + "“. " +
+    "Nur wenn dieser Dienst nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert, geht dieselbe Anfrage danach an „" + GROQ_RECIPIENT + "“. " +
+    "Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich. Die übrigen Dienste mit Sitz in den USA verarbeiten deine Texte außerhalb der EU.\n");
+  const QUOTA_FALLBACK = "Das KI-Feedback ist gerade nicht möglich (" + QUOTA_REASON + "). Du kannst es morgen noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.";
+  await expect(page.locator("#fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht. Du kannst ohne KI-Feedback abgeben oder es morgen noch einmal versuchen.");
+  await expect(page.locator("#fb-fallback")).toHaveText(QUOTA_FALLBACK);
+  await expect(page.locator("#fb-wait")).toBeHidden();   // kein automatischer neuer Versuch
+  await page.waitForTimeout(500);
+  expect((await s.calls((r) => r.path === "/api/feedback")).length).toBe(1);
+  // Zwischenstand von gestern (das Kontingent wird um 0:00 UTC erneuert): kein „morgen“ mehr und kein Grund für die Lehrkraft –
+  // der Fehlversuch bleibt
+  const today = new Date().toISOString().slice(0, 10), yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const dKey = await page.evaluate(() => Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")));
+  const d0 = JSON.parse(await page.evaluate((k) => localStorage.getItem(k), dKey));
+  expect(d0).toMatchObject({ fbUnavailable: QUOTA_REASON, fbUnavailableDay: today, fbFails: 1 });
+  // erst nach dem Speichern beim Verlassen der Seite (beforeunload der Seite läuft vorher) den Tag zurückdatieren
+  await page.evaluate(([k, day]) => window.addEventListener("beforeunload", () => {
+    const d = JSON.parse(localStorage.getItem(k)); d.fbUnavailableDay = day; localStorage.setItem(k, JSON.stringify(d));
+  }), [dKey, yesterday]);
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#fb-fallback")).toBeHidden();
+  await expect(page.locator("#fb-btn")).toBeEnabled();
+  expect(JSON.parse(await page.evaluate((k) => localStorage.getItem(k), dKey))).toMatchObject({ fbUnavailable: "", fbUnavailableDay: "", fbFails: 1 });
+  await page.click("#submit-btn");
+  expect(await confirmDialog(page, "Ohne KI-Feedback abgeben?", false)).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  // heute noch einmal versucht: wieder aufgebraucht – jetzt gilt der Grund wieder
+  await page.click("#fb-btn");
+  await confirmDialog(page, "KI-Feedback anfordern?");
+  await expect(page.locator("#fb-fallback")).toHaveText(QUOTA_FALLBACK);
+  await page.click("#submit-btn");
+  expect(await confirmDialog(page, "Ohne KI-Feedback abgeben?")).toBe("Das KI-Feedback hat bisher nicht geklappt (" + QUOTA_REASON + "). Du kannst es morgen noch einmal versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI. Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb")).toBeHidden();
+  await closePage(s);
+
+  // R: bekommt das erste Feedback, überarbeitet und gibt ab – die zweite Rückmeldung trifft auf das aufgebrauchte Kontingent
+  const R = { input: { vorname: "rosa", nachname: "ro", geb: "--12-12", klasse: "8a" }, first: ["Eine innere Stimme.", "Ich habe geschummelt."] };
+  const s2 = await openPage(browser);
+  const p2 = s2.page;
+  await enterCode(p2, shownQ);
+  await fillPerson(p2, R.input);
+  for (let i = 0; i < 2; i++) await typeAt(p2, "#a-" + (i + 1), R.first[i]);
+  await requestFeedback(p2);
+  await typeAt(p2, "#a-2", " Das war unfair.");
+  await p2.route("**/api/feedback", quota);
+  await submit(p2);
+  await expect(p2.locator("#done-fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht – eine Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht. Deine Abgabe ist davon nicht betroffen.", { timeout: 30_000 });
+  await expect(p2.locator("#done-fb-retry")).toBeHidden();
+  await p2.waitForTimeout(500);
+  expect((await s2.calls((r) => r.path === "/api/feedback")).map((r) => r.status)).toEqual([200, 503]);
+  await closePage(s2);
+
+  // Lehrkraft: Q mit Grund, R wie gewohnt; danach aufräumen
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shownQ);
+  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(2);
+  await tp.click("#t-expand-all");
+  const notes = tp.locator("#t-subs-body tr.details .moodle-hint");
+  await expect(notes).toHaveCount(1);
+  await expect(notes).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (" + QUOTA_REASON + ").");
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Erstversuch), H/P entscheiden um, während die KI arbeitet, I nach einem Fehlversuch, J/N brechen eine laufende bzw. wartende Anfrage ab (Abgabe scheitert erst), M scheitert hinter dem Dialog, K ohne eingerichtete KI, L schließt den Tab während der Anfrage, O ältere Abgabe ohne Vermerk; Blatt ohne Auftrag an die KI hat keinen Feedback-Button; Lehrkraft sieht neutrale Hinweise", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  const makeSheet = async (title, rows) => {
+    await tp.click("#t-new");
+    await tp.fill("#b-title", title);
+    for (let i = 0; i < rows.length; i++) {
+      await tp.fill("#bq-" + (i + 1), rows[i].text);
+      if (rows[i].solution) await tp.fill("#bs-" + (i + 1), rows[i].solution);
+    }
+    await tp.click("#b-gen");
+    await expect(tp.locator("#b-result")).toBeVisible();
+    return (await tp.locator("#b-res-code").textContent()).trim();
+  };
+  const shownG = await makeSheet("Freiwillig", TASKS.slice(0, 2));
+  const student = async (who) => {
+    const s = await openPage(browser);
+    await enterCode(s.page, shownG);
+    await fillPerson(s.page, who.input);
+    return s;
+  };
+  const draftPdfText = async (page) => {
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#ed-pdf")]);
+    return pdfShownText(await readFile(await dl.path()));
+  };
+  const solutionsPdfText = async (page) => {
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+    return pdfShownText(await readFile(await dl.path()));
+  };
+  const toTeacherUnavailable = " Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.";
+  const draftOf = (page) => page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))));
+  const NOT_DONE_NOTE = "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen).";
+  const busyDialogStart = "Deine Anfrage um KI-Feedback läuft noch. Gibst du jetzt ab, wird sie abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.";
+
+  // G: Abschluss-Text, Hinweis und Datenschutz nennen die Freiwilligkeit; „Abgeben“ geht sofort – aber nicht mit lauter leeren Feldern
+  const G = { input: { vorname: "jan", nachname: "gr", geb: "--03-03", klasse: "7b" }, first: ["Das Gewissen ist eine innere Stimme.", ""] };
+  const s = await student(G);
+  const { page } = s;
+  await expect(page.locator("#fin-text")).toHaveText(FIN_TEXT);
+  await expect(page.locator("#privacy")).toContainText("Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.");
+  await expect(page.locator("#privacy")).toContainText("Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund).");
+  await expect(page.locator("#submit-btn")).toBeEnabled();
+  await expect(page.locator("#submit-btn")).toHaveAccessibleDescription(SUBMIT_HINT_NO_FB);
+  await page.click("#submit-btn");
+  await expect(page.locator("#submit-status")).toHaveText("Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);   // ganz leer: kein Dialog, nichts gesendet
+  await typeAt(page, "#a-1", G.first[0]);
+  expect(await draftPdfText(page)).toContain("Stand: 1 von 2 Aufgaben mit Text · KI-Feedback nicht angefordert");
+  await mockReset();
+  // Erst abbrechen: nichts passiert, der Fokus kehrt zu „Abgeben“ zurück
+  await page.click("#submit-btn");
+  await expect(page.locator("#dlg-cancel")).toBeFocused();   // die sichere Wahl hat den Fokus
+  await expect(page.locator("#dlg-ok")).toHaveText("Ohne KI-Feedback abgeben");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Weiterschreiben");
+  const dlg = await confirmDialog(page, "Ohne KI-Feedback abgeben?", false);
+  expect(dlg).toBe("Achtung: Aufgabe 2 ist noch leer.\nDu hast kein KI-Feedback angefordert. Das ist in Ordnung: " + FB_VOLUNTARY + "\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. An die KI wird nichts gesendet. Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass du ohne KI-Feedback abgegeben hast.");
+  await expect(page.locator("#submit-btn")).toBeFocused();
+  // Umkehrbar bis zur Abgabe: der Feedback-Dialog nennt die Freiwilligkeit (hier abgebrochen)
+  await page.click("#fb-btn");
+  expect(await confirmDialog(page, "Noch nicht alles beantwortet", false)).toContain(FB_VOLUNTARY);   // Aufgabe 2 ist leer
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Ohne KI-Feedback abgeben?");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-fb")).toBeHidden();
+  expect(await s.calls((r) => r.path === "/api/feedback")).toEqual([]);
+  expect((await mockState()).count).toBe(0);
+  const subs = await s.calls((r) => r.path === "/api/submit");
+  expect(subs.map((r) => [r.status, JSON.parse(r.reqBody).stage])).toEqual([[200, "final"]]);   // kein Erstversuch
+  const solG = await solutionsPdfText(page);
+  expect(solG).toContain("Ohne KI-Feedback abgegeben.");
+  expect(solG).not.toMatch(/nicht möglich|KI-Feedback zur|KI-Rückmeldung zur|Gelingt schon|Tipp:/);
+  await closePage(s);
+
+  // H: fordert Feedback an, will während der Anfrage doch ohne KI abgeben – die Antwort kommt, solange der Dialog offen ist
+  const H = { input: { vorname: "eva", nachname: "ha", geb: "--04-04", klasse: "7b" }, first: ["Das Gewissen ist eine innere Instanz.", "Ich habe gelogen."] };
+  const s2 = await student(H);
+  const p2 = s2.page;
+  for (let i = 0; i < 2; i++) await typeAt(p2, "#a-" + (i + 1), H.first[i]);
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await p2.route("**/api/feedback", async (route) => { await gate; await route.continue(); });
+  await p2.click("#fb-btn");
+  await confirmDialog(p2, "KI-Feedback anfordern?");
+  await expect(p2.locator("#fb-status")).toContainText("Die KI arbeitet");
+  await p2.click("#submit-btn");
+  await expect(p2.locator("#dlg.open")).toBeVisible();
+  await expect(p2.locator("#dlg-cancel")).toHaveText("Auf das KI-Feedback warten");
+  release();
+  await expect(p2.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });   // hinter dem Dialog angekommen …
+  await p2.waitForTimeout(200);
+  await expect(p2.locator("#dlg-cancel")).toBeFocused();                       // … ohne den Fokus aus dem Dialog zu holen
+  expect(await confirmDialog(p2, "Ohne KI-Feedback abgeben?")).toBe(busyDialogStart + "\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts mehr an die KI." + toTeacherUnavailable);
+  await expect(p2.locator("#submit-status")).toHaveText("Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.");
+  await expect(p2.locator("#revise-hint")).toBeFocused();   // der beim Eintreffen unterdrückte Fokuswechsel wird nachgeholt
+  await expect(p2.locator("#screen-editor")).toHaveClass(/active/);
+  await p2.unroute("**/api/feedback");
+  await expect.poll(async () => (await s2.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage), { timeout: 30_000 }).toEqual(["first"]);
+  await submit(p2);   // jetzt normal mit KI-Feedback („Jetzt abgeben?“)
+  await expect(p2.locator("#done-fb")).toBeVisible();
+  await closePage(s2);
+
+  // I: ein gescheiterter Versuch → die Abgabe ohne Feedback gilt nicht als „ohne Anfrage“; Zwischenstand-PDF und Dialog sagen es
+  const I = { input: { vorname: "ina", nachname: "ib", geb: "--06-06", klasse: "7b" }, first: ["Eine innere Stimme.", "Ich habe geschwindelt."] };
+  const s4 = await student(I);
+  const p4 = s4.page;
+  for (let i = 0; i < 2; i++) await typeAt(p4, "#a-" + (i + 1), I.first[i]);
+  await p4.route("**/api/feedback", (route) => route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI-Rückmeldung ist gerade nicht verfügbar. Bitte versuche es später noch einmal oder frag deine Lehrkraft.", code: "ai_error" }) }));
+  await p4.click("#fb-btn");
+  await confirmDialog(p4, "KI-Feedback anfordern?");
+  await expect(p4.locator("#fb-status")).toHaveClass(/\bbad\b/);
+  await expect(p4.locator("#fb-fallback")).toBeHidden();   // erst nach dem zweiten Fehlversuch
+  await expect(p4.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
+  expect(await draftPdfText(p4)).toContain("Stand: 2 von 2 Aufgaben mit Text · KI-Feedback bisher nicht geklappt (Anfrage nicht abgeschlossen)");
+  await p4.click("#submit-btn");
+  expect(await confirmDialog(p4, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  await expect(p4.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p4)).toContain("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen).");
+  expect((await s4.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage)).toEqual(["final"]);
+  await closePage(s4);
+
+  // J: die Abgabe bricht eine laufende Anfrage ab und scheitert dann selbst → Felder und Feedback-Button sind wieder frei;
+  // die abgebrochene Anfrage (fetch abgebrochen) liefert kein Feedback und keinen Erstversuch; der zweite Anlauf klappt
+  const J = { input: { vorname: "jon", nachname: "jo", geb: "--07-07", klasse: "7b" }, first: ["Das Gewissen urteilt.", "Ich habe etwas versteckt."] };
+  const s5 = await student(J);
+  const p5 = s5.page;
+  for (let i = 0; i < 2; i++) await typeAt(p5, "#a-" + (i + 1), J.first[i]);
+  let releaseJ;
+  const gateJ = new Promise((r) => { releaseJ = r; });
+  await p5.route("**/api/feedback", async (route) => {
+    await gateJ;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, results: [{ covered: ["Zu spät"], missing: [] }, { covered: ["Zu spät"], missing: [] }] }) }).catch(() => {});
+  });
+  let submitsJ = 0;
+  await p5.route("**/api/submit", (route) => (++submitsJ === 1
+    ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Auf dem Server ist ein Fehler aufgetreten.", code: "server_error" }) })
+    : route.continue()));
+  await mockReset();
+  await p5.click("#fb-btn");
+  await confirmDialog(p5, "KI-Feedback anfordern?");
+  await expect(p5.locator("#fb-status")).toContainText("Die KI arbeitet");
+  expect(await p5.$eval("#a-1", (e) => e.readOnly)).toBe(true);
+  await p5.click("#submit-btn");
+  expect(await confirmDialog(p5, "Ohne KI-Feedback abgeben?")).toContain("Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.");
+  await expect(p5.locator("#submit-status")).toContainText("Deine Antworten sind noch da – versuche es gleich noch einmal.");
+  await expect(p5.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await p5.$eval("#a-1", (e) => e.readOnly)).toBe(false);   // wieder schreibbar …
+  await expect(p5.locator("#fb-btn")).toBeEnabled();                // … Feedback wieder möglich …
+  await expect(p5.locator("#fb-status")).toHaveText("");            // … und kein „Die KI arbeitet …“ mehr
+  await expect(p5.locator("#submit-btn")).toBeEnabled();
+  await typeAt(p5, "#a-2", " Nachtrag.");
+  releaseJ();
+  await p5.waitForTimeout(500);
+  await expect(p5.locator("#t-1 .fbbox")).toBeHidden();
+  expect(JSON.parse(await p5.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))))).toMatchObject({ fbFails: 1, feedback: null });
+  await p5.click("#submit-btn");
+  expect(await confirmDialog(p5, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  await expect(p5.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await p5.waitForTimeout(300);
+  const subsJ = await s5.calls((r) => r.path === "/api/submit");
+  expect(subsJ.map((r) => [r.status, JSON.parse(r.reqBody).stage])).toEqual([[500, "final"], [200, "final"]]);   // kein Erstversuch
+  expect(new Set(subsJ.map((r) => JSON.parse(r.reqBody).attempt)).size).toBe(1);   // dieselbe Bearbeitung
+  expect((await mockState()).count).toBe(0);   // die angehaltene Anfrage hat die KI nie erreicht
+  await closePage(s5);
+
+  // K: Blatt mit Auftrag an die KI, aber keine KI eingerichtet (Antwort ohne Empfänger nachgestellt: beim Laden und beim ersten
+  // Nachsehen, danach „eingerichtet“) → Hinweis und Dialog nennen keinen KI-Dienst; der Feedback-Button sieht nach (nur GET), sendet nichts
+  const K = { input: { vorname: "kai", nachname: "ka", geb: "--08-08", klasse: "7b" }, first: ["Mein Gewissen.", "Beim Spielen geschummelt."] };
+  const s6 = await openPage(browser);
+  const p6 = s6.page;
+  let sheetGets = 0;
+  await p6.route("**/api/sheet/" + shownG.replace("-", ""), async (route) => {
+    const res = await route.fetch();
+    const j = await res.json();
+    if (++sheetGets <= 2) { delete j.sheet.aiRecipients; delete j.sheet.aiReserve; j.sheet.aiProvider = null; }
+    await route.fulfill({ response: res, json: j });
+  });
+  await enterCode(p6, shownG);
+  await fillPerson(p6, K.input);
+  const NO_AI_SET = "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – deine Antworten gehen an keine KI.";
+  await expect(p6.locator("#privacy")).toContainText(NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.");
+  await expect(p6.locator("#privacy")).not.toContainText("KI-Dienst deiner Lehrkraft");
+  await expect(p6.locator("#privfull-ed")).toContainText(NO_AI_SET);   // derselbe Inhalt wie im ausführlichen Hinweis
+  for (let i = 0; i < 2; i++) await typeAt(p6, "#a-" + (i + 1), K.first[i]);
+  await p6.click("#submit-btn");
+  expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?", false)).toBe("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI." + toTeacherUnavailable);
+  await p6.focus("#fb-btn");
+  await p6.keyboard.press("Enter");   // per Tastatur: während des Nachsehens ist der Button gesperrt – danach hat er den Fokus wieder
+  await expect(p6.locator("#fb-status")).toHaveText("Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.");
+  await expect(p6.locator("#fb-btn")).toBeFocused();
+  await expect(p6.locator("#dlg.open")).toHaveCount(0);   // kein Dialog
+  await expect(p6.locator("#fb-fallback")).toHaveText("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.");
+  expect(sheetGets).toBe(2);
+  expect((await draftOf(p6)).fbUnavailable).toBe("KI nicht eingerichtet");
+  // inzwischen eingerichtet: der nächste Klick lädt die Empfänger neu und zeigt den normalen Dialog mit dem echten Empfänger;
+  // „Weiterschreiben“ gibt den Fokus an den Button zurück (nicht an body, obwohl er während des Nachsehens gesperrt war)
+  await p6.focus("#fb-btn");
+  await p6.keyboard.press("Enter");
+  expect(await confirmDialog(p6, "KI-Feedback anfordern?", false)).toContain("an den KI-Dienst „127.0.0.1:");
+  await expect(p6.locator("#fb-btn")).toBeFocused();
+  expect(sheetGets).toBe(3);
+  await expect(p6.locator("#fb-fallback")).toBeHidden();   // „KI nicht eingerichtet“ gilt nicht mehr …
+  await expect(p6.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
+  await expect(p6.locator("#privacy")).toContainText("an den KI-Dienst „127.0.0.1:");
+  expect(await s6.calls((r) => r.path === "/api/feedback")).toEqual([]);   // nichts gesendet
+  await p6.click("#submit-btn");   // … die Abgabe trägt aber den Grund des gescheiterten Versuchs
+  expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("KI nicht eingerichtet"));
+  await expect(p6.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await closePage(s6);
+
+  // M: die laufende Anfrage scheitert, während der Abgabe-Dialog offen ist → der Fokus bleibt im Dialog; eingestuft wird
+  // erst nach dem Dialog (wasBusy): „nicht möglich (Anfrage nicht abgeschlossen)“
+  const M = { input: { vorname: "mia", nachname: "mo", geb: "--10-10", klasse: "7b" }, first: ["Das Gewissen mahnt.", "Ich war unfair."] };
+  const s8 = await student(M);
+  const p8 = s8.page;
+  for (let i = 0; i < 2; i++) await typeAt(p8, "#a-" + (i + 1), M.first[i]);
+  let releaseM;
+  const gateM = new Promise((r) => { releaseM = r; });
+  await p8.route("**/api/feedback", async (route) => {
+    await gateM;
+    await route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI-Rückmeldung ist gerade nicht verfügbar. Bitte versuche es später noch einmal oder frag deine Lehrkraft.", code: "ai_error" }) });
+  });
+  await p8.click("#fb-btn");
+  await confirmDialog(p8, "KI-Feedback anfordern?");
+  await expect(p8.locator("#fb-status")).toContainText("Die KI arbeitet");
+  await p8.click("#submit-btn");
+  await expect(p8.locator("#dlg-cancel")).toHaveText("Auf das KI-Feedback warten");
+  await expect(p8.locator("#dlg-cancel")).toBeFocused();
+  releaseM();
+  await expect(p8.locator("#fb-status")).toHaveClass(/\bbad\b/);   // hinter dem Dialog gescheitert …
+  await p8.waitForTimeout(200);
+  await expect(p8.locator("#dlg-cancel")).toBeFocused();            // … der Fokus bleibt im Dialog
+  expect(await confirmDialog(p8, "Ohne KI-Feedback abgeben?")).toContain(busyDialogStart);   // Text vom Öffnen des Dialogs
+  await expect(p8.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p8)).toContain(NOT_DONE_NOTE);
+  await closePage(s8);
+
+  // N: die Abgabe bricht eine nach „ausgelastet“ wartende Anfrage ab (Countdown) und scheitert dann selbst → Countdown und
+  // Wartehinweis sind weg, der Feedback-Button ist frei; der zweite Anlauf trägt „nicht möglich (Anfrage nicht abgeschlossen)“
+  const N = { input: { vorname: "nik", nachname: "ne", geb: "--11-11", klasse: "7b" }, first: ["Eine innere Waage.", "Ich habe geflunkert."] };
+  const s9 = await student(N);
+  const p9 = s9.page;
+  for (let i = 0; i < 2; i++) await typeAt(p9, "#a-" + (i + 1), N.first[i]);
+  await p9.route("**/api/feedback", (route) => route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "30" },
+    body: JSON.stringify({ ok: false, error: "Die KI ist gerade ausgelastet.", code: "ai_busy", retryAfter: 30 }) }));
+  let submitsN = 0;
+  await p9.route("**/api/submit", (route) => (++submitsN === 1
+    ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Auf dem Server ist ein Fehler aufgetreten.", code: "server_error" }) })
+    : route.continue()));
+  await p9.click("#fb-btn");
+  await confirmDialog(p9, "KI-Feedback anfordern?");
+  await expect(p9.locator("#fb-wait")).toBeVisible();
+  await p9.click("#submit-btn");
+  expect(await confirmDialog(p9, "Ohne KI-Feedback abgeben?")).toContain(busyDialogStart);
+  await expect(p9.locator("#submit-status")).toContainText("Deine Antworten sind noch da – versuche es gleich noch einmal.");
+  await expect(p9.locator("#fb-wait")).toBeHidden();
+  await expect(p9.locator("#fb-status")).toHaveText("");
+  await expect(p9.locator("#fb-btn")).toBeEnabled();
+  expect(await p9.$eval("#a-1", (e) => e.readOnly)).toBe(false);
+  expect(await draftOf(p9)).toMatchObject({ fbFails: 1, fbPending: false, feedback: null });
+  await p9.click("#submit-btn");
+  expect(await confirmDialog(p9, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  await expect(p9.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p9)).toContain(NOT_DONE_NOTE);
+  await closePage(s9);
+
+  // P: wie H, aber „Auf das KI-Feedback warten“ → kein Hinweis unter „Abgeben“, der Fokus springt zum Überarbeiten-Hinweis
+  const P = { input: { vorname: "pia", nachname: "pi", geb: "--12-12", klasse: "7b" }, first: ["Das Gewissen ist ein Kompass.", "Ich habe Kekse genascht."] };
+  const s10 = await student(P);
+  const p10 = s10.page;
+  for (let i = 0; i < 2; i++) await typeAt(p10, "#a-" + (i + 1), P.first[i]);
+  let releaseP;
+  const gateP = new Promise((r) => { releaseP = r; });
+  await p10.route("**/api/feedback", async (route) => { await gateP; await route.continue(); });
+  await p10.click("#fb-btn");
+  await confirmDialog(p10, "KI-Feedback anfordern?");
+  await expect(p10.locator("#fb-status")).toContainText("Die KI arbeitet");
+  await p10.click("#submit-btn");
+  await expect(p10.locator("#dlg.open")).toBeVisible();
+  releaseP();
+  await expect(p10.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await p10.waitForTimeout(200);
+  await expect(p10.locator("#dlg-cancel")).toBeFocused();
+  await confirmDialog(p10, "Ohne KI-Feedback abgeben?", false);
+  await expect(p10.locator("#revise-hint")).toBeFocused();
+  await expect(p10.locator("#submit-status")).toHaveText("");
+  await p10.unroute("**/api/feedback");
+  await expect.poll(async () => (await s10.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage), { timeout: 30_000 }).toEqual(["first"]);
+  await submit(p10);
+  await closePage(s10);
+
+  // L: schließt den Tab, während die KI-Anfrage läuft (die KI hat die Antworten schon) → beim nächsten Öffnen zählt das als
+  // Fehlversuch: „bisher nicht geklappt“, die Abgabe trägt „nicht möglich“ – nie „ohne Anfrage“
+  const L = { input: { vorname: "lis", nachname: "lu", geb: "--09-09", klasse: "7b" }, first: ["Satz eins mit Inhalt.", "Satz zwei mit Inhalt."] };
+  const s7 = await student(L);
+  let p7 = s7.page;
+  for (let i = 0; i < 2; i++) await typeAt(p7, "#a-" + (i + 1), L.first[i]);
+  await mockReset();
+  await fetch(MOCK_URL + "/__mock/mode", { method: "POST", body: JSON.stringify({ mode: "slow", delayMs: 6000 }) });
+  await p7.click("#fb-btn");
+  await confirmDialog(p7, "KI-Feedback anfordern?");
+  await expect.poll(async () => (await mockState()).count, { timeout: 15_000 }).toBe(1);   // die KI hat die Antworten erhalten …
+  expect(JSON.stringify((await mockState()).requests[0].messages)).toContain(L.first[0]);
+  await mockMode("ok");   // gilt für spätere Anfragen; diese wartet weiter
+  expect(await draftOf(p7)).toMatchObject({ fbPending: true, fbFails: 0, feedback: null });   // … vor dem Senden vermerkt
+  expect(await draftPdfText(p7)).toContain("KI-Feedback angefordert, beim Sichern noch nicht erhalten");
+  const keep = await s7.context.newPage();   // derselbe Browser (derselbe Speicher) bleibt offen
+  keep.on("pageerror", (e) => s7.errors.push(String(e)));
+  await keep.goto("/");
+  await p7.close({ runBeforeUnload: false });   // Tab zu, ohne dass die Seite noch etwas tun kann
+  p7 = s7.page = keep;
+  await expect(p7.locator("#resume-box")).toBeVisible();
+  expect(await draftOf(p7)).toMatchObject({ fbPending: true, fbFails: 0, feedback: null });   // die Seite konnte nichts mehr zählen
+  await p7.click("#resume-btn");
+  await expect(p7.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(p7.locator("#a-1")).toHaveValue(L.first[0]);
+  expect(await draftOf(p7)).toMatchObject({ fbPending: false, fbFails: 1, feedback: null });   // einmal gezählt und gespeichert
+  await p7.click("#submit-btn");
+  expect(await confirmDialog(p7, "Ohne KI-Feedback abgeben?")).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
+  await expect(p7.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p7)).toContain(NOT_DONE_NOTE);
+  await closePage(s7);
+
+  // O: ältere Abgabe ohne noAi (früher nur möglich, wenn die KI nicht erreichbar war) → „nicht möglich (Grund)“
+  const codeG = shownG.replace("-", "");
+  const pubG = (await (await request.get("/api/sheet/" + codeG)).json()).sheet.publicKey;
+  const old = { v: 1, stage: "final", sheetCode: codeG, sheetTitle: "Freiwillig", person: { vorname: "Ole", nachname: "Ol", geburtsdatum: "2010-01-01", klasse: "7b" },
+    answers: [{ first: "Ein altes Gewissen.", final: "Ein altes Gewissen." }, { first: "Eine alte Lüge.", final: "Eine alte Lüge." }],
+    feedback: null, feedbackAt: null, feedbackError: "KI nicht erreichbar", submittedAt: new Date().toISOString() };
+  expect((await request.post("/api/submit", { data: { code: codeG, envelope: await makeEnvelope(pubG, old) } })).status()).toBe(200);
+
+  // Lehrkraft: neutrale Hinweise – G „Ohne KI-Feedback abgegeben.“ (keine Wertung, kein „selbst gewählt“), I/J/K/L/M/N/O mit
+  // Grund; H und P wie gewohnt
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shownG);
+  await expect(tp.locator(".batchhint", { hasText: "Klicken Sie auf eine Zeile" })).toHaveText("Klicken Sie auf eine Zeile, um die Lösungen zu sehen: links die erste Eingabe vor dem KI-Feedback, rechts die überarbeitete Eingabe (ohne KI-Feedback: nur die abgegebene Fassung).");
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(10);
+  for (const [k, n] of ["Gr", "Ha", "Ib", "Jo", "Ka", "Lu", "Mo", "Ne", "Ol", "Pi"].entries()) await expect(mains.nth(k).locator("td:not(.arrowcol)").nth(0)).toHaveText(n);
+  await tp.click("#t-expand-all");
+  const det = (k) => tp.locator("#t-subs-body tr.details").nth(k);
+  await expect(det(0).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben.");
+  await expect(det(0).locator(".dmeta")).toHaveText(/ · ohne KI-Feedback · automatische Löschung ab dem \d\d\.\d\d\.\d{4}$/);
+  await expect(det(0).locator(".dtask").nth(0).locator("table.cmp.one thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback)"]);
+  await expect(det(0).locator(".dtask").nth(0).locator("table.cmp tbody td")).toHaveText([G.first[0]]);
+  await expect(det(0).locator(".dtask").nth(1).locator("table.cmp tbody td")).toHaveText(["(leer)"]);
+  await expect(det(0).locator(".dfb")).toHaveCount(0);
+  await expect(det(1).locator(".moodle-hint")).toHaveCount(0);
+  await expect(det(1).locator(".dtask").nth(0).locator("table.cmp thead th")).toHaveCount(2);
+  await expect(det(1).locator(".dfb")).toHaveCount(2);
+  for (const k of [2, 3, 5, 6, 7]) {
+    await expect(det(k).locator(".moodle-hint")).toHaveText(NOT_DONE_NOTE);
+    await expect(det(k).locator("table.cmp.one")).toHaveCount(2);
+  }
+  await expect(det(3).locator(".dtask").nth(1).locator("table.cmp tbody td")).toHaveText([J.first[1] + " Nachtrag."]);
+  await expect(det(4).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");
+  await expect(det(8).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");   // ältere Abgabe ohne noAi
+  await expect(det(8).locator(".dtask").nth(0).locator("table.cmp.one tbody td")).toHaveText([old.answers[0].final]);
+  await expect(det(9).locator(".moodle-hint")).toHaveCount(0);
+  await expect(det(9).locator(".dfb")).toHaveCount(2);
+  await expect(tp.locator("#t-subs-body")).not.toContainText("selbst gewählt");
+
+  // Blatt ohne Auftrag an die KI: kein Feedback-Button, Datenschutz ohne KI-Dienst, schlichter Abgabe-Dialog, keine Kennzeichnung
+  const shownN = await makeSheet("Ohne Auftrag", [{ text: "Wie fühlst du dich, wenn du etwas falsch gemacht hast?", solution: "" }]);
+  const s3 = await openPage(browser);
+  const p3 = s3.page;
+  await enterCode(p3, shownN);
+  await fillPerson(p3, { vorname: "kim", nachname: "no", geb: "--05-05", klasse: "7b" });
+  expect(JSON.parse((await s3.calls((r) => r.path.startsWith("/api/sheet/")))[0].body).sheet.aiFeedback).toBe(false);
+  await expect(p3.locator("#fb-btn")).toBeHidden();
+  await expect(p3.locator("#fin-text")).toHaveText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab.");
+  await expect(p3.locator("#privacy")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
+  await expect(p3.locator("#privacy")).not.toContainText("KI-Dienst");
+  // ausführlicher Hinweis und Klasse-Hinweis ohne KI: kein KI-Dienst, kein Abschnitt zur KI, Angaben erst bei der Abgabe
+  await expect(p3.locator("#p-klasse-hint")).toHaveText("z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.");
+  await expect(p3.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS.filter((x) => x !== "Entscheidet die KI über dich?"));
+  await expect(p3.locator("#privfull-ed")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
+  await expect(p3.locator("#privfull-ed")).not.toContainText("kurz unverschlüsselt");   // keine Verarbeitung für eine KI
+  await expect(p3.locator("#privfull-ed")).toContainText("Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser");
+  await expect(p3.locator("#submit-hint")).toHaveText("Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.");
+  await typeAt(p3, "#a-1", "Ich schäme mich dann.");
+  const draftN = await draftPdfText(p3);
+  expect(draftN).toContain("Stand: 1 von 1 Aufgabe mit Text");
+  expect(draftN).not.toContain("KI-Feedback");   // kein Hinweis zum KI-Feedback, das es hier nicht gibt
+  await p3.click("#submit-btn");
+  expect(await confirmDialog(p3, "Jetzt abgeben?")).toBe("Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Deine Antworten gehen verschlüsselt an deine Lehrkraft; nur sie kann sie lesen.");
+  await expect(p3.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await solutionsPdfText(p3)).not.toContain("Ohne KI-Feedback");
+  expect(await s3.calls((r) => r.path === "/api/feedback")).toEqual([]);
+  await closePage(s3);
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shownN);
+  await tp.locator("#t-subs-body tr.main").first().click();
+  const detN = tp.locator("#t-subs-body tr.details").first();
+  await expect(detN.locator(".moodle-hint")).toHaveCount(0);
+  await expect(detN.locator("table.cmp.one tbody td")).toHaveText(["Ich schäme mich dann."]);
+
+  // aufräumen: beide Blätter samt Abgaben löschen
+  for (const c of [shownN, shownG]) {
+    await tp.locator("#t-sheets-body tr", { hasText: c }).click();
+    await expect(tp.locator("#t-sel-code")).toHaveText(c);
+    await tp.click("#t-del-sheet");
+    await confirmDialog(tp, "Feibeitsblatt löschen?");
+    await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  }
+  await closePage(t);
+});
+
+test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Erstversuchen mit vollem Geburtsdatum nur Tag und Monat; Erstversuch (altes Format) und Abgabe (neues Format) derselben Person gehören zusammen – die Details der Abgabe zeigen den ausgeblendeten Erstversuch, „Diesen Eintrag löschen“ löscht beide (auch sehr viele, in Blöcken), alle anderen bleiben; ein nicht lesbarer Eintrag lässt sich einzeln löschen", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Übergang");
+  await tp.fill("#bq-1", "Beschreibe deinen Schulweg.");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const pub = (await (await request.get("/api/sheet/" + code)).json()).sheet.publicKey;
+  const now = new Date().toISOString();
+  const send = async (payload, meta = {}) => expect((await request.post("/api/submit", { data: { code, envelope: await makeEnvelope(pub, payload), ...meta } })).status()).toBe(200);
+  const base = (vorname, nachname, geburtsdatum, text) => ({ v: 1, sheetCode: code, sheetTitle: "Übergang", person: { vorname, nachname, geburtsdatum, klasse: "9c" },
+    answers: [{ first: text, final: text }], feedback: [{ covered: [], missing: [], note: NO_SOLUTION_NOTE }], feedbackAt: now, submittedAt: now });
+  // Ole: ältere Abgabe mit vollem Geburtsdatum
+  await send(base("Ole", "Ol", "2009-11-30", "Ich gehe zu Fuß."));
+  // Kim: Erstversuch noch mit vollem Datum, Abgabe (andere Bearbeitung) nur mit Tag und Monat → derselbe Mensch
+  const kimFirst = base("Kim", "Wo", "2010-02-03", "Ich fahre mit dem Rad.");
+  await send({ ...kimFirst, stage: "first", answers: [{ first: kimFirst.answers[0].first, final: null }], submittedAt: null }, { stage: "first", attempt: "0123456789abcdef" });
+  await send(base("Kim", "Wo", "--02-03", "Ich fahre jeden Tag mit dem Rad zur Schule."));
+  // Ute: nur ein Erstversuch mit vollem Datum (noch nicht abgegeben) → bleibt sichtbar, ebenfalls ohne Jahr
+  const uteFirst = base("Ute", "Un", "2011-06-15", "Mit dem Bus.");
+  await send({ ...uteFirst, stage: "first", answers: [{ first: uteFirst.answers[0].first, final: null }], submittedAt: null }, { stage: "first", attempt: "fedcba9876543210" });
+
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("2 Abgaben · 1 Erstversuch ohne Überarbeitung · 1 älterer Erstversuch von Schüler:innen, die inzwischen abgegeben haben, wird nicht angezeigt");
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(3);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Ol", "Ole", "30.11.", "9c"]);
+  await expect(mains.nth(1).locator("td:not(.arrowcol)")).toHaveText(["Un", "Ute", "15.06.", "9c"]);
+  await expect(mains.nth(1).locator("td.st-first")).toHaveCount(2);
+  await expect(mains.nth(2).locator("td:not(.arrowcol)")).toHaveText(["Wo", "Kim", "03.02.", "9c"]);
+
+  // Auskunft: die Details von Kims Abgabe zeigen den in der Liste ausgeblendeten älteren Erstversuch auf Wunsch (erst beim
+  // Aufklappen gebaut, ohne eigenen Löschknopf)
+  await mains.nth(2).click();
+  const detKim = tp.locator("#t-subs-body tr.details:visible");
+  await expect(detKim).toHaveCount(1);
+  const olderKim = detKim.locator("details.dolder");
+  await expect(olderKim.locator("summary")).toHaveText("1 älterer Erstversuch dieser Person (in der Liste ausgeblendet)");
+  await expect(olderKim.locator(".detbox")).toHaveCount(0);
+  await olderKim.locator("summary").click();
+  await expect(olderKim.locator(".detbox.older")).toHaveCount(1);
+  await expect(olderKim.locator(".dmeta")).toHaveText(/^Älterer Erstversuch vom \d\d\.\d\d\.\d{4}, \d\d:\d\d \(ohne Überarbeitung\) · KI-Feedback am /);
+  await expect(olderKim.locator("table.cmp tbody td")).toHaveText([kimFirst.answers[0].first, "(noch nicht überarbeitet)"]);
+  await expect(olderKim.locator("button")).toHaveCount(0);
+  await expect(detKim.getByRole("button", { name: "Diesen Eintrag löschen" })).toHaveCount(1);
+  // Löschwunsch einer Person: „Diesen Eintrag löschen“ löscht Kims Abgabe samt dem ausgeblendeten Erstversuch, alle anderen bleiben
+  await detKim.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
+  await expect(tp.locator("#dlg-ok")).toHaveText("Eintrag löschen");
+  expect(await confirmDialog(tp, "Diesen Eintrag löschen?", false)).toMatch(/^Die Abgabe von Wo · Kim \(Geburtstag 03\.02\., Klasse 9c\) vom \d\d\.\d\d\.\d{4}, \d\d:\d\d wird endgültig aus der Datenbank gelöscht – mitsamt einem älteren, ausgeblendeten Erstversuch derselben Person\. Alle anderen Einträge bleiben\. Das lässt sich nicht rückgängig machen\.$/);
+  expect(await d1Query(`SELECT COUNT(*) AS n FROM submissions WHERE sheet_code='${code}'`)).toEqual([{ n: 4 }]);   // Abbrechen ändert nichts
+
+  // Viele ausgeblendete Erstversuche mit Kims Angaben (z. B. über das öffentliche /api/submit angelegt) – mehr, als der Server je
+  // Löschauftrag annimmt (50) – und ein Eintrag, der sich nicht entschlüsseln lässt
+  await d1Query(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 54) INSERT INTO submissions (sheet_code, received_at, envelope, stage, attempt) SELECT s.sheet_code, s.received_at + n.i, s.envelope, 'first', printf('%016x', n.i) FROM submissions s, n WHERE s.sheet_code='${code}' AND s.attempt='0123456789abcdef'`);
+  await d1Query(`INSERT INTO submissions (sheet_code, received_at, envelope, stage) VALUES ('${code}', ${Date.now()}, '{"v":1,"ek":"AAAA","iv":"AAAAAAAAAAAAAAAA","ct":"AAAA"}', 'final')`);
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben · 1 Erstversuch ohne Überarbeitung · 55 ältere Erstversuche von Schüler:innen, die inzwischen abgegeben haben, werden nicht angezeigt");
+  const errRow = tp.locator("#t-subs-body tr.errrow");
+  await expect(errRow).toHaveCount(1);
+  await expect(errRow).toContainText("konnte nicht entschlüsselt werden");
+  await errRow.getByRole("button", { name: "Eintrag löschen" }).click();
+  expect(await confirmDialog(tp, "Diesen Eintrag löschen?")).toMatch(/^Die Abgabe vom \d\d\.\d\d\.\d{4}, \d\d:\d\d, die sich nicht entschlüsseln lässt, wird endgültig aus der Datenbank gelöscht\. Alle anderen Einträge bleiben\. Das lässt sich nicht rückgängig machen\.$/);
+  await expect(tp.locator("#t-subs-status")).toHaveText("1 Eintrag gelöscht.");
+  await expect(errRow).toHaveCount(0);
+  await expect(mains).toHaveCount(3);
+  await mains.nth(2).click();
+  await expect(detKim.locator("details.dolder summary")).toHaveText("55 ältere Erstversuche dieser Person (in der Liste ausgeblendet)");
+  await detKim.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
+  expect(await confirmDialog(tp, "Diesen Eintrag löschen?")).toContain(" – mitsamt 55 älteren, ausgeblendeten Erstversuchen derselben Person. ");
+  await expect(tp.locator("#t-subs-status")).toHaveText("56 Einträge gelöscht.");
+  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Abgabe · 1 Erstversuch ohne Überarbeitung");
+  await expect(mains).toHaveCount(2);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Ol", "Ole", "30.11.", "9c"]);
+  await expect(mains.nth(1).locator("td:not(.arrowcol)")).toHaveText(["Un", "Ute", "15.06.", "9c"]);
+  const delCalls = (await t.calls((r) => r.method === "DELETE" && r.path.endsWith("/submissions"))).map((r) => [r.status, JSON.parse(r.reqBody).ids]);
+  expect(delCalls.map(([st, ids]) => [st, ids.length])).toEqual([[200, 1], [200, 50], [200, 6]]);   // der nicht lesbare, dann Kim in zwei Blöcken
+  const delIds = delCalls.flatMap(([, ids]) => ids);
+  const left = (await d1Query(`SELECT id, stage FROM submissions WHERE sheet_code='${code}' ORDER BY id`));
+  expect(left.map((r) => r.stage)).toEqual(["final", "first"]);   // Ole (Abgabe) und Ute (Erstversuch)
+  expect(left.some((r) => delIds.includes(r.id))).toBe(false);
+  await expect(tp.locator("#t-sheets-body tr", { hasText: "Übergang" }).locator("td").nth(4)).toHaveText(/^1 \+1/);   // Zähler neu geladen
+
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   await closePage(t);
 });
 
@@ -1735,7 +2950,7 @@ test("7c Antwortarten: Lehrkraft legt Weltkarten-Zuordnung (mit Kartenbild) und 
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, shown);
-  await fillPerson(page, { vorname: "jo", nachname: "ka", geb: "2010-10-10", klasse: "8c" });
+  await fillPerson(page, { vorname: "jo", nachname: "ka", geb: "--10-10", klasse: "8c" });
   const cards = page.locator("#a-1 .mcard");
   await expect(cards).toHaveCount(4);
   await expect(cards.nth(0).locator(".mcard-img img")).toHaveCount(1);
@@ -1934,7 +3149,7 @@ test("7d Testdatei „Ein Auto – eine Welt“: Import übernimmt alles (Weltka
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, shown);
-  await fillPerson(page, { vorname: "mo", nachname: "si", geb: "2011-11-11", klasse: "7b" });
+  await fillPerson(page, { vorname: "mo", nachname: "si", geb: "--11-11", klasse: "7b" });
   await expect(page.locator("#a-1 .mcard")).toHaveCount(12);
   await expect(page.locator("#a-1 .mcard-label")).toHaveText(map.items.map((x) => x.label));
   await expect(page.locator("#a-1 .mcard-img img")).toHaveCount(map.items.filter((x) => x.image).length);
@@ -2029,7 +3244,7 @@ test("7e Formatierte Aufgabenstellung: Lehrkraft setzt ein Wort fett und fügt e
   const s = await openPage(browser);
   const { page } = s;
   await enterCode(page, shown);
-  await fillPerson(page, { vorname: "jo", nachname: "wa", geb: "2010-04-04", klasse: "7c" });
+  await fillPerson(page, { vorname: "jo", nachname: "wa", geb: "--04-04", klasse: "7c" });
   await expect(page.locator("#q-1 b")).toHaveText("Wasserkreislauf");
   const a = page.locator("#q-1 a");
   await expect(a).toHaveAttribute("href", LINK);
@@ -2113,6 +3328,273 @@ test("7e Formatierte Aufgabenstellung: Lehrkraft setzt ein Wort fett und fügt e
   await closePage(t);
 });
 
+test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (der Server löscht nie mehr als bestätigt), Verlängern erinnert an die neue Information, Laden/Speichern scheitert ohne Folgen; aufgeklappte Abgaben nennen nach einer Friständerung sofort das neue Löschdatum; der tägliche Zeitplan löscht nach der Frist (lokal ausgelöst)", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const page = t.page;
+  await teacherLogin(page, PW);
+  // eigenes Blatt mit drei Abgaben (ohne KI-Auftrag); eine davon per D1 zehn Tage zurückdatiert
+  await page.click("#t-new");
+  await page.fill("#b-title", "Löschfrist");
+  await page.fill("#bq-1", "Wie heißt deine Lieblingsstadt?");
+  await page.click("#b-gen");
+  await expect(page.locator("#b-result")).toBeVisible();
+  const code = (await page.locator("#b-res-code").textContent()).trim().replace("-", "");
+  const sheet = (await (await request.get("/api/sheet/" + code)).json()).sheet;
+  expect(sheet.privacy.retentionDays).toBe(DAYS);
+  const ids = [];
+  for (const v of ["Ole", "Pia", "Uwe"]) {
+    const env = await makeEnvelope(sheet.publicKey, { v: 1, sheetCode: code, sheetTitle: sheet.title, person: { vorname: v, nachname: "Lf", geburtsdatum: "--06-06", klasse: "6a" },
+      answers: [{ first: "Rom", final: "Rom" }], feedback: null, feedbackAt: null, noAi: "none", submittedAt: new Date().toISOString() });
+    const r = await request.post("/api/submit", { data: { code, envelope: env } });
+    expect(r.status()).toBe(200);
+    const j = await r.json();
+    expect(j.retentionDays).toBe(DAYS);
+    ids.push(j.id);
+  }
+  const back10 = (id) => d1Query(`UPDATE submissions SET received_at = received_at - ${10 * 864e5} WHERE id = ${id}`);
+  const idsNow = async () => (await d1Query(`SELECT id FROM submissions WHERE sheet_code='${code}' ORDER BY id`)).map((r) => r.id);
+  const storedDays = async () => JSON.parse((await d1Query("SELECT value FROM settings WHERE key='privacy'"))[0].value).retentionDays;
+  await back10(ids[1]);
+  await page.click("#b-res-back");
+  const row = page.locator("#t-sheets-body tr", { hasText: "Löschfrist" });
+  await expect(row.locator("td").nth(4)).toHaveText("3");   // innerhalb der Frist von 14 Tagen bleibt alles
+  await expect(page.locator("#t-subs-sum")).toHaveText("3 Abgaben");
+
+  // Laden scheitert: Formular und „Speichern“ bleiben gesperrt (sonst stünden leere Felder und eine falsche Frist darin, und
+  // „Speichern“ überschriebe die Angaben und löschte ohne Nachfrage); „Erneut laden“ holt den Stand
+  await page.route("**/api/teacher/privacy", (r) => r.request().method() === "GET"
+    ? r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Der Server ist gerade nicht erreichbar.", code: "unavailable" }) })
+    : r.continue());
+  await page.click("#t-privacy");
+  await expect(page.locator("#pv-status")).toHaveText("Die gespeicherten Angaben konnten nicht geladen werden: Der Server ist gerade nicht erreichbar. Speichern ist erst möglich, wenn sie geladen sind.");
+  for (const id of ["#pv-save", "#pv-days", "#pv-name", "#pv-hessen"]) await expect(page.locator(id)).toBeDisabled();
+  await expect(page.locator("#pv-days-effect")).toHaveText("");
+  await expect(page.locator("#pv-reload")).toBeVisible();
+  await expect(page.locator("#pv-reload")).toBeFocused();
+  await page.unroute("**/api/teacher/privacy");
+  await page.click("#pv-reload");
+  await expect(page.locator("#pv-save")).toBeEnabled();
+  await expect(page.locator("#pv-reload")).toBeHidden();
+  await expect(page.locator("#pv-name")).toHaveValue(SCHOOL.name);
+  await expect(page.locator("#pv-days")).toHaveValue(String(DAYS));
+
+  // Kürzen auf 7 Tage: die Seite nennt, was jetzt gelöscht würde, und fragt vor dem Speichern nach (Abbrechen ändert nichts)
+  await page.selectOption("#pv-days", "7");
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt 1 älterer Eintrag gelöscht.");
+  await page.click("#pv-save");
+  await expect(page.locator("#dlg-ok")).toHaveText("Speichern und löschen");
+  expect(await confirmDialog(page, "Ältere Abgaben jetzt löschen?", false)).toBe("Mit einer Frist von 7 Tagen wird 1 Abgabe bzw. Erstversuch, der älter ist, sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.");
+  expect(await storedDays()).toBe(DAYS);
+  expect(await idsNow()).toEqual(ids);
+  // inzwischen ist eine zweite Abgabe älter geworden (die Seite war lange offen): Der Server löscht nie mehr als bestätigt –
+  // er speichert nichts, die Seite fragt mit der neuen Zahl erneut (Abbrechen ändert weiter nichts)
+  await back10(ids[2]);
+  await page.click("#pv-save");
+  // erste Rückfrage mit der alten Zahl bestätigen; lokal antwortet der Server so schnell, dass die zweite Rückfrage (dieselbe
+  // Dialogbox) erscheint, bevor die erste sichtbar geschlossen ist – deshalb hier auf den neuen Text warten statt aufs Schließen
+  await expect(page.locator("#dlg.open")).toBeVisible();
+  await expect(page.locator("#dlg-title")).toHaveText("Ältere Abgaben jetzt löschen?");
+  await expect(page.locator("#dlg-text")).toHaveText("Mit einer Frist von 7 Tagen wird 1 Abgabe bzw. Erstversuch, der älter ist, sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.");
+  await page.click("#dlg-ok");
+  await expect(page.locator("#dlg-text")).toHaveText(/^Nach dem aktuellen Stand/);
+  expect(await confirmDialog(page, "Ältere Abgaben jetzt löschen?", false)).toBe("Nach dem aktuellen Stand ist mehr zu löschen als zuvor angezeigt. Mit einer Frist von 7 Tagen werden 2 Abgaben bzw. Erstversuche, die älter sind, sofort endgültig gelöscht. Das lässt sich nicht rückgängig machen.");
+  await expect(page.locator("#pv-status")).toHaveText("Nicht gespeichert – es wurde nichts gelöscht.");
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würden jetzt 2 ältere Einträge gelöscht.");
+  expect(await storedDays()).toBe(DAYS);
+  expect(await idsNow()).toEqual(ids);
+  await page.click("#pv-save");
+  await confirmDialog(page, "Ältere Abgaben jetzt löschen?");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes. 2 ältere Einträge wurden gelöscht.");
+  await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
+  expect(await idsNow()).toEqual([ids[0]]);
+  // Speichern scheitert (Server-Fehler): nichts gespeichert, nichts gelöscht, die Seite sagt es
+  await page.selectOption("#pv-days", String(DAYS));
+  await page.route("**/api/teacher/privacy", (r) => r.request().method() === "PUT"
+    ? r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Interner Fehler.", code: "internal" }) })
+    : r.continue());
+  await page.click("#pv-save");
+  await expect(page.locator("#pv-status")).toHaveText("Nicht gespeichert – Interner Fehler.");
+  await page.unroute("**/api/teacher/privacy");
+  expect(await storedDays()).toBe(7);
+  // wieder verlängern: gilt auch für schon gespeicherte Abgaben → Hinweis, die Schüler:innen neu zu informieren
+  await page.click("#pv-save");
+  await expect(page.locator("#pv-status")).toHaveText("Gespeichert. Die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes. Die längere Frist gilt auch für schon gespeicherte Abgaben – informieren Sie die Schüler:innen neu.");
+  // zurück: die Übersicht lädt Blätter und Abgaben neu (gelöschte Einträge zählen sofort nicht mehr – ohne „Aktualisieren“)
+  await page.click("#pv-back");
+  await expect(page.locator("#t-privinfo")).toContainText(DAYS + " Tage nach dem Eingang automatisch gelöscht.");
+  await expect(row.locator("td").nth(4)).toHaveText("1");
+  await expect(page.locator("#t-subs-sum")).toHaveText("1 Abgabe");
+  // Frist ändern, ohne dass etwas gelöscht wird: ein schon aufgeklapptes Detail nennt sofort das neue Löschdatum
+  await page.locator("#t-subs-body tr.main").first().click();
+  const dmeta = page.locator("#t-subs-body tr.details:visible .dmeta");
+  const dmy = (x) => { const [d, m, y] = x.split(".").map(Number); return Date.UTC(y, m - 1, d); };
+  const keepDays = async () => {
+    const [, got, del] = /^Abgegeben am (\d\d\.\d\d\.\d{4}).* automatische Löschung ab dem (\d\d\.\d\d\.\d{4})$/.exec(await dmeta.textContent()) || [];
+    return Math.round((dmy(del) - dmy(got)) / 864e5);
+  };
+  expect([DAYS - 1, DAYS]).toContain(await keepDays());
+  for (const d of [30, DAYS]) {   // verlängern, dann wieder kürzen (nichts ist älter als die Frist)
+    await page.click("#t-privacy");
+    await expect(page.locator("#pv-save")).toBeEnabled();
+    await page.selectOption("#pv-days", String(d));
+    await page.click("#pv-save");
+    await expect(page.locator("#pv-status")).toHaveText(/^Gespeichert\./);
+    await page.click("#pv-back");
+    await expect(dmeta).toBeVisible();
+    await expect.poll(async () => [d - 1, d].includes(await keepDays())).toBe(true);   // Eingang + Frist (Ortszeit: bei Zeitumstellung ein Tag weniger)
+  }
+
+  // täglicher Zeitplan (Cron „17 2 * * *“, lokal über /cdn-cgi/local/scheduled): löscht, was älter als die Frist ist; das Blatt bleibt
+  await d1Query(`UPDATE submissions SET received_at = received_at - ${(DAYS + 1) * 864e5} WHERE id = ${ids[0]}`);
+  const cron = await request.get("/cdn-cgi/local/scheduled?cron=" + encodeURIComponent("17 2 * * *") + "&format=json");
+  expect(cron.status()).toBe(200);
+  expect(await cron.json()).toMatchObject({ outcome: "ok" });
+  expect(await d1Query(`SELECT id FROM submissions WHERE sheet_code='${code}'`)).toEqual([]);
+  expect((await request.get("/api/sheet/" + code)).status()).toBe(200);
+  await page.click("#t-del-sheet");
+  await confirmDialog(page, "Feibeitsblatt löschen?");
+  await expect(page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7j Während die Abgabe gesendet wird: KI-Feedback und „Abbrechen“ sind gesperrt, ein währenddessen geöffneter Dialog schließt sich mit der Bestätigung; ein Nachsehen der Empfänger verwandelt keinen offenen Abgabe-Dialog; erstes Feedback, aber beim Weiterschreiben kein Empfänger → keine zweite Rückmeldung, nichts gesendet", async ({ browser }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Abgabe läuft");
+  await tp.fill("#bq-1", TASKS[0].text);
+  await tp.fill("#bs-1", TASKS[0].solution);
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim();
+
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "sam", nachname: "se", geb: "--09-09", klasse: "7b" });
+  await typeAt(page, "#a-1", "Das Gewissen ist eine innere Stimme.");
+  let release;
+  const held = new Promise((r) => { release = r; });
+  await page.route("**/api/submit", async (route) => { await held; await route.continue(); });   // die Abgabe hängt (langsames Netz)
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Ohne KI-Feedback abgeben?");
+  await expect(page.locator("#submit-status")).toHaveText("Deine Abgabe wird verschlüsselt und gesendet …");
+  await expect(page.locator("#fb-btn")).toBeDisabled();   // kein KI-Feedback nach „ohne KI-Feedback abgegeben“
+  await page.click("#ed-cancel");   // „Abbrechen“ fragt nicht erst – die Abgabe käme trotzdem an
+  await expect(page.locator("#submit-status")).toHaveText("Deine Abgabe wird gerade gesendet – abbrechen geht jetzt nicht mehr.");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  // ein Dialog, der während des Sendens aufgeht (Rechtschreibprüfung), bleibt nicht über der Bestätigung stehen
+  await page.click("#t-1 .ltbtn");
+  await expect(page.locator("#dlg.open")).toBeVisible();
+  release();
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expect(page.locator("#done-btn")).toBeFocused();
+  expect((await s.calls((r) => r.path === "/api/submit")).map((r) => r.status)).toEqual([200]);
+  expect(await s.calls((r) => r.path === "/api/feedback")).toEqual([]);
+  expect(s.lt).toEqual([]);   // nichts an LanguageTool
+  await closePage(s);
+
+  // Beim Laden kennt die Seite keinen KI-Dienst; „KI um ein Feedback bitten“ sieht nach (GET, hier angehalten) – währenddessen
+  // öffnet die Schülerin „Abgeben“. Die Antwort (KI inzwischen eingerichtet) verwandelt den offenen Dialog nicht in „KI-Feedback
+  // anfordern?“: dieselbe Frage, derselbe Text, nichts geht an die KI; die Abgabe trägt den Grund, den der Dialog genannt hat
+  const code = shown.replace("-", "");
+  const noAiSheet = (j) => { delete j.sheet.aiRecipients; delete j.sheet.aiReserve; j.sheet.aiProvider = null; };
+  const s2 = await openPage(browser);
+  const p2 = s2.page;
+  let gets2 = 0, releaseGet;
+  const heldGet = new Promise((r) => { releaseGet = r; });
+  await p2.route("**/api/sheet/" + code, async (route) => {
+    const n = ++gets2;
+    if (n === 2) await heldGet;
+    const res = await route.fetch();
+    const j = await res.json();
+    if (n === 1) noAiSheet(j);
+    await route.fulfill({ response: res, json: j });
+  });
+  await enterCode(p2, shown);
+  await fillPerson(p2, { vorname: "ria", nachname: "ra", geb: "--04-04", klasse: "7b" });
+  await typeAt(p2, "#a-1", "Das Gewissen meldet sich.");
+  await p2.click("#fb-btn");
+  await expect(p2.locator("#fb-status")).toHaveText("Einen Moment …");
+  await expect(p2.locator("#submit-btn")).toBeEnabled();   // Abgeben geht auch jetzt
+  await p2.click("#submit-btn");
+  await expect(p2.locator("#dlg-title")).toHaveText("Ohne KI-Feedback abgeben?");
+  const asked = await p2.locator("#dlg-text").textContent();
+  expect(asked).toMatch(/^Das KI-Feedback ist gerade nicht möglich \(KI nicht eingerichtet\)\./);
+  releaseGet();
+  await expect(p2.locator("#privacy")).toContainText("an den KI-Dienst „127.0.0.1:");   // die Antwort ist angekommen
+  await p2.waitForTimeout(300);
+  await expect(p2.locator("#dlg-title")).toHaveText("Ohne KI-Feedback abgeben?");
+  await expect(p2.locator("#dlg-ok")).toHaveText("Ohne KI-Feedback abgeben");
+  await expect(p2.locator("#dlg-text")).toHaveText(asked);
+  await expect(p2.locator("#fb-status")).toHaveText("");
+  expect(await confirmDialog(p2, "Ohne KI-Feedback abgeben?")).toBe(asked);
+  await expect(p2.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await s2.calls((r) => r.path === "/api/feedback")).toEqual([]);
+  expect((await s2.calls((r) => r.path === "/api/submit")).map((r) => [r.status, JSON.parse(r.reqBody).stage])).toEqual([[200, "final"]]);
+  await closePage(s2);
+
+  // Erstes KI-Feedback geholt und überarbeitet; beim Weiterschreiben kennt die Seite keinen KI-Dienst mehr (z. B. inzwischen
+  // entfernt): Hinweis, Abgabe-Dialog und Bestätigung sagen, dass es keine zweite Rückmeldung gibt – nichts geht noch einmal an
+  // den Server
+  const FB2_NO_AI = "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht – ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet";
+  await mockMode("ok");
+  await mockReset();
+  const s3 = await openPage(browser);
+  const p3 = s3.page;
+  let strip = false;
+  await p3.route("**/api/sheet/" + code, async (route) => {
+    const res = await route.fetch();
+    const j = await res.json();
+    if (strip) noAiSheet(j);
+    await route.fulfill({ response: res, json: j });
+  });
+  await enterCode(p3, shown);
+  await fillPerson(p3, { vorname: "tom", nachname: "to", geb: "--06-06", klasse: "7b" });
+  await typeAt(p3, "#a-1", "Das Gewissen ist eine innere Stimme.");
+  await requestFeedback(p3);
+  await expect.poll(async () => (await s3.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage), { timeout: 30_000 }).toEqual(["first"]);
+  await typeAt(p3, "#a-1", " Es meldet sich nach einer Tat.");
+  await p3.waitForTimeout(700);
+  strip = true;
+  await p3.reload();
+  await p3.click("#resume-btn");
+  await expect(p3.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(p3.locator("#t-1 .fbbox")).toBeVisible();
+  await expect(p3.locator("#submit-hint")).toHaveText("Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " + FB2_NO_AI + ".");
+  await p3.click("#submit-btn");
+  expect(await confirmDialog(p3, "Jetzt abgeben?")).toBe("Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" + FB2_NO_AI + "; an die KI wird nichts gesendet.");
+  await expect(p3.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(p3.locator("#done-fb-status")).toHaveText(FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen.");
+  await expect(p3.locator("#done-fb-retry")).toBeHidden();
+  await p3.waitForTimeout(300);
+  expect((await s3.calls((r) => r.path === "/api/feedback")).length).toBe(1);   // nur das erste Feedback
+  expect((await s3.calls((r) => r.path === "/api/submit")).map((r) => JSON.parse(r.reqBody).stage)).toEqual(["first", "final"]);
+  expect((await mockState()).count).toBe(1);
+  const [dl3] = await Promise.all([p3.waitForEvent("download"), p3.click("#done-pdf")]);
+  expect(pdfShownText(await readFile(await dl3.path()))).toContain("Eine KI-Rückmeldung zu deiner abgegebenen Fassung gab es diesmal nicht.");
+  await closePage(s3);
+
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben");
+  const mains = tp.locator("#t-subs-body tr.main");
+  for (const [k, n] of ["Ra", "Se", "To"].entries()) await expect(mains.nth(k).locator("td:not(.arrowcol)").nth(0)).toHaveText(n);
+  await tp.click("#t-expand-all");
+  const det = (k) => tp.locator("#t-subs-body tr.details").nth(k);
+  await expect(det(0).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");
+  await expect(det(1).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben.");
+  await expect(det(2).locator(".moodle-hint")).toHaveCount(0);
+  await expect(det(2).locator(".dtask").nth(0).locator("table.cmp tbody td")).toHaveText(["Das Gewissen ist eine innere Stimme.", "Das Gewissen ist eine innere Stimme. Es meldet sich nach einer Tat."]);
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {
   const t = await openPage(browser);
   const { page } = t;
@@ -2133,7 +3615,7 @@ test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgab
   expect(shown2).toMatch(CODE_RE);
   const code2 = shown2.replace("-", "");
   const sheet = (await (await request.get("/api/sheet/" + code2)).json()).sheet;
-  const payload = { v: 1, sheetCode: code2, sheetTitle: sheet.title, person: { vorname: "Kim", nachname: "Wo", geburtsdatum: "2010-02-03", klasse: "9c" },
+  const payload = { v: 1, sheetCode: code2, sheetTitle: sheet.title, person: { vorname: "Kim", nachname: "Wo", geburtsdatum: "--02-03", klasse: "9c" },
     answers: [{ first: "Ich fahre mit dem Rad.", final: "Ich fahre jeden Tag mit dem Rad zur Schule." }],
     feedback: [{ covered: [], missing: [], note: NO_SOLUTION_NOTE }], feedbackAt: new Date().toISOString(), submittedAt: new Date().toISOString() };
   const sub = await request.post("/api/submit", { data: { code: code2, envelope: await makeEnvelope(sheet.publicKey, payload) } });
@@ -2166,7 +3648,7 @@ test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgab
   await teacherLogin(page, NEW_PW);
   await page.locator("#t-sheets-body tr", { hasText: shown2 }).click();
   await expect(page.locator("#t-subs-sum")).toHaveText("1 Abgabe");
-  await expect(page.locator("#t-subs-body tr.main td:not(.arrowcol)")).toHaveText(["Wo", "Kim", "03.02.2010", "9c"]);
+  await expect(page.locator("#t-subs-body tr.main td:not(.arrowcol)")).toHaveText(["Wo", "Kim", "03.02.", "9c"]);
   await page.locator("#t-subs-body tr.main").click();
   const td = page.locator("#t-subs-body tr.details .dtask table.cmp tbody td");
   expect(await td.nth(0).textContent()).toBe(payload.answers[0].first);

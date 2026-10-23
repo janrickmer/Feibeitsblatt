@@ -4,18 +4,20 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
-import { startMockAI, expectedResults } from "../mock-ai.mjs";
-import { RATE, LIMITS, cleanFileName, sha256Hex } from "../../worker/lib.js";
+import { startMockAI, expectedResults, mockAIBinding } from "../mock-ai.mjs";
+import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf } from "../../worker/lib.js";
+import { nextUtcMidnight, TTL } from "../../worker/ai.js";
 import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
 
 /* ---------- D1-Nachbau (gleiche Aufrufform wie die Workers-API) ---------- */
 function makeD1() {
   const db = new DatabaseSync(":memory:");
-  const d1 = { db, queries: 0, fail: null };
+  const d1 = { db, queries: 0, fail: null, failIf: null };   // failIf(sql) → true: nur diese Anweisung scheitert
   const exec = (sql, args) => {
     d1.queries++;
     if (d1.fail) throw new Error(d1.fail);
+    if (d1.failIf && d1.failIf(sql)) throw new Error("D1_ERROR: simulierter Fehler");
     const st = db.prepare(sql);
     const isSelect = /^\s*(select|with|pragma)\b/i.test(sql);
     if (isSelect || /\breturning\b/i.test(sql)) {
@@ -93,6 +95,9 @@ test("setup, door, login", async () => {
   assert.deepEqual(r.json, { ok: true });
   const stored = settingsRow("teacher");
   assert.equal(stored.authHash.length, 64); assert.equal(JSON.stringify(stored).includes(auth), false, "authKey nie im Klartext");
+  // Neuinstallation (noch keine Blätter): automatische Löschung nach 30 Tagen als Vorgabe (auto), noch ohne Schulangaben
+  const pv = settingsRow("privacy");
+  assert.deepEqual({ v: pv.v, d: pv.retentionDays, auto: pv.auto, school: pv.school }, { v: 1, d: 30, auto: true, school: {} });
   r = await call("POST", "/api/teacher/door", { body: { doorCode: "1104" } });
   assert.deepEqual(r.json.kdf, T.kdf);
   const k = await deriveTeacherKeys(PASSWORD, r.json.kdf);
@@ -111,9 +116,12 @@ test("custom door code via env.TEACHER_DOOR_CODE", async () => {
   assert.equal((await call("POST", "/api/teacher/door", { body: { doorCode: "7777" }, env, ip: "198.51.100.77" })).json.setup, true);
 });
 
-test("AI settings: default groq, encrypted at rest, key never returned", async () => {
+test("AI settings: preselected Workers AI is not active until saved; custom key encrypted at rest, key never returned", async () => {
   let r = await call("GET", "/api/teacher/ai", { auth });
-  assert.deepEqual({ p: r.json.provider, k: r.json.hasKey, h: r.json.keyHint, l: r.json.label }, { p: "groq", k: false, h: "", l: "Groq" });
+  assert.deepEqual({ p: r.json.provider, k: r.json.hasKey, h: r.json.keyHint, l: r.json.label, ready: r.json.ready, saved: r.json.saved, kl: r.json.keyless },
+    { p: "cloudflare", k: false, h: "", l: "Cloudflare Workers AI", ready: false, saved: false, kl: true });
+  assert.equal(r.json.keyError, "Noch nicht gespeichert – bitte Anbieter wählen und „Speichern“ klicken.");
+  assert.equal(r.json.quotaUntil, null); assert.deepEqual(r.json.usage, { day: new Date().toISOString().slice(0, 10), requests: 0, neurons: 0, limit: 10000 });
   r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-SECRET-1234" } });
   assert.equal(r.status, 200, r.text);
   assert.equal(r.json.keyHint, "…1234"); assert.equal(r.text.includes("SECRET"), false);
@@ -130,8 +138,10 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiProvider: "127.0.0.1:" + mock.port,
-    aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }] });
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
+    aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)", transfer: "von der Schule beim Anbieter zu prüfen" }],
+    // die Neuinstallation (Setup ohne Blätter) löscht nach 30 Tagen; Schulangaben gibt es noch keine (updatedAt/auto bleiben intern)
+    privacy: { school: { name: "", address: "", dpo: "", url: "", legalBasis: "", authority: "" }, retentionDays: 30 } });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
   assert.deepEqual(r.json.sheets.map((s) => [s.code, s.title, s.taskCount, s.submissionCount]), [[code, "Bio", 2, 0]]);
@@ -407,7 +417,8 @@ test("reserve AI: stored separately (encrypted), tested via ?which=reserve, used
   r = await call("GET", "/api/sheet/" + code);
   const rcpt = "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";
   assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + mock.port);
-  assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + mock.port, label: rcpt }, { id: "custom:127.0.0.1:" + mock.port, label: rcpt }]);
+  const tr = "von der Schule beim Anbieter zu prüfen";   // Grundlage der Übermittlung beim eigenen Dienst: unbekannt
+  assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + mock.port, label: rcpt, transfer: tr }, { id: "custom:127.0.0.1:" + mock.port, label: rcpt, transfer: tr }]);
   // Reserve ohne Schlüssel für einen anderen Dienst → 400, nichts geändert
   r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: { provider: "groq", model: "" } } });
   assert.equal(r.status, 400); assert.match(r.json.error, /neuen Anbieter/);
@@ -431,6 +442,23 @@ test("reserve AI: stored separately (encrypted), tested via ?which=reserve, used
   assert.equal(r.status, 502); assert.equal(mock.state.requests.length, 0, "Reserve ohne Information nie");
   r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: ["custom:127.0.0.1:9", "custom:127.0.0.1:" + mock.port] } });
   assert.equal(r.status, 200); assert.equal(mock.state.requests.length, 1);
+  // Die Reihenfolge zählt: erster Anbieter und Reserve getauscht → 409, nichts gesendet (der Hinweis sagte „nur wenn der erste …“)
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-SECRET-1234",
+    reserve: { provider: "custom", model: "tot", baseUrl: "http://127.0.0.1:9/v1", apiKey: "sk-dead" } } });
+  assert.equal(r.status, 200, r.text);
+  r = await call("GET", "/api/sheet/" + code);
+  assert.deepEqual(r.json.sheet.aiRecipients.map((x) => x.id), ["custom:127.0.0.1:" + mock.port, "custom:127.0.0.1:9"]);
+  const informed = ["custom:127.0.0.1:9", "custom:127.0.0.1:" + mock.port];   // Hinweis von vor dem Tausch
+  mock.reset();
+  r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: informed } });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "ai_changed"); assert.equal(mock.state.requests.length, 0);
+  // … ebenso, wenn der bisherige erste Anbieter entfernt wurde und die Reserve nachrückt
+  r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } });
+  assert.equal(r.status, 200, r.text);
+  r = await call("GET", "/api/sheet/" + code);
+  assert.deepEqual(r.json.sheet.aiRecipients.map((x) => x.id), ["custom:127.0.0.1:" + mock.port]);
+  r = await call("POST", "/api/feedback", { body: { code, answers: ["Licht", ""], recipients: informed } });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "ai_changed"); assert.equal(mock.state.requests.length, 0);
   // Erster Anbieter wieder der Mock; Reserve entfernen → auch der Hinweis für Schüler:innen verschwindet
   r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-SECRET-1234", reserve: null } });
   assert.equal(r.status, 200, r.text); assert.equal(r.json.reserve, null);
@@ -511,8 +539,28 @@ test("feedback: one AI call, expected covered/missing (= gut/tipps of the mock),
   assert.equal(r.status, 200, r.text);
   assert.deepEqual(r.json.results, expectedResults(tasks, answers));
   assert.deepEqual(r.json.results[0], { covered: ["Photosynthese braucht Licht"], missing: ["Chloroplasten sind beteiligt", "Sauerstoff entsteht"] });
+  // maschinenlesbare KI-Kennzeichnung (Art. 50 Abs. 2 KI-VO), IPTC Digital Source Type
+  assert.equal(r.json.aiGenerated, true); assert.equal(r.json.digitalSourceType, "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia");
   assert.equal(mock.state.requests.length, 1);
   assert.equal(mock.state.requests[0].temperature, 0.1);
+});
+
+test("aiFeedback flag: false when no task has an Auftrag an die KI (map tasks never count); feedback then needs no AI", async () => {
+  const map = { type: "map", map: "world", items: [{ id: "kaffee", label: "Kaffee", countries: [{ id: "076", name: "Brasilien" }] }] };
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Ohne KI", tasks: [{ text: "Ordne zu", solution: "wird verworfen", answer: map }, { text: "Schreibe", solution: "  " }] } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  r = await call("GET", "/api/sheet/" + c);
+  assert.equal(r.json.sheet.aiFeedback, false);
+  assert.equal(/wird verworfen|solution/.test(r.text), false);
+  mock.reset();
+  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["", "Text"] } });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(mock.state.requests.length, 0);
+  r = await call("GET", "/api/sheet/" + code);
+  assert.equal(r.json.sheet.aiFeedback, true);
+  r = await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  assert.equal(r.status, 200, r.text);
 });
 
 test("AI gate spaces parallel requests (custom: 1 s)", async () => {
@@ -530,6 +578,7 @@ test("submit and list submissions (decryptable), counts", async () => {
   const envelope = await makeEnvelope(T.publicKey, payload);
   let r = await call("POST", "/api/submit", { body: { code, envelope } });
   assert.equal(r.status, 200, r.text);
+  assert.equal(r.json.retentionDays, settingsRow("privacy").retentionDays);   // die Bestätigungsseite nennt das Löschdatum (Frist jetzt)
   r = await call("GET", "/api/teacher/sheets/" + code + "/submissions", { auth });
   assert.equal(r.json.submissions.length, 1); assert.equal(r.json.next, null);
   assert.deepEqual(await openEnvelope(T.privateKey, r.json.submissions[0].envelope), payload);
@@ -655,7 +704,7 @@ test("feedback without configured AI → 503; sheet without instructions for the
   assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured");
   const c2 = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "", tasks: [{ text: "Frei" }] } })).json.code;
   r = await call("POST", "/api/feedback", { body: { code: c2, answers: ["egal"] } });
-  assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }] });
+  assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }], aiGenerated: false });
 });
 
 test("lockouts count only failures per (hashed) IP; correct door code and password always pass; IPv6 by /64", async () => {
@@ -706,6 +755,383 @@ test("feedback counts only valid AI calls (per IP, chars, per sheet/day); BUSY/R
     assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy"); assert.ok(r.json.retryAfter >= 5 && r.json.retryAfter <= 60, "retryAfter " + r.json.retryAfter);
     assert.equal(r.headers.get("retry-after"), String(r.json.retryAfter));
   } finally { RATE.feedback.max = saved.f; RATE.sheet_feedback.max = saved.s; mock.setMode("ok"); }
+});
+
+test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Empfänger; Feedback und Test über env.AI; lokal CONFIG; Tageskontingent mit Sperre bis 0:00 UTC, Reserve mit vollem Budget, sonst 503 ai_quota ohne Zählung", async () => {
+  const cf = mockAIBinding(mock), CFENV = { ...ENV, AI: cf };
+  const CF_LABEL = "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert";
+  const mockId = "custom:127.0.0.1:" + mock.port, GEMMA = "@cf/google/gemma-4-26b-a4b-it";
+  const lockRow = () => d1.db.prepare("SELECT until FROM ai_skip WHERE provider='cloudflare' AND model='*'").get();
+  const usageRow = () => d1.db.prepare("SELECT requests, neurons FROM ai_usage WHERE provider='cloudflare' AND day=?").get(new Date().toISOString().slice(0, 10));
+  d1.db.prepare("DELETE FROM settings WHERE key='ai'").run(); d1.db.prepare("DELETE FROM ai_skip").run(); d1.db.prepare("DELETE FROM ai_usage").run();
+  try {
+    // Frisch: Vorauswahl cloudflare, aber nicht gespeichert → nicht nutzbar, keine Empfänger, kein Feedback
+    let r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.deepEqual({ p: r.json.provider, k: r.json.hasKey, ready: r.json.ready, kl: r.json.keyless, saved: r.json.saved }, { p: "cloudflare", k: false, ready: false, kl: true, saved: false });
+    r = await call("POST", "/api/teacher/sheets", { auth, env: CFENV, body: { title: "CF", tasks } });
+    assert.equal(r.status, 200, r.text); const c = r.json.code;
+    r = await call("GET", "/api/sheet/" + c, { env: CFENV });
+    assert.equal(r.json.sheet.aiRecipients, undefined); assert.equal(r.json.sheet.aiProvider, null);
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured"); assert.equal(cf.calls.length, 0);
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 400); assert.match(r.json.error, /Noch nicht gespeichert/);
+    // Eine Reserve ohne gespeicherten ersten Anbieter wäre der einzige Empfänger, während die Übersicht „nicht eingerichtet“ zeigt:
+    // abgelehnt; ältere Einstellungen dieser Art geben der Reserve keine Schülertexte
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { reserve: { provider: "cloudflare", model: "" } } });
+    assert.equal(r.status, 400); assert.equal(r.json.error, "Bitte zuerst den ersten Anbieter speichern – die Reserve-KI springt nur für ihn ein.");
+    assert.equal(settingsRow("ai"), null);
+    d1.db.prepare("INSERT INTO settings(key,value) VALUES('ai',?)").run(JSON.stringify({ reserve: { provider: "cloudflare", model: "" } }));
+    r = await call("GET", "/api/sheet/" + c, { env: CFENV });
+    assert.equal(r.json.sheet.aiRecipients, undefined);
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured"); assert.equal(cf.calls.length, 0);
+    r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.equal(r.json.saved, false); assert.equal(r.json.reserve.provider, "cloudflare");   // sichtbar (und entfernbar) bleibt sie
+    d1.db.prepare("DELETE FROM settings WHERE key='ai'").run();
+    // Erst custom mit Schlüssel, dann Wechsel auf cloudflare ohne Schlüssel → erlaubt, der Schlüssel verschwindet
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-x-1234" } });
+    assert.equal(r.status, 200, r.text);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "", apiKey: "geheim" } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /kein API-Schlüssel nötig/);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "openai/gpt-oss-120b" } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /„@cf\/“/);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: { ...CFENV, SETTINGS_SECRET: undefined }, body: { provider: "cloudflare", model: "" } });
+    assert.equal(r.status, 200, r.text);   // ohne SETTINGS_SECRET speicherbar (kein Schlüssel)
+    assert.deepEqual({ ready: r.json.ready, k: r.json.hasKey, h: r.json.keyHint, saved: r.json.saved, w: r.json.warning, err: r.json.keyError }, { ready: true, k: true, h: "", saved: true, w: undefined, err: undefined });
+    assert.match(r.json.tierNote, /10\.000 Neurons/); assert.equal(r.json.modelCount, undefined);
+    let s = settingsRow("ai"); assert.equal(s.apiKeyEnc, undefined); assert.equal(s.provider, "cloudflare"); assert.equal(JSON.stringify(s).includes("sk-x"), false);
+    assert.deepEqual(s.fallbacks, [GEMMA, "@cf/zai-org/glm-4.7-flash", "@cf/qwen/qwen3-30b-a3b-fp8"]);
+    // Empfänger: Rechtsträger und Sitz
+    r = await call("GET", "/api/sheet/" + c, { env: CFENV });
+    assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "cloudflare", label: CF_LABEL, transfer: "EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln" }]); assert.equal(r.json.sheet.aiProvider, "Cloudflare Workers AI");
+    // Ohne Binding (älterer Deploy): kein Empfänger, die Lehrkraft sieht den Grund; Speichern geht mit Warnung
+    r = await call("GET", "/api/sheet/" + c, { env: ENV });
+    assert.equal(r.json.sheet.aiRecipients, undefined);
+    r = await call("GET", "/api/teacher/ai", { auth, env: ENV });
+    assert.equal(r.json.ready, false); assert.equal(r.json.saved, true); assert.match(r.json.keyError, /Binding „AI“ fehlt/);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: ENV, body: { provider: "cloudflare", model: "" } });
+    assert.equal(r.status, 200); assert.match(r.json.warning, /^Gespeichert, aber: Workers AI ist für diesen Worker nicht eingerichtet/);
+    // Verbindungstest über das Binding: kurze Ausgabegrenze, Token-Zahlen (ohne Inhalt) für die Lehrkraft, Verbrauch gezählt
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.sample, "Verbindung steht."); assert.equal(r.json.modelCount, 3);
+    assert.equal(cf.calls.at(-1).inputs.max_completion_tokens, 200);
+    assert.ok(r.json.usage.prompt_tokens > 0 && r.json.usage.completion_tokens > 0); assert.equal(r.json.usage.reasoning_tokens, 0);
+    assert.equal(usageRow().requests, 1);
+    // Feedback über das Binding: Gemma mit Denkmodus aus und Ausgabegrenze 800 + 300 je Aufgabe, ≤ 18 D1-Abfragen
+    cf.calls = []; mock.reset();
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Pflanzen brauchen Licht.", "x"], recipients: ["cloudflare"] } });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, expectedResults(tasks, ["Pflanzen brauchen Licht.", "x"]));
+    assert.equal(cf.calls.length, 1); assert.equal(cf.calls[0].model, GEMMA);
+    assert.deepEqual(mock.state.requests[0].chat_template_kwargs, { enable_thinking: false }); assert.equal(mock.state.requests[0].max_completion_tokens, 1100);
+    assert.deepEqual(Object.keys(cf.calls[0].opts).sort(), ["returnRawResponse", "signal"]);
+    assert.ok(r.queries <= 18, "D1-Abfragen: " + r.queries);
+    assert.equal(usageRow().requests, 2); assert.ok(usageRow().neurons > 0);
+    r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.equal(r.json.usage.requests, 2); assert.equal(r.json.usage.limit, 10000); assert.equal(r.json.quotaUntil, null);
+    // Lokal (wrangler dev --local): Binding da, Aufruf scheitert → Feedback 503 ai_not_configured, Test 502 mit Hinweis
+    cf.mode = "local";
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });
+    assert.equal(r.status, 503); assert.equal(r.json.code, "ai_not_configured");
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 502); assert.equal(r.json.aiCode, "CONFIG"); assert.match(r.json.error, /lokalen Entwicklung/);
+    cf.mode = "ok";
+    // Eine Reserve im selben Cloudflare-Konto bringt nichts: abgelehnt – in beiden Reihenfolgen
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { reserve: { provider: "cloudflare", model: "" } } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /selben Cloudflare-Konto/);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-y-5678", reserve: { provider: "cloudflare", model: "" } } });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.reserve.ready, true);
+    r = await call("GET", "/api/sheet/" + c, { env: CFENV });
+    assert.deepEqual(r.json.sheet.aiRecipients.map((x) => x.id), [mockId, "cloudflare"]);
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "" } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /selben Cloudflare-Konto/);
+    assert.equal(settingsRow("ai").provider, "custom");   // unverändert
+    // Workers AI zuerst, Reserve custom mit vier Modellen: Tageskontingent (3036) → die Reserve antwortet; danach fragt der
+    // Server Workers AI bis 0:00 UTC nicht mehr, und die Reserve bekommt das volle Budget (6 statt 3 Versuche)
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "", reserve: { provider: "custom", model: "mock-extra", baseUrl: mock.url, apiKey: "sk-r-5555" } } });
+    assert.equal(r.status, 200, r.text);
+    cf.mode = "cf3036"; cf.calls = []; mock.reset();
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""], recipients: ["cloudflare", mockId] }, ip: "203.0.113.90" });
+    assert.equal(r.status, 200, r.text); assert.equal(cf.calls.length, 1); assert.equal(mock.state.requests.length, 1);
+    assert.equal(lockRow().until, nextUtcMidnight());
+    r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.equal(r.json.quotaUntil, nextUtcMidnight());
+    cf.calls = []; mock.reset(); mock.setMode("badjson");
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""], recipients: ["cloudflare", mockId] }, ip: "203.0.113.91" });
+    assert.equal(r.status, 502); assert.equal(r.json.aiCode, "BAD_JSON");
+    assert.equal(cf.calls.length, 0, "keine Anfrage an Workers AI bis 0:00 UTC");
+    assert.deepEqual(mock.state.requests.map((q) => q.model).sort(), ["llama-3.3-70b-versatile", "mock-extra", "openai/gpt-oss-120b", "qwen/qwen3-32b"], "volles Budget: alle vier Modelle (Startmodell zufällig versetzt)");
+    mock.setMode("ok"); d1.db.prepare("DELETE FROM ai_skip WHERE provider='custom'").run();
+    // Erneutes Speichern hebt die Sperre nicht auf (sie gilt für das Konto); ohne Reserve: 503 ai_quota ohne Retry-After und ohne Zählung
+    r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "cloudflare", model: "", reserve: null } });
+    assert.equal(r.status, 200); assert.equal(r.json.quotaUntil, nextUtcMidnight()); assert.ok(lockRow());
+    const saved = RATE.feedback.max;
+    RATE.feedback.max = 1;
+    try {
+      for (let k = 0; k < 2; k++) {
+        r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] }, ip: "203.0.113.92" });
+        assert.equal(r.status, 503); assert.equal(r.json.code, "ai_quota"); assert.equal(r.json.error, "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.");
+        assert.equal(r.headers.get("retry-after"), null); assert.equal(r.json.retryAfter, undefined);
+      }
+      assert.equal(cf.calls.length, 0);
+      // Ohne Sperre trifft der Aufruf selbst auf 3036: gezählt wird erst, dann erstattet; die Sperre entsteht sofort
+      d1.db.prepare("DELETE FROM ai_skip").run();
+      r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] }, ip: "203.0.113.93" });
+      assert.equal(r.status, 503); assert.equal(r.json.code, "ai_quota"); assert.equal(cf.calls.length, 1); assert.ok(lockRow());
+      const b = await bucketOf("feedback", "203.0.113.93", SECRET);
+      assert.equal(d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(b).count, 0, "Zählung erstattet");
+    } finally { RATE.feedback.max = saved; }
+    // Ein erfolgreicher Verbindungstest (z. B. nach einem Wechsel auf Workers Paid) hebt die Sperre auf
+    cf.mode = "ok";
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 200, r.text); assert.equal(lockRow(), undefined);
+    r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
+    assert.equal(r.json.quotaUntil, null);
+    // Der Verbindungstest selbst auf 3036: Sperre sofort (Schüler:innen bekommen dann gleich ai_quota)
+    cf.mode = "cf3036";
+    r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
+    assert.equal(r.status, 502); assert.equal(r.json.aiCode, "DAILY_LIMIT"); assert.match(r.json.error, /Tageskontingent von Workers AI/); assert.ok(lockRow());
+    // Unbekannte Ablehnung (400) bei allen Modellen → kein HTTP-Abbruch nach dem ersten Modell, sondern alle Modelle versucht;
+    // gesperrt werden sie nur kurz (TTL.soft) – eine einzelne seltsame Anfrage ändert die Modellfolge nicht für einen ganzen Tag
+    d1.db.prepare("DELETE FROM ai_skip").run(); cf.mode = "cf400"; cf.calls = [];
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] }, ip: "203.0.113.94" });
+    assert.equal(r.status, 502); assert.equal(r.json.code, "ai_error");
+    assert.deepEqual([...new Set(cf.calls.map((x) => x.model))], [GEMMA, "@cf/zai-org/glm-4.7-flash"], "6 Versuche: Gemma dreimal, GLM dreimal");
+    assert.equal(cf.calls.length, 6);
+    assert.deepEqual(cf.calls.slice(0, 3).map((x) => [!!x.inputs.chat_template_kwargs, !!x.inputs.response_format]), [[true, true], [true, false], [false, false]], "erst ohne JSON-Modus, Denkmodus bleibt aus");
+    const locks = d1.db.prepare("SELECT model, until FROM ai_skip WHERE provider='cloudflare' AND model<>'*'").all();
+    assert.equal(locks.length, 2); assert.ok(locks.every((x) => x.until - Date.now() <= TTL.soft), JSON.stringify(locks));
+    // Aufräumen: alte Verbrauchszeilen (älter als zwei Tage) verschwinden beim gelegentlichen Aufräumen
+    d1.db.prepare("INSERT INTO ai_usage VALUES('2000-01-01','cloudflare',5,10)").run();
+    const rnd = Math.random; Math.random = () => 0;
+    try { await call("GET", "/api/sheet/" + c, { env: CFENV }); } finally { Math.random = rnd; }
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM ai_usage WHERE day='2000-01-01'").get().n, 0);
+    assert.ok(usageRow(), "heutige Zeile bleibt");
+    assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
+  } finally {
+    cf.mode = "ok"; mock.setMode("ok");
+    d1.db.prepare("DELETE FROM ai_skip").run();
+    await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: null } });
+  }
+});
+
+// D1-Abfragen je Feedback (Anweisungen eines Batches einzeln gezählt, Schema schon angelegt): Aufräumen 3 + Blatt/Einstellungen 2 +
+// Sperren je Eintrag 1 + Zählung 3 + je Versuch ≤ 3 (Warteschlange voll: Reservierung + Nachfrage 2; sonst Reservierung + Sperre)
+// + Verbrauch/Sperre 2 + Erstattung 3 → ohne Reserve (6 Versuche) ≤ 32, mit Reserve (6 + 3 Versuche) ≤ 42 – unter der Grenze 50
+test("feedback: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräumen, Erstattung) bleibt unter der Grenze von 42 D1-Abfragen", async () => {
+  const cf = mockAIBinding(mock), CFENV = { ...ENV, AI: cf };
+  let r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: { provider: "cloudflare", model: "" } } });
+  assert.equal(r.status, 200, r.text);
+  r = await call("POST", "/api/teacher/sheets", { auth, env: CFENV, body: { title: "D1", tasks } });
+  assert.equal(r.status, 200, r.text); const c = r.json.code;
+  const full = d1.db.prepare("INSERT INTO ai_gate(provider,next_at) VALUES(?,?) ON CONFLICT(provider) DO UPDATE SET next_at=excluded.next_at");
+  for (const k of ["custom", "cloudflare"]) full.run(k, Date.now() + 120000);   // beide Warteschlangen 2 Minuten voll
+  const rnd = Math.random; Math.random = () => 0;   // das gelegentliche Aufräumen läuft mit
+  try {
+    cf.calls = []; mock.reset();
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""], recipients: ["custom:127.0.0.1:" + mock.port, "cloudflare"] }, ip: "203.0.113.96" });
+  } finally { Math.random = rnd; d1.db.prepare("DELETE FROM ai_gate").run(); }
+  assert.equal(r.status, 429, r.text); assert.equal(r.json.code, "ai_busy");
+  assert.equal(cf.calls.length, 0); assert.equal(mock.state.requests.length, 0);   // nichts ging an eine KI
+  console.log("# D1-Abfragen im ungünstigen Fall mit Reserve: " + r.queries);
+  assert.ok(r.queries >= 30 && r.queries <= 42, "D1-Abfragen: " + r.queries);
+  assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
+  assert.equal((await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } })).status, 200);
+});
+
+/* ---------- Datenschutz-Angaben und Löschfrist ---------- */
+const DAY = 864e5;
+const SCHOOL = { name: "Musterschule Wiesbaden", address: "Musterstraße 1, 65185 Wiesbaden", dpo: "Datenschutz am Schulamt, ds@example.org",
+  url: "https://example.org/datenschutz", legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs. 1 HSchG", authority: "HBDI, Postfach 3163, 65021 Wiesbaden" };
+async function submitAt(c, ago, stage = "final") {   // Abgabe bzw. Erstversuch, danach per D1 zurückdatiert
+  const envelope = await makeEnvelope(T.publicKey, { v: 1, sheetCode: c, person: { vorname: "Ann", nachname: "Al", geburtsdatum: "--03-03", klasse: "5a" }, answers: [{ first: "a", final: "b" }] });
+  const r = await call("POST", "/api/submit", { body: stage === "first" ? { code: c, envelope, stage, attempt: crypto.getRandomValues(new Uint8Array(8)).reduce((s, b) => s + b.toString(16).padStart(2, "0"), "") } : { code: c, envelope }, ip: "198.51.100.230" });
+  assert.equal(r.status, 200, r.text);
+  d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(Date.now() - ago, r.json.id);
+  return r.json.id;
+}
+const idsOf = (c) => d1.db.prepare("SELECT id FROM submissions WHERE sheet_code=? ORDER BY id").all(c).map((x) => x.id);
+
+// Das gelegentliche Aufräumen (2 % der Anfragen) löschte sonst zurückdatierte Einträge nach der gespeicherten Frist, bevor der Test sie zählt
+const noRandomCleanup = () => { const rnd = Math.random; Math.random = () => 0.5; return () => { Math.random = rnd; }; };
+
+test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht sofort (Batch); öffentlich ohne updatedAt/auto und ohne zusätzliche D1-Abfrage", async () => {
+  const restoreRandom = noRandomCleanup();
+  const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
+  const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "DS", tasks } })).json.code;
+  try {
+    for (const m of ["GET", "PUT"]) assert.equal((await call(m, "/api/teacher/privacy", { body: m === "PUT" ? { retentionDays: 7 } : undefined })).status, 401);
+    const recent = await submitAt(c, 2 * DAY), mid = await submitAt(c, 20 * DAY, "first"), old = await submitAt(c, 100 * DAY);
+    let r = await call("GET", "/api/teacher/privacy", { auth });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.defaults, { retentionDays: 30, options: [7, 14, 30, 60, 90, 180, 365], min: 7, max: 365 });
+    assert.deepEqual(Object.keys(r.json.olderThan), ["7", "14", "30", "60", "90", "180", "365"]);
+    assert.equal(r.json.olderThan["14"] - r.json.olderThan["30"], 1);   // der Erstversuch von vor 20 Tagen
+    assert.ok(r.json.olderThan["90"] >= 1 && r.json.olderThan["180"] === 0);
+    assert.ok(Array.isArray(r.json.aiRecipients));
+    // ungültig → 400, nichts gespeichert, nichts gelöscht
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: { ...SCHOOL, url: "http://example.org" }, retentionDays: 14 } });
+    assert.equal(r.status, 400); assert.match(r.json.error, /https:\/\//);
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 3 } });
+    assert.equal(r.status, 400); assert.equal(r.json.error, "Bitte wählen Sie eine Löschfrist zwischen 7 und 365 Tagen.");
+    assert.deepEqual(idsOf(c), [recent, mid, old]);
+    // ohne Bestätigung (confirmDelete fehlt bzw. zu klein): 409 mit der aktuellen Zahl, nichts gespeichert, nichts gelöscht
+    const before = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 14 } });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "confirm_delete");
+    const would = r.json.wouldDelete;
+    assert.ok(would >= 2); assert.equal(r.json.olderThan["14"], would);
+    assert.match(r.json.error, /mehr, als Sie bestätigt haben\. Es wurde nichts gespeichert und nichts gelöscht\./);
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 14, confirmDelete: would - 1 } });
+    assert.equal(r.status, 409);
+    assert.deepEqual(d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get(), before);
+    assert.deepEqual(idsOf(c), [recent, mid, old]);
+    // bestätigt: gespeichert und im selben Batch gelöscht – Erstversuch (20 Tage) und Abgabe (100 Tage), die von vor 2 Tagen bleibt
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: { ...SCHOOL, name: " Muster\nschule\u202E " }, retentionDays: 14, confirmDelete: would, extra: "weg" } });
+    assert.equal(r.status, 200, r.text);
+    assert.ok(r.json.deleted >= 2); assert.equal(r.json.complete, true); assert.equal(r.json.olderThan["14"], 0);
+    assert.deepEqual(idsOf(c), [recent]);
+    const st = settingsRow("privacy");
+    assert.deepEqual(Object.keys(st).sort(), ["retentionDays", "school", "updatedAt", "v"]);   // kein auto mehr, kein fremdes Feld
+    assert.equal(st.school.name, "Muster schule"); assert.equal(st.retentionDays, 14);
+    r = await call("GET", "/api/teacher/privacy", { auth });
+    assert.equal(r.json.privacy.auto, false); assert.equal(r.json.complete, true);
+    // öffentlich: Schulangaben und Frist, nichts Internes; dieselbe Zahl D1-Abfragen wie vorher (ein IN statt zwei Zeilen)
+    const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen zählen
+    try { r = await call("GET", "/api/sheet/" + c); } finally { Math.random = rnd; }
+    assert.deepEqual(r.json.sheet.privacy, { school: { ...SCHOOL, name: "Muster schule" }, retentionDays: 14 });
+    assert.equal(r.queries, 4);   // Blatt, Einstellungen (teacher, ai, privacy), Bilder, Dateien
+    assert.equal(/solution|Chloroplasten/.test(r.text), false);
+    // eine von Hand verdorbene Zeile: keine Frist, kein Fehler
+    d1.db.prepare("UPDATE settings SET value='kaputt{' WHERE key='privacy'").run();
+    r = await call("GET", "/api/sheet/" + c);
+    assert.equal(r.status, 200); assert.equal(r.json.sheet.privacy, null);
+    assert.equal((await call("GET", "/api/teacher/sheets", { auth })).status, 200);
+  } finally {
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(saved.value);
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    restoreRandom();
+  }
+});
+
+test("Aufräumen beim Öffnen der Übersicht: abgelaufene Einträge zählen nicht mehr, abgelaufene Zähler und Sperren verschwinden; scheitert das Löschen, lädt die Übersicht trotzdem", async () => {
+  const restoreRandom = noRandomCleanup();
+  const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
+  const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Übersicht", tasks } })).json.code;
+  try {
+    await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 7 } });
+    await submitAt(c, 1 * DAY); const oldId = await submitAt(c, 9 * DAY); await submitAt(c, 8 * DAY, "first");
+    d1.failIf = (sql) => sql.startsWith("DELETE FROM submissions WHERE received_at");
+    let r;
+    try { r = await call("GET", "/api/teacher/sheets", { auth }); } finally { d1.failIf = null; }
+    assert.equal(r.status, 200, r.text);
+    let row = r.json.sheets.find((x) => x.code === c);
+    assert.deepEqual([row.submissionCount, row.firstCount], [2, 1]);   // nichts gelöscht, Übersicht trotzdem da
+    const now = Date.now();
+    d1.db.prepare("INSERT OR REPLACE INTO rate_limits(bucket,count,reset_at) VALUES('list:alt',1,?),('list:neu',1,?)").run(now - 1000, now + 600e3);
+    d1.db.prepare("INSERT OR REPLACE INTO ai_skip(provider,model,until,reason) VALUES('list','alt',?, 'x'),('list','neu',?, 'x')").run(now - 1000, now + 600e3);
+    const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen: das Öffnen der Übersicht räumt selbst auf
+    try { r = await call("GET", "/api/teacher/sheets", { auth }); } finally { Math.random = rnd; }
+    row = r.json.sheets.find((x) => x.code === c);
+    assert.deepEqual([row.submissionCount, row.firstCount], [1, 0]);
+    assert.equal(idsOf(c).includes(oldId), false);
+    assert.deepEqual(d1.db.prepare("SELECT bucket FROM rate_limits WHERE bucket LIKE 'list:%'").all().map((x) => x.bucket), ["list:neu"]);
+    assert.deepEqual(d1.db.prepare("SELECT model FROM ai_skip WHERE provider='list'").all().map((x) => x.model), ["neu"]);
+    d1.db.prepare("DELETE FROM rate_limits WHERE bucket LIKE 'list:%'").run(); d1.db.prepare("DELETE FROM ai_skip WHERE provider='list'").run();
+  } finally {
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(saved.value);
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    restoreRandom();
+  }
+});
+
+test("scheduled (Cron 17 2 * * *): Löschfrist und Aufräumen in einem Batch auf der gemeinsamen D1; frische Datenbank: Schema, nichts gelöscht", async () => {
+  const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
+  const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Cron", tasks } })).json.code;
+  try {
+    await call("PUT", "/api/teacher/privacy", { auth, body: { school: {}, retentionDays: 30 } });
+    const keep = await submitAt(c, 29 * DAY), gone = await submitAt(c, 31 * DAY);
+    const now = Date.now();
+    d1.db.prepare("INSERT OR REPLACE INTO rate_limits(bucket,count,reset_at) VALUES('cron:alt',1,?),('cron:neu',1,?)").run(now - 1000, now + 600e3);
+    d1.db.prepare("INSERT OR REPLACE INTO ai_skip(provider,model,until,reason) VALUES('cron','alt',?, 'x'),('cron','neu',?, 'x')").run(now - 1000, now + 600e3);
+    d1.queries = 0;
+    await worker.scheduled({ cron: "17 2 * * *", scheduledTime: now }, ENV, { waitUntil() {} });
+    assert.ok(d1.queries <= 5, "D1-Abfragen: " + d1.queries);   // Schema steht schon: ein Batch mit vier Anweisungen
+    assert.deepEqual(idsOf(c), [keep]); assert.notEqual(keep, gone);
+    assert.deepEqual(d1.db.prepare("SELECT bucket FROM rate_limits WHERE bucket LIKE 'cron:%'").all().map((x) => x.bucket), ["cron:neu"]);
+    assert.deepEqual(d1.db.prepare("SELECT model FROM ai_skip WHERE provider='cron'").all().map((x) => x.model), ["neu"]);
+    // scheduledTime zählt (lokal: /cdn-cgi/local/scheduled?time=…): zwei Tage später ist auch die 29 Tage alte Abgabe fällig
+    await worker.scheduled({ cron: "17 2 * * *", scheduledTime: now + 2 * DAY }, ENV, {});
+    assert.deepEqual(idsOf(c), []);
+    // frisch importiertes Modul (eigenes schemaReady) auf einer neuen D1: legt das Schema an, ohne Frist wird nichts gelöscht
+    const fresh = (await import("../../worker/index.js?scheduled")).default, d2 = makeD1();
+    await fresh.scheduled({ scheduledTime: now }, { DB: d2 }, {});
+    assert.ok(d2.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_submissions_received'").get());
+    assert.ok(d2.queries <= 50, "D1-Abfragen frisch: " + d2.queries);
+  } finally {
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(saved.value);
+    d1.db.prepare("DELETE FROM rate_limits WHERE bucket LIKE 'cron:%'").run(); d1.db.prepare("DELETE FROM ai_skip WHERE provider='cron'").run();
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  }
+});
+
+test("Zurücksetzen des Zugangs (Passwort vergessen): eine gespeicherte Frist bleibt; ohne Frist und mit Blättern wird keine Vorgabe angelegt", async () => {
+  const teacher = d1.db.prepare("SELECT value FROM settings WHERE key='teacher'").get().value;
+  const privacy = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get().value;
+  const setup = () => call("POST", "/api/teacher/setup", { body: { doorCode: "1104", authKey: auth, kdf: T.kdf, publicKey: T.publicKey, encPrivateKey: T.encPrivateKey } });
+  try {
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(JSON.stringify({ v: 1, school: { name: "X" }, retentionDays: 90, updatedAt: 1 }));
+    d1.db.prepare("DELETE FROM settings WHERE key='teacher'").run();
+    assert.equal((await setup()).status, 200);
+    assert.equal(settingsRow("privacy").retentionDays, 90); assert.equal(settingsRow("privacy").auto, undefined);
+    d1.db.prepare("DELETE FROM settings WHERE key IN ('teacher','privacy')").run();
+    assert.ok(d1.db.prepare("SELECT COUNT(*) AS n FROM sheets").get().n > 0);   // bestehende Installation mit Blättern
+    assert.equal((await setup()).status, 200);
+    assert.equal(settingsRow("privacy"), null, "keine automatische Löschung ohne Entscheidung der Lehrkraft");
+    assert.equal((await setup()).status, 409);   // schon eingerichtet: nichts geändert
+    assert.equal(settingsRow("privacy"), null);
+  } finally {
+    d1.db.prepare("INSERT INTO settings(key,value) VALUES('teacher',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(teacher);
+    d1.db.prepare("INSERT INTO settings(key,value) VALUES('privacy',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(privacy);
+  }
+});
+
+test("einzelne Einträge löschen (Löschwunsch einer Person): nur die genannten ids dieses Blattes; Grenzen; ohne Body alle", async () => {
+  const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Einzeln", tasks } })).json.code;
+  const other = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Anderes", tasks } })).json.code;
+  try {
+    const a = await submitAt(c, 0), b = await submitAt(c, 0, "first"), keep = await submitAt(c, 0), foreign = await submitAt(other, 0);
+    const del = (code, body, opts = {}) => call("DELETE", "/api/teacher/sheets/" + code + "/submissions", { auth, body, ...opts });
+    assert.equal((await call("DELETE", "/api/teacher/sheets/" + c + "/submissions", { body: { ids: [a] } })).status, 401);
+    // ungültig → 400, nichts gelöscht (ein Body ohne gültige ids löscht nie alles)
+    for (const body of [{}, { ids: [] }, { ids: Array.from({ length: 51 }, (_, i) => i + 1) }, { ids: [0] }, { ids: [-1] }, { ids: [1.5] }, { ids: ["1"] }, { ids: [a, null] }, { ids: a }]) {
+      const r = await del(c, body);
+      assert.equal(r.status, 400, JSON.stringify(body)); assert.equal(r.json.code, "bad_request");
+      assert.equal(r.json.error, "Bitte geben Sie 1 bis 50 Einträge zum Löschen an.");
+    }
+    let r = await del(c, undefined, { raw: "[1]" });
+    assert.equal(r.status, 400); assert.equal(r.json.code, "bad_json");
+    assert.deepEqual(idsOf(c), [a, b, keep]);
+    // die Abgabe und der Erstversuch derselben Person (doppelt genannt) – dazu eine id eines anderen Blattes: die bleibt
+    r = await del(c, { ids: [a, b, b, foreign] });
+    assert.equal(r.status, 200, r.text); assert.deepEqual(r.json, { ok: true, deleted: 2 });
+    assert.deepEqual(idsOf(c), [keep]); assert.deepEqual(idsOf(other), [foreign]);
+    r = await del(c, { ids: [a] });   // schon gelöscht
+    assert.deepEqual(r.json, { ok: true, deleted: 0 });
+    r = await del("K7QM4X", { ids: [keep] });   // unbekanntes Blatt
+    assert.equal(r.status, 404); assert.deepEqual(idsOf(c), [keep]);
+    r = await del(c, { ids: Array.from({ length: 50 }, (_, i) => keep + i) });   // 50 ids gehen (gebunden)
+    assert.deepEqual(r.json, { ok: true, deleted: 1 });
+    // ohne Body wie bisher: alle Einträge des Blattes
+    await submitAt(c, 0); await submitAt(c, 0, "first");
+    r = await del(c);
+    assert.deepEqual(r.json, { ok: true, deleted: 2 });
+    assert.deepEqual(idsOf(c), []); assert.deepEqual(idsOf(other), [foreign]);
+  } finally {
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    await call("DELETE", "/api/teacher/sheets/" + other, { auth });
+  }
 });
 
 test("password change keeps key pair; delete flow", async () => {

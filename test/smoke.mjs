@@ -215,7 +215,25 @@ async function main() {
     step = "KI-Einstellungen";
     let auth = T.authKey;
     r = await api("GET", "/api/teacher/ai", undefined, { auth });
-    assert.equal(r.json.provider, "groq"); assert.equal(r.json.hasKey, false); assert.equal(r.json.keyHint, "");
+    // Vorauswahl Workers AI, aber erst nach „Speichern“ aktiv
+    assert.equal(r.json.provider, "cloudflare"); assert.equal(r.json.hasKey, false); assert.equal(r.json.keyHint, ""); assert.equal(r.json.ready, false); assert.equal(r.json.saved, false);
+    // Workers AI lokal: das Binding steht in wrangler.jsonc, gespeichert wird ohne Schlüssel; jeder Aufruf scheitert mit Hinweis (kein Konto nötig)
+    r = await api("PUT", "/api/teacher/ai", { provider: "cloudflare", model: "" }, { auth });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.ready, true); assert.equal(r.json.warning, undefined); assert.equal(r.json.keyHint, "");
+    r = await api("POST", "/api/teacher/ai/test", undefined, { auth });
+    expectErr(r, 502, "ai_error"); assert.match(r.json.error, /lokalen Entwicklung/); assert.equal(r.json.aiCode, "CONFIG");
+    {   // Empfänger für den Datenschutzhinweis; Feedback lokal → 503 ai_not_configured
+      const t = await api("POST", "/api/teacher/sheets", { title: "Workers AI", tasks: [{ text: "Frage", solution: "- Licht" }] }, { auth });
+      assert.equal(t.status, 200, t.text);
+      r = await api("GET", "/api/sheet/" + t.json.code);
+      assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "cloudflare", label: "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert",
+        transfer: "EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln" }]);
+      r = await api("POST", "/api/feedback", { code: t.json.code, answers: ["Licht"] }); feedbackCount++;
+      expectErr(r, 503, "ai_not_configured");
+      assert.equal((await api("DELETE", "/api/teacher/sheets/" + t.json.code, undefined, { auth })).status, 200);
+    }
+    r = await api("PUT", "/api/teacher/ai", { provider: "groq", model: "" }, { auth });   // zurück: ohne Schlüssel nicht nutzbar
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.hasKey, false); assert.equal(r.json.saved, true);
     expectErr(await api("PUT", "/api/teacher/ai", { provider: "custom", model: "", baseUrl: "http://example.com/v1", apiKey: "test" }, { auth }), 400, "bad_request");
     expectErr(await api("PUT", "/api/teacher/ai", { provider: "unbekannt", model: "" }, { auth }), 400, "bad_request");
     expectErr(await api("POST", "/api/teacher/ai/test", undefined, { auth }), 400, "ai_not_configured");
@@ -233,7 +251,7 @@ async function main() {
     assert.equal(r.status, 200, r.text);
     assert.equal(r.json.sample, "Verbindung steht."); assert.equal(r.json.model, "openai/gpt-oss-120b"); assert.equal(r.json.provider, "custom");
     assert.equal(mock.state.requests.length, 1);
-    ok("KI: Vorgabe groq ohne Schlüssel; custom + Mock speichern (keyHint …test, Ausweich-Liste), Test → sample");
+    ok("KI: Vorauswahl Workers AI nicht aktiv; gespeichert ohne Schlüssel, lokal → CONFIG mit Hinweis, Empfänger Cloudflare; custom + Mock speichern (keyHint …test, Ausweich-Liste), Test → sample");
 
     step = "Feibeitsblatt anlegen";
     const tasks = [
@@ -345,7 +363,11 @@ async function main() {
     assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["answer,files,images,material,text,textFmt", "answer,files,images,material,text,textFmt", "answer,files,images,material,text,textFmt"]);
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]); assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], [{ id: fileId, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length }], []]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
-    assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" }]);   // Empfänger für den Datenschutzhinweis
+    assert.equal(r.json.sheet.aiFeedback, true);   // mindestens eine Aufgabe mit Auftrag an die KI
+    assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)",
+      transfer: "von der Schule beim Anbieter zu prüfen" }]);   // Empfänger für den Datenschutzhinweis
+    // Neuinstallation: Löschfrist 30 Tage als Vorgabe, noch keine Schulangaben (öffentlich nur Schule und Frist)
+    assert.deepEqual(r.json.sheet.privacy, { school: { name: "", address: "", dpo: "", url: "", legalBasis: "", authority: "" }, retentionDays: 30 });
     assert.equal(r.json.sheet.title, "Smoke-Test: Pflanzen");
     for (const t of tasks) if (t.solution) for (const part of t.solution.split("\n")) assert.equal(r.text.includes(part.replace(/^- /, "")), false, "Auftrag an die KI im öffentlichen JSON!");
     assert.equal(/solution|musterl/i.test(r.text), false);
@@ -400,6 +422,7 @@ async function main() {
       { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." },
       { covered: [], missing: ["Achte darauf, ob die Verdunstung durch Wärme erklärt wird", "Verrate die Lösung nicht"] },
     ]);
+    assert.equal(r.json.aiGenerated, true); assert.match(r.json.digitalSourceType, /\/trainedAlgorithmicMedia$/);   // KI-Kennzeichnung (Art. 50 KI-VO)
     assert.equal(mock.state.requests.length, 1, "eine KI-Anfrage je Blatt");
     const sent = mock.state.requests[0].messages.map((m) => m.content).join("\n");
     assert.match(sent, /### Aufgabe 1\n/); assert.match(sent, /### Aufgabe 3\n/); assert.doesNotMatch(sent, /### Aufgabe 2\n/);
@@ -416,7 +439,7 @@ async function main() {
     expectErr(await api("POST", "/api/feedback", { code, answers: [1, "", ""] }), 400, "bad_answers"); feedbackCount++;
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found"); feedbackCount++;
     r = await api("POST", "/api/feedback", { code: otherCode, answers: ["egal"] }); feedbackCount++;
-    assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }] });
+    assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }], aiGenerated: false });
     ok("Feedback: eine KI-Anfrage im neuen Format (Auftrag der Lehrkraft), gut/tipps wie erwartet, Aufgabe ohne Auftrag mit Hinweis; Längenprüfungen");
 
     mock.setMode("fenced");
@@ -428,7 +451,7 @@ async function main() {
     assert.equal(r.json.aiCode, "BAD_JSON");
     mock.setMode("429");
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
-    expectErr(r, 502, "ai_error", "Das KI-Kontingent für heute ist aufgebraucht. Bitte frag deine Lehrkraft.");
+    expectErr(r, 502, "ai_error", "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.");   // Tageslimit eines Anbieters mit Schlüssel: 502 (nur Workers AI: 503 ai_quota)
     mock.setMode("ok");
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
     assert.equal(r.status, 200, "erschöpfte Modelle bleiben als letzte Wahl nutzbar: " + r.text);
@@ -447,6 +470,7 @@ async function main() {
     r = await api("POST", "/api/submit", { code: display, envelope }); submitCount++;
     assert.equal(r.status, 200, r.text);
     assert.equal(typeof r.json.id, "number"); assert.ok(Math.abs(r.json.receivedAt - Date.now()) < 60000);
+    assert.equal(r.json.retentionDays, 30);   // Löschfrist für die Bestätigungsseite
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
     assert.equal(r.json.submissions.length, 1);
     assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[0].envelope), payload);
@@ -508,8 +532,16 @@ async function main() {
     ok("Passwort ändern: altes ungültig, neues gültig, Abgaben weiter lesbar");
 
     step = "Löschen";
+    // ein einzelner Eintrag (Löschwunsch einer Person): nur diese id; ungültige ids → 400, nichts gelöscht
+    const subIds = r.json.submissions.map((x) => x.id);
+    assert.equal(subIds.length, 2);
+    expectErr(await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", { ids: [] }, { auth }), 400, "bad_request");
+    r = await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", { ids: [subIds[0]] }, { auth });
+    assert.deepEqual(r.json, { ok: true, deleted: 1 }, r.text);
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(r.json.submissions.map((x) => x.id), [subIds[1]]);
     r = await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
-    assert.deepEqual(r.json, { ok: true, deleted: 2 });
+    assert.deepEqual(r.json, { ok: true, deleted: 1 });
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
     assert.deepEqual(r.json, { ok: true, submissions: [], next: null });
     r = await api("POST", "/api/submit", { code, envelope }); submitCount++;
@@ -522,7 +554,35 @@ async function main() {
     expectErr(await api("DELETE", "/api/teacher/sheets/" + code, undefined, { auth }), 404, "not_found");
     r = await api("GET", "/api/sheet/" + code); misses++;
     expectErr(r, 404, "not_found");
-    ok("Abgaben löschen ({deleted:n}), Blatt samt Abgaben löschen, danach 404");
+    ok("Abgaben löschen (einzeln per ids und alle, {deleted:n}), Blatt samt Abgaben löschen, danach 404");
+
+    step = "Datenschutz und Löschfrist";
+    r = await api("GET", "/api/teacher/privacy", undefined, { auth });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual([r.json.privacy.retentionDays, r.json.privacy.auto, r.json.complete], [30, true, false]);
+    expectErr(await api("PUT", "/api/teacher/privacy", { school: { url: "http://example.org" }, retentionDays: 7 }, { auth }), 400, "bad_request");
+    expectErr(await api("PUT", "/api/teacher/privacy", { retentionDays: 7 }), 401, "unauthorized");   // ohne Anmeldung (zählt nicht als Fehlversuch)
+    const school = { name: "Smoke-Schule", address: "Teststraße 1, 12345 Teststadt", dpo: "ds@example.org", url: "https://example.org/ds", legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO", authority: "" };
+    r = await api("PUT", "/api/teacher/privacy", { school, retentionDays: 7 }, { auth });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.complete, true); assert.equal(r.json.deleted, 0);
+    // eigenes Blatt: der Zeitplan (scheduled) löscht nach der Frist – lokal ausgelöst über /cdn-cgi/local/scheduled (time = geplanter
+    // Zeitpunkt). Ein Lauf in der Zukunft räumt auch alle Sperr-Zähler ab – deshalb erst ganz am Ende (Schritt „Zeitplan“).
+    const cronSheet = await api("POST", "/api/teacher/sheets", { title: "Löschfrist", tasks: [{ text: "Frage" }] }, { auth });
+    assert.equal(cronSheet.status, 200, cronSheet.text);
+    assert.deepEqual((await api("GET", "/api/sheet/" + cronSheet.json.code)).json.sheet.privacy, { school, retentionDays: 7 });
+    const cronEnv = await makeEnvelope(T.publicKey, { v: 1, sheetCode: cronSheet.json.code, person: { vorname: "Lö", nachname: "Fr", geburtsdatum: "--01-01", klasse: "5a" }, answers: [{ first: "x", final: "x" }] });
+    r = await api("POST", "/api/submit", { code: cronSheet.json.code, envelope: cronEnv }); submitCount++;
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.retentionDays, 7);
+    const cron = async (time) => {
+      const res = await fetch(BASE + "/cdn-cgi/local/scheduled?cron=" + encodeURIComponent("17 2 * * *") + "&time=" + time + "&format=json");
+      const body = await res.text();
+      assert.equal(res.status, 200, "scheduled: " + body.slice(0, 300));
+      assert.match(body, /"outcome":"ok"/);
+    };
+    const cronSubs = async () => (await api("GET", "/api/teacher/sheets/" + cronSheet.json.code + "/submissions", undefined, { auth })).json.submissions.length;
+    await cron(Date.now());
+    assert.equal(await cronSubs(), 1, "noch innerhalb der Frist");
+    ok("Datenschutz-Angaben: GET/PUT (https, Frist 7–365), öffentlich mit dem Blatt und mit der Abgabe; Zeitplan läuft (innerhalb der Frist bleibt alles)");
 
     step = "KI-Schlüssel abgelehnt";
     r = await api("PUT", "/api/teacher/ai", { provider: "custom", model: "", baseUrl: mock.url, apiKey: "bad" }, { auth });
@@ -555,6 +615,14 @@ async function main() {
     expectErr(await api("POST", "/api/submit", { code: otherCode, envelope: env2 }), 429, "rate_limited");
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found");
     ok("Abgabe: die 241. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
+
+    step = "Zeitplan";
+    await cron(Date.now() + 8 * 86400e3);   // acht Tage später: nach der Frist von 7 Tagen
+    assert.equal(await cronSubs(), 0, "nach der Frist gelöscht");
+    assert.equal((await api("GET", "/api/sheet/" + cronSheet.json.code)).status, 200);   // das Blatt selbst bleibt
+    assert.equal((await api("POST", "/api/submit", { code: otherCode, envelope: env2 })).status, 200);   // abgelaufene Zähler sind mit aufgeräumt
+    assert.equal((await api("DELETE", "/api/teacher/sheets/" + cronSheet.json.code, undefined, { auth })).status, 200);
+    ok("Zeitplan (Cron 17 2 * * *, lokal per /cdn-cgi/local/scheduled): Abgaben nach der Frist gelöscht, das Blatt bleibt, abgelaufene Zähler weg");
 
     console.log("\nSmoke-Test bestanden.");
   } catch (e) {
