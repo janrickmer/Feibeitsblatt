@@ -2767,7 +2767,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await closePage(t);
 });
 
-test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Erstversuchen mit vollem Geburtsdatum nur Tag und Monat; Erstversuch (altes Format) und Abgabe (neues Format) derselben Person gehören zusammen", async ({ browser, request }) => {
+test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Erstversuchen mit vollem Geburtsdatum nur Tag und Monat; Erstversuch (altes Format) und Abgabe (neues Format) derselben Person gehören zusammen – „Diesen Eintrag löschen“ löscht beide, alle anderen bleiben", async ({ browser, request }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -2801,6 +2801,29 @@ test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Ers
   await expect(mains.nth(1).locator("td:not(.arrowcol)")).toHaveText(["Un", "Ute", "15.06.", "9c"]);
   await expect(mains.nth(1).locator("td.st-first")).toHaveCount(2);
   await expect(mains.nth(2).locator("td:not(.arrowcol)")).toHaveText(["Wo", "Kim", "03.02.", "9c"]);
+
+  // Löschwunsch einer Person: „Diesen Eintrag löschen“ löscht Kims Abgabe samt dem ausgeblendeten Erstversuch, alle anderen bleiben
+  await mains.nth(2).click();
+  const detKim = tp.locator("#t-subs-body tr.details:visible");
+  await expect(detKim).toHaveCount(1);
+  await detKim.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
+  await expect(tp.locator("#dlg-ok")).toHaveText("Eintrag löschen");
+  expect(await confirmDialog(tp, "Diesen Eintrag löschen?", false)).toMatch(/^Die Abgabe von Wo · Kim \(Geburtstag 03\.02\., Klasse 9c\) vom \d\d\.\d\d\.\d{4}, \d\d:\d\d wird endgültig aus der Datenbank gelöscht – mitsamt einem älteren, ausgeblendeten Erstversuch derselben Person\. Alle anderen Einträge bleiben\. Das lässt sich nicht rückgängig machen\.$/);
+  expect(await d1Query(`SELECT COUNT(*) AS n FROM submissions WHERE sheet_code='${code}'`)).toEqual([{ n: 4 }]);   // Abbrechen ändert nichts
+  await detKim.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
+  await confirmDialog(tp, "Diesen Eintrag löschen?");
+  await expect(tp.locator("#t-subs-status")).toHaveText("2 Einträge gelöscht.");
+  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Abgabe · 1 Erstversuch ohne Überarbeitung");
+  await expect(mains).toHaveCount(2);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Ol", "Ole", "30.11.", "9c"]);
+  await expect(mains.nth(1).locator("td:not(.arrowcol)")).toHaveText(["Un", "Ute", "15.06.", "9c"]);
+  const [delCall] = await t.calls((r) => r.method === "DELETE" && r.path.endsWith("/submissions"));
+  const delIds = JSON.parse(delCall.reqBody).ids;
+  expect(delIds).toHaveLength(2);
+  const left = (await d1Query(`SELECT id, stage FROM submissions WHERE sheet_code='${code}' ORDER BY id`));
+  expect(left.map((r) => r.stage)).toEqual(["final", "first"]);   // Ole (Abgabe) und Ute (Erstversuch)
+  expect(left.some((r) => delIds.includes(r.id))).toBe(false);
+  await expect(tp.locator("#t-sheets-body tr", { hasText: "Übergang" }).locator("td").nth(4)).toHaveText(/^1 \+1/);   // Zähler neu geladen
 
   // aufräumen
   await tp.click("#t-del-sheet");
@@ -3272,7 +3295,7 @@ test("7e Formatierte Aufgabenstellung: Lehrkraft setzt ein Wort fett und fügt e
   await closePage(t);
 });
 
-test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (der Server löscht nie mehr als bestätigt), Verlängern erinnert an die neue Information, Laden/Speichern scheitert ohne Folgen; der tägliche Zeitplan löscht nach der Frist (lokal ausgelöst)", async ({ browser, request }) => {
+test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (der Server löscht nie mehr als bestätigt), Verlängern erinnert an die neue Information, Laden/Speichern scheitert ohne Folgen; aufgeklappte Abgaben nennen nach einer Friständerung sofort das neue Löschdatum; der tägliche Zeitplan löscht nach der Frist (lokal ausgelöst)", async ({ browser, request }) => {
   const t = await openPage(browser);
   const page = t.page;
   await teacherLogin(page, PW);
@@ -3368,6 +3391,25 @@ test("7i Löschfrist: Kürzen fragt nach und löscht ältere Einträge sofort (d
   await expect(page.locator("#t-privinfo")).toContainText(DAYS + " Tage nach dem Eingang automatisch gelöscht.");
   await expect(row.locator("td").nth(4)).toHaveText("1");
   await expect(page.locator("#t-subs-sum")).toHaveText("1 Abgabe");
+  // Frist ändern, ohne dass etwas gelöscht wird: ein schon aufgeklapptes Detail nennt sofort das neue Löschdatum
+  await page.locator("#t-subs-body tr.main").first().click();
+  const dmeta = page.locator("#t-subs-body tr.details:visible .dmeta");
+  const dmy = (x) => { const [d, m, y] = x.split(".").map(Number); return Date.UTC(y, m - 1, d); };
+  const keepDays = async () => {
+    const [, got, del] = /^Abgegeben am (\d\d\.\d\d\.\d{4}).* automatische Löschung ab dem (\d\d\.\d\d\.\d{4})$/.exec(await dmeta.textContent()) || [];
+    return Math.round((dmy(del) - dmy(got)) / 864e5);
+  };
+  expect([DAYS - 1, DAYS]).toContain(await keepDays());
+  for (const d of [30, DAYS]) {   // verlängern, dann wieder kürzen (nichts ist älter als die Frist)
+    await page.click("#t-privacy");
+    await expect(page.locator("#pv-save")).toBeEnabled();
+    await page.selectOption("#pv-days", String(d));
+    await page.click("#pv-save");
+    await expect(page.locator("#pv-status")).toHaveText(/^Gespeichert\./);
+    await page.click("#pv-back");
+    await expect(dmeta).toBeVisible();
+    await expect.poll(async () => [d - 1, d].includes(await keepDays())).toBe(true);   // Eingang + Frist (Ortszeit: bei Zeitumstellung ein Tag weniger)
+  }
 
   // täglicher Zeitplan (Cron „17 2 * * *“, lokal über /cdn-cgi/local/scheduled): löscht, was älter als die Frist ist; das Blatt bleibt
   await d1Query(`UPDATE submissions SET received_at = received_at - ${(DAYS + 1) * 864e5} WHERE id = ${ids[0]}`);

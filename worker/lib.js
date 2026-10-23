@@ -81,6 +81,7 @@ export const LIMITS = {
   submissionsPerSheet: 400,        // Schutz vor Vollschreiben der Datenbank (eine Klasse braucht ≤ ~100)
   sheetBytes: 40 * 1024 * 1024,    // Summe aller Umschläge je Blatt
   submissionsPage: 50,             // Abgaben je Seite der Lehrkraft-Liste (Arbeitsspeicher des Workers)
+  deleteIds: 50,                   // Einträge je Löschauftrag einer Person (DELETE …/submissions mit {ids}; gebunden ≤ 100 Parameter)
   pageBytes: 8 * 1024 * 1024,      // … und höchstens so viele Umschlag-Bytes je Seite
   imageBytes: 500 * 1024,          // ein Bild zu einer Aufgabe (der Browser verkleinert vorher auf ≤ 1600 px)
   imagesPerTask: 5,                // Bilder je Aufgabe
@@ -161,6 +162,16 @@ export function validateSubmitMeta(body) {
   }
   if (stage === "first" && !attempt) throw new InputError("Ein Erstversuch braucht eine Kennung der Bearbeitung.", "bad_request");
   return { stage, attempt };
+}
+
+/* Einzelne Einträge löschen (Lösch- oder Einschränkungswunsch einer Person): {ids: [1–50 positive Ganzzahlen]} → ids ohne
+   Doppelte; kein Body (null) = alle Abgaben und Erstversuche des Blattes → null. Ein Body ohne gültige ids löscht nie alles. */
+export function validateDeleteIds(body) {
+  if (body == null) return null;
+  const ids = isObj(body) ? body.ids : null;
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > LIMITS.deleteIds || !ids.every((x) => Number.isSafeInteger(x) && x > 0))
+    throw new InputError(`Bitte geben Sie 1 bis ${LIMITS.deleteIds} Einträge zum Löschen an.`, "bad_request");
+  return [...new Set(ids)];
 }
 
 export function defaultTitle(now = Date.now()) {

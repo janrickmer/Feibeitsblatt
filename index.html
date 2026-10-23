@@ -515,6 +515,7 @@
   .subhead{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:26px 0 10px}
   .subhead h3{margin:0}
   .detbox{max-width:100%; contain:inline-size}
+  .ddel{margin-top:6px}
   .dmeta{font-size:13px; color:var(--muted); margin:0 0 10px}
   .dtask{margin:16px 0 0}
   .dtask:first-of-type{margin-top:4px}
@@ -4221,7 +4222,7 @@ $("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").
 /* =====================================================================
  *  Lehrkraft
  * ===================================================================== */
-const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], subsHidden: 0, ai: null, builderDirty: false,
+const T = { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], subsHidden: [], ai: null, builderDirty: false,
   pendingUploads: [], doneUploads: 0, uploadRun: 0 };   // Bilder, die nach dem Anlegen eines Blattes noch hochzuladen sind
 // Bilder einer Aufgabe in der Lehrkraft-Ansicht (klein, Klick vergrößert; der Titel nennt die gewählte Anzeigeart)
 function teacherImgs(code, metas, n) {
@@ -4350,7 +4351,7 @@ async function logout(force, why) {
   pvDirty = false; pvLoaded = false; pvPurged = false;
   clearTimeout(idleTimer);
   T.importRun = (T.importRun || 0) + 1; T.exportRun = (T.exportRun || 0) + 1;   // laufende Importe/Exporte enden mit der Sitzung
-  Object.assign(T, { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], ai: null, privacy: null, builderDirty: false });
+  Object.assign(T, { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], subsHidden: [], ai: null, privacy: null, builderDirty: false });
   ["t-privinfo", "t-privwarn", "t-subs-retention"].forEach((id) => { $(id).textContent = ""; $(id).classList.add("hidden"); });
   $("t-sheets-body").textContent = ""; $("t-subs-body").textContent = ""; $("t-sel").classList.add("hidden");
   setStatus($("t-import-status"), "", ""); setStatus($("t-export-status"), "", "");
@@ -4454,7 +4455,7 @@ async function selectSheet(code) {
   $("t-sel-tasks").textContent = ""; $("t-sel-det").open = false;
   $("t-subs-body").textContent = ""; $("t-subs-sum").textContent = "";
   setStatus($("t-del-status"), "", ""); setStatus($("t-export-status"), "", "");
-  T.selSheet = null; T.subs = []; T.subsHidden = 0; $("t-subs-legend").classList.add("hidden");
+  T.selSheet = null; T.subs = []; T.subsHidden = []; $("t-subs-legend").classList.add("hidden");
   setStatus($("t-subs-status"), "Abgaben werden geladen und entschlüsselt …", "busy");
   try {
     const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code));
@@ -4477,6 +4478,9 @@ async function selectSheet(code) {
     await loadSubs();
   } catch (e) { if (!handleAuthError(e)) setStatus($("t-subs-status"), errMsg(e, "t"), "bad"); }
 }
+// Dieselbe Person: Klasse, Kürzel und Geburtstag als "--MM-TT" (ältere Abgaben tragen noch das volle Datum – gleiche Person vor/nach
+// der Umstellung)
+const subWho = (x) => x.p ? [x.p.person.klasse, x.p.person.nachname, x.p.person.vorname, bdayOf(x.p.person.geburtsdatum) || x.p.person.geburtsdatum].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|") : "";
 async function loadSubs() {
   const code = T.sel, st = $("t-subs-status");
   setStatus(st, "Abgaben werden geladen und entschlüsselt …", "busy");
@@ -4509,12 +4513,12 @@ async function loadSubs() {
       } catch (e) { p = null; }
       out.push({ id: s.id, receivedAt: s.receivedAt, stage: s.stage === "first" ? "first" : "final", p });
     }
-    // Erstversuche von Schüler:innen, die (z. B. von einem anderen Gerät aus) inzwischen abgegeben haben, sind überholt.
-    // Geburtstag als "--MM-TT" vergleichen: ältere Abgaben tragen noch das volle Datum (gleiche Person vor/nach der Umstellung)
-    const who = (x) => x.p ? [x.p.person.klasse, x.p.person.nachname, x.p.person.vorname, bdayOf(x.p.person.geburtsdatum) || x.p.person.geburtsdatum].map((v) => String(v || "").toLocaleLowerCase("de-DE")).join("|") : "";
-    const finals = new Set(out.filter((x) => x.stage === "final" && x.p).map(who));
-    const shown = out.filter((x) => !(x.stage === "first" && x.p && finals.has(who(x))));
-    T.subsHidden = out.length - shown.length;
+    // Erstversuche von Schüler:innen, die (z. B. von einem anderen Gerät aus) inzwischen abgegeben haben, sind überholt: ausgeblendet,
+    // aber mit id und Person gemerkt (Lösch-Dialoge zählen sie mit, „Diesen Eintrag löschen“ löscht sie mit)
+    const finals = new Set(out.filter((x) => x.stage === "final" && x.p).map(subWho));
+    const shown = [], hidden = [];
+    out.forEach((x) => (x.stage === "first" && x.p && finals.has(subWho(x)) ? hidden : shown).push(x));
+    T.subsHidden = hidden.map((x) => ({ id: x.id, who: subWho(x) }));
     const key = (x) => x.p ? [String(x.p.person.klasse || ""), String(x.p.person.nachname || ""), String(x.p.person.vorname || "")] : ["￿", "", ""];
     const coll = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
     shown.sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) { const c = coll.compare(ka[i], kb[i]); if (c) return c; } return (a.receivedAt || 0) - (b.receivedAt || 0); });
@@ -4532,14 +4536,14 @@ function subsSummary(finals, firsts) {
 }
 function renderSubs() {
   const tb = $("t-subs-body"); tb.textContent = "";
-  const n = T.subs.length, firsts = T.subs.filter((s) => s.stage === "first").length, finals = n - firsts;
+  const n = T.subs.length, firsts = T.subs.filter((s) => s.stage === "first").length, finals = n - firsts, hn = T.subsHidden.length;
   $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : subsSummary(finals, firsts) +
-    (T.subsHidden ? ` · ${T.subsHidden === 1 ? "1 älterer Erstversuch" : T.subsHidden + " ältere Erstversuche"} von Schüler:innen, die inzwischen abgegeben haben, ${T.subsHidden === 1 ? "wird" : "werden"} nicht angezeigt` : "");
+    (hn ? ` · ${hn === 1 ? "1 älterer Erstversuch" : hn + " ältere Erstversuche"} von Schüler:innen, die inzwischen abgegeben haben, ${hn === 1 ? "wird" : "werden"} nicht angezeigt` : "");
   $("t-subs-legend").classList.toggle("hidden", n === 0);
   renderRetentionHint();
   $("t-expand-all").textContent = "Alle aufklappen";
   $("t-expand-all").disabled = n === 0;
-  $("t-del-subs").disabled = n === 0 && !T.subsHidden;
+  $("t-del-subs").disabled = n === 0 && !hn;
   if (!n) { tb.appendChild(h("tr", { class: "errrow" }, [h("td", { colspan: "5", text: "Zu diesem Feibeitsblatt ist noch nichts abgegeben worden." })])); return; }
   T.subs.forEach((s, idx) => {
     const isFirst = s.stage === "first";
@@ -4556,6 +4560,7 @@ function renderSubs() {
       h("td", { text: String(pr.klasse || "") })
     ]);
     const det = h("tr", { class: "details hidden", id: "sd-" + idx }, [h("td", { colspan: "5" })]);
+    det._s = s;   // renderRetentionHint baut gebaute Details neu (Löschdatum nach einer Friständerung)
     const toggle = (force) => {
       const open = typeof force === "boolean" ? force : main.getAttribute("aria-expanded") !== "true";
       main.setAttribute("aria-expanded", String(open)); main.classList.toggle("open", open); det.classList.toggle("hidden", !open);
@@ -4626,7 +4631,39 @@ function buildDetail(s) {
       f ? fbEl : null
     ]));
   }
+  // Lösch- oder Einschränkungswunsch einer Person (Art. 17/18 DSGVO): nur dieser Eintrag – samt ausgeblendeter Erstversuche derselben Person
+  const del = h("button", { type: "button", class: "btn danger small", text: "Diesen Eintrag löschen" });
+  del.addEventListener("click", () => deleteEntry(s, del));
+  box.appendChild(h("div", { class: "ddel" }, [del]));
   return box;
+}
+async function deleteEntry(s, btn) {
+  const code = T.sel, pr = s.p.person, who = subWho(s), isFirst = s.stage === "first";
+  const hidden = T.subsHidden.filter((x) => x.who === who), ids = [s.id].concat(hidden.map((x) => x.id));
+  const ok = await askConfirm({ title: "Diesen Eintrag löschen?",
+    text: `${isFirst ? "Der Erstversuch" : "Die Abgabe"} von ${pr.nachname} · ${pr.vorname} (Geburtstag ${fmtBday(pr.geburtsdatum)}, Klasse ${pr.klasse}) vom ${fmtDT(s.receivedAt)} wird endgültig aus der Datenbank gelöscht` +
+      (hidden.length ? ` – mitsamt ${hidden.length === 1 ? "einem älteren, ausgeblendeten Erstversuch" : hidden.length + " älteren, ausgeblendeten Erstversuchen"} derselben Person` : "") +
+      ". Alle anderen Einträge bleiben. Das lässt sich nicht rückgängig machen.",
+    ok: "Eintrag löschen", cancel: "Abbrechen", danger: true });
+  if (!ok || T.sel !== code) return;
+  const st = $("t-subs-status"), at = T.subs.indexOf(s);
+  busy(btn, true, "Wird gelöscht …");
+  try {
+    const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code) + "/submissions", { method: "DELETE", body: { ids } });
+    if (T.sel !== code) return;
+    await loadSheets(true);   // Zähler in der Liste der Feibeitsblätter
+    if (T.sel !== code) return;
+    renderSheets();
+    await loadSubs();
+    const k = Number.isInteger(r.deleted) ? r.deleted : ids.length, err = st.textContent;   // err: die Liste ließ sich nicht neu laden
+    setStatus(st, `${k === 1 ? "1 Eintrag" : k + " Einträge"} gelöscht.` + (err ? " " + err : ""), err ? "bad" : "ok");
+    const rows = document.querySelectorAll("#t-subs-body tr.main");
+    try { (rows[Math.min(at, rows.length - 1)] || $("t-refresh")).focus(); } catch (e) { /* egal */ }
+  } catch (e) {
+    if (handleAuthError(e)) return;
+    busy(btn, false);
+    setStatus(st, "Nicht gelöscht – " + errMsg(e, "t"), "bad");
+  }
 }
 $("t-expand-all").addEventListener("click", () => {
   const rows = Array.from(document.querySelectorAll("#t-subs-body tr.main"));
@@ -5055,7 +5092,7 @@ function subsNoun(n, firsts) {
   return `Alle ${n} ${firsts === 0 ? "Abgaben" : firsts === n ? "Erstversuche" : "Abgaben und Erstversuche"}`;
 }
 $("t-del-subs").addEventListener("click", async () => {
-  const firsts = T.subs.filter((s) => s.stage === "first").length + (T.subsHidden || 0), n = T.subs.length + (T.subsHidden || 0);
+  const firsts = T.subs.filter((s) => s.stage === "first").length + T.subsHidden.length, n = T.subs.length + T.subsHidden.length;
   const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-subs");
   if (!n) return;
   const ok = await askConfirm({
@@ -5068,15 +5105,15 @@ $("t-del-subs").addEventListener("click", async () => {
   try {
     const r = await TA("/api/teacher/sheets/" + encodeURIComponent(T.sel) + "/submissions", { method: "DELETE" });
     setStatus(st, `${r.deleted === 1 ? "1 Abgabe" : (r.deleted ?? n) + " Abgaben"} gelöscht.`, "ok");
-    T.subs = []; T.subsHidden = 0; renderSubs(); loadSheets(true);
+    T.subs = []; T.subsHidden = []; renderSubs(); loadSheets(true);
   } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
-  finally { busy(btn, false); $("t-del-subs").disabled = T.subs.length === 0 && !T.subsHidden; }
+  finally { busy(btn, false); $("t-del-subs").disabled = T.subs.length === 0 && !T.subsHidden.length; }
 });
 $("t-del-sheet").addEventListener("click", async () => {
   const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-sheet");
   const ok = await askConfirm({
     title: "Feibeitsblatt löschen?",
-    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${(() => { const n = T.subs.length + (T.subsHidden || 0), f = T.subs.filter((s) => s.stage === "first").length + (T.subsHidden || 0);
+    text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${(() => { const n = T.subs.length + T.subsHidden.length, f = T.subs.filter((s) => s.stage === "first").length + T.subsHidden.length;
       return n === 0 ? "" : n === 1 ? (f ? "mitsamt dem einen Erstversuch " : "mitsamt der einen Abgabe ") : `mitsamt allen ${n} ${f === 0 ? "Abgaben" : f === n ? "Erstversuchen" : "Abgaben und Erstversuchen"} `; })()}endgültig gelöscht. Der Code wird ungültig.`,
     ok: "Feibeitsblatt löschen", cancel: "Abbrechen", danger: true
   });
@@ -5084,7 +5121,7 @@ $("t-del-sheet").addEventListener("click", async () => {
   busy(btn, true);
   try {
     await TA("/api/teacher/sheets/" + encodeURIComponent(T.sel), { method: "DELETE" });
-    T.sel = null; T.selSheet = null; T.subs = []; T.subsHidden = 0;
+    T.sel = null; T.selSheet = null; T.subs = []; T.subsHidden = [];
     $("t-sel").classList.add("hidden");
     await loadSheets();
     setStatus($("t-list-status"), "Feibeitsblatt gelöscht.", "ok");
@@ -5975,6 +6012,14 @@ function renderRetentionHint() {
     ? `Abgaben und Erstversuche werden ${days} Tage nach dem Eingang automatisch gelöscht. Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt.`
     : "Abgaben werden nicht automatisch gelöscht – bitte löschen Sie sie nach der Durchsicht oder legen Sie unter „Datenschutz und Löschfrist“ eine Frist fest.";
   el.classList.toggle("hidden", !el.textContent);
+  // Schon gebaute Abgaben-Details nennen das Löschdatum der Frist beim Bauen: leeren – aufgeklappte sofort neu bauen, die anderen beim
+  // nächsten Aufklappen (auch, wenn ein Detail gebaut wurde, bevor die Datenschutz-Angaben geladen waren)
+  document.querySelectorAll("#t-subs-body tr.details").forEach((d) => {
+    const td = d.firstChild;
+    if (!d._s || !td || !td.firstChild) return;
+    td.textContent = "";
+    if (!d.classList.contains("hidden")) td.appendChild(buildDetail(d._s));
+  });
 }
 /* pvLoaded: nur nach erfolgreichem Laden sind Formular und „Speichern“ frei – sonst stünden leere Felder und eine falsche Frist im
    Formular, und „Speichern“ überschriebe die Angaben und löschte ohne Nachfrage. pvPurged: hat ein Speichern Einträge gelöscht, lädt

@@ -30,6 +30,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie `solution`**, d. h. die Aufträge an die KI),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
   `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/ai`, `/ai/test`, `/privacy` (Pfade unter `/api/teacher`).
+  `DELETE …/sheets/:code/submissions` ohne Body löscht alle Einträge des Blattes, mit JSON `{ids:[…]}` (1–`LIMITS.deleteIds`
+  50 positive Ganzzahlen, `validateDeleteIds`; ein Body ohne gültige ids → 400, nie „alle“) nur diese Einträge dieses Blattes
+  (eine gebundene Anweisung `… WHERE sheet_code=?1 AND id IN (…)`) → `{deleted}`.
   Bilder: `POST /api/teacher/sheets/:code/images` (JSON `{task (1-basiert), mode: thumb|inline|card, data: Base64}` →
   `{image:{id, task, pos, mode, mime, w, h, bytes}}`), öffentlich `GET /api/sheet/:code/images/:id` →
   `{mime, w, h, data: Base64}` mit `Cache-Control: public, max-age=31536000, immutable`; `GET /api/sheet/:code` und
@@ -71,8 +74,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
   Lehrkraft-Ansicht: Kürzel `.st-final` (grün) / `.st-first` (orange, `#b85c00`), Legende `#t-subs-legend`,
   Zusammenfassung `subsSummary`; Erstversuche einer Person, die (anders) schon abgegeben hat, werden ausgeblendet
-  (`T.subsHidden`, in Lösch-Dialogen mitgezählt); Details: „Erstversuch ohne Überarbeitung – noch nicht abgegeben“,
-  Spalte 2 „(noch nicht überarbeitet)“. Screenreader-Text in der Pfeilspalte, nie im Kürzel (Tests lesen die Zellen).
+  (`T.subsHidden` = `[{id, who}]` per `subWho` – Klasse, Kürzel, Geburtstag –, in Lösch-Dialogen mitgezählt); Details:
+  „Erstversuch ohne Überarbeitung – noch nicht abgegeben“, Spalte 2 „(noch nicht überarbeitet)“, am Ende „Diesen Eintrag
+  löschen“ (`deleteEntry`, danger-Dialog mit Kürzel, Geburtstag, Klasse; löscht die id samt den ausgeblendeten Erstversuchen
+  derselben Person, lädt Liste und Zähler neu, Status in `#t-subs-status`) – so setzt die Lehrkraft Löschwünsche um. Screenreader-Text in der Pfeilspalte, nie im Kürzel (Tests lesen die Zellen).
 - **Zwischenstand als PDF (ohne Bibliothek):** `makeDraftPdf(d)` baut eine A4-Seite (Helvetica/-Bold, WinAnsi,
   `pdfStr` oktal-maskiert, Breiten aus `PDF_W_REG/BOLD` für den Umbruch) mit orangem Kasten, URI-Link-Annotation
   auf `PUBLIC_URL` (`window.FEIBEITSBLATT_PUBLIC`) und dem Datensatz (`draftRecord()` + `kind:"feibeitsblatt-draft"`,
@@ -285,7 +290,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `#pv-days` + `#pv-days-effect` aus `olderThan`; vor dem Löschen Dialog „Ältere Abgaben jetzt löschen?“ (danger);
   Fehler als „Nicht gespeichert – …“; `pvDirty` → „Ohne Speichern zurück?“). Übersicht: `loadPrivacyState` → `#t-privinfo`
   / `#t-privwarn` (fehlende Angaben, keine Frist), `#t-subs-retention`, je Abgabe in `buildDetail` „automatische Löschung
-  am TT.MM.JJJJ“. Lokal auslösen: `/cdn-cgi/local/scheduled?cron=17+2+*+*+*&time=<ms>&format=json` (ein `time` in der
+  am TT.MM.JJJJ“ – `renderRetentionHint` leert gebaute Details (`tr.details._s`) und baut aufgeklappte sofort neu, damit das
+  Datum nach einer Friständerung stimmt. Lokal auslösen: `/cdn-cgi/local/scheduled?cron=17+2+*+*+*&time=<ms>&format=json` (ein `time` in der
   Zukunft räumt auch alle Sperr-Zähler ab – im Smoke-Test deshalb ganz am Ende).
 - **KI-Kennzeichnung (Art. 50 Abs. 2 KI-VO):** `markAi(el, kind, on)` setzt `data-ai-generated="true"`, `data-ai-content`
   (`feedback` | `feedback-final`) und `data-digital-source-type` = IPTC `…/trainedAlgorithmicMedia` – nur bei Boxen mit

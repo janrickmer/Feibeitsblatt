@@ -312,6 +312,9 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
 7. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
    Löschfrist“ festlegen ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Früher geht es ganz
    unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche werden mitgelöscht).
+   Einen einzelnen Eintrag – etwa auf Wunsch einer Schülerin, eines Schülers oder der Eltern – löschen Sie in den
+   aufgeklappten Details mit „Diesen Eintrag löschen“ (mit Rückfrage); ältere, ausgeblendete Erstversuche derselben
+   Person werden dabei mitgelöscht, alle anderen Einträge bleiben.
    Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt. Darunter: „Feibeitsblatt
    selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu. Wollen Sie ein Blatt später
    wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6).
@@ -731,7 +734,7 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie die Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
 | Datenschutz-Angaben der Schule (Name, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage, Aufsichtsbehörde, Link) und Löschfrist | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; für alle abrufbar, die einen Code kennen (die Schüler:innen sehen sie im Datenschutzhinweis) | bis Sie sie ändern |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
@@ -830,7 +833,15 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 5. **Legen Sie eine Löschfrist fest** (Schritt 9) – Abgaben und Erstversuche werden danach automatisch gelöscht.
    Notieren Sie Bewertungen außerhalb von Feibeitsblatt. Nach der Korrektur können Sie auch früher löschen („Alle
    Abgaben dieses Feibeitsblattes löschen“); nicht mehr benötigte Feibeitsblätter löschen Sie selbst.
-6. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen. Empfohlen ist Cloudflare Workers AI (kein
+6. **Rechte der Schüler:innen umsetzen.** Der Datenschutzhinweis nennt Sie als Ansprechpartner:in für Auskunft,
+   Berichtigung, Löschung, Einschränkung und Widerspruch. Auskunft: die Einträge dieser Person in der Übersicht
+   aufklappen. Löschung: in den aufgeklappten Details „Diesen Eintrag löschen“ – das
+   löscht den Eintrag samt älterer, ausgeblendeter Erstversuche derselben Person (gleiche Klasse, Kürzel und Geburtstag),
+   alle anderen Einträge bleiben. Falsche Angaben (z. B. ein vertipptes Kürzel): den Eintrag löschen und neu abgeben
+   lassen. Wie mit einer Einschränkung oder einem Widerspruch umzugehen ist, klären Sie bitte mit der bzw. dem
+   Datenschutzbeauftragten. Nach dem Löschen hält Cloudflare die Daten noch bis zu 7 Tage (bei einem bezahlten Tarif bis
+   zu 30 Tage) in der Datensicherung der Datenbank.
+7. Wählen Sie den KI-Anbieter mit Blick auf seine Datenbedingungen. Empfohlen ist Cloudflare Workers AI (kein
    weiterer Empfänger); als „nicht für den Schuleinsatz geeignet“ gekennzeichnet sind Gemini (Altersgrenze 18),
    OpenRouter (kostenlose Modelle dürfen Eingaben protokollieren) und Cerebras (kein dauerhaftes Gratiskontingent).
 

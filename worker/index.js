@@ -5,7 +5,7 @@ import {
   normalizeCode, isValidCode, generateCode, sha256Hex, timingSafeEqualStr, decodeAuthKey, importPublicKey,
   validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateAiInput,
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
-  validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
+  validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer,
   validatePrivacyInput, privacyOut, isPrivacyComplete, PURGE_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
 } from "./lib.js";
@@ -130,7 +130,8 @@ const cleanupStatements = (db, now) => [
 ];
 
 /* ---------- Body lesen (≤ 1 MB) ---------- */
-async function readJson(request) {
+// optional: ein leerer Body ist erlaubt → null (DELETE …/submissions ohne Body = alle Einträge)
+async function readJson(request, optional = false) {
   const cl = Number(request.headers.get("content-length"));
   if (cl > LIMITS.bodyBytes) throw new HttpError(413, "too_large", MSG.tooLarge);
   let text = "";
@@ -149,6 +150,7 @@ async function readJson(request) {
     for (const c of chunks) { all.set(c, o); o += c.byteLength; }
     text = new TextDecoder().decode(all);
   }
+  if (optional && !text.trim()) return null;
   let data;
   try { data = JSON.parse(text); } catch { throw new HttpError(400, "bad_json", MSG.badJson); }
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new HttpError(400, "bad_json", MSG.badJson);
@@ -578,13 +580,17 @@ async function routeSubmissionsList(c, codeRaw) {
   return respond('{"ok":true,"submissions":[' + items.join(",") + '],"next":' + (next == null ? "null" : next) + "}");
 }
 
+// Ohne Body: alle Abgaben und Erstversuche des Blattes. Mit {ids: […]}: nur diese Einträge dieses Blattes – so setzt die Lehrkraft
+// den Lösch- oder Einschränkungswunsch einer Person um (der Browser schickt dazu die ausgeblendeten Erstversuche derselben Person mit).
 async function routeSubmissionsDelete(c, codeRaw) {
   await requireTeacher(c);
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
+  const ids = validateDeleteIds(await readJson(c.request, true));
   const [sh, del] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("DELETE FROM submissions WHERE sheet_code=?1").bind(code),
+    ids ? c.db.prepare("DELETE FROM submissions WHERE sheet_code=?1 AND id IN (" + ids.map((_, i) => "?" + (i + 2)).join(",") + ")").bind(code, ...ids)
+      : c.db.prepare("DELETE FROM submissions WHERE sheet_code=?1").bind(code),
   ]);
   if (!firstRow(sh)) throw sheetGone();
   return json({ ok: true, deleted: (del.meta && del.meta.changes) || 0 });

@@ -532,8 +532,16 @@ async function main() {
     ok("Passwort ändern: altes ungültig, neues gültig, Abgaben weiter lesbar");
 
     step = "Löschen";
+    // ein einzelner Eintrag (Löschwunsch einer Person): nur diese id; ungültige ids → 400, nichts gelöscht
+    const subIds = r.json.submissions.map((x) => x.id);
+    assert.equal(subIds.length, 2);
+    expectErr(await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", { ids: [] }, { auth }), 400, "bad_request");
+    r = await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", { ids: [subIds[0]] }, { auth });
+    assert.deepEqual(r.json, { ok: true, deleted: 1 }, r.text);
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(r.json.submissions.map((x) => x.id), [subIds[1]]);
     r = await api("DELETE", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
-    assert.deepEqual(r.json, { ok: true, deleted: 2 });
+    assert.deepEqual(r.json, { ok: true, deleted: 1 });
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
     assert.deepEqual(r.json, { ok: true, submissions: [], next: null });
     r = await api("POST", "/api/submit", { code, envelope }); submitCount++;
@@ -546,7 +554,7 @@ async function main() {
     expectErr(await api("DELETE", "/api/teacher/sheets/" + code, undefined, { auth }), 404, "not_found");
     r = await api("GET", "/api/sheet/" + code); misses++;
     expectErr(r, 404, "not_found");
-    ok("Abgaben löschen ({deleted:n}), Blatt samt Abgaben löschen, danach 404");
+    ok("Abgaben löschen (einzeln per ids und alle, {deleted:n}), Blatt samt Abgaben löschen, danach 404");
 
     step = "Datenschutz und Löschfrist";
     r = await api("GET", "/api/teacher/privacy", undefined, { auth });

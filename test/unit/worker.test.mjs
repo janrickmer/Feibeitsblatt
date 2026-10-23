@@ -1090,6 +1090,43 @@ test("Zurücksetzen des Zugangs (Passwort vergessen): eine gespeicherte Frist bl
   }
 });
 
+test("einzelne Einträge löschen (Löschwunsch einer Person): nur die genannten ids dieses Blattes; Grenzen; ohne Body alle", async () => {
+  const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Einzeln", tasks } })).json.code;
+  const other = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Anderes", tasks } })).json.code;
+  try {
+    const a = await submitAt(c, 0), b = await submitAt(c, 0, "first"), keep = await submitAt(c, 0), foreign = await submitAt(other, 0);
+    const del = (code, body, opts = {}) => call("DELETE", "/api/teacher/sheets/" + code + "/submissions", { auth, body, ...opts });
+    assert.equal((await call("DELETE", "/api/teacher/sheets/" + c + "/submissions", { body: { ids: [a] } })).status, 401);
+    // ungültig → 400, nichts gelöscht (ein Body ohne gültige ids löscht nie alles)
+    for (const body of [{}, { ids: [] }, { ids: Array.from({ length: 51 }, (_, i) => i + 1) }, { ids: [0] }, { ids: [-1] }, { ids: [1.5] }, { ids: ["1"] }, { ids: [a, null] }, { ids: a }]) {
+      const r = await del(c, body);
+      assert.equal(r.status, 400, JSON.stringify(body)); assert.equal(r.json.code, "bad_request");
+      assert.equal(r.json.error, "Bitte geben Sie 1 bis 50 Einträge zum Löschen an.");
+    }
+    let r = await del(c, undefined, { raw: "[1]" });
+    assert.equal(r.status, 400); assert.equal(r.json.code, "bad_json");
+    assert.deepEqual(idsOf(c), [a, b, keep]);
+    // die Abgabe und der Erstversuch derselben Person (doppelt genannt) – dazu eine id eines anderen Blattes: die bleibt
+    r = await del(c, { ids: [a, b, b, foreign] });
+    assert.equal(r.status, 200, r.text); assert.deepEqual(r.json, { ok: true, deleted: 2 });
+    assert.deepEqual(idsOf(c), [keep]); assert.deepEqual(idsOf(other), [foreign]);
+    r = await del(c, { ids: [a] });   // schon gelöscht
+    assert.deepEqual(r.json, { ok: true, deleted: 0 });
+    r = await del("K7QM4X", { ids: [keep] });   // unbekanntes Blatt
+    assert.equal(r.status, 404); assert.deepEqual(idsOf(c), [keep]);
+    r = await del(c, { ids: Array.from({ length: 50 }, (_, i) => keep + i) });   // 50 ids gehen (gebunden)
+    assert.deepEqual(r.json, { ok: true, deleted: 1 });
+    // ohne Body wie bisher: alle Einträge des Blattes
+    await submitAt(c, 0); await submitAt(c, 0, "first");
+    r = await del(c);
+    assert.deepEqual(r.json, { ok: true, deleted: 2 });
+    assert.deepEqual(idsOf(c), []); assert.deepEqual(idsOf(other), [foreign]);
+  } finally {
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    await call("DELETE", "/api/teacher/sheets/" + other, { auth });
+  }
+});
+
 test("password change keeps key pair; delete flow", async () => {
   const kdf = { salt: b64(crypto.getRandomValues(new Uint8Array(16))), iterations: 100000 };
   const k2 = await deriveTeacherKeys("Ganz neues Passwort!", kdf);
