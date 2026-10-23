@@ -2,10 +2,12 @@
 // Simuliert werden nur LanguageTool (page.route) und die KI (test/mock-ai.mjs als Anbieter „custom“, eingerichtet über
 // die Oberfläche). Die Tests bauen aufeinander auf (eine Datenbank, eine Lehrkraft) → seriell, ein Worker.
 import { test, expect } from "@playwright/test";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import { inflateSync, deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
-import { expectedResults } from "../mock-ai.mjs";
+import { expectedResults, expectedChecklist } from "../mock-ai.mjs";
+import jsQR from "jsqr";
 import { deriveTeacherKeys, makeEnvelope } from "../smoke.mjs";
 import { makePng } from "../png.mjs";
 import { MOCK_URL, BASE_URL } from "./env.mjs";
@@ -112,8 +114,8 @@ const deDate = (ms) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berl
 // KI-Kennzeichnung einer Box: [data-ai-generated, data-ai-content, data-digital-source-type] (null = nicht gekennzeichnet)
 const aiMarks = (loc) => loc.evaluate((e) => [e.getAttribute("data-ai-generated"), e.getAttribute("data-ai-content"), e.getAttribute("data-digital-source-type")]);
 // Aufbau einer im Browser erzeugten PDF-Datei prüfen: startxref → xref, jeder Eintrag zeigt auf „n 0 obj“, /Size stimmt, jede /Length
-// endet genau vor „endstream“ → {s (Latin-1), count, objAt(n) → Text des Objekts}
-function pdfStructure(buf) {
+// endet genau vor „endstream“ → {s (Latin-1), count, objAt(n) → Text des Objekts}; info = Nummer des Info-Objekts
+function pdfStructure(buf, info = 5) {
   const s = buf.toString("latin1");
   const sx = Number(/startxref\n(\d+)\n%%EOF\n$/.exec(s)[1]);
   const head = /^xref\n0 (\d+)\n/.exec(s.slice(sx));
@@ -125,7 +127,7 @@ function pdfStructure(buf) {
     offs[i] = Number(rows[i].slice(0, 10));
     expect(s.slice(offs[i], offs[i] + String(i).length + 6), "xref-Eintrag " + i).toBe(i + " 0 obj");
   }
-  expect(s).toContain("/Size " + count + " /Root 1 0 R /Info 5 0 R");
+  expect(s).toContain("/Size " + count + " /Root 1 0 R /Info " + info + " 0 R");
   for (const m of s.matchAll(/\/Length (\d+) >>\nstream\n/g)) {
     const start = m.index + m[0].length;
     expect(s.slice(start + Number(m[1]), start + Number(m[1]) + 10), "/Length bei Byte " + m.index).toBe("\nendstream");
@@ -3592,6 +3594,322 @@ test("7j Während die Abgabe gesendet wird: KI-Feedback und „Abbrechen“ sind
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+/* ---------- Analoges Arbeitsblatt (PDF zum Ausdrucken) und Checkliste hinter dem QR-Code ---------- */
+// Stream-Objekte einer im Browser erzeugten PDF-Datei in Reihenfolge: {num, dict, data (entpackt, falls FlateDecode)}
+function pdfStreams(buf) {
+  const s = buf.toString("latin1"), out = [];
+  for (const m of s.matchAll(/(\d+) 0 obj\n(<<(?:(?!endobj)[\s\S])*?>>)\nstream\n/g)) {
+    const len = Number(/\/Length (\d+)/.exec(m[2])[1]), start = m.index + m[0].length;
+    const raw = buf.subarray(start, start + len);
+    out.push({ num: Number(m[1]), dict: m[2], data: /\/FlateDecode/.test(m[2]) ? inflateSync(raw) : raw });
+  }
+  return out;
+}
+const pdfDecode = (str) => str.replace(/\\([0-7]{3}|[\s\S])/g, (_, c) => (c.length === 3 ? WIN[parseInt(c, 8)] || String.fromCharCode(parseInt(c, 8)) : c));
+// Textstücke einer Seite {x, y, font, size, t} und die Zeilen (Stücke gleicher Höhe von links nach rechts verbunden, von oben nach unten)
+function pdfPieces(content) {
+  return [...content.matchAll(/BT [\d. ]+ rg \/(F\d) ([\d.]+) Tf ([\d.]+) ([\d.]+) Td \(((?:\\[\s\S]|[^\\)])*)\) Tj ET/g)]
+    .map((m) => ({ font: m[1], size: Number(m[2]), x: Number(m[3]), y: Number(m[4]), t: pdfDecode(m[5]) }));
+}
+function pdfLinesOf(content) {
+  const rows = new Map();
+  for (const p of pdfPieces(content)) { if (!rows.has(p.y)) rows.set(p.y, []); rows.get(p.y).push(p); }
+  return [...rows.entries()].sort((a, b) => b[0] - a[0]).map(([, ps]) => ps.sort((a, b) => a.x - b.x).map((p) => p.t).join(""));
+}
+// QR-Code aus dem Inhalt lesen: Module als Rechtecke in Modul-Einheiten (mit Ruhezone) → Bild → jsQR
+function pdfQr(content) {
+  const m = /q 0 g ([\d.]+) 0 0 -([\d.]+) ([\d.]+) ([\d.]+) cm\n((?:\d+ \d+ \d+ 1 re\n)+)f\nQ/.exec(content);
+  if (!m) return null;
+  const rects = m[5].trim().split("\n").map((l) => l.split(" ").map(Number));
+  const n = Math.max(...rects.map(([c, , len]) => c + len), ...rects.map(([, r]) => r + 1)) + 4, sc = 4, w = n * sc;
+  expect(Math.min(...rects.map(([c]) => c)), "Ruhezone links").toBe(4);
+  expect(Math.min(...rects.map(([, r]) => r)), "Ruhezone oben").toBe(4);
+  const img = new Uint8ClampedArray(w * w * 4).fill(255);
+  for (const [c, r, len] of rects) for (let x = c * sc; x < (c + len) * sc; x++) for (let y = r * sc; y < (r + 1) * sc; y++) { const o = (y * w + x) * 4; img[o] = img[o + 1] = img[o + 2] = 0; }
+  const res = jsQR(img, w, w, { inversionAttempts: "dontInvert" });
+  return { text: res && res.data, module: Number(m[1]), side: n * Number(m[1]) };
+}
+function analogPdfOf(buf) {
+  const streams = pdfStreams(buf), contents = streams.filter((x) => !/\/Subtype/.test(x.dict)).map((x) => x.data.toString("latin1"));
+  return { streams, contents, lines: contents.map(pdfLinesOf), pieces: contents.map(pdfPieces), all: contents.join("\n"),
+    form: streams.find((x) => /\/Subtype \/Form/.test(x.dict)), images: streams.filter((x) => /\/Subtype \/Image/.test(x.dict)) };
+}
+
+test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkraft ändert und ergänzt → PDF mit Schreiblinien, Tabelle, Umrisskarte, Links als Adresse und QR-Code; die Checklisten-Seite zeigt nur Gespeichertes, Häkchen bleiben auf dem Gerät", async ({ browser, request }) => {
+  const TITLE_A = "Wasser und Welt – analog";
+  const SOL1 = "- Verdunstung über dem Meer\n- Kondensation zu Wolken\n- Niederschlag als Regen", SOL2 = "Weizen. Reis.";
+  const QUELLE = "https://example.org/quelle";
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", TITLE_A);
+  await tp.click("#b-add");
+  const rows = tp.locator("#b-rows > tr");
+  const paste = (loc, html, text) => loc.evaluate((el, [html, text]) => {
+    const dt = new DataTransfer();
+    dt.setData("text/html", html); dt.setData("text/plain", text);
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, [html, text]);
+  // Aufgabe 1: Textfeld – ein Wort fett, Auftrag an die KI mehrzeilig, Material mit dem Link „hier klicken“
+  await tp.locator("#bq-1").click();
+  await paste(tp.locator("#bq-1"), "<p>Erkläre den <b>Wasserkreislauf</b> mit eigenen Worten.</p>", "Erkläre den Wasserkreislauf mit eigenen Worten.");
+  await expect(tp.locator("#bq-1 b")).toHaveText("Wasserkreislauf");
+  await tp.fill("#bs-1", SOL1);
+  const mat1 = rows.nth(0).locator(".bmat-edit");
+  await mat1.click();
+  await paste(mat1, `<p>Lies den Text <a href="${QUELLE}">hier klicken</a> und notiere Stichworte.</p>`, "Lies den Text hier klicken und notiere Stichworte.");
+  await expect(mat1.locator("a")).toHaveAttribute("href", QUELLE);
+  // Aufgabe 2: Tabelle mit 3 Spalten und 4 Zeilen
+  await tp.fill("#bq-2", "Trage Lebensmittel, ihr Herkunftsland und die Menge ein.");
+  await tp.fill("#bs-2", SOL2);
+  await tp.selectOption("#bt-2", "table");
+  await tp.fill("#bc-2", "Produkt; Land; Menge");
+  await tp.fill("#br-2", "4");
+  // Aufgabe 3: Weltkarte mit zwei Karten (eine mit Hinweis und Bild)
+  await tp.fill("#bq-3", "Ordne die Produkte ihren Herkunftsländern zu.");
+  await tp.selectOption("#bt-3", "map");
+  const r3 = rows.nth(2);
+  await r3.locator(".bitem").nth(0).locator(".bitem-label").fill("Kaffee");
+  await r3.locator(".bitem").nth(0).locator(".bitem-hint").fill("Bohnen aus dem Hochland");
+  await r3.locator(".bitem").nth(0).locator(".bitem-country").fill("Brasilien");
+  await r3.locator(".bitem").nth(0).locator(".bitem-country").press("Enter");
+  await r3.locator(".bitem").nth(0).locator(".bitem-file").setInputFiles({ name: "kaffee.png", mimeType: "image/png", buffer: makePng(60, 40, [120, 70, 20]) });
+  await expect(r3.locator(".bitem").nth(0).locator(".bitem-pic img")).toHaveCount(1);
+  await r3.locator(".bitem-add").click();
+  await r3.locator(".bitem").nth(1).locator(".bitem-label").fill("Tee");
+  await r3.locator(".bitem").nth(1).locator(".bitem-country").fill("Indien");
+  await r3.locator(".bitem").nth(1).locator(".bitem-country").press("Enter");
+  // Aufgabe 4: Textfeld ohne Auftrag an die KI
+  await tp.fill("#bq-4", "Was hat dir heute gefallen?");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#b-res-img")).toHaveText("Das Bild ist gespeichert.", { timeout: 30_000 });
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const CHECK_URL = "https://feibeitsblatt.janrickmer.de/#checkliste=" + code;
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-sel-tasks .si")).toHaveCount(4);
+  await expect(tp.locator("#t-analog")).toHaveText("Analoges Arbeitsblatt als PDF herunterladen");
+
+  // Erstes Öffnen: die KI schlägt einmal vor (nur Aufgaben mit Auftrag; ohne Antworten, Länder oder Personendaten) – als Entwurf
+  await mockReset();
+  await tp.click("#t-analog");
+  await expect(tp.locator("#tv-analog")).toBeVisible();
+  await expect(tp.locator("#ck-sheet")).toHaveText(`${TITLE_A} · Code ${shown}`);
+  const draft1 = expectedChecklist(SOL1), draft2 = expectedChecklist(SOL2);
+  expect(draft1).toEqual(["Du beachtest: Verdunstung über dem Meer", "Du beachtest: Kondensation zu Wolken", "Du beachtest: Niederschlag als Regen"]);
+  await expect(tp.locator("#ck-1")).toHaveValue(draft1.join("\n"));
+  await expect(tp.locator("#ck-2")).toHaveValue(draft2.join("\n"));
+  await expect(tp.locator("#ck-3")).toHaveValue("");
+  await expect(tp.locator("#ck-4")).toHaveValue("");
+  await expect(tp.locator("#ck-state")).toContainText("Vorschlag der KI – noch nicht gespeichert");
+  await expect(tp.locator("#ck-status")).toHaveText("Die KI hat eine Checkliste vorgeschlagen.");
+  await expect(tp.locator("#ck-hint-1")).toHaveText("Höchstens 8 Punkte, je höchstens 160 Zeichen.");
+  await expect(tp.locator("#ck-hint-3")).toHaveText("Ohne Auftrag an die KI – Punkte können Sie selbst eintragen. Höchstens 8 Punkte, je höchstens 160 Zeichen.");
+  await expect(tp.locator("#ck-hint-4")).toHaveText("Ohne Auftrag an die KI – Punkte können Sie selbst eintragen. Höchstens 8 Punkte, je höchstens 160 Zeichen.");
+  await expect(tp.locator("#ck-1")).toHaveAccessibleName("Punkte der Checkliste – eine Zeile je Punkt");
+  await expect(tp.locator("#ck-open")).toBeHidden();   // noch nichts gespeichert
+  await expect(tp.locator("#ck-aiwarn")).toBeHidden();
+  let mock = await mockState();
+  expect(mock.requests).toHaveLength(1);
+  const sys = mock.requests[0].messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+  const user = mock.requests[0].messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
+  expect(sys).toContain("Checkliste");
+  expect(user).toContain("Auftrag der Lehrkraft für das Feedback:\n<<<\n" + SOL1 + "\n>>>");
+  expect(user).toContain("Produkt | Land | Menge");
+  expect(user).not.toMatch(/### Aufgabe 3|### Aufgabe 4|### Antwort|Brasilien|Indien|Kaffee/);
+  const posts = () => t.calls((r) => r.method === "POST" && r.path === `/api/teacher/sheets/${code}/checklist`);
+  expect(await posts()).toHaveLength(1);
+
+  // Schüler:in: vor dem Speichern gibt es keine Checkliste (der Entwurf ist nicht öffentlich) – auch beim Wechsel des Hashes
+  const s = await openPage(browser);
+  const { page } = s;
+  await page.goto("/#checkliste=" + shown.toLowerCase());   // nur der Hash ändert sich: hashchange; der Code wird normalisiert
+  await expect(page.locator("#screen-check")).toHaveClass(/active/);
+  await expect(page.locator("#chk-err")).toHaveText("Zu diesem Feibeitsblatt gibt es noch keine Checkliste.");
+  await expect(page.locator("#chk-sheet")).toHaveText("Code " + shown);
+  await expect(page.locator("#chk-open")).toBeVisible();
+  await expect(page.locator("#chk-body")).toBeHidden();
+  await expect(page.locator("#chk-privacy")).toHaveText("Datenschutz: Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Beim Laden dieser Seite und der Checkliste verarbeitet Cloudflare, Inc. (USA; betreibt den Server dieser Seite) technisch die Internetadresse (IP-Adresse) deines Geräts.");
+
+  // Lehrkraft: Grenzen wie der Server; dann einen Punkt ändern, einen ergänzen (Doppeltes und Leerzeilen entfallen) → speichern
+  await tp.fill("#ck-2", Array.from({ length: 9 }, (_, k) => "Punkt " + (k + 1)).join("\n"));
+  await tp.click("#ck-save");
+  await expect(tp.locator("#ck-status")).toHaveText("Aufgabe 2: höchstens 8 Punkte.");
+  await expect(tp.locator("#ck-2")).toHaveAttribute("aria-invalid", "true");
+  await expect(tp.locator("#ck-2")).toBeFocused();
+  await tp.fill("#ck-2", "x".repeat(161));
+  await tp.click("#ck-save");
+  await expect(tp.locator("#ck-status")).toHaveText("Aufgabe 2: Ein Punkt ist zu lang (höchstens 160 Zeichen).");
+  await tp.fill("#ck-2", draft2.join("\n") + "\n\n  du beachtest:   weizen ");
+  await expect(tp.locator("#ck-2")).not.toHaveAttribute("aria-invalid", "true");
+  const final1 = ["Du nennst die Verdunstung über dem Meer.", draft1[1], draft1[2]], final4 = ["Du nennst etwas, das dir gefallen hat."];
+  await tp.fill("#ck-1", final1.join("\n"));
+  await tp.fill("#ck-4", final4[0]);
+  const [dl] = await Promise.all([tp.waitForEvent("download"), tp.click("#ck-save")]);
+  await expect(tp.locator("#ck-status")).toHaveText(/^Gespeichert\. Das PDF \(\d+ KB\) wird heruntergeladen\.$/, { timeout: 30_000 });
+  expect(dl.suggestedFilename()).toBe(`Feibeitsblatt-Arbeitsblatt-${shown}-Wasser und Welt - analog.pdf`);
+  const put = (await t.calls((r) => r.method === "PUT" && r.path === `/api/teacher/sheets/${code}/checklist`))[0];
+  expect(JSON.parse(put.reqBody)).toEqual({ ai: true, tasks: [{ n: 1, points: final1 }, { n: 2, points: draft2 }, { n: 3, points: [] }, { n: 4, points: final4 }] });
+  const [ckRow] = await d1Query(`SELECT draft, final FROM sheet_checklists WHERE sheet_code='${code}'`);
+  expect(ckRow.draft).toBeNull();
+  expect(JSON.parse(ckRow.final).tasks.map((x) => x.points)).toEqual([final1, draft2, [], final4]);
+  await expect(tp.locator("#ck-2")).toHaveValue(draft2.join("\n"));   // so, wie gespeichert (ohne Doppeltes)
+  await expect(tp.locator("#ck-state")).toHaveText(/^Gespeicherte Checkliste vom \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr – über den QR-Code sichtbar\.$/);
+  await expect(tp.locator("#ck-open")).toBeVisible();
+  await expect(tp.locator("#ck-open")).toHaveAttribute("href", BASE_URL + "/#checkliste=" + code);
+  await expect(tp.locator("#ck-open")).toHaveAttribute("rel", "noopener noreferrer");
+
+  // Das PDF
+  const buf = await readFile(await dl.path());
+  if (process.env.ANALOG_PDF_OUT) { await mkdir(process.env.ANALOG_PDF_OUT, { recursive: true }); await writeFile(join(process.env.ANALOG_PDF_OUT, "7k-analog.pdf"), buf); }
+  const st = pdfStructure(buf, 7);
+  expect(st.s).toMatch(/\/Type \/Font \/Subtype \/Type1 \/BaseFont \/Helvetica-BoldOblique \/Encoding \/WinAnsiEncoding/);
+  const A = analogPdfOf(buf), text = A.lines.map((ls) => ls.join("\n")).join("\n"), flat = A.lines.flat().join(" ");
+  expect(A.contents.length).toBeGreaterThanOrEqual(2);
+  expect(A.lines[0][0]).toBe(TITLE_A);
+  expect(flat).toContain(`Du kannst dieses Arbeitsblatt mit dem Code ${shown} auch digital auf https://feibeitsblatt.janrickmer.de/ aufrufen. Dort steht dir eine KI-Rückmeldung zu deinen Antworten zur Verfügung, die es auf dem Papier nicht gibt.`);
+  expect(A.pieces[0].find((p) => p.t === shown).font).toBe("F2");   // der Code fett
+  expect(A.pieces[0].filter((p) => /^(Name|Klasse|Datum):$/.test(p.t)).map((p) => p.t)).toEqual(["Name:", "Klasse:", "Datum:"]);
+  expect(text).toContain("Erkläre den Wasserkreislauf mit eigenen Worten.");
+  expect(A.pieces.flat().find((p) => p.t === "Wasserkreislauf").font).toBe("F2");
+  // Link im Material: nur die Adresse (nie der Linktext), anklickbar
+  expect(text).toContain("Lies den Text " + QUELLE + " und notiere Stichworte.");
+  expect(text).not.toContain("hier klicken");
+  expect(st.s).toContain(`/A << /S /URI /URI (${QUELLE}) >>`);
+  expect(st.s).toContain("/A << /S /URI /URI (https://feibeitsblatt.janrickmer.de/) >>");
+  // Schreiblinien: 8 je Textaufgabe (Aufgaben 1 und 4), Abstand 24 pt, über die volle Breite
+  const lineYs = A.contents.map((c) => [...c.matchAll(/q 0\.6 G 0\.5 w 50\.00 ([\d.]+) m 545\.28 \1 l S Q/g)].map((m) => Number(m[1])));
+  expect(lineYs.flat()).toHaveLength(16);
+  for (const ys of lineYs) for (let k = 1; k < ys.length; k++) if (ys[k - 1] - ys[k] < 30) expect(ys[k - 1] - ys[k]).toBeCloseTo(24, 2);
+  // Tabelle: Kopf mit den Spalten, 4 Zeilen zu je zwei Schreibzeilen (helle Hilfslinie in der Mitte)
+  expect(A.all.match(/q 0\.8 G 0\.4 w 50\.00 [\d.]+ m 545\.28 [\d.]+ l S Q/g)).toHaveLength(4);
+  for (const c of ["Produkt", "Land", "Menge"]) expect(A.pieces.flat().some((p) => p.t === c && p.font === "F2")).toBe(true);
+  // Weltkarte: alle Umrisse einmal als Form-XObject (y gespiegelt), darunter die Karten mit Hinweis, Bild und Linie für das Land
+  const html = await readFile(new URL("../../index.html", import.meta.url), "utf8");
+  const mapSrc = html.slice(html.indexOf("const WORLD_MAP"), html.indexOf("/* WORLDMAP:END */"));
+  const form = A.form.data.toString("latin1");
+  expect(form.startsWith("1 0 0 -1 0 520 cm 1 g 0.5 G ")).toBe(true);
+  expect(form.match(/ m\n/g)).toHaveLength(mapSrc.match(/[Z"]M-?\d/g).length);
+  expect(form.match(/ l\n/g).length).toBeGreaterThan(5000);
+  expect(A.all).toMatch(/q [\d.]+ 0 0 [\d.]+ 50\.00 [\d.]+ cm \/Wm Do Q/);
+  expect(text).toContain("Schreibe zu jeder Karte das passende Land.");
+  expect(A.pieces.flat().filter((p) => /^\d\.$|^Kaffee$|^Tee$|^Bohnen aus dem Hochland$|^Land:$/.test(p.t)).map((p) => p.t)).toEqual(["1.", "Kaffee", "Bohnen aus dem Hochland", "Land:", "2.", "Tee", "Land:"]);
+  expect(A.images).toHaveLength(1);   // das Kartenbild (als JPEG)
+  expect(A.images[0].dict).toContain("/Filter /DCTDecode");
+  // Keine Aufträge an die KI, keine Länder, keine Checklistenpunkte im PDF – nur der QR-Code mit der Adresse
+  expect(text).not.toMatch(/Verdunstung|Kondensation|Niederschlag|Weizen|Reis|Brasilien|Indien|Du beachtest|Du nennst/);
+  const qr = pdfQr(A.contents[A.contents.length - 1]);
+  expect(qr.text).toBe(CHECK_URL);
+  expect(qr.side).toBeCloseTo(90, 1);
+  const last = A.lines[A.lines.length - 1];
+  expect(last).toContain("Checkliste");
+  expect(last.join(" ")).toContain("Scanne den QR-Code. Dort kannst du für jede Aufgabe abhaken, ob deine Antwort die Erwartungen erfüllt.");
+  expect(last).toContain(CHECK_URL);
+  expect(st.s).toContain(`/A << /S /URI /URI (${CHECK_URL}) >>`);
+  // Fußzeile jeder Seite
+  A.pieces.forEach((ps, k) => {
+    expect(ps.map((p) => p.t)).toContain(`Feibeitsblatt ${shown} · ${TITLE_A}`);
+    expect(ps.map((p) => p.t)).toContain(`Seite ${k + 1} von ${A.pieces.length}`);
+  });
+
+  // Schüler:in: die Seite zeigt jetzt die gespeicherten Punkte (Aufgaben ohne Punkte entfallen)
+  await page.reload();
+  await expect(page.locator("#screen-check")).toHaveClass(/active/);
+  await expect(page.locator("#chk-sheet")).toHaveText(TITLE_A + "Code " + shown);
+  await expect(page.locator("#chk-err")).toHaveText("");
+  await expect(page.locator("#chk-ai")).toHaveText("Die Punkte hat eine KI aus den Vorgaben deiner Lehrkraft vorgeschlagen; deine Lehrkraft hat sie geprüft.");
+  await expect(page.locator("#chk-lead")).toHaveText("Hake ab, was deine Antwort schon erfüllt. Was noch fehlt, kannst du ergänzen.");
+  await expect(page.locator("#chk-tasks legend")).toHaveText(["Aufgabe 1", "Aufgabe 2", "Aufgabe 4"]);
+  await expect(page.locator("#chk-t-1 .chk-text")).toHaveText("Erkläre den Wasserkreislauf mit eigenen Worten.");
+  await expect(page.locator("#chk-t-1 .chk-item")).toHaveText(final1);
+  await expect(page.locator("#chk-t-2 .chk-item")).toHaveText(draft2);
+  await expect(page.locator("#chk-t-4 .chk-item")).toHaveText(final4);
+  await expect(page.locator("#chk-c-1")).toHaveText("0 von 3 abgehakt");
+  expect(await page.locator("#chk-1-1").evaluate((e) => e.closest("label").getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await page.locator("label[for=chk-1-1]").click();
+  await page.locator("#chk-1-3").check();
+  await page.locator("#chk-4-1").check();
+  await expect(page.locator("#chk-c-1")).toHaveText("2 von 3 abgehakt");
+  await expect(page.locator("#chk-c-4")).toHaveText("1 von 1 abgehakt");
+  await expect(page.locator("#chk-c-4")).toHaveClass(/full/);
+  await expect(page.locator("#ck-live")).toHaveText("Aufgabe 4: 1 von 1 abgehakt.");
+  const stored = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)), "feibeitsblatt:check:" + code);
+  expect(stored.ticks).toEqual({ 1: [0, 2], 4: [0] });
+  expect(stored.sig).toMatch(/^[0-9a-f]{8}$/);
+  // eine ungespeicherte Änderung der Lehrkraft erscheint nicht; die Häkchen bleiben nach dem Neuladen
+  await tp.fill("#ck-1", "Ungespeicherter Punkt");
+  await page.reload();
+  await expect(page.locator("#chk-t-1 .chk-item")).toHaveText(final1);
+  await expect(page.locator("#chk-1-1")).toBeChecked();
+  await expect(page.locator("#chk-1-2")).not.toBeChecked();
+  await expect(page.locator("#chk-1-3")).toBeChecked();
+  await expect(page.locator("#chk-c-1")).toHaveText("2 von 3 abgehakt");
+  // „Alle Häkchen entfernen“ fragt nach
+  await page.click("#chk-clear");
+  await confirmDialog(page, "Alle Häkchen entfernen?");
+  await expect(page.locator("#chk-tasks input:checked")).toHaveCount(0);
+  await expect(page.locator("#chk-c-1")).toHaveText("0 von 3 abgehakt");
+  expect(await page.evaluate((k) => localStorage.getItem(k), "feibeitsblatt:check:" + code)).toBeNull();
+  // „Feibeitsblatt digital öffnen“: Startseite mit eingetragenem Code, ohne Hash, Fokus auf „Weiter“
+  await page.click("#chk-open");
+  await expect(page.locator("#screen-start")).toHaveClass(/active/);
+  await expect(page.locator("#code-input")).toHaveValue(shown);
+  await expect(page.locator("#start-btn")).toBeFocused();
+  expect(new URL(page.url()).hash).toBe("");
+  // unbekannter Code → die bekannte Meldung; zurück zur Startseite über den Hash
+  await page.goto("/#checkliste=ZZZ999");
+  await expect(page.locator("#screen-check")).toHaveClass(/active/);
+  await expect(page.locator("#chk-err")).toHaveText(UNKNOWN_CODE_MSG);
+  await expect(page.locator("#chk-open")).toBeHidden();
+  await page.evaluate(() => { location.hash = ""; });
+  await expect(page.locator("#screen-start")).toHaveClass(/active/);
+
+  // Lehrkraft: ungespeicherte Änderung → „Ohne Speichern zurück?“; erneutes Öffnen fragt die KI nicht noch einmal
+  await tp.click("#ck-back");
+  await confirmDialog(tp, "Ohne Speichern zurück?");
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  await tp.click("#t-analog");
+  await expect(tp.locator("#ck-state")).toContainText("Gespeicherte Checkliste vom");
+  await expect(tp.locator("#ck-1")).toHaveValue(final1.join("\n"));
+  await expect(tp.locator("#ck-status")).toHaveText("");
+  expect(await posts()).toHaveLength(1);
+  mock = await mockState();
+  expect(mock.requests).toHaveLength(1);
+  // „Neu von der KI vorschlagen lassen“ fragt erst, ersetzt den Editorinhalt; die gespeicherte Checkliste bleibt öffentlich
+  await tp.click("#ck-regen");
+  await confirmDialog(tp, "Neu vorschlagen lassen?");
+  await expect(tp.locator("#ck-1")).toHaveValue(draft1.join("\n"));
+  await expect(tp.locator("#ck-state")).toContainText("Vorschlag der KI – noch nicht gespeichert");
+  expect((await mockState()).requests).toHaveLength(2);
+  const pubCk = await (await request.get(`/api/sheet/${code}/checklist`)).json();
+  expect(pubCk.tasks.map((x) => x.points)).toEqual([final1, draft2, [], final4]);
+  // Ohne Punkte: Rückfrage, gespeichert wird eine leere Checkliste, das PDF hat keinen QR-Code
+  for (let n = 1; n <= 4; n++) await tp.fill("#ck-" + n, "");
+  await tp.click("#ck-save");
+  const noQrText = await confirmDialog(tp, "Ohne QR-Code herunterladen?", false);
+  expect(noQrText).toBe("Ohne Checklistenpunkte enthält das PDF keinen QR-Code. Trotzdem herunterladen?");
+  const [dl2] = await Promise.all([tp.waitForEvent("download"), (async () => { await tp.click("#ck-save"); await confirmDialog(tp, "Ohne QR-Code herunterladen?"); })()]);
+  await expect(tp.locator("#ck-status")).toHaveText(/^Gespeichert\. Das PDF \(\d+ KB\) wird heruntergeladen\. Ohne Checklistenpunkte enthält es keinen QR-Code\.$/, { timeout: 30_000 });
+  const B = analogPdfOf(await readFile(await dl2.path()));
+  expect(pdfQr(B.all)).toBeNull();
+  expect(B.lines.flat()).not.toContain("Checkliste");
+  await page.goto("/#checkliste=" + code);
+  await expect(page.locator("#chk-tasks")).toHaveText("Deine Lehrkraft hat zu diesem Feibeitsblatt keine Checkliste hinterlegt.");
+  await expect(page.locator("#chk-clear")).toBeHidden();
+  await closePage(s);
+
+  // aufräumen: Blatt löschen – die Checkliste verschwindet mit
+  await tp.click("#ck-back");
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  expect(await d1Query(`SELECT sheet_code FROM sheet_checklists WHERE sheet_code='${code}'`)).toEqual([]);
   await closePage(t);
 });
 

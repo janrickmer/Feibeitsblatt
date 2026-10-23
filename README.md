@@ -6,7 +6,9 @@ Arbeitsblatt, tippen ihre Antworten selbst (Einfügen ist gesperrt), lassen Rech
 holen sich (freiwillig) einmal ein KI-Feedback zum Inhalt, überarbeiten ihre Antworten und geben ab; bei der Abgabe bekommen
 sie eine zweite KI-Rückmeldung zu ihrer abgegebenen Fassung. In der
 Lehrkräfte-Übersicht sehen Sie alle Abgaben – die erste Fassung und die überarbeitete Fassung nebeneinander (bei
-einer Abgabe ohne KI-Feedback nur die abgegebene Fassung).
+einer Abgabe ohne KI-Feedback nur die abgegebene Fassung). Jedes Feibeitsblatt lässt sich auch als analoges
+Arbeitsblatt zum Ausdrucken herunterladen – mit Schreiblinien und einem QR-Code zu einer Checkliste, auf der die
+Schüler:innen selbst abhaken, ob ihre Antworten die Erwartungen erfüllen.
 Anders als im Feiditor werden keine Tippzeiten gemessen.
 
 Technisch besteht Feibeitsblatt aus einer Webseite (`index.html`) und einem kleinen Server (Cloudflare Worker mit
@@ -186,6 +188,13 @@ Einfügungen aus der Zwischenablage einer Handy- oder Tablet-Tastatur). Kurze St
 technisch nicht von Tippen oder Wortvorschlägen unterscheiden und gehen durch; wer technisch versiert ist, kann
 eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht.
 
+**Auf Papier mit Checkliste.** Bekommen die Schüler:innen das Feibeitsblatt ausgedruckt (siehe „Analoges
+Arbeitsblatt“ unten), führt der QR-Code am Ende zu einer Seite mit der Checkliste der Lehrkraft (Adresse mit
+`#checkliste=` und dem Code). Dort haken sie je Aufgabe ab, was ihre Antwort schon erfüllt („2 von 4 abgehakt“). Die
+Häkchen bleiben nur auf dem Gerät und werden nicht gesendet; „Alle Häkchen entfernen“ setzt die Liste zurück, und
+nach 7 Tagen ohne Änderung löscht die Seite sie beim nächsten Aufruf. Ändert die Lehrkraft die Punkte, beginnt die
+Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit eingetragenem Code.
+
 ## So arbeiten Sie als Lehrkraft
 
 1. **Lehrkräfte-Zugang öffnen.** Auf der Startseite statt eines Codes `1104` eingeben und „Weiter“ klicken.
@@ -312,7 +321,29 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    PDF-Material an eine Aufgabe hängen – sonst bekämen Schüler:innen die Aufträge an die KI bzw. fremde Angaben. Sichtbar in
    der PDF sind nur Zeichen des Zeichensatzes Windows-1252; andere Zeichen, z. B. griechische Buchstaben oder Emoji,
    erscheinen dort als „?“. In den Hintergrunddaten bleiben sie erhalten.
-7. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
+7. **Analoges Arbeitsblatt als PDF.** Bei einem ausgewählten Feibeitsblatt öffnet „Analoges Arbeitsblatt als PDF
+   herunterladen“ eine eigene Seite. Das PDF zum Ausdrucken (`Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`) enthält
+   den Titel, direkt darunter einen Hinweis, dass sich das Arbeitsblatt mit dem Code auch digital auf
+   `https://feibeitsblatt.janrickmer.de/` aufrufen lässt – und, wenn das Blatt Aufträge an die KI hat und ein KI-Dienst
+   eingerichtet ist, dass es dort eine KI-Rückmeldung gibt, die es auf dem Papier nicht gibt –, eine Zeile für Name,
+   Klasse und Datum und dann alle Aufgaben: Aufgabenstellung (mit Fett, Kursiv, Unterstrichen), Bilder, Material
+   (Links erscheinen als Adresse, nie als Linktext), die Namen angehängter PDF-Dateien („nur digital“) und Platz für die
+   Antwort: **8 Schreiblinien** im Abstand von 24 pt (etwa 8,5 mm, passend für Handschrift in Schriftgröße 14), bei
+   einer Tabelle ein Gitter mit **zwei Schreibzeilen je Tabellenzeile** (der Kopf wiederholt sich auf jeder neuen
+   Seite), bei der Weltkarten-Zuordnung eine Umrisskarte ohne Ländernamen und darunter die Karten mit einer Linie für
+   das Land. Am Ende steht ein **QR-Code zur Checkliste**. Aufträge an die KI, richtige Länder und Abgaben stehen nie
+   darin. Die Punkte der Checkliste schlägt beim ersten Öffnen einmal die KI vor: Sie bekommt dafür nur Aufgabenstellungen,
+   Material (als reinen Text) und Ihre Aufträge an die KI – keine Abgaben und keine Daten der Schüler:innen – und
+   macht daraus kurze, prüfbare Punkte in Du-Form („Du nennst …“), die auch Inhalte aus dem Auftrag nennen dürfen. Der
+   Vorschlag wird beim Blatt gespeichert, Neuladen fragt die KI nicht noch einmal; „Neu von der KI vorschlagen lassen“
+   fragt erneut. Prüfen und ändern Sie die Punkte (eine Zeile je Punkt, höchstens 8 je Aufgabe mit je 160 Zeichen;
+   Aufgaben ohne Auftrag an die KI und Weltkarten bekommen keinen Vorschlag, Sie können dort selbst Punkte eintragen).
+   **Erst „Speichern und PDF herunterladen“ macht die Checkliste öffentlich:** Über den QR-Code sieht sie jede Person,
+   die den Link kennt – schreiben Sie nichts Geheimes hinein und keine fertige Lösung, die die Schüler:innen nicht
+   sehen sollen. „Checkliste ansehen“ zeigt sie so, wie die Schüler:innen sie sehen. Ohne Checklistenpunkte enthält
+   das PDF keinen QR-Code (die Seite fragt vorher nach). Die Sicherung („Als PDF-Datei herunterladen“) und „Als Vorlage
+   verwenden“ tragen die Checkliste nicht mit: Ein neues Blatt bekommt beim ersten Öffnen einen neuen Vorschlag.
+8. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
    Löschfrist“ festlegen ([Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)). Früher geht es ganz
    unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche werden mitgelöscht).
    Einen einzelnen Eintrag – etwa auf Wunsch einer Schülerin, eines Schülers oder der Eltern – löschen Sie in den
@@ -321,8 +352,8 @@ eine Sperre im Browser grundsätzlich umgehen. Die Sperre ersetzt keine Aufsicht
    hat in der Liste einen eigenen Knopf „Eintrag löschen“.
    Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt. Darunter: „Feibeitsblatt
    selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu. Wollen Sie ein Blatt später
-   wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6).
-8. **Weitere Schaltflächen** oben: „Datenschutz und Löschfrist“ (Angaben der Schule für den Datenschutzhinweis und die
+   wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6). Mit dem Blatt wird auch seine Checkliste gelöscht.
+9. **Weitere Schaltflächen** oben: „Datenschutz und Löschfrist“ (Angaben der Schule für den Datenschutzhinweis und die
    automatische Löschung, siehe [Schritt 9](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)),
    „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und „Abmelden“. Fehlen Angaben der Schule oder
    eine Löschfrist, warnt die Übersicht in Rot; sonst nennt sie Schule und Frist. Unter der Tabelle zeigt die Übersicht, wie viel Speicher Bilder und PDF-Dateien aller
@@ -740,6 +771,7 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
 | Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
+| Checkliste zum analogen Arbeitsblatt: Vorschlag der KI (Entwurf) und die von Ihnen gespeicherten Punkte | Cloudflare D1 (EU), Tabelle `sheet_checklists` | unverschlüsselt; die gespeicherte Fassung (nie der Entwurf) ist für alle abrufbar, die den Code bzw. den QR-Code kennen | bis Sie das Blatt löschen |
 | Datenschutz-Angaben der Schule (Name, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage, Aufsichtsbehörde, Link) und Löschfrist | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; für alle abrufbar, die einen Code kennen (die Schüler:innen sehen sie im Datenschutzhinweis) | bis Sie sie ändern |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
 | KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert; Workers AI hat keinen) | bis Sie sie ändern |
@@ -748,6 +780,7 @@ ehrlich, was wo gespeichert und wohin gesendet wird; er ist keine Rechtsberatung
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
 | Zwischenstand der Schüler:innen (Antworten, Kürzel, Geburtstag, Klasse, ggf. KI-Feedback) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 | Zwischenstand als PDF-Datei (dieselben Angaben), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
+| Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten, und er protokolliert keine Schülertexte
@@ -815,6 +848,12 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   `index.html`; eine Einstellung zum vollständigen Abschalten der Prüfung gibt es bisher nicht. Laut derselben
   Erklärung ist Learneo nach dem EU-US Data Privacy Framework (samt Swiss-US und UK Extension) zertifiziert; ersatzweise
   gelten Standardvertragsklauseln.
+- **Checkliste zum analogen Arbeitsblatt (Lehrkraft):** Beim ersten Öffnen von „Analoges Arbeitsblatt als PDF
+  herunterladen“ (und bei „Neu von der KI vorschlagen lassen“) schickt der Server **Aufgabenstellungen, den Text des
+  Materials (ohne Link-Adressen), die Spalten von Tabellen und Ihre Aufträge an die KI** an den KI-Dienst (erster
+  Anbieter, bei Ausfall die Reserve – wie beim Feedback), nur für Aufgaben mit Auftrag an die KI. Antworten und Daten
+  von Schüler:innen gehen dabei nie mit. Die Checklisten-Seite der Schüler:innen lädt nur die gespeicherte Checkliste
+  vom Server (die IP-Adresse wird dabei wie beim Laden der Seite verarbeitet); die Häkchen verlassen das Gerät nicht.
 - Die Seite lädt keine externen Schriften, Bibliotheken oder Tracker.
 
 ### Empfehlungen
@@ -1006,6 +1045,7 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | KI-Anfragen je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 800 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
 | KI-Anfragen je Feibeitsblatt | 600 pro Tag (bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
 | Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
+| Checkliste zum analogen Arbeitsblatt | höchstens 8 Punkte je Aufgabe, je 160 Zeichen; KI-Vorschläge 30 pro Stunde je Netzwerk (IP-Adresse) |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
 | Bilder und PDF-Dateien aller Feibeitsblätter zusammen | 200 MB (die Übersicht zeigt den belegten Speicher) |
