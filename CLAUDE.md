@@ -553,8 +553,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `S.groupMode`; `#p-back` „← zurück zur Auswahl“ fokussiert die gewählte Form): Einzelarbeit unverändert (`#p-single`),
   Gruppe „Eure Angaben“ (`#p-sub`, `#p-group` mit Hinweis `#p-members-hint`): `#p-members` mit `div.pm-row` (Label „Person n“,
   `input#p-m-n`, `maxlength` 8, Einzelarbeit-Attribute; ab Person 2 `.iconbtn.x` `aria-label` „Person n entfernen“ – Fokus danach
-  auf die nachgerückte, sonst die vorige Person; `renumberMembers` nummeriert neu), `#p-add` „Person hinzufügen“ (fokussiert das
-  neue Feld; ab `GROUP_MAX` 10 `disabled` + `#p-add-hint` „Höchstens 10 Personen.“), Enter → nächstes Feld bzw. `#p-klasse`; die
+  auf die nachgerückte, sonst die vorige Person; eine Meldung zu den Kürzelfeldern verschwindet dabei, eine zur Klasse bleibt samt
+  `.invalid` (`pErrAt`); `renumberMembers` nummeriert neu), `#p-add` „Person hinzufügen“ (fokussiert das neue Feld; ab `GROUP_MAX`
+  10 `aria-disabled` statt `disabled` – bleibt per Tab erreichbar –, `aria-describedby` → `#p-add-hint` `role="status"`, Text
+  „Höchstens 10 Personen.“ nur bei voller Liste, sonst leer), Enter → nächstes Feld bzw. `#p-klasse`; die
   Klasse einmal (Hinweis `KLASSE_HINT_AI_G`/`_NO_AI_G` in „ihr“-Form), kein Geburtstag. `groupGo` → `checkGroup`: je Feld
   `parseKuerzel` (NFC, Leerzeichen/Bindestrich als Trenner, sonst `LETTERS`; Vorname 2–3, Nachname 1–2, ohne Trenner 3–5;
   geteilt am Trenner bzw. Groß-/Kleinwechsel „LiMu“, sonst bei 5 Buchstaben 3 + 2, sonst ein Teil; je Teil `nameCase` →
@@ -568,10 +570,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `cleanGroup` (2–10, Kürzelform, Klasse), „Weiterschreiben?“ „… der Gruppe … Seid ihr das?“, Topbar `#who-lbl` „Gruppe“,
   Zwischenstand-PDF „Gruppe:“, Lösungs-PDF „Gruppe: …“ im Kopf und „Gruppe …“ in der Fußzeile (nach Breite: erst Titel kürzen,
   notfalls „Gruppe (n)“), Dateinamen ohne Kürzel. „ihr“ nur, wo es um alle geht: Angaben-Bildschirm der Gruppe,
-  `privacyShortText(p, list, withAi, group)`, `ltConsent` (OK „Trifft auf alle in eurer Gruppe zu – prüfen“, Abbrechen „Trifft nicht
-  auf alle zu“, sonst gleiches Verhalten), „Weiterschreiben?“; im Schreibbereich bleibt es beim „du“ (`renderPrivacy` nennt bei
-  einer Gruppe „den Namenskürzeln der Gruppe und der Klasse“ statt Geburtstag). `privacyNoticeDom` „Welche Daten?“ nennt beide
-  Formen (wer einträgt, trägt die Kürzel der anderen mit ein); `#pv-preview-note` nennt die „ihr“-Form. Lehrkraft: `loadSubs` kappt
+  `privacyShortText(p, list, withAi, group)`, `privacyNoticeDom(…, {group: true})` nur in `#p-privfull` der Gruppe (Bausteine
+  `PRIV_IHR` statt `PRIV_DU`, derselbe Inhalt; „Eure Rechte“: „Jede und jeder von euch kann …“), `ltConsent` (OK „Trifft auf alle in
+  eurer Gruppe zu – prüfen“, Abbrechen „Trifft nicht auf alle zu“, sonst gleiches Verhalten), „Weiterschreiben?“; im Schreibbereich
+  bleibt es beim „du“ (auch `#privfull-ed`), nur ohne Geburtstag: `renderPrivacy` „zusammen mit den Namenskürzeln der Gruppe und
+  der Klasse“, `noPersonData()` „ohne die Namenskürzel der Gruppe und die Klasse“ in `renderPrivacy` und `recipientSentence`
+  (Feedback- und Abgabe-Dialog). `privacyNoticeDom` „Welche Daten?“ nennt beide Formen (wer einträgt, trägt die Kürzel der anderen
+  mit ein); `#pv-preview-note` nennt die „ihr“-Form. Lehrkraft: `loadSubs` kappt
   auf `GROUP_MAX` Kürzel × 20 Zeichen; Sortierung je Klasse erst Einzelarbeiten, dann Gruppen; Zeile `td.grpcell` (`colspan` 2,
   `.grpnames` + `.grpbadge` „Gruppe (n)“, Geburtstag „–“; Einzelzeilen unverändert), Details `p.dgroup` „Gruppenarbeit: …“,
   Hinweise „derselben Gruppe“/„Diese Gruppe hat …“. Server und KI unverändert (Personendaten nur im verschlüsselten payload).
@@ -628,7 +633,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Titel und „Seite n von N“; Datei `Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`; nie Aufträge an die KI, Länder, Abgaben oder
   Checklistenpunkte. QR-Block zwischen `/* QR:BEGIN` und `/* QR:END */` (`qrMatrix(text, forceMask?)` → `{size, version, mask, dark}`,
   Byte-Modus, Stufe M, Version 1–10, nur zur Laufzeit aufrufen; `test/unit/qr.test.mjs` mit jsQR 1.4.0). Schüler:innen:
-  `#checkliste=<CODE>` (beim Laden; `hashchange` nur von Start, Angaben und Checkliste aus) → `#screen-check`
+  `#checkliste=<CODE>` (beim Laden; `hashchange` nur von Start, Arbeitsform, Angaben und Checkliste aus) → `#screen-check`
   (`openChecklist`/`renderChecklist`: Aufgaben mit Punkten als `fieldset.chkset`, lange Texte in `details`, Checkboxen `#chk-n-k` in
   `label` ≥ 44 px, Zähler `#chk-c-n`, eine verzögerte Live-Region `#ck-live`; ohne Punkte „Deine Lehrkraft hat … keine Checkliste
   hinterlegt.“; `ai:true` → KI-Hinweis), Häkchen nur in `localStorage` `feibeitsblatt:check:<CODE>` = `{t, sig (FNV-1a über die

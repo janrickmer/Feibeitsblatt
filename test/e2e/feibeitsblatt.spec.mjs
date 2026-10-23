@@ -106,6 +106,9 @@ const HESSEN_BASIS = "Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs.
 const HESSEN_AUTH = "Der Hessische Beauftragte für Datenschutz und Informationsfreiheit, Postfach 3163, 65021 Wiesbaden, poststelle@datenschutz.hessen.de";
 const PRIV_HEADS = ["Wer ist verantwortlich?", "Datenschutzbeauftragte:r deiner Schule", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
   "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Musst du mitmachen?", "Entscheidet die KI über dich?", "Deine Rechte"];
+// Angaben-Bildschirm einer Partner- / Gruppenarbeit: derselbe Hinweis in der „ihr“-Form
+const PRIV_HEADS_GROUP = ["Wer ist verantwortlich?", "Datenschutzbeauftragte:r eurer Schule", "Wozu werden eure Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
+  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Müsst ihr mitmachen?", "Entscheidet die KI über euch?", "Eure Rechte"];
 const PRIV_MISSING_WARN = "Die Angaben Ihrer Schule für den Datenschutzhinweis fehlen noch (Name der Schule, Anschrift, Datenschutzbeauftragte:r, Rechtsgrundlage). Bis dahin sehen die Schüler:innen nur einen allgemeinen Hinweis – das genügt der Informationspflicht nach Art. 13 DSGVO nicht. Bitte tragen Sie die Angaben unter „Datenschutz und Löschfrist“ ein.";
 const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
 const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
@@ -801,7 +804,7 @@ test("1b Datenschutz: ohne Schulangaben ein allgemeiner Hinweis (auch über GitH
   await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), " +
     "nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
     "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
-    "Bei Partner- oder Gruppenarbeit steht die Kurzfassung in der „ihr“-Form („Auf dem Server werden eure Angaben …“).");
+    "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“).");
   await page.fill("#pv-name", SCHOOL.name);
   await page.fill("#pv-addr", SCHOOL.address);
   await page.fill("#pv-dpo", SCHOOL.dpo);
@@ -1462,6 +1465,10 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-gtag")).toBeVisible();
   await expect(page.locator("#p-group")).toBeHidden();
   await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);
+  await page.locator("#p-privfull summary").click();   // Einzelarbeit: alle Informationen in der „du“-Form, „Welche Daten?“ nennt beide Formen
+  await expect(page.locator("#p-privfull h2.privh")).toHaveText(PRIV_HEADS);
+  await expect(page.locator("#p-privfull")).toContainText("Bei Einzelarbeit die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr) und deine Klasse; " + GROUP_DATA + " Außerdem deine Antworten");
+  await page.locator("#p-privfull summary").click();
   await expect(page.locator("#p-back")).toHaveText("← zurück zur Auswahl");
   await page.click("#p-back");
   await expect(page.locator("#screen-mode")).toHaveClass(/active/);
@@ -1487,9 +1494,15 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-privacy-short")).toHaveText(new RegExp("^Datenschutz: Verantwortlich ist " + SCHOOL.name + "\\. Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur eure Lehrkraft\\. " +
     "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Das KI-Feedback ist freiwillig: Nur wenn ihr es anfordert, gehen eure Antworten – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: von der Lehrkraft zu prüfen\\)“, " +
     "bei der Abgabe dann noch einmal in der abgegebenen Fassung\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
+  // auch alle Informationen zum Datenschutz in der „ihr“-Form (derselbe Inhalt; „Welche Daten?“ nennt beide Arbeitsformen)
   await page.locator("#p-privfull summary").click();
-  await expect(page.locator("#p-privfull h2.privh")).toHaveText(PRIV_HEADS);
-  await expect(page.locator("#p-privfull")).toContainText("Bei Einzelarbeit die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr) und deine Klasse; " + GROUP_DATA + " Außerdem deine Antworten");
+  await expect(page.locator("#p-privfull h2.privh")).toHaveText(PRIV_HEADS_GROUP);
+  await expect(page.locator("#p-privfull")).toContainText("Bei Partner- oder Gruppenarbeit (so wie bei euch) die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – " +
+    "wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen; bei Einzelarbeit die ersten Buchstaben des Vor- und Nachnamens, der Geburtstag (Tag und Monat, ohne Jahr) und die Klasse. Außerdem eure Antworten");
+  await expect(page.locator("#p-privfull")).toContainText("Eure Lehrkraft – nur sie kann eure auf dem Server gespeicherten Angaben und Antworten lesen.");
+  await expect(page.locator("#p-privfull")).toContainText("Jede und jeder von euch kann Auskunft über die eigenen gespeicherten Daten verlangen");
+  await expect(page.locator("#p-privfull")).toContainText("– ohne eure Namenskürzel und die Klasse –");
+  expect(await page.locator("#p-privfull").textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
   await page.locator("#p-privfull summary").click();
 
   // Prüfungen: leeres Feld, eine Person, Zeichen, doppeltes Kürzel, Form; Fehler in #p-err, Feld markiert und fokussiert
@@ -1539,10 +1552,22 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-add")).toBeDisabled();
   await expect(page.locator("#p-add-hint")).toBeVisible();
   await expect(page.locator("#p-add-hint")).toHaveText("Höchstens 10 Personen.");
+  // gesperrt per aria-disabled: per Tab erreichbar, der Grund steht in der Beschreibung; der Hinweis ist eine Statusmeldung
+  await expect(page.locator("#p-add")).toHaveAttribute("aria-disabled", "true");
+  await expect(page.locator("#p-add")).toHaveAttribute("aria-describedby", "p-add-hint");
+  await expect(page.locator("#p-add-hint")).toHaveAttribute("role", "status");
+  await page.keyboard.press("Tab"); await expect(page.getByRole("button", { name: "Person 10 entfernen" })).toBeFocused();
+  await page.keyboard.press("Tab"); await expect(page.locator("#p-add")).toBeFocused();
+  await expect(page.locator("#p-add")).toHaveAccessibleDescription("Höchstens 10 Personen.");
+  await page.keyboard.press("Enter");   // tut nichts
+  await expect(page.locator("#p-members input")).toHaveCount(10);
+  await expect(page.locator("#p-add")).toBeFocused();
   await page.getByRole("button", { name: "Person 10 entfernen" }).click();
   await expect(page.locator("#p-m-9")).toBeFocused();   // das letzte Feld entfernt → das vorige
   await expect(page.locator("#p-add")).toBeEnabled();
+  await expect(page.locator("#p-add")).toHaveAttribute("aria-disabled", "false");
   await expect(page.locator("#p-add-hint")).toBeHidden();
+  await expect(page.locator("#p-add-hint")).toHaveText("");
   for (let n = 9; n >= 4; n--) await page.getByRole("button", { name: `Person ${n} entfernen` }).click();
   await expect(page.locator("#p-members input")).toHaveCount(3);
   // Enter springt ins nächste Feld, am Ende zur Klasse (einmal für die ganze Gruppe)
@@ -1551,6 +1576,12 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await page.keyboard.press("Enter"); await expect(page.locator("#p-m-3")).toBeFocused();
   await page.keyboard.press("Enter"); await expect(page.locator("#p-klasse")).toBeFocused();
   await page.click("#p-btn");
+  await expect(err).toHaveText("Bitte gebt eure Klasse ein (z. B. 8b).");
+  await expect(page.locator("#p-klasse")).toHaveClass(/invalid/);
+  // eine Person hinzufügen und wieder entfernen: die Meldung betrifft die Klasse – sie bleibt samt Markierung stehen
+  await page.click("#p-add");
+  await page.getByRole("button", { name: "Person 4 entfernen" }).click();
+  await expect(page.locator("#p-m-3")).toBeFocused();
   await expect(err).toHaveText("Bitte gebt eure Klasse ein (z. B. 8b).");
   await expect(page.locator("#p-klasse")).toHaveClass(/invalid/);
   await page.fill("#p-klasse", "8b!");
@@ -1566,7 +1597,8 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#who-name")).toHaveText("MaxMu, LiMu, TimBe · Klasse 8b");
   await shots(page, "2b-editor", [375]);
   await expect(page.locator("#privacy")).toContainText("werden deine erste Fassung und das Feedback zusammen mit den Namenskürzeln der Gruppe und der Klasse verschlüsselt");
-  await expect(page.locator("#privacy")).not.toContainText("Geburtstag und Klasse verschlüsselt");
+  await expect(page.locator("#privacy")).toContainText("werden nur deine Antworten – ohne die Namenskürzel der Gruppe und die Klasse – an den Server dieser Seite geschickt");
+  await expect(page.locator("#privacy")).not.toContainText("Geburtstag");
   for (let i = 0; i < 2; i++) await typeAt(page, "#a-" + (i + 1), G.first[i]);
 
   // Rechtschreibprüfung: die Altersgrenze gilt für alle, die mitschreiben – der Dialog fragt die ganze Gruppe
@@ -1578,9 +1610,13 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#t-1 .lt-out .lt-text")).toHaveText("Keine Rechtschreib- oder Grammatikfehler gefunden.");
   expect(s.lt.map((r) => r.params.text)).toEqual([G.first[0]]);   // nur der Text der Antwort
 
-  // KI-Feedback: weder Kürzel noch Klasse gehen an den Server oder die KI
+  // KI-Feedback: weder Kürzel noch Klasse gehen an den Server oder die KI (der Dialog nennt keinen Geburtstag)
   await mockReset();
-  await requestFeedback(page);
+  await page.click("#fb-btn");
+  const fbDlg = await confirmDialog(page, "KI-Feedback anfordern?");
+  expect(fbDlg).toContain("Deine Antworten gehen – ohne die Namenskürzel der Gruppe und die Klasse – über den Server dieser Seite an den KI-Dienst „");
+  expect(fbDlg).not.toContain("Geburtstag");
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
   const [fbCall] = await s.calls((r) => r.path === "/api/feedback");
   expect(Object.keys(JSON.parse(fbCall.reqBody)).sort()).toEqual(["answers", "code", "recipients"]);
   const prompt = JSON.stringify((await mockState()).requests.map((r) => r.messages));
@@ -1658,7 +1694,8 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
 
   // Abgabe der Gruppe → Lösungs-PDF nennt die Gruppe (Kopf und Fußzeile), der Dateiname keine Kürzel
   await page.click("#submit-btn");
-  await confirmDialog(page, "Jetzt abgeben?");
+  const subDlg = await confirmDialog(page, "Jetzt abgeben?");
+  expect(subDlg).toContain("Deine Antworten gehen – ohne die Namenskürzel der Gruppe und die Klasse – über den Server");
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#done-fb .fbbox")).toHaveCount(2, { timeout: 60_000 });
   const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);

@@ -49,7 +49,8 @@ Schüler:innen verschlüsselt; lesen können Sie sie nur mit Ihrem Passwort.
    mitarbeiten und davon wissen. „← zurück zur Auswahl“ führt zur Arbeitsform zurück. Dann „Schreibbereich öffnen“.
    Unter den Feldern steht – zum Zeitpunkt, an dem die Angaben erhoben werden – ein kurzer
    Datenschutzhinweis mit Ihrer Schule und der Löschfrist; „Alle Informationen zum Datenschutz“ klappt den
-   vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Datenschutz-Angaben und Löschfrist](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen)).
+   vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Datenschutz-Angaben und Löschfrist](#schritt-9-datenschutz-angaben-und-löschfrist-eintragen));
+   bei Partner- oder Gruppenarbeit stehen beide in der „ihr“-Form (im Schreibbereich bleibt es beim „du“).
    Derselbe Hinweis steht im Schreibbereich unter dem Feedback-Button – auch für alle, die über „Weiterschreiben“
    kommen und die Angaben nicht noch einmal sehen. Der Hinweis unter dem Feld „Klasse“ sagt, wann die Angaben
    verschlüsselt an die Lehrkraft gehen: mit dem KI-Feedback (als Erstversuch), ohne KI-Feedback erst bei der Abgabe.
@@ -554,7 +555,8 @@ und der bzw. dem Datenschutzbeauftragten ab.
    was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
    Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub als Empfänger für die ganze
    Seite (unter der Worker-Adresse nur für die Checklisten-Seite hinter dem QR-Code); bei Blättern ohne Auftrag an die KI
-   entfallen die Angaben zum KI-Feedback. „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
+   entfallen die Angaben zum KI-Feedback; bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
+   Angaben-Bildschirm in der „ihr“-Form (derselbe Inhalt). „Speichern“ – die Schüler:innen sehen die Angaben beim nächsten Öffnen eines Feibeitsblattes.
 
 Gelöscht wird einmal täglich in der Nacht (02:17 Uhr UTC, Cron Trigger) und zusätzlich, wenn Sie die Übersicht öffnen
 (dabei räumt der Server auch abgelaufene Zähler und Sperren ab).

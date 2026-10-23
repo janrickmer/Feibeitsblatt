@@ -115,6 +115,8 @@
   .btn:disabled:hover{background:var(--ink)}
   .btn.ghost:disabled:hover{background:transparent}
   .btn.danger:disabled:hover{background:var(--red)}
+  .btn[aria-disabled="true"]{opacity:.55; cursor:default; transform:none}
+  .btn.ghost[aria-disabled="true"]:hover{background:transparent}
   .err{color:var(--red); font-size:13.5px; min-height:18px; margin:2px 0 0}
   .err:empty{min-height:0}
   .card .err{min-height:18px}
@@ -777,8 +779,8 @@
         <p class="fhint" id="p-members-hint">Tragt für jede Person die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens in ein Feld ein, z. B. „MaxMu“ für Max Mustermann (bei kürzerem Vornamen den ganzen Vornamen). Tragt nur Personen ein, die mitarbeiten – alle sollten wissen, dass ihre Kürzel mit eurer Abgabe an die Lehrkraft gehen.</p>
         <div id="p-members"></div>
         <div class="pm-add">
-          <button type="button" class="btn ghost small" id="p-add">Person hinzufügen</button>
-          <span class="fhint hidden" id="p-add-hint">Höchstens 10 Personen.</span>
+          <button type="button" class="btn ghost small" id="p-add" aria-describedby="p-add-hint">Person hinzufügen</button>
+          <span class="fhint" id="p-add-hint" role="status"></span>
         </div>
       </fieldset>
       <div class="field">
@@ -2315,10 +2317,12 @@ function recipientParts() {
 // „kein brauchbares Feedback“ = Serverfehler, Anfrage zu lang, leere, unbrauchbare oder abgeschnittene Antwort, sonstige HTTP-Fehler)
 const RESERVE_WHEN = "nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert";
 const NO_AI_SET = "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – deine Antworten gehen an keine KI.";
+// ohne welche Angaben die Antworten an die KI gehen (Schreibbereich, Dialoge) – eine Gruppe hat keinen Geburtstag angegeben
+const noPersonData = () => (isGroup(S.person) ? "ohne die Namenskürzel der Gruppe und die Klasse" : "ohne Namenskürzel, Geburtstag und Klasse");
 function recipientSentence() {
   const r = recipientParts();
   if (!r.any) return NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.";
-  return `Deine Antworten gehen – ohne Namenskürzel, Geburtstag und Klasse – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
+  return `Deine Antworten gehen – ${noPersonData()} – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
     (r.rest.length ? ` Nur wenn dieser Dienst ${RESERVE_WHEN}, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
     (r.cf ? " Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich." : "") +
     (r.usa ? (r.cf ? " Die übrigen Dienste mit Sitz in den USA" : " Dienste mit Sitz in den USA") + " verarbeiten deine Texte außerhalb der EU." : "");
@@ -2386,77 +2390,118 @@ const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnes
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
 const FB2_SEND = " Hast du KI-Feedback bekommen, geht bei der Abgabe auch deine abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
   "für eine zweite Rückmeldung, die nur du siehst (nicht, wenn du nach dem ersten Feedback nichts geändert hast).";
+// Dieselben Bausteine in der „ihr“-Form – nur für den ausführlichen Hinweis auf dem Angaben-Bildschirm einer Gruppe (privacyNoticeDom
+// mit group); inhaltlich gleich, im Schreibbereich bleibt es beim „du“
+const PRIV_IHR = {
+  draftStay: `Euer Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
+    `Ist er älter als ${DRAFT_DAYS} Tage, löscht diese Seite ihn beim nächsten Aufruf in diesem Browser; bis dahin bleibt er gespeichert. ` +
+    `Auf einem geteilten Gerät gebt deshalb ab oder löscht ihn („Abbrechen und Zwischenstand löschen“).`,
+  checkPurpose: " Bekommt ihr ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste eurer Lehrkraft führen: Dort hakt ihr ab, " +
+    `was eure Antwort schon erfüllt. Dafür lädt ${CHECK_PAGE} nur die Checkliste vom Server – ohne Angaben zu euch; die Internetadresse eures Geräts wird dabei ` +
+    "wie beim Laden der Seite verarbeitet. Eure Häkchen bleiben auf diesem Gerät und werden nicht gesendet.",
+  checkStay: ` Die Häkchen einer solchen Checkliste löscht ${CHECK_PAGE} beim nächsten Aufruf in diesem Browser, wenn ihr sie ${DRAFT_DAYS} Tage nicht geändert ` +
+    "habt; früher geht es mit „Alle Häkchen entfernen“.",
+  checkGithub: `Nur wenn ihr eine Checkliste über den QR-Code öffnet: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
+    `und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
+  github: `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
+  fb2Send: " Habt ihr KI-Feedback bekommen, geht bei der Abgabe auch eure abgegebene Fassung auf demselben Weg noch einmal an die KI – " +
+    "für eine zweite Rückmeldung, die nur ihr seht (nicht, wenn ihr nach dem ersten Feedback nichts geändert habt).",
+  noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
+};
+const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
 /* Alle Informationen (Art. 13 Abs. 1 und 2): p = Angaben (cleanPrivacy) oder null, list = KI-Empfänger [{id, label, transfer}],
-   opts: h (Ebene der Abschnittsüberschriften), withAi (Blatt mit KI-Feedback), pages (Seite über GitHub Pages), open, id */
+   opts: h (Ebene der Abschnittsüberschriften), withAi (Blatt mit KI-Feedback), pages (Seite über GitHub Pages), open, id,
+   group (Angaben-Bildschirm einer Partner- / Gruppenarbeit: alles in der „ihr“-Form, derselbe Inhalt) */
 function privacyNoticeDom(p, list, opts) {
   const o = opts || {}, H = o.h || "h3", withAi = o.withAi !== false, sc = (p && p.school) || {}, days = p ? p.retentionDays : null;
-  const head = (t) => h(H, { class: "privh", text: t }), para = (t) => h("p", { text: t });
+  const g = !!o.group, t = (du, ihr) => (g ? ihr : du), B = g ? PRIV_IHR : PRIV_DU;
+  const head = (x) => h(H, { class: "privh", text: x }), para = (x) => h("p", { text: x });
   const ai = withAi ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
   const cfAt = ai.findIndex((x) => x.id === "cloudflare");
   const firstName = ai.length ? (ai[0].id === "cloudflare" ? "Cloudflare (Workers AI)" : "„" + ai[0].label + "“") : "";
-  const items = [h("li", { text: "Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen." })];
+  const items = [h("li", { text: t("Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen.",
+    "Eure Lehrkraft – nur sie kann eure auf dem Server gespeicherten Angaben und Antworten lesen.") })];
   // Cloudflare betreibt Server und Datenbank; mit Workers AI ist Cloudflare zugleich der KI-Dienst (ein Eintrag statt zwei)
   items.push(h("li", { text: "Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU. " +
-    "Gespeichert werden deine Angaben und Antworten dort nur verschlüsselt." +
-    (withAi ? " Für das KI-Feedback verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht." : "") +
-    " Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) deines Geräts." +
-    (cfAt < 0 ? "" : (cfAt === 0 ? " Wenn du das KI-Feedback anforderst, ist Cloudflare zugleich der KI-Dienst (Workers AI)"
+    t("Gespeichert werden deine Angaben und Antworten dort nur verschlüsselt.", "Gespeichert werden eure Angaben und Antworten dort nur verschlüsselt.") +
+    (withAi ? t(" Für das KI-Feedback verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.",
+      " Für das KI-Feedback verarbeitet der Server eure Antworten – ohne eure Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.") : "") +
+    t(" Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) deines Geräts.", " Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) eures Geräts.") +
+    (cfAt < 0 ? "" : (cfAt === 0 ? t(" Wenn du das KI-Feedback anforderst, ist Cloudflare zugleich der KI-Dienst (Workers AI)", " Wenn ihr das KI-Feedback anfordert, ist Cloudflare zugleich der KI-Dienst (Workers AI)")
       : ` Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}, ist Cloudflare zugleich der KI-Dienst (Workers AI, Reserve)`) +
-      ": Dafür bekommt Cloudflare deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden." +
-      (cfAt === 0 ? FB2_SEND : "")) +
+      t(": Dafür bekommt Cloudflare deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden.",
+        ": Dafür bekommt Cloudflare eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden.") +
+      (cfAt === 0 ? B.fb2Send : "")) +
     ` Für Übermittlungen in die USA stützt sich Cloudflare ${DPF_SCC}.` }));
-  if (o.pages) items.push(h("li", { text: GITHUB_ITEM }));
-  else if (CHECK_HOST) items.push(h("li", { text: CHECK_GITHUB_ITEM }));   // nur die Checklisten-Seite kommt von GitHub Pages
+  if (o.pages) items.push(h("li", { text: B.github }));
+  else if (CHECK_HOST) items.push(h("li", { text: B.checkGithub }));   // nur die Checklisten-Seite kommt von GitHub Pages
   ai.forEach((x, i) => {
     if (x.id === "cloudflare") return;
     items.push(h("li", { text: (i === 0
-      ? `Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ohne Namenskürzel, Geburtstag und Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.${FB2_SEND}`
+      ? t(`Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ohne Namenskürzel, Geburtstag und Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`,
+        `Nur wenn ihr das KI-Feedback anfordert: der KI-Dienst „${x.label}“. Er bekommt eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft – ohne eure Namenskürzel und die Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`) + B.fb2Send
       : `Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}: der KI-Dienst „${x.label}“ (Reserve). Er bekommt dieselben Daten und verarbeitet sie nach seinen eigenen Bedingungen.`) +
       ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || "von der Schule beim Anbieter zu prüfen"}.` }));
   });
-  if (!withAi) items.push(h("li", { text: "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI." }));
-  else if (!ai.length) items.push(h("li", { text: NO_AI_SET }));
-  items.push(h("li", { text: "Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
-    "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. " +
+  if (!withAi) items.push(h("li", { text: t("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.", "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – eure Antworten gehen an keine KI.") }));
+  else if (!ai.length) items.push(h("li", { text: B.noAiSet }));
+  items.push(h("li", { text: t("Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
+    "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. ",
+  "Nur wenn ihr die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis der Eltern): " +
+    "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne eure Angaben, aber mit der Internetadresse eures Geräts. ") +
     "Learneo ist nach dem EU-US Data Privacy Framework zertifiziert; ersatzweise gelten Standardvertragsklauseln." }));
-  const what = withAi ? "Deine Abgabe – und ein Erstversuch, falls du nach dem KI-Feedback nicht abgibst –" : "Deine Abgabe";
+  const what = withAi ? t("Deine Abgabe – und ein Erstversuch, falls du nach dem KI-Feedback nicht abgibst –", "Eure Abgabe – und ein Erstversuch, falls ihr nach dem KI-Feedback nicht abgebt –")
+    : t("Deine Abgabe", "Eure Abgabe");
   const kids = [
     head("Wer ist verantwortlich?"),
-    para(sc.name ? sc.name + (sc.address ? ", " + sc.address + "." : ". Die Anschrift hat deine Lehrkraft hier noch nicht eingetragen – frag sie danach.") + " Bei Fragen kannst du dich auch an deine Lehrkraft wenden."
-      : "Deine Schule. Deine Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – frag sie danach."),
-    head("Datenschutzbeauftragte:r deiner Schule"),
-    para(sc.dpo || "Frag deine Lehrkraft nach den Kontaktdaten."),
-    head("Wozu werden deine Daten verarbeitet?"),
-    para(withAi ? "Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst und – wenn du möchtest – Rückmeldungen einer KI zum Überarbeiten bekommst. " +
-      "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und das KI-Feedback zu deiner ersten Fassung; die Rückmeldung zu deiner abgegebenen Fassung siehst nur du." + CHECK_PURPOSE
-      : "Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten." + CHECK_PURPOSE),
+    para(sc.name ? sc.name + (sc.address ? ", " + sc.address + "." : t(". Die Anschrift hat deine Lehrkraft hier noch nicht eingetragen – frag sie danach.", ". Die Anschrift hat eure Lehrkraft hier noch nicht eingetragen – fragt sie danach.")) +
+      t(" Bei Fragen kannst du dich auch an deine Lehrkraft wenden.", " Bei Fragen könnt ihr euch auch an eure Lehrkraft wenden.")
+      : t("Deine Schule. Deine Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – frag sie danach.", "Eure Schule. Eure Lehrkraft hat Name und Anschrift der Schule hier noch nicht eingetragen – fragt sie danach.")),
+    head(t("Datenschutzbeauftragte:r deiner Schule", "Datenschutzbeauftragte:r eurer Schule")),
+    para(sc.dpo || t("Frag deine Lehrkraft nach den Kontaktdaten.", "Fragt eure Lehrkraft nach den Kontaktdaten.")),
+    head(t("Wozu werden deine Daten verarbeitet?", "Wozu werden eure Daten verarbeitet?")),
+    para((withAi ? t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst und – wenn du möchtest – Rückmeldungen einer KI zum Überarbeiten bekommst. " +
+      "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und das KI-Feedback zu deiner ersten Fassung; die Rückmeldung zu deiner abgegebenen Fassung siehst nur du.",
+    "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt und – wenn ihr möchtet – Rückmeldungen einer KI zum Überarbeiten bekommt. " +
+      "Eure Lehrkraft sieht eure Antworten (mit KI-Feedback eure erste und eure überarbeitete Fassung) und das KI-Feedback zu eurer ersten Fassung; die Rückmeldung zu eurer abgegebenen Fassung seht nur ihr.")
+      : t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten.", "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt. Eure Lehrkraft sieht eure Antworten.")) + B.checkPurpose),
     head("Rechtsgrundlage"),
-    para(sc.legalBasis || "Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes."),
+    para(sc.legalBasis || t("Deine Schule nennt dir die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz deines Bundeslandes.",
+      "Eure Schule nennt euch die Rechtsgrundlage. In der Regel ist es Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit dem Schulgesetz eures Bundeslandes.")),
     head("Welche Daten?"),
-    para("Bei Einzelarbeit die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr) und deine Klasse; " +
+    para(t("Bei Einzelarbeit die ersten Buchstaben deines Vor- und Nachnamens, dein Geburtstag (Tag und Monat, ohne Jahr) und deine Klasse; " +
       "bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – " +
-      "wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen. Außerdem deine Antworten" +
+      "wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen. Außerdem deine Antworten",
+    "Bei Partner- oder Gruppenarbeit (so wie bei euch) die Kürzel aller Mitglieder (je die ersten Buchstaben von Vor- und Nachnamen) und die Klasse, kein Geburtstag – " +
+      "wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen; bei Einzelarbeit die ersten Buchstaben des Vor- und " +
+      "Nachnamens, der Geburtstag (Tag und Monat, ohne Jahr) und die Klasse. Außerdem eure Antworten") +
       (withAi ? ", die KI-Rückmeldungen, bei einer Abgabe ohne KI-Feedback ein Vermerk dazu (war das KI-Feedback nicht möglich, mit dem Grund)" : "") +
-      " und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) deines Geräts; gespeichert wird sie nicht im Klartext, " +
+      t(" und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) deines Geräts; gespeichert wird sie nicht im Klartext, ",
+        " und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) eures Geräts; gespeichert wird sie nicht im Klartext, ") +
       "sondern nur unkenntlich gemacht in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang."),
     head("Wer bekommt die Daten?"),
     h("ul", null, items),
     head("Wie lange werden die Daten gespeichert?"),
-    para((days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); deine Lehrkraft kann sie auch früher löschen.`
-      : `${what} wird gespeichert, bis deine Lehrkraft sie nach der Durchsicht löscht.`) +
-      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${DRAFT_STAY}${CHECK_STAY}` +
-      (cfAt >= 0 ? " Workers AI speichert deine Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten " +
+    para((days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); ${t("deine", "eure")} Lehrkraft kann sie auch früher löschen.`
+      : `${what} wird gespeichert, bis ${t("deine", "eure")} Lehrkraft sie nach der Durchsicht löscht.`) +
+      ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${B.draftStay}${B.checkStay}` +
+      (cfAt >= 0 ? ` Workers AI speichert ${t("deine", "eure")} Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten ` +
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
       (ai.some((x) => x.id !== "cloudflare") ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
-    head("Musst du mitmachen?"),
-    para("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. " +
-      (withAi ? "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig: Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht."
-        : "Die Rechtschreibprüfung ist freiwillig: Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.")),
-    withAi ? head("Entscheidet die KI über dich?") : null,
-    withAi ? para("Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.") : null,
-    head("Deine Rechte"),
-    para("Du kannst Auskunft über deine gespeicherten Daten verlangen und sie berichtigen, löschen oder einschränken lassen. Du kannst der Verarbeitung widersprechen. " +
-      "Wende dich dafür an deine Lehrkraft oder an die bzw. den Datenschutzbeauftragten deiner Schule. Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren" +
+    head(t("Musst du mitmachen?", "Müsst ihr mitmachen?")),
+    para(t("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. ",
+      "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
+      (withAi ? "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig: " : "Die Rechtschreibprüfung ist freiwillig: ") +
+      t("Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.", "Ihr könnt auch ohne sie abgeben, ohne dass euch daraus ein Nachteil entsteht.")),
+    withAi ? head(t("Entscheidet die KI über dich?", "Entscheidet die KI über euch?")) : null,
+    withAi ? para(t("Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.",
+      "Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über eure Arbeit entscheidet eure Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüft sie selbst.")) : null,
+    head(t("Deine Rechte", "Eure Rechte")),
+    // Gruppe: die Rechte hat jede Person für sich
+    para(t("Du kannst Auskunft über deine gespeicherten Daten verlangen und sie berichtigen, löschen oder einschränken lassen. Du kannst der Verarbeitung widersprechen. " +
+      "Wende dich dafür an deine Lehrkraft oder an die bzw. den Datenschutzbeauftragten deiner Schule. Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren",
+    "Jede und jeder von euch kann Auskunft über die eigenen gespeicherten Daten verlangen und sie berichtigen, löschen oder einschränken lassen und der Verarbeitung widersprechen. " +
+      "Wendet euch dafür an eure Lehrkraft oder an die bzw. den Datenschutzbeauftragten eurer Schule. Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren") +
       (sc.authority ? ` – zuständig ist: ${sc.authority}.` : ".")),
     sc.url ? h("p", { class: "privlink" }, [h("a", { href: sc.url, target: "_blank", rel: "noopener noreferrer" }, ["Datenschutzerklärung der Schule", h("span", { class: "sr-only", text: " (öffnet in neuem Tab)" })])]) : null,
   ];
@@ -2471,7 +2516,7 @@ function renderPersonPrivacy() {
   const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
   box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g)]),
-    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull" }));
+    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g }));
   $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
 }
 function renderPrivacy() {
@@ -2483,7 +2528,7 @@ function renderPrivacy() {
       ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
         (!r.any   // keine KI eingerichtet: derselbe Inhalt wie im ausführlichen Hinweis (nie einen KI-Dienst nennen, den es nicht gibt)
           ? `${NO_AI_SET} Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird. `
-          : `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ohne Namenskürzel, Geburtstag und Klasse – an den Server dieser Seite geschickt. ` +
+          : `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ${noPersonData()} – an den Server dieser Seite geschickt. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
         (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
@@ -2634,7 +2679,7 @@ function openPerson(group) {
   $("p-single").classList.toggle("hidden", !!group);
   $("p-group").classList.toggle("hidden", !group);
   if (!memberInputs().length) addMember(false);
-  $("p-err").textContent = "";
+  $("p-err").textContent = ""; pErrAt = null;
   PERSON_FIELDS.forEach((id) => $(id).classList.remove("invalid"));
   memberInputs().forEach((f) => f.classList.remove("invalid"));
   renderPersonPrivacy();
@@ -2666,14 +2711,15 @@ async function personGo() {
   try { await openEditor(); } finally { busy(btn, false); }
 }
 /* Partner- / Gruppenarbeit: alle Kürzelfelder (checkGroup: 2–10 Personen, Kürzelform, keine doppelten) und die Klasse */
+let pErrAt = null;   // Feld, zu dem die Meldung in #p-err gehört (removeMember)
 async function groupGo() {
   const err = $("p-err"), inputs = memberInputs(), kf = $("p-klasse");
-  err.textContent = "";
+  err.textContent = ""; pErrAt = null;
   inputs.concat([kf]).forEach((f) => f.classList.remove("invalid"));
-  const fail = (f, msg) => { if (f.tagName === "INPUT") f.classList.add("invalid"); err.textContent = msg; f.focus(); };
+  const fail = (f, msg) => { if (f.tagName === "INPUT") f.classList.add("invalid"); err.textContent = msg; pErrAt = f; f.focus(); };
   const r = checkGroup(inputs.map((f) => f.value));
   // zu wenige Personen: weiter mit „Person hinzufügen“
-  if (r.err) return fail(inputs[r.at] || ($("p-add").disabled ? inputs[0] : $("p-add")), r.err);
+  if (r.err) return fail(inputs[r.at] || (inputs.length >= GROUP_MAX ? inputs[0] : $("p-add")), r.err);
   const k = normKlasse(kf.value);
   if (!k) return fail(kf, "Bitte gebt eure Klasse ein (z. B. 8b).");
   if (!KLASSE_RE.test(k)) return fail(kf, "Bitte gebt eure Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
@@ -2692,9 +2738,11 @@ function renumberMembers() {
     row.querySelector("label").htmlFor = inp.id; row.querySelector("label").textContent = "Person " + n;
     if (del) del.setAttribute("aria-label", "Person " + n + " entfernen");
   });
-  const full = rows.length >= GROUP_MAX;
-  $("p-add").disabled = full;
-  $("p-add-hint").classList.toggle("hidden", !full);
+  // aria-disabled statt disabled: der Knopf bleibt per Tab erreichbar und nennt den Grund (aria-describedby); der Hinweis ist eine
+  // Statusmeldung (role="status", leer solange Platz ist) – angesagt, sobald die Grenze erreicht ist, ohne dass der Fokus wandert
+  const full = rows.length >= GROUP_MAX, hint = $("p-add-hint"), t = full ? `Höchstens ${GROUP_MAX} Personen.` : "";
+  $("p-add").setAttribute("aria-disabled", String(full));
+  if (hint.textContent !== t) hint.textContent = t;
 }
 function addMember(focus) {
   const box = $("p-members"), first = !box.children.length;
@@ -2716,8 +2764,12 @@ function removeMember(row) {
   if (i < 1) return;
   row.remove();
   renumberMembers();
-  $("p-err").textContent = "";   // eine Meldung zu den Feldern gilt nach dem Entfernen nicht mehr
-  memberInputs().forEach((f) => f.classList.remove("invalid"));
+  // eine Meldung zu den Kürzelfeldern gilt nach dem Entfernen nicht mehr (die Nummern haben sich verschoben); eine zur Klasse
+  // bleibt samt Markierung stehen
+  if (pErrAt !== $("p-klasse")) {
+    $("p-err").textContent = ""; pErrAt = null;
+    memberInputs().forEach((f) => f.classList.remove("invalid"));
+  }
   const list = memberInputs();
   (list[i] || list[i - 1]).focus();   // die nächste Person rückt nach – sonst die vorige
 }
@@ -7167,7 +7219,7 @@ function renderPvPreview() {
   box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true)]),
     privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull" }),
     h("p", { class: "fhint", id: "pv-preview-note", text: (CHECK_HOST ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${CHECK_HOST}, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „${GITHUB_ITEM}“ ` : "") +
-      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. Bei Partner- oder Gruppenarbeit steht die Kurzfassung in der „ihr“-Form („Auf dem Server werden eure Angaben …“)." }));
+      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
 }
 function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der Auswahl steht, als eigene Möglichkeit zeigen
   const sel = $("pv-days");
