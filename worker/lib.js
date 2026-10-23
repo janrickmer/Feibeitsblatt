@@ -102,8 +102,7 @@ export const LIMITS = {
   mapItems: 40, itemId: 40, itemLabel: 120, itemHint: 400, itemCountries: 10, countryName: 80,
   mapChecks: 400,                  // Prüfwerte (Länder aller Karten) je Blatt – der Worker hasht sie beim Anlegen
   cardsPerTask: 40,                // Kartenbilder (mode "card") je Aufgabe – zählen nicht zu imagesPerTask
-  // Datenschutz-Angaben der Schule (settings `privacy`, je Feld einzeilig) und automatische Löschfrist in Tagen
-  schoolName: 160, schoolAddress: 240, dpoContact: 300, privacyUrl: 500, legalBasis: 400, authority: 240,
+  // Automatische Löschfrist für Abgaben und Erstversuche in Tagen (settings `privacy`)
   retentionMin: 7, retentionMax: 365, retentionDefault: 30,
   // Checkliste zum analogen Arbeitsblatt (über den QR-Code öffentlich): Punkte je Aufgabe, Zeichen je Punkt
   checkPoints: 8, checkPoint: 160,
@@ -525,68 +524,37 @@ export function validateAnswers(answers, taskCount) {
   });
 }
 
-/* ---------- Datenschutz-Angaben der Schule und Löschfrist (settings `privacy`) ----------
- * {v:1, school:{name, address, dpo, url, legalBasis, authority}, retentionDays (7–365), updatedAt, auto?} – auto:true = von einer
- * Neuinstallation gesetzte Vorgabe (30 Tage), noch nicht von der Lehrkraft gespeichert. Alles einzeilig, der Link nur mit https.
- * Die Angaben sind öffentlich: GET /api/sheet/:code liefert sie für den Datenschutzhinweis der Schüler:innen. */
+/* ---------- Löschfrist (settings `privacy`) ----------
+ * {v:1, retentionDays (7–365), updatedAt, auto?} – auto:true = von einer Neuinstallation gesetzte Vorgabe (30 Tage), noch nicht von
+ * der Lehrkraft gespeichert. Verantwortlich für den Datenschutz ist der Betreiber der Seite (fest in index.html eingetragen,
+ * FEIBEITSBLATT_OPERATOR) – Angaben einer Schule speichert der Server nicht mehr; ältere Zeilen mit `school` räumt
+ * DROP_SCHOOL_SQL auf. Die Frist ist öffentlich: GET /api/sheet/:code und GET /api/privacy liefern sie für den Datenschutzhinweis. */
 export const RETENTION_OPTIONS = [7, 14, 30, 60, 90, 180, 365];
-const SCHOOL_FIELDS = [   // [Feld, Grenze in LIMITS, Name in der Meldung]
-  ["name", "schoolName", "Der Name der Schule"],
-  ["address", "schoolAddress", "Die Anschrift der Schule"],
-  ["dpo", "dpoContact", "Der Kontakt der bzw. des Datenschutzbeauftragten"],
-  ["legalBasis", "legalBasis", "Die Rechtsgrundlage"],
-  ["authority", "authority", "Die Aufsichtsbehörde"],
-];
 // Einzeilig: NFC, Zeilenumbrüche → Leerzeichen, Steuer- und Formatzeichen weg (u. a. Bidi-Steuerung gegen vertauschte Anzeige),
 // Leerraum zusammengefasst
 export const cleanLine = (v) => String(v == null ? "" : v).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ")
   .replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\s+/g, " ").trim();
-// Link zur Datenschutzerklärung: nur https, ohne Zugangsdaten, Länge nach der Normalisierung → Adresse oder ""
-export function cleanHttpsUrl(raw) {
-  const href = cleanHref(raw);
-  if (!href) return "";
-  const u = new URL(href);
-  return u.protocol === "https:" && !u.username && !u.password && href.length <= LIMITS.privacyUrl ? href : "";
-}
 const isRetention = (d) => Number.isInteger(d) && d >= LIMITS.retentionMin && d <= LIMITS.retentionMax;
-const badSchool = () => new InputError("Die Angaben zur Schule haben ein ungültiges Format.");
+// PUT {retentionDays, confirmDelete}: ein mitgeschicktes `school` (ältere, noch gecachte Seite) wird ignoriert, nie gespeichert
 export function validatePrivacyInput(body) {
   if (!isObj(body)) throw new InputError("Ungültige Anfrage.");
-  const src = body.school == null ? {} : body.school;
-  if (!isObj(src)) throw badSchool();
-  const out = {};
-  for (const [k, lim, the] of SCHOOL_FIELDS) {
-    const v = src[k];
-    if (v != null && typeof v !== "string") throw badSchool();
-    const tooLong = new InputError(the + " ist zu lang (höchstens " + LIMITS[lim] + " Zeichen).");
-    if (v && v.length > 4 * LIMITS[lim] + 100) throw tooLong;   // vor dem Bereinigen (10 ms CPU)
-    out[k] = cleanLine(v);
-    if (out[k].length > LIMITS[lim]) throw tooLong;
-  }
-  if (src.url != null && typeof src.url !== "string") throw badSchool();
-  const rawUrl = String(src.url || "").trim(), url = rawUrl ? cleanHttpsUrl(rawUrl) : "";
-  if (rawUrl && !url) throw new InputError("Bitte geben Sie die Datenschutzerklärung der Schule als vollständige Adresse mit https:// an (höchstens " + LIMITS.privacyUrl + " Zeichen).");
   if (!isRetention(body.retentionDays)) throw new InputError("Bitte wählen Sie eine Löschfrist zwischen " + LIMITS.retentionMin + " und " + LIMITS.retentionMax + " Tagen.");
   // Wie viele ältere Einträge die Lehrkraft zum Löschen bestätigt hat (fehlt = 0): Würde die neue Frist mehr löschen, speichert der
   // Server nichts (409 confirm_delete) – kein Löschen, das die Lehrkraft nicht gesehen hat
   const cd = body.confirmDelete == null ? 0 : body.confirmDelete;
   if (!Number.isInteger(cd) || cd < 0 || cd > 1e9) throw new InputError("Ungültige Anfrage.");
-  return { school: { name: out.name, address: out.address, dpo: out.dpo, url, legalBasis: out.legalBasis, authority: out.authority }, retentionDays: body.retentionDays, confirmDelete: cd };
+  return { retentionDays: body.retentionDays, confirmDelete: cd };
 }
-// Gespeicherte Angaben erneut prüfen und kappen (die Zeile könnte von Hand geändert sein); eine ungültige Frist → null, also keine
-// automatische Löschung – genau wie PURGE_SQL (Ganzzahl 7–365; JSON.stringify schreibt Ganzzahlen nie als 30.0)
+// Gespeicherte Frist erneut prüfen (die Zeile könnte von Hand geändert sein); eine ungültige Frist → null, also keine automatische
+// Löschung – genau wie PURGE_SQL (Ganzzahl 7–365; JSON.stringify schreibt Ganzzahlen nie als 30.0). Nie Schulangaben ausliefern.
 export function privacyOut(stored) {
   if (!isObj(stored)) return null;
-  const s = isObj(stored.school) ? stored.school : {}, f = {};
-  for (const [k, lim] of SCHOOL_FIELDS) f[k] = typeof s[k] === "string" ? cleanLine(s[k]).slice(0, LIMITS[lim]) : "";
-  return {
-    school: { name: f.name, address: f.address, dpo: f.dpo, url: typeof s.url === "string" ? cleanHttpsUrl(s.url) : "", legalBasis: f.legalBasis, authority: f.authority },
-    retentionDays: isRetention(stored.retentionDays) ? stored.retentionDays : null,
-    updatedAt: Number.isFinite(stored.updatedAt) ? stored.updatedAt : null, auto: stored.auto === true,
-  };
+  return { retentionDays: isRetention(stored.retentionDays) ? stored.retentionDays : null, auto: stored.auto === true };
 }
-// Art. 13 DSGVO: Name und Kontakt der Verantwortlichen, Kontakt der bzw. des Datenschutzbeauftragten, Rechtsgrundlage
-export const isPrivacyComplete = (p) => !!(p && p.school && p.school.name && p.school.address && p.school.dpo && p.school.legalBasis);
+// Früher gespeicherte Angaben einer Schule (settings privacy.school) entfernen – idempotent, ändert die Frist nicht (PURGE_SQL liest
+// weiter $.retentionDays); steht in cleanupStatements (Cron, gelegentliches Aufräumen, Öffnen der Übersicht)
+export const DROP_SCHOOL_SQL = "UPDATE settings SET value=json_remove(value,'$.school') WHERE key='privacy' AND json_valid(value) " +
+  "AND json_type(value,'$.school') IS NOT NULL";
 /* Automatische Löschung: eine einzige Anweisung, ?1 = jetzt (ms). Abgaben und Erstversuche, deren Eingang länger als die Frist
    zurückliegt, werden gelöscht (Index idx_submissions_received). Ohne gültige Frist (keine Zeile, kein gültiges JSON, keine
    Ganzzahl 7–365) ist die Unterabfrage NULL – dann wird nichts gelöscht. Liegt hier, weil workerd in der Hauptdatei des Workers

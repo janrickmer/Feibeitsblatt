@@ -7,7 +7,7 @@ import {
   validateSheetInput, validateAnswers, normalizeBaseUrl, isAllowedBase, validateAiInput, keyHintOf, defaultTitle,
   bucketOf, ipKey, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
   validateAnswerSpec, withMapChecks, publicAnswer, teacherAnswer, mapCheck,
-  validatePrivacyInput, privacyOut, isPrivacyComplete, cleanHttpsUrl, cleanLine, PURGE_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
+  validatePrivacyInput, privacyOut, cleanLine, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
 } from "../../worker/lib.js";
 import { DatabaseSync } from "node:sqlite";
 import { PROVIDERS } from "../../worker/ai.js";
@@ -388,52 +388,45 @@ test("map checks: SHA-256 of code|item|country, never countries in public answer
   assert.deepEqual([teacherAnswer(undefined), await publicAnswer({ type: "evil" }, "K7QM4X")], [{ type: "text" }, { type: "text" }]);
 });
 
-/* ---------- Datenschutz-Angaben der Schule und Löschfrist ---------- */
-const SCHOOL = { name: "Musterschule", address: "Musterstraße 1, 65185 Wiesbaden", dpo: "Datenschutz Schulamt, ds@example.org",
-  url: "https://example.org/datenschutz", legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO", authority: "HBDI, Postfach 3163, 65021 Wiesbaden" };
+/* ---------- Löschfrist (verantwortlich ist der Betreiber – keine Angaben einer Schule mehr) ---------- */
+const OLD_SCHOOL = { name: "Musterschule", address: "Musterstraße 1, 65185 Wiesbaden", dpo: "Datenschutz Schulamt, ds@example.org",
+  url: "https://example.org/datenschutz", legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO", authority: "HBDI, Postfach 3163, 65021 Wiesbaden" };   // frei erfunden, wie früher gespeichert
 const privErr = (body, msg) => assert.throws(() => validatePrivacyInput(body), (e) => e instanceof InputError && e.status === 400 && (msg ? (msg instanceof RegExp ? msg.test(e.message) : e.message === msg) : true));
-test("validatePrivacyInput: einzeilig, NFC, ohne Steuer- und Formatzeichen; Grenzen je Feld; Link nur https; Frist 7–365", () => {
-  const ok = validatePrivacyInput({ school: { ...SCHOOL, name: "  Muster\nschule\t am\u00A0See ", address: "A\u202Eb", dpo: "Cafe\u0301", url: " https://Example.org/x?y=1 " }, retentionDays: 30, extra: 1 });
-  assert.deepEqual(Object.keys(ok), ["school", "retentionDays", "confirmDelete"]);
-  assert.equal(ok.confirmDelete, 0);   // fehlt = nichts zum Löschen bestätigt
+test("validatePrivacyInput: nur Frist 7–365 und confirmDelete; ein mitgeschicktes school (ältere Seite) wird ignoriert", () => {
+  const ok = validatePrivacyInput({ school: OLD_SCHOOL, retentionDays: 30, extra: 1 });
+  assert.deepEqual(ok, { retentionDays: 30, confirmDelete: 0 });   // fehlt confirmDelete = nichts zum Löschen bestätigt
+  assert.deepEqual(validatePrivacyInput({ school: "kaputt", retentionDays: 365 }), { retentionDays: 365, confirmDelete: 0 });   // kein Fehler mehr wegen school
   assert.equal(validatePrivacyInput({ retentionDays: 30, confirmDelete: 3 }).confirmDelete, 3);
   for (const cd of [-1, 1.5, "2", true, 2e9]) privErr({ retentionDays: 30, confirmDelete: cd }, "Ungültige Anfrage.");
-  assert.deepEqual(Object.keys(ok.school), ["name", "address", "dpo", "url", "legalBasis", "authority"]);
-  assert.equal(ok.school.name, "Muster schule am See");   // Zeilenumbruch/Tab/NBSP → ein Leerzeichen
-  assert.equal(ok.school.address, "Ab");                  // Bidi-Steuerzeichen (U+202E) entfernt
-  assert.equal(ok.school.dpo, "Café");                    // NFC
-  assert.equal(ok.school.url, "https://example.org/x?y=1");
-  assert.equal(validatePrivacyInput({ retentionDays: 7 }).school.url, "");   // alles optional speicherbar (unvollständig)
-  assert.equal(validatePrivacyInput({ school: { url: "" }, retentionDays: 365 }).retentionDays, 365);
-  const lim = { name: "schoolName", address: "schoolAddress", dpo: "dpoContact", legalBasis: "legalBasis", authority: "authority" };
-  const the = { name: "Der Name der Schule", address: "Die Anschrift der Schule", dpo: "Der Kontakt der bzw. des Datenschutzbeauftragten", legalBasis: "Die Rechtsgrundlage", authority: "Die Aufsichtsbehörde" };
-  for (const k of Object.keys(lim)) {
-    const max = LIMITS[lim[k]];
-    assert.equal(validatePrivacyInput({ school: { [k]: "x".repeat(max) }, retentionDays: 30 }).school[k].length, max);
-    privErr({ school: { [k]: "x".repeat(max + 1) }, retentionDays: 30 }, the[k] + " ist zu lang (höchstens " + max + " Zeichen).");
-    privErr({ school: { [k]: "x ".repeat(4 * max) }, retentionDays: 30 }, the[k] + " ist zu lang (höchstens " + max + " Zeichen).");   // sehr lang: vor dem Bereinigen
-    privErr({ school: { [k]: 5 }, retentionDays: 30 }, "Die Angaben zur Schule haben ein ungültiges Format.");
-  }
-  for (const url of ["http://example.org", "javascript:alert(1)", "data:text/html,x", "mailto:a@b.de", "https://user:pw@example.org/", "https://example.org/" + "a".repeat(500), "ftp://example.org", "kein link"])
-    privErr({ school: { url }, retentionDays: 30 }, /als vollständige Adresse mit https:\/\//);
-  for (const d of [6, 366, 30.5, "30", null, undefined, true, -7]) privErr({ school: {}, retentionDays: d }, "Bitte wählen Sie eine Löschfrist zwischen 7 und 365 Tagen.");
-  privErr(null, "Ungültige Anfrage."); privErr({ school: "x", retentionDays: 30 }, "Die Angaben zur Schule haben ein ungültiges Format.");
+  for (const d of [6, 366, 30.5, "30", null, undefined, true, -7]) privErr({ retentionDays: d }, "Bitte wählen Sie eine Löschfrist zwischen 7 und 365 Tagen.");
+  privErr(null, "Ungültige Anfrage."); privErr([30], "Ungültige Anfrage.");
   assert.equal(cleanLine("a\u200Bb\u0000c"), "abc");
-  assert.equal(cleanHttpsUrl("https://example.org"), "https://example.org/");
-  assert.equal(cleanHttpsUrl("http://example.org"), "");
+  for (const k of ["schoolName", "schoolAddress", "dpoContact", "privacyUrl", "legalBasis", "authority"]) assert.equal(LIMITS[k], undefined, k);
 });
-test("privacyOut prüft gespeicherte Werte erneut; isPrivacyComplete nach Art. 13 Abs. 1 a–c", () => {
+test("privacyOut prüft die gespeicherte Frist erneut und liefert nie Angaben einer Schule", () => {
   assert.equal(privacyOut(null), null); assert.equal(privacyOut("x"), null);
-  const p = privacyOut({ v: 1, school: { ...SCHOOL, name: "N".repeat(500), url: "javascript:alert(1)", dpo: 7 }, retentionDays: 30, updatedAt: 5, auto: true });
-  assert.equal(p.school.name.length, LIMITS.schoolName); assert.equal(p.school.url, ""); assert.equal(p.school.dpo, "");
-  assert.deepEqual([p.retentionDays, p.updatedAt, p.auto], [30, 5, true]);
+  assert.deepEqual(privacyOut({ v: 1, school: OLD_SCHOOL, retentionDays: 30, updatedAt: 5, auto: true }), { retentionDays: 30, auto: true });
+  assert.deepEqual(privacyOut({ retentionDays: 14, auto: "ja" }), { retentionDays: 14, auto: false });
   // dieselben Grenzen wie PURGE_SQL: nur Ganzzahlen 7–365, sonst keine automatische Löschung
   for (const d of [3, 366, 7.5, "30", true, null]) assert.equal(privacyOut({ retentionDays: d }).retentionDays, null, String(d));
   assert.equal(privacyOut({ retentionDays: 7 }).retentionDays, 7);
-  assert.equal(isPrivacyComplete(privacyOut({ school: SCHOOL })), true);
-  for (const k of ["name", "address", "dpo", "legalBasis"]) assert.equal(isPrivacyComplete(privacyOut({ school: { ...SCHOOL, [k]: "" } })), false, k);
-  assert.equal(isPrivacyComplete(privacyOut({ school: { ...SCHOOL, url: "", authority: "" } })), true);   // Link und Aufsichtsbehörde sind optional
-  assert.equal(isPrivacyComplete(null), false);
+});
+test("DROP_SCHOOL_SQL: entfernt früher gespeicherte Schulangaben, ändert die Frist nicht, idempotent", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+  const set = (k, v) => db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(k, v);
+  const get = (k) => db.prepare("SELECT value FROM settings WHERE key=?").get(k).value;
+  const drop = () => Number(db.prepare(DROP_SCHOOL_SQL).run().changes);
+  set("privacy", JSON.stringify({ v: 1, school: OLD_SCHOOL, retentionDays: 90, updatedAt: 7, auto: true }));
+  set("ai", JSON.stringify({ provider: "groq", school: { name: "bleibt" } }));   // nur die Zeile privacy
+  assert.equal(drop(), 1);
+  assert.deepEqual(JSON.parse(get("privacy")), { v: 1, retentionDays: 90, updatedAt: 7, auto: true });
+  assert.equal(JSON.parse(get("ai")).school.name, "bleibt");
+  assert.equal(drop(), 0, "idempotent");
+  for (const v of ['{"v":1,"school":{},"retentionDays":30}', '{"school":null,"retentionDays":30}']) {
+    set("privacy", v); assert.equal(drop(), 1, v); assert.deepEqual(JSON.parse(get("privacy")), JSON.parse(v.replace(/"school":(\{\}|null),/, "")));
+  }
+  set("privacy", "kaputt{"); assert.equal(drop(), 0); assert.equal(get("privacy"), "kaputt{");   // ungültiges JSON bleibt (PURGE_SQL löscht dann nichts)
 });
 test("PURGE_SQL: nutzt den Index, löscht ohne gültige Frist nichts, sonst genau die älteren Abgaben und Erstversuche", () => {
   const db = new DatabaseSync(":memory:");

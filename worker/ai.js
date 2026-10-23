@@ -63,13 +63,14 @@ export function gateKey(provider, key, model) {
 }
 export const RATE_LIMIT_TTL = { min: 5000, max: 90000, fallback: 30000 };   // Sperre eines Modells nach einem Minutenlimit (429)
 /* Grundlage der Übermittlung in ein Drittland (Art. 13 Abs. 1 Buchst. f DSGVO) laut Anbieter – nur wo sie belegt ist (Cloudflare:
-   Datenschutzerklärung, gültig ab 04.11.2025; Groq: Doku „Your Data“, abgerufen 22.10.2026); sonst muss die Schule sie prüfen */
-export const TRANSFER_UNKNOWN = "von der Schule beim Anbieter zu prüfen";
+   Datenschutzerklärung, gültig ab 04.11.2025; Groq: Doku „Your Data“, abgerufen 22.10.2026); sonst muss der Betreiber der Seite
+   (verantwortlich für den Datenschutz, FEIBEITSBLATT_OPERATOR in index.html) sie prüfen */
+export const TRANSFER_UNKNOWN = "vom Betreiber dieser Seite beim Anbieter zu prüfen";
 export const recipientTransfer = (provider) => ((PROVIDERS[provider] || {}).transfer || TRANSFER_UNKNOWN);
 /* Empfänger für den Datenschutzhinweis der Schüler:innen: Rechtsträger und Sitz, beim eigenen Dienst der Host */
 export function recipientLabel(provider, baseUrl) {
   const p = PROVIDERS[provider]; if (!p) return null;
-  return provider === "custom" ? hostOf(baseUrl) + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)" : p.recipient || p.label;
+  return provider === "custom" ? hostOf(baseUrl) + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)" : p.recipient || p.label;
 }
 
 export class AIError extends Error {

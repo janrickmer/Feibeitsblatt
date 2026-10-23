@@ -4,7 +4,8 @@ Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit
 Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu einer
-Checkliste drucken. Oberfläche und Doku deutsch;
+Checkliste drucken. Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
+Schule; Seite „Impressum & Datenschutz“ (`#impressum`). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
 
 - **Architektur:** `index.html` = ganze Oberfläche in EINER Datei (keine externen Bibliotheken/Fonts).
@@ -31,7 +32,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie `solution`**, d. h. die Aufträge an die KI),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
   `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/sheets/:code/checklist`, `/ai`, `/ai/test`, `/privacy` (Pfade
-  unter `/api/teacher`); öffentlich außerdem `GET /api/sheet/:code/checklist` (siehe Analoges Arbeitsblatt).
+  unter `/api/teacher`); öffentlich außerdem `GET /api/sheet/:code/checklist` (siehe Analoges Arbeitsblatt) und `GET /api/privacy`
+  (siehe Datenschutz-Angaben).
   `DELETE …/sheets/:code/submissions` ohne Body löscht alle Einträge des Blattes, mit JSON `{ids:[…]}` (1–`LIMITS.deleteIds`
   50 positive Ganzzahlen, `validateDeleteIds`; ein Body ohne gültige ids → 400, nie „alle“) nur diese Einträge dieses Blattes
   (eine gebundene Anweisung `… WHERE sheet_code=?1 AND id IN (…)`) → `{deleted}`.
@@ -42,7 +44,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `material` (Absätze aus Läufen, siehe unten), `textFmt` (formatierte Aufgabenstellung, siehe unten; `[]` = nur `text`)
   und `files` (PDF-Dateien, siehe unten). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
   Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
-  `privacy: {school, retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
+  `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
   `POST /api/feedback` antwortet zusätzlich `aiGenerated` (`true` + `digitalSourceType` IPTC `trainedAlgorithmicMedia`,
   wenn die KI gefragt wurde, sonst `false`); `POST /api/submit` liefert `retentionDays` (Frist jetzt, `null` = keine).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
@@ -253,53 +255,81 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   aufgebraucht“, `laterFor` → „morgen“) mit `S.fbUnavailableDay` (UTC-Tag, im Zwischenstand/PDF als `fbUnavailableDay`);
   `quotaExpired()` (openEditor – dann sofort gespeichert –, `renderFeedbackState`, `noAiState`) löscht den Grund an einem
   späteren UTC-Tag, `fbFails` bleibt; keine automatische Wiederholung.
-- **Datenschutz-Angaben und Löschfrist (Art. 13 DSGVO):** settings `privacy` = `{v:1, school:{name, address, dpo, url,
-  legalBasis, authority}, retentionDays 7–365, updatedAt, auto?}` (`auto:true` = Vorgabe 30 einer Neuinstallation).
-  lib.js: `validatePrivacyInput` (einzeilig per `cleanLine`: NFC, `\p{Cc}`/`\p{Cf}` weg; Grenzen `LIMITS.schoolName` 160,
-  `schoolAddress` 240, `dpoContact` 300, `privacyUrl` 500 (`cleanHttpsUrl`: nur https, ohne Zugangsdaten), `legalBasis` 400,
-  `authority` 240; Frist Ganzzahl `retentionMin`–`retentionMax`), `privacyOut` (prüft Gespeichertes erneut, ungültige Frist
-  → `null`), `isPrivacyComplete` (name, address, dpo, legalBasis), `RETENTION_OPTIONS` [7, 14, 30, 60, 90, 180, 365],
+- **Datenschutz-Angaben und Löschfrist (Art. 13 DSGVO):** Feibeitsblatt ist ein privates, nicht kommerzielles und
+  kostenloses Angebot – verantwortlich ist der **Betreiber**, **keine Schule** (keine Schulfelder, keine Vorlage „Hessen“,
+  keine:n Datenschutzbeauftragte:n nennen, keine Rückfälle „deine Schule … frag deine Lehrkraft“). Betreiber und
+  Aufsichtsbehörde stehen nur im Konfigurationsskript ganz oben in `index.html`: `window.FEIBEITSBLATT_OPERATOR = {name,
+  street, city, country, email, authority:{name, address, url}}` (Jan-Rickmer Feindt, An der Bauna 30, 34270 Schauenburg,
+  j.feindt@kollegium.lg-ks.de; HBDI, Gustav-Stresemann-Ring 1, 65189 Wiesbaden, https://datenschutz.hessen.de – **nie eine
+  andere E-Mail-Adresse**); im Skript nur die gekappte, eingefrorene Kopie `OPERATOR` lesen (E-Mail einfache ASCII-Form ≤ 120, URL ≤ 200 nur
+  https), Bausteine `OP_NAME`, `OP_ADDR`, `AUTH_TEXT`, `mailLink()` (je Stelle ein neuer Knoten), `authorityLink`,
+  `authorityTail`; E2E-Konstanten `OP*` müssen dazu passen. Der Server speichert keine Angaben einer Schule mehr. settings `privacy` = `{v:1, retentionDays 7–365, updatedAt, auto?}` (`auto:true` = Vorgabe 30 einer
+  Neuinstallation). lib.js: `validatePrivacyInput` (nur Frist als Ganzzahl `retentionMin`–`retentionMax` und `confirmDelete`;
+  ein mitgeschicktes `school` einer älteren, gecachten Seite wird ignoriert, nie gespeichert), `privacyOut` (→
+  `{retentionDays, auto}`, prüft die Frist erneut, ungültig → `null`; nie Schulangaben), `cleanLine` (Checkliste),
+  `RETENTION_OPTIONS` [7, 14, 30, 60, 90, 180, 365], `DROP_SCHOOL_SQL` (`json_remove(value,'$.school')`, idempotent, nur die
+  Zeile `privacy`, ändert die Frist nicht),
   `PURGE_SQL`, `OLDER_THAN_SQL`, `COUNT_OLDER_SQL`, `SAVE_PRIVACY_SQL` und `DELETE_OLDER_SQL` – **in lib.js, weil workerd in
   index.js nur Funktions-Exporte zulässt** („Incorrect type for map entry“). `PURGE_SQL` = ein DELETE mit Unterabfrage auf
   settings (`json_valid`, `json_type(…)='integer'`, `BETWEEN 7 AND 365` – dieselben Grenzen wie `privacyOut`; ohne gültige Frist NULL → nichts gelöscht) über
   `idx_submissions_received`; `OLDER_THAN_SQL` = eine Abfrage mit `SUM(received_at<?n)` je Option. Gelöscht wird
-  (`cleanupStatements`: PURGE, rate_limits, ai_skip, ai_usage) im Cron (`scheduled`, now = `scheduledTime`, Fehler nicht
+  (`cleanupStatements`: PURGE, DROP_SCHOOL (früher gespeicherte Schulangaben), rate_limits, ai_skip, ai_usage) im Cron (`scheduled`, now = `scheduledTime`, Fehler nicht
   abfangen → „Past Cron Events“), im 2-%-Aufräumen und beim Öffnen der Übersicht in `routeSheetsList` – dort die ganzen
   `cleanupStatements` (auch abgelaufene Zähler und Sperren: ohne Zeitplan gilt „gehashte IP höchstens etwa einen Tag“ sonst
   nicht), **getrennt vor dem Lese-Batch und fehlertolerant** (`.catch`), damit die Übersicht auch bei erschöpftem Schreiblimit
-  lädt. `GET /api/teacher/privacy` → `{privacy, complete, defaults, olderThan:{"7":n…}, aiRecipients}`; `PUT`
-  (`{school, retentionDays, confirmDelete}`; fehlt `confirmDelete` = 0) → ein Batch (eine Transaktion) [`COUNT_OLDER_SQL`,
+  lädt. `GET /api/teacher/privacy` → `{privacy, defaults, olderThan:{"7":n…}, aiRecipients}`; `PUT`
+  (`{retentionDays, confirmDelete}`; fehlt `confirmDelete` = 0) → ein Batch (eine Transaktion) [`COUNT_OLDER_SQL`,
   `SAVE_PRIVACY_SQL` (speichert nur bei ≤ bestätigter Zahl), `DELETE_OLDER_SQL` (löscht nur, wenn genau dieser Wert gespeichert
-  ist), OLDER_THAN] → `{privacy, complete, deleted, olderThan}`; würde mehr gelöscht als bestätigt → 409 `confirm_delete` mit
+  ist), OLDER_THAN] → `{privacy, deleted, olderThan}`; würde mehr gelöscht als bestätigt → 409 `confirm_delete` mit
   `wouldDelete`/`olderThan`, nichts gespeichert oder gelöscht (der Browser fragt mit der neuen Zahl erneut, höchstens zweimal);
-  `PURGE_SQL` steht nur in `cleanupStatements`. `routeSetup` legt in einem Batch mit dem
+  `PURGE_SQL` steht nur in `cleanupStatements`. Öffentlich `GET /api/privacy` (Seite „Impressum & Datenschutz“, ohne Code) →
+  `{ok, retentionDays, aiRecipients}` – dieselbe Logik wie `routePublicSheet` (`privacyOut`, `recipientsFor`), eine Abfrage,
+  `no-store`, kein Rate-Limit, kein `lookup_miss`. `routeSetup` legt in einem Batch mit dem
   teacher-INSERT `privacy` {30, auto} an – nur wenn dieser Aufruf die Lehrkraft angelegt hat, noch keine Zeile da ist und
   es keine Blätter gibt (bestehende Installationen löschen erst nach dem ersten Speichern; „Passwort vergessen“ behält
-  die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy`
-  (`PRIV_LIMITS` = LIMITS), `privacyShortText` (Kurzfassung, nennt den KI-Dienst), `privacyNoticeDom(p, list, {h, withAi,
-  pages, open, id})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit 10 Abschnitten (`.privh`; Angaben `h2`
+  die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy` (nur
+  `{retentionDays}`), `privacyShortText` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
+  kostenloses Angebot.“, nennt den KI-Dienst), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
+  general, flat, summary})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit 9 Abschnitten (`.privh`: Wer ist
+  verantwortlich? – Betreiber mit Anschrift und E-Mail, „privates, nicht kommerzielles und kostenloses Angebot – kein Angebot
+  einer Schule“, die Lehrkraft liest; Wozu; Rechtsgrundlage als Liste: Bearbeiten/Abgeben/Zwischenstand/Erstversuch/Gruppe
+  **und das KI-Feedback** Art. 6 Abs. 1 Buchst. b DSGVO (bewusst keine Einwilligung, keine Altersabfrage), LanguageTool
+  Einwilligung Buchst. a (Klick + Bestätigung im Altersdialog, Widerruf), Aufruf/Auslieferung/Missbrauchsschutz Buchst. f
+  (Widerspruch), Speichern im Browser § 25 Abs. 2 Nr. 2 TDDDG – Schreibweise „Buchst.“, nie „lit.“; Welche Daten; Wer bekommt;
+  Wie lange; Musst du; Entscheidet die KI (nur mit KI); Deine Rechte in drei Absätzen: Rechte samt Art. 21 und Widerruf,
+  Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die verschlüsselten Abgaben), Beschwerde bei der Aufsichtsbehörde
+  mit Anschrift und Link; Angaben `h2`
   `#p-privfull` mit `#p-privacy-short` in `renderPersonPrivacy`, Editor `h3` in `#privfull-ed` aus `renderPrivacy` –
   beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`: für ein Blatt mit
   KI-Feedback unter der Adresse der Lehrkraft, darunter `#pv-preview-note` – ist `!PAGES_HOST` und `PUBLIC_HOST` (aus
   `PUBLIC_URL`) eine andere Adresse (`CHECK_HOST`), nennt der Hinweis über GitHub Pages GitHub für die ganze Seite (Wortlaut
   `GITHUB_ITEM` wie im Hinweis) statt nur für die Checklisten-Seite, und bei Blättern ohne
-  Auftrag an die KI entfallen die Angaben zum KI-Feedback); ohne Angaben ein
-  ehrlicher allgemeiner Text („deine Schule … frag deine Lehrkraft“). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
+  Auftrag an die KI entfallen die Angaben zum KI-Feedback). **Seite „Impressum & Datenschutz“** `#screen-legal` (Hash
+  `#impressum` beim Laden; `hashchange` nur von Start, Arbeitsform, Angaben, Checkliste und ihr selbst; `openLegal` mit
+  Lauf-Kennung `LEGAL.run`, `leaveLegal` → `leaveChecklist("")`, Backlinks `#legal-home`/`#legal-home2`, Fokus `#legal-h`):
+  Impressum nach § 18 Abs. 1 MStV aus `OPERATOR` (`#legal-addr`, `#legal-mail` mailto, „nicht kommerzielles Angebot … unentgeltlich
+  bereitgestellt“), darunter `privacyNoticeDom(…, {h:"h3", site:true, flat:true})` = `section.privflat#legal-privfull` mit h2
+  „Datenschutzerklärung“ (kein details) und Frist/Empfängern von `GET /api/privacy`; scheitert der Abruf, `general:true`
+  (allgemeine Sätze: KI-Dienst wird vor dem Senden genannt, Frist nach dem Code) und Hinweis in `#legal-status`; `#legal-other`
+  zu Blättern ohne KI und Gruppen. Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
+  `rel="noopener"`, sr-only „(öffnet in neuem Tab)“ (`.copyright a` klickbar trotz `pointer-events:none`; auf der Seite selbst
+  ausgeblendet per `body.on-legal`). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
   Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
   nächstgelegenen Cloudflare-Rechenzentrum; gespeichert nur verschlüsselt, für das KI-Feedback **kurz unverschlüsselt im
   Server, nicht gespeichert** – nie behaupten, Cloudflare sehe die Antworten nur verschlüsselt; mit Workers AI im selben
   Eintrag als KI-Dienst, Verarbeitung auch außerhalb der EU); GitHub, Inc. nur bei `PAGES_HOST` (`API !== ""`, GitHub
   Pages); weitere KI-Dienste mit `transfer`; ohne Empfänger (keine KI eingerichtet) `NO_AI_SET` „Ein KI-Dienst ist … gerade
   nicht eingerichtet – deine Antworten gehen an keine KI.“ – auch in `recipientSentence`/`renderPrivacy`, nie ein
-  Rückfall „KI-Dienst deiner Lehrkraft“; LanguageTool (Learneo, DPF). Alle mit DPF/SCC. `#start-privacy`: ein Satz zur IP
-  beim Laden. Speicherdauer nennt Time Travel „bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)“; den
+  Rückfall „KI-Dienst deiner Lehrkraft“; LanguageTool (Learneo, DPF). Alle mit DPF/SCC; unbekannte Grundlage `TRANSFER_UNKNOWN`
+  „vom Betreiber dieser Seite beim Anbieter zu prüfen“. `#start-privacy`: ein Satz zur IP beim Laden und der Verweis auf
+  „Impressum & Datenschutz“ ganz unten (`#chk-privacy` ebenso). Speicherdauer nennt Time Travel „bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)“; den
   Zwischenstand auf dem Gerät beschreibt `DRAFT_STAY` (gelöscht nur beim nächsten Aufruf der Seite, `cleanupDrafts`) –
-  **nie „höchstens 7 Tage“ zusagen**. `renderPrivacy` und der ausführliche Hinweis dürfen sich nicht widersprechen. Lehrkraft: `#t-privacy` → `#tv-privacy` (`openPrivacy`, Felder
-  `#pv-name/-addr/-dpo/-basis/-auth/-url`, `#pv-hessen` = `HESSEN` (Art. 6 Abs. 1 Buchst. e DSGVO i. V. m. § 83 Abs. 1 und
-  § 83a Abs. 1 Nr. 2 HSchG; HBDI, Postfach 3163, 65021 Wiesbaden), ersetzt eigene Eingaben nur nach Rückfrage;
-  `#pv-days` + `#pv-days-effect` aus `olderThan`; vor dem Löschen Dialog „Ältere Abgaben jetzt löschen?“ (danger);
-  Fehler als „Nicht gespeichert – …“; `pvDirty` → „Ohne Speichern zurück?“). Übersicht: `loadPrivacyState` → `#t-privinfo`
-  / `#t-privwarn` (fehlende Angaben, keine Frist), `#t-subs-retention`, je Abgabe in `buildDetail` „automatische Löschung
+  **nie „höchstens 7 Tage“ zusagen**. `renderPrivacy` und der ausführliche Hinweis dürfen sich nicht widersprechen. Lehrkraft: `#t-privacy` → `#tv-privacy` (`openPrivacy`;
+  oben schreibgeschützt `.opbox#pv-operator` „Verantwortlich (fest in index.html eingetragen)“ mit Betreiber und
+  Aufsichtsbehörde, `#pv-operator-hint` mit Link auf `#impressum` (neuer Tab); nur noch `#pv-days` + `#pv-days-effect` aus
+  `olderThan`; vor dem Löschen Dialog „Ältere Abgaben jetzt löschen?“ (danger); Fehler als „Nicht gespeichert – …“; `pvDirty`
+  nur für die Frist → „Ohne Speichern zurück?“). Übersicht: `loadPrivacyState` → `#t-privinfo` (Betreiber und Frist)
+  / `#t-privwarn` (nur ohne Frist), `#t-subs-retention`, je Abgabe in `buildDetail` „automatische Löschung
   am TT.MM.JJJJ“ – `renderRetentionHint` leert gebaute Details (`tr.details._s`) und baut aufgeklappte sofort neu, damit das
   Datum nach einer Friständerung stimmt. Lokal auslösen: `/cdn-cgi/local/scheduled?cron=17+2+*+*+*&time=<ms>&format=json` (ein `time` in der
   Zukunft räumt auch alle Sperr-Zähler ab – im Smoke-Test deshalb ganz am Ende).
@@ -639,7 +669,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   hinterlegt.“; `ai:true` → KI-Hinweis), Häkchen nur in `localStorage` `feibeitsblatt:check:<CODE>` = `{t, sig (FNV-1a über die
   Punkte), ticks}` (`cleanupChecks` nach `DRAFT_DAYS`), „Alle Häkchen entfernen“ (löscht nur, wenn nach dem Dialog noch dieselbe
   Checkliste offen ist: `CHK.run`/`CHK.code`), `#chk-privacy` (Satz zur IP wie `#start-privacy` und Verweis „Alle Informationen …
-  bekommst du, wenn du das Feibeitsblatt mit seinem Code digital öffnest (auf der Startseite „Weiter“).“ – passt in jedem Zustand,
+  findest du unter „Impressum & Datenschutz“ ganz unten auf der Seite; passend zu deinem Feibeitsblatt auch, wenn du es mit seinem
+  Code digital öffnest (auf der Startseite „Weiter“).“ – passt in jedem Zustand,
   auch ohne `#chk-open`; die Seite selbst zeigt keinen vollständigen Hinweis, dafür beschreibt `privacyNoticeDom` die
   Checklisten-Seite: `CHECK_PURPOSE` unter „Wozu …“, `CHECK_STAY` unter „Wie lange …“; am Worker (`!PAGES_HOST`, `PUBLIC_HOST` ≠
   `location.host` → `CHECK_HOST`) heißt sie dort „die Checklisten-Seite (Host)“ statt „diese Seite“, und die Empfänger nennen
@@ -728,8 +759,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (Speichern als erster Anbieter und als Reserve; per `page.route` vorgegeben: erfolgreicher Test mit Token-Zahlen,
   Tageskontingent-Sperre, fehlendes Binding, „Trotzdem speichern“ bei Gemini – PUT nie zum Server) und 7h `ai_quota` per
   `page.route` (Empfänger Workers AI + Groq im Hinweis, Zwischenstand von gestern ohne „morgen“). Datenschutz: E2E 1b
-  (allgemeiner Hinweis, GitHub Pages per `addInitScript` → `FEIBEITSBLATT_API`, Formular, Hessen, Vorschau), 2/3/3b/4/5
-  (Hinweis mit Schulangaben, `#privfull-ed` nach Weiterschreiben, KI-Kennzeichnung, `#done-del`, Lösungs-PDF mit/ohne XMP
+  (Betreiber im Hinweis, „Impressum & Datenschutz“ über die Fußzeile in neuem Tab, über `#impressum` und mit gescheitertem
+  `/api/privacy`, GitHub Pages per `addInitScript` → `FEIBEITSBLATT_API`, Betreiberkasten, Löschfrist, Vorschau, alte
+  Schulangaben per `d1Query` → beim Laden der Übersicht entfernt; `PRIVAT_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos), 2/3/3b/4/5
+  (Hinweis mit Betreiber und Löschfrist, keine Schulangaben in D1/API, `#privfull-ed` nach Weiterschreiben, KI-Kennzeichnung, `#done-del`, Lösungs-PDF mit/ohne XMP
   samt Aufbauprüfung `pdfStructure`), 7i (Kürzen mit Nachfrage, Verlängern, Cron lokal); Unit: `scheduled` auf der
   gemeinsamen D1 (und einmal frisch importiert `?scheduled`), `d1.failIf` für ein scheiterndes PURGE, `Math.random`
   gestubbt beim Zählen der D1-Abfragen und in Tests mit zurückdatierten Einträgen (`noRandomCleanup`: sonst löscht das

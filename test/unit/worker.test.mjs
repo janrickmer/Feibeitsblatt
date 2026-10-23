@@ -95,9 +95,10 @@ test("setup, door, login", async () => {
   assert.deepEqual(r.json, { ok: true });
   const stored = settingsRow("teacher");
   assert.equal(stored.authHash.length, 64); assert.equal(JSON.stringify(stored).includes(auth), false, "authKey nie im Klartext");
-  // Neuinstallation (noch keine Blätter): automatische Löschung nach 30 Tagen als Vorgabe (auto), noch ohne Schulangaben
+  // Neuinstallation (noch keine Blätter): automatische Löschung nach 30 Tagen als Vorgabe (auto); keine Angaben einer Schule
   const pv = settingsRow("privacy");
-  assert.deepEqual({ v: pv.v, d: pv.retentionDays, auto: pv.auto, school: pv.school }, { v: 1, d: 30, auto: true, school: {} });
+  assert.deepEqual(Object.keys(pv).sort(), ["auto", "retentionDays", "updatedAt", "v"]);
+  assert.deepEqual({ v: pv.v, d: pv.retentionDays, auto: pv.auto }, { v: 1, d: 30, auto: true });
   r = await call("POST", "/api/teacher/door", { body: { doorCode: "1104" } });
   assert.deepEqual(r.json.kdf, T.kdf);
   const k = await deriveTeacherKeys(PASSWORD, r.json.kdf);
@@ -139,9 +140,9 @@ test("sheets: create, list, public view never contains solutions", async () => {
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
   assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
-    aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)", transfer: "von der Schule beim Anbieter zu prüfen" }],
-    // die Neuinstallation (Setup ohne Blätter) löscht nach 30 Tagen; Schulangaben gibt es noch keine (updatedAt/auto bleiben intern)
-    privacy: { school: { name: "", address: "", dpo: "", url: "", legalBasis: "", authority: "" }, retentionDays: 30 } });
+    aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)", transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }],
+    // die Neuinstallation (Setup ohne Blätter) löscht nach 30 Tagen (updatedAt/auto bleiben intern)
+    privacy: { retentionDays: 30 } });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
   assert.deepEqual(r.json.sheets.map((s) => [s.code, s.title, s.taskCount, s.submissionCount]), [[code, "Bio", 2, 0]]);
@@ -415,9 +416,9 @@ test("reserve AI: stored separately (encrypted), tested via ?which=reserve, used
   assert.equal(r.json.reserve.hasKey, true); assert.equal(r.json.hasKey, true);
   // Schüler:innen erfahren beide Empfänger (Datenschutzhinweis), erster Anbieter zuerst
   r = await call("GET", "/api/sheet/" + code);
-  const rcpt = "127.0.0.1:" + mock.port + " (Betreiber und Sitz: von der Lehrkraft zu prüfen)";
+  const rcpt = "127.0.0.1:" + mock.port + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)";
   assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + mock.port);
-  const tr = "von der Schule beim Anbieter zu prüfen";   // Grundlage der Übermittlung beim eigenen Dienst: unbekannt
+  const tr = "vom Betreiber dieser Seite beim Anbieter zu prüfen";   // Grundlage der Übermittlung beim eigenen Dienst: unbekannt
   assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + mock.port, label: rcpt, transfer: tr }, { id: "custom:127.0.0.1:" + mock.port, label: rcpt, transfer: tr }]);
   // Reserve ohne Schlüssel für einen anderen Dienst → 400, nichts geändert
   r = await call("PUT", "/api/teacher/ai", { auth, body: { reserve: { provider: "groq", model: "" } } });
@@ -1154,10 +1155,11 @@ test("Checkliste: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufr�
   assert.equal((await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } })).status, 200);
 });
 
-/* ---------- Datenschutz-Angaben und Löschfrist ---------- */
+/* ---------- Löschfrist und Angaben für den Datenschutzhinweis (verantwortlich ist der Betreiber, keine Schulangaben mehr) ---------- */
 const DAY = 864e5;
-const SCHOOL = { name: "Musterschule Wiesbaden", address: "Musterstraße 1, 65185 Wiesbaden", dpo: "Datenschutz am Schulamt, ds@example.org",
-  url: "https://example.org/datenschutz", legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO in Verbindung mit § 83 Abs. 1 HSchG", authority: "HBDI, Postfach 3163, 65021 Wiesbaden" };
+// so hat eine ältere Seite Angaben einer Schule mitgeschickt bzw. eine ältere Version sie gespeichert (frei erfunden)
+const OLD_SCHOOL = { name: "Musterschule Wiesbaden", address: "Musterstraße 1, 65185 Wiesbaden", dpo: "Datenschutz am Schulamt, ds@example.org",
+  url: "https://example.org/datenschutz", legalBasis: "Art. 6 Abs. 1 Buchst. e DSGVO", authority: "HBDI, Postfach 3163, 65021 Wiesbaden" };
 async function submitAt(c, ago, stage = "final") {   // Abgabe bzw. Erstversuch, danach per D1 zurückdatiert
   const envelope = await makeEnvelope(T.publicKey, { v: 1, sheetCode: c, person: { vorname: "Ann", nachname: "Al", geburtsdatum: "--03-03", klasse: "5a" }, answers: [{ first: "a", final: "b" }] });
   const r = await call("POST", "/api/submit", { body: stage === "first" ? { code: c, envelope, stage, attempt: crypto.getRandomValues(new Uint8Array(8)).reduce((s, b) => s + b.toString(16).padStart(2, "0"), "") } : { code: c, envelope }, ip: "198.51.100.230" });
@@ -1170,7 +1172,7 @@ const idsOf = (c) => d1.db.prepare("SELECT id FROM submissions WHERE sheet_code=
 // Das gelegentliche Aufräumen (2 % der Anfragen) löschte sonst zurückdatierte Einträge nach der gespeicherten Frist, bevor der Test sie zählt
 const noRandomCleanup = () => { const rnd = Math.random; Math.random = () => 0.5; return () => { Math.random = rnd; }; };
 
-test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht sofort (Batch); öffentlich ohne updatedAt/auto und ohne zusätzliche D1-Abfrage", async () => {
+test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht sofort (Batch); school wird ignoriert; öffentlich nur die Frist, ohne zusätzliche D1-Abfrage", async () => {
   const restoreRandom = noRandomCleanup();
   const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
   const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "DS", tasks } })).json.code;
@@ -1184,37 +1186,38 @@ test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht so
     assert.equal(r.json.olderThan["14"] - r.json.olderThan["30"], 1);   // der Erstversuch von vor 20 Tagen
     assert.ok(r.json.olderThan["90"] >= 1 && r.json.olderThan["180"] === 0);
     assert.ok(Array.isArray(r.json.aiRecipients));
+    assert.equal("complete" in r.json, false);   // keine Schulangaben mehr, die fehlen könnten
     // ungültig → 400, nichts gespeichert, nichts gelöscht
-    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: { ...SCHOOL, url: "http://example.org" }, retentionDays: 14 } });
-    assert.equal(r.status, 400); assert.match(r.json.error, /https:\/\//);
-    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 3 } });
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { retentionDays: 3 } });
     assert.equal(r.status, 400); assert.equal(r.json.error, "Bitte wählen Sie eine Löschfrist zwischen 7 und 365 Tagen.");
     assert.deepEqual(idsOf(c), [recent, mid, old]);
     // ohne Bestätigung (confirmDelete fehlt bzw. zu klein): 409 mit der aktuellen Zahl, nichts gespeichert, nichts gelöscht
     const before = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
-    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 14 } });
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { retentionDays: 14 } });
     assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "confirm_delete");
     const would = r.json.wouldDelete;
     assert.ok(would >= 2); assert.equal(r.json.olderThan["14"], would);
     assert.match(r.json.error, /mehr, als Sie bestätigt haben\. Es wurde nichts gespeichert und nichts gelöscht\./);
-    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 14, confirmDelete: would - 1 } });
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { retentionDays: 14, confirmDelete: would - 1 } });
     assert.equal(r.status, 409);
     assert.deepEqual(d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get(), before);
     assert.deepEqual(idsOf(c), [recent, mid, old]);
-    // bestätigt: gespeichert und im selben Batch gelöscht – Erstversuch (20 Tage) und Abgabe (100 Tage), die von vor 2 Tagen bleibt
-    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: { ...SCHOOL, name: " Muster\nschule\u202E " }, retentionDays: 14, confirmDelete: would, extra: "weg" } });
+    // bestätigt: gespeichert und im selben Batch gelöscht – Erstversuch (20 Tage) und Abgabe (100 Tage), die von vor 2 Tagen bleibt.
+    // Eine ältere, noch gecachte Seite schickt Schulangaben mit: kein Fehler, aber nichts davon gespeichert
+    r = await call("PUT", "/api/teacher/privacy", { auth, body: { school: OLD_SCHOOL, retentionDays: 14, confirmDelete: would, extra: "weg" } });
     assert.equal(r.status, 200, r.text);
-    assert.ok(r.json.deleted >= 2); assert.equal(r.json.complete, true); assert.equal(r.json.olderThan["14"], 0);
+    assert.ok(r.json.deleted >= 2); assert.equal(r.json.olderThan["14"], 0);
+    assert.deepEqual(r.json.privacy, { retentionDays: 14, auto: false }); assert.equal("complete" in r.json, false);
     assert.deepEqual(idsOf(c), [recent]);
     const st = settingsRow("privacy");
-    assert.deepEqual(Object.keys(st).sort(), ["retentionDays", "school", "updatedAt", "v"]);   // kein auto mehr, kein fremdes Feld
-    assert.equal(st.school.name, "Muster schule"); assert.equal(st.retentionDays, 14);
+    assert.deepEqual(Object.keys(st).sort(), ["retentionDays", "updatedAt", "v"]);   // kein auto mehr, keine Schule, kein fremdes Feld
+    assert.equal(st.retentionDays, 14);
     r = await call("GET", "/api/teacher/privacy", { auth });
-    assert.equal(r.json.privacy.auto, false); assert.equal(r.json.complete, true);
-    // öffentlich: Schulangaben und Frist, nichts Internes; dieselbe Zahl D1-Abfragen wie vorher (ein IN statt zwei Zeilen)
+    assert.deepEqual(r.json.privacy, { retentionDays: 14, auto: false });
+    // öffentlich: nur die Frist, nichts Internes; dieselbe Zahl D1-Abfragen wie vorher (ein IN statt zwei Zeilen)
     const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen zählen
     try { r = await call("GET", "/api/sheet/" + c); } finally { Math.random = rnd; }
-    assert.deepEqual(r.json.sheet.privacy, { school: { ...SCHOOL, name: "Muster schule" }, retentionDays: 14 });
+    assert.deepEqual(r.json.sheet.privacy, { retentionDays: 14 });
     assert.equal(r.queries, 4);   // Blatt, Einstellungen (teacher, ai, privacy), Bilder, Dateien
     assert.equal(/solution|Chloroplasten/.test(r.text), false);
     // eine von Hand verdorbene Zeile: keine Frist, kein Fehler
@@ -1229,12 +1232,41 @@ test("privacy: GET/PUT nur mit Anmeldung; olderThan je Frist; Kürzen löscht so
   }
 });
 
+test("GET /api/privacy (Seite „Impressum & Datenschutz“): öffentlich, nur Frist und nutzbare KI-Empfänger wie bei /api/sheet, nie Schulangaben oder Geheimnisse", async () => {
+  const restoreRandom = noRandomCleanup();
+  const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
+  const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Impressum", tasks } })).json.code;
+  try {
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(JSON.stringify({ v: 1, school: OLD_SCHOOL, retentionDays: 60, updatedAt: 9, auto: true }));
+    const before = d1.db.prepare("SELECT COUNT(*) AS n FROM rate_limits").get().n;
+    let r = await call("GET", "/api/privacy", { ip: "198.51.100.240" });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.headers.get("cache-control"), "no-store"); assert.equal(r.headers.get("access-control-allow-origin"), "*");
+    const sheet = (await call("GET", "/api/sheet/" + c)).json.sheet;
+    assert.deepEqual(r.json, { ok: true, retentionDays: 60, aiRecipients: sheet.aiRecipients || [] });
+    assert.ok(r.json.aiRecipients.length >= 1);   // der gespeicherte erste Anbieter (Mock) – dieselben Einträge wie im Hinweis eines Blattes
+    assert.equal(r.queries, 1);   // eine Abfrage (Einstellungen ai und privacy), ohne das gelegentliche Aufräumen
+    assert.equal(/Musterschule|school|dpo|apiKey|keyHint|SECRET|updatedAt|auto|authHash|publicKey/.test(r.text), false, r.text);
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM rate_limits").get().n, before, "kein Rate-Limit, kein lookup_miss");
+    // ohne gültige Frist bzw. ohne Zeile: null (keine automatische Löschung)
+    d1.db.prepare("UPDATE settings SET value='kaputt{' WHERE key='privacy'").run();
+    assert.equal((await call("GET", "/api/privacy")).json.retentionDays, null);
+    d1.db.prepare("DELETE FROM settings WHERE key='privacy'").run();
+    assert.equal((await call("GET", "/api/privacy")).json.retentionDays, null);
+    for (const m of ["POST", "PUT", "DELETE"]) assert.equal((await call(m, "/api/privacy", { body: {} })).status, 405);
+  } finally {
+    d1.db.prepare("INSERT INTO settings(key,value) VALUES('privacy',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(saved.value);
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    restoreRandom();
+  }
+});
+
 test("Aufräumen beim Öffnen der Übersicht: abgelaufene Einträge zählen nicht mehr, abgelaufene Zähler und Sperren verschwinden; scheitert das Löschen, lädt die Übersicht trotzdem", async () => {
   const restoreRandom = noRandomCleanup();
   const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
   const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Übersicht", tasks } })).json.code;
   try {
-    await call("PUT", "/api/teacher/privacy", { auth, body: { school: SCHOOL, retentionDays: 7 } });
+    await call("PUT", "/api/teacher/privacy", { auth, body: { retentionDays: 7 } });
     await submitAt(c, 1 * DAY); const oldId = await submitAt(c, 9 * DAY); await submitAt(c, 8 * DAY, "first");
     d1.failIf = (sql) => sql.startsWith("DELETE FROM submissions WHERE received_at");
     let r;
@@ -1250,6 +1282,12 @@ test("Aufräumen beim Öffnen der Übersicht: abgelaufene Einträge zählen nich
     row = r.json.sheets.find((x) => x.code === c);
     assert.deepEqual([row.submissionCount, row.firstCount], [1, 0]);
     assert.equal(idsOf(c).includes(oldId), false);
+    // früher gespeicherte Schulangaben: das Öffnen der Übersicht entfernt sie, die Frist bleibt
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(JSON.stringify({ v: 1, school: OLD_SCHOOL, retentionDays: 7, updatedAt: 3 }));
+    Math.random = () => 0.5;
+    try { r = await call("GET", "/api/teacher/sheets", { auth }); } finally { Math.random = rnd; }
+    assert.equal(r.status, 200);
+    assert.deepEqual(settingsRow("privacy"), { v: 1, retentionDays: 7, updatedAt: 3 });
     assert.deepEqual(d1.db.prepare("SELECT bucket FROM rate_limits WHERE bucket LIKE 'list:%'").all().map((x) => x.bucket), ["list:neu"]);
     assert.deepEqual(d1.db.prepare("SELECT model FROM ai_skip WHERE provider='list'").all().map((x) => x.model), ["neu"]);
     d1.db.prepare("DELETE FROM rate_limits WHERE bucket LIKE 'list:%'").run(); d1.db.prepare("DELETE FROM ai_skip WHERE provider='list'").run();
@@ -1264,15 +1302,17 @@ test("scheduled (Cron 17 2 * * *): Löschfrist und Aufräumen in einem Batch auf
   const saved = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get();
   const c = (await call("POST", "/api/teacher/sheets", { auth, body: { title: "Cron", tasks } })).json.code;
   try {
-    await call("PUT", "/api/teacher/privacy", { auth, body: { school: {}, retentionDays: 30 } });
+    await call("PUT", "/api/teacher/privacy", { auth, body: { retentionDays: 30 } });
+    d1.db.prepare("UPDATE settings SET value=json_set(value,'$.school',json(?)) WHERE key='privacy'").run(JSON.stringify(OLD_SCHOOL));   // wie von einer älteren Version gespeichert
     const keep = await submitAt(c, 29 * DAY), gone = await submitAt(c, 31 * DAY);
     const now = Date.now();
     d1.db.prepare("INSERT OR REPLACE INTO rate_limits(bucket,count,reset_at) VALUES('cron:alt',1,?),('cron:neu',1,?)").run(now - 1000, now + 600e3);
     d1.db.prepare("INSERT OR REPLACE INTO ai_skip(provider,model,until,reason) VALUES('cron','alt',?, 'x'),('cron','neu',?, 'x')").run(now - 1000, now + 600e3);
     d1.queries = 0;
     await worker.scheduled({ cron: "17 2 * * *", scheduledTime: now }, ENV, { waitUntil() {} });
-    assert.ok(d1.queries <= 5, "D1-Abfragen: " + d1.queries);   // Schema steht schon: ein Batch mit vier Anweisungen
+    assert.ok(d1.queries <= 6, "D1-Abfragen: " + d1.queries);   // Schema steht schon: ein Batch mit fünf Anweisungen
     assert.deepEqual(idsOf(c), [keep]); assert.notEqual(keep, gone);
+    assert.equal(settingsRow("privacy").school, undefined); assert.equal(settingsRow("privacy").retentionDays, 30);   // Schulangaben weg, Frist bleibt
     assert.deepEqual(d1.db.prepare("SELECT bucket FROM rate_limits WHERE bucket LIKE 'cron:%'").all().map((x) => x.bucket), ["cron:neu"]);
     assert.deepEqual(d1.db.prepare("SELECT model FROM ai_skip WHERE provider='cron'").all().map((x) => x.model), ["neu"]);
     // scheduledTime zählt (lokal: /cdn-cgi/local/scheduled?time=…): zwei Tage später ist auch die 29 Tage alte Abgabe fällig
@@ -1295,7 +1335,7 @@ test("Zurücksetzen des Zugangs (Passwort vergessen): eine gespeicherte Frist bl
   const privacy = d1.db.prepare("SELECT value FROM settings WHERE key='privacy'").get().value;
   const setup = () => call("POST", "/api/teacher/setup", { body: { doorCode: "1104", authKey: auth, kdf: T.kdf, publicKey: T.publicKey, encPrivateKey: T.encPrivateKey } });
   try {
-    d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(JSON.stringify({ v: 1, school: { name: "X" }, retentionDays: 90, updatedAt: 1 }));
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='privacy'").run(JSON.stringify({ v: 1, retentionDays: 90, updatedAt: 1 }));
     d1.db.prepare("DELETE FROM settings WHERE key='teacher'").run();
     assert.equal((await setup()).status, 200);
     assert.equal(settingsRow("privacy").retentionDays, 90); assert.equal(settingsRow("privacy").auto, undefined);
