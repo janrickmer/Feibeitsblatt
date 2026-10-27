@@ -106,6 +106,8 @@ export const LIMITS = {
   retentionMin: 7, retentionMax: 365, retentionDefault: 30,
   // Checkliste zum analogen Arbeitsblatt (über den QR-Code öffentlich): Punkte je Aufgabe, Zeichen je Punkt
   checkPoints: 8, checkPoint: 160,
+  // Feibeitsblatt als Finale eines Escape-Rooms: Name des Raums (die Kennung prüft ESCAPE_ID_RE)
+  escapeName: 80,
 };
 
 export class InputError extends Error {
@@ -214,8 +216,28 @@ export function validateSheetInput(body, now = Date.now()) {
   });
   const checks = tasks.reduce((k, t) => k + (t.answer && t.answer.type === "map" ? t.answer.items.reduce((m, it) => m + it.countries.length, 0) : 0), 0);
   if (checks > LIMITS.mapChecks) throw new InputError("Zu viele Länder in den Weltkarten-Aufgaben (höchstens " + LIMITS.mapChecks + " Zuordnungen je Feibeitsblatt zusammen).");
-  return { title, tasks };
+  return { title, tasks, escape: validateEscapeSpec(body.escape) };
 }
+
+/* ---------- Feibeitsblatt als Finale eines Escape-Rooms ----------
+ * escape = {id, name}: id = Kennung des Raums (ESCAPE_ROOM.id in dessen Quelltext; a–z, 0–9, Bindestrich, 3–60 Zeichen), name =
+ * Name des Raums (1–80 Zeichen, einzeilig). Nur beim Anlegen (Blätter bleiben unveränderlich); gespeichert in den Spalten
+ * sheets.escape_id/escape_name (fehlt = normales Blatt). Die Daten aus dem Raum selbst sieht der Server nie im Klartext – sie
+ * stehen nur im verschlüsselten Umschlag von Erstversuch und Abgabe. */
+export const ESCAPE_ID_RE = /^[a-z0-9-]{3,60}$/;
+export function validateEscapeSpec(raw) {   // null/undefined → null (normales Blatt)
+  if (raw == null) return null;
+  if (!isObj(raw)) throw new InputError("Escape-Room: Die Angaben haben ein ungültiges Format.");
+  const id = typeof raw.id === "string" ? raw.id.trim().toLowerCase() : "";
+  if (!ESCAPE_ID_RE.test(id)) throw new InputError("Escape-Room: Die Kennung braucht 3 bis 60 Zeichen (nur a–z, 0–9 und Bindestrich).");
+  const name = typeof raw.name === "string" ? cleanLine(raw.name) : "";
+  if (!name) throw new InputError("Escape-Room: Bitte den Namen des Escape-Rooms eintragen.");
+  if (name.length > LIMITS.escapeName) throw new InputError("Escape-Room: Der Name ist zu lang (höchstens " + LIMITS.escapeName + " Zeichen).");
+  return { id, name };
+}
+// Aus D1 gelesen: erneut prüfen (die Zeile könnte von Hand geändert sein) – sonst null, also ein normales Blatt
+export const escapeOut = (id, name) => (typeof id === "string" && ESCAPE_ID_RE.test(id) && typeof name === "string" && cleanLine(name)
+  ? { id, name: cleanLine(name).slice(0, LIMITS.escapeName) } : null);
 
 /* ---------- Antwortarten: answer je Aufgabe (fehlt = Textfeld). Unbekannte Felder entfallen, Fehlerhaftes → 400. ----------
  * {type:"table", columns:[1–8 Überschriften], rows:1–30}

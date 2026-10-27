@@ -516,6 +516,44 @@ async function main() {
     }
     ok("Checkliste: Vorschlag der KI einmal (nur Aufgaben mit Auftrag, keine Antworten), Speichern mit Grenzen, öffentlich nur die gespeicherte, force lässt sie stehen, mit dem Blatt gelöscht");
 
+    step = "Escape-Room-Blatt";
+    {
+      let r;   // eigenes r (siehe Checkliste)
+      const esc = { id: "smoke-escape", name: "Smoke-Raum" }, escTasks = [{ text: "Erkläre Kayas Dossier.", solution: "- Fakten statt Meinung" }];
+      expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: escTasks, escape: { id: "Kein Raum!", name: "X" } }, { auth }), 400, "bad_request");
+      expectErr(await api("POST", "/api/teacher/sheets", { title: "x", tasks: escTasks, escape: { id: "smoke-escape", name: " " } }, { auth }), 400, "bad_request");
+      r = await api("POST", "/api/teacher/sheets", { title: "Smoke: Finale", tasks: escTasks, escape: { ...esc, id: " SMOKE-escape " } }, { auth });
+      assert.equal(r.status, 200, r.text); assert.deepEqual(r.json.escape, esc);
+      const ec = r.json.code;
+      r = await api("GET", "/api/sheet/" + ec);
+      assert.equal(r.status, 200, r.text); assert.deepEqual(r.json.sheet.escape, esc);
+      assert.equal((await api("GET", "/api/sheet/" + code)).json.sheet.escape, null);   // normale Blätter: null
+      r = await api("GET", "/api/teacher/sheets", undefined, { auth });
+      assert.deepEqual(r.json.sheets.find((x) => x.code === ec).escape, esc);
+      assert.equal(r.json.sheets.find((x) => x.code === code).escape, null);
+      assert.deepEqual((await api("GET", "/api/teacher/sheets/" + ec, undefined, { auth })).json.sheet.escape, esc);
+      // kein analoges Arbeitsblatt
+      expectErr(await api("POST", "/api/teacher/sheets/" + ec + "/checklist", {}, { auth }), 400, "escape_sheet");
+      expectErr(await api("PUT", "/api/teacher/sheets/" + ec + "/checklist", { ai: false, tasks: [{ n: 1, points: ["Du nennst Fakten."] }] }, { auth }), 400, "escape_sheet");
+      // Abgabe mit Daten aus dem Escape-Room: nur im verschlüsselten Umschlag (der Server speichert nur den Umschlag)
+      const escPayload = { v: 1, sheetCode: ec, sheetTitle: "Smoke: Finale", person: { vorname: "Xav", nachname: "Qu", geburtsdatum: "--05-04", klasse: "10b" },
+        answers: [{ first: "Fakten-Marker", final: "Fakten-Marker" }], feedback: null, noAi: "declined", submittedAt: new Date().toISOString(),
+        escape: { room: esc, word: "GLOBUS", completedAt: new Date().toISOString(), stations: [{ label: "Station 1 · Test", attempts: 2, errors: [{ item: "Escape-Fehler-Marker", wrong: "a", right: "b" }] }], resumes: [], check: "ok" } };
+      r = await api("POST", "/api/submit", { code: ec, envelope: await makeEnvelope(T.publicKey, escPayload) }); submitCount++;
+      assert.equal(r.status, 200, r.text);
+      r = await api("GET", "/api/teacher/sheets/" + ec + "/submissions", undefined, { auth });
+      assert.equal(r.json.submissions.length, 1);
+      assert.equal(/Escape-Fehler-Marker|GLOBUS|Fakten-Marker/.test(r.text), false, "nur der Umschlag");
+      assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[0].envelope), escPayload);
+      await sleep(500);
+      for (const f of await filesUnder(STATE)) {
+        const buf = await readFile(f).catch(() => null); if (!buf) continue;
+        for (const needle of ["Escape-Fehler-Marker", "Fakten-Marker", '"stations"']) assert.equal(buf.includes(Buffer.from(needle)), false, needle + " im Klartext in " + f);
+      }
+      assert.equal((await api("DELETE", "/api/teacher/sheets/" + ec, undefined, { auth })).status, 200);
+    }
+    ok("Escape-Room-Blatt: escape {id, name} beim Anlegen geprüft, öffentlich und für die Lehrkraft geliefert (normale Blätter null), kein analoges Arbeitsblatt, Daten aus dem Raum nur im verschlüsselten Umschlag");
+
     step = "Abgabe";
     const sheetPub = (await api("GET", "/api/sheet/" + code)).json.sheet;
     const payload = { v: 1, sheetCode: code, sheetTitle: sheetPub.title, person: { vorname: "Xav", nachname: "Qu", geburtsdatum: "2011-05-04", klasse: "8b" },

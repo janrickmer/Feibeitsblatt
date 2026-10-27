@@ -627,6 +627,33 @@
   details.dolder > .detbox:first-of-type{border-top:0}
   table.batch tr.errrow td .btn{font-style:normal; margin-left:6px; vertical-align:baseline}
   .dmeta{font-size:13px; color:var(--muted); margin:0 0 10px}
+  /* Feibeitsblatt als Finale eines Escape-Rooms: Builder, Liste (Raumname statt Code), Daten aus dem Raum in den Abgaben */
+  .escchk{display:flex; align-items:flex-start; gap:10px; min-height:44px; margin:0; padding:9px 10px; border:1px solid var(--line); border-radius:6px;
+    background:var(--paper2); color:var(--ink); font-family:var(--sans); font-size:14px; font-weight:600; line-height:1.4; letter-spacing:0; text-transform:none; cursor:pointer}
+  .escchk input{flex:0 0 auto; width:20px; height:20px; margin:0; accent-color:var(--accent); cursor:pointer}
+  .escchk input:focus-visible{outline:2px solid var(--accent2); outline-offset:2px}
+  #b-esc-fields{margin:12px 0 0}
+  #b-esc-fields .field{margin-bottom:12px}
+  table.batch td.code.esc{font-family:var(--sans); font-size:14px; letter-spacing:0; white-space:normal; overflow-wrap:anywhere}
+  .escbadge{display:inline-block; padding:0 7px; border:1px solid var(--line); border-radius:999px; background:var(--soft);
+    font-family:var(--sans); font-size:11.5px; font-weight:600; line-height:1.6; color:var(--muted); white-space:nowrap; vertical-align:1px}
+  .desc{margin:0 0 14px; padding:10px 14px 12px; border:1px solid var(--line); border-radius:10px; background:var(--paper2); overflow-wrap:anywhere}
+  .desc-h{font-weight:700; font-size:14px; margin:0 0 4px}
+  .desc-sum{font-size:13.5px; margin:0 0 4px}
+  .desc-warn,.desc-check.bad{color:var(--red); font-weight:600}
+  .desc-check{font-size:13px; color:var(--muted); margin:0}
+  details.desc-more{margin:10px 0 0}
+  .desc-body{padding:4px 14px 12px}
+  .desc-body h5{font-size:13.5px; margin:12px 0 2px}
+  .desc-body p{font-size:13.5px; margin:0}
+  .desc-ok{color:var(--green); font-weight:600}
+  .desc-errs,.desc-res{margin:4px 0 0; padding-left:20px; font-size:13.5px}
+  .desc-errs li{margin:4px 0}
+  .desc-errs span{display:block}
+  .desc-wrong{color:var(--red)}
+  .desc-right{color:var(--green); font-weight:600}
+  .desc-note{color:var(--muted)}
+  .desc .row{margin-top:10px}
   .dgroup{font-size:14px; margin:-4px 0 12px; overflow-wrap:anywhere}
   .dtask{margin:16px 0 0}
   .dtask:first-of-type{margin-top:4px}
@@ -1063,10 +1090,11 @@
         <h2 id="t-sel-title"></h2>
         <p class="selmeta" id="t-sel-meta"></p>
         <div class="codebox">
-          <span class="lbl">Code für die Schüler:innen</span>
+          <span class="lbl" id="t-sel-code-lbl">Code für die Schüler:innen</span>
           <span class="bigcode" id="t-sel-code"></span>
           <button type="button" class="btn ghost small" id="t-sel-copy">Kopieren</button>
         </div>
+        <p class="fhint hidden" id="t-sel-esc"></p>
         <details class="tasksdet" id="t-sel-det">
           <summary>Aufgaben und Aufträge an die KI</summary>
           <div class="solist" id="t-sel-tasks"></div>
@@ -1078,7 +1106,7 @@
           <button type="button" class="btn ghost small" id="t-analog">Analoges Arbeitsblatt als PDF herunterladen</button>
         </div>
         <p class="status" id="t-export-status" aria-live="polite"></p>
-        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Ihre Aufträge an die KI und die PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt. „Analoges Arbeitsblatt als PDF herunterladen“ erstellt ein Arbeitsblatt zum Ausdrucken mit Schreiblinien und einem QR-Code, der zu einer Checkliste zum Abhaken führt – die Checkliste prüfen Sie vorher.</p>
+        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Ihre Aufträge an die KI und die PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.<span id="t-analog-hint"> „Analoges Arbeitsblatt als PDF herunterladen“ erstellt ein Arbeitsblatt zum Ausdrucken mit Schreiblinien und einem QR-Code, der zu einer Checkliste zum Abhaken führt – die Checkliste prüfen Sie vorher.</span></p>
 
         <div class="subhead">
           <h3>Abgaben</h3>
@@ -1124,6 +1152,21 @@
           <input type="text" id="b-title" maxlength="200" placeholder="z. B. Das Gewissen – Klasse 8b" autocomplete="off">
           <p class="fhint">Leer lassen: „Feibeitsblatt vom <span id="b-today"></span>“.</p>
         </div>
+        <fieldset class="field escfield" style="max-width:640px">
+          <legend class="sr-only">Escape-Room</legend>
+          <label class="escchk"><input type="checkbox" id="b-esc" aria-controls="b-esc-fields"> <span>Feibeitsblatt für einen Escape-Room (Finale)</span></label>
+          <div id="b-esc-fields" class="hidden">
+            <div class="field">
+              <label for="b-esc-name">Name des Escape-Rooms</label>
+              <input type="text" id="b-esc-name" maxlength="80" placeholder="z. B. FastFashion" autocomplete="off" aria-describedby="b-esc-hint">
+            </div>
+            <div class="field">
+              <label for="b-esc-id">Kennung des Escape-Rooms</label>
+              <input type="text" id="b-esc-id" maxlength="60" placeholder="z. B. powi-jg10-fastfashion" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="b-esc-hint">
+            </div>
+            <p class="fhint" id="b-esc-hint">Kennung genau wie im Quelltext des Escape-Rooms (ESCAPE_ROOM.id): 3 bis 60 Zeichen, nur a–z, 0–9 und Bindestrich. Schüler:innen öffnen dieses Feibeitsblatt dann nur über den Escape-Room – über den Link am Ende oder mit ihrer Überblick-PDF; die Eingabe des Codes auf der Startseite ist gesperrt, es gibt nur Einzelarbeit und kein analoges Arbeitsblatt. Den Code tragen Sie nach dem Anlegen im Quelltext des Escape-Rooms ein (FEIBEITSBLATT_CODE). Liegt der Quelltext öffentlich (z. B. GitHub Pages), kann jede:r mit dem Code das Feibeitsblatt öffnen und abgeben – schreiben Sie in die Aufgaben und Aufträge an die KI nichts Vertrauliches.</p>
+          </div>
+        </fieldset>
         <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Sachliche Fehler benennt die KI, die richtige Lösung – auch einzelne Begriffe oder Zahlen daraus – verrät sie aber nur, wenn Ihr Auftrag es ausdrücklich erlaubt; Noten vergibt sie nicht. Sie sieht nur Texte (Aufgabenstellung, Material, Ihren Auftrag und die Antwort), keine Bilder, PDF-Dateien oder Inhalte verlinkter Seiten. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
         <div class="tablewrap">
           <table class="batch builder">
@@ -1144,7 +1187,8 @@
         </div>
       </div>
       <div class="pbox resultbox hidden" id="b-result">
-        <p>Das Feibeitsblatt „<span id="b-res-title"></span>“ ist gespeichert. Geben Sie Ihren Schüler:innen diesen Code:</p>
+        <p>Das Feibeitsblatt „<span id="b-res-title"></span>“ ist gespeichert.<span id="b-res-normal"> Geben Sie Ihren Schüler:innen diesen Code:</span></p>
+        <p class="hidden" id="b-res-esc"></p>
         <div class="codebox">
           <span class="bigcode" id="b-res-code"></span>
           <button type="button" class="btn ghost small" id="b-res-copy">Kopieren</button>
@@ -1579,6 +1623,90 @@ function cleanGroup(pr) {
   return r.gruppe && KLASSE_RE.test(klasse) ? { gruppe: r.gruppe, klasse } : null;
 }
 /* GROUP:END */
+/* ---------- Feibeitsblatt als Finale eines Escape-Rooms (Schnittstelle v1) ----------
+ * Ein Blatt kann zu einem Escape-Room gehören: escape = {id, name} (Kennung wie ESCAPE_ROOM.id im Quelltext des Raums, Name).
+ * Der Raum übergibt einen Datensatz in einer Hülle {kind:"feibeitsblatt-escape", v:1, d, s}: d = die Daten als JSON-Text, s =
+ * fbEscapeHash("FbEscape|v1|" + d) – nur ein Indiz gegen versehentliche oder plumpe Änderungen, kein Beweis (der Quelltext des Raums
+ * ist öffentlich). An die Lehrkraft gehen davon nur die Ergebnisse (verschlüsselt mit Erstversuch und Abgabe); fremde Daten werden
+ * vor jeder Anzeige geprüft und gekappt – jedes Objekt neu gebaut, Listen erst gekappt, dann verarbeitet. */
+/* ESCAPE:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/escape.test.mjs liest diesen Block) */
+const ESC_KIND = "feibeitsblatt-escape", ESC_MAX_BYTES = 96 * 1024, ESC_ID_RE = /^[a-z0-9-]{3,60}$/;
+const ESC_NAME_MAX = 80, ESC_STR_MAX = 2000, ESC_TEXT_MAX = 4000, ESC_WORD_MAX = 60, ESC_STATIONS = 20, ESC_ERRORS = 30, ESC_RESUMES = 20;
+function fbEscapeHash(str){ // cyrb53-Variante wie saveHash der Vorlage jg6, 64 Bit als 16 Hex-Zeichen
+  let h1=0xdeadbeef^str.length, h2=0x41c6ce57^str.length;
+  for(let i=0;i<str.length;i++){ const ch=str.charCodeAt(i); h1=Math.imul(h1^ch,2654435761); h2=Math.imul(h2^ch,1597334677); }
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return (h2>>>0).toString(16).padStart(8,'0')+(h1>>>0).toString(16).padStart(8,'0');
+}
+// Prüfsumme der Hülle: "ok" | "mismatch" (verändert oder beschädigt)
+const escCheck = (hull) => (fbEscapeHash("FbEscape|v1|" + hull.d) === hull.s ? "ok" : "mismatch");
+const escObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const escCut = (s, max) => (s.length > max ? s.slice(0, max).replace(/[\uD800-\uDBFF]$/, "") : s);   // kein halbes Ersatzzeichen-Paar
+// Einzeilig: NFC, Steuerzeichen → Leerzeichen, Formatzeichen (Bidi-Steuerung, Nullbreite) weg, Leerraum zusammengefasst; nur Texte
+function escLine(v, max) {
+  if (typeof v !== "string") return "";
+  return escCut(v.normalize("NFC").replace(/\p{Cc}/gu, " ").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim(), max);
+}
+// Mehrzeilig (Lösungserläuterungen): wie escLine, aber Zeilenumbrüche bleiben – höchstens eine Leerzeile am Stück
+function escText(v, max) {
+  if (typeof v !== "string") return "";
+  const s = v.normalize("NFC").replace(/\r\n?/g, "\n").replace(/[^\S\n]/g, " ").replace(/[\p{Cc}]/gu, (c) => (c === "\n" ? c : " ")).replace(/\p{Cf}/gu, "")
+    .split("\n").map((l) => l.replace(/ +/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return escCut(s, max);
+}
+// Zeitpunkt als ISO-Text (gültiges Datum), sonst ""
+function escIso(v) {
+  if (typeof v !== "string" || v.length > 40) return "";
+  const t = Date.parse(v);
+  return Number.isFinite(t) ? new Date(t).toISOString() : "";
+}
+// Raum aus fremden Daten: {id, name} – Name leer → Kennung; ungültige Kennung → null
+function escRoom(r) {
+  if (!escObj(r) || typeof r.id !== "string" || !ESC_ID_RE.test(r.id)) return null;
+  return { id: r.id, name: escLine(r.name, ESC_NAME_MAX) || r.id };
+}
+// Stationen: Bezeichnung, Zahl der Versuche (0–999, sonst 0) und die Fehler im ersten Versuch ({item, wrong?, right?, note?}; ohne item entfällt der Fehler)
+function escStations(list) {
+  return (Array.isArray(list) ? list.slice(0, ESC_STATIONS) : []).filter(escObj).map((st) => ({
+    label: escLine(st.label, ESC_STR_MAX),
+    attempts: Number.isInteger(st.attempts) && st.attempts >= 0 && st.attempts <= 999 ? st.attempts : 0,
+    errors: (Array.isArray(st.errors) ? st.errors.slice(0, ESC_ERRORS) : []).filter(escObj).map((e) => {
+      const item = escLine(e.item, ESC_STR_MAX);
+      if (!item) return null;
+      const o = { item };
+      for (const k of ["wrong", "right", "note"]) { const v = escLine(e[k], ESC_STR_MAX); if (v) o[k] = v; }
+      return o;
+    }).filter(Boolean)
+  }));
+}
+// Verwendung von Zwischenstand-Dateien des Raums: wo, gespeichert am, geladen am
+const escResumes = (list) => (Array.isArray(list) ? list.slice(0, ESC_RESUMES) : []).filter(escObj)
+  .map((r) => ({ place: escLine(r.place, ESC_STR_MAX), savedAt: escIso(r.savedAt), loadedAt: escIso(r.loadedAt) }));
+// Blatt-Feld escape {id, name} (API-Antwort, Vorlage, Sicherung, Import) – dieselben Regeln wie validateEscapeSpec im Worker, aber null statt Fehler
+function cleanEscapeSpec(v) {
+  if (!escObj(v)) return null;
+  const id = typeof v.id === "string" ? v.id.trim().toLowerCase() : "", name = escLine(v.name, ESC_NAME_MAX + 1);
+  return ESC_ID_RE.test(id) && name && name.length <= ESC_NAME_MAX ? { id, name } : null;
+}
+// Escape-Daten einer Abgabe (entschlüsselt, Lehrkraft): {room, word, completedAt, stations, resumes, check, omitted?} oder null
+function escCleanPayload(x) {
+  if (!escObj(x)) return null;
+  const room = escRoom(x.room);
+  if (!room) return null;
+  const out = { room, word: escLine(x.word, ESC_WORD_MAX), completedAt: escIso(x.completedAt), stations: escStations(x.stations), resumes: escResumes(x.resumes),
+    check: x.check === "ok" || x.check === "mismatch" ? x.check : "unknown" };
+  if (x.omitted === "too_large") out.omitted = "too_large";   // Notfall: die Fehler-Einzelheiten passten nicht mehr in die Abgabe
+  return out;
+}
+// Zahlen für die Kurzfassung: fehlerfrei = Stationen mit genau einem Versuch und ohne Fehler (wie die Überblick-PDF des Raums);
+// errors = Fehler im ersten Versuch zusammen (null = nicht übermittelt)
+function escSummary(stations, omitted) {
+  const list = Array.isArray(stations) ? stations : [];
+  return { n: list.length, clean: list.filter((st) => st.attempts === 1 && !st.errors.length).length,
+    errors: omitted ? null : list.reduce((k, st) => k + st.errors.length, 0), attempts: list.reduce((k, st) => k + st.attempts, 0) };
+}
+/* ESCAPE:END */
 /* ---------- Tippzeiten (wie im Feiditor): je Zeichen der Abstand zum im Text vorangehenden Zeichen ----------
  * Je UTF-16-Einheit der Textform ein Byte: 0–70 = Abstand in ms (aufgerundet), 71 = mehr als 70 ms, erstes Zeichen oder
  * unbekannter Vorgänger, 255 = ohne Messung (Leerraum, Tabellenkopf und Trenner, wiederhergestellter Text ohne Daten); jeder
@@ -4206,8 +4334,10 @@ function setSaveState(text, bad) {   // nur bei Änderung schreiben (sonst würd
 const PDF_W_REG = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
 const PDF_W_BOLD = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
 const WINANSI = { "€": 0x80, "‚": 0x82, "ƒ": 0x83, "„": 0x84, "…": 0x85, "†": 0x86, "‡": 0x87, "ˆ": 0x88, "‰": 0x89, "Š": 0x8A, "‹": 0x8B, "Œ": 0x8C, "Ž": 0x8E, "‘": 0x91, "’": 0x92, "“": 0x93, "”": 0x94, "•": 0x95, "–": 0x96, "—": 0x97, "˜": 0x98, "™": 0x99, "š": 0x9A, "›": 0x9B, "œ": 0x9C, "ž": 0x9E, "Ÿ": 0x9F };
-// Zeichen außerhalb von WinAnsi, die in Antworten vorkommen (Weltkarte „Kaffee → Brasilien“), lesbar ersetzen – vor Breite und Bytes
-const pdfPlain = (str) => String(str).normalize("NFC").replace(/→/g, "->").replace(/✓/g, "").replace(/✗/g, "x");
+// Zeichen außerhalb von WinAnsi, die in Antworten vorkommen (Weltkarte „Kaffee → Brasilien“) oder in Daten aus einem Escape-Room
+// („−23,8 %“, „≈ 81 %“ – sonst stünde dort „?23,8 %“), lesbar ersetzen – vor Breite und Bytes
+const pdfPlain = (str) => String(str).normalize("NFC").replace(/→/g, "->").replace(/✓/g, "").replace(/✗/g, "x")
+  .replace(/[\u2212\u2010\u2011]/g, "-").replace(/\u2248/g, "~").replace(/[\u2009\u202F]/g, " ");
 function pdfBytes(str) {   // Text → WinAnsi-Bytes (Zeichen außerhalb → „?“)
   const out = [];
   for (const ch of pdfPlain(str)) {
@@ -4389,13 +4519,15 @@ function pdfStringValue(tok) {
   return tok.slice(1, -1).replace(/\\([0-7]{1,3}|[\s\S])/g, (m0, c) => (/^[0-7]/.test(c) ? String.fromCharCode(parseInt(c, 8) & 255)
     : c === "\n" || c === "\r" ? "" : ({ n: "\n", r: "\r", t: "\t", b: "\b", f: "\f" })[c] || c));
 }
-// Ist die Datei eine gesicherte Feibeitsblatt-PDF (Aufträge an die KI!) oder ein Zwischenstand (Personendaten)? → nie als Material.
+// Ist die Datei eine gesicherte Feibeitsblatt-PDF (Aufträge an die KI!), ein Zwischenstand oder eine Überblick-PDF aus einem
+// Escape-Room (Personendaten)? → nie als Material.
 // Erkannt wie beim Laden: am Kennzeichen oder – falls ein PDF-Programm es beim Neuspeichern entfernt hat – am Inhalt der
 // eingebetteten JSON-Dateien.
 async function feibeitsblattPdfKind(u8) {
   const doc = pdfDoc(u8), s = doc.s;
   if (/\/FbSheet\s+1\b/.test(s)) return "sheet";
   if (/\/FbDraft\s+1\b/.test(s)) return "draft";
+  if (/\/FbEscape\s+1\b/.test(s)) return "escape";   // Überblick-PDF aus einem Escape-Room (voller Name, Bestätigungscode, Ergebnisse)
   let n = 0;
   for (const m of s.matchAll(/\/Type\s*\/EmbeddedFile\b/g)) {
     if (++n > 60) break;
@@ -4405,6 +4537,7 @@ async function feibeitsblattPdfKind(u8) {
     try { o = JSON.parse(td.decode(await pdfStreamData(doc.u, x, 8 * 1024 * 1024))); } catch (e) { continue; }
     if (o && o.kind === "feibeitsblatt-sheet") return "sheet";
     if (o && o.kind === "feibeitsblatt-draft") return "draft";
+    if (o && o.kind === ESC_KIND) return "escape";
   }
   return null;
 }
@@ -4501,20 +4634,84 @@ function xmpPacket(title, when) {
     "<Iptc4xmpExt:DigitalSourceType>http://cv.iptc.org/newscodes/digitalsourcetype/compositeSynthetic</Iptc4xmpExt:DigitalSourceType>" +
     '</rdf:Description></rdf:RDF></x:xmpmeta>\n<?xpacket end="r"?>';
 }
-function makeSolutionsPdf(sub) {
-  const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M, TOP = 64, BOTTOM = 60;
-  const pages = [[]];
-  let y = TOP;
-  const newPage = () => { pages.push([]); y = TOP; };
-  const line = (x, str, size, bold, color) => pages[pages.length - 1].push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - y).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
-  const para = (str, size, bold, opts = {}) => {   // Absätze umbrechen, Zeilenumbrüche des Textes erhalten, Seitenumbruch bei Bedarf
+/* Seiten einer mehrseitigen A4-PDF-Datei (Lösungen, Überblick aus einem Escape-Room): Helvetica/-Bold (WinAnsi), Absätze per pdfWrap
+   umbrochen, neue Seite bei Bedarf; pdfAssemble setzt daraus die Datei zusammen. y = Grundlinie der zuletzt gesetzten Zeile (von oben). */
+function pdfPager() {
+  const W = 595.28, H = 841.89, M = 56, TOP = 64, BOTTOM = 60;
+  const pg = { W, H, M, TW: W - 2 * M, TOP, BOTTOM, pages: [[]], y: TOP };
+  pg.op = (str) => pg.pages[pg.pages.length - 1].push(str);
+  pg.newPage = () => { pg.pages.push([]); pg.y = TOP; };
+  pg.line = (x, str, size, bold, color) => pg.op(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - pg.y).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
+  pg.para = (str, size, bold, opts = {}) => {   // Absätze umbrechen, Zeilenumbrüche des Textes erhalten, Seitenumbruch bei Bedarf
     const lh = opts.lh || Math.round(size * 1.38), x = M + (opts.indent || 0);
-    for (const l of pdfWrap(str, size, bold, TW - (opts.indent || 0))) {
-      if (y + lh > H - BOTTOM) newPage();
-      y += lh; line(x, l, size, bold, opts.color);
+    for (const l of pdfWrap(str, size, bold, pg.TW - (opts.indent || 0))) {
+      if (pg.y + lh > H - BOTTOM) pg.newPage();
+      pg.y += lh; pg.line(x, l, size, bold, opts.color);
     }
   };
-  const gap = (n) => { y += n; if (y > H - BOTTOM) newPage(); };
+  pg.gap = (n) => { pg.y += n; if (pg.y > H - BOTTOM) pg.newPage(); };
+  pg.room = (n) => { if (pg.y > H - BOTTOM - n) pg.newPage(); };   // ein Kopf beginnt nicht ganz unten auf der Seite
+  // Kasten mit Fläche und Rahmen um Zeilen [{str, size, bold, color}] – passt er nicht mehr auf die Seite, beginnt eine neue
+  pg.box = (items, o = {}) => {
+    const pad = o.pad || 12, rows = [];
+    for (const it of items) for (const l of pdfWrap(it.str, it.size, it.bold, pg.TW - 2 * pad)) rows.push({ l, it, lh: Math.round(it.size * 1.38) });
+    const bh = rows.reduce((n, r) => n + r.lh, 0) + 2 * pad - 2;
+    if (pg.y + 8 + bh > H - BOTTOM) pg.newPage();
+    const top = pg.y + 8;
+    pg.op(`${o.fill || "0.95 0.95 0.95"} rg ${o.stroke || "0.6 0.6 0.6"} RG ${o.width || 1} w ${M.toFixed(2)} ${(H - top - bh).toFixed(2)} ${pg.TW.toFixed(2)} ${bh.toFixed(2)} re B`);
+    let yy = top + pad - 3;
+    for (const r of rows) { yy += r.lh; pg.op(`BT ${r.it.color || "0 0 0"} rg /${r.it.bold ? "F2" : "F1"} ${r.it.size} Tf ${(M + pad).toFixed(2)} ${(H - yy).toFixed(2)} Td ${pdfStr(r.l)} Tj ET`); }
+    pg.y = top + bh;
+  };
+  // Fußzeile je Seite: „Feibeitsblatt · Titel · wer · Seite n von N“ – passt sie nicht in den Satzspiegel, wird erst der Titel gekürzt,
+  // dann notfalls die kurze Form von „wer“ (Gruppe: „Gruppe (n)“)
+  pg.footer = (title, who, whoShort) => {
+    const total = pg.pages.length;
+    const foot = (tt, w, i) => "Feibeitsblatt · " + tt + " · " + w + " · Seite " + (i + 1) + " von " + total;
+    const wide = (t, w) => pdfWidth(foot(t, w, total - 1), 9, false) > pg.TW;
+    const fit = (w) => { let t = title || ""; if (!wide(t, w)) return t; while (t.length > 1 && wide(t + "…", w)) t = t.slice(0, -1); return t.trimEnd() + "…"; };
+    let whoF = who, short = fit(whoF);
+    if (whoShort && wide(short, whoF)) { whoF = whoShort; short = fit(whoF); }
+    pg.pages.forEach((ops, i) => ops.push(`BT 0.45 0.45 0.45 rg /F1 9 Tf ${M.toFixed(2)} 36 Td ${pdfStr(foot(short, whoF, i))} Tj ET`));
+  };
+  return pg;
+}
+/* Seiten → PDF-Bytes. Objekte: 1 Katalog, 2 Seitenbaum, 3/4 Schriften, 5 Info, je Seite 6+2i Seite und 7+2i Inhalt, XMP zuletzt.
+   meta = {title, subject?, keywords?, xmp?} – xmp: KI-Kennzeichnung als XMP-Datenstrom (/Metadata im Katalog) */
+function pdfAssemble(pages, meta) {
+  const W = 595.28, H = 841.89, total = pages.length, parts = [], offsets = [];
+  let pos = 0;
+  const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
+  const obj = (num, body) => { offsets[num] = pos; push(`${num} 0 obj\n`); push(body); push("\nendobj\n"); };
+  const kids = pages.map((_, i) => `${6 + 2 * i} 0 R`).join(" ");
+  const t = new Date(), stamp = `${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}${pad2(t.getHours())}${pad2(t.getMinutes())}${pad2(t.getSeconds())}`;
+  const xmpNo = 6 + 2 * total;   // XMP als letztes Objekt
+  push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
+  obj(1, meta.xmp ? `<< /Type /Catalog /Pages 2 0 R /Metadata ${xmpNo} 0 R >>` : "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${total} >>`);
+  obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  obj(5, `<< /Title ${pdfUtf16(meta.title)}` + (meta.subject ? ` /Subject ${pdfUtf16(meta.subject)}` : "") + (meta.keywords ? ` /Keywords ${pdfUtf16(meta.keywords)}` : "") + ` /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  pages.forEach((ops, i) => {
+    const content = ops.join("\n");
+    obj(6 + 2 * i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${7 + 2 * i} 0 R >>`);
+    obj(7 + 2 * i, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+  if (meta.xmp) {   // XMP: UTF-8, /Length in Bytes (der Titel kann Zeichen außerhalb von Latin-1 enthalten)
+    const xmp = te.encode(xmpPacket(meta.title, t));
+    offsets[xmpNo] = pos;
+    push(`${xmpNo} 0 obj\n<< /Type /Metadata /Subtype /XML /Length ${xmp.length} >>\nstream\n`); push(xmp); push("\nendstream\nendobj\n");
+  }
+  const count = 6 + 2 * total + (meta.xmp ? 1 : 0), xref = pos;
+  let x = `xref\n0 ${count}\n0000000000 65535 f \n`;
+  for (let i = 1; i < count; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  push(x + `trailer\n<< /Size ${count} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const out = new Uint8Array(pos); let o = 0;
+  for (const b of parts) { out.set(b, o); o += b.length; }
+  return out;
+}
+function makeSolutionsPdf(sub) {
+  const pg = pdfPager(), { para, gap } = pg;
   const p = sub.person || {}, when = toDate(sub.receivedAt) || new Date(), grp = isGroup(p);
   para("Meine Lösungen – " + (sub.title || "Feibeitsblatt"), 17, true);
   gap(4);
@@ -4546,7 +4743,7 @@ function makeSolutionsPdf(sub) {
     if (f.note) para(f.note, 10.5, false, { indent: 10, color: "0.35 0.35 0.35" });
   };
   items.forEach(({ fin, first, fb, kept, f2, showFb }, i) => {
-    if (y > H - BOTTOM - 80) newPage();   // Aufgabenkopf nicht ganz unten beginnen
+    pg.room(80);   // Aufgabenkopf nicht ganz unten beginnen
     para("Aufgabe " + (i + 1), 13, true);
     gap(2);
     if (tasks[i]) para(String(tasks[i]), 11, false, { color: "0.25 0.25 0.25" });
@@ -4570,45 +4767,66 @@ function makeSolutionsPdf(sub) {
     }
     gap(16);
   });
-  // Fußzeile je Seite, dann Objekte zusammensetzen (Kopf, Katalog, Seitenbaum, Schriften, je Seite Seite + Inhalt, Info)
-  const total = pages.length, who = grp ? "Gruppe " + p.gruppe.join(", ") : p.vorname + " " + p.nachname;
-  const foot = (tt, w, i) => "Feibeitsblatt · " + tt + " · " + w + " · Seite " + (i + 1) + " von " + total;
-  // Die Zeile muss in den Satzspiegel passen: erst den Titel kürzen, bei einer Gruppe mit vielen Kürzeln notfalls „Gruppe (n)“
-  const wide = (t, w) => pdfWidth(foot(t, w, total - 1), 9, false) > TW;
-  const fit = (w) => { let t = sub.title || ""; if (!wide(t, w)) return t; while (t.length > 1 && wide(t + "…", w)) t = t.slice(0, -1); return t.trimEnd() + "…"; };
-  let whoF = who, short = fit(whoF);
-  if (grp && wide(short, whoF)) { whoF = `Gruppe (${p.gruppe.length})`; short = fit(whoF); }
-  pages.forEach((ops, i) => ops.push(`BT 0.45 0.45 0.45 rg /F1 9 Tf ${M.toFixed(2)} 36 Td ${pdfStr(foot(short, whoF, i))} Tj ET`));
-  const parts = [], offsets = [];
-  let pos = 0;
-  const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
-  const obj = (num, body) => { offsets[num] = pos; push(`${num} 0 obj\n`); push(body); push("\nendobj\n"); };
-  const kids = pages.map((_, i) => `${6 + 2 * i} 0 R`).join(" ");
-  const t = new Date(), stamp = `${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}${pad2(t.getHours())}${pad2(t.getMinutes())}${pad2(t.getSeconds())}`;
-  const pdfTitle = "Meine Lösungen – " + (sub.title || "Feibeitsblatt"), xmpNo = 6 + 2 * total;   // XMP als letztes Objekt
-  push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
-  obj(1, hasAi ? `<< /Type /Catalog /Pages 2 0 R /Metadata ${xmpNo} 0 R >>` : "<< /Type /Catalog /Pages 2 0 R >>");
-  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${total} >>`);
-  obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
-  obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
-  obj(5, `<< /Title ${pdfUtf16(pdfTitle)}` + (hasAi ? ` /Subject ${pdfUtf16(AI_PDF_SUBJECT)} /Keywords ${pdfUtf16(AI_PDF_KEYWORDS)}` : "") + ` /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
-  pages.forEach((ops, i) => {
-    const content = ops.join("\n");
-    obj(6 + 2 * i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${7 + 2 * i} 0 R >>`);
-    obj(7 + 2 * i, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
-  });
-  if (hasAi) {   // XMP: UTF-8, /Length in Bytes (der Titel kann Zeichen außerhalb von Latin-1 enthalten)
-    const xmp = te.encode(xmpPacket(pdfTitle, t));
-    offsets[xmpNo] = pos;
-    push(`${xmpNo} 0 obj\n<< /Type /Metadata /Subtype /XML /Length ${xmp.length} >>\nstream\n`); push(xmp); push("\nendstream\nendobj\n");
+  // Fußzeile je Seite (bei einer Gruppe mit vielen Kürzeln notfalls „Gruppe (n)“), dann Objekte zusammensetzen
+  pg.footer(sub.title || "", grp ? "Gruppe " + p.gruppe.join(", ") : p.vorname + " " + p.nachname, grp ? `Gruppe (${p.gruppe.length})` : null);
+  const title = "Meine Lösungen – " + (sub.title || "Feibeitsblatt");
+  return pdfAssemble(pg.pages, hasAi ? { title, subject: AI_PDF_SUBJECT, keywords: AI_PDF_KEYWORDS, xmp: true } : { title });
+}
+/* ---------- Überblick aus einem Escape-Room als PDF-Seiten (Feibeitsblatt als Finale eines Escape-Rooms) ----------
+ * Kopf, Angaben, Zahlen (fehlerfrei im ersten Versuch, Fehler zusammen), je Station die Versuche und die Fehler im ersten Versuch,
+ * dann die Verwendung von Zwischenstand-Dateien des Raums. mode "teacher" (Lehrkräfte-Ansicht, gebaut aus der entschlüsselten Abgabe):
+ * Kürzel, Geburtstag ohne Jahr, Klasse und der Satz zur Prüfsumme – mehr bekommt die Lehrkraft nicht (keinen vollen Namen, keinen
+ * Bestätigungscode, keine Lösungserläuterungen). Schwarz auf weiß mit farbigen Überschriften, nie Tippzeiten. */
+const ESC_PDF = { head: "0 0.29 0.6", grey: "0.35 0.35 0.35", red: "0.7 0.15 0.12", green: "0.12 0.42 0.16" };
+const escAttempts = (n) => (n === 1 ? "1 Versuch" : n + " Versuche");
+const escWhen = (v) => (v && toDate(v) ? fmtDT(v) + " Uhr" : "–");
+const ESC_CHECK_TEXT = { ok: "Prüfsumme des Datensatzes: stimmt – ein Indiz, kein Beweis.", mismatch: "Prüfsumme des Datensatzes: stimmt nicht – der Datensatz wurde verändert oder ist beschädigt.",
+  unknown: "Prüfsumme des Datensatzes: nicht prüfbar." };
+// Raumname für Dateinamen: nur ASCII-Buchstaben, Ziffern und Bindestriche (manche Systeme verwerfen sonst den Namen)
+const escFileRoom = (name) => pdfAscii(name).replace(/[^A-Za-z0-9-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "Escape-Room";
+function escPdfPages(pg, esc, o) {
+  const { para, gap } = pg, sum = escSummary(esc.stations, esc.omitted);
+  para(`Escape-Room „${o.name}“ – Überblick`, 17, true);
+  gap(4);
+  if (o.mode === "teacher") {
+    const pr = o.person || {};
+    const who = isGroup(pr) ? "Gruppe: " + pr.gruppe.join(", ") : `${pr.nachname || "–"} · ${pr.vorname || "–"} · Geburtstag ${fmtBday(pr.geburtsdatum)}`;
+    para(`${who} · Klasse ${pr.klasse || "–"} · ${o.stage === "first" ? "Erstversuch vom" : "abgegeben am"} ${escWhen(o.receivedAt)}`, 10.5, false, { color: ESC_PDF.grey });
+    para(`Feibeitsblatt „${o.title || "Feibeitsblatt"}“ · Code ${fmtCode(o.code)}`, 10.5, false, { color: ESC_PDF.grey });
+    gap(4);
+    para("Übermittelt mit der Abgabe: die Ergebnisse aus dem Escape-Room – ohne vollen Namen, ohne Geburtsjahr, ohne Bestätigungscode und ohne Lösungserläuterungen.", 9.5, false, { color: ESC_PDF.grey });
   }
-  const count = 6 + 2 * total + (hasAi ? 1 : 0), xref = pos;
-  let x = `xref\n0 ${count}\n0000000000 65535 f \n`;
-  for (let i = 1; i < count; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
-  push(x + `trailer\n<< /Size ${count} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
-  const out = new Uint8Array(pos); let o = 0;
-  for (const b of parts) { out.set(b, o); o += b.length; }
-  return out;
+  gap(6);
+  para(`Escape-Room abgeschlossen am ${escWhen(esc.completedAt)}` + (esc.word ? ` · Codewort: ${esc.word}` : ""), 10.5, false);
+  if (o.mode === "teacher") {
+    para(ESC_CHECK_TEXT[esc.check] || ESC_CHECK_TEXT.unknown, 10.5, esc.check === "mismatch", { color: esc.check === "mismatch" ? ESC_PDF.red : ESC_PDF.grey });
+    if (o.otherRoom) para(`Achtung: Die Daten stammen aus einem anderen Escape-Room (Kennung ${esc.room.id}).`, 10.5, true, { color: ESC_PDF.red });
+  }
+  pg.box([{ str: "Übersicht", size: 9, bold: true, color: ESC_PDF.green },
+    { str: `Stationen im ersten Versuch fehlerfrei: ${sum.clean} von ${sum.n} · ` + (sum.errors == null ? "Fehler im ersten Versuch: nicht übermittelt (die Abgabe wäre sonst zu groß gewesen)" : `Fehler im ersten Versuch insgesamt: ${sum.errors}`), size: 10.5, bold: true }],
+  { fill: "0.9 0.96 0.92", stroke: "0.07 0.39 0.17" });
+  gap(14);
+  esc.stations.forEach((st, i) => {
+    pg.room(70);
+    para(st.label || "Station " + (i + 1), 12.5, true, { color: ESC_PDF.head });
+    gap(2);
+    if (st.attempts === 1 && !st.errors.length) para("Fehlerfrei beim ersten Versuch gelöst. (1 Versuch)", 10.5, true, { color: ESC_PDF.green });
+    else if (!st.attempts) para("Keine Angabe zu den Versuchen.", 10.5, false, { color: ESC_PDF.grey });
+    else para(`Benötigt: ${escAttempts(st.attempts)}.` + (st.errors.length ? " Beim ersten Versuch war Folgendes nicht korrekt:" : esc.omitted ? " Die Fehler im ersten Versuch wurden nicht übermittelt." : ""), 10.5, false, { color: ESC_PDF.grey });
+    for (const e of st.errors) {
+      gap(3);
+      para("• " + e.item, 10.5, true, { indent: 10 });
+      if (e.wrong) para("Antwort: " + e.wrong, 10.5, false, { indent: 22, color: ESC_PDF.red });
+      if (e.right) para("Richtig: " + e.right, 10.5, true, { indent: 22, color: ESC_PDF.green });
+      if (e.note) para(e.note, 9.5, false, { indent: 22, color: ESC_PDF.grey });
+    }
+    gap(14);
+  });
+  pg.room(60);
+  para("Verwendung von Zwischenstand-Dateien des Escape-Rooms", 12.5, true, { color: ESC_PDF.head });
+  gap(2);
+  if (!esc.resumes.length) para("Keine.", 10.5, false);
+  for (const r of esc.resumes) para(`• ${r.place || "–"} · gespeichert am ${escWhen(r.savedAt)} · geladen am ${escWhen(r.loadedAt)}`, 10.5, false, { indent: 10 });
 }
 $("done-pdf").addEventListener("click", () => {
   const sub = S.lastSubmission, st = $("done-status");
@@ -5822,9 +6040,10 @@ function renderSheets() {
   }
   $("t-list-hint").classList.remove("hidden");
   T.sheets.forEach((s) => {
+    const esc = cleanEscapeSpec(s.escape);   // Finale eines Escape-Rooms: der Raumname statt des Codes (der Code steht in den Details)
     const tr = h("tr", { class: "clickable" + (s.code === T.sel ? " selected" : ""), tabindex: "0", "aria-selected": s.code === T.sel ? "true" : "false" }, [
       h("td", { text: String(s.title || "") }),
-      h("td", { class: "code", text: fmtCode(s.code) }),
+      esc ? h("td", { class: "code esc" }, [h("span", { class: "escbadge", text: "Escape-Room" }), " " + esc.name]) : h("td", { class: "code", text: fmtCode(s.code) }),
       h("td", { class: "nowrap hide-s", text: fmtDT(s.createdAt) }),
       h("td", { class: "num hide-s", text: String(s.taskCount ?? "–") }),
       h("td", { class: "num" }, [String(s.submissionCount ?? "–"),
@@ -5836,12 +6055,23 @@ function renderSheets() {
     tb.appendChild(tr);
   });
 }
+/* Blatt für einen Escape-Room: Beschriftung des Codes, Hinweis, kein analoges Arbeitsblatt – schon aus dem Listeneintrag gesetzt
+   (sonst stünde kurz „Code für die Schüler:innen“ da), nach dem Laden der Einzelansicht noch einmal */
+function selEscapeUi(esc) {
+  $("t-sel-code-lbl").textContent = esc ? "Code für den Quelltext des Escape-Rooms" : "Code für die Schüler:innen";
+  const hint = $("t-sel-esc");
+  hint.textContent = esc ? `Schüler:innen öffnen dieses Feibeitsblatt nur über den Escape-Room „${esc.name}“ (Arena-Tunnel am Ende oder ihre Überblick-PDF); die Eingabe des Codes auf der Startseite ist gesperrt. Die Prüfsumme in den Abgaben zeigt nur, ob der Datensatz aus dem Escape-Room unverändert ankam – ein Indiz, kein Beweis (der Quelltext ist öffentlich).` : "";
+  hint.classList.toggle("hidden", !esc);
+  $("t-analog").classList.toggle("hidden", !!esc); $("t-analog-hint").classList.toggle("hidden", !!esc);
+}
 async function selectSheet(code) {
   T.sel = code; renderSheets();
   const box = $("t-sel"); box.classList.remove("hidden");
   const meta = T.sheets.find((s) => s.code === code) || { code, title: "" };
+  const esc0 = cleanEscapeSpec(meta.escape);
+  selEscapeUi(esc0);
   $("t-sel-title").textContent = meta.title || "Feibeitsblatt";
-  $("t-sel-meta").textContent = "Erstellt am " + fmtDT(meta.createdAt);
+  $("t-sel-meta").textContent = "Erstellt am " + fmtDT(meta.createdAt) + (esc0 ? ` · Escape-Room „${esc0.name}“ (Kennung ${esc0.id})` : "");
   $("t-sel-code").textContent = fmtCode(code);
   $("t-sel-tasks").textContent = ""; $("t-sel-det").open = false;
   $("t-subs-body").textContent = ""; $("t-subs-sum").textContent = "";
@@ -5852,8 +6082,10 @@ async function selectSheet(code) {
     const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code));
     if (T.sel !== code) return;
     T.selSheet = r.sheet;
+    const esc = r.sheet.escape = cleanEscapeSpec(r.sheet.escape);
+    selEscapeUi(esc);
     $("t-sel-title").textContent = r.sheet.title || "Feibeitsblatt";
-    $("t-sel-meta").textContent = `Erstellt am ${fmtDT(r.sheet.createdAt)} · ${r.sheet.tasks.length} ${r.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}`;
+    $("t-sel-meta").textContent = `Erstellt am ${fmtDT(r.sheet.createdAt)} · ${r.sheet.tasks.length} ${r.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}` + (esc ? ` · Escape-Room „${esc.name}“ (Kennung ${esc.id})` : "");
     const list = $("t-sel-tasks");
     r.sheet.tasks.forEach((t, i) => list.appendChild(h("div", { class: "si" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) }),
@@ -5905,6 +6137,8 @@ async function loadSubs() {
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
           p.noAi = NO_AI_MODES.has(p.noAi) ? p.noAi : "";   // ohne KI-Feedback: ohne Anfrage / nicht möglich / Blatt ohne KI
           p.feedbackError = cut(p.feedbackError, 100);
+          // Daten aus einem Escape-Room (Finale): geprüft und gekappt; ein Fehler kostet nur diese Daten, nie den Eintrag
+          try { p.escape = escCleanPayload(p.escape); } catch (e) { p.escape = null; }
         }
       } catch (e) { p = null; }
       out.push({ id: s.id, receivedAt: s.receivedAt, stage: s.stage === "first" ? "first" : "final", p });
@@ -6024,6 +6258,8 @@ function buildDetail(s, older) {
   } else if (noFb && noAiNote(p)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: noAiNote(p) }));
   }
+  const escBox = escDetailDom(s);   // nur bei Blättern für einen Escape-Room
+  if (escBox) box.appendChild(escBox);
   const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback", L0 = "Abgegebene Fassung (ohne KI-Feedback)";
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
@@ -6079,6 +6315,57 @@ function buildDetail(s, older) {
   const del = h("button", { type: "button", class: "btn danger small", text: "Diesen Eintrag löschen" });
   del.addEventListener("click", () => deleteEntry(s, del));
   box.appendChild(h("div", { class: "ddel" }, [del]));
+  return box;
+}
+/* Daten aus dem Escape-Room in den Details eines Eintrags (nur bei Blättern für einen Escape-Room): Kurzfassung, Prüfsumme, „Überblick
+   ansehen“ (erst beim Aufklappen gebaut) und „Überblick als PDF herunterladen“ (aus der Abgabe: Kürzel statt Namen, ohne
+   Bestätigungscode). Alles nur per textContent; die Daten sind in loadSubs schon geprüft und gekappt (escCleanPayload). */
+function escDetailDom(s) {
+  const sheet = T.selSheet, spec = sheet && cleanEscapeSpec(sheet.escape), code = T.sel;
+  if (!spec) return null;
+  const esc = s.p.escape, box = h("div", { class: "desc" }, [h("p", { class: "desc-h", text: `Escape-Room „${spec.name}“` })]);
+  if (!esc) { box.appendChild(h("p", { class: "desc-sum", text: "Ohne Daten aus dem Escape-Room." })); return box; }
+  const sum = escSummary(esc.stations, esc.omitted), other = esc.room.id !== spec.id;
+  box.appendChild(h("p", { class: "desc-sum", text: [
+    esc.completedAt ? "Abgeschlossen am " + escWhen(esc.completedAt) : "Abschluss: ohne Angabe",
+    `im ersten Versuch fehlerfrei: ${sum.clean} von ${sum.n} ${sum.n === 1 ? "Station" : "Stationen"}`,
+    sum.errors == null ? "Fehler im ersten Versuch: nicht übermittelt (die Abgabe wäre sonst zu groß gewesen)" : "Fehler im ersten Versuch insgesamt: " + sum.errors,
+    "Zwischenstand-Dateien des Escape-Rooms: " + (esc.resumes.length || "keine")].join(" · ") }));
+  if (other) box.appendChild(h("p", { class: "desc-warn", text: `Achtung: Die Daten stammen aus einem anderen Escape-Room (Kennung ${esc.room.id}).` }));
+  box.appendChild(h("p", { class: "desc-check" + (esc.check === "mismatch" ? " bad" : ""), text: ESC_CHECK_TEXT[esc.check] || ESC_CHECK_TEXT.unknown }));
+  const more = h("details", { class: "tasksdet desc-more" }, [h("summary", { text: "Überblick ansehen" })]);
+  more.addEventListener("toggle", () => { if (more.open && more.children.length === 1) more.appendChild(escOverviewDom(esc)); });
+  const btn = h("button", { type: "button", class: "btn ghost small desc-pdf", text: "Überblick als PDF herunterladen" });
+  const st = h("p", { class: "status desc-st", "aria-live": "polite" });
+  btn.addEventListener("click", () => {
+    try {
+      const pg = pdfPager(), pr = s.p.person || {}, grp = isGroup(pr), title = `Escape-Room „${spec.name}“ – Überblick`;
+      escPdfPages(pg, esc, { mode: "teacher", name: spec.name, person: pr, stage: s.stage, receivedAt: s.receivedAt, title: sheet.title, code, otherRoom: other });
+      pg.footer(title, grp ? "Gruppe " + pr.gruppe.join(", ") : `${pr.vorname || ""} ${pr.nachname || ""}`.trim(), grp ? `Gruppe (${pr.gruppe.length})` : null);
+      downloadBlob(new Blob([pdfAssemble(pg.pages, { title })], { type: "application/octet-stream" }), `Escape-Room-${escFileRoom(spec.name)}-Ueberblick-${fmtCode(code)}-Eintrag-${s.id}.pdf`);
+      setStatus(st, "Die PDF-Datei wird heruntergeladen.", "ok");
+    } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuchen Sie es erneut.", "bad"); }
+  });
+  box.append(more, h("div", { class: "row" }, [btn]), st);
+  return box;
+}
+function escOverviewDom(esc) {
+  const box = h("div", { class: "desc-body" });
+  if (esc.word) box.appendChild(h("p", { class: "desc-word", text: "Codewort: " + esc.word }));
+  esc.stations.forEach((st, i) => {
+    const ok = st.attempts === 1 && !st.errors.length;
+    box.appendChild(h("h5", { text: st.label || "Station " + (i + 1) }));
+    box.appendChild(h("p", { class: ok ? "desc-ok" : "desc-att", text: ok ? "1 Versuch – fehlerfrei" : !st.attempts ? "Keine Angabe zu den Versuchen"
+      : escAttempts(st.attempts) + (st.errors.length ? " – beim ersten Versuch nicht korrekt:" : esc.omitted ? " – die Fehler im ersten Versuch wurden nicht übermittelt" : "") }));
+    if (st.errors.length) box.appendChild(h("ul", { class: "desc-errs" }, st.errors.map((e) => h("li", null, [
+      h("b", { text: e.item }),
+      e.wrong ? h("span", { class: "desc-wrong", text: "Antwort: " + e.wrong }) : null,
+      e.right ? h("span", { class: "desc-right", text: "Richtig: " + e.right }) : null,
+      e.note ? h("span", { class: "desc-note", text: e.note }) : null]))));
+  });
+  box.appendChild(h("h5", { text: "Zwischenstand-Dateien des Escape-Rooms" }));
+  box.appendChild(esc.resumes.length ? h("ul", { class: "desc-res" }, esc.resumes.map((r) => h("li", { text: `${r.place || "–"} · gespeichert am ${escWhen(r.savedAt)} · geladen am ${escWhen(r.loadedAt)}` })))
+    : h("p", { text: "Keine." }));
   return box;
 }
 const DELETE_IDS_MAX = 50;   // Einträge je Löschauftrag (= LIMITS.deleteIds im Worker) – mehr gehen in mehreren Aufrufen
@@ -6164,11 +6451,16 @@ $("t-template").addEventListener("click", async () => {
       }
       return { text: String(t.text || ""), textFmt: cleanMaterial(t.textFmt), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files, answer: builderAnswer(spec, cards) };
     }));
-    openBuilder(T.selSheet.title, rows);
+    const esc = cleanEscapeSpec(T.selSheet.escape);
+    openBuilder(T.selSheet.title, rows, esc);
+    if (esc) {
+      $("b-import").textContent = `Das neue Feibeitsblatt gehört wieder zum Escape-Room „${esc.name}“ und bekommt einen neuen Code – tragen Sie ihn danach im Quelltext des Escape-Rooms ein.`;
+      $("b-import").classList.remove("hidden");
+    }
     const msgs = [];
     if (lost) msgs.push(`${lost === 1 ? "Ein Bild der Vorlage konnte" : lost + " Bilder der Vorlage konnten"} nicht geladen werden und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
     if (lostF) msgs.push(`${lostF === 1 ? "Eine PDF-Datei der Vorlage konnte" : lostF + " PDF-Dateien der Vorlage konnten"} nicht geladen werden und ${lostF === 1 ? "fehlt" : "fehlen"} hier.`);
-    if (unsafeF) msgs.push(`${unsafeF === 1 ? "Eine PDF-Datei der Vorlage war" : unsafeF + " PDF-Dateien der Vorlage waren"} eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI) oder ein Zwischenstand von Schüler:innen und ${unsafeF === 1 ? "wurde" : "wurden"} weggelassen.`);
+    if (unsafeF) msgs.push(`${unsafeF === 1 ? "Eine PDF-Datei der Vorlage war" : unsafeF + " PDF-Dateien der Vorlage waren"} eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI), ein Zwischenstand von Schüler:innen oder eine Überblick-PDF aus einem Escape-Room und ${unsafeF === 1 ? "wurde" : "wurden"} weggelassen.`);
     if (msgs.length) $("b-err").textContent = msgs.join(" ");
   } finally { busy(btn, false); }
 });
@@ -6253,6 +6545,8 @@ async function sheetPdfData(code, sheet, onStep) {
   }
   const rec = { kind: "feibeitsblatt-sheet", v: 1, app: "Feibeitsblatt", exportId, exportedAt: Date.now(), code, title: String(sheet.title || ""),
     createdAt: Number.isFinite(sheet.createdAt) ? sheet.createdAt : null, tasks };
+  const esc = cleanEscapeSpec(sheet.escape);
+  if (esc) rec.escape = esc;   // Finale eines Escape-Rooms (normale Sicherungen bleiben unverändert)
   return { rec, blobs, shows };
 }
 // Datensatz + Dateien → PDF-Bytes (A4, mehrseitig, Helvetica/WinAnsi wie die anderen PDF-Dateien; ohne Bibliothek)
@@ -6275,6 +6569,7 @@ async function makeSheetPdf(rec, blobs, shows) {
   para("Feibeitsblatt: " + title, 17, true);
   gap(4);
   para(`Code ${fmtCode(rec.code)} · erstellt am ${fmtDT(rec.createdAt)} · ${tasks.length} ${tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · gesichert am ${fmtDT(rec.exportedAt)} Uhr`, 10.5, false, { color: "0.35 0.35 0.35" });
+  if (rec.escape) { gap(2); para(`Escape-Room: „${rec.escape.name}“ (Kennung ${rec.escape.id}) – Schüler:innen öffnen dieses Feibeitsblatt über den Escape-Room.`, 10.5, true, { color: "0.35 0.35 0.35" }); }
   gap(14);
   // Hinweiskasten: erst die Zeilen setzen, dann Rahmen und Text
   const pad = 14, bsz = 10.5, blh = 14.5, items = [];
@@ -6421,7 +6716,7 @@ function cleanSheetRecord(o) {   // fremde Daten prüfen und kappen (wie die Ein
   }));
   if (!tasks.length) return null;
   return { title: str(o.title, 200).replace(/\s+/g, " ").trim(), code: normCode(o.code).slice(0, 6), tasks,
-    createdAt: Number.isFinite(o.createdAt) ? o.createdAt : null, exportedAt: Number.isFinite(o.exportedAt) ? o.exportedAt : null };
+    createdAt: Number.isFinite(o.createdAt) ? o.createdAt : null, exportedAt: Number.isFinite(o.exportedAt) ? o.exportedAt : null, escape: cleanEscapeSpec(o.escape) };
 }
 async function sheetBlobOk(b, meta) {   // Größe und Prüfsumme wie im Datensatz
   if (!b || !b.length || b.length > meta.max) return false;
@@ -6451,7 +6746,7 @@ async function readSheetPdf(buf) {
     if (!inner) inner = o;
   }
   rec = rec || inner;
-  if (!rec) throw new Error(/\/FbDraft\s+1\b/.test(s) ? "draft" : "nosheet");
+  if (!rec) throw new Error(/\/FbDraft\s+1\b/.test(s) ? "draft" : /\/FbEscape\s+1\b/.test(s) ? "escape" : "nosheet");
   // Dateien: Kennzeichen einmal einsammeln (auch „/FbBlob(…)“, oktal maskiert oder als <hex>)
   const marks = new Map();
   for (const m of s.matchAll(/\/FbBlob\s*(\((?:[^()\\]|\\[\s\S])*\)|<[0-9A-Fa-f\s]*>)/g)) {
@@ -6505,7 +6800,8 @@ async function importSheetPdf(file) {
     catch (e) {
       if (!importStillWanted(run)) return;
       const m = e && e.message;
-      setStatus(st, (m === "draft" ? "Das ist ein Zwischenstand von Schüler:innen, kein gesichertes Feibeitsblatt. " : m === "nopdf" ? "Das ist keine PDF-Datei. "
+      setStatus(st, (m === "draft" ? "Das ist ein Zwischenstand von Schüler:innen, kein gesichertes Feibeitsblatt. "
+        : m === "escape" ? "Das ist eine Überblick-PDF aus einem Escape-Room (von Schüler:innen), kein gesichertes Feibeitsblatt. " : m === "nopdf" ? "Das ist keine PDF-Datei. "
         : m === "nosheet" ? "In dieser PDF-Datei steckt kein Feibeitsblatt. " : "Die PDF-Datei konnte nicht gelesen werden. ") + SHEET_PDF_HINT, "bad");
       return;
     }
@@ -6531,15 +6827,16 @@ async function importSheetPdf(file) {
       return;
     }
     setStatus(st, "", "");
-    openBuilder(o.title, rows);
+    openBuilder(o.title, rows, o.escape);
     const note = $("b-import");
     note.textContent = `„${o.title || "Feibeitsblatt"}“ wurde aus der PDF-Datei geladen` +
       (o.code ? ` (bisheriger Code ${fmtCode(o.code)}${o.exportedAt ? ", gesichert am " + fmtDT(o.exportedAt) + " Uhr" : ""})` : "") +
-      ". Prüfen oder ändern Sie Titel und Aufgaben – etwa die Klasse im Titel – und klicken Sie dann auf „Code generieren“. Das Feibeitsblatt bekommt einen neuen Code; seine Abgaben erscheinen in der Übersicht getrennt vom bisherigen Blatt.";
+      ". Prüfen oder ändern Sie Titel und Aufgaben – etwa die Klasse im Titel – und klicken Sie dann auf „Code generieren“. Das Feibeitsblatt bekommt einen neuen Code; seine Abgaben erscheinen in der Übersicht getrennt vom bisherigen Blatt." +
+      (o.escape ? ` Es gehört zum Escape-Room „${o.escape.name}“ – den neuen Code tragen Sie danach im Quelltext des Escape-Rooms ein.` : "");
     note.classList.remove("hidden");
     const msgs = [], lost = lostImg + lostFile;
     if (lost) msgs.push(`${[lostImg ? (lostImg === 1 ? "ein Bild" : lostImg + " Bilder") : "", lostFile ? (lostFile === 1 ? "eine PDF-Datei" : lostFile + " PDF-Dateien") : ""].filter(Boolean).join(" und ")} aus der PDF-Datei ${lost === 1 ? "war" : "waren"} beschädigt oder nicht lesbar und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
-    if (unsafe) msgs.push(`${unsafe === 1 ? "eine angehängte PDF-Datei war" : unsafe + " angehängte PDF-Dateien waren"} selbst eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI) oder ein Zwischenstand von Schüler:innen und ${unsafe === 1 ? "wurde" : "wurden"} weggelassen.`);
+    if (unsafe) msgs.push(`${unsafe === 1 ? "eine angehängte PDF-Datei war" : unsafe + " angehängte PDF-Dateien waren"} selbst eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI), ein Zwischenstand von Schüler:innen oder eine Überblick-PDF aus einem Escape-Room und ${unsafe === 1 ? "wurde" : "wurden"} weggelassen.`);
     if (msgs.length) $("b-err").textContent = msgs.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(" ");
   } catch (e) {
     if (importStillWanted(run)) setStatus(st, "Die PDF-Datei konnte nicht gelesen werden. " + SHEET_PDF_HINT, "bad");
@@ -6572,10 +6869,12 @@ $("t-del-subs").addEventListener("click", async () => {
 });
 $("t-del-sheet").addEventListener("click", async () => {
   const title = T.selSheet ? T.selSheet.title : fmtCode(T.sel), st = $("t-del-status"), btn = $("t-del-sheet");
+  const esc = cleanEscapeSpec(T.selSheet ? T.selSheet.escape : (T.sheets.find((x) => x.code === T.sel) || {}).escape);
   const ok = await askConfirm({
     title: "Feibeitsblatt löschen?",
     text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${(() => { const n = T.subs.length + T.subsHidden.length, f = T.subs.filter((s) => s.stage === "first").length + T.subsHidden.length;
-      return n === 0 ? "" : n === 1 ? (f ? "mitsamt dem einen Erstversuch " : "mitsamt der einen Abgabe ") : `mitsamt allen ${n} ${f === 0 ? "Abgaben" : f === n ? "Erstversuchen" : "Abgaben und Erstversuchen"} `; })()}endgültig gelöscht. Der Code wird ungültig.`,
+      return n === 0 ? "" : n === 1 ? (f ? "mitsamt dem einen Erstversuch " : "mitsamt der einen Abgabe ") : `mitsamt allen ${n} ${f === 0 ? "Abgaben" : f === n ? "Erstversuchen" : "Abgaben und Erstversuchen"} `; })()}endgültig gelöscht. Der Code wird ungültig.` +
+      (esc ? ` Der Escape-Room „${esc.name}“ verweist mit seinem Arena-Tunnel auf diesen Code – danach meldet das Finale „kein Feibeitsblatt (mehr)“, bis Sie im Quelltext des Escape-Rooms einen neuen Code eintragen.` : ""),
     ok: "Feibeitsblatt löschen", cancel: "Abbrechen", danger: true
   });
   if (!ok) return;
@@ -6710,7 +7009,7 @@ async function ckSuggest(run, force) {
   }
 }
 async function openAnalog() {
-  if (!T.selSheet || !T.sel) return;
+  if (!T.selSheet || !T.sel || cleanEscapeSpec(T.selSheet.escape)) return;   // Escape-Room-Finale: kein analoges Arbeitsblatt
   const code = T.sel, sheet = T.selSheet;
   teacherView("tv-analog");
   const run = T.analogRun = (T.analogRun || 0) + 1, st = $("ck-status");
@@ -7280,13 +7579,18 @@ async function makeAnalogPdf(o) {
 }
 
 /* ---------- Neues Feibeitsblatt ---------- */
-function openBuilder(title, rows) {
+// escape: {id, name} – Feibeitsblatt für einen Escape-Room (aus „Als Vorlage“ oder einer Sicherung), sonst ein normales Blatt
+function openBuilder(title, rows, escape) {
   teacherView("tv-builder");
   $("b-form").classList.remove("hidden"); $("b-result").classList.add("hidden");
   $("b-err").textContent = ""; $("b-import").classList.add("hidden"); $("b-import").textContent = "";
   setStatus($("t-import-status"), "", "");   // eine alte Meldung zu einer abgelehnten Datei gilt nicht mehr
   const d = new Date(); $("b-today").textContent = fmtD(d);
   $("b-title").value = title || "";
+  const esc = cleanEscapeSpec(escape);
+  $("b-esc").checked = !!esc; $("b-esc-name").value = esc ? esc.name : ""; $("b-esc-id").value = esc ? esc.id : "";
+  ["b-esc-name", "b-esc-id"].forEach((id) => $(id).classList.remove("invalid"));
+  syncEscFields();
   Array.from($("b-rows").children).forEach((tr) => {   // alte Vorschauen freigeben
     (tr._images || []).forEach((im) => URL.revokeObjectURL(im.url));
     ((tr._ans && tr._ans.items) || []).forEach((it) => { if (it.img) URL.revokeObjectURL(it.img.url); });
@@ -7298,6 +7602,10 @@ function openBuilder(title, rows) {
   growAll();
   focusSoon("b-title", 30);
 }
+// „Feibeitsblatt für einen Escape-Room“: Name und Kennung nur mit Haken sichtbar (beim Entfernen des Hakens bleiben die Eingaben stehen)
+function syncEscFields() { $("b-esc-fields").classList.toggle("hidden", !$("b-esc").checked); }
+$("b-esc").addEventListener("change", () => { syncEscFields(); T.builderDirty = true; if ($("b-esc").checked) $("b-esc-name").focus(); });
+["b-esc-name", "b-esc-id"].forEach((id) => $(id).addEventListener("input", () => { T.builderDirty = true; $(id).classList.remove("invalid"); }));
 /* ---------- Bilder im Blatt-Editor: im Browser verkleinern, Vorschau, Anzeigeart je Bild ---------- */
 const IMG_PER_TASK = 5, IMG_MAX_SIDE = 1600, IMG_MAX_BYTES = 500 * 1024, IMG_SHEET_BYTES = 12 * 1024 * 1024;   // wie LIMITS im Worker
 const fmtKB = (n) => (n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
@@ -7393,6 +7701,7 @@ async function addPdfFiles(tr, files) {
         const kind = await feibeitsblattPdfKind(buf);   // Schüler:innen bekämen sonst die Aufträge an die KI bzw. fremde Angaben
         if (kind === "sheet") throw new Error("Das ist eine gesicherte Feibeitsblatt-Datei – sie enthält die Aufträge an die KI und darf nicht an Schüler:innen gehen. Zum Wiederverwenden: „Feibeitsblatt aus PDF-Datei laden“ in der Übersicht.");
         if (kind === "draft") throw new Error("Das ist ein Zwischenstand von Schüler:innen mit persönlichen Angaben – bitte nicht als Material anhängen.");
+        if (kind === "escape") throw new Error("Das ist eine Überblick-PDF aus einem Escape-Room mit persönlichen Angaben von Schüler:innen – bitte nicht als Material anhängen.");
         tr._files.push({ blob: new Blob([buf], { type: "application/pdf" }), name: safeFileName(f.name), size: buf.length }); T.builderDirty = true;
       } catch (e) { setStatus(stat, `„${f.name}“: ${(e && e.message) || "Die Datei konnte nicht gelesen werden."}`, "bad"); }
     }
@@ -7724,13 +8033,26 @@ $("b-gen").addEventListener("click", async () => {
   if (fileTotal > FILE_SHEET_BYTES) { err.textContent = `Die PDF-Dateien sind zusammen zu groß (${fmtKB(fileTotal)}, höchstens ${fmtKB(FILE_SHEET_BYTES)} je Feibeitsblatt). Bitte einige Dateien entfernen.`; return; }
   if (!tasks.length) { err.textContent = "Bitte tragen Sie mindestens eine Aufgabenstellung ein."; const f = $("b-rows").querySelector(".bq-edit"); if (f) f.focus(); return; }
   if (tasks.length > 30) { err.textContent = "Ein Feibeitsblatt kann höchstens 30 Aufgaben haben."; return; }
+  // Feibeitsblatt für einen Escape-Room: Name (einzeilig, 1–80 Zeichen) und Kennung (wie ESCAPE_ROOM.id) – dieselben Regeln wie der Server
+  let escape = null;
+  if ($("b-esc").checked) {
+    const nameIn = $("b-esc-name"), idIn = $("b-esc-id"), name = escLine(nameIn.value, ESC_NAME_MAX + 1), id = idIn.value.trim().toLowerCase();
+    const escErr = (node, msg) => { err.textContent = "Escape-Room: " + msg; node.classList.add("invalid"); node.focus(); };
+    if (!name) { escErr(nameIn, "Bitte den Namen des Escape-Rooms eintragen."); return; }
+    if (name.length > ESC_NAME_MAX) { escErr(nameIn, `Der Name ist zu lang (höchstens ${ESC_NAME_MAX} Zeichen).`); return; }
+    if (!ESC_ID_RE.test(id)) { escErr(idIn, "Die Kennung braucht 3 bis 60 Zeichen (nur a–z, 0–9 und Bindestrich) – genau wie ESCAPE_ROOM.id im Quelltext des Escape-Rooms."); return; }
+    escape = { id, name };
+  }
   const title = $("b-title").value.trim().slice(0, 200);
   busy(btn, true, "Code wird erzeugt …");
   try {
-    const r = await TA("/api/teacher/sheets", { method: "POST", body: { title, tasks } });
+    const r = await TA("/api/teacher/sheets", { method: "POST", body: escape ? { title, tasks, escape } : { title, tasks } });
     T.builderDirty = false;
     $("b-res-title").textContent = (typeof r.title === "string" && r.title) || title || ("Feibeitsblatt vom " + fmtD(new Date()));
     $("b-res-code").textContent = fmtCode(r.code);
+    const resEsc = cleanEscapeSpec(r.escape);   // wie gespeichert (ein Server ohne Escape-Felder legt ein normales Blatt an)
+    $("b-res-normal").classList.toggle("hidden", !!resEsc); $("b-res-esc").classList.toggle("hidden", !resEsc);
+    $("b-res-esc").textContent = resEsc ? `Tragen Sie diesen Code im Quelltext des Escape-Rooms „${resEsc.name}“ ein (FEIBEITSBLATT_CODE). Schüler:innen öffnen das Feibeitsblatt über den Arena-Tunnel am Ende des Escape-Rooms oder mit ihrer Überblick-PDF.` : "";
     $("b-form").classList.add("hidden"); $("b-result").classList.remove("hidden");
     T.sel = r.code;
     T.pendingUploads = uploads.map((u) => Object.assign({ code: r.code }, u)); T.doneUploads = 0;
