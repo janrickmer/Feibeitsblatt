@@ -755,7 +755,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `cleanGroup` (2–10, Kürzelform, Klasse), „Weiterschreiben?“ „… der Gruppe … Seid ihr das?“, Topbar `#who-lbl` „Gruppe“,
   Zwischenstand-PDF „Gruppe:“, Lösungs-PDF „Gruppe: …“ im Kopf und „Gruppe …“ in der Fußzeile (nach Breite: erst Titel kürzen,
   notfalls „Gruppe (n)“), Dateinamen ohne Kürzel. „ihr“ nur, wo es um alle geht: Angaben-Bildschirm der Gruppe,
-  `privacyShortText(p, list, withAi, group)`, `privacyNoticeDom(…, {group: true})` nur in `#p-privfull` der Gruppe (Bausteine
+  `privacyShortText(p, list, withAi, group, typing)` (samt `TT_SHORT(true)` „… widersprechen könnt ihr …“), `privacyNoticeDom(…, {group: true})` nur in `#p-privfull` der Gruppe (Bausteine
   `PRIV_IHR` statt `PRIV_DU`, derselbe Inhalt; „Eure Rechte“: „Jede und jeder von euch kann …“), `ltConsent` (OK „Trifft auf alle in
   eurer Gruppe zu – prüfen“, Abbrechen „Trifft nicht auf alle zu“, sonst gleiches Verhalten), „Weiterschreiben?“; im Schreibbereich
   bleibt es beim „du“ (auch `#privfull-ed`), nur ohne Geburtstag: `renderPrivacy` „zusammen mit den Namenskürzeln der Gruppe und
