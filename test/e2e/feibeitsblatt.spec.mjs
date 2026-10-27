@@ -5756,7 +5756,9 @@ const blobSpy = () => {
   const orig = URL.createObjectURL;
   URL.createObjectURL = function (b) { try { window.__blobTypes.push(b && b.type); } catch (e) { /* egal */ } return orig.apply(this, arguments); };
 };
-const ymd = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
+// heutiges Datum wie im Browser (playwright.config.mjs: timezoneId Europe/Berlin) – nicht in der Zeitzone des Rechners, sonst passt
+// es zwischen Mitternacht in Berlin und Mitternacht UTC nicht zu den Dateinamen der Seite
+const ymd = () => { const p = Object.fromEntries(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((x) => [x.type, x.value])); return `${p.year}-${p.month}-${p.day}`; };
 
 test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung geprüft, Überblick-PDF als Material abgelehnt) → Code-Eingabe gesperrt → Ankunft per Link (Laden, Hash-Wechsel, Netzfehler mit „Erneut versuchen“) und mit der Überblick-PDF (auch neu gespeichert und mit manipulierter Prüfsumme) → Angaben vorausgefüllt, Datenschutzhinweis mit den Daten aus dem Raum → Zwischenstand mit der Hülle, Neuladen, Zwischenstand-PDF → vorhandener Zwischenstand direkt; Fehlerfälle (nicht freigeschaltet, fremder Raum, kaputt, ohne Daten aus dem Raum, Hash im Schreibbereich, liegen gebliebene Ankunft; „Weiterschreiben“ bleibt erreichbar)", async ({ browser }) => {
   /* ---------- 1. Lehrkraft ---------- */
