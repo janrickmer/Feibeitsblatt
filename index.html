@@ -1088,7 +1088,7 @@
         <p class="batchhint hidden" id="t-subs-retention"></p>
         <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
         <div class="ttbox hidden" id="t-tt">
-          <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände oder nach einem Widerspruch); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
+          <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (<span id="t-tt-none">z. B. ältere Stände oder nach einem Widerspruch</span>); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
           <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung im Datenschutzhinweis widersprechen (Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“); dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.</p>
           <button type="button" class="btn ghost small" id="t-tt-off" aria-pressed="false">Färbung aus</button>
         </div>
@@ -1585,7 +1585,7 @@ function cleanGroup(pr) {
  * andere Wert oder eine andere Länge als der Text → die ganze Antwort gilt als „ohne Messung“. Alle Einheiten eines
  * Eingabeereignisses bekommen denselben Zeitpunkt: das erste Zeichen wird gemessen, die weiteren haben 0 ms (rot – z. B.
  * Wortvorschlag, Wischen, Diktat, Autokorrektur). Längere Pausen nur als „mehr als 70 ms“, absolute Zeitpunkte nie (Datensparsamkeit).
- * Als Base64 im Zwischenstand (TT_KEEP_IN_DRAFT) und – nur verschlüsselt – in Erstversuch und Abgabe; nie an die KI, nie in die
+ * Als Base64 – nur verschlüsselt – in Erstversuch und Abgabe (im Zwischenstand nur mit TT_KEEP_IN_DRAFT); nie an die KI, nie in die
  * Lösungs-PDF, keine Anzeige für Schüler:innen. Gezählt wird je Graphem (Intl.Segmenter) mit dem Wert der ersten Einheit.
  * Widerspruch (Art. 21 DSGVO; Schalter im ausführlichen Datenschutzhinweis): keine Messung, nichts im Zwischenstand, Erstversuch und
  * Abgabe tragen {v:1, optOut:true}; die Lehrkraft sieht „ohne Messung (widersprochen)“. */
@@ -1598,8 +1598,10 @@ const TT_ENV_MAX = 400 * 1024;                // = LIMITS.envelopeBytes (worker/
 const TT_UNDO_MAX = 20, TT_UNDO_CHARS = 2 * TT_MAX_LEN;   // Puffer gelöschter Abschnitte für Rückgängig/Wiederholen (der neueste bleibt immer)
 const TT_SEG_MAX = 2000;                      // mehr Farbabschnitte in einer Antwort bzw. Zelle → Gelb und Grün zusammen, dann nur Rot, notfalls nichts
 /* Schalter: false = Tippzeiten nur im Arbeitsspeicher, nie im Zwischenstand (Gerät, heldDrafts, Zwischenstand-PDF) – nach Neuladen
-   oder Import gilt der wiederhergestellte Text dann als „ohne Messung“. Erstversuch und Abgabe tragen sie in beiden Fällen. */
-const TT_KEEP_IN_DRAFT = true;
+   oder Import gilt der wiederhergestellte Text dann als „ohne Messung“. Erstversuch und Abgabe tragen sie in beiden Fällen.
+   Eingecheckt false (Entscheidung des Betreibers vom 27.10.2026, Annahme: Speichern im Zwischenstand bräuchte eine Einwilligung nach
+   § 25 Abs. 1 TDDDG – ein Einwilligungsdialog wäre auffällig). Beim Umlegen README und CLAUDE.md von Hand anpassen. */
+const TT_KEEP_IN_DRAFT = false;
 /* Tabelle ↔ Text: erste Zeile die Überschriften, dann je ausgefüllter Zeile „Zelle | Zelle“ („|“ in Zellen wird „/“) */
 const cellText = (s) => String(s == null ? "" : s).replace(/\|/g, "/").replace(/\s+/g, " ").trim();
 function tableText(columns, grid) {
@@ -2875,9 +2877,10 @@ const authorityTail = () => (AUTH_TEXT ? [" – für den Betreiber zuständig is
   authorityLink(), OPERATOR.authority.url ? "." : null] : ["."]);
 // Kurzfassung (nennt auch den KI-Dienst: auf dem Server wird nur verschlüsselt gespeichert, das KI-Feedback aber geht an einen Dienst –
 // nach dem KI-Feedback bei der Abgabe noch einmal, zweite Rückmeldung)
-// group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe); typing: das Blatt misst Tippzeiten
-// (ttMeasured) – dann gehört die Messung samt Widerspruch in die erste Ebene (TT_SHORT, wie renderPrivacy im Schreibbereich)
-function privacyShortText(p, list, withAi, group, typing) {
+// group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe). Die Tippzeit-Messung und den
+// Schalter für den Widerspruch nennt nur der ausführliche Hinweis (privacyNoticeDom) – Entscheidung des Betreibers vom 27.10.2026: für
+// Schüler:innen nicht auffällig, niemand wird gezielt zur Entscheidung geführt. Nicht ohne Rückfrage hierher (oder in renderPrivacy) holen.
+function privacyShortText(p, list, withAi, group) {
   const days = p && p.retentionDays;
   const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst" };
   return `Verantwortlich ist ${OP_NAME} – Feibeitsblatt ist ein privates, kostenloses Angebot. Auf dem Server werden ${w.d} Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur ${w.d} Lehrkraft. ` +
@@ -2885,8 +2888,7 @@ function privacyShortText(p, list, withAi, group, typing) {
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
       : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn ${w.du} es ${w.anf}, gehen ${w.d} Antworten – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
         (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") + ", bei der Abgabe dann noch einmal die danach geänderten Antworten. Auch die Rechtschreibprüfung ist freiwillig."
-      : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.") +
-    (typing ? TT_SHORT(group) : "");
+      : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.");
 }
 // Zwischenstand auf dem Gerät: gelöscht wird nur beim nächsten Aufruf der Seite (cleanupDrafts) – nie „höchstens 7 Tage“ zusagen
 const DRAFT_STAY = `Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
@@ -2927,10 +2929,11 @@ const PRIV_IHR = {
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
 };
 const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
-/* Tippzeit-Messung im Hinweis (nicht bei Blättern nur mit Weltkarten – dort wird nichts gemessen): Zweck (TT_USE, derselbe Wortlaut wie
-   im Hinweis der Lehrkraft), Rechtsgrundlage berechtigtes Interesse (Buchst. f) mit Widerspruch per Schalter. Der Satz zu § 25 Abs. 2
-   Nr. 2 TDDDG nimmt die Tippzeiten im Zwischenstand ausdrücklich aus – ihre Grundlage dort prüft der Betreiber noch. Was im Zwischenstand
-   und in der Zwischenstand-PDF steht, hängt an TT_KEEP_IN_DRAFT (keep): Die Sätze dazu folgen dem Schalter, nie fest verdrahtet. */
+/* Tippzeit-Messung nur im ausführlichen Hinweis (nicht in den Kurzfassungen; nicht bei Blättern nur mit Weltkarten – dort wird nichts
+   gemessen): Zweck (TT_USE, derselbe Wortlaut wie im Hinweis der Lehrkraft), Rechtsgrundlage berechtigtes Interesse (Buchst. f) mit
+   Widerspruch per Schalter. Was im Zwischenstand und in der Zwischenstand-PDF steht, hängt an TT_KEEP_IN_DRAFT (keep): Die Sätze dazu
+   folgen dem Schalter, nie fest verdrahtet. Mit keep nimmt der Satz zu § 25 Abs. 2 Nr. 2 TDDDG die Tippzeiten im Zwischenstand
+   ausdrücklich aus (für sie bräuchte es nach Annahme des Betreibers eine Einwilligung – deshalb eingecheckt false). */
 const TT_SWITCH_DU = "Tippzeiten für dieses Feibeitsblatt nicht messen", TT_SWITCH_IHR = "Tippzeiten für euer Feibeitsblatt nicht messen";
 const ttMeasured = (sh) => !(sh && Array.isArray(sh.answers) && sh.tasks && sh.tasks.length && sh.tasks.every((_, i) => sh.answers[i] && sh.answers[i].type === "map"));
 const TT_PURPOSE = (g) => (g
@@ -2942,12 +2945,6 @@ const TT_PURPOSE = (g) => (g
     "Deine Lehrkraft sieht deine Antworten farbig markiert und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe); rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
     "durch Wortvorschläge, Autokorrektur, Diktat oder einen übernommenen Korrekturvorschlag des Browsers. So kann sie bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen. " +
     `Die Färbung dient ${TT_USE}; sie ist kein Beweis, und es gibt keine automatische Entscheidung. Beim Schreiben zeigt dir die Seite die Messung nicht an.`);
-/* Kurzfassung (Angaben-Bildschirm, Vorschau der Lehrkraft) – derselbe Inhalt wie renderPrivacy im Schreibbereich */
-const TT_SHORT = (g) => (g
-  ? ` Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); eure Lehrkraft sieht eure Antworten dadurch farbig markiert. Die Färbung dient ${TT_USE}. ` +
-    "Widersprechen könnt ihr mit dem Schalter unter „Alle Informationen zum Datenschutz“."
-  : ` Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); deine Lehrkraft sieht deine Antworten dadurch farbig markiert. Die Färbung dient ${TT_USE}. ` +
-    "Widersprechen kannst du mit dem Schalter unter „Alle Informationen zum Datenschutz“.");
 // Wirkung des Schalters (Erstversuch nur bei Blättern mit KI-Feedback; Zwischenstand nur mit TT_KEEP_IN_DRAFT) – per aria-describedby
 const TT_SWITCH_EFFECT = (g, withAi, keep = TT_KEEP_IN_DRAFT) => (g
   ? "Setzt ihr den Haken, misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen" + (keep ? " – auch in eurem Zwischenstand" : "") +
@@ -3046,8 +3043,8 @@ function privacyNoticeDom(p, list, opts) {
   // Rechtsgrundlagen (Art. 13 Abs. 1 Buchst. c): Nutzung des kostenlosen Angebots, Einwilligung für LanguageTool, berechtigtes Interesse
   // für Aufruf und Missbrauchsschutz, § 25 TDDDG für den Speicher im Browser – sachlich, ohne Garantien
   const deliver = o.pages ? "über Cloudflare und GitHub Pages" : CHECK_HOST ? "über Cloudflare; die Checklisten-Seite über GitHub Pages" : "über Cloudflare";
-  // Tippzeiten: eigene Rechtsgrundlage (Buchst. f) – Buchst. b und § 25 TDDDG nehmen sie ausdrücklich aus (Entscheidung des Betreibers;
-  // ob ihr Speichern im Browser eine Einwilligung braucht, prüft er noch). Im Zwischenstand stehen sie nur mit TT_KEEP_IN_DRAFT.
+  // Tippzeiten: eigene Rechtsgrundlage (Buchst. f) – Buchst. b nimmt sie ausdrücklich aus. Im Zwischenstand stehen sie nur mit
+  // TT_KEEP_IN_DRAFT; dann nimmt auch § 25 TDDDG sie aus (für ihr Speichern im Browser bräuchte es nach Annahme des Betreibers eine Einwilligung).
   const ttInDraft = tt && TT_KEEP_IN_DRAFT, ttOut = tt ? " (außer den Tippzeiten darin, siehe nächster Punkt)" : "";
   const ttWhere = (your) => [ttInDraft && `in ${your} Zwischenstand`, withAi && "im Erstversuch", "in der Abgabe"].filter(Boolean).join(", ").replace(/, (?=[^,]*$)/, " und ");
   const bases = [
@@ -3156,7 +3153,7 @@ const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der A
 function renderPersonPrivacy() {
   const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
-  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))]),
+  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g)]),
     privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live" }));
   $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
 }
@@ -3187,14 +3184,11 @@ function renderPrivacy() {
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
       : `Deine Abgabe wird zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
-    // Tippzeiten: derselbe Inhalt wie die Kurzfassung auf dem Angaben-Bildschirm (TT_SHORT) und dass sie mitgehen – keine Anzeige der Messung
-    (ttMeasured(S.sheet) ? "Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); " +
-      (withAi ? "sie gehen mit Erstversuch und Abgabe" : "sie gehen mit der Abgabe") + " verschlüsselt an deine Lehrkraft, die deine Antworten dadurch farbig markiert sieht. " +
-      `Die Färbung dient ${TT_USE}. Widersprechen kannst du mit dem Schalter unter „Alle Informationen zum Datenschutz“. ` : "") +
+    // Tippzeiten: wie in der Kurzfassung des Angaben-Bildschirms kein Wort dazu – Messung und Schalter stehen nur im ausführlichen Hinweis darunter
     `Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (ist er älter als ${DRAFT_DAYS} Tage, löscht ihn diese Seite beim nächsten Aufruf in diesem Browser) – ` +
     `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter).` +
     (withAi ? ` Die KI kann sich irren: Prüfe ihr Feedback selbst.` : ""));
-  // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm)
+  // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm) – samt Tippzeit-Messung und Schalter
   const full = $("privfull-ed");
   full.textContent = "";
   // im Schreibbereich bleibt es beim „du“; eine Gruppe hat aber keinen Geburtstag angegeben (noBday, wie noPersonData)
@@ -5976,6 +5970,8 @@ function applyTtOff() {
   $("t-subs").classList.toggle("tt-off", !!T.ttOff);
 }
 $("t-tt-off").addEventListener("click", () => { T.ttOff = !T.ttOff; applyTtOff(); });
+// ohne TT_KEEP_IN_DRAFT gilt Text, der vor einem Neuladen (bzw. vor dem Hochladen einer Zwischenstand-PDF) geschrieben wurde, als „ohne Messung“
+if (!TT_KEEP_IN_DRAFT) $("t-tt-none").textContent = "z. B. ältere Stände, nach einem Widerspruch oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert keine Tippzeiten";
 // older: ein in der Liste ausgeblendeter älterer Erstversuch derselben Person (in den Details ihrer Abgabe, ohne eigenen Löschknopf)
 function buildDetail(s, older) {
   const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [], isFirst = s.stage === "first";
@@ -8170,9 +8166,10 @@ function renderPvPreview() {
   const f = pvForm(), p = cleanPrivacy(f), list = cleanRecipients(T.privacy && T.privacy.aiRecipients), box = $("pv-preview");
   box.textContent = "";
   // CHECK_HOST: Zwischenstand-PDF und QR-Code führen auf GitHub Pages – dort nennt der Hinweis GitHub für die ganze Seite
-  box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true, false, true)]),
+  box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true, false)]),
     privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull", ttSwitch: "preview" }),
     h("p", { class: "fhint", id: "pv-preview-note", text: (CHECK_HOST ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${CHECK_HOST}, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „${GITHUB_ITEM}“ ` : "") +
+      "Die Tippzeit-Messung und den Schalter für den Widerspruch nennt nur dieser ausführliche Hinweis, nicht die Kurzfassung darüber (bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen sie – dort wird nichts gemessen). " +
       "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
 }
 function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der Auswahl steht, als eigene Möglichkeit zeigen

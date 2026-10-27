@@ -12,8 +12,9 @@ Schüler:innen selbst abhaken, ob ihre Antworten die Erwartungen erfüllen.
 Wie im Feiditor misst Feibeitsblatt beim Schreiben die **Tippzeiten** (je Zeichen den Abstand zum vorangehenden Zeichen).
 In der Lehrkräfte-Übersicht sehen Sie die Antworten farbig markiert. Nutzen Sie die Färbung nur als Anlass für ein
 Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Die Schüler:innen sehen die
-Messung beim Schreiben nicht; der Datenschutzhinweis erklärt sie, und dort können sie ihr mit einem Schalter widersprechen
-(siehe [Tippzeiten](#tippzeiten)).
+Messung beim Schreiben nicht, und die Kurzfassungen des Datenschutzhinweises erwähnen sie nicht; der ausführliche
+Datenschutzhinweis („Alle Informationen zum Datenschutz“) erklärt sie, und dort können sie ihr mit einem Schalter
+widersprechen (siehe [Tippzeiten](#tippzeiten)).
 
 Technisch besteht Feibeitsblatt aus einer Webseite (`index.html`) und einem kleinen Server (Cloudflare Worker mit
 einer D1-Datenbank in der EU), beides im kostenlosen Tarif von Cloudflare. Die Abgaben werden schon im Browser der
@@ -73,9 +74,9 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    leere Zeile Abstand. Einfügen aus der Zwischenablage und Hineinziehen von Text sind gesperrt – es darf nur
    selbst getippt werden. Autokorrektur und Diktierfunktion der Tastatur bleiben möglich (in der Tippzeit-Färbung
    der Lehrkraft erscheinen solche Eingaben rot, ebenso ein per Rechtsklick übernommener Korrekturvorschlag des Browsers). Beim Schreiben misst die Seite die Tippzeiten, ohne sie anzuzeigen;
-   im ausführlichen Datenschutzhinweis unter den Aufgaben (und schon auf dem Angaben-Bildschirm) können die
-   Schüler:innen der Messung mit dem Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“ widersprechen
-   (siehe [Tippzeiten](#tippzeiten)). Der Zwischenstand wird
+   nur im ausführlichen Datenschutzhinweis unter den Aufgaben (und schon auf dem Angaben-Bildschirm) – nicht in den
+   Kurzfassungen – steht das, und dort können die Schüler:innen der Messung mit dem Schalter „Tippzeiten für dieses
+   Feibeitsblatt nicht messen“ widersprechen (siehe [Tippzeiten](#tippzeiten)). Der Zwischenstand wird
    laufend auf dem Gerät gespeichert („Zwischenstand auf diesem Gerät gespeichert“). Wird die Seite neu geladen
    oder versehentlich geschlossen, bietet die Startseite an, mit den gespeicherten Angaben weiterzuschreiben
    („Weiterschreiben“); mit „Abbrechen und Zwischenstand von diesem Gerät löschen“ oben rechts lässt sich ein
@@ -85,7 +86,7 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    eine einzige Seite mit dem Hinweis, dass es sich um einen Zwischenstand für ein Feibeitsblatt handelt, und einen
    orangen Kasten: Genau diese PDF-Datei (kein Screenshot davon) kann auf <https://feibeitsblatt.janrickmer.de/>
    hochgeladen werden, um weiterzuarbeiten – der Link darin öffnet sich im Browser. Der eigentliche Zwischenstand
-   (Antworten samt Tippzeiten, Angaben, ggf. KI-Feedback) steckt unsichtbar als eingebettete Datei in der PDF. Auf der Startseite
+   (Antworten, Angaben, ggf. KI-Feedback – keine Tippzeiten) steckt unsichtbar als eingebettete Datei in der PDF. Auf der Startseite
    stellt **„Zwischenstand-PDF hochladen“** aus genau dieser Datei alles wieder her (ein Screenshot oder Ausdruck
    enthält die Daten nicht). Die Datei enthält die Antworten lesbar – sie gehört nicht in fremde Hände. Liegt auf
    dem Gerät schon ein neuerer Zwischenstand derselben Person, fragt die Seite, welcher Stand gelten soll. Hat die
@@ -341,7 +342,8 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    **Tippzeiten.** In den aufgeklappten Details stehen die Antworten mit Textmarker-Farben hinter der Schrift: **rot**
    (zusätzlich unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (Wortvorschlag,
    Wischen, Autokorrektur, Diktat, ein per Rechtsklick übernommener Korrekturvorschlag des Browsers), **gelb** = über 15 bis 70 ms, **grün** = mehr als 70 ms oder erstes Zeichen; ohne
-   Färbung bleiben Leerzeichen und Text ohne Messung (ältere Stände oder nach einem Widerspruch). Unter jeder Aufgabe
+   Färbung bleiben Leerzeichen und Text ohne Messung (ältere Stände, nach einem Widerspruch oder Text, der vor einem
+   Neuladen der Seite geschrieben wurde – der Zwischenstand speichert keine Tippzeiten). Unter jeder Aufgabe
    steht der Rot-Anteil in Prozent (ab 50 % mit „hoch“), über den Aufgaben der Anteil der ganzen Abgabe – in der Liste
    selbst nie. „Färbung aus“ schaltet die Farben für diese Sitzung ab. Hat die Schülerin bzw. der Schüler der Messung
    widersprochen, steht dort nur „Tippzeiten: ohne Messung (widersprochen).“ – das ist ihr Recht und kein Anlass für einen
@@ -602,7 +604,8 @@ der Server beim nächsten Aufräumen.
    was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
    Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub als Empfänger für die ganze
    Seite (unter der Worker-Adresse nur für die Checklisten-Seite hinter dem QR-Code); bei Blättern ohne Auftrag an die KI
-   entfallen die Angaben zum KI-Feedback; bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
+   entfallen die Angaben zum KI-Feedback; die Tippzeit-Messung und den Schalter für den Widerspruch nennt nur der
+   ausführliche Hinweis, nicht die Kurzfassung; bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
    Angaben-Bildschirm in der „ihr“-Form (derselbe Inhalt). „Speichern“ – die Schüler:innen sehen die Löschfrist beim
    nächsten Öffnen eines Feibeitsblattes, die Seite „Impressum & Datenschutz“ sofort.
 
@@ -865,10 +868,10 @@ Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
 - **Aufruf und Auslieferung der Seite** (Cloudflare, ggf. GitHub Pages) und **Schutz vor Missbrauch und Überlastung**
   (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO (berechtigtes Interesse an einer sicheren
   und zuverlässigen Bereitstellung); dazu nennt der Hinweis das Widerspruchsrecht nach Art. 21 DSGVO.
-- **Speichern im Browser** (Zwischenstand – außer den Tippzeiten darin –, Häkchen der Checkliste): § 25 Abs. 2 Nr. 2 TDDDG
-  (für die gewünschte Funktion unbedingt erforderlich). Für die Tippzeiten, die ebenfalls im Zwischenstand liegen, nennt
-  der Hinweis ausdrücklich keine Grundlage nach dem TDDDG („außer den Tippzeiten darin“): Ob das Speichern bzw. Auslesen
-  der Eingabezeitpunkte eine Einwilligung braucht, prüft der Betreiber noch.
+- **Speichern im Browser** (Zwischenstand, Häkchen der Checkliste): § 25 Abs. 2 Nr. 2 TDDDG (für die gewünschte Funktion
+  unbedingt erforderlich). Die Tippzeiten stehen nicht im Zwischenstand: Der Betreiber geht davon aus, dass ihr Speichern
+  auf dem Gerät eine Einwilligung nach § 25 Abs. 1 TDDDG bräuchte, und verzichtet darauf (`TT_KEEP_IN_DRAFT = false`,
+  kein Einwilligungsdialog); bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher.
 
 Für Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und den Widerruf nennt der Hinweis den Betreiber (E-Mail);
 weil nur die Lehrkraft die verschlüsselten Abgaben lesen und einzeln löschen kann, verweist er auch auf sie. Beschweren
@@ -892,8 +895,8 @@ Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden).
 | Geschätzter Verbrauch von Workers AI je Tag (Zahl der Anfragen und Neurons, keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach beim täglichen Aufräumen gelöscht (ohne Zeitplan: beim Öffnen der Übersicht) |
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
-| Zwischenstand der Schüler:innen (Antworten samt Tippzeiten – solange `TT_KEEP_IN_DRAFT` an ist, wie eingecheckt –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch ohne Tippzeiten, mit Vermerk) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
-| Zwischenstand als PDF-Datei (dieselben Angaben samt Tippzeiten bzw. Vermerk des Widerspruchs; die Tippzeiten bleiben darin, bis die Datei gelöscht wird), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
+| Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
 
@@ -990,20 +993,25 @@ tippen die Schüler:innen, sie werden normal gemessen.
   die Arbeitsweise sprechen können. Die Färbung dient nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für
   Noten und nicht bei einem Täuschungsverdacht. Sie zeigt nur, wie schnell Zeichen eingegeben wurden, nicht, wer sie
   verfasst hat; rot entsteht auch durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch
-  auskennt, kann die Messung verändern (z. B. in einer Zwischenstand-PDF-Datei). Es gibt keine automatische Entscheidung.
+  auskennt, kann die Messung verändern (z. B. mit den Entwicklerwerkzeugen des Browsers). Es gibt keine automatische
+  Entscheidung.
   Die Schüler:innen erfahren im Hinweis auch, dass Sie je Aufgabe und für die ganze Abgabe den Anteil roter Zeichen sehen.
-- **Wo die Tippzeiten liegen:** im Zwischenstand auf dem Gerät und in der Zwischenstand-PDF (unverschlüsselt, zusammen
-  mit dem Text; eine gesicherte Datei behält sie, bis sie gelöscht wird – auch nach der Abgabe), im Erstversuch und in der
-  Abgabe (nur verschlüsselt, lesbar nur für Sie). Sie gehen nie an einen KI-Dienst oder an LanguageTool, stehen nie in der
-  Lösungs-PDF der Schüler:innen, und beim Schreiben zeigt die Seite sie nicht an. Gelöscht werden sie mit dem Eintrag
-  (Löschfrist). Das gilt mit der eingecheckten Einstellung `TT_KEEP_IN_DRAFT = true`; mit `false` stehen sie nicht im
-  Zwischenstand und nicht in der Zwischenstand-PDF (siehe [Entwicklung](#entwicklung)).
+- **Wo die Tippzeiten liegen:** bis zur Abgabe nur im Arbeitsspeicher der geöffneten Seite – nicht im Zwischenstand auf
+  dem Gerät und nicht in der Zwischenstand-PDF –, dann im Erstversuch und in der Abgabe (nur verschlüsselt, lesbar nur für
+  Sie). Wird die Seite neu geladen oder mit einer Zwischenstand-PDF weitergeschrieben, gilt der bis dahin geschriebene
+  Text deshalb als „ohne Messung“ (ohne Färbung); gemessen wird ab dann neu. Sie gehen nie an einen KI-Dienst oder an
+  LanguageTool, stehen nie in der Lösungs-PDF der Schüler:innen, und beim Schreiben zeigt die Seite sie nicht an.
+  Gelöscht werden sie mit dem Eintrag (Löschfrist). Das gilt mit der eingecheckten Einstellung
+  `TT_KEEP_IN_DRAFT = false`; mit `true` stünden sie zusätzlich unverschlüsselt im Zwischenstand und in der
+  Zwischenstand-PDF (siehe [Entwicklung](#entwicklung)).
 - **Widerspruch (Art. 21 DSGVO):** Im ausführlichen Datenschutzhinweis – auf dem Angaben-Bildschirm und im
   Schreibbereich unter den Aufgaben, Abschnitt „Deine Rechte“ – steht der Schalter **„Tippzeiten für dieses
   Feibeitsblatt nicht messen“** (auf dem Angaben-Bildschirm einer Partner- oder Gruppenarbeit „… für euer Feibeitsblatt
-  …“; es genügt, wenn eine Person der Gruppe widerspricht); die Kurzfassungen auf dem Angaben-Bildschirm und im
-  Schreibbereich nennen die Messung und verweisen auf ihn. Mit dem Haken misst die Seite nicht mehr und verwirft die
-  schon gemessenen Werte, auch im Zwischenstand (der den Widerspruch samt Zwischenstand-PDF behält); ein schon
+  …“; es genügt, wenn eine Person der Gruppe widerspricht); die Seite „Impressum & Datenschutz“ sagt, wo er steht. Die
+  Kurzfassungen auf dem Angaben-Bildschirm und im Schreibbereich erwähnen weder die Messung noch den Schalter
+  (Entscheidung des Betreibers vom 27.10.2026: für die Schüler:innen nicht auffällig – niemand wird beim Öffnen gezielt
+  zu dieser Entscheidung geführt). Mit dem Haken misst die Seite nicht mehr und verwirft die schon gemessenen Werte (der
+  Zwischenstand merkt sich den Widerspruch, auch in einer danach gesicherten Zwischenstand-PDF); ein schon
   gesendeter Erstversuch wird mit derselben Kennung ohne Tippzeiten ersetzt – scheitert das, beim nächsten Öffnen. Die
   alte Fassung bleibt dabei (verschlüsselt) noch bis zu 7 Tage, bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage, in
   der Datensicherung der Datenbank. Erstversuch und Abgabe tragen dann nur den Vermerk, und Sie sehen „Tippzeiten: ohne
@@ -1018,14 +1026,19 @@ tippen die Schüler:innen, sie werden normal gemessen.
   wirkt der Schalter nicht (die Seite sagt das; scheitert das Senden, gilt er wieder). Nach der Abgabe lassen sich die
   Tippzeiten nur zusammen mit der ganzen Abgabe löschen: den Eintrag löschen und – wenn gewünscht – mit gesetztem Haken
   neu abgeben lassen. All das sagen die Hinweistexte den Schüler:innen.
-- **Größe:** Die Tippzeiten machen einen Zwischenstand und eine Abgabe ungefähr doppelt so groß. Wäre der verschlüsselte
+- **Größe:** Die Tippzeiten machen eine Abgabe ungefähr doppelt so groß. Wäre der verschlüsselte
   Umschlag größer als 400 KB oder lehnt der Server die Abgabe als zu groß ab, geht sie einmal ohne Tippzeiten
-  („nicht übermittelt – die Abgabe wäre sonst zu groß gewesen“) – eine Abgabe scheitert nie an den Tippzeiten. Passt ein
-  Zwischenstand nicht mehr in den Speicher des Browsers, wird er ohne Tippzeiten gespeichert.
-- **Vom Betreiber zu prüfen:** Ob das Speichern der Tippzeiten im Zwischenstand bzw. das Auslesen der
-  Eingabezeitpunkte im Browser nach § 25 TDDDG eine Einwilligung braucht, ist offen – der Hinweis nennt dafür bewusst
-  keine Grundlage. Ebenso zu prüfen: die Abwägung des berechtigten Interesses bei minderjährigen Schüler:innen und ob
-  eine Datenschutz-Folgenabschätzung (Art. 35 DSGVO) nötig ist.
+  („nicht übermittelt – die Abgabe wäre sonst zu groß gewesen“) – eine Abgabe scheitert nie an den Tippzeiten. (Mit
+  `TT_KEEP_IN_DRAFT = true` gilt das Doppelte auch für den Zwischenstand; passt er dann nicht mehr in den Speicher des
+  Browsers, wird er ohne Tippzeiten gespeichert.)
+- **Annahme des Betreibers (27.10.2026):** Das Speichern der Tippzeiten im Zwischenstand auf dem Gerät bräuchte eine
+  Einwilligung nach § 25 Abs. 1 TDDDG – deshalb speichert die Seite sie dort nicht und fragt keine Einwilligung ab.
+  **Weiter vom Betreiber zu prüfen:** ob schon das Erfassen der Eingabezeitpunkte im Arbeitsspeicher der Seite unter
+  § 25 TDDDG fällt (der Hinweis stützt die Messung auf Art. 6 Abs. 1 Buchst. f DSGVO), ob der Hinweis auf das
+  Widerspruchsrecht nur im ausführlichen Datenschutzhinweis den Anforderungen von Art. 21 Abs. 4 DSGVO genügt
+  (ausdrücklich, spätestens bei der ersten Kommunikation, getrennt von anderen Informationen – der Schalter steht dort
+  in einem eigenen, abgesetzten Absatz), die Abwägung des berechtigten Interesses bei minderjährigen Schüler:innen und
+  ob eine Datenschutz-Folgenabschätzung (Art. 35 DSGVO) nötig ist.
 
 ### Empfehlungen
 
@@ -1062,7 +1075,7 @@ tippen die Schüler:innen, sie werden normal gemessen.
    löschen“. Falsche Angaben (z. B. ein vertipptes Kürzel): den Eintrag löschen und neu abgeben
    lassen. Eine Gruppenabgabe lässt sich nur als Ganzes löschen – möchte ein Mitglied die Löschung, betrifft das die
    gemeinsame Abgabe (gegebenenfalls gibt der Rest der Gruppe neu ab). Der Messung der Tippzeiten widersprechen die
-   Schüler:innen bis zur Abgabe selbst mit dem Schalter im Datenschutzhinweis ([Tippzeiten](#tippzeiten)); nach der
+   Schüler:innen bis zur Abgabe selbst mit dem Schalter im ausführlichen Datenschutzhinweis ([Tippzeiten](#tippzeiten)); nach der
    Abgabe lassen sich die Tippzeiten nur zusammen mit der ganzen Abgabe löschen: den Eintrag löschen und – wenn gewünscht –
    mit gesetztem Haken neu abgeben lassen. Ein auf einem anderen Gerät gesendeter Erstversuch mit Tippzeiten (in den
    Details der Abgabe unter „ältere Erstversuche“) lässt sich nur so entfernen. Über eine Einschränkung oder einen anderen
@@ -1075,7 +1088,9 @@ tippen die Schüler:innen, sie werden normal gemessen.
 ### Textbaustein für Schüler:innen und Eltern
 
 Platzhalter in eckigen Klammern bitte ersetzen; die Empfängerliste muss zu Ihren KI-Einstellungen passen (sie steht
-auch im Datenschutzhinweis unter dem Feedback-Button und auf der Seite „Impressum & Datenschutz“).
+auch im Datenschutzhinweis unter dem Feedback-Button und auf der Seite „Impressum & Datenschutz“). Der Baustein
+beschreibt auch die Tippzeit-Messung und den Widerspruch dagegen – so vollständig wie der ausführliche
+Datenschutzhinweis, anders als die Kurzfassungen in der Seite.
 
 > Liebe Schülerinnen und Schüler, liebe Eltern,
 >
@@ -1111,11 +1126,12 @@ auch im Datenschutzhinweis unter dem Feedback-Button und auf der Seite „Impres
 > ganze Abgabe den Anteil roter Zeichen in Prozent – rot, wenn Zeichen sehr schnell oder in einem Zug entstanden sind
 > (z. B. durch Wortvorschläge, Autokorrektur, Diktat oder einen übernommenen Korrekturvorschlag des Browsers). Das ist kein
 > Beweis: Die Färbung dient nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem
-> Täuschungsverdacht. Die Tippzeiten stehen bis zur Abgabe auch im Zwischenstand auf dem Gerät (und in einer
-> Zwischenstand-PDF-Datei, wenn man ihn so sichert) und gehen nur verschlüsselt mit Erstversuch und Abgabe an die
+> Täuschungsverdacht. Bis zur Abgabe hält die Seite die Tippzeiten nur im Arbeitsspeicher (nicht im Zwischenstand auf
+> dem Gerät und nicht in einer Zwischenstand-PDF-Datei); sie gehen nur verschlüsselt mit Erstversuch und Abgabe an die
 > Lehrkraft, nie an einen KI-Dienst; beim Schreiben zeigt die Seite sie nicht an. Der Messung kann man jederzeit bis zur
-> Abgabe selbst widersprechen – mit dem Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“ im Datenschutzhinweis
-> (dann werden auch die schon gemessenen Werte verworfen). Der Haken gilt für die Bearbeitung auf dem jeweiligen Gerät;
+> Abgabe selbst widersprechen – mit dem Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“ im ausführlichen
+> Datenschutzhinweis („Alle Informationen zum Datenschutz“, Abschnitt „Deine Rechte“; dann werden auch die schon
+> gemessenen Werte verworfen). Der Haken gilt für die Bearbeitung auf dem jeweiligen Gerät;
 > wer auf einem anderen Gerät weiterschreibt, setzt ihn dort erneut. Ein Widerspruch ist für die Lehrkraft als „ohne
 > Messung (widersprochen)“ sichtbar – das ist ein Recht der Schülerinnen und Schüler und kein Anlass für einen Verdacht.
 > Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit der ganzen Abgabe löschen – über [Betreiber, E-Mail] oder
@@ -1422,10 +1438,12 @@ sie ist von Git ausgeschlossen. Ohne `SETTINGS_SECRET` lässt sich auch lokal ke
 **Nie `wrangler deploy` von Hand vor dem ersten Lauf des Workflows „Deploy“** – sonst entsteht die Datenbank
 außerhalb der EU (siehe Schritt 5).
 
-**Tippzeiten im Zwischenstand:** `TT_KEEP_IN_DRAFT` in `index.html` (eingecheckt `true`) legt fest, ob die Tippzeiten im
+**Tippzeiten im Zwischenstand:** `TT_KEEP_IN_DRAFT` in `index.html` (eingecheckt `false` – Annahme des Betreibers: das
+Speichern im Zwischenstand bräuchte eine Einwilligung nach § 25 Abs. 1 TDDDG) legt fest, ob die Tippzeiten im
 Zwischenstand auf dem Gerät und in der Zwischenstand-PDF mitgespeichert werden. Mit `false` bleiben sie nur im
 Arbeitsspeicher (nach dem Neuladen gilt der Text als „ohne Messung“), und beim Laden der Seite werden sie aus vorhandenen
-Zwischenständen entfernt; Erstversuch und Abgabe tragen sie in beiden Fällen. Die Sätze im Datenschutzhinweis, die den
+Zwischenständen entfernt; mit `true` stehen sie zusätzlich im Zwischenstand (vorher die Einwilligungsfrage klären).
+Erstversuch und Abgabe tragen sie in beiden Fällen. Die Sätze im Datenschutzhinweis, die den
 Zwischenstand und die Zwischenstand-PDF betreffen (Rechtsgrundlage, Speicherdauer, Wirkung des Schalters), folgen dem
 Schalter von selbst; **beim Umlegen von Hand anpassen:** diese README (Tabelle „Was gespeichert wird“, Abschnitt
 [Tippzeiten](#tippzeiten), Textbaustein für Eltern) und CLAUDE.md. Unit-Tests prüfen Speichern/Laden und die Texte des

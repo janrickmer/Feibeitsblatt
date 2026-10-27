@@ -515,13 +515,17 @@ test("typing: Zwischenstand – nur passende Werte, Schalter TT_KEEP_IN_DRAFT", 
   assert.deepEqual(ttDraftOut([a], null, true), { v: 1, answers: [a], first: null });
   assert.equal(ttDraftOut([a, null], [b, null], false), null);
   assert.equal(ttCleanDraft({ v: 1, answers: [a] }, ["ab "], null, false), null);
-  // Vorgabe = TT_KEEP_IN_DRAFT (eingecheckt: true); dieselbe Seite mit false gespeichert verhält sich wie keep = false
-  assert.equal(TT_KEEP_IN_DRAFT, true);
-  assert.deepEqual(ttDraftOut([a], null), { v: 1, answers: [a], first: null });
-  assert.deepEqual(ttCleanDraft({ v: 1, answers: [a] }, ["ab "], null), { v: 1, answers: [a], first: null });
-  const src = block.replace("const TT_KEEP_IN_DRAFT = true;", "const TT_KEEP_IN_DRAFT = false;");
-  assert.notEqual(src, block);
-  const off = load(src);
+  // Vorgabe = TT_KEEP_IN_DRAFT (eingecheckt: false – Annahme des Betreibers: Speichern im Zwischenstand bräuchte eine Einwilligung nach
+  // § 25 TDDDG); dieselbe Seite in beiden Stellungen gespeichert verhält sich wie keep = true bzw. false
+  assert.equal(TT_KEEP_IN_DRAFT, false);
+  assert.equal(ttDraftOut([a], [b]), null);
+  assert.equal(ttCleanDraft({ v: 1, answers: [a] }, ["ab "], null), null);
+  const SW = /const TT_KEEP_IN_DRAFT = (true|false);/g;
+  assert.equal(block.match(SW).length, 1);
+  const on = load(block.replace(SW, "const TT_KEEP_IN_DRAFT = true;")), off = load(block.replace(SW, "const TT_KEEP_IN_DRAFT = false;"));
+  assert.equal(on.TT_KEEP_IN_DRAFT, true);
+  assert.deepEqual(on.ttDraftOut([a], null), { v: 1, answers: [a], first: null });
+  assert.deepEqual(on.ttCleanDraft({ v: 1, answers: [a] }, ["ab "], null), { v: 1, answers: [a], first: null });
   assert.equal(off.TT_KEEP_IN_DRAFT, false);
   assert.equal(off.ttDraftOut([a], [b]), null);
   assert.equal(off.ttCleanDraft({ v: 1, answers: [a] }, ["ab "], null), null);
@@ -531,7 +535,8 @@ test("typing: Zwischenstand – nur passende Werte, Schalter TT_KEEP_IN_DRAFT", 
   const d0 = old();
   assert.equal(ttDraftStrip(d0, true), false);
   assert.deepEqual(d0, old());
-  assert.equal(ttDraftStrip(d0), false);   // eingecheckt: true → nichts entfernen
+  assert.equal(on.ttDraftStrip(d0), false);   // Schalter an: nichts entfernen
+  assert.deepEqual(d0, old());
   assert.equal(off.ttDraftStrip(d0), true);
   assert.deepEqual(d0, { v: 1, t: 123, answers: ["ab "] });
   assert.equal(off.ttDraftStrip(d0), false);   // schon ohne: nichts zu tun (nicht neu speichern)
@@ -682,13 +687,32 @@ test("typing: Widerspruch – Nutzlast ohne Werte, Lehrkraft sieht „ohne Messu
   assert.deepEqual(ttDraftFlags({ ttResend: true, firstSent: true }), { optOut: false, resend: true });
   for (const bad of [null, undefined, 5, "x", [], {}, { ttOptOut: "true" }, { ttOptOut: 1 }, { ttResend: "true", firstSent: true }, [{ ttOptOut: true }]])
     assert.deepEqual(ttDraftFlags(bad), { optOut: false, resend: false });
-  // derselbe Zweck überall: Hinweis der Lehrkraft, Kurzfassungen und Datenschutzhinweis nutzen denselben Wortlaut
+  // derselbe Zweck überall: Hinweis der Lehrkraft und ausführlicher Datenschutzhinweis nutzen denselben Wortlaut (die Kurzfassungen
+  // nennen die Messung nicht – siehe nächster Test)
   assert.equal(TT_USE, "nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht");
   assert.ok(html.includes("Nutzen Sie die Färbung " + TT_USE + "."));
   assert.ok(html.includes("Die Färbung dient ${TT_USE};"));
   assert.ok(html.includes("die Tippzeiten dienen ${TT_USE}."));
-  assert.equal(html.split("Die Färbung dient ${TT_USE}. ").length - 1, 3);   // Kurzfassung du/ihr (TT_SHORT) und renderPrivacy
+  assert.equal(html.split("Die Färbung dient ${TT_USE}. ").length - 1, 0);   // früher: Kurzfassung du/ihr (TT_SHORT) und renderPrivacy
   assert.ok(!/\blit\./.test(html));   // Schreibweise „Buchst.“, nie „lit.“
+});
+
+test("typing: Kurzfassungen des Datenschutzhinweises nennen weder Messung noch Schalter – nur der ausführliche Hinweis (Entscheidung des Betreibers)", () => {
+  const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
+  const code = (src) => src.replace(/^\s*\/\/.*$/gm, "");   // ganze Kommentarzeilen zählen nicht
+  // Angaben-Bildschirm und Vorschau der Lehrkraft (privacyShortText), Schreibbereich (renderPrivacy bis zum ausführlichen Hinweis)
+  const short = code(body("function privacyShortText(", "\n}\n")), ed = code(body("function renderPrivacy()", 'const full = $("privfull-ed")'));
+  for (const src of [short, ed]) assert.doesNotMatch(src, /Tippzeit|misst|Messung|[Ww]idersprech|Widerspruch|Schalter|\bTT_|ttMeasured|typing/);
+  assert.match(short, /^function privacyShortText\(p, list, withAi, group\) \{/);
+  assert.ok(!html.includes("TT_SHORT"));
+  assert.equal((html.match(/privacyShortText\(/g) || []).length, 3);   // Definition, Angaben-Bildschirm, Vorschau der Lehrkraft
+  // der ausführliche Hinweis behält alles: Zweck, Rechtsgrundlage mit Widerspruch, Daten, Empfänger, Speicherdauer, Schalter unter „Deine Rechte“
+  const full = body("function privacyNoticeDom(", "\n}\n");
+  for (const x of ["TT_PURPOSE(g)", "TT_SWITCH_DU", "TT_SWITCH_IHR", "mit ihren Tippzeiten", "Sie sieht auch die Tippzeiten", "(samt Tippzeiten)",
+    "Die Tippzeiten gehören zu", "Die Tippzeiten misst diese Seite, solange", "tt ? ttSwitchDom(o, g, withAi) : null"]) assert.ok(full.includes(x), x);
+  // … auf dem Angaben-Bildschirm und im Schreibbereich mit dem Schalter (live), in der Vorschau der Lehrkraft gesperrt
+  assert.equal((html.match(/typing: ttMeasured\((sh|S\.sheet)\), ttSwitch: "live"/g) || []).length, 2);
+  assert.ok(html.includes('id: "pv-privfull", ttSwitch: "preview"'));
 });
 
 test("typing: Widerspruch eines anderen Tabs und beim Import einer Zwischenstand-PDF – gespeichert gewinnt der Widerspruch", () => {

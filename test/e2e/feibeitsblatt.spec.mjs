@@ -135,11 +135,9 @@ const TT_PURPOSE = "Beim Schreiben misst diese Seite außerdem die Tippzeiten �
   "Deine Lehrkraft sieht deine Antworten farbig markiert und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe); rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
   "durch Wortvorschläge, Autokorrektur, Diktat oder einen übernommenen Korrekturvorschlag des Browsers. So kann sie bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen. " +
   "Die Färbung dient " + TT_USE + "; sie ist kein Beweis, und es gibt keine automatische Entscheidung. Beim Schreiben zeigt dir die Seite die Messung nicht an.";
-// erste Ebene: Kurzfassung auf dem Angaben-Bildschirm (und in der Vorschau der Lehrkraft)
-const TT_SHORT = " Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); deine Lehrkraft sieht deine Antworten dadurch farbig markiert. " +
-  "Die Färbung dient " + TT_USE + ". Widersprechen kannst du mit dem Schalter unter „Alle Informationen zum Datenschutz“.";
-const TT_SHORT_G = " Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); eure Lehrkraft sieht eure Antworten dadurch farbig markiert. " +
-  "Die Färbung dient " + TT_USE + ". Widersprechen könnt ihr mit dem Schalter unter „Alle Informationen zum Datenschutz“.";
+// erste Ebene (Kurzfassung auf dem Angaben-Bildschirm und in der Vorschau der Lehrkraft, Hinweis im Schreibbereich): kein Wort zur
+// Tippzeit-Messung und zum Schalter – das steht nur im ausführlichen Hinweis (Entscheidung des Betreibers: nicht auffällig)
+const NO_TT = /Tippzeit|misst|Messung|widersprech|Widerspruch|Schalter/i;
 const BACKUP = "bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)";
 const TT_EFFECT = "Setzt du den Haken, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen" + (TT_KEEP ? " – auch in deinem Zwischenstand" : "") + ". " +
   "Einen schon an deine Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten; die alte Fassung bleibt verschlüsselt noch " + BACKUP + " in der Datensicherung der Datenbank. " +
@@ -908,8 +906,8 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await expect(sp.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);   // die Angaben gehen schon mit dem KI-Feedback (Erstversuch) an die Lehrkraft
   const short = sp.locator("#p-privacy-short");
   await expect(short).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft\\. Nach 30 Tagen werden sie automatisch gelöscht\\. " +
-    "Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, bei der Abgabe dann noch einmal die danach geänderten Antworten\\. Auch die Rechtschreibprüfung ist freiwillig\\." +
-    TT_SHORT.replace(/[.()]/g, "\\$&") + "$"));   // die Tippzeit-Messung samt Widerspruch schon in der ersten Ebene
+    "Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, bei der Abgabe dann noch einmal die danach geänderten Antworten\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
+  await expect(short).not.toHaveText(NO_TT);   // die Tippzeit-Messung und der Schalter nur im ausführlichen Hinweis darunter
   await shots(sp, "angaben", [375, 1280], PRIVAT_SHOTS);
   const full = sp.locator("#p-privfull");
   expect(await full.evaluate((e) => e.open)).toBe(false);   // aufklappbar
@@ -1006,14 +1004,18 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await expect(pv.locator("h3.privh")).toHaveText(PRIV_HEADS);
   await expect(pv.getByRole("checkbox", { name: TT_SWITCH })).toBeDisabled();   // Vorschau: der Schalter der Schüler:innen ohne Wirkung
   await expect(pv.locator(".privacy")).toContainText(OP_SHORT);
-  await expect(pv.locator(".privacy")).toContainText(TT_SHORT.trim());   // Vorschau: dieselbe Kurzfassung wie auf dem Angaben-Bildschirm
+  await expect(pv.locator(".privacy")).toContainText("Auch die Rechtschreibprüfung ist freiwillig.");   // Vorschau: dieselbe Kurzfassung wie auf dem Angaben-Bildschirm …
+  await expect(pv.locator(".privacy")).not.toHaveText(NO_TT);   // … ohne Tippzeit-Messung und Schalter
+  await expect(pv.locator("details.privfull")).toContainText(TT_PURPOSE);   // die stehen im ausführlichen Hinweis
   await expect(pv).toContainText(OP_RESP);
   // die Vorschau gilt für diese Adresse (Worker): GitHub nur für die Checklisten-Seite, für die ganze Seite als Zusatz darunter
   // (Zwischenstand-PDF und QR-Code führen auf GitHub Pages)
   await expect(recipients(pv, "h3").filter({ hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
   await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), " +
     "nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
-    "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
+    "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ " +
+    "Die Tippzeit-Messung und den Schalter für den Widerspruch nennt nur dieser ausführliche Hinweis, nicht die Kurzfassung darüber (bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen sie – dort wird nichts gemessen). " +
+    "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
     "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“).");
   // Vorschau mit der (noch ungespeicherten) Frist – derselbe Baustein wie bei den Schüler:innen
   await page.selectOption("#pv-days", String(DAYS));
@@ -1265,9 +1267,10 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(privacy).toContainText("(Cloudflare, Inc., USA; Datenbank in der EU)");
   await expect(privacy).toContainText("Erstversuch und Abgabe werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen.");
   await expect(privacy).not.toContainText("Die Lehrkraft löscht alles nach der Durchsicht.");
-  // Tippzeiten: derselbe Inhalt wie die Kurzfassung auf dem Angaben-Bildschirm (erste Ebene) – Zweck, Empfänger, Widerspruch
-  await expect(privacy).toContainText("Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); sie gehen mit Erstversuch und Abgabe " +
-    "verschlüsselt an deine Lehrkraft, die deine Antworten dadurch farbig markiert sieht. Die Färbung dient " + TT_USE + ". Widersprechen kannst du mit dem Schalter unter „Alle Informationen zum Datenschutz“. ");
+  // Tippzeiten: wie in der Kurzfassung auf dem Angaben-Bildschirm kein Wort zur Messung und zum Schalter – beides nur im ausführlichen Hinweis darunter
+  await expect(privacy).not.toHaveText(NO_TT);
+  await expect(page.locator("#privfull-ed")).toContainText(TT_PURPOSE);
+  await expect(page.locator("#privfull-ed")).toContainText(TT_STAY);
   expect(await privacy.evaluate((e) => getComputedStyle(e).color)).toBe("rgb(111, 103, 90)");
   // darunter alle Informationen (beim Weiterschreiben gibt es keinen Angaben-Bildschirm) – Überschriften unter h2 „Abschluss“ als h3
   await expect(page.locator("#privfull-ed details.privfull summary")).toHaveText("Alle Informationen zum Datenschutz");
@@ -1708,7 +1711,8 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT_GROUP);
   await expect(page.locator("#p-privacy-short")).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur eure Lehrkraft\\. " +
     "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Das KI-Feedback ist freiwillig: Nur wenn ihr es anfordert, gehen eure Antworten – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, " +
-    "bei der Abgabe dann noch einmal die danach geänderten Antworten\\. Auch die Rechtschreibprüfung ist freiwillig\\." + TT_SHORT_G.replace(/[.()]/g, "\\$&") + "$"));
+    "bei der Abgabe dann noch einmal die danach geänderten Antworten\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
+  await expect(page.locator("#p-privacy-short")).not.toHaveText(NO_TT);   // Messung und Schalter nur im ausführlichen Hinweis (dort in der „ihr“-Form, siehe unten)
   // auch alle Informationen zum Datenschutz in der „ihr“-Form (derselbe Inhalt; „Welche Daten?“ nennt beide Arbeitsformen)
   await page.locator("#p-privfull summary").click();
   await expect(page.locator("#p-privfull h2.privh")).toHaveText(PRIV_HEADS_GROUP);
@@ -4945,7 +4949,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await expect(tp.locator("#t-sel-code")).toHaveText(shown);
   await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben · 1 älterer Erstversuch von Schüler:innen, die inzwischen abgegeben haben, wird nicht angezeigt");
   await expect(tp.locator("#t-tt")).toBeVisible();
-  await expect(tp.locator("#t-tt-legend")).toHaveText("Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): rot (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · gelb = über 15 bis 70 ms · grün = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände oder nach einem Widerspruch); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).");
+  await expect(tp.locator("#t-tt-legend")).toHaveText("Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): rot (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · gelb = über 15 bis 70 ms · grün = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (" + (TT_KEEP ? "z. B. ältere Stände oder nach einem Widerspruch" : "z. B. ältere Stände, nach einem Widerspruch oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert keine Tippzeiten") + "); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).");
   await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung " + TT_USE + ". Schüler:innen können der Messung im Datenschutzhinweis widersprechen (Schalter „" + TT_SWITCH + "“); dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.");
   const off = tp.locator("#t-tt-off");
   await expect(off).toHaveAttribute("aria-pressed", "false");
