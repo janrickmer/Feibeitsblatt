@@ -551,6 +551,7 @@ async function main() {
     assert.deepEqual([r.json.sheets[0].submissionCount, r.json.sheets[0].firstCount], [1, 1]);
     r = await api("POST", "/api/submit", { code, envelope, stage: "final", attempt }); submitCount++;   // Abgabe derselben Bearbeitung
     assert.equal(r.status, 200, r.text); assert.equal(r.json.id, firstId); assert.equal(r.json.replaced, "first");
+    const finalAt = r.json.receivedAt;
     r = await api("POST", "/api/submit", { code, envelope: envFirst, stage: "first", attempt }); submitCount++;   // verspäteter Erstversuch
     assert.equal(r.status, 200, r.text); assert.equal(r.json.kept, true);
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
@@ -558,7 +559,20 @@ async function main() {
     assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[1].envelope), payload);
     r = await api("GET", "/api/teacher/sheets", undefined, { auth });
     assert.deepEqual([r.json.sheets[0].submissionCount, r.json.sheets[0].firstCount], [2, 0]);
-    ok("Erstversuch: stage first mit Kennung; die Abgabe derselben Bearbeitung ersetzt ihn; ein späterer Erstversuch bleibt wirkungslos");
+    // nachgereichte zweite KI-Rückmeldung: ersetzt nur die vorhandene Abgabe derselben Bearbeitung, legt nie eine neue an
+    const fb2Payload = { ...payload, feedback2: { at: new Date().toISOString(), results: payload.answers.map(() => null) } };
+    const envFb2 = await makeEnvelope(sheetPub.publicKey, fb2Payload);
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt, receivedAt: finalAt }); submitCount++;
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.id, firstId); assert.equal(r.json.replaced, "final");
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt: "fedcba9876543210", receivedAt: finalAt });   // zählt nicht
+    assert.deepEqual(r.json, { ok: true, gone: true });
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt, receivedAt: finalAt - 1 });   // andere Fassung
+    assert.deepEqual(r.json, { ok: true, gone: true });
+    expectErr(await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt }), 400, "bad_request");
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(r.json.submissions.map((s) => s.stage), ["final", "final"]);
+    assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[1].envelope), fb2Payload);
+    ok("Erstversuch: stage first mit Kennung; die Abgabe derselben Bearbeitung ersetzt ihn; ein späterer Erstversuch bleibt wirkungslos; „feedback2“ ergänzt nur genau die eigene Abgabe");
 
     step = "Datenbank ohne Klartext";
     await sleep(500);
@@ -673,13 +687,13 @@ async function main() {
     r = await api("GET", "/api/sheet/" + otherCode);
     assert.equal(r.status, 200, "gültige Codes öffnen trotz Sperre: " + r.text);
     ok("unbekannte Codes: nach 30 Fehlgriffen 429; gültige Codes öffnen weiter");
-    // Abgaben: jede gültige Abgabe und jeder Erstversuch zählt je IP (240/h); unbekannte Codes zählen nicht
+    // Abgaben: jede gültige Abgabe und jeder Erstversuch zählt je IP (360/h); unbekannte Codes zählen nicht
     const otherPub = r.json.sheet.publicKey;
     const env2 = await makeEnvelope(otherPub, { v: 1, sheetCode: otherCode, person: { vorname: "Tes", nachname: "Tt", geburtsdatum: "2010-01-01", klasse: "5a" }, answers: [{ first: "", final: "x" }] });
-    for (; submitCount < 240; submitCount++) { r = await api("POST", "/api/submit", { code: otherCode, envelope: env2 }); assert.equal(r.status, 200, r.text); }
+    for (; submitCount < 360; submitCount++) { r = await api("POST", "/api/submit", { code: otherCode, envelope: env2 }); assert.equal(r.status, 200, r.text); }
     expectErr(await api("POST", "/api/submit", { code: otherCode, envelope: env2 }), 429, "rate_limited");
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found");
-    ok("Abgabe: die 241. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
+    ok("Abgabe: die 361. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
 
     step = "Zeitplan";
     await cron(Date.now() + 8 * 86400e3);   // acht Tage später: nach der Frist von 7 Tagen

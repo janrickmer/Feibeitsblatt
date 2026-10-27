@@ -689,6 +689,69 @@ test("first attempt (stage first) is replaced by the final submission of the sam
   d1.db.prepare("DELETE FROM submissions WHERE id >= ?").run(id);
 });
 
+const ckCountSubmit = (b) => { const row = d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(b); return row ? row.count : null; };
+test("stage feedback2 (second AI feedback sent later): only replaces exactly the own final submission (same attempt and receivedAt) within 15 minutes, keeps received_at, never inserts", async () => {
+  const mk = (extra) => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: code, person: { vorname: "Ida", nachname: "Re", geburtsdatum: "--03-03", klasse: "7a" }, answers: [{ first: "a", final: "b" }], ...extra });
+  const attempt = "00112233445566aa";
+  const count = () => d1.db.prepare("SELECT COUNT(*) AS n FROM submissions WHERE sheet_code=?").get(code).n;
+  const envOf = (id) => d1.db.prepare("SELECT envelope FROM submissions WHERE id=?").get(id).envelope;
+  const n0 = count();
+  // ungültig: nur mit Kennung und Eingangszeitpunkt
+  for (const body of [{}, { attempt }, { attempt, receivedAt: "1" }, { attempt, receivedAt: 0 }, { receivedAt: 1 }]) {
+    const r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "feedback2", ...body } });
+    assert.equal(r.status, 400, JSON.stringify(body)); assert.equal(r.json.code, "bad_request");
+  }
+  // ohne vorhandene Abgabe: nichts angelegt, nichts gezählt
+  let r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "feedback2", attempt, receivedAt: Date.now() }, ip: "203.0.113.90" });
+  assert.equal(r.status, 200, r.text); assert.deepEqual(r.json, { ok: true, gone: true });
+  assert.equal(count(), n0);
+  assert.equal(ckCountSubmit(await bucketOf("submit", "203.0.113.90", SECRET)), null, "nicht gezählt");
+  // ein Erstversuch wird nicht ersetzt (erst die Abgabe)
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ stage: "first" }), stage: "first", attempt } });
+  assert.equal(r.status, 200); const id = r.json.id;
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "feedback2", attempt, receivedAt: r.json.receivedAt } });
+  assert.deepEqual(r.json, { ok: true, gone: true });
+  assert.equal(d1.db.prepare("SELECT stage FROM submissions WHERE id=?").get(id).stage, "first");
+  // Abgabe, dann nachgereicht: dieselbe Zeile, Eingang unverändert, Inhalt ersetzt
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "final", attempt } });
+  assert.equal(r.json.id, id); assert.equal(r.json.replaced, "first");
+  const got = r.json.receivedAt;
+  assert.equal(d1.db.prepare("SELECT received_at FROM submissions WHERE id=?").get(id).received_at, got);
+  const fb2 = { at: "2026-10-27T10:00:00.000Z", results: [{ covered: ["x"], missing: [] }] };
+  // ein anderer Eingangszeitpunkt (eine andere Fassung derselben Bearbeitung) → nichts
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: got - 1 } });
+  assert.deepEqual(r.json, { ok: true, gone: true });
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: got } });
+  assert.equal(r.status, 200, r.text); assert.equal(r.json.id, id); assert.equal(r.json.replaced, "final"); assert.equal(r.json.receivedAt, undefined);
+  const row = d1.db.prepare("SELECT received_at, stage FROM submissions WHERE id=?").get(id);
+  assert.deepEqual([row.received_at, row.stage], [got, "final"]);
+  const list = (await call("GET", "/api/teacher/sheets/" + code + "/submissions", { auth })).json.submissions;
+  assert.deepEqual((await openEnvelope(T.privateKey, list.find((x) => x.id === id).envelope)).feedback2, fb2);
+  assert.equal(count(), n0 + 1);
+  // später als 15 Minuten nach dem Eingang → nichts (sonst ließe sich eine Abgabe unter altem Zeitpunkt austauschen)
+  const old = got - 16 * 60e3;
+  d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(old, id);
+  const before = envOf(id);
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2, answers: [{ first: "a", final: "ganz anders" }] }), stage: "feedback2", attempt, receivedAt: old } });
+  assert.deepEqual(r.json, { ok: true, gone: true });
+  assert.equal(envOf(id), before);
+  // eine neuere Abgabe derselben Bearbeitung (z. B. ein zweites Gerät) wird von einem verspäteten Nachreichen nicht überschrieben
+  d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(got, id);
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ answers: [{ first: "a", final: "neuer" }] }), stage: "final", attempt } });
+  assert.equal(r.json.id, id); assert.equal(r.json.replaced, "final");
+  d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(got + 1, id);   // eindeutig neuer als die erste Abgabe
+  const newer = envOf(id);
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: got } });
+  assert.deepEqual(r.json, { ok: true, gone: true });
+  assert.equal(envOf(id), newer);
+  // von der Lehrkraft gelöscht → ein später nachgereichtes feedback2 legt sie nicht wieder an
+  r = await call("DELETE", "/api/teacher/sheets/" + code + "/submissions", { auth, body: { ids: [id] } });
+  assert.equal(r.json.deleted, 1);
+  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: got } });
+  assert.deepEqual(r.json, { ok: true, gone: true });
+  assert.equal(count(), n0);
+});
+
 test("schema upgrade: an old submissions table without stage/attempt gets the columns added (idempotent)", async () => {
   const { ensureSubmissionColumns } = await import("../../worker/index.js");
   d1.db.exec("CREATE TABLE old_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT, sheet_code TEXT NOT NULL, received_at INTEGER NOT NULL, envelope TEXT NOT NULL)");
