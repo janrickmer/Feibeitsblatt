@@ -308,7 +308,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   die Färbung **und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe)**, Ursachen für Rot samt
   „übernommener Korrekturvorschlag des Browsers“, Zweck `TT_USE`, kein Beweis, keine automatische Entscheidung, beim Schreiben
   nicht angezeigt); Rechtsgrundlage als Liste: Bearbeiten/Abgeben/Zwischenstand/Erstversuch/Gruppe
-  **und das KI-Feedback** Art. 6 Abs. 1 Buchst. b DSGVO („(außer den Tippzeiten darin, siehe nächster Punkt)“; bewusst keine
+  **und das KI-Feedback** Art. 6 Abs. 1 Buchst. b DSGVO (`ttOut`: „(bei Erstversuch und Abgabe außer den Tippzeiten darin, siehe
+  nächster Punkt)“, ohne KI „(bei der Abgabe …)“, mit `TT_KEEP_IN_DRAFT` „(außer den Tippzeiten darin, …)“; bewusst keine
   Einwilligung, keine Altersabfrage), **Tippzeiten** Buchst. f („sie stehen …“ per `ttWhere`; berechtigtes Interesse, den
   Schreibprozess sichtbar zu machen, damit die Lehrkraft bei Auffälligkeiten über die Arbeitsweise sprechen kann; `TT_USE`;
   Widerspruch mit dem Schalter – vom Betreiber so entschieden), LanguageTool
@@ -333,7 +334,12 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`privacyNoticeDom`: `#p-privfull`, `#privfull-ed`) und auf „Impressum & Datenschutz“** – Entscheidung des Betreibers vom
   27.10.2026: nicht auffällig, niemanden gezielt zur Entscheidung führen. Die Kurzfassungen (`privacyShortText` auf dem
   Angaben-Bildschirm und in der Vorschau, `renderPrivacy` im Schreibbereich) und alle anderen sichtbaren Stellen nennen weder
-  Messung noch Schalter – **nicht ohne Rückfrage wieder dorthin holen** (Unit-Test und E2E 1b/2/2b prüfen das); Weglassen ist kein
+  Messung noch Schalter – **nicht ohne Rückfrage wieder dorthin holen** (Unit-Test: Kurzfassungen im Quelltext; E2E 1b/2/2b:
+  Kurzfassungen per `NO_TT`; E2E 2/2b außerdem `expectNoTtVisible` – alles Sichtbare samt aria-label/title/placeholder/alt und
+  den Texten hinter aria-labelledby/-describedby bei geschlossenem `details.privfull`: Angaben einzeln und als Gruppe,
+  Schreibbereich vor und nach dem KI-Feedback, Dialoge zur Rechtschreibprüfung, zum KI-Feedback und zur Abgabe, Bestätigung;
+  dazu `#privfull-ed` beim Öffnen zu, Schalter nicht fokussierbar); offen beim Betreiber (README „Annahme des Betreibers“): ob
+  die erste Ebene bei Minderjährigen die Messung nennen muss (Art. 12 Abs. 1 DSGVO, WP260 rev.01). Weglassen ist kein
   Widerspruch zum ausführlichen Hinweis, Abweichendes wäre einer. Der Schalter bleibt ein eigener, abgesetzter Absatz unter „Deine
   Rechte“ (Art. 21 Abs. 4 DSGVO); „ohne Messung (widersprochen)“ bleibt für die Lehrkraft sichtbar. Angaben `h2`
   `#p-privfull` mit `#p-privacy-short` in `renderPersonPrivacy`, Editor `h3` in `#privfull-ed` aus `renderPrivacy` –
@@ -602,8 +608,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `TT_KEEP_IN_DRAFT` setzt das Skript `#t-tt-none` auf „… oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert
   keine Tippzeiten“),
   `#t-tt-hint` („Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. … Nutzen Sie die
-  Färbung `TT_USE`. Schüler:innen können der Messung im Datenschutzhinweis widersprechen …; dann steht in den Details „ohne
-  Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.“; Ursachen auch „durch einen per Rechtsklick
+  Färbung `TT_USE`. Schüler:innen können der Messung im ausführlichen Datenschutzhinweis („Alle Informationen zum Datenschutz“)
+  widersprechen …; dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen
+  Verdacht. Die Kurzfassung des Hinweises, die Schüler:innen ohne Aufklappen sehen, nennt die Messung nicht.“; Ursachen auch „durch einen per Rechtsklick
   übernommenen Korrekturvorschlag des Browsers“), `#t-tt-off` „Färbung aus“ (`aria-pressed` =
   aus, `T.ttOff` je Sitzung, `applyTtOff` → Klasse `tt-off` an `#t-subs`, gilt auch für neu gebaute Details; `logout` setzt
   zurück). Farben `--tt-r/-y/-g` hinter schwarzer Schrift, Rot zusätzlich unterstrichen. **Zweck überall derselbe Wortlaut**
@@ -912,7 +919,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Rückfall ohne `Intl.Segmenter`, Schalter `TT_KEEP_IN_DRAFT` beider Stellungen, Widerspruch `ttOptOutPayload`/`ttDraftFlags`/
   `ttCleanPayload`/`ttDetail`, `ttStoredFlags`/`ttKeepOptOut`, `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE` in beiden Stellungen von
   `TT_KEEP_IN_DRAFT`, `TT_USE` im Hinweis, Kurzfassungen ohne Messung im Quelltext), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
-  Werte je Zeichen im Zwischenstand vor und nach dem Feedback samt Neuladen, nie an die KI, Erstversuch/Abgabe aus D1
+  eingecheckt (`TT_KEEP_IN_DRAFT` aus): kein `typing` im Zwischenstand, ein alter Stand mit Tippzeiten wird beim Laden bereinigt
+  (`ttDraftStrip`), Text von vor dem Neuladen geht als 255 („ohne Messung“) in die Abgabe; nur mit umgelegtem Schalter Werte je
+  Zeichen im Zwischenstand vor und nach dem Feedback samt Neuladen; nie an die KI, Erstversuch/Abgabe aus D1
   entschlüsselt – `openPrivateKey`/`openEnvelope` aus smoke.mjs –, Ablauf-Kasten, 413 → einmal ohne, Lehrkraft-Färbung, „Färbung
   aus“, lange Antworten, nur Weltkarten) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
   Erstversuchs scheitert erst und wird beim nächsten Öffnen nachgeholt, PDF auf einem anderen Gerät, Zurücknehmen, Ablehnung

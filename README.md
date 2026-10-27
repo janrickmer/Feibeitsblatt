@@ -854,7 +854,7 @@ Abgaben lesen kann nur die Lehrkraft mit dem Lehrkraft-Zugang. Einen Datenschutz
 Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
 
 - **Bearbeiten und Abgeben** – Angaben (bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder), Zwischenstand,
-  Erstversuch, Abgabe (jeweils außer den Tippzeiten darin) – und das **freiwillige KI-Feedback**, das nur auf Klick angefordert wird: Art. 6 Abs. 1 Buchst. b
+  Erstversuch und Abgabe (bei Erstversuch und Abgabe außer den Tippzeiten darin; der Zwischenstand enthält keine) – und das **freiwillige KI-Feedback**, das nur auf Klick angefordert wird: Art. 6 Abs. 1 Buchst. b
   DSGVO (Nutzung dieses kostenlosen Angebots, die die Schüler:innen selbst anfordern). Bewusst keine Einwilligung für
   das KI-Feedback und keine Altersabfrage dafür.
 - **Tippzeiten:** Art. 6 Abs. 1 Buchst. f DSGVO – berechtigtes Interesse, den Schreibprozess sichtbar zu machen, damit die
@@ -1037,8 +1037,13 @@ tippen die Schüler:innen, sie werden normal gemessen.
   § 25 TDDDG fällt (der Hinweis stützt die Messung auf Art. 6 Abs. 1 Buchst. f DSGVO), ob der Hinweis auf das
   Widerspruchsrecht nur im ausführlichen Datenschutzhinweis den Anforderungen von Art. 21 Abs. 4 DSGVO genügt
   (ausdrücklich, spätestens bei der ersten Kommunikation, getrennt von anderen Informationen – der Schalter steht dort
-  in einem eigenen, abgesetzten Absatz), die Abwägung des berechtigten Interesses bei minderjährigen Schüler:innen und
-  ob eine Datenschutz-Folgenabschätzung (Art. 35 DSGVO) nötig ist.
+  in einem eigenen, abgesetzten Absatz), ob die erste Ebene – die Kurzfassungen auf dem Angaben-Bildschirm und im
+  Schreibbereich – bei minderjährigen Schüler:innen die Messung nennen muss (Art. 12 Abs. 1 DSGVO verlangt besondere
+  Verständlichkeit bei Informationen für Kinder; nach den Transparenz-Leitlinien der Artikel-29-Gruppe, WP260 rev.01,
+  Rn. 35 ff., soll die erste Ebene auch Verarbeitungen nennen, die die Betroffenen am meisten überraschen oder
+  beeinträchtigen) und ob die Aufzählungen dort („Deine Abgabe wird zusammen mit …“) ohne die Tippzeiten zulässig sind,
+  die Abwägung des berechtigten Interesses bei minderjährigen Schüler:innen und ob eine Datenschutz-Folgenabschätzung
+  (Art. 35 DSGVO) nötig ist.
 
 ### Empfehlungen
 
@@ -1090,7 +1095,8 @@ tippen die Schüler:innen, sie werden normal gemessen.
 Platzhalter in eckigen Klammern bitte ersetzen; die Empfängerliste muss zu Ihren KI-Einstellungen passen (sie steht
 auch im Datenschutzhinweis unter dem Feedback-Button und auf der Seite „Impressum & Datenschutz“). Der Baustein
 beschreibt auch die Tippzeit-Messung und den Widerspruch dagegen – so vollständig wie der ausführliche
-Datenschutzhinweis, anders als die Kurzfassungen in der Seite.
+Datenschutzhinweis, anders als die Kurzfassungen in der Seite. Er richtet sich auch an die Schüler:innen: Wer ihn
+weitergibt, macht sie damit – anders als die Seite beim normalen Öffnen – auf die Messung und den Schalter aufmerksam.
 
 > Liebe Schülerinnen und Schüler, liebe Eltern,
 >

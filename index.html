@@ -1089,7 +1089,7 @@
         <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
         <div class="ttbox hidden" id="t-tt">
           <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (<span id="t-tt-none">z. B. ältere Stände oder nach einem Widerspruch</span>); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
-          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung im Datenschutzhinweis widersprechen (Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“); dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.</p>
+          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung im ausführlichen Datenschutzhinweis („Alle Informationen zum Datenschutz“) widersprechen (Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“); dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht. Die Kurzfassung des Hinweises, die Schüler:innen ohne Aufklappen sehen, nennt die Messung nicht.</p>
           <button type="button" class="btn ghost small" id="t-tt-off" aria-pressed="false">Färbung aus</button>
         </div>
         <p class="status" id="t-subs-status" aria-live="polite"></p>
@@ -3045,7 +3045,9 @@ function privacyNoticeDom(p, list, opts) {
   const deliver = o.pages ? "über Cloudflare und GitHub Pages" : CHECK_HOST ? "über Cloudflare; die Checklisten-Seite über GitHub Pages" : "über Cloudflare";
   // Tippzeiten: eigene Rechtsgrundlage (Buchst. f) – Buchst. b nimmt sie ausdrücklich aus. Im Zwischenstand stehen sie nur mit
   // TT_KEEP_IN_DRAFT; dann nimmt auch § 25 TDDDG sie aus (für ihr Speichern im Browser bräuchte es nach Annahme des Betreibers eine Einwilligung).
-  const ttInDraft = tt && TT_KEEP_IN_DRAFT, ttOut = tt ? " (außer den Tippzeiten darin, siehe nächster Punkt)" : "";
+  // Ohne den Schalter bezieht sich die Ausnahme bei Buchst. b nur auf Erstversuch und Abgabe – sonst klänge es, als stünden sie im Zwischenstand.
+  const ttInDraft = tt && TT_KEEP_IN_DRAFT;
+  const ttOut = !tt ? "" : " (" + (ttInDraft ? "" : withAi ? "bei Erstversuch und Abgabe " : "bei der Abgabe ") + "außer den Tippzeiten darin, siehe nächster Punkt)";
   const ttWhere = (your) => [ttInDraft && `in ${your} Zwischenstand`, withAi && "im Erstversuch", "in der Abgabe"].filter(Boolean).join(", ").replace(/, (?=[^,]*$)/, " und ");
   const bases = [
     t(`Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
@@ -4163,7 +4165,7 @@ function saveDraft() {
   // Speicher voll: lieber den Text ohne Tippzeiten auf dem Gerät als nur im Arbeitsspeicher (nach Neuladen „ohne Messung“)
   if (!ok && d.typing) { const lean = Object.assign({}, d); delete lean.typing; stored = JSON.stringify(lean); ok = store.set(S.draftKey, stored); }
   if (ok) S.ttLastRaw = stored;   // so steht er jetzt im Speicher (ttFollowStored: das ist kein Widerspruch eines anderen Tabs)
-  if (ok) heldDrafts.delete(S.draftKey); else heldDrafts.set(S.draftKey, rec);   // nicht gespeichert: für „Weiterschreiben“ im Arbeitsspeicher (samt Tippzeiten)
+  if (ok) heldDrafts.delete(S.draftKey); else heldDrafts.set(S.draftKey, rec);   // nicht gespeichert: für „Weiterschreiben“ im Arbeitsspeicher (mit TT_KEEP_IN_DRAFT samt Tippzeiten)
   setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : SAVE_FAILED, !ok);
   return ok;
 }
