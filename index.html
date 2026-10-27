@@ -1532,6 +1532,293 @@ function cleanGroup(pr) {
   return r.gruppe && KLASSE_RE.test(klasse) ? { gruppe: r.gruppe, klasse } : null;
 }
 /* GROUP:END */
+/* ---------- Tippzeiten (wie im Feiditor): je Zeichen der Abstand zum im Text vorangehenden Zeichen ----------
+ * Je UTF-16-Einheit der Textform ein Byte: 0–70 = Abstand in ms (aufgerundet), 71 = mehr als 70 ms, erstes Zeichen oder
+ * unbekannter Vorgänger, 255 = ohne Messung (Leerraum, Tabellenkopf und Trenner, wiederhergestellter Text ohne Daten); jeder
+ * andere Wert oder eine andere Länge als der Text → die ganze Antwort gilt als „ohne Messung“. Alle Einheiten eines
+ * Eingabeereignisses bekommen denselben Zeitpunkt: das erste Zeichen wird gemessen, die weiteren haben 0 ms (rot – z. B.
+ * Wortvorschlag, Wischen, Diktat, Autokorrektur). Längere Pausen nur als „mehr als 70 ms“, absolute Zeitpunkte nie (Datensparsamkeit).
+ * Als Base64 im Zwischenstand (TT_KEEP_IN_DRAFT) und – nur verschlüsselt – in Erstversuch und Abgabe; nie an die KI, nie in die
+ * Lösungs-PDF, keine Anzeige für Schüler:innen. Gezählt wird je Graphem (Intl.Segmenter) mit dem Wert der ersten Einheit. */
+/* TYPING:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/typing.test.mjs liest diesen Block) */
+const TT_RED_MS = 15, TT_YELLOW_MS = 70;      // wie im Feiditor: ≤ 15 ms rot, ≤ 70 ms gelb, sonst grün
+const TT_SLOW = 71, TT_NONE = 255;            // 71 = mehr als 70 ms bzw. erstes Zeichen, 255 = ohne Messung
+const TT_HIGH_PCT = 50;                       // Rot-Anteil ab 50 % hervorheben (>=, wie im Check)
+const TT_MAX_LEN = 8100, TT_B64_MAX = 10800;  // Text wie die Kappung in loadSubs (MAX_ANSWER + 100), Base64 = 4·⌈8100/3⌉
+const TT_ENV_MAX = 400 * 1024;                // = LIMITS.envelopeBytes (worker/lib.js) – der Unit-Test vergleicht
+const TT_UNDO_MAX = 20, TT_UNDO_CHARS = 4000; // Puffer gelöschter Abschnitte für Rückgängig/Wiederholen
+const TT_SEG_MAX = 2000;                      // mehr Farbabschnitte in einer Antwort bzw. Zelle → nur Rot markieren, notfalls gar nichts
+/* Schalter: false = Tippzeiten nur im Arbeitsspeicher, nie im Zwischenstand (Gerät, heldDrafts, Zwischenstand-PDF) – nach Neuladen
+   oder Import gilt der wiederhergestellte Text dann als „ohne Messung“. Erstversuch und Abgabe tragen sie in beiden Fällen. */
+const TT_KEEP_IN_DRAFT = true;
+/* Tabelle ↔ Text: erste Zeile die Überschriften, dann je ausgefüllter Zeile „Zelle | Zelle“ („|“ in Zellen wird „/“) */
+const cellText = (s) => String(s == null ? "" : s).replace(/\|/g, "/").replace(/\s+/g, " ").trim();
+function tableText(columns, grid) {
+  const rows = grid.map((r) => r.map(cellText)).filter((r) => r.some(Boolean));
+  return rows.length ? [columns.map(cellText), ...rows].map((r) => r.join(" | ").trimEnd()).join("\n") : "";
+}
+function tableRows(text, nCols) {
+  return String(text || "").split("\n").slice(1).filter((l) => l.trim()).map((l) => { const c = l.split("|").map((x) => x.trim()); return Array.from({ length: nCols }, (_, k) => c[k] || ""); });
+}
+const ttHi = (c) => c >= 0xd800 && c <= 0xdbff, ttLo = (c) => c >= 0xdc00 && c <= 0xdfff;
+// Leerraum genau wie \s bzw. trim() in JavaScript (cellText, tableRows)
+const ttWs = (c) => c === 32 || (c >= 9 && c <= 13) || c === 0xa0 || c === 0x1680 || (c >= 0x2000 && c <= 0x200a) || c === 0x2028 || c === 0x2029 || c === 0x202f || c === 0x205f || c === 0x3000 || c === 0xfeff;
+let ttSeq = 0;   // Stand-Nummern, über alle Felder eindeutig (Merker der Kodierung je Feld)
+/* Unterschied zweier Texte (gemeinsamen Anfang und gemeinsames Ende abziehen, wie inserted) → {at, del, ins}; nie mitten in einem
+   Ersatzzeichen-Paar. caret (optional: Cursor nach dem Ereignis) wählt bei reinem Einfügen bzw. Löschen unter gleichwertigen Stellen
+   die getippte („aa“ → „aaa“ in der Mitte) – nur wenn sie wirklich passt (Autokorrektur ändert auch Text vor dem Cursor) */
+function ttDiff(a, b, caret) {
+  const n = Math.min(a.length, b.length); let p = 0, s = 0;
+  while (p < n && a.charCodeAt(p) === b.charCodeAt(p)) p++;
+  if (p > 0 && ttHi(a.charCodeAt(p - 1))) p--;
+  while (s < n - p && a.charCodeAt(a.length - 1 - s) === b.charCodeAt(b.length - 1 - s)) s++;
+  if (s > 0 && ttLo(a.charCodeAt(a.length - s))) s--;
+  let at = p, del = a.length - p - s, ins = b.slice(p, b.length - s);
+  if (Number.isInteger(caret) && (del === 0) !== (ins.length === 0)) {
+    const k = del || ins.length, q = del ? caret : caret - k, long = del ? a : b, short = del ? b : a;
+    if (q >= 0 && q < at && long.slice(q + k) === short.slice(q) && !ttLo(long.charCodeAt(q)) && !ttLo(long.charCodeAt(q + k))) {
+      at = q; if (!del) ins = b.slice(q, q + k);
+    }
+  }
+  return { at, del, ins };
+}
+/* Messung eines Feldes: je UTF-16-Einheit {t: Zeitpunkt (performance.now; -1 = unbekannt), g?: eingefrorener Wert}. codes (gleiche
+   Länge, z. B. aus dem Zwischenstand) → g; sonst ohne Messung (255, nie rot) */
+function ttNew(text, codes) {
+  text = String(text == null ? "" : text);
+  const ok = !!codes && codes.length === text.length, recs = new Array(text.length);
+  for (let i = 0; i < text.length; i++) recs[i] = ok ? { t: -1, g: codes[i] } : { t: -1 };
+  return { text, recs, undo: [], lastDel: false, ver: ++ttSeq };
+}
+/* Text des Feldes jetzt = next (Zeitpunkt now, Art des Eingabeereignisses type) → true bei Änderung. Neue Einheiten bekommen
+   alle denselben Zeitpunkt; Rückgängig/Wiederholen holt die Zeiten eines eben gelöschten Abschnitts zurück. */
+function ttApply(tt, next, now, type, caret) {
+  next = String(next == null ? "" : next);
+  // Safari löscht vor dem Bestätigen den Kompositionstext: das folgende insertFromComposition vergleicht mit dem Stand davor
+  if (type === "deleteCompositionText" || next === tt.text) return false;
+  const a = tt.text, d = ttDiff(a, next, caret), m = d.ins.length;
+  let add = null;
+  if (m && (type === "historyUndo" || type === "historyRedo")) {
+    for (let k = tt.undo.length - 1; k >= 0 && !add; k--) if (tt.undo[k].text === d.ins) add = tt.undo[k].recs.map((r) => (r.g != null ? { t: r.t, g: r.g } : { t: r.t }));
+  }
+  if (!add) { add = new Array(m); for (let k = 0; k < m; k++) add[k] = { t: now }; }
+  if (d.del) {   // Gelöschtes merken; Rücktaste bzw. Entf hintereinander ergeben einen Abschnitt
+    const text = a.slice(d.at, d.at + d.del), recs = tt.recs.slice(d.at, d.at + d.del), last = tt.undo[tt.undo.length - 1];
+    if (tt.lastDel && !m && last && d.at + d.del === last.at) { last.text = text + last.text; last.recs = recs.concat(last.recs); last.at = d.at; }
+    else if (tt.lastDel && !m && last && d.at === last.at) { last.text += text; last.recs = last.recs.concat(recs); }
+    else tt.undo.push({ at: d.at, text, recs });
+    let chars = 0; for (const u of tt.undo) chars += u.text.length;
+    while (tt.undo.length > TT_UNDO_MAX || (tt.undo.length && chars > TT_UNDO_CHARS)) chars -= tt.undo.shift().text.length;
+  }
+  tt.lastDel = d.del > 0 && !m;
+  tt.recs = tt.recs.slice(0, d.at).concat(add, tt.recs.slice(d.at + d.del));
+  tt.text = next; tt.ver = ++ttSeq;
+  return true;
+}
+/* Werte je UTF-16-Einheit (Uint8Array) oder null: Leerraum 255; eingefroren → g; unbekannt → 255; erstes Zeichen oder
+   unbekannter Vorgänger → 71; sonst Abstand zum Vorgänger im Text (aufgerundet, negativ → 71, gedeckelt bei 71) */
+function ttCodes(tt) {
+  const text = tt.text, recs = tt.recs, n = text.length;
+  if (!recs || recs.length !== n) return null;
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const r = recs[i];
+    if (ttWs(text.charCodeAt(i))) out[i] = TT_NONE;
+    else if (r.g != null) out[i] = r.g;
+    else if (!(r.t >= 0)) out[i] = TT_NONE;
+    else if (i === 0 || !(recs[i - 1].t >= 0)) out[i] = TT_SLOW;
+    else { const gap = r.t - recs[i - 1].t; out[i] = gap < 0 ? TT_SLOW : Math.min(TT_SLOW, Math.ceil(gap)); }
+  }
+  return out;
+}
+const ttClass = (c) => (c === TT_NONE ? "" : c <= TT_RED_MS ? "r" : c <= TT_YELLOW_MS ? "y" : "g");
+function ttEncode(codes) {   // → Base64 (in Blöcken wie b64)
+  let s = ""; for (let i = 0; i < codes.length; i += 0x8000) s += String.fromCharCode.apply(null, codes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+/* Base64 → Werte, nur wenn sie genau zum Text passen (Länge, nur 0–71 und 255), sonst null */
+function ttDecode(s, text) {
+  if (typeof s !== "string" || typeof text !== "string" || text.length > TT_MAX_LEN || s.length > TT_B64_MAX || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) return null;
+  let bin; try { bin = atob(s); } catch (e) { return null; }
+  if (bin.length !== text.length) return null;
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) { const c = bin.charCodeAt(i); if (c > TT_SLOW && c !== TT_NONE) return null; u[i] = c; }
+  return u;
+}
+let ttSegmenter;   // erst bei Bedarf und nur, wenn vorhanden (Firefox vor Version 125 kennt Intl.Segmenter nicht)
+const TT_MARK = /^\p{M}$/u;
+/* Startindizes der Grapheme + text.length; Rückfall: Codepunkte mit angehängten Akzenten, Variantenwählern, Hautfarben, ZWJ-Folgen,
+   Flaggen aus zwei Regionalindikatoren */
+function ttGraphemes(text) {
+  const out = [];
+  if (ttSegmenter === undefined) {
+    try { ttSegmenter = typeof Intl === "object" && Intl && typeof Intl.Segmenter === "function" ? new Intl.Segmenter("de", { granularity: "grapheme" }) : null; }
+    catch (e) { ttSegmenter = null; }
+  }
+  if (ttSegmenter) { for (const g of ttSegmenter.segment(text)) out.push(g.index); }
+  else {
+    const len = (cp) => (cp > 0xffff ? 2 : 1), ri = (cp) => cp >= 0x1f1e6 && cp <= 0x1f1ff;
+    for (let i = 0; i < text.length;) {
+      out.push(i);
+      const cp0 = text.codePointAt(i);
+      i += len(cp0);
+      if (ri(cp0) && ri(text.codePointAt(i))) i += 2;
+      for (;;) {
+        const cp = text.codePointAt(i); if (cp === undefined) break;
+        if (cp === 0x200d) { i++; const c2 = text.codePointAt(i); if (c2 !== undefined) i += len(c2); continue; }
+        if (cp === 0xfe0f || cp === 0xfe0e || (cp >= 0x1f3fb && cp <= 0x1f3ff) || TT_MARK.test(String.fromCodePoint(cp))) { i += len(cp); continue; }
+        break;
+      }
+    }
+  }
+  out.push(text.length);
+  return out;
+}
+/* Anzeige: Läufe gleicher Klasse [{s, c}] (c = "r" | "y" | "g" | "" ohne Färbung), nie mitten im Graphem; Leerraum ohne Färbung,
+   aber Leerzeichen zwischen zwei Graphemen gleicher Klasse übernehmen sie (durchgehender Textmarker), \n trennt immer. Mehr als
+   max Läufe (zu viele Elemente, z. B. manipulierte Daten) → nur Rot, notfalls gar keine Färbung. Verkettet ergeben sie text. */
+function ttSegments(text, codes, max) {
+  text = String(text == null ? "" : text);
+  if (!text) return [];
+  if (!codes || codes.length !== text.length) return [{ s: text, c: "" }];
+  const lim = max || TT_SEG_MAX, gs = ttGraphemes(text), n = gs.length - 1, cls = new Array(n);
+  const space = (k) => text.charCodeAt(gs[k]) === 32 && gs[k + 1] - gs[k] === 1;
+  for (let k = 0; k < n; k++) cls[k] = ttWs(text.charCodeAt(gs[k])) ? "" : ttClass(codes[gs[k]]);
+  for (let k = 0; k < n;) {
+    if (!space(k)) { k++; continue; }
+    let e = k; while (e < n && space(e)) e++;
+    if (k > 0 && e < n && cls[k - 1] && cls[k - 1] === cls[e]) for (let x = k; x < e; x++) cls[x] = cls[e];
+    k = e;
+  }
+  const build = (only) => {
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const c = only && cls[k] !== only ? "" : cls[k], s = text.slice(gs[k], gs[k + 1]), last = out[out.length - 1];
+      if (last && last.c === c) last.s += s; else out.push({ s, c });
+    }
+    return out;
+  };
+  let segs = build("");
+  if (segs.length > lim) segs = build("r");
+  return segs.length > lim ? [{ s: text, c: "" }] : segs;
+}
+/* Anteile über mehrere Texte: list = [[text, codes | null]] → {n (gemessen), r, y, g, zero (rot mit 0 ms), none (ohne Messung), pct}
+   je Graphem ohne Leerraum mit dem Wert seiner ersten Einheit; pct = Rot-Anteil in ganzen Prozent (null ohne Messung) */
+function ttShare(list) {
+  const o = { n: 0, r: 0, y: 0, g: 0, zero: 0, none: 0, pct: null };
+  for (const it of Array.isArray(list) ? list : []) {
+    const text = String((it && it[0]) == null ? "" : it[0]), codes = it && it[1];
+    if (!text) continue;
+    const ok = !!codes && codes.length === text.length, gs = ttGraphemes(text);
+    for (let k = 0; k < gs.length - 1; k++) {
+      const i = gs[k]; if (ttWs(text.charCodeAt(i))) continue;
+      const c = ok ? codes[i] : TT_NONE;
+      if (c === TT_NONE) { o.none++; continue; }
+      const cl = ttClass(c); o[cl]++;
+      if (cl === "r" && c === 0) o.zero++;
+    }
+  }
+  o.n = o.r + o.y + o.g; o.pct = o.n ? Math.round((100 * o.r) / o.n) : null;
+  return o;
+}
+const ttHigh = (pct) => pct != null && pct >= TT_HIGH_PCT;   // auf den angezeigten (gerundeten) Wert
+/* Spiegel von cellText mit Werten: „|“ → „/“ behält den Wert, Leerraum-Folgen → ein Leerzeichen (255), Rand weg */
+function ttCellText(s, codes) {
+  s = String(s == null ? "" : s);
+  const ok = !!codes && codes.length === s.length, out = [];
+  let text = "", sp = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (ttWs(c)) { sp = text.length > 0; continue; }
+    if (sp) { text += " "; out.push(TT_NONE); sp = false; }
+    text += c === 124 ? "/" : s[i]; out.push(ok ? codes[i] : TT_NONE);
+  }
+  return { text, codes: Uint8Array.from(out) };
+}
+/* Spiegel von tableText: grid = Zellwerte, gridCodes = je Zelle Werte | null → {text (= tableText), codes}; Kopf, „ | “, „\n“ 255 */
+function ttTableText(columns, grid, gridCodes) {
+  const rows = [];
+  grid.forEach((r, ri) => {
+    const cells = r.map((v, k) => ttCellText(v, gridCodes && gridCodes[ri] ? gridCodes[ri][k] : null));
+    if (cells.some((c) => c.text)) rows.push(cells);
+  });
+  if (!rows.length) return { text: "", codes: new Uint8Array(0) };
+  let text = ""; const out = [];
+  [columns.map((c) => ttCellText(c, null)), ...rows].forEach((cells, li) => {
+    if (li) { text += "\n"; out.push(TT_NONE); }
+    let line = ""; const lc = [];
+    cells.forEach((c, k) => { if (k) { line += " | "; lc.push(TT_NONE, TT_NONE, TT_NONE); } line += c.text; for (const x of c.codes) lc.push(x); });
+    const tl = line.trimEnd();
+    text += tl; for (let x = 0; x < tl.length; x++) out.push(lc[x]);
+  });
+  return { text, codes: Uint8Array.from(out) };
+}
+function ttLines(text) {   // Zeilen wie split("\n") als [Anfang, Ende]
+  const out = []; let a = 0;
+  for (;;) { const j = text.indexOf("\n", a); if (j < 0) { out.push([a, text.length]); return out; } out.push([a, j]); a = j + 1; }
+}
+function ttSplitCells(text, codes, a, b) {   // text[a, b) wie split("|") + trim → [{v, codes}] (codes null ohne Werte)
+  const out = [];
+  for (let i = a, x = a; i <= b; i++) {
+    if (i < b && text.charCodeAt(i) !== 124) continue;
+    let s = x, e = i;
+    while (s < e && ttWs(text.charCodeAt(s))) s++;
+    while (e > s && ttWs(text.charCodeAt(e - 1))) e--;
+    out.push({ v: text.slice(s, e), codes: codes ? codes.slice(s, e) : null });
+    x = i + 1;
+  }
+  return out;
+}
+/* Spiegel von tableRows: Textform + Werte → je Zeile nCols Zellen {v (= tableRows), codes} (zum Wiederherstellen in die Zellen) */
+function ttTableCells(text, codes, nCols) {
+  text = String(text || "");
+  const ok = codes && codes.length === text.length ? codes : null;
+  return ttLines(text).slice(1).filter(([a, b]) => text.slice(a, b).trim()).map(([a, b]) => {
+    const c = ttSplitCells(text, ok, a, b);
+    return Array.from({ length: nCols }, (_, k) => c[k] || { v: "", codes: ok ? new Uint8Array(0) : null });
+  });
+}
+/* Spiegel der Zerlegung in answerDom (Lehrkraft-Ansicht): alle nicht leeren Zeilen (Zeile 0 = Kopf) → Zellen {v, codes} */
+function ttTableLines(text, codes) {
+  text = String(text || "");
+  const ok = codes && codes.length === text.length ? codes : null;
+  return ttLines(text).filter(([a, b]) => text.slice(a, b).trim()).map(([a, b]) => ttSplitCells(text, ok, a, b));
+}
+/* Passt der Umschlag auf den Server? Genau wie validateEnvelope (worker/lib.js) */
+const ttEnvelopeFits = (env) => !!env && JSON.stringify({ v: 1, ek: env.ek, iv: env.iv, ct: env.ct }).length <= TT_ENV_MAX;
+/* Nutzlast-Teil typing mit Werten (dann lohnt bei „zu groß“ ein Versuch ohne) */
+const ttHasData = (t) => !!(t && Array.isArray(t.answers) && t.answers.some((a) => a && (typeof a.first === "string" || typeof a.final === "string")));
+/* Teil „typing“ des Zwischenstands (an answers bzw. first ausgerichtete Base64 | null) – null, wenn Tippzeiten dort nicht
+   gespeichert werden (TT_KEEP_IN_DRAFT) */
+function ttDraftOut(answers, first, keep = TT_KEEP_IN_DRAFT) {
+  return keep && Array.isArray(answers) ? { v: 1, answers, first: Array.isArray(first) ? first : null } : null;
+}
+/* Gelesener Zwischenstand → {v:1, answers: [B|null], first: [B|null] | null} | null; je Antwort nur Base64, die genau zum Text
+   passt (answers bzw. first = die schon gekappten Texte); ohne TT_KEEP_IN_DRAFT immer null („ohne Messung“) */
+function ttCleanDraft(t, answers, first, keep = TT_KEEP_IN_DRAFT) {
+  try {
+    if (!keep || !t || typeof t !== "object" || t.v !== 1 || !Array.isArray(answers) || !Array.isArray(t.answers) || t.answers.length !== answers.length) return null;
+    const one = (x, text) => (typeof x === "string" && ttDecode(x, String(text == null ? "" : text)) ? x : null);
+    return { v: 1, answers: answers.map((a, i) => one(t.answers[i], a)),
+      first: Array.isArray(first) && Array.isArray(t.first) && t.first.length === first.length ? first.map((a, i) => one(t.first[i], a)) : null };
+  } catch (e) { return null; }
+}
+/* Lehrkraft (loadSubs): typing einer entschlüsselten Nutzlast → null (ohne Messung) | {omitted} | {list: [{first, final}]};
+   nur Base64-Form (dekodiert wird erst beim Aufklappen), „=“ nur bei gleichem Text; answers = die schon gekappten Antworten. Wirft nie. */
+function ttCleanPayload(t, answers) {
+  try {
+    if (!t || typeof t !== "object" || t.v !== 1) return null;
+    if (t.omitted === "too_large" || t.omitted === "error") return { omitted: t.omitted };
+    if (!Array.isArray(t.answers) || !Array.isArray(answers) || t.answers.length !== answers.length) return null;
+    const b = (x) => (typeof x === "string" && x.length <= TT_B64_MAX && x.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(x) ? x : null);
+    return { list: answers.map((a, i) => {
+      const x = t.answers[i];
+      if (!x || typeof x !== "object") return { first: null, final: null };
+      return { first: x.first === "=" ? (a && typeof a.final === "string" && a.first === a.final ? "=" : null) : b(x.first), final: b(x.final) };
+    }) };
+  } catch (e) { return null; }
+}
+/* TYPING:END */
 /* Angaben zeigen (Topbar, „Weiterschreiben?“, Zwischenstand-PDF): „Max · Mu · 04.05. · Klasse 8b“ bzw. „MaxMu, LiMu · Klasse 8b“ */
 function personLabel(p) {
   return isGroup(p) ? `${p.gruppe.join(", ")} · Klasse ${p.klasse}` : `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}`;
@@ -2174,15 +2461,7 @@ function cleanAnswer(a, full, imageRe) {   // imageRe: Kennung eines Kartenbilde
   return items.length ? { type: "map", map: "world", items } : { type: "text" };
 }
 const ANSWER_TYPE_LABEL = { text: "Textfeld", table: "Tabelle", map: "Weltkarten-Zuordnung" };
-/* Tabelle ↔ Text: erste Zeile die Überschriften, dann je ausgefüllter Zeile „Zelle | Zelle“ („|“ in Zellen wird „/“) */
-const cellText = (s) => String(s == null ? "" : s).replace(/\|/g, "/").replace(/\s+/g, " ").trim();
-function tableText(columns, grid) {
-  const rows = grid.map((r) => r.map(cellText)).filter((r) => r.some(Boolean));
-  return rows.length ? [columns.map(cellText), ...rows].map((r) => r.join(" | ").trimEnd()).join("\n") : "";
-}
-function tableRows(text, nCols) {
-  return String(text || "").split("\n").slice(1).filter((l) => l.trim()).map((l) => { const c = l.split("|").map((x) => x.trim()); return Array.from({ length: nCols }, (_, k) => c[k] || ""); });
-}
+/* Tabelle ↔ Text (cellText, tableText, tableRows): im Block TYPING oben, damit der Unit-Test die Tippzeit-Spiegel gegen sie prüft */
 /* Weltkarte ↔ Text: je zugeordneter Karte „Bezeichnung → Land“ in der Reihenfolge der Zuordnung, zuletzt „Zugeordnet: x von n“ */
 const MAP_ARROW = " → ";
 function mapLines(text) {   // → [{label, name}] und die Schlusszeile
@@ -2284,6 +2563,7 @@ const S = {
   code: "", sheet: null, pub: null, person: null, draftKey: "",
   groupMode: false,   // auf dem Angaben-Bildschirm gewählt: Partner- / Gruppenarbeit (danach zählt isGroup(S.person))
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
+  firstTyping: null,   // Tippzeiten der ersten Fassung (Base64 | null je Aufgabe, an S.first ausgerichtet) – aus demselben snapshot() wie S.first
   fbFails: 0, fbUnavailable: "",   // Fehlversuche beim KI-Feedback; ab dem zweiten bzw. ohne eingerichtete KI der Grund als Text
   fbUnavailableDay: "",   // UTC-Tag, an dem der Grund entstand – „Kontingent für heute aufgebraucht“ gilt nur bis 0:00 UTC (quotaExpired)
   fbPending: false,   // eine Anfrage dieses Laufs ist unterwegs (im Zwischenstand: ein Abbruch durch Schließen des Tabs zählt beim nächsten Öffnen als Fehlversuch)
@@ -2914,7 +3194,7 @@ async function draftRaw(code, p, key) {
 }
 async function openEditor() {
   const p = S.person, sh = S.sheet;
-  S.submitted = false; S.first = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbPending = false; S.ltCache = new Map();
+  S.submitted = false; S.first = null; S.firstTyping = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbPending = false; S.ltCache = new Map();
   S.attempt = ""; S.firstSent = false;
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltConsent = false; S.ltDeclined = false;   // Selbstauskunft zu LanguageTool gilt nur, solange dieses Blatt geöffnet ist
@@ -2951,6 +3231,18 @@ async function openEditor() {
       restored = d.answers.some((a) => String(a || "").trim());
     }
   } catch (e) { /* kaputter Entwurf: ignorieren */ }
+  // Tippzeiten erst nach allen Texten und der ersten Fassung, je Aufgabe einzeln: ein Fehler kostet höchstens die Messung, nie den
+  // Text (ohne Daten bzw. passende Länge → „ohne Messung“, nie rot). Kein zusätzliches Speichern hier (E2E 3e: voller Speicher).
+  if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
+    const texts = d.answers.map((a) => String(a || "").slice(0, MAX_ANSWER));
+    let ty = null;
+    try { ty = ttCleanDraft(d.typing, texts, S.first); } catch (e) { ty = null; }
+    S.tas.forEach((t, i) => {
+      try { ttRestore(t, texts[i], ty && ty.answers[i]); }
+      catch (e) { try { ttRestore(t, "", null); } catch (x) { /* egal */ } }
+    });
+    S.firstTyping = S.first && ty && ty.first ? ty.first : null;   // zur ersten Fassung (Erstversuch nachholen, Abgabe)
+  }
   if (!S.attempt) S.attempt = hexOf(crypto.getRandomValues(new Uint8Array(8)));   // Kennung dieser Bearbeitung (Erstversuch ↔ Abgabe)
   store.set(LAST_KEY, JSON.stringify({ v: 1, t: Date.now(), code: S.code, person: p }));
   // sofort speichern: den Stand aus der PDF auf diesem Gerät weiterführen, einen verlorenen Versuch nur einmal zählen, einen Stand
@@ -3007,6 +3299,7 @@ function buildTasks() {
       ])
     ]);
     ta._idx = i; ta._pe = pe; ta._cnt = cnt; ta._ltStat = isText ? ltStat : null; ta._ltBtn = ltBtn; ta._kind = spec.type;
+    if (isText) ta._tt = ttNew("", null);   // Tippzeiten (Tabellen: je Zelle, Weltkarte: keine)
     if (isText) ta.addEventListener("input", () => answerChanged(ta));
     if (ltBtn) ltBtn.addEventListener("click", () => ltRun(i, ltBtn, ltStat));
     S.tas.push(ta); S.outs.push(out); S.fbs.push(fb);
@@ -3032,7 +3325,7 @@ function tableWidget(i, spec, pe) {
   const mkCell = (r, k) => {
     const c = h("textarea", { class: "tcell", rows: "1", maxlength: String(TABLE_CELL_MAX), autocomplete: "off", autocapitalize: "sentences", spellcheck: "true",
       writingsuggestions: "false", "aria-label": `${cols[k]}, Zeile ${r + 1}` });
-    c._w = w; c._pe = pe; c._r = r; c._k = k; c._last = ""; c.readOnly = ro;
+    c._w = w; c._pe = pe; c._r = r; c._k = k; c._last = ""; c.readOnly = ro; c._tt = ttNew("", null);
     c.addEventListener("input", () => {
       if (w.value.length > MAX_ANSWER) { c.value = c._last; c._ok = c._last; pe.textContent = full(); clearTimeout(pe._t); pe._t = setTimeout(() => { pe.textContent = ""; }, 5000); }
       else c._last = c.value;
@@ -3049,7 +3342,7 @@ function tableWidget(i, spec, pe) {
   };
   function addRow(vals) {
     const r = rows.length, cells = cols.map((_, k) => mkCell(r, k));
-    if (vals) cells.forEach((c, k) => { c.value = String(vals[k] || "").slice(0, TABLE_CELL_MAX); c._last = c.value; c._ok = c.value; });
+    if (vals) cells.forEach((c, k) => { c.value = String(vals[k] || "").slice(0, TABLE_CELL_MAX); c._last = c.value; c._ok = c.value; c._tt = ttNew(c.value, null); });   // Werte setzt danach _ttRestore
     rows.push(cells);
     tbody.appendChild(h("tr", null, cells.map((c) => h("td", null, [c]))));
     add.disabled = ro || rows.length >= ANS_LIMITS.rows;
@@ -3068,6 +3361,18 @@ function tableWidget(i, spec, pe) {
     readOnly: { get: () => ro, set: (b) => { ro = !!b; rows.forEach((r) => r.forEach((c) => { c.readOnly = ro; })); add.disabled = ro || rows.length >= ANS_LIMITS.rows; } }
   });
   w.focus = (o) => { if (rows[0]) rows[0][0].focus(o); };
+  // Tippzeiten: je Zelle gemessen, für die Textform wie tableText zusammengesetzt (Kopf, Trenner, Zeilenumbrüche ohne Messung)
+  const syncCells = () => rows.forEach((r) => r.forEach((c) => ttSync(c)));
+  w._ttTable = () => {
+    syncCells();
+    const res = ttTableText(cols, rows.map((r) => r.map((c) => c.value)), rows.map((r) => r.map((c) => (c._tt && c._tt.text === c.value ? ttCodes(c._tt) : null))));
+    return res.text === w.value ? res.codes : null;
+  };
+  w._ttKey = () => { syncCells(); return rows.map((r) => r.map((c) => (c._tt ? c._tt.ver : 0)).join(",")).join(";"); };   // Stand aller Zellen
+  w._ttRestore = (text, codes) => {   // nach dem Setter (Zellen neu gebaut): gespeicherte Werte je Zelle, wo der Zelltext passt
+    const cells = ttTableCells(text, codes, cols.length);
+    rows.forEach((r, ri) => r.forEach((c, k) => { const x = cells[ri] && cells[ri][k]; c._tt = ttNew(c.value, x && x.codes && x.v === c.value ? x.codes : null); }));
+  };
   add.addEventListener("click", () => { if (ro || rows.length >= ANS_LIMITS.rows) return; const cells = addRow(); growAll(); cells[0].focus(); });
   for (let r = 0; r < spec.rows; r++) addRow();
   return w;
@@ -3385,9 +3690,63 @@ function updateCounter(ta) {
   c.classList.toggle("bad", left <= 0);
 }
 
+/* ---------- Tippzeiten im Editor (Messkern: Block TYPING) ----------
+ * Je Textfeld und Tabellenzelle el._tt. Zeitpunkt (performance.now() – Date.now hält E2E 3e fest; keine zweite Uhr) und Art des
+ * Eingabeereignisses merkt der Capture-Listener „input“ (_evTs/_evType), abgeglichen wird in answerChanged (ttSync) – so laufen
+ * Tippen, Komposition, Rückgängig und die Rücknahmen der Einfügesperre durch dieselbe Stelle. In „input“ nichts Schweres:
+ * kodiert wird erst beim Speichern bzw. Senden (ttB64Of, gemerkt je Stand). Ein Fehler kostet höchstens die Messung, nie den Text. */
+function ttSync(el) {   // Textfeld oder Tabellenzelle: Messung an den aktuellen Text angleichen
+  if (!el || el.tagName !== "TEXTAREA" || el.classList.contains("measure")) return;
+  const ev = el._evTs > 0, now = ev ? el._evTs : performance.now(), type = ev ? el._evType || "" : "";
+  el._evTs = el._evType = undefined;
+  if (!el._tt) el._tt = ttNew(el.value, null);   // ohne Messung, nie rot
+  let caret; if (ev) { try { caret = el.selectionEnd; } catch (e) { caret = undefined; } }   // nur direkt nach einem Ereignis aussagekräftig
+  ttApply(el._tt, el.value, now, type, caret);
+}
+function ttSyncSafe(el) {
+  try { ttSync(el); } catch (e) { try { if (el && el.tagName === "TEXTAREA") el._tt = ttNew(el.value, null); } catch (x) { /* egal */ } }
+}
+/* S.tas[i] → Werte an t.value ausgerichtet (Uint8Array) oder null (Weltkarte, Fehler) – immer im selben Moment wie der Text lesen */
+function ttCodesOf(t) {
+  try {
+    if (!t || t._kind === "map") return null;
+    if (t._kind === "table") return t._ttTable();
+    ttSync(t);
+    return t._tt && t._tt.text === t.value ? ttCodes(t._tt) : null;
+  } catch (e) { return null; }
+}
+function ttB64Of(t) {   // dasselbe als Base64, gemerkt je Stand des Feldes (scheduleSave bleibt billig)
+  try {
+    if (!t || t._kind === "map") return null;
+    let key;
+    if (t._kind === "table") key = t._ttKey();
+    else { ttSync(t); key = t._tt ? t._tt.ver : 0; }
+    if (t._ttMemo && t._ttMemo.key === key) return t._ttMemo.b64;
+    const c = ttCodesOf(t), b64 = c ? ttEncode(c) : null;
+    t._ttMemo = { key, b64 };
+    return b64;
+  } catch (e) { return null; }
+}
+/* Antworten und ihre Tippzeiten im selben Moment (Erstversuch, Abgabe) */
+function answersNow() {
+  const texts = S.tas.map((t) => t.value);
+  let typing;
+  try { typing = S.tas.map(ttB64Of); } catch (e) { typing = texts.map(() => null); }
+  return { texts, typing };
+}
+/* Nach dem Wiederherstellen (openEditor): gespeicherte Werte eingefroren übernehmen, wenn sie genau zum Text passen – sonst ohne
+   Messung (255), nie rot. Ein neues Zeichen direkt dahinter gilt als Pause (71), wie im Feiditor. */
+function ttRestore(t, text, b64) {
+  if (!t || t._kind === "map") return;
+  const codes = b64 == null ? null : ttDecode(b64, text);
+  if (t._kind === "table") { t._ttRestore(text, codes); return; }
+  t._tt = ttNew(t.value, codes && t.value === text ? codes : null);   // z. B. \r-Normalisierung → ohne Messung
+}
+
 /* Nach jeder Änderung einer Antwort: Feld anpassen, alte Prüfung abblenden, Zwischenstand speichern.
    el = Textfeld, Tabellenzelle (gehört zum Baustein el._w) oder der Baustein selbst (Tabelle, Weltkarte) */
 function answerChanged(el) {
+  ttSyncSafe(el);   // Tippzeiten (nur Textfeld und Zelle)
   const ta = el._w || el;
   autoGrow(el);
   updateCounter(ta);
@@ -3406,16 +3765,24 @@ let saveTimer = 0;
 function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
 /* Zwischenstand als Datensatz (für localStorage und die PDF-Datei) */
 function draftRecord() {
-  return { v: 1, t: Date.now(), answers: S.tas.map((t) => t.value), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt,
+  const now = answersNow();   // Text und Tippzeiten im selben Moment
+  // Tippzeiten im selben Datensatz wie der Text (nie ein eigener Schlüssel): an answers bzw. first ausgerichtet; ohne TT_KEEP_IN_DRAFT keine
+  let typing = null;
+  try { typing = ttDraftOut(now.typing, S.first ? S.first.map((_, i) => (S.firstTyping && S.firstTyping[i]) || null) : null); } catch (e) { typing = null; }
+  return { v: 1, t: Date.now(), answers: now.texts, first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt,
     ...(S.feedback ? { feedbackAi: { aiGenerated: true, digitalSourceType: AI_SOURCE } } : {}),   // KI-Kennzeichnung (cleanDraft liest das Feld nicht)
-    fbUnavailable: S.fbUnavailable || "", fbUnavailableDay: S.fbUnavailable ? S.fbUnavailableDay || "" : "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent };
+    fbUnavailable: S.fbUnavailable || "", fbUnavailableDay: S.fbUnavailable ? S.fbUnavailableDay || "" : "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent,
+    ...(typing ? { typing } : {}) };
 }
 const SAVE_FAILED = "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden";
 function saveDraft() {
   clearTimeout(saveTimer);
   if (!S.draftKey || S.submitted) return false;
-  const rec = JSON.stringify(draftRecord()), ok = store.set(S.draftKey, rec);
-  if (ok) heldDrafts.delete(S.draftKey); else heldDrafts.set(S.draftKey, rec);   // nicht gespeichert: für „Weiterschreiben“ im Arbeitsspeicher
+  const d = draftRecord(), rec = JSON.stringify(d);
+  let ok = store.set(S.draftKey, rec);
+  // Speicher voll: lieber den Text ohne Tippzeiten auf dem Gerät als nur im Arbeitsspeicher (nach Neuladen „ohne Messung“)
+  if (!ok && d.typing) { const lean = Object.assign({}, d); delete lean.typing; ok = store.set(S.draftKey, JSON.stringify(lean)); }
+  if (ok) heldDrafts.delete(S.draftKey); else heldDrafts.set(S.draftKey, rec);   // nicht gespeichert: für „Weiterschreiben“ im Arbeitsspeicher (samt Tippzeiten)
   setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : SAVE_FAILED, !ok);
   return ok;
 }
@@ -3682,7 +4049,8 @@ function cleanDraft(o) {
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
     fbUnavailableDay: typeof o.fbUnavailableDay === "string" && DAY_RE.test(o.fbUnavailableDay) ? o.fbUnavailableDay : "",
     fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0, fbPending: o.fbPending === true && !feedback,
-    attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true
+    attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true,
+    typing: (() => { try { return ttCleanDraft(o.typing, answers, first); } catch (e) { return null; } })()   // nur, was genau zu den gekappten Texten passt
   };
 }
 function downloadBlob(blob, name) {
@@ -3922,6 +4290,7 @@ document.addEventListener("beforeinput", (e) => {
 }, true);
 document.addEventListener("input", (e) => {
   const ta = answerOf(e.target); if (!ta) return;
+  ta._evType = e.inputType || ""; ta._evTs = performance.now();   // Tippzeiten: abgeglichen wird in answerChanged (ttSync)
   if (e.isComposing || e.inputType === "insertCompositionText") return;   // während einer Komposition (IME, Diktat) nichts anfassen
   const t = e.inputType || "", prev = ta._ok === undefined ? "" : ta._ok;
   if (t === "historyUndo" || t === "historyRedo") { ta._ok = ta.value; return; }
@@ -3940,7 +4309,7 @@ document.addEventListener("compositionend", (e) => {
   setTimeout(() => {
     const prev = ta._ok === undefined ? "" : ta._ok;
     if (inserted(prev, ta.value).text.length > MAX_COMPOSED) { ta.value = prev; warnPaste(ta); answerChanged(ta); }
-    else ta._ok = ta.value;
+    else { ta._ok = ta.value; ttSyncSafe(ta); }   // Netz: eine Bestätigung ohne eigenes input-Ereignis
   }, 0);
 }, true);
 document.addEventListener("focusin", (e) => { const ta = answerOf(e.target); if (ta && ta._ok === undefined) ta._ok = ta.value; }, true);
@@ -4263,11 +4632,11 @@ async function requestFeedback() {
   const st = $("fb-status"), btn = $("fb-btn");
   setStatus(st, "", "");
   const snapshot = () => {   // Antworten jetzt lesen – vor jedem Versuch neu, damit Feedback und erste Fassung zum gesendeten Text passen
-    const answers = S.tas.map((t) => t.value);
+    const { texts: answers, typing } = answersNow();   // Tippzeiten im selben Moment (nur für die erste Fassung, nie an die KI)
     const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
-    return { answers, empty, tooLong: tooLongTotal(answers) };
+    return { answers, typing, empty, tooLong: tooLongTotal(answers) };
   };
-  let { answers, empty, tooLong } = snapshot();
+  let { answers, typing, empty, tooLong } = snapshot();
   if (empty.length === answers.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
   if (tooLong) { setStatus(st, tooLong, "bad"); return; }
   // Ohne Empfänger war beim Laden keine KI eingerichtet: erst nachsehen, ob die Lehrkraft sie inzwischen eingerichtet hat (nur ein GET).
@@ -4353,7 +4722,7 @@ async function requestFeedback() {
             failed(e, 1, "Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
             return;
           }
-          ({ answers, empty, tooLong } = snapshot());
+          ({ answers, typing, empty, tooLong } = snapshot());
           if (tooLong) { failed(e, 1, tooLong); return; }   // frühere Versuche dieses Laufs gingen schon an den Server: Fehlversuch
           continue;
         }
@@ -4382,6 +4751,7 @@ async function requestFeedback() {
     if (run !== S.fbRun) return;
     if (!Array.isArray(r.results) || r.results.length !== answers.length) { failed(new ApiError("bad_result"), 1, "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal."); return; }
     S.first = answers.slice();   // genau die gesendete Fassung
+    S.firstTyping = typing.slice();   // … und ihre Tippzeiten aus demselben snapshot()
     S.feedback = r.results.map(normFb);
     S.feedbackAt = new Date().toISOString();
     S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbFails = 0; S.fbPending = false;
@@ -4412,11 +4782,34 @@ async function sendFirstAttempt() {
       answers: S.first.map((a) => ({ first: a, final: null })),
       feedback: S.feedback.map(fbOut), feedbackAt: S.feedbackAt, submittedAt: null
     };
-    const envelope = await Crypto.seal(S.pub, payload);
-    await api("POST", "/api/submit", { body: { code: S.code, envelope, stage: "first", attempt: S.attempt }, timeout: 60000 });
+    try { payload.typing = { v: 1, answers: S.first.map((_, i) => ({ first: (S.firstTyping && S.firstTyping[i]) || null, final: null })) }; }
+    catch (e) { payload.typing = { v: 1, omitted: "error" }; }
+    await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "first", attempt: S.attempt }));
     S.firstSent = true;
     if (!S.submitted) saveDraft();
   } catch (e) { /* kein Drama: beim nächsten Öffnen erneut, und die Abgabe enthält die erste Fassung */ }
+}
+
+/* Nutzlast verschlüsseln; wäre der Umschlag für den Server zu groß, ohne Tippzeiten ({v:1, omitted:"too_large"}) – eine Abgabe
+   scheitert nie an den Tippzeiten. Fehler beim Verschlüsseln → ApiError("crypto"). */
+async function sealPayload(payload) {
+  try {
+    let env = await Crypto.seal(S.pub, payload);
+    if (!ttEnvelopeFits(env) && ttHasData(payload.typing)) { payload.typing = { v: 1, omitted: "too_large" }; env = await Crypto.seal(S.pub, payload); }
+    return env;
+  } catch (e) { throw new ApiError("crypto"); }
+}
+/* Erstversuch bzw. Abgabe senden. Lehnt der Server sie als zu groß ab (413; 409 = Blatt voll, auch nach Bytes) und trug die Nutzlast
+   Tippzeiten, folgt einmal genau dieselbe Nutzlast ohne sie (nichts neu lesen: die Felder sind beim Senden nicht gesperrt). */
+async function sendSealed(payload, bodyOf) {
+  const send = async () => api("POST", "/api/submit", { body: bodyOf(await sealPayload(payload)), timeout: 60000 });
+  try { return await send(); }
+  catch (e) {
+    const big = e instanceof ApiError && (e.code === "too_large" || e.code === "too_many_submissions" || e.status === 413);
+    if (!big || !ttHasData(payload.typing)) throw e;
+    payload.typing = { v: 1, omitted: "too_large" };
+    return send();
+  }
 }
 
 /* ---------- Zweite KI-Rückmeldung zur abgegebenen Fassung (auf der Bestätigungsseite) ----------
@@ -4668,19 +5061,25 @@ async function submitAll() {
   busy(btn, true, "Wird abgegeben …");
   setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
   try {
+    const now = answersNow();   // Antworten und Tippzeiten im selben Moment
     const payload = {
       v: 1, stage: "final", sheetCode: S.code, sheetTitle: S.sheet.title,
       person: personOut(S.person),
-      answers: S.tas.map((t, i) => ({ first: withFb ? S.first[i] : t.value, final: t.value })),
+      answers: now.texts.map((fin, i) => ({ first: withFb ? S.first[i] : fin, final: fin })),
       feedback: withFb ? S.feedback.map(fbOut) : null,
       feedbackAt: withFb ? S.feedbackAt : null, submittedAt: new Date().toISOString()
     };
     if (na) payload.noAi = na.mode;
     if (na && na.mode === "unavailable") payload.feedbackError = na.reason;
+    // Tippzeiten (nur verschlüsselt, nie in S.lastSubmission): erste Fassung "=" bei gleichem Text und gleichen Werten (ohne KI-Feedback immer)
+    try {
+      payload.typing = { v: 1, answers: now.texts.map((fin, i) => {
+        const f = now.typing[i], ft = withFb ? (S.firstTyping && S.firstTyping[i]) || null : f;
+        return { first: ft != null && ft === f && payload.answers[i].first === fin ? "=" : ft, final: f };
+      }) };
+    } catch (e) { payload.typing = { v: 1, omitted: "error" }; }
     saveDraft();
-    let envelope;
-    try { envelope = await Crypto.seal(S.pub, payload); } catch (e) { throw new ApiError("crypto"); }
-    const r = await api("POST", "/api/submit", { body: { code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }, timeout: 60000 });
+    const r = await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }));
     S.submitted = true;
     delDraft(S.draftKey); store.del(LAST_KEY);
     const d = toDate(r.receivedAt) || new Date();
@@ -4735,7 +5134,7 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   resetMembers();   // Kürzelfelder der Gruppe: wieder ein leeres Feld beim nächsten Öffnen
   $("p-err").textContent = ""; $("start-err").textContent = "";

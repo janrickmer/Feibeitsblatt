@@ -3,6 +3,7 @@
 // die Oberfläche). Die Tests bauen aufeinander auf (eine Datenbank, eine Lehrkraft) → seriell, ein Worker.
 import { test, expect } from "@playwright/test";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { inflateSync, deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
@@ -34,6 +35,16 @@ const TASKS = [
 ];
 const SOLUTION_LINES = TASKS.flatMap((t) => t.solution.split("\n").map((l) => l.replace(/^- /, "")).filter(Boolean));
 const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}$/;
+// Schalter in index.html: Tippzeiten im Zwischenstand speichern (true) oder nur im Arbeitsspeicher halten (false)
+const TT_KEEP = /\bconst TT_KEEP_IN_DRAFT = true;/.test(readFileSync(new URL("../../index.html", import.meta.url), "utf8"));
+/* Tippzeiten im Zwischenstand: je Antwort (bzw. erster Fassung) genau so viele Werte wie Zeichen – oder gar keine (Schalter aus) */
+function expectDraftTyping(d, answers, first) {
+  if (!TT_KEEP) { expect(d.typing).toBeUndefined(); return; }
+  expect(d.typing.v).toBe(1);
+  expect(d.typing.answers.map((b) => Buffer.from(b, "base64").length)).toEqual(answers.map((a) => a.length));
+  if (first) expect(d.typing.first.map((b) => Buffer.from(b, "base64").length)).toEqual(first.map((a) => a.length));
+  else expect(d.typing.first).toBeNull();
+}
 
 // Schüler:in A: tippt Kürzel klein/groß gemischt, überarbeitet nach dem Feedback
 const A = {
@@ -1389,6 +1400,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(i0).toBeGreaterThan(0);
   const draft = JSON.parse(pdf.subarray(d0, d1).toString("utf8"));
   expect(draft).toMatchObject({ v: 1, kind: "feibeitsblatt-draft", code: S.code, sheetTitle: TITLE, person: A.person, answers: A.final, first: A.first, attempt: fp.attempt, firstSent: true });
+  expectDraftTyping(draft, A.final, A.first);   // Tippzeiten im selben Datensatz (unverschlüsselt in der PDF – „Indiz, kein Beweis“)
   expect(draft.feedback.map((f) => ({ covered: f.covered, missing: f.missing, ...noteOf(f) }))).toEqual(exp);
   await expect(page.locator("#save-state")).toHaveText("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf");
   // … auf einem „frischen“ Gerät (neuer Kontext ohne Browserdaten) hochgeladen: erst eine fremde PDF → Meldung, dann die echte →
@@ -1407,7 +1419,10 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(fresh.page.locator("#submit-btn")).toBeEnabled();
   expect(await fresh.calls((r) => r.path === "/api/submit")).toEqual([]);
   expect(await fresh.page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")).length)).toBe(1);
-  expect(JSON.parse(await fresh.page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))))).toMatchObject({ attempt: fp.attempt, firstSent: true });
+  const freshDraft = JSON.parse(await fresh.page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))));
+  expect(freshDraft).toMatchObject({ attempt: fp.attempt, firstSent: true });
+  expectDraftTyping(freshDraft, A.final, A.first);   // aus der PDF übernommen (cleanDraft prüft sie gegen die Texte)
+  if (TT_KEEP) expect(freshDraft.typing).toEqual(draft.typing);
   await closePage(fresh);
 
   // Abgabe: nur {code, envelope, stage, attempt}, alles verschlüsselt; Entwurf auf dem Gerät gelöscht. Danach holt die Seite eine
