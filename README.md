@@ -177,9 +177,10 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (ohne KI-Feedback
    abgegeben, KI nicht eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung; ebenso, wenn beim
    Weiterschreiben kein KI-Dienst mehr eingerichtet ist (dann sagt der Abgabe-Dialog das, und nichts wird noch einmal
-   gesendet). Ist die zweite Rückmeldung da, schickt die Seite sie verschlüsselt auch an Sie: Sie ersetzt die Abgabe
-   derselben Bearbeitung (ein zusätzlicher Aufruf; hat sich nichts geändert, wird nichts gesendet). Haben Sie die
-   Abgabe inzwischen gelöscht, legt der Server nichts neu an. Klappt das Nachreichen nicht (Seite vorher geschlossen,
+   gesendet). Ist die zweite Rückmeldung da, schickt die Seite sie verschlüsselt auch an Sie: Sie ergänzt genau diese
+   Abgabe (ein zusätzlicher Aufruf; hat sich nichts geändert, wird nichts gesendet) – nur bis 15 Minuten nach der Abgabe,
+   und der Eingangszeitpunkt bleibt der der Abgabe. Haben Sie die Abgabe inzwischen gelöscht oder wurde mit derselben
+   Bearbeitung neu abgegeben, ändert der Server nichts. Klappt das Nachreichen nicht (Seite vorher geschlossen,
    keine Verbindung), bleibt die Abgabe ohne sie.
    Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
    Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
@@ -871,6 +872,7 @@ Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden).
 | Zwischenstand als PDF-Datei (dieselben Angaben), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
+| Lösungs-PDF einer Abgabe aus Ihrer Übersicht („Lösungs-PDF herunterladen“; dieselben Inhalte wie „Meine Lösungen“: Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, beide Fassungen, KI-Rückmeldungen – kein Geburtstag), nur auf Klick | auf Ihrem Gerät, dort, wo Sie die Datei speichern (im Dateinamen Code, Klasse, Kürzel und Abgabedatum); im Browser erzeugt, der Server sieht sie nie | unverschlüsselt und lesbar | bis Sie die Datei löschen – die Löschfrist gilt dafür nicht |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten zum Feedback – nur den Vorschlag der KI für die
 Checkliste (aus Ihren Aufgaben, ohne Daten der Schüler:innen) als Entwurf beim Blatt –, und er protokolliert keine
@@ -971,7 +973,8 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 4. Weisen Sie die Schüler:innen an, **keine personenbezogenen Daten in die Antworten** zu schreiben (keine Namen,
    Adressen, Gesundheits- oder Familienangaben). Auch Aufgaben und Aufträge an die KI sollten keine enthalten.
 5. **Legen Sie eine Löschfrist fest** (Schritt 9) – Abgaben und Erstversuche werden danach automatisch gelöscht.
-   Notieren Sie Bewertungen außerhalb von Feibeitsblatt. Nach der Korrektur können Sie auch früher löschen („Alle
+   Notieren Sie Bewertungen außerhalb von Feibeitsblatt. Heruntergeladene Lösungs-PDFs fallen nicht unter die Löschfrist –
+   löschen Sie sie selbst, sobald Sie sie nicht mehr brauchen (bei einem Löschwunsch auch diese Dateien). Nach der Korrektur können Sie auch früher löschen („Alle
    Abgaben dieses Feibeitsblattes löschen“); nicht mehr benötigte Feibeitsblätter löschen Sie selbst.
 6. **Rechte der Schüler:innen umsetzen.** Der Datenschutzhinweis nennt den Betreiber (E-Mail) als Ansprechpartner für
    Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und den Widerruf der Einwilligung zur

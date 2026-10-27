@@ -71,7 +71,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   nur additiv und idempotent im `SCHEMA`-Array; nachträgliche Spalten wie `stage`/`attempt` per
   `ensureSubmissionColumns` (`PRAGMA table_info` → `ALTER TABLE … ADD COLUMN`, Fehler bei Wettlauf zweier Isolates
   werden durch erneutes Nachsehen abgefangen).
-- **Erstversuch ↔ Abgabe:** `POST /api/submit` nimmt `{code, envelope, stage?: "first"|"final", attempt?: 16 Hex, replace?: true}`
+- **Erstversuch ↔ Abgabe:** `POST /api/submit` nimmt `{code, envelope, stage?: "first"|"final"|"feedback2", attempt?: 16 Hex, receivedAt?}`
   (`validateSubmitMeta`; `first` braucht `attempt`). Der Browser erzeugt je Bearbeitung eine Kennung (`S.attempt`,
   `hexOf(8 Zufallsbytes)`, im Zwischenstand gespeichert) und schickt nach erhaltenem KI-Feedback die erste Fassung +
   Feedback als Erstversuch (`sendFirstAttempt`, payload `stage:"first"`, `answers[].final = null`, `submittedAt:null`;
@@ -146,11 +146,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
   erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
   7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2). Ist sie da (und nicht `same`), reicht `sendFeedback2(sub)` sie verschlüsselt an die Lehrkraft nach: derselbe `payload` (in
-  `S.lastSubmission` mit `pub`, `attempt`) + `feedback2: {at, results}` (nur neu beurteilte Aufgaben, die übrigen `null`) per
-  `POST /api/submit` mit `replace: true` (`validateSubmitMeta`: nur `stage` final mit `attempt`) – der Server ersetzt nur eine
-  vorhandene Abgabe dieser Bearbeitung (`UPDATE … SET envelope` – `received_at` bleibt der Abgabezeitpunkt, auch für die
-  Löschfrist), sonst `{gone:true}` ohne Zählung und ohne Einfügen (eine gelöschte Abgabe kommt nie zurück); bis zu 3 Versuche,
-  4xx außer 408/429 endgültig, die Schüler:innen sehen davon nichts. **Lehrkraft:** `loadSubs` kappt `feedback2`, `fb2Of(p)`
+  `S.lastSubmission` mit `pub`, `attempt`, `submitAt` = `receivedAt` der Abgabe-Antwort) + `feedback2: {at, results}` (nur neu
+  beurteilte Aufgaben, die übrigen `null`) per `POST /api/submit` mit `stage: "feedback2"` (ein eigener Wert, den ein älterer
+  Server mit 400 ablehnt, statt daraus eine Abgabe zu machen), `attempt` und `receivedAt` (`validateSubmitMeta` → `replace`) –
+  der Server ersetzt nur genau diese Abgabe: `stage` final, dieselbe Kennung, `received_at` gleich `receivedAt` (eine inzwischen
+  neuere Abgabe derselben Bearbeitung bleibt) und höchstens `REPLACE_WINDOW_MS` (15 min) nach dem Eingang (der Eingang bleibt
+  stehen – ohne Frist ließe sich eine Abgabe Tage später austauschen); `UPDATE … SET envelope … AND received_at=?` atomar, sonst
+  `{gone:true}` ohne Zählung und ohne Einfügen (eine gelöschte Abgabe kommt nie zurück); bis zu 3 Versuche, 4xx außer 408/429
+  endgültig, die Schüler:innen sehen davon nichts. **Lehrkraft:** `loadSubs` kappt `feedback2`, `fb2Of(p)`
   leitet wie der Browser ab (keine Änderung → `same`, die erste Rückmeldung gilt; sonst nur mit nachgereichtem `feedback2`,
   sonst `null`), `buildDetail` zeigt je geänderter Aufgabe `.dfb.dfb2` „KI-Rückmeldung zur abgegebenen Fassung“ („Tipps zum
   Weiterlernen“, `markAi` `feedback-final`) und für Abgaben (nicht Erstversuche) `.dpdf` „Lösungs-PDF herunterladen“ →
@@ -770,7 +773,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   KI-Anfragen) (gezählt
   erst, wenn die Anfrage gültig ist und zur KI geht; bei BUSY/RATE_LIMIT/TIMEOUT/SERVER/NETWORK/DAILY_LIMIT
   Rückerstattung), `submit` 360/h + `submit_bytes` 60 MB/h (nur gültige Abgaben/Erstversuche zu existierenden
-  Blättern; je Schüler:in bis zu drei Aufrufe, ein `replace` ohne vorhandene Abgabe zählt nicht), `checklist` 30/h je IP (KI-Vorschlag der Checkliste, Erstattung wie beim Feedback).
+  Blättern; je Schüler:in bis zu drei Aufrufe, ein `feedback2` ohne passende Abgabe zählt nicht), `checklist` 30/h je IP (KI-Vorschlag der Checkliste, Erstattung wie beim Feedback).
   Je Blatt höchstens 400 Abgaben / 40 MB. Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
   als Pfeffer), IPv6 vorher auf /64 gekürzt (`ipKey`) – nie Klartext-IPs speichern. Schulnetz = eine IP für viele.
 - **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`); `node test/smoke.mjs` (API gegen echten

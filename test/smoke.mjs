@@ -551,6 +551,7 @@ async function main() {
     assert.deepEqual([r.json.sheets[0].submissionCount, r.json.sheets[0].firstCount], [1, 1]);
     r = await api("POST", "/api/submit", { code, envelope, stage: "final", attempt }); submitCount++;   // Abgabe derselben Bearbeitung
     assert.equal(r.status, 200, r.text); assert.equal(r.json.id, firstId); assert.equal(r.json.replaced, "first");
+    const finalAt = r.json.receivedAt;
     r = await api("POST", "/api/submit", { code, envelope: envFirst, stage: "first", attempt }); submitCount++;   // verspäteter Erstversuch
     assert.equal(r.status, 200, r.text); assert.equal(r.json.kept, true);
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
@@ -561,15 +562,17 @@ async function main() {
     // nachgereichte zweite KI-Rückmeldung: ersetzt nur die vorhandene Abgabe derselben Bearbeitung, legt nie eine neue an
     const fb2Payload = { ...payload, feedback2: { at: new Date().toISOString(), results: payload.answers.map(() => null) } };
     const envFb2 = await makeEnvelope(sheetPub.publicKey, fb2Payload);
-    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "final", attempt, replace: true }); submitCount++;
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt, receivedAt: finalAt }); submitCount++;
     assert.equal(r.status, 200, r.text); assert.equal(r.json.id, firstId); assert.equal(r.json.replaced, "final");
-    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "final", attempt: "fedcba9876543210", replace: true });   // zählt nicht
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt: "fedcba9876543210", receivedAt: finalAt });   // zählt nicht
     assert.deepEqual(r.json, { ok: true, gone: true });
-    expectErr(await api("POST", "/api/submit", { code, envelope: envFb2, stage: "final", replace: true }), 400, "bad_request");
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt, receivedAt: finalAt - 1 });   // andere Fassung
+    assert.deepEqual(r.json, { ok: true, gone: true });
+    expectErr(await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt }), 400, "bad_request");
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
     assert.deepEqual(r.json.submissions.map((s) => s.stage), ["final", "final"]);
     assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[1].envelope), fb2Payload);
-    ok("Erstversuch: stage first mit Kennung; die Abgabe derselben Bearbeitung ersetzt ihn; ein späterer Erstversuch bleibt wirkungslos; replace ersetzt nur eine vorhandene Abgabe");
+    ok("Erstversuch: stage first mit Kennung; die Abgabe derselben Bearbeitung ersetzt ihn; ein späterer Erstversuch bleibt wirkungslos; „feedback2“ ergänzt nur genau die eigene Abgabe");
 
     step = "Datenbank ohne Klartext";
     await sleep(500);

@@ -4299,7 +4299,7 @@ async function requestFeedback() {
   const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
-    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (bei der Abgabe folgt noch eine Rückmeldung zu den Antworten, die du danach änderst). Möchtest du es trotzdem jetzt anfordern?`,
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (bei der Abgabe folgt noch eine Rückmeldung zu den Antworten, die du danach änderst; sie geht verschlüsselt auch an deine Lehrkraft). Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
@@ -4490,18 +4490,19 @@ function renderFinalFeedback() {
   });
 }
 /* Die zweite Rückmeldung geht – wie die Abgabe verschlüsselt – auch an die Lehrkraft (Lösungs-PDF und Details in ihrer Übersicht):
- * dieselbe Abgabe mit `feedback2` (nur die neu beurteilten Aufgaben, die übrigen null), die der Server unter derselben Kennung nur
- * ersetzt (replace) – hat die Lehrkraft die Abgabe inzwischen gelöscht, legt er nichts an. Ohne Änderung wird nichts gesendet (die
- * Lehrkraft leitet „unverändert“ selbst ab). Scheitert es, bleibt die Abgabe ohne sie; die Schüler:innen merken davon nichts. */
+ * dieselbe Abgabe mit `feedback2` (nur die neu beurteilten Aufgaben, die übrigen null) als stage „feedback2“ mit Kennung und dem
+ * Eingang, den der Server bei der Abgabe gemeldet hat. Der Server ersetzt nur genau diese Abgabe und nur bis 15 Minuten nach dem
+ * Eingang – gelöscht, inzwischen neu abgegeben oder später: nichts (gone). Ohne Änderung wird nichts gesendet (die Lehrkraft leitet
+ * „unverändert“ selbst ab). Scheitert es, bleibt die Abgabe ohne sie; die Schüler:innen merken davon nichts. */
 async function sendFeedback2(sub) {
-  if (!sub.payload || !sub.pub || !ATTEMPT_RE.test(sub.attempt) || !sub.feedback2 || sub.feedback2.same || sub.fb2Sent) return;
+  if (!sub.payload || !sub.pub || !ATTEMPT_RE.test(sub.attempt) || !sub.submitAt || !sub.feedback2 || sub.feedback2.same || sub.fb2Sent) return;
   const fb2 = sub.feedback2;
   const payload = { ...sub.payload, feedback2: { at: fb2.at, results: fb2.results.map((f, i) => (fb2.kept[i] ? null : fbOut(normFb(f)))) } };
   for (let tries = 1; tries <= 3; tries++) {
     if (S.lastSubmission !== sub) return;   // „Neues Feibeitsblatt öffnen“: nichts mehr nachreichen
     try {
       const envelope = await Crypto.seal(sub.pub, payload);
-      await api("POST", "/api/submit", { body: { code: sub.code, envelope, stage: "final", attempt: sub.attempt, replace: true }, timeout: 60000 });
+      await api("POST", "/api/submit", { body: { code: sub.code, envelope, stage: "feedback2", attempt: sub.attempt, receivedAt: sub.submitAt }, timeout: 60000 });
       sub.fb2Sent = true;
       return;
     } catch (e) {
@@ -4718,7 +4719,7 @@ async function submitAll() {
     S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
       feedback: payload.feedback, feedbackError: payload.feedbackError || "", noAi: payload.noAi || "", receivedAt: d.getTime(),
       recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false,
-      payload, pub: S.pub, attempt: S.attempt || "" };   // zum Nachreichen der zweiten Rückmeldung an die Lehrkraft (sendFeedback2)
+      payload, pub: S.pub, attempt: S.attempt || "", submitAt: Number.isSafeInteger(r.receivedAt) ? r.receivedAt : 0 };   // zum Nachreichen der zweiten Rückmeldung (sendFeedback2)
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
     closeDlg(null);   // ein während des Sendens geöffneter Dialog (z. B. Rechtschreibprüfung) bleibt nicht über der Bestätigung stehen – ohne Antwort (null, nicht „Trifft nicht zu“)
@@ -5173,7 +5174,7 @@ function teacherSolutionsSub(s) {
 function teacherSolutionsName(s) {
   const pr = s.p.person, d = toDate(s.receivedAt) || new Date();
   const who = isGroup(pr) ? "Gruppe-" + pr.gruppe.join("-") : String(pr.vorname || "") + String(pr.nachname || "");
-  const part = (v, n) => pdfAscii(v).replace(/[\\/:*?"<>|\s]+/g, "-").replace(/^[-.]+|-+$/g, "").slice(0, n);
+  const part = (v, n) => pdfAscii(v).replace(/[\\/:*?"<>|\s]+/g, "-").slice(0, n).replace(/^[-.]+|-+$/g, "");
   const mid = [part(pr.klasse || "", 20), part(who, 60)].filter(Boolean).join("-");
   return `Feibeitsblatt-Loesungen-${fmtCode(T.sel)}${mid ? "-" + mid : ""}-${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}.pdf`;
 }

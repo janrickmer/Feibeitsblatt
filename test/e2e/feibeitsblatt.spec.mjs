@@ -1539,8 +1539,8 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   const sub = await s.calls((r) => r.path === "/api/submit");
   expect(sub.map((r) => r.status)).toEqual([200, 200, 200]);
   const rb = JSON.parse(sub[2].reqBody);
-  expect(Object.keys(rb).sort()).toEqual(["attempt", "code", "envelope", "replace", "stage"]);
-  expect([rb.stage, rb.attempt, rb.replace]).toEqual(["final", fp.attempt, true]);
+  expect(Object.keys(rb).sort()).toEqual(["attempt", "code", "envelope", "receivedAt", "stage"]);
+  expect([rb.stage, rb.attempt, rb.receivedAt]).toEqual(["feedback2", fp.attempt, JSON.parse(sub[1].body).receivedAt]);   // genau die eigene Abgabe
   expect(JSON.parse(sub[2].body)).toMatchObject({ ok: true, replaced: "final" });
   for (const p of ["Gewissn", "Schwester", "Max", A.person.geburtsdatum, "vorname", "Gelingt"]) expect(sub[2].reqBody).not.toContain(p);
   const sb = JSON.parse(sub[1].reqBody);

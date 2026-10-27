@@ -8,7 +8,7 @@ import {
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer,
   validatePrivacyInput, privacyOut, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
-  validateChecklist, checklistOut,
+  validateChecklist, checklistOut, REPLACE_WINDOW_MS,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -958,24 +958,27 @@ async function routeSubmit(c) {
   const code = normalizeCode(body.code);
   if (!isValidCode(code)) throw sheetNotFound();
   const envelope = validateEnvelope(body.envelope);
-  const { stage, attempt, replace } = validateSubmitMeta(body);
+  const { stage, attempt, replace, receivedAt } = validateSubmitMeta(body);
   const [sh, cnt, ex, pv] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
-    attempt ? c.db.prepare("SELECT id, stage FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
+    attempt ? c.db.prepare("SELECT id, stage, received_at FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
       : c.db.prepare("SELECT 1 AS x WHERE 0"),
     settingStmt(c.db, "privacy"),   // Löschfrist jetzt (nicht beim Öffnen des Blattes): die Bestätigungsseite nennt das Löschdatum
   ]);
   if (!firstRow(sh)) throw sheetNotFound();
-  // Nachgereichte zweite KI-Rückmeldung (replace): nur eine schon vorhandene Abgabe derselben Bearbeitung ersetzen – hat die Lehrkraft
-  // sie inzwischen gelöscht (oder gibt es sie nicht), wird nichts angelegt und nichts gezählt
+  // Nachgereichte zweite KI-Rückmeldung (stage „feedback2“): nur genau die eigene Abgabe ersetzen – dieselbe Kennung, derselbe
+  // Eingang (eine inzwischen neuere Abgabe derselben Bearbeitung bleibt) und nur kurz danach (der Eingang bleibt stehen, also darf
+  // so keine Abgabe Stunden später ausgetauscht werden). Gelöscht, ersetzt oder zu spät → nichts angelegt, nichts gezählt
   const old = attempt ? firstRow(ex) : null;
-  if (replace && (!old || old.stage !== "final")) return json({ ok: true, gone: true });
+  if (replace && (!old || old.stage !== "final" || Number(old.received_at) !== receivedAt || receivedAt <= c.now - REPLACE_WINDOW_MS))
+    return json({ ok: true, gone: true });
   await countAll(c, [{ kind: "submit" }, { kind: "submit_bytes", weight: envelope.length }]);   // nur gültige Abgaben zählen
   const retentionDays = (privacyOut(parseSetting(firstRow(pv))) || {}).retentionDays || null;   // null = keine automatische Löschung
   const prev = old;
-  if (replace) {   // Eingang (received_at) bleibt der Zeitpunkt der Abgabe – auch für die Löschfrist
-    await c.db.prepare("UPDATE submissions SET envelope=?1 WHERE id=?2 AND stage='final'").bind(envelope, prev.id).run();
+  if (replace) {   // Eingang (received_at) bleibt der Zeitpunkt der Abgabe – auch für die Löschfrist; dieselben Bedingungen atomar
+    const u = await c.db.prepare("UPDATE submissions SET envelope=?1 WHERE id=?2 AND stage='final' AND received_at=?3").bind(envelope, prev.id, receivedAt).run();
+    if (!u.meta || !u.meta.changes) return json({ ok: true, gone: true });
     return json({ ok: true, id: Number(prev.id), replaced: "final", retentionDays });
   }
   if (prev) {
