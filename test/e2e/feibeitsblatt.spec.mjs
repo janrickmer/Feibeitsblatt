@@ -5617,9 +5617,15 @@ const embedPdf = (obj, marker = "/FbDraft 1") => {   // kleine PDF-Datei mit ein
 // ESCAPE_PDF_OUT=<Ordner> npm run test:e2e speichert die PDF-Dateien aus 7n/7o und Bildschirmfotos der Ankunft lokal zum Ansehen
 const ESC_OUT = process.env.ESCAPE_PDF_OUT || "";
 const escSave = async (name, buf) => { if (ESC_OUT) { await mkdir(ESC_OUT, { recursive: true }); await writeFile(join(ESC_OUT, name), buf); } };
+// Typ jedes Downloads mitschreiben (application/octet-stream: nur speichern, nie im Tab öffnen)
+const blobSpy = () => {
+  window.__blobTypes = [];
+  const orig = URL.createObjectURL;
+  URL.createObjectURL = function (b) { try { window.__blobTypes.push(b && b.type); } catch (e) { /* egal */ } return orig.apply(this, arguments); };
+};
 const ymd = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
 
-test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Überblick-PDF als Material abgelehnt) → Code-Eingabe gesperrt → Ankunft per Link (Laden, Hash-Wechsel, Netzfehler mit „Erneut versuchen“) und mit der Überblick-PDF (auch neu gespeichert) → Angaben vorausgefüllt, Datenschutzhinweis mit den Daten aus dem Raum → Zwischenstand mit der Hülle, Neuladen, Zwischenstand-PDF → vorhandener Zwischenstand direkt; Fehlerfälle (nicht freigeschaltet, fremder Raum, kaputt, ohne Daten aus dem Raum, Hash im Schreibbereich, liegen gebliebene Ankunft)", async ({ browser }) => {
+test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung geprüft, Überblick-PDF als Material abgelehnt) → Code-Eingabe gesperrt → Ankunft per Link (Laden, Hash-Wechsel, Netzfehler mit „Erneut versuchen“) und mit der Überblick-PDF (auch neu gespeichert und mit manipulierter Prüfsumme) → Angaben vorausgefüllt, Datenschutzhinweis mit den Daten aus dem Raum → Zwischenstand mit der Hülle, Neuladen, Zwischenstand-PDF → vorhandener Zwischenstand direkt; Fehlerfälle (nicht freigeschaltet, fremder Raum, kaputt, ohne Daten aus dem Raum, Hash im Schreibbereich, liegen gebliebene Ankunft; „Weiterschreiben“ bleibt erreichbar)", async ({ browser }) => {
   /* ---------- 1. Lehrkraft ---------- */
   const t = await openPage(browser);
   const tp = t.page;
@@ -5638,25 +5644,53 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Überblick-PDF als
   await tp.fill("#bs-1", "- Kaya\n- Preis");
   await tp.fill("#bq-2", "Begründe deine Meinung.");
   await tp.fill("#bs-2", "- Meinung");
+  await expect(tp.locator("#b-esc-fields")).toBeHidden();
   await tp.check("#b-esc");
+  await expect(tp.locator("#b-esc-fields")).toBeVisible();
+  await expect(tp.locator("#b-esc-name")).toBeFocused();
+  // Name und Kennung prüft schon der Browser (dieselben Regeln wie der Server)
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-err")).toHaveText("Escape-Room: Bitte den Namen des Escape-Rooms eintragen.");
+  await expect(tp.locator("#b-esc-name")).toBeFocused();
+  await expect(tp.locator("#b-esc-name")).toHaveClass(/invalid/);
   await tp.fill("#b-esc-name", ESC_ROOM.name);
-  await tp.fill("#b-esc-id", ESC_ROOM.id);
+  await tp.fill("#b-esc-id", "Test Escape");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-err")).toHaveText("Escape-Room: Die Kennung braucht 3 bis 60 Zeichen (nur a–z, 0–9 und Bindestrich) – genau wie ESCAPE_ROOM.id im Quelltext des Escape-Rooms.");
+  await expect(tp.locator("#b-esc-id")).toBeFocused();
+  await expect(tp.locator("#b-result")).toBeHidden();
+  await tp.fill("#b-esc-id", " Test-Escape ");   // Großbuchstaben und Leerraum am Rand werden zur Kennung „test-escape“
   await tp.locator("#b-rows tr").first().locator("input.bfile-input").setInputFiles({ name: "Ueberblick.pdf", mimeType: "application/pdf", buffer: overviewPdf(escHull(escRec("K7QM4X"))) });
   await expect(tp.locator("#b-rows tr .bfile-stat").first()).toContainText("Das ist eine Überblick-PDF aus einem Escape-Room mit persönlichen Angaben von Schüler:innen – bitte nicht als Material anhängen.");
+  // … auch neu gespeichert ohne Kennzeichen (erkannt an der eingebetteten Hülle)
+  await tp.locator("#b-rows tr").first().locator("input.bfile-input").setInputFiles({ name: "Ueberblick2.pdf", mimeType: "application/pdf", buffer: overviewPdf(escHull(escRec("K7QM4X")), { flate: true, marker: false, compact: true }) });
+  await expect(tp.locator("#b-rows tr .bfile-stat").first()).toContainText("„Ueberblick2.pdf“: Das ist eine Überblick-PDF aus einem Escape-Room");
+  await expect(tp.locator("#b-rows tr").first().locator(".bfile")).toHaveCount(0);
   await tp.click("#b-gen");
   await expect(tp.locator("#b-result")).toBeVisible();
-  await expect(tp.locator("#b-res-esc")).toBeVisible();
+  await expect(tp.locator("#b-res-esc")).toHaveText("Tragen Sie diesen Code im Quelltext des Escape-Rooms „FastFashion-Test“ ein (FEIBEITSBLATT_CODE). Schüler:innen öffnen das Feibeitsblatt über den Arena-Tunnel am Ende des Escape-Rooms oder mit ihrer Überblick-PDF.");
   await expect(tp.locator("#b-res-normal")).toBeHidden();
   ESCT.shown = (await tp.locator("#b-res-code").textContent()).trim(); ESCT.code = ESCT.shown.replace("-", "");
+  const pub = await (await tp.request.get("/api/sheet/" + ESCT.code)).json();
+  expect(pub.sheet.escape).toEqual(ESC_ROOM);   // öffentlich nur Kennung und Name
   await tp.click("#b-res-back");
   const row = tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" });
   await expect(row.locator("td").nth(1)).toHaveText("Escape-Room " + ESC_ROOM.name);   // kein Code in der Liste
   await expect(row).not.toContainText(ESCT.shown);
+  await expect(tp.locator("#t-sheets-body tr", { hasText: "Normales Blatt" })).toContainText(ESCT.normalShown);
   await row.click();
   await expect(tp.locator("#t-sel-code-lbl")).toHaveText("Code für den Quelltext des Escape-Rooms");
   await expect(tp.locator("#t-sel-code")).toHaveText(ESCT.shown);
-  await expect(tp.locator("#t-sel-esc")).toBeVisible();
+  await expect(tp.locator("#t-sel-meta")).toContainText(" · Escape-Room „FastFashion-Test“ (Kennung test-escape)");
+  await expect(tp.locator("#t-sel-esc")).toHaveText("Schüler:innen öffnen dieses Feibeitsblatt nur über den Escape-Room „FastFashion-Test“ (Arena-Tunnel am Ende oder ihre Überblick-PDF); " +
+    "die Eingabe des Codes auf der Startseite ist gesperrt. Die Prüfsumme in den Abgaben zeigt nur, ob der Datensatz aus dem Escape-Room unverändert ankam – ein Indiz, kein Beweis (der Quelltext ist öffentlich).");
   await expect(tp.locator("#t-analog")).toBeHidden();
+  await expect(tp.locator("#t-analog-hint")).toBeHidden();
+  // ein normales Blatt danach: wieder „Code für die Schüler:innen“ und analoges Arbeitsblatt
+  await tp.locator("#t-sheets-body tr", { hasText: "Normales Blatt" }).click();
+  await expect(tp.locator("#t-sel-code-lbl")).toHaveText("Code für die Schüler:innen");
+  await expect(tp.locator("#t-sel-esc")).toBeHidden();
+  await expect(tp.locator("#t-analog")).toBeVisible();
   await closePage(t);
 
   /* ---------- 2. Code-Eingabe gesperrt ---------- */
@@ -5750,6 +5784,14 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Überblick-PDF als
   await expect(up.locator("#screen-person")).toHaveClass(/active/);
   await expect(up.locator("#start-status")).toHaveText("");
   await up.click("#p-back");
+  // Prüfsumme manipuliert (FlateDecode): die Daten werden trotzdem übernommen – ob sie stimmt, sieht nur die Lehrkraft (Test 7o)
+  const forged = { ...hull, d: hull.d.replace('"attempts":3', '"attempts":1') };
+  expect(forged.d).not.toBe(hull.d);
+  await upload(overviewPdf(forged, { flate: true }));
+  await expect(up.locator("#screen-person")).toHaveClass(/active/);
+  expect(await personValues(up)).toEqual(["Max", "Mu", "4", "5", "10b"]);
+  await expect(up.locator("#p-escape")).toHaveText(ESC_NOTE);
+  await up.click("#p-back");
   await upload(overviewPdf(escHull(escRec(""))));
   await expect(up.locator("#start-err")).toHaveText(ESC_NOT_OPEN);
   await upload(overviewPdf(escHull(escRec(ESCT.code, { room: { id: "anderer-raum", name: "Anders" } }))));
@@ -5812,10 +5854,21 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Überblick-PDF als
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
   expect(await page.inputValue("#a-1")).toBe(TXT);
   await expect.poll(async () => ((await draftOfPage(page)) || {}).escape).toEqual(other);
+  // Fehler bei der Ankunft: der vorhandene Zwischenstand bleibt über „Weiterschreiben“ erreichbar
+  for (const [link, msg] of [["/#escape=%%%", ESC_LINK_BAD], [escLink(escHull(escRec(""))), ESC_NOT_OPEN]]) {
+    await page.goto("about:blank"); await page.goto(link);
+    await expect(page.locator("#start-err")).toHaveText(msg);
+    expect(page.url()).toBe(BASE_URL + "/");
+    await expect(page.locator("#resume-box")).toBeVisible();
+  }
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe(TXT);
+  expect((await draftOfPage(page)).escape).toEqual(other);
   await closePage(s);
 });
 
-test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (verschlüsselt, ohne vollen Namen und Bestätigungscode, nie an die KI) → Abschluss-PDF (nur zum Speichern, mit Überblick und Lösungserläuterungen, ohne Tippzeiten) → technisch gescheiterte Abgabe mit E-Mail-Weg (403 ja, bad_envelope nein) → Lehrkraft: Kurzfassung, Prüfsumme, Überblick, PDF mit Kürzeln; Überblick-PDF ist keine Sicherung; Blatt gelöscht → Finale meldet es", async ({ browser }) => {
+test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (verschlüsselt, ohne vollen Namen und Bestätigungscode, nie an die KI) → Abschluss-PDF (nur zum Speichern, mit Überblick und Lösungserläuterungen, ohne Tippzeiten) → technisch gescheiterte Abgabe mit E-Mail-Weg (403 ja, bad_envelope nein) → Lehrkraft: Kurzfassung, Prüfsumme, Überblick, PDF mit Kürzeln; Überblick-PDF ist keine Sicherung; „Als Vorlage“ und Sicherung → Import → neues Blatt für denselben Raum; Blatt gelöscht → Finale meldet es", async ({ browser }) => {
   const teacher = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value);
   const priv = await openPrivateKey((await deriveTeacherKeys(PW, teacher.kdf)).encKey, teacher.encPrivateKey);
   const SECRET = ["Maximilian", "Mustermann", "04.05.2010", "31415926", "Erika", "Musterfrau", "09.11.2009", "27182818", "Genaue Daten", "escape.example"];
@@ -5824,11 +5877,7 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   /* ---------- 9. Abgabe mit KI-Feedback ---------- */
   const s = await openPage(browser);
   const { page } = s;
-  await s.context.addInitScript(() => {   // Typ jedes Downloads mitschreiben (application/octet-stream: nur speichern, nie im Tab)
-    window.__blobTypes = [];
-    const orig = URL.createObjectURL;
-    URL.createObjectURL = function (b) { try { window.__blobTypes.push(b && b.type); } catch (e) { /* egal */ } return orig.apply(this, arguments); };
-  });
+  await s.context.addInitScript(blobSpy);
   const hull = escHull(escRec(ESCT.code));
   await page.goto("about:blank"); await page.goto(escLink(hull));
   await expect(page.locator("#screen-person")).toHaveClass(/active/);
@@ -5890,6 +5939,7 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   const erika = escRec(ESCT.code, { person: { vorname: "Erika", nachname: "Musterfrau", geburtsdatum: "09.11.2009", klasse: "10a" }, confirm: "27182818",
     stations: [{ label: "Station 1 · Was steckt im Preis?", attempts: 2, errors: [{ item: "<img src=x onerror=window.__x=1>", wrong: "<b>w</b>" }] }], resumes: [] });
   const bad = { ...escHull(erika), s: "0123456789abcdef" };
+  await f.context.addInitScript(blobSpy);
   await fp.goto("about:blank"); await fp.goto(escLink(bad));
   await expect(fp.locator("#screen-person")).toHaveClass(/active/);
   expect(await personValues(fp)).toEqual(["Eri", "Mu", "9", "11", "10a"]);
@@ -5910,6 +5960,7 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await expect(fp.locator("#submit-esc-note")).toHaveText("Die Datei enthält deinen vollen Namen, dein Geburtsdatum und deine Antworten – schicke sie nur an diese Adresse.");
   const [fdl] = await Promise.all([fp.waitForEvent("download"), fp.click("#submit-esc-pdf")]);
   expect(fdl.suggestedFilename()).toBe(`Escape-Room-FastFashion-Test-Abschluss-${ymd()}-nicht-abgegeben.pdf`);
+  expect((await fp.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");
   const fpdf = await readFile(await fdl.path());
   await escSave("7o-nicht-abgegeben.pdf", fpdf);
   await shots(fp, "escape-gescheitert", [375, 1280], ESC_OUT);
@@ -5940,6 +5991,9 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   /* ---------- 12. Lehrkraft-Ansicht ---------- */
   const t = await openPage(browser);
   const tp = t.page;
+  await t.context.addInitScript(blobSpy);
+  await tp.reload();
+  await expect(tp.locator("#screen-start")).toHaveClass(/active/);
   await teacherLogin(tp, PW);
   await tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" }).click();
   await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(2);
@@ -5952,14 +6006,29 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await expect(dmax.locator(".desc-check")).toHaveText("Prüfsumme des Datensatzes: stimmt – ein Indiz, kein Beweis.");
   await expect(deri.locator(".desc-check")).toHaveText("Prüfsumme des Datensatzes: stimmt nicht – der Datensatz wurde verändert oder ist beschädigt.");
   await expect(deri.locator(".desc-check")).toHaveClass(/bad/);
+  await expect(deri.locator(".desc-sum")).toHaveText(/ · im ersten Versuch fehlerfrei: 0 von 1 Station · Fehler im ersten Versuch insgesamt: 1 · Zwischenstand-Dateien des Escape-Rooms: keine$/);
+  // „Überblick ansehen“ wird erst beim Aufklappen gebaut: Codewort, je Station Versuche und Fehler, Zwischenstand-Dateien
+  await expect(dmax.locator(".desc-body")).toHaveCount(0);
+  await dmax.locator("details.desc-more summary").click();
+  const mbody = dmax.locator(".desc-body");
+  await expect(mbody.locator(".desc-word")).toHaveText("Codewort: GLOBUS");
+  await expect(mbody.locator("h5")).toHaveText([...ESC_STATIONS.map((st) => st.label), "Zwischenstand-Dateien des Escape-Rooms"]);
+  await expect(mbody.locator(".desc-ok, .desc-att")).toHaveText(["1 Versuch – fehlerfrei", "3 Versuche – beim ersten Versuch nicht korrekt:", "2 Versuche – beim ersten Versuch nicht korrekt:",
+    "1 Versuch – fehlerfrei", "1 Versuch – fehlerfrei", "1 Versuch – fehlerfrei"]);
+  await expect(mbody.locator(".desc-errs li").first()).toHaveText("Rohstoff für PolyesterAntwort: BaumwolleRichtig: ErdölPolyester ist ein Kunststoff.");
+  await expect(mbody.locator(".desc-errs li b")).toHaveText(["Rohstoff für Polyester", "Wasserbedarf", "Lohnanteil am Preis"]);
+  await expect(mbody.locator(".desc-res li")).toHaveText(["nach Station 2 · gespeichert am 26.10.2026, 10:00 Uhr · geladen am 27.10.2026, 09:00 Uhr"]);
   await deri.locator("details.desc-more summary").click();
   await expect(deri.locator(".desc-errs li b")).toHaveText(["<img src=x onerror=window.__x=1>"]);
+  await expect(deri.locator(".desc-body > p").last()).toHaveText("Keine.");
   expect(await tp.evaluate(() => [document.querySelectorAll("img[src=x]").length, window.__x])).toEqual([0, undefined]);
   for (const x of ["Maximilian", "Mustermann", "31415926", "27182818", "Erika"]) await expect(tp.locator("#t-subs")).not.toContainText(x);
   const [tdl] = await Promise.all([tp.waitForEvent("download"), dmax.locator("button.desc-pdf").click()]);
   expect(tdl.suggestedFilename()).toMatch(new RegExp(`^Escape-Room-FastFashion-Test-Ueberblick-${ESCT.shown}-Eintrag-\\d+\\.pdf$`));
   const tpdf = await readFile(await tdl.path());
   await escSave("7o-lehrkraft-ueberblick.pdf", tpdf);
+  pdfStructure(tpdf, 5);
+  expect((await tp.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");
   const ttext = pdfShownText(tpdf);
   expect(ttext).toContain("Mu · Max · Geburtstag 04.05. · Klasse 10b");
   expect(ttext).toContain("Prüfsumme des Datensatzes: stimmt – ein Indiz, kein Beweis.");
@@ -5967,8 +6036,49 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   // eine Überblick-PDF ist keine Sicherung eines Feibeitsblatts
   await tp.setInputFiles("#t-import-file", { name: "Ueberblick.pdf", mimeType: "application/pdf", buffer: overviewPdf(hull) });
   await expect(tp.locator("#t-import-status")).toHaveText("Das ist eine Überblick-PDF aus einem Escape-Room (von Schüler:innen), kein gesichertes Feibeitsblatt. Bitte wählen Sie eine Datei, die Sie mit „Als PDF-Datei herunterladen“ gesichert haben.");
+  // „Als Vorlage verwenden“: das neue Blatt gehört wieder zum Escape-Room
+  const finale = tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" });
+  await finale.click();
+  await expect(tp.locator("#t-sel-meta")).toContainText("2 Aufgaben");
+  await tp.click("#t-template");
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(tp.locator("#b-esc")).toBeChecked();
+  await expect(tp.locator("#b-esc-fields")).toBeVisible();
+  expect([await tp.inputValue("#b-esc-name"), await tp.inputValue("#b-esc-id")]).toEqual([ESC_ROOM.name, ESC_ROOM.id]);
+  await expect(tp.locator("#b-import")).toHaveText("Das neue Feibeitsblatt gehört wieder zum Escape-Room „FastFashion-Test“ und bekommt einen neuen Code – tragen Sie ihn danach im Quelltext des Escape-Rooms ein.");
+  await tp.click("#b-back");   // nichts geändert → ohne Rückfrage
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  // Sicherung: Datensatz mit escape (ohne Abgaben), sichtbar eine Zeile zum Escape-Room → Import → neues Blatt für denselben Raum
+  await finale.click();
+  await expect(tp.locator("#t-sel-meta")).toContainText("2 Aufgaben");
+  const [xdl] = await Promise.all([tp.waitForEvent("download"), tp.click("#t-export")]);
+  expect(xdl.suggestedFilename()).toBe(`Feibeitsblatt-${ESCT.shown}-Finale FastFashion.pdf`);
+  const xpdf = await readFile(await xdl.path());
+  await escSave("7o-sicherung.pdf", xpdf);
+  const xs = pdfStream(xpdf, "/FbSheet 1"), xraw = xpdf.subarray(xs.start, xs.start + xs.len);
+  const xrec = JSON.parse((xs.dict.includes("/FlateDecode") ? inflateSync(xraw) : xraw).toString("utf8"));
+  expect(xrec).toMatchObject({ kind: "feibeitsblatt-sheet", v: 1, code: ESCT.code, title: "Finale FastFashion", escape: ESC_ROOM });
+  for (const x of [...SECRET, "Kaya hat gelernt", "Antwort von Eri.", "GLOBUS", "Rohstoff für Polyester"]) expect(JSON.stringify(xrec), x).not.toContain(x);   // keine Abgaben
+  expect(pdfShownText(xpdf)).toContain("Escape-Room: „FastFashion-Test“ (Kennung test-escape) – Schüler:innen öffnen dieses Feibeitsblatt über den Escape-Room.");
+  await tp.setInputFiles("#t-import-file", { name: "Sicherung.pdf", mimeType: "application/pdf", buffer: xpdf });
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(tp.locator("#b-esc")).toBeChecked();
+  expect([await tp.inputValue("#b-esc-name"), await tp.inputValue("#b-esc-id")]).toEqual([ESC_ROOM.name, ESC_ROOM.id]);
+  await expect(tp.locator("#b-import")).toContainText(`(bisheriger Code ${ESCT.shown}`);
+  await expect(tp.locator("#b-import")).toContainText("Es gehört zum Escape-Room „FastFashion-Test“ – den neuen Code tragen Sie danach im Quelltext des Escape-Rooms ein.");
+  await tp.fill("#b-title", "Finale FastFashion – Kurs B");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-res-esc")).toBeVisible();
+  const code2 = (await tp.locator("#b-res-code").textContent()).trim();
+  expect(code2).not.toBe(ESCT.shown);
+  expect((await (await tp.request.get("/api/sheet/" + code2.replace("-", ""))).json()).sheet.escape).toEqual(ESC_ROOM);
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(code2);
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   // Blatt löschen: der Dialog nennt den Escape-Room; danach meldet das Finale, dass es kein Blatt mehr gibt
-  await tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" }).click();
+  await finale.click();
   await expect(tp.locator("#t-sel-code")).toHaveText(ESCT.shown);
   await tp.click("#t-del-sheet");
   expect(await confirmDialog(tp, "Feibeitsblatt löschen?")).toContain("Der Escape-Room „FastFashion-Test“ verweist mit seinem Arena-Tunnel auf diesen Code");

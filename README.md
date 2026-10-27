@@ -8,7 +8,9 @@ sie eine zweite KI-Rückmeldung zu ihrer abgegebenen Fassung. In der
 Lehrkräfte-Übersicht sehen Sie alle Abgaben – die erste Fassung und die überarbeitete Fassung nebeneinander (bei
 einer Abgabe ohne KI-Feedback nur die abgegebene Fassung). Jedes Feibeitsblatt lässt sich auch als analoges
 Arbeitsblatt zum Ausdrucken herunterladen – mit Schreiblinien und einem QR-Code zu einer Checkliste, auf der die
-Schüler:innen selbst abhaken, ob ihre Antworten die Erwartungen erfüllen.
+Schüler:innen selbst abhaken, ob ihre Antworten die Erwartungen erfüllen. Ein Feibeitsblatt kann auch das Finale eines
+Escape-Rooms der Reihe sein: Dann kommen die Schüler:innen über den Link am Ende des Escape-Rooms (oder dessen
+Überblick-PDF) mit ihren Angaben und Ergebnissen aus dem Raum an (siehe [Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)).
 Wie im Feiditor misst Feibeitsblatt beim Schreiben die **Tippzeiten** (je Zeichen den Abstand zum vorangehenden Zeichen).
 In der Lehrkräfte-Übersicht sehen Sie die Antworten farbig markiert. Nutzen Sie die Färbung nur als Anlass für ein
 Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Die Schüler:innen sehen die
@@ -227,6 +229,31 @@ Häkchen bleiben nur auf dem Gerät und werden nicht gesendet; „Alle Häkchen 
 nach 7 Tagen ohne Änderung löscht die Seite sie beim nächsten Aufruf. Ändert die Lehrkraft die Punkte, beginnt die
 Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit eingetragenem Code.
 
+**Als Finale eines Escape-Rooms.** Ein Feibeitsblatt kann der Endgegner eines Escape-Rooms der Reihe sein (siehe
+[Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)). Die Schüler:innen kommen dann nicht über den Code, sondern über den
+**Arena-Tunnel** am Ende des Escape-Rooms: Er öffnet das Feibeitsblatt im selben Tab und übergibt im Link (hinter
+`#escape=`) einen Datensatz mit vollem Namen, Geburtsdatum, Klasse, Bestätigungscode und den Ergebnissen aus dem
+Escape-Room (je Station Versuche und Fehler im ersten Versuch, Lösungserläuterungen, genutzte Zwischenstand-Dateien des
+Escape-Rooms). Die Seite liest ihn als Erstes, entfernt ihn sofort aus der Adresszeile und hält ihn bis zum Schreibbereich
+nur im Arbeitsspeicher. Denselben Datensatz enthält die **Überblick-PDF** des Escape-Rooms: Wer später weitermachen will
+oder das Gerät wechselt, lädt sie auf der Startseite unter „Zwischenstand-PDF hochladen“ hoch. Danach gibt es nur
+Einzelarbeit (die Frage nach der Arbeitsform entfällt): Der Angaben-Bildschirm ist vorausgefüllt – Kürzel aus den ersten
+drei bzw. zwei Buchstaben der Namen, Geburtstag ohne Jahr, Klasse – mit dem Hinweis „Du kommst aus dem Escape-Room „…“ –
+deine Angaben sind schon eingetragen.“ (fehlt etwas, nennt er die Lücke); „← zur Startseite“ verwirft die Daten wieder. Liegt
+auf dem Gerät schon ein Zwischenstand derselben Person, geht es direkt dort weiter. Zwischenstand und Zwischenstand-PDF
+tragen den Datensatz mit, damit **eine** Datei zum Fortsetzen genügt. Den Code eines solchen Blattes auf der Startseite
+einzutippen führt nicht weiter – die Seite verweist auf den Arena-Tunnel und die Überblick-PDF. Ist das Finale noch nicht
+freigeschaltet (im Escape-Room steht noch kein Code), gehört der Datensatz zu einem anderen Escape-Room oder gibt es das
+Blatt nicht mehr, sagt die Startseite das; bricht nur die Verbindung ab, holt „Erneut versuchen“ das Blatt nach. Nach der
+Abgabe lädt der Button „Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter …“ eine **Abschluss-PDF**
+herunter (`Escape-Room-<Raum>-Abschluss-<Datum>.pdf`, nur zum Speichern): erst die Lösungen wie sonst, dann der Überblick
+aus dem Escape-Room mit Name, Geburtsdatum, Klasse, Bestätigungscode, den Ergebnissen je Station, den
+Lösungserläuterungen („Genaue Daten: …“ etwas kleiner) und den genutzten Zwischenstand-Dateien – nie Tippzeiten.
+Scheitert die Abgabe aus technischen Gründen (Netz, Server), bietet die Seite zusätzlich „Abschluss-PDF für die E-Mail
+herunterladen“ an: dieselbe Datei mit dem Vermerk „Noch nicht abgegeben …“, die die Schülerin bzw. der Schüler – nur wenn
+ein neuer Versuch nicht klappt – per E-Mail an die Adresse aus `window.FEIBEITSBLATT_OPERATOR` schicken kann. Lehnt der
+Server die Abgabe als fehlerhaft ab, erscheint dieser Weg nicht.
+
 ## So arbeiten Sie als Lehrkraft
 
 1. **Lehrkräfte-Zugang öffnen.** Auf der Startseite statt eines Codes `1104` eingeben und „Weiter“ klicken.
@@ -404,7 +431,39 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    die Änderungen verwerfen wollen). Während das PDF entsteht, lassen sich die Punkte nicht ändern. Ohne Checklistenpunkte enthält das PDF keinen QR-Code (die Seite fragt
    vorher nach). Die Sicherung („Als PDF-Datei herunterladen“) und „Als Vorlage verwenden“ tragen die Checkliste nicht
    mit: Ein neues Blatt bekommt beim ersten Öffnen einen neuen Vorschlag.
-8. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
+8. **Feibeitsblatt für einen Escape-Room (Finale).** Ein Feibeitsblatt kann der Endgegner eines Escape-Rooms der Reihe
+   sein (z. B. „FastFashion“: Der Arena-Tunnel am Ende öffnet das „Feiditor-Feibeitsblatt“). Beim Erstellen setzen Sie
+   dafür den Haken „Feibeitsblatt für einen Escape-Room (Finale)“ und tragen den **Namen des Escape-Rooms** (so sehen ihn
+   die Schüler:innen, bis 80 Zeichen) und seine **Kennung** ein – genau wie `ESCAPE_ROOM.id` im Quelltext des Escape-Rooms
+   (3 bis 60 Zeichen, nur a–z, 0–9 und Bindestrich, z. B. `powi-jg10-fastfashion`; Großbuchstaben werden klein). Nach
+   „Code generieren“ tragen Sie den Code ohne Bindestrich im Quelltext des Escape-Rooms als `FEIBEITSBLATT_CODE` ein.
+   Solange dort keiner steht, ist der Arena-Tunnel gesperrt, und eine Überblick-PDF aus dieser Zeit trägt keinen Code –
+   das Feibeitsblatt meldet beim Hochladen „noch nicht freigeschaltet“; die Schüler:innen kommen dann mit der
+   Zwischenstand-Datei des Escape-Rooms zurück in den Raum und durch den Tunnel ins Finale. Ein Blatt, das einmal zum
+   Escape-Room gehört, bleibt es (Blätter lassen sich nicht ändern). In der Liste steht bei ihm statt des Codes
+   „Escape-Room“ mit dem Namen; den Code zeigen die Blattdetails als „Code für den Quelltext des Escape-Rooms“. Ein analoges
+   Arbeitsblatt gibt es dazu nicht, Partner- und Gruppenarbeit auch nicht. „Als Vorlage verwenden“, die Sicherung als
+   PDF-Datei und deren Import übernehmen Name und Kennung; das neue Blatt bekommt einen neuen Code, den Sie im Escape-Room
+   austauschen. Löschen Sie das Blatt, meldet das Finale „kein Feibeitsblatt (mehr)“, bis ein neuer Code im Quelltext steht
+   (der Lösch-Dialog sagt das).
+   In den aufgeklappten Abgaben steht unter der Überschrift „Escape-Room „…““ eine Kurzfassung („Abgeschlossen am … · im
+   ersten Versuch fehlerfrei: 4 von 6 Stationen · Fehler im ersten Versuch insgesamt: 3 · Zwischenstand-Dateien des
+   Escape-Rooms: 1“; fehlerfrei heißt: genau ein Versuch ohne Fehler) und, ob die **Prüfsumme** des Datensatzes stimmt
+   („stimmt – ein Indiz, kein Beweis“ bzw. „stimmt nicht – der Datensatz wurde verändert oder ist beschädigt“). „Überblick
+   ansehen“ klappt je Station die Versuche und die Fehler im ersten Versuch (Aufgabe, Antwort, richtige Lösung) und die
+   genutzten Zwischenstand-Dateien auf; „Überblick als PDF herunterladen“ macht daraus eine PDF-Datei mit den Kürzeln.
+   Vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen bekommen Sie nicht – sie bleiben auf dem Gerät
+   der Schüler:innen und stehen in deren Abschluss-PDF. Die Prüfsumme lässt sich mit dem öffentlichen Quelltext
+   nachrechnen und zeigt nur versehentliche oder plumpe Änderungen. Auch die vorausgefüllten Angaben lassen sich ändern:
+   Wer einen fremden Link oder eine fremde Überblick-PDF benutzt, gibt deren Ergebnisse unter den Kürzeln ab, die er
+   einträgt – erkennen lässt sich das nicht.
+   **Der Code steht im öffentlichen Quelltext des Escape-Rooms** (bei GitHub Pages für alle lesbar). Die Sperre der
+   Startseite ist nur eine Hilfe für die Schüler:innen: Wer den Code kennt, kann das Feibeitsblatt über die Schnittstelle
+   öffnen, KI-Feedback anfordern und abgeben – und so die Grenzen je Blatt ausschöpfen (400 Abgaben bzw. 40 MB,
+   600 KI-Anfragen am Tag). Schreiben Sie deshalb nichts Vertrauliches in Aufgaben und Material (die Aufträge an die KI
+   gibt der Server nie heraus). Bei Missbrauch löschen Sie die fremden Einträge oder legen ein neues Blatt an (z. B. „Als
+   Vorlage verwenden“) und tragen dessen Code im Escape-Room ein.
+9. **Löschen.** Abgaben und Erstversuche löscht der Server automatisch nach der Frist, die Sie unter „Datenschutz und
    Löschfrist“ festlegen ([Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)). Früher geht es ganz
    unten: „Alle Abgaben dieses Feibeitsblattes löschen“ (mit Rückfrage und Anzahl; Erstversuche werden mitgelöscht).
    Einen einzelnen Eintrag – etwa auf Wunsch einer Schülerin, eines Schülers oder der Eltern – löschen Sie in den
@@ -857,7 +916,8 @@ Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
 - **Bearbeiten und Abgeben** – Angaben (bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder), Zwischenstand,
   Erstversuch und Abgabe (bei Erstversuch und Abgabe außer den Tippzeiten darin; der Zwischenstand enthält keine) – und das **freiwillige KI-Feedback**, das nur auf Klick angefordert wird: Art. 6 Abs. 1 Buchst. b
   DSGVO (Nutzung dieses kostenlosen Angebots, die die Schüler:innen selbst anfordern). Bewusst keine Einwilligung für
-  das KI-Feedback und keine Altersabfrage dafür.
+  das KI-Feedback und keine Altersabfrage dafür. Bei einem Escape-Room-Finale gehören die übernommenen Daten aus dem
+  Escape-Room ebenfalls dazu; der Hinweis nennt das unter „Welche Daten?“ (die Liste der Rechtsgrundlagen bleibt gleich).
 - **Tippzeiten:** Art. 6 Abs. 1 Buchst. f DSGVO – berechtigtes Interesse, den Schreibprozess sichtbar zu machen, damit die
   Lehrkraft bei Auffälligkeiten mit der Schülerin bzw. dem Schüler über die Arbeitsweise sprechen kann; die Tippzeiten
   dienen nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.
@@ -886,10 +946,10 @@ Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden).
 
 | Daten | Wo | Wie | Wie lange |
 |---|---|---|---|
-| Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
+| Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI**, ggf. Name und Kennung eines Escape-Rooms | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback; Name und Kennung des Escape-Rooms sind öffentlich abrufbar) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten **mit ihren Tippzeiten** (nach einem Widerspruch nur der Vermerk `optOut`), KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten **mit ihren Tippzeiten** (nach einem Widerspruch nur der Vermerk `optOut`), KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“); bei einem Escape-Room-Finale außerdem die Ergebnisse aus dem Escape-Room (Name und Kennung des Raums, Codewort, Abschlusszeitpunkt, je Station Versuche und Fehler im ersten Versuch, genutzte Zwischenstand-Dateien des Escape-Rooms mit Stelle und Zeitpunkten, ob die Prüfsumme stimmt) – ohne vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung (samt Tippzeiten) und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt; nach einem Widerspruch mit derselben Kennung ohne Tippzeiten ersetzt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
 | Checkliste zum analogen Arbeitsblatt: Vorschlag der KI (Entwurf) und die von Ihnen gespeicherten Punkte | Cloudflare D1 (EU), Tabelle `sheet_checklists` | unverschlüsselt; die gespeicherte Fassung (nie der Entwurf) ist für alle abrufbar, die den Code bzw. den QR-Code kennen | bis Sie das Blatt löschen |
 | Löschfrist (früher gespeicherte Angaben einer Schule entfernt der Server beim Aufräumen) | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; öffentlich abrufbar (Datenschutzhinweis eines Blattes, Seite „Impressum & Datenschutz“ über `GET /api/privacy`) | bis Sie sie ändern |
@@ -899,10 +959,11 @@ Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden).
 | Geschätzter Verbrauch von Workers AI je Tag (Zahl der Anfragen und Neurons, keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach beim täglichen Aufräumen gelöscht (ohne Zeitplan: beim Öffnen der Übersicht) |
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
-| Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
-| Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
+| Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale samt Datensatz aus dem Escape-Room), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
+| Abschluss-PDF eines Escape-Room-Finales (statt „Meine Lösungen“; dazu der Überblick aus dem Escape-Room mit vollem Namen, Geburtsdatum, Klasse, Bestätigungscode, Ergebnissen und Lösungserläuterungen – keine Tippzeiten), nur auf Klick nach der Abgabe oder nach einer technisch gescheiterten Abgabe (dann mit dem Vermerk „Noch nicht abgegeben …“) | dort, wo die Schülerin bzw. der Schüler die Datei speichert; nur wenn sie bzw. er sie nach einer gescheiterten Abgabe per E-Mail schickt, auch im Postfach des Betreibers (`window.FEIBEITSBLATT_OPERATOR`) | unverschlüsselt, lesbar; per E-Mail unverschlüsselt über die beteiligten E-Mail-Anbieter | bis die Datei gelöscht wird; eine E-Mail laut Datenschutzhinweis, bis die Lehrkraft sie übernommen hat (siehe [Was wohin gesendet wird](#was-wohin-gesendet-wird)) |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten zum Feedback – nur den Vorschlag der KI für die
 Checkliste (aus Ihren Aufgaben, ohne Daten der Schüler:innen) als Entwurf beim Blatt –, und er protokolliert keine
@@ -981,6 +1042,19 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   Anbieter, bei Ausfall die Reserve – wie beim Feedback), nur für Aufgaben mit Auftrag an die KI. Antworten und Daten
   von Schüler:innen gehen dabei nie mit. Die Checklisten-Seite der Schüler:innen lädt nur die gespeicherte Checkliste
   vom Server (die IP-Adresse wird dabei wie beim Laden der Seite verarbeitet); die Häkchen verlassen das Gerät nicht.
+- **Escape-Room-Finale:** Der Arena-Tunnel des Escape-Rooms übergibt den Datensatz (voller Name, Geburtsdatum, Klasse,
+  Bestätigungscode, Ergebnisse) im Teil der Adresse hinter `#`. Diesen Teil schickt der Browser an keinen Server – weder an
+  GitHub noch an Cloudflare; die Seite liest ihn im Browser und entfernt ihn sofort aus der Adresszeile. Im **Verlauf des
+  Browsers** kann die ursprüngliche Adresse aber stehen bleiben; der Datenschutzhinweis rät, sie auf einem geteilten Gerät
+  dort zu löschen (eine andere Übergabe ginge nur mit einer neuen Version der Schnittstelle). Auch eine hochgeladene
+  Überblick-PDF liest nur der Browser. Der Server sieht beim Öffnen nur den Blatt-Code wie sonst. Mit Erstversuch und Abgabe
+  gehen nur die Ergebnisse aus dem Escape-Room an Sie – verschlüsselt, ohne vollen Namen, Geburtsdatum, Bestätigungscode
+  und Lösungserläuterungen; an einen KI-Dienst gehen die Daten aus dem Escape-Room nie. **E-Mail nach einer technisch
+  gescheiterten Abgabe:** Nur wenn die Schülerin bzw. der Schüler es selbst tut, geht die Abschluss-PDF (mit vollem Namen,
+  Geburtsdatum, Bestätigungscode, Antworten, ggf. KI-Feedback und Ergebnissen, ohne Tippzeiten) unverschlüsselt über die
+  E-Mail-Anbieter an die Adresse aus `window.FEIBEITSBLATT_OPERATOR`; der Datenschutzhinweis nennt diesen Empfänger
+  eigens. Wie lange der Betreiber solche E-Mails aufbewahrt, ist noch festzulegen (der Hinweis sagt bisher: „bis deine
+  Lehrkraft sie übernommen hat“).
 - Die Seite lädt keine externen Schriften, Bibliotheken oder Tracker.
 
 ### Tippzeiten
@@ -1046,7 +1120,11 @@ tippen die Schüler:innen, sie werden normal gemessen.
   Abs. 2 TDDDG noch eine Einwilligung. Das Speichern der Tippzeiten im Zwischenstand auf dem Gerät bräuchte nach Annahme
   des Betreibers eine Einwilligung nach § 25 Abs. 1 TDDDG – deshalb speichert die Seite sie dort nicht und fragt keine
   Einwilligung ab. **Weiter vom Betreiber zu prüfen:** die Abwägung des berechtigten Interesses bei minderjährigen
-  Schüler:innen und ob eine Datenschutz-Folgenabschätzung (Art. 35 DSGVO) nötig ist.
+  Schüler:innen, ob eine Datenschutz-Folgenabschätzung (Art. 35 DSGVO) nötig ist und ob schon das Erfassen der
+  Eingabezeitpunkte im Arbeitsspeicher samt Senden mit Erstversuch und Abgabe eine Einwilligung nach § 25 Abs. 1 TDDDG
+  braucht – nach den Leitlinien 2/2023 des Europäischen Datenschutzausschusses zum technischen Anwendungsbereich von
+  Art. 5 Abs. 3 der ePrivacy-Richtlinie (Rn. 38 und 53) wahrscheinlich. Der Hinweis nennt den Zugriff nur als Tatsache
+  und ersetzt keine Einwilligung.
 
 ### Empfehlungen
 
@@ -1121,7 +1199,13 @@ Schüler:innen.
 > Beim Laden der Seite verarbeitet auch GitHub, Inc. (USA) die IP-Adresse.] [Falls Sie ausgedruckte Arbeitsblätter mit
 > QR-Code ausgeben: Der QR-Code führt zu einer Checkliste der Lehrkraft auf feibeitsblatt.janrickmer.de; beim Aufruf
 > verarbeiten GitHub, Inc. (USA; liefert diese Seite über GitHub Pages aus) und Cloudflare technisch die IP-Adresse. Die
-> Häkchen bleiben nur auf dem Gerät und werden nicht gesendet.]
+> Häkchen bleiben nur auf dem Gerät und werden nicht gesendet.] [Falls ein Feibeitsblatt das Finale eines Escape-Rooms
+> ist: Über den Link am Ende des Escape-Rooms oder die Überblick-PDF übernimmt Feibeitsblatt den vollen Namen, das
+> Geburtsdatum, die Klasse, den Bestätigungscode und die Ergebnisse aus dem Escape-Room. Voller Name, Geburtsdatum und
+> Bestätigungscode bleiben auf dem Gerät (Zwischenstand und heruntergeladene PDF-Dateien); an die Lehrkraft gehen nur
+> die Ergebnisse, verschlüsselt, an einen KI-Dienst nie. Scheitert die Abgabe aus technischen Gründen, kann die
+> Abschluss-PDF (mit diesen Daten und den Antworten) auf eigenen Wunsch per E-Mail an [Betreiber, E-Mail] geschickt
+> werden – unverschlüsselt.]
 > Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
 > keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine bei der Abgabe zu den danach geänderten Antworten) werden nur die Antworttexte (ohne
 > Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B.
@@ -1287,7 +1371,8 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | KI-Anfragen je Feibeitsblatt | 600 pro Tag (bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
 | Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
 | Checkliste zum analogen Arbeitsblatt | höchstens 8 Punkte je Aufgabe, je 160 Zeichen; KI-Vorschläge 30 pro Stunde je Netzwerk (IP-Adresse) |
-| Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
+| Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner); dasselbe gilt für die Überblick-PDF eines Escape-Rooms |
+| Datensatz aus einem Escape-Room (Link oder Überblick-PDF) | höchstens 96 KB (ein größerer wird abgelehnt); darin Texte je 2000 Zeichen, Lösungserläuterungen je 4000, höchstens 20 Stationen mit je 30 Fehlern, 20 Lösungserläuterungen und 20 Zwischenstand-Dateien – mehr wird gekappt. Passt eine Abgabe sonst nicht in den Umschlag, geht sie erst ohne Tippzeiten, dann ohne die Einzelheiten der Fehler („nicht übermittelt“) – sie scheitert nie an diesen Daten |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
 | Bilder und PDF-Dateien aller Feibeitsblätter zusammen | 200 MB (die Übersicht zeigt den belegten Speicher) |
 | Löschfrist | 7 bis 365 Tage (Auswahl 7, 14, 30, 60, 90, 180, 365; Vorgabe einer Neuinstallation 30) |
@@ -1336,6 +1421,10 @@ gespeichert.
 | „Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.“ | Tag und Monat passen nicht zusammen (der 29. Februar ist erlaubt). Gefragt sind nur Tag und Monat des Geburtstags, kein Jahr. |
 | „Für Partner- oder Gruppenarbeit tragt bitte mindestens zwei Personen ein. Arbeitest du allein, wähle „Einzelarbeit“.“ | Bei „Partner- / Gruppenarbeit“ ist nur eine Person eingetragen. Mit „Person hinzufügen“ ein weiteres Feld öffnen – oder mit „← zurück zur Auswahl“ „Einzelarbeit“ wählen. |
 | „Person 1 und Person 2 haben dasselbe Kürzel („MaxMu“) …“ | Zwei Felder ergeben dasselbe Kürzel (Groß- und Kleinschreibung zählen nicht). Meist ist eine Person doppelt eingetragen; heißen zwei wirklich so, lässt eine einen Buchstaben weg (z. B. „MaMu“). |
+| „Dieses Feibeitsblatt gehört zum Escape-Room „…“. Öffne es über den Arena-Tunnel …“ nach dem Eintippen eines Codes | Kein Fehler: Ein Feibeitsblatt für einen Escape-Room öffnet sich nur über den Arena-Tunnel oder die Überblick-PDF (siehe [Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)). |
+| „Dieses Escape-Room-Finale ist noch nicht freigeschaltet …“ | Als die Überblick-PDF bzw. der Link entstand, stand im Quelltext des Escape-Rooms noch kein `FEIBEITSBLATT_CODE`. Code eintragen und veröffentlichen; die Schüler:innen gehen mit der Zwischenstand-Datei des Escape-Rooms zurück in den Raum und durch den Arena-Tunnel (eine Überblick-PDF aus dieser Zeit bleibt ohne Code). |
+| „Zu diesem Escape-Room-Finale gibt es kein Feibeitsblatt (mehr).“ | Das Blatt wurde gelöscht oder im Quelltext des Escape-Rooms steht ein falscher Code. Ein neues Blatt anlegen (z. B. „Als Vorlage verwenden“ oder aus der Sicherung laden) und seinen Code eintragen; mit einer Überblick-PDF mit dem alten Code geht es danach nicht mehr – die Schüler:innen kommen (ggf. mit der Zwischenstand-Datei des Escape-Rooms) erneut durch den Arena-Tunnel. |
+| „Die Daten aus dem Escape-Room passen nicht zu diesem Feibeitsblatt.“ | Die Kennung des Blattes stimmt nicht mit `ESCAPE_ROOM.id` im Quelltext des Escape-Rooms überein, oder der eingetragene Code gehört zu einem gewöhnlichen Blatt. Ein Blatt mit der richtigen Kennung anlegen (Blätter lassen sich nicht ändern) und seinen Code eintragen. |
 | „Zu viele falsche Passwörter …“ / „Zu viele Fehlversuche …“ / „Zu viele unbekannte Codes …“ | Fehlversuche aus demselben Netz (siehe [Sicherheit](#sicherheit)). Mit der richtigen Eingabe geht es trotzdem weiter; die Wartezeit gilt nur für weitere Fehlversuche. |
 | „Gerade kommen zu viele Anfragen aus diesem Netz …“ / „Zu viele Versuche …“, den ganzen restlichen Tag | Das Tageslimit von 100 000 Anfragen des kostenlosen Tarifs ist erreicht (Cloudflare antwortet mit HTTP 429); ab Mitternacht UTC (2 Uhr deutscher Sommerzeit) geht es wieder. |
 
@@ -1466,6 +1555,14 @@ dem Gerät gespeichert haben, liegen unter einem Speicherschlüssel mit vollem G
 zum Datum `BDAY_LEGACY_UNTIL` in `index.html` (derzeit 15.11.2026). Dieses Datum darf nicht früher liegen als
 Ausrolltag + 7 Tage (so lange bleiben Zwischenstände liegen) + einige Tage Puffer; sonst vor dem Ausrollen verschieben –
 andernfalls findet die Seite diese Zwischenstände stillschweigend nicht mehr.
+
+**Escape-Room-Schnittstelle (v1):** Der Escape-Room übergibt eine Hülle `{kind: "feibeitsblatt-escape", v: 1, d, s}` – `d`
+ist der Datensatz als JSON-Text, `s` eine Prüfsumme über `d` (16 Hex-Zeichen, nur ein Indiz gegen versehentliche
+Änderungen) – per Link (`#escape=` + Base64url) oder als eingebettete Datei `feibeitsblatt-escape.json` mit dem
+Kennzeichen `/FbEscape 1` in der Überblick-PDF. Einzelheiten, Grenzen und Testvektoren stehen in `CLAUDE.md`
+(„Escape-Room-Anbindung“); Änderungen an der Schnittstelle nur gemeinsam mit den Escape-Rooms und mit einer neuen Version
+`v`. `test/escape-fixture.mjs` baut Hülle, Link und Überblick-PDF so wie ein Escape-Room (mit frei erfundenen Daten);
+`ESCAPE_PDF_OUT=<Ordner> npm run test:e2e` speichert die PDF-Dateien und Bildschirmfotos der Tests 7n/7o zum Ansehen.
 
 **Aufbau:**
 

@@ -535,6 +535,16 @@ async function main() {
       // kein analoges Arbeitsblatt
       expectErr(await api("POST", "/api/teacher/sheets/" + ec + "/checklist", {}, { auth }), 400, "escape_sheet");
       expectErr(await api("PUT", "/api/teacher/sheets/" + ec + "/checklist", { ai: false, tasks: [{ n: 1, points: ["Du nennst Fakten."] }] }, { auth }), 400, "escape_sheet");
+      expectErr(await api("GET", "/api/sheet/" + ec + "/checklist"), 404, "no_checklist");
+      // KI-Feedback wie bei jedem Blatt: der Server baut den Prompt selbst – mitgeschickte Daten aus dem Raum (ein Browser schickt nie
+      // welche) gehen nie an die KI und landen nirgends in der Datenbank
+      mock.reset();
+      r = await api("POST", "/api/feedback", { code: ec, answers: ["Kaya prüft die Fakten."], person: { vorname: "Vollname-Marker" },
+        escape: { person: { vorname: "Vollname-Marker", geburtsdatum: "01.02.2009" }, confirm: "90817263", stations: [{ label: "S", errors: [{ item: "Raum-Fehler-Marker" }] }] } }); feedbackCount++;
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.aiGenerated, true);
+      const sentEsc = mock.state.requests.map((q) => q.messages.map((m) => m.content).join("\n")).join("\n");
+      assert.ok(sentEsc.includes("Kaya prüft die Fakten.") && sentEsc.includes("Fakten statt Meinung"), sentEsc);
+      assert.equal(/Vollname-Marker|90817263|01\.02\.2009|Raum-Fehler-Marker/.test(sentEsc), false, "Daten aus dem Raum im Prompt");
       // Abgabe mit Daten aus dem Escape-Room: nur im verschlüsselten Umschlag (der Server speichert nur den Umschlag)
       const escPayload = { v: 1, sheetCode: ec, sheetTitle: "Smoke: Finale", person: { vorname: "Xav", nachname: "Qu", geburtsdatum: "--05-04", klasse: "10b" },
         answers: [{ first: "Fakten-Marker", final: "Fakten-Marker" }], feedback: null, noAi: "declined", submittedAt: new Date().toISOString(),
@@ -548,11 +558,12 @@ async function main() {
       await sleep(500);
       for (const f of await filesUnder(STATE)) {
         const buf = await readFile(f).catch(() => null); if (!buf) continue;
-        for (const needle of ["Escape-Fehler-Marker", "Fakten-Marker", '"stations"']) assert.equal(buf.includes(Buffer.from(needle)), false, needle + " im Klartext in " + f);
+        for (const needle of ["Escape-Fehler-Marker", "Fakten-Marker", '"stations"', "Vollname-Marker", "90817263", "Raum-Fehler-Marker"]) assert.equal(buf.includes(Buffer.from(needle)), false, needle + " im Klartext in " + f);
       }
       assert.equal((await api("DELETE", "/api/teacher/sheets/" + ec, undefined, { auth })).status, 200);
+      r = await api("GET", "/api/sheet/" + ec); misses++; expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);   // gelöscht: das Finale findet kein Blatt mehr
     }
-    ok("Escape-Room-Blatt: escape {id, name} beim Anlegen geprüft, öffentlich und für die Lehrkraft geliefert (normale Blätter null), kein analoges Arbeitsblatt, Daten aus dem Raum nur im verschlüsselten Umschlag");
+    ok("Escape-Room-Blatt: escape {id, name} beim Anlegen geprüft, öffentlich und für die Lehrkraft geliefert (normale Blätter null), kein analoges Arbeitsblatt, KI-Feedback ohne Daten aus dem Raum, Daten aus dem Raum nur im verschlüsselten Umschlag, mit dem Blatt gelöscht");
 
     step = "Abgabe";
     const sheetPub = (await api("GET", "/api/sheet/" + code)).json.sheet;

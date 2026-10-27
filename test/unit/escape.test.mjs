@@ -184,6 +184,7 @@ test("escape: cleanEscape – Grenzen aus der Schnittstelle, Code, Raum (ohne ur
   for (const [g, want] of [["29.02.2011", ""], ["29.02.2012", "29.02.2012"], ["4.5.2010", ""], ["01.01.1899", ""], ["2010-05-04", ""], [" 04.05.2010", ""], ["31.12.2999", ""], [20100504, ""]])
     assert.equal(p({ geburtsdatum: g }).geburtsdatum, want, String(g));
   assert.equal(p({ klasse: "E 1" }).klasse, "E1");
+  assert.equal(p({ klasse: "10 b" }).klasse, "10b");
   assert.equal(p({ klasse: "12345678901" }).klasse, "");   // länger als 10 → leer (die Seite fragt die Klasse ab)
   assert.deepEqual(p(null), { vorname: "", nachname: "", geburtsdatum: "", klasse: "" });
   for (const [c, want] of [["12345678", "12345678"], ["12a", ""], [123, ""], ["1".repeat(21), ""], ["", ""], [" 1", ""]]) assert.equal(E.cleanEscape(record({ confirm: c })).confirm, want, String(c));
@@ -269,6 +270,13 @@ test("escape: readStartPdf – Überblick-PDF des Raums (unkomprimiert, neu gesp
     assert.equal(r.kind, "escape", JSON.stringify(opts)); assert.deepEqual(r.o, hull);
     assert.equal(await E.feibeitsblattPdfKind(u8(overviewPdf(hull, opts))), "escape", JSON.stringify(opts));
   }
+  // manipulierte Daten (FlateDecode): die Hülle wird gelesen, die Prüfsumme stimmt nicht – das sieht nur die Lehrkraft
+  const forged = { ...hull, d: hull.d.replace('"attempts":3', '"attempts":1') };
+  assert.notEqual(forged.d, hull.d);
+  r = await E.readStartPdf(u8(overviewPdf(forged, { flate: true })));
+  assert.equal(r.kind, "escape"); assert.deepEqual(r.o, forged);
+  assert.equal(E.escCheck(r.o), "mismatch"); assert.equal(E.escCheck(hull), "ok");
+  assert.equal(E.cleanEscape(JSON.parse(r.o.d)).stations[1].attempts, 1);
   // (c) ein Zwischenstand gewinnt – auch, wenn er hinter einer Hülle liegt (mit und ohne Kennzeichen)
   const draft = { v: 1, kind: "feibeitsblatt-draft", code: "K7QM4X", answers: ["a"], escape: hull };
   for (const [m1, m2] of [["/FbEscape 1", "/FbDraft 1"], ["", ""]]) {

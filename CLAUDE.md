@@ -5,7 +5,8 @@ des Datenschutzhinweises nennt die Messung in einem Satz, Widerspruch per Schalt
 Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu einer
-Checkliste drucken. Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
+Checkliste drucken; ein Blatt kann auch das Finale eines Escape-Rooms sein (Ankunft per Link oder Überblick-PDF, siehe
+Escape-Room-Anbindung). Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
 Schule; Seite „Impressum & Datenschutz“ (`#impressum`). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
 
@@ -46,6 +47,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   und `files` (PDF-Dateien, siehe unten). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
   Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
   `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
+  `GET /api/sheet/:code`, `GET /api/teacher/sheets` (je Blatt) und `GET /api/teacher/sheets/:code` liefern `escape: {id, name} |
+  null` (Finale eines Escape-Rooms; öffentlich nie mehr als Kennung und Name), `POST /api/teacher/sheets` nimmt optional `escape`
+  (siehe Escape-Room-Anbindung).
   `POST /api/feedback` nimmt optional `only: [n…]` (1-basierte Aufgabennummern, `validateOnly`: Ganzzahlen 1…Aufgabenzahl,
   ohne Doppelte, nicht leer, sonst 400 `bad_answers` – nie stillschweigend „alle“; fehlt/`null` = alle) für die zweite
   Rückmeldung: dann gehen nur diese Aufgaben (mit Auftrag) an die KI, `results` hat für die übrigen `null`; es antwortet
@@ -108,7 +112,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   **Bestätigung nach der Abgabe** (`#screen-done`, nur nach HTTP 200 von `/api/submit`): großer grüner Haken
   (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, `#done-del` (nur mit Frist: Löschdatum =
   `receivedAt` + `retentionDays` aus der Antwort von `/api/submit`, „oder kurz danach“), dann **ganz oben über der zweiten KI-Rückmeldung**
-  Button `#done-pdf` „Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“ und
+  Button `#done-pdf` „Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“ (bei
+  Escape-Blättern `DONE_PDF_ESC` „Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter …“) und
   direkt darunter klein und blass `#done-pdf-note` (`.donenote`, `aria-describedby`) „Es ist möglich, dass du mit diesen
   Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.“, danach `#done-status` (Meldungen zum Download). `S.lastSubmission` (Code, Titel, Aufgabentexte, person, answers
   first/final, feedback, receivedAt) bleibt nur im Arbeitsspeicher bis „Neues Feibeitsblatt öffnen“ (`resetStudent`);
@@ -302,7 +307,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy` (nur
   `{retentionDays}`), `privacyShortText(p, list, withAi, group, typing)` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
   kostenloses Angebot.“, nennt den KI-Dienst; mit `typing` (`ttMeasured`) am Ende **genau der eine Satz `TT_SHORT`**, siehe unten), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
-  general, flat, summary, typing, ttSwitch})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit bis zu 10 Abschnitten (`.privh`: Wer ist
+  general, flat, summary, typing, ttSwitch, escape})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit bis zu 10 Abschnitten (`.privh`: Wer ist
   verantwortlich? – Betreiber mit Anschrift und E-Mail, „privates, nicht kommerzielles und kostenloses Angebot – kein Angebot
   einer Schule“, die Lehrkraft liest; Wozu (mit `TT_PURPOSE`: Tippzeiten machen den Schreibprozess sichtbar, die Lehrkraft sieht
   die Färbung **und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe)**, Ursachen für Rot samt
@@ -322,7 +327,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher (nach einem Widerspruch
   nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.“ – mit `TT_KEEP_IN_DRAFT` „…, hält sie … und speichert die
   Tippzeiten bis dahin auch in deinem Zwischenstand …“; **nur die Tatsache – nie eine Ausnahme („unbedingt erforderlich“) oder eine
-  Einwilligung behaupten** (Entscheidung des Betreibers nach Rechtsprüfung); damit der Satz stimmt, merkt der Capture-Listener `input`
+  Einwilligung behaupten** (Entscheidung des Betreibers nach Rechtsprüfung; offen – README „Weiter vom Betreiber zu prüfen“ –, ob schon
+  das Erfassen samt Senden eine Einwilligung nach § 25 Abs. 1 TDDDG braucht); damit der Satz stimmt, merkt der Capture-Listener `input`
   nach einem Widerspruch keinen Zeitpunkt (`performance.now()` nur ohne `S.ttOptOut`)); Wer bekommt (Lehrkraft „Sie sieht auch die Tippzeiten – als Färbung …; an einen KI-Dienst oder an die
   Rechtschreibprüfung gehen die Tippzeiten nie.“, Cloudflare „(samt Tippzeiten)“);
   Wie lange („Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; bis dahin hält diese Seite sie nur
@@ -367,7 +373,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bereitgestellt“), darunter `privacyNoticeDom(…, {h:"h3", site:true, flat:true})` = `section.privflat#legal-privfull` mit h2
   „Datenschutzerklärung“ (kein details) und Frist/Empfängern von `GET /api/privacy`; scheitert der Abruf, `general:true`
   (allgemeine Sätze: KI-Dienst wird vor dem Senden genannt, Frist nach dem Code) und Hinweis in `#legal-status`; `#legal-other`
-  zu Blättern ohne KI und Gruppen. Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
+  zu Blättern ohne KI und Gruppen, danach `section#legal-escape` „Feibeitsblatt als Finale eines Escape-Rooms“ (allgemeine Form,
+  siehe Escape-Room-Anbindung; `#legal-privfull` bleibt dafür unverändert). Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
   `rel="noopener"`, sr-only „(öffnet in neuem Tab)“ (`.copyright a` klickbar trotz `pointer-events:none`; auf der Seite selbst
   ausgeblendet per `body.on-legal`). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
   Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
@@ -504,15 +511,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (Sicherung als Material angehängt), gilt der äußere. Bilder/Dateien nur mit passender Größe und SHA-256
   (`sheetBlobOk`), Bilder zusätzlich per `decodeImage` lesbar und ≤ 4096 px, Dateien mit `%PDF-`; Fehlendes →
   Hinweis in `#b-err` (Satzanfang groß). Angehängte Dateien, die selbst eine Sicherung oder ein Zwischenstand sind
-  (`await feibeitsblattPdfKind(u8)`: Kennzeichen `/FbSheet 1`/`/FbDraft 1` oder – ohne Kennzeichen – `kind` einer
-  eingebetteten JSON-Datei), lehnt `addPdfFiles` ab; Import und „Als Vorlage verwenden“ lassen sie mit Hinweis weg.
+  oder eine Überblick-PDF eines Escape-Rooms (`await feibeitsblattPdfKind(u8)` → `"sheet"`/`"draft"`/`"escape"`: Kennzeichen
+  `/FbSheet 1`/`/FbDraft 1`/`/FbEscape 1` oder – ohne Kennzeichen – `kind` einer eingebetteten JSON-Datei), lehnt `addPdfFiles` ab; Import und „Als Vorlage verwenden“ lassen sie mit Hinweis weg.
   Abbruch über Zähler: `T.importRun` steigt beim Verlassen der Übersicht (`teacherView`) und beim Abmelden,
   `T.exportRun` beim Abmelden (`importStillWanted`/`exportStillWanted`) – ein Import/Export aus einer früheren Sitzung
   kommt nie in der nächsten an, nach dem Abmelden wird nichts gespeichert. `makeSheetPdf` entfernt eine leere
   letzte Seite und kürzt den Titel in der Fußzeile nach Breite; `pdfWidth` kennt die Breiten der WinAnsi-Sonderzeichen
   (`PDF_W_EXTRA`, im Zweifel breiter) und misst Zeichen außerhalb von WinAnsi wie das gedruckte „?“. Dann `openBuilder(title, rows)` wie „Als Vorlage verwenden“ + Hinweis `#b-import` (bisheriger
   Code, „bekommt einen neuen Code“); „Code generieren“ legt ein neues Blatt an. Meldungen in `#t-import-status`: fremde
-  PDF „In dieser PDF-Datei steckt kein Feibeitsblatt.“, Zwischenstand (`/FbDraft 1`) eigene Meldung. `pdfWrap` trennt
+  PDF „In dieser PDF-Datei steckt kein Feibeitsblatt.“, Zwischenstand (`/FbDraft 1`) und Überblick-PDF eines Escape-Rooms
+  (`/FbEscape 1` ohne Blatt-Datensatz) je eine eigene Meldung. `pdfWrap` trennt
   überlange Wörter hart. E2E-Test 4b prüft Export (Datensatz, Anhänge byte-genau, keine Abgaben), Import einer „neu
   gespeicherten“ Variante (`resavePdf`), neues Blatt byte-genau und löscht es wieder.
 - **Antwortarten je Aufgabe** (`answer` im `tasks`-JSON; fehlt = Textfeld): `{type:"table", columns:[1–8 × ≤ 60], rows:1–30}` bzw.
@@ -553,7 +561,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (gemeinsame `datalist#world-dl` mit Namen und `aliases`), Enter prüft, ein falscher Name wird markiert. Esc hebt die Wahl
   auf; „Alle Zuordnungen löschen“ mit Bestätigung. Wiederherstellen ist asynchron (jede Zeile erneut gegen `checks`), bis dahin
   liefert `value` den gespeicherten Text und Klicks bleiben wirkungslos. Weltkarte ohne KI-Feedback-Box, auch nicht auf dem
-  Abschlussbildschirm und in der Lösungs-PDF (`S.lastSubmission.kinds`); „→“ druckt die PDF als „->“ (`pdfPlain`). **Lehrkraft:** `answerEditor` je Zeile (`tr._ans`,
+  Abschlussbildschirm und in der Lösungs-PDF (`S.lastSubmission.kinds`); „→“ druckt die PDF als „->“ (`pdfPlain`; ebenso „−“ → „-“, „≈“ → „~“, „‑“/„‐“ → „-“, schmale Leerzeichen → Leerzeichen –
+  sonst stünde „?23,8 %“ da). **Lehrkraft:** `answerEditor` je Zeile (`tr._ans`,
   Auswahl `#bt-n`, Spalten `#bc-n` je Zeile oder „;“, Zeilen `#br-n`, Vorschau; Karten-Editor mit Bezeichnung, Hinweis, einem
   Bild, Länder-Chips über die deutschen Namen, ↑/↓/✕; Auftrag an die KI ausgeblendet), Karten-id beim Anlegen aus der Bezeichnung
   (`itemIds`/`slugId`), `b-gen` verlangt je Karte ein anklickbares Land und verschiedene Bezeichnungen, wartet auf das
@@ -838,6 +847,94 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   ohne Punkte kein QR; zurück während eines angehaltenen PUT (Rückfrage, gespeichert, kein PDF); per `page.route` ein Blatt ohne
   Auftrag (`#ck-aiwarn`) mit 8 langen Tabellenspalten (Kopf 7 pt, Trennung mit „-“)); `ANALOG_PDF_OUT=<Ordner> npm run test:e2e`
   speichert das PDF lokal zum Ansehen (`pdftoppm -r 60 -png`).
+- **Escape-Room-Anbindung (Schnittstelle v1):** Ein Blatt kann das Finale eines Escape-Rooms sein: `escape: {id, name}` (id
+  `[a-z0-9-]{3,60}`, name einzeilig 1–80; `validateEscapeSpec`/`escapeOut` in lib.js, nur beim Anlegen – Blätter bleiben
+  unveränderlich; D1 `sheets.escape_id`/`escape_name` per `ensureColumns`, NULL = normales Blatt; die vorhandenen `SELECT`s lesen nur
+  zwei Spalten mehr – keine zusätzliche D1-Abfrage, Unit-Test zählt). **Lehrkraft:** Builder `#b-esc` „Feibeitsblatt für einen
+  Escape-Room (Finale)“ (`aria-controls`, Haken → Fokus in `#b-esc-name`) mit `#b-esc-name`/`#b-esc-id` und `#b-esc-hint`; `b-gen`
+  prüft wie der Server (Fehler „Escape-Room: …“ in `#b-err`, Feld `.invalid` + Fokus), Ergebnis `#b-res-esc` statt `#b-res-normal`
+  nur, wenn die Antwort `escape` trägt. „Als Vorlage“, Sicherung (Datensatz `escape` nur, wenn gesetzt; sichtbare Zeile „Escape-Room:
+  „…“ (Kennung …) – …“) und Import (`cleanSheetRecord` → `cleanEscapeSpec`; `#b-import` nennt den Raum) tragen es mit. Liste:
+  `td.code.esc` mit `span.escbadge` „Escape-Room“ + Name statt des Codes; Blattdetails per `selEscapeUi` (schon aus dem Listeneintrag):
+  `#t-sel-code-lbl` „Code für den Quelltext des Escape-Rooms“, `#t-sel-meta` mit Raum und Kennung, Hinweis `#t-sel-esc`,
+  `#t-analog`/`#t-analog-hint` verborgen (`openAnalog` kehrt zurück; Worker: Checkliste POST/PUT → 400 `escape_sheet`,
+  `MSG.ckEscape`); der Lösch-Dialog warnt, dass der Arena-Tunnel dann ins Leere führt. **Der Code steht im öffentlichen Quelltext
+  des Raums** (`FEIBEITSBLATT_CODE`): Die Sperre der Startseite ist nur Oberfläche – jede:r kann mit dem Code `GET /api/sheet/:code`,
+  `POST /api/feedback` und `POST /api/submit` aufrufen und die Grenzen je Blatt (400 Abgaben/40 MB, `sheet_feedback` 600/Tag)
+  ausschöpfen; Gegenmittel: Einträge löschen bzw. neues Blatt und neuen Code im Raum eintragen (README, `#b-esc-hint`).
+  **Hülle** (vom Raum, im Link und in der Überblick-PDF gleich): `{kind:"feibeitsblatt-escape", v:1, d, s}`, `d` = JSON-Text der Daten
+  (`code` (6 Zeichen oder "" = noch nicht freigeschaltet), `room {id, name, url}`, `person {vorname, nachname, geburtsdatum, klasse}`,
+  `confirm`, `word`, `completedAt`, `stations [{label, attempts, errors [{item, wrong?, right?, note?}]}]`, `notes [{label, text}]`,
+  `resumes [{place, savedAt, loadedAt}]`), `s = fbEscapeHash("FbEscape|v1|" + d)` (cyrb53-Variante über UTF-16-Einheiten, 16 Hex;
+  Testvektoren `"FbEscape|v1|{}"` → `0bdda452e8d9ff95`, `'FbEscape|v1|{"a":"Größe – „x“"}'` → `6721119dc06e029b`) – öffentlich
+  nachrechenbar, **nur ein Indiz** gegen versehentliche oder plumpe Änderungen. Link: `#escape=<base64url(UTF-8), ohne „=“>` – die
+  **erste Anweisung des Skripts** liest ihn (`escLinkRaw`) und entfernt ihn per `history.replaceState(null, "", pathname + search)`;
+  verarbeitet wird er nach `cleanupDrafts` statt `showResume` (`escArriveLink`); `hashchange` mit `#escape=` entfernt ihn immer sofort
+  und übernimmt ihn nur auf freien Bildschirmen (`CHECK_SCREENS` und Impressum), sonst verworfen (Schreibbereich bleibt). Überblick-PDF:
+  unkomprimierter `/Type /EmbeddedFile`-Stream mit `/FbEscape 1` (`/EmbeddedFiles` `feibeitsblatt-escape.json`, `/AF`) →
+  „Zwischenstand-PDF hochladen“ → `readStartPdf` (ersetzt `readDraftPdf`; Kennzeichen und eingebettete Dateien in einem Durchlauf,
+  ≤ 60 Objekte; ein Zwischenstand gewinnt immer, auch weiter hinten, sonst die erste Hülle; tolerant wie `/FbDraft 1`: FlateDecode,
+  `/Length n 0 R`, ohne Kennzeichen, kompakt geschrieben; `/FbEscape 1` ohne brauchbare Hülle → `escape-bad`).
+  **Block `ESCAPE:BEGIN`…`ESCAPE:END`** (reine Funktionen nach dem Block GROUP; `test/unit/escape.test.mjs`): `escB64urlBytes` (feste
+  Reihenfolge: Länge zuerst, `%`-Kodierung, nur Base64url-Zeichen, `atob` in try), `escHull` (Objekt, Text oder Bytes; UTF-8 `fatal`;
+  Größe immer als kompakte Hülle ≤ `ESC_MAX_BYTES` 96 KB gemessen – auch aus dem Zwischenstand; neues Objekt mit genau vier Feldern),
+  `escCheck` (`"ok"`/`"mismatch"`), `cleanEscape` (fremde Daten: Objekte aus einzeln gelesenen, typgeprüften Feldern neu gebaut – nie
+  Spread/`Object.assign` fremder Objekte, `__proto__` aus `JSON.parse`; Arrays erst kappen, dann verarbeiten; `code` muss "" oder ein
+  gültiger Code sein, `room.id` passen, sonst `null`; `room.url` entfällt; Strings einzeilig ≤ 2000 (`escLine`), `notes[].text` ≤ 4000
+  mit Zeilenumbrüchen (`escText`), ≤ 20 Stationen, Notizen und `resumes`, ≤ 30 Fehler je Station, Fehler ohne `item` entfallen; Namen
+  ≤ 60; Klasse wie `KLASSE_RE`, sonst leer – dann fragt die Seite sie ab; Geburtsdatum nur als echtes Datum TT.MM.JJJJ, sonst leer).
+  `confirm`: nur Ziffern (≤ 20) – wird nur angezeigt, nie geprüft. Weiter `escKuerzel`/`escPerson` (Vorbelegung: erste 3 bzw. 2
+  Buchstaben per `nameCase`, Geburtstag ohne Jahr über `parseBdayInput`, `complete`, `okV/okN/okBday/okK`), `escPayload` (an die
+  Lehrkraft genau `{room:{id, name}, word, completedAt, stations, resumes, check}`), `escTrim` (Notfall: `errors: []`,
+  `omitted:"too_large"`), `escHasDetails`, `escCleanPayload`/`escSummary` (Lehrkraft; fehlerfrei = genau ein Versuch ohne Fehler, wie
+  die Überblick-PDF des Raums; bei `omitted` Fehlerzahl `null`), `cleanEscapeSpec` (Blatt-Feld, `null` statt Fehler).
+  **Ankunft** `escArrive(hull, src)` (`ESC.run` gegen späte Antworten; `escDrop()` in `startGo`, `importDraftPdf`, `openChecklist` und
+  `openLegal` verwirft eine liegen gebliebene Ankunft samt Vorbelegung): Hülle ungültig → `ESC_LINK_BAD`/`ESC_PDF_BAD`, `code: ""` →
+  `ESC_NOT_OPEN`, Blatt fehlt → `ESC_NO_SHEET`, Netz/5xx → Meldung + `#start-esc-retry` „Erneut versuchen“ (die Daten bleiben im
+  Arbeitsspeicher), anderer Raum → `ESC_WRONG`; nach jedem Abbruch `showResume()`. Dann nur Einzelarbeit (kein `#screen-mode`): liegt
+  auf dem Gerät ein Zwischenstand derselben Person mit Text → direkt `openEditor()`, sonst `openPerson(false, pre)` mit `#p-escape`
+  (`p.note`, `role="status"`; Lücken „Bitte trage noch … ein.“, Fokus aufs erste leere Feld, sonst `#p-btn`), `sheetLine` „Escape-Room
+  „…“ · n Aufgaben“, `#p-back` „← zur Startseite“ (verwirft, `#start-status` `ESC_BACK`). Bis zum Schreibbereich bleiben die Daten nur
+  im Arbeitsspeicher (`S.escPending`; `escPendingFor`: Code und Raum müssen zum Blatt passen). `openEditor` klärt die Hülle vor allem
+  anderen (`escFromHull`; eine neue Ankunft gewinnt gegen die Hülle im Zwischenstand; die Prüfsumme wird immer neu gerechnet, nie
+  gespeichert übernommen; Escape-Blatt ohne passende Hülle oder als Gruppe → `ESC_NEED`) und speichert sofort (`arrived`); `S.escape =
+  {hull, rec, check}`. Alle Texte und Dateinamen nennen den Raum mit `S.sheet.escape.name` (vom Server), nie mit Daten aus dem Link.
+  Startseite: der Code eines Escape-Blattes → `ESC_START`, kein Weiter; der Hinweis unter „Zwischenstand-PDF hochladen“ nennt die
+  Überblick-PDF. **Zwischenstand** und Zwischenstand-PDF tragen die Hülle unverändert (`draftRecord` → `escape`, `cleanDraft` per
+  `escHull`; Zwischenstand-PDF mit Zeile „Escape-Room: …“ und Punkt unter „Bitte beachte“, ohne `/FbEscape 1`); `#sheet-meta` nennt das
+  Finale, der Dialog „Abbrechen und Zwischenstand löschen“ auch die Daten aus dem Raum. Erstversuch und Abgabe: `payload.escape =
+  escPayload(rec, escCheck(hull))` – nur verschlüsselt, ohne vollen Namen, ohne volles Datum, ohne Bestätigungscode, ohne `notes`; nie in
+  `/api/feedback`; passt der Umschlag nicht, erst ohne Tippzeiten, dann `escTrim` (`sealPayload`, `sendSealed` bei 413/409) – eine
+  Abgabe scheitert nie an den Daten aus dem Raum. Ablauf-Kasten: letzter Punkt „Lösungen, letztes Feedback und Escape-Room-Überblick
+  herunterladen“ (ohne KI „Lösungen und Escape-Room-Überblick herunterladen“) + `STEP_LATE`. `#screen-done`: Gesamt-PDF =
+  `makeSolutionsPdf` (Lösungsseiten) + `escPdfPages(pg, esc, {mode:"student"})` (Name, Geburtsdatum, Klasse, Bestätigungscode, Codewort,
+  je Station Versuche und Fehler im ersten Versuch, neue Seite „Lösungserläuterungen“ mit „Genaue Daten: …“ 9 pt grau, „Verwendung von
+  Zwischenstand-Dateien des Escape-Rooms“) über `pdfPager`/`pdfAssemble` (gemeinsam mit der Lösungs-PDF, Objektnummern unverändert),
+  `application/octet-stream` (nur speichern, nie im Tab), `Escape-Room-<Raum>-Abschluss-<JJJJ-MM-TT>.pdf` (`escFileRoom`), nie
+  Tippzeiten. Technisch gescheiterte Abgabe (`escTechnical`: jeder Fehler außer `ESC_NOT_TECHNICAL` – Prüffehler des Servers – und
+  413): `#submit-esc` mit `mailLink()` und `#submit-esc-pdf` „Abschluss-PDF für die E-Mail herunterladen“ (bewusst ein Knopf statt
+  eines automatischen Downloads; Vermerk `ESC_FAILED_PDF_NOTE` rot ganz oben, „Stand: … – noch nicht abgegeben“,
+  `…-nicht-abgegeben.pdf`, ohne Tippzeiten; verborgen bei jedem neuen Versuch und nach Erfolg). **Lehrkraft-Ansicht:** `loadSubs` →
+  `escCleanPayload` (eigenes try/catch); `escDetailDom` nur bei Escape-Blättern (sonst wird `escape` ignoriert): `.desc-h` mit dem
+  Namen des Blattes, `.desc-sum` „Abgeschlossen am … · im ersten Versuch fehlerfrei: x von n Stationen · Fehler im ersten Versuch
+  insgesamt: f · Zwischenstand-Dateien des Escape-Rooms: k|keine“ (bei `omitted` „nicht übermittelt …“; ohne Daten „Ohne Daten aus dem
+  Escape-Room.“), fremde Kennung `.desc-warn`, `.desc-check` (`ESC_CHECK_TEXT`: „stimmt – ein Indiz, kein Beweis.“ bzw. `.bad` „stimmt
+  nicht – der Datensatz wurde verändert oder ist beschädigt.“), `details.desc-more` „Überblick ansehen“ (erst beim Aufklappen,
+  `escOverviewDom`), `button.desc-pdf` „Überblick als PDF herunterladen“ (`escPdfPages` mode `teacher`: Kürzel, Geburtstag ohne Jahr,
+  Klasse, Prüfsummen-Satz, ohne Bestätigungscode und ohne Lösungserläuterungen; `Escape-Room-<Raum>-Ueberblick-<Code>-Eintrag-<id>.pdf`).
+  Nur `textContent`/DOM-APIs. **Datenschutz:** `privacyShortText` bleibt unverändert (typing.test prüft ihn wörtlich); die Sätze zum
+  Escape-Room sind eigene Knoten ohne Tippzeit-Wörter: `p.privacy#p-privacy-esc` (`escPrivacyShort`) unter `#p-privacy-short`,
+  `p#privacy-esc` (`escPrivacyEditor`) unter `#privacy`, `privacyNoticeDom(…, {escape: name})` (Option hinter `ttSwitch`) mit Absätzen
+  bzw. Listenpunkten aus `ESC_PRIV` (Wozu; Welche Daten – nach dem `TT_ACCESS`-Absatz, mit der Rechtsgrundlage Buchst. b bzw. § 25
+  Abs. 2 Nr. 2 TDDDG, die Liste „Rechtsgrundlage“ bleibt gleich; Lehrkraft; E-Mail-Weg `escMailItem` – sonst stimmte „nicht deinen
+  vollen Namen …“ nicht; Wie lange samt Browser-Verlauf des Links und Aufbewahrung der E-Mail „bis deine Lehrkraft sie übernommen
+  hat“ – Entscheidung des Betreibers offen). „Impressum & Datenschutz“: `#legal-escape` in allgemeiner Form, `#legal-privfull`
+  unverändert; Vorschau der Lehrkraft: `PV_ESC_NOTE` in `#pv-preview-note`. **Tests:** `escape.test.mjs` (Testvektoren, 200 Zufallstexte
+  gegen die Kopie in `test/escape-fixture.mjs`; dort auch `escHull`, `b64url` und `overviewPdf(hull, {flate, marker, compact, lenRef})`
+  im Objektaufbau der Überblick-PDF des Raums), lib-/worker-Tests, Smoke-Schritt „Escape-Room-Blatt“ (auch: KI-Prompt ohne mitgeschickte
+  Raum-Daten, D1 ohne Klartext), E2E 7n/7o (eigene Fixtures: unkomprimiert, FlateDecode ohne Kennzeichen, manipulierte Prüfsumme;
+  `ESCAPE_PDF_OUT=<Ordner>` speichert die PDF-Dateien und Bildschirmfotos). Testdaten frei erfunden, `confirm` in Tests eine beliebige
+  Ziffernfolge; keine Datei aus einem echten Escape-Room als Fixture.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
@@ -949,7 +1046,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `TT_OBJ_HEAD` vor „Deine Rechte“, auf „Impressum & Datenschutz“ nur als Absatz, Vorschau gesperrt), 2 (`renderPrivacy` mit
   `TT_SHORT`, `#privfull-ed` mit Abschnitt), 2b (Kurzfassung der Gruppe mit `TT_SHORT_G`, `TT_ACCESS_G`) und `privBases` – die Erwartungen folgen `TT_KEEP` (aus index.html gelesen); beim Umlegen von
   `TT_KEEP_IN_DRAFT` 1, 1b, 2, 2b, 7l, 7m einmal in der anderen Stellung laufen lassen. Beide Tests laufen vor Test 8
-  (Passwortwechsel). Unit: `scheduled` auf der
+  (Passwortwechsel), ebenso E2E 7n/7o (Escape-Room-Finale, eigenes Blatt, 7o löscht es; nur mit Test 1 davor lauffähig, einzeln
+  `npx playwright test -g "spec\.mjs (1|7n|7o) "`; siehe Escape-Room-Anbindung). Unit: `scheduled` auf der
   gemeinsamen D1 (und einmal frisch importiert `?scheduled`), `d1.failIf` für ein scheiterndes PURGE, `Math.random`
   gestubbt beim Zählen der D1-Abfragen und in Tests mit zurückdatierten Einträgen (`noRandomCleanup`: sonst löscht das
   2-%-Aufräumen sie gelegentlich vor der Prüfung).
