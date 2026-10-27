@@ -11,8 +11,7 @@ const block = (name) => { const i = html.indexOf("/* " + name + ":BEGIN"), j = h
 const E = new Function("td", block("BDAY") + block("GROUP") + block("ESCAPE") + block("PDFREAD") +
   "\nreturn { fbEscapeHash, escCheck, escLine, escText, escIso, cleanEscapeSpec, escCleanPayload, escSummary, ESC_KIND, ESC_MAX_BYTES, ESC_ID_RE, " +
   "escB64urlBytes, escHull, escBirth, cleanEscape, escKuerzel, escPerson, escPayload, escTrim, escHasDetails, readStartPdf, feibeitsblattPdfKind };")(new TextDecoder());
-const plainSrc = /const pdfPlain = [\s\S]*?;\n/.exec(html)[0];
-const pdfPlain = new Function(plainSrc + "return pdfPlain;")();
+const pdfPlain = new Function(block("PDFPLAIN") + "return pdfPlain;")();
 
 test("escape: Prüfsumme – Testvektoren der Schnittstelle v1 und dieselben Werte wie die Kopie des Raums", () => {
   assert.equal(E.fbEscapeHash("FbEscape|v1|{}"), "0bdda452e8d9ff95");
@@ -132,6 +131,16 @@ test("pdfPlain: Zeichen aus den Daten eines Escape-Rooms lesbar statt „?“ (M
   assert.equal(pdfPlain("Kaffee → Brasilien ✓"), "Kaffee -> Brasilien ");
 });
 
+test("pdfPlain: Namen mit Buchstaben außerhalb von WinAnsi bleiben lesbar (Grundbuchstabe mit den Akzenten, die WinAnsi kennt) – nur andere Schriften werden „?“", () => {
+  assert.equal(pdfPlain("Şükrü Yılmaz"), "Sükrü Yilmaz");
+  assert.equal(pdfPlain("Łukasz Dvořák"), "Lukasz Dvorák");
+  assert.equal(pdfPlain("Nguyễn Thị"), "Nguyên Thi");   // „ễ“ → „ê“ (WinAnsi kennt e mit Zirkumflex)
+  assert.equal(pdfPlain("İpek Đorđe Ștefan"), "Ipek Dorde Stefan");
+  assert.equal(pdfPlain("Ærø Müller-Lüdenscheidt ß „x“ – €"), "Ærø Müller-Lüdenscheidt ß „x“ – €");   // WinAnsi bleibt unverändert
+  assert.equal(pdfPlain("q\u0307"), "q");   // allein stehendes Kombinationszeichen (nicht zusammensetzbar) entfällt
+  assert.equal(pdfPlain("Владимир 😀"), "Владимир 😀");   // andere Schriften: unverändert (gedruckt als „?“)
+});
+
 // Datensatz des Raums (brief 3.2) – frei erfundene Werte; confirm ist eine beliebige Ziffernfolge
 const record = (o = {}) => ({
   code: "K7QM4X",
@@ -157,6 +166,12 @@ test("escape: Link (#escape=…) – Base64url, Padding, Prozentkodierung; falsc
   const t0 = performance.now();
   assert.equal(E.escB64urlBytes("A".repeat(10_000_000)), null);   // viel zu lang: sofort abgelehnt
   assert.ok(performance.now() - t0 < 20);
+  // viele „=“ ohne „=“ am Ende (bis zur Längengrenze vor dem Dekodieren): linear abgelehnt – /=+$/ lief hier quadratisch zurück
+  for (const bad of ["=".repeat(393_000) + "a", "=".repeat(393_000), "a" + "=".repeat(393_000), raw + "==="]) {
+    const t1 = performance.now();
+    assert.equal(E.escB64urlBytes(bad), null, bad.slice(-5));
+    assert.ok(performance.now() - t1 < 50, "zu langsam: " + (performance.now() - t1) + " ms");
+  }
   assert.equal(E.escHull(new Uint8Array([0x7b, 0xff, 0xfe, 0x7d])), null);   // kein gültiges UTF-8
   assert.equal(E.escHull(null), null);
   for (const o of [{ kind: "feibeitsblatt-draft" }, { v: 2 }, { v: "1" }, { d: {} }, { s: "XYZ" }, { s: "ABCDEF0123456789" }, { s: "g".repeat(16) }, { s: undefined }])

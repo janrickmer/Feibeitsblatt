@@ -151,12 +151,14 @@ const ESC_DATA = (name) => `Bei einem Escape-Room-Finale übernimmt diese Seite 
   "(je Station die Zahl der Versuche und die Fehler im ersten Versuch mit deinen Antworten, die Lösungserläuterungen, wann du fertig warst und wann du Zwischenstand-Dateien des Escape-Rooms genutzt hast). " +
   "Daraus bildet sie deine Kürzel und deinen Geburtstag ohne Jahr. Sie gehören zum Bearbeiten und Abgeben (Art. 6 Abs. 1 Buchst. b DSGVO; im Zwischenstand auf diesem Gerät § 25 Abs. 2 Nr. 2 TDDDG).";
 const ESC_TEACHER = "Bei einem Escape-Room-Finale bekommt deine Lehrkraft verschlüsselt auch deine Ergebnisse aus dem Escape-Room und ob die Prüfsumme des Datensatzes stimmt – nicht deinen vollen Namen, " +
-  "dein Geburtsdatum, deinen Bestätigungscode oder die Lösungserläuterungen. An einen KI-Dienst gehen die Daten aus dem Escape-Room nie.";
+  "dein Geburtsdatum, deinen Bestätigungscode oder die Lösungserläuterungen. Gespeichert werden diese Ergebnisse wie deine Antworten nur verschlüsselt bei Cloudflare (Server und Datenbank dieser Seite). " +
+  "An einen KI-Dienst gehen die Daten aus dem Escape-Room nie.";
 const ESC_MAIL = "Nur wenn deine Abgabe bei einem Escape-Room-Finale wegen eines technischen Fehlers scheitert und du deine Abschluss-PDF per E-Mail schickst: der Betreiber (" + OP.name + ", E-Mail " + OP.email + "). " +
   "Die Datei enthält deinen vollen Namen, dein Geburtsdatum, deinen Bestätigungscode, deine Antworten, das KI-Feedback und deine Ergebnisse aus dem Escape-Room; sie geht unverschlüsselt über deinen E-Mail-Anbieter und den des Betreibers.";
 const ESC_STAY = "Bei einem Escape-Room-Finale stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode bis zur Abgabe auch in deinem Zwischenstand und in jeder Zwischenstand-PDF-Datei, " +
   "die du sicherst, und – wenn du sie herunterlädst – in deiner Abschluss-PDF; diese Dateien löschst du selbst. Der Link aus dem Escape-Room enthält dieselben Daten: Diese Seite entfernt ihn " +
-  "sofort aus der Adresszeile, im Verlauf deines Browsers kann er aber stehen bleiben – lösche ihn dort auf einem geteilten Gerät. " +
+  "sofort aus der Adresszeile, im Verlauf deines Browsers bleibt er aber in der Regel stehen – lösche ihn dort auf einem geteilten Gerät. " +
+  "Ist die Synchronisierung des Verlaufs eingeschaltet (z. B. über ein Google- oder Firefox-Konto), gelangt er auch dorthin. " +
   "Schickst du deine Abschluss-PDF nach einer gescheiterten Abgabe per E-Mail an den Betreiber, bewahrt der Betreiber sie auf, bis deine Lehrkraft sie übernommen hat.";
 // Kurzfassung (Locator): genau einmal der Satz, sonst kein Wort zur Messung
 async function expectTtShort(loc, sentence = TT_SHORT) {
@@ -5600,7 +5602,11 @@ const ESC_NOT_OPEN = "Dieses Escape-Room-Finale ist noch nicht freigeschaltet. D
 const ESC_NO_SHEET = "Zu diesem Escape-Room-Finale gibt es kein Feibeitsblatt (mehr). Bitte sag deiner Lehrkraft Bescheid.";
 const ESC_WRONG = "Die Daten aus dem Escape-Room passen nicht zu diesem Feibeitsblatt. Bitte sag deiner Lehrkraft Bescheid.";
 const ESC_NEED = "Dieser Zwischenstand gehört zu einem Escape-Room-Finale, enthält aber keine Daten aus dem Escape-Room. Lade deine Überblick-PDF unter „Zwischenstand-PDF hochladen“ hoch.";
-const ESC_BACK = "Deine Daten aus dem Escape-Room wurden auf diesem Gerät nicht gespeichert. Du kannst jederzeit über den Arena-Tunnel oder mit deiner Überblick-PDF zurückkommen.";
+const ESC_BACK = "Diese Seite hat deine Daten aus dem Escape-Room nicht gespeichert. Du kannst jederzeit über den Arena-Tunnel oder mit deiner Überblick-PDF zurückkommen.";
+// per Link angekommen: der Link steht im Verlauf des Browsers (replaceState entfernt ihn nur aus der Adresszeile)
+const ESC_BACK_LINK = "Diese Seite hat deine Daten aus dem Escape-Room nicht gespeichert. Der Link aus dem Escape-Room mit diesen Daten steht aber noch im Verlauf deines Browsers – " +
+  "auf einem geteilten Gerät lösche ihn dort. Du kannst jederzeit über den Arena-Tunnel oder mit deiner Überblick-PDF zurückkommen.";
+const ESC_UPDATED = "Die Daten aus dem Escape-Room „FastFashion-Test“ in deinem Zwischenstand wurden durch die gerade mitgebrachten ersetzt (Escape-Room abgeschlossen am 27.10.2026, 11:15 Uhr).";
 const ESC_NOTE = "Du kommst aus dem Escape-Room „FastFashion-Test“ – deine Angaben sind schon eingetragen.";
 const ESC_SHORT = "Aus dem Escape-Room „FastFashion-Test“ bleiben dein voller Name, dein Geburtsdatum und dein Bestätigungscode auf diesem Gerät; nur deine Ergebnisse dort gehen verschlüsselt an deine Lehrkraft.";
 const ESC_EDITOR = "Aus dem Escape-Room „FastFashion-Test“ stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode nur in deinem Zwischenstand auf diesem Gerät und in PDF-Dateien, die du herunterlädst; " +
@@ -5647,6 +5653,8 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
   await expect(tp.locator("#b-esc-fields")).toBeHidden();
   await tp.check("#b-esc");
   await expect(tp.locator("#b-esc-fields")).toBeVisible();
+  await expect(tp.locator("#b-esc")).toBeFocused();   // kein Fokussprung beim Setzen des Hakens (WCAG 3.2.2) – die Felder folgen per Tab
+  await tp.keyboard.press("Tab");
   await expect(tp.locator("#b-esc-name")).toBeFocused();
   // Name und Kennung prüft schon der Browser (dieselben Regeln wie der Server)
   await tp.click("#b-gen");
@@ -5703,16 +5711,18 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
 
   /* ---------- 3. Ankunft per Link (Seite neu geladen): Adresse sofort ohne Daten, Angaben vorausgefüllt, nur Einzelarbeit ---------- */
   const hull = escHull(escRec(ESCT.code));
+  await s.context.addInitScript(blobSpy);
   await page.goto("about:blank");
   await page.goto(escLink(hull));
   await expect(page.locator("#screen-person")).toHaveClass(/active/);
   expect(page.url()).toBe(BASE_URL + "/");
-  expect(await page.evaluate(() => [location.hash, history.state])).toEqual(["", null]);
+  expect(await page.evaluate(() => [location.hash, history.state, "FEIBEITSBLATT_ESCAPE_LINK" in window])).toEqual(["", null, false]);   // Übergabe aus dem Kopf-Skript gelöscht
   expect(await personValues(page)).toEqual(["Max", "Mu", "4", "5", "10b"]);
   await expect(page.locator("#p-escape")).toHaveText(ESC_NOTE);
   await expect(page.locator("#p-sheet small")).toHaveText("Escape-Room „FastFashion-Test“ · 2 Aufgaben");
   await expect(page.locator("#p-back")).toHaveText("← zur Startseite");
   await expect(page.locator("#p-btn")).toBeFocused();
+  await expect(page.locator("#p-btn")).toHaveAttribute("aria-describedby", "p-escape");   // der Hinweis wird beim Ankommen mit vorgelesen
   await expect(page.locator("#p-group")).toBeHidden();
   await expect(page.locator("#p-privacy-esc")).toHaveText(ESC_SHORT);
   await expectTtShort(page.locator("#p-privacy-short"));
@@ -5729,6 +5739,7 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
   await expect(page.locator("#who-name")).toHaveText("Max · Mu · 04.05. · Klasse 10b");
   await expect(page.locator("#sheet-meta")).toContainText("Finale des Escape-Rooms „FastFashion-Test“");
+  await expect(page.locator("#esc-updated")).toBeHidden();   // noch kein Zwischenstand – nichts ersetzt
   await expect.poll(async () => ((await draftOfPage(page)) || {}).escape).toEqual(hull);
   await expect(page.locator("#ed-steps-list li")).toHaveText([...STEPS_AI.slice(0, 4), ESC_STEP_LAST]);
   await expect(page.locator("#privacy-esc")).toHaveText(ESC_EDITOR);
@@ -5746,6 +5757,7 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
 
   /* ---------- 5. Zwischenstand-PDF: trägt die Hülle, nennt den Escape-Room; auf einem anderen Gerät hochgeladen geht es weiter ---------- */
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#ed-pdf")]);
+  expect((await page.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");   // voller Name, Geburtsdatum, Bestätigungscode: nur speichern
   const dpdf = await readFile(await dl.path());
   await escSave("7n-zwischenstand.pdf", dpdf);
   const i0 = dpdf.indexOf("/FbDraft 1"), d0 = dpdf.indexOf("stream\n", i0) + 7, d1 = dpdf.indexOf("\nendstream", d0);
@@ -5802,6 +5814,8 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
   await upload(overviewPdf(escHull(escRec(ESCT.code, { person: { vorname: "Maximilian", nachname: "Mustermann", geburtsdatum: "31.04.2010", klasse: "" } }))));
   await expect(up.locator("#p-escape")).toHaveText(ESC_NOTE + " Bitte trage noch deinen Geburtstag und deine Klasse ein.");
   await expect(up.locator("#p-gtag")).toBeFocused();
+  await expect(up.locator("#p-gtag")).toHaveAttribute("aria-describedby", "p-escape");
+  await expect(up.locator("#p-btn")).not.toHaveAttribute("aria-describedby", /p-escape/);
   await up.click("#p-back");
 
   /* ---------- 7. Link-Varianten ---------- */
@@ -5812,13 +5826,19 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
   await expect(up.locator("#screen-person")).toHaveClass(/active/);
   expect(up.url()).toBe(BASE_URL + "/");
   await up.click("#p-back");
-  // Netzfehler beim Laden des Blattes: die Daten bleiben, „Erneut versuchen“ holt es nach
+  await expect(up.locator("#start-status")).toHaveText(ESC_BACK_LINK);   // per Link angekommen: der Link steht im Verlauf des Browsers
+  // Netzfehler beim Laden des Blattes: die Daten bleiben, „Erneut versuchen“ holt es nach – scheitert auch das, bleibt der Fokus auf dem Knopf
   let aborted = 0;
-  await up.route("**/api/sheet/*", (r) => (aborted++ ? r.continue() : r.abort()));
+  await up.route("**/api/sheet/*", (r) => (aborted++ < 2 ? r.abort() : r.continue()));
   await up.goto("about:blank"); await up.goto(escLink(hull));
   await expect(up.locator("#start-err")).toHaveText(/Deine Daten aus dem Escape-Room sind noch da – versuche es gleich noch einmal\.$/);
   await expect(up.locator("#start-esc-retry")).toBeVisible();
-  await up.click("#start-esc-retry");
+  await up.focus("#start-esc-retry");
+  await up.keyboard.press("Enter");
+  await expect.poll(() => aborted).toBe(2);
+  await expect(up.locator("#start-esc-retry")).toBeVisible();
+  await expect(up.locator("#start-esc-retry")).toBeFocused();
+  await up.keyboard.press("Enter");
   await expect(up.locator("#screen-person")).toHaveClass(/active/);
   await expect(up.locator("#start-esc-retry")).toBeHidden();
   await up.unroute("**/api/sheet/*");
@@ -5839,7 +5859,54 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
   await expect.poll(async () => !!(await draftOfPage(up))).toBe(true);
   expect((await draftOfPage(up)).escape).toBeUndefined();
   await expect(up.locator("#ed-steps-list li")).toHaveText(STEPS_AI);
+  // Wettlauf: das Escape-Blatt lädt langsam, währenddessen kommt ein Zwischenstand eines normalen Blattes → die späte Antwort ändert
+  // nichts mehr; Schreibbereich und Abgabe gehören zum normalen Blatt
+  let release;
+  const held = new Promise((r) => { release = r; });
+  await up.route(`**/api/sheet/${ESCT.code}`, async (r) => { await held; await r.continue(); });
+  await up.goto("about:blank"); await up.goto(escLink(hull));
+  await expect(up.locator("#start-btn")).toBeDisabled();   // lädt (angehalten)
+  const normalCode = ESCT.normalShown.replace("-", "");
+  const lia = { v: 1, kind: "feibeitsblatt-draft", code: normalCode, sheetTitle: "Normales Blatt", t: Date.now(),
+    person: { vorname: "Lia", nachname: "Wa", geburtsdatum: "--03-02", klasse: "10c" }, answers: ["Satz aus dem Wettlauf."] };
+  await up.setInputFiles("#start-pdf-file", { name: "z.pdf", mimeType: "application/pdf", buffer: embedPdf(lia) });
+  await expect(up.locator("#screen-editor")).toHaveClass(/active/);
+  const late = up.waitForResponse((r) => r.url().endsWith("/api/sheet/" + ESCT.code));
+  release();
+  await late;
+  await up.waitForTimeout(300);   // die späte Antwort ist verarbeitet
+  await up.unroute(`**/api/sheet/${ESCT.code}`);
+  await expect(up.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(up.locator("#sheet-title")).toHaveText("Normales Blatt");
+  await expect(up.locator("#tasks .task")).toHaveCount(1);
+  await expect(up.locator("#ed-steps-list li")).toHaveText(STEPS_AI);
+  await expect(up.locator("#privacy-esc")).toBeHidden();
+  expect(await up.inputValue("#a-1")).toBe("Satz aus dem Wettlauf.");
+  const posted = [];
+  await up.route("**/api/submit", (r) => { posted.push(JSON.parse(r.request().postData()).code); return r.abort(); });
+  await up.click("#submit-btn");
+  await confirmDialog(up, "Ohne KI-Feedback abgeben?");
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted).toEqual([normalCode]);   // nicht an das Escape-Blatt
+  await expect(up.locator("#submit-status")).toHaveClass(/bad/);
+  await expect(up.locator("#submit-esc")).toBeHidden();
+  await up.unroute("**/api/submit");
   await closePage(u);
+  // Der Hash verschwindet schon im Kopf der Seite – auch wenn das große Skript gar nicht läuft (hier mit einem eingeschleusten Syntaxfehler)
+  const bctx = await browser.newContext();
+  const bp = await bctx.newPage();
+  await bp.route((url) => url.pathname === "/", async (r) => {
+    const resp = await r.fetch(), html = await resp.text(), mark = '"use strict";\n(function(){';
+    expect(html.split(mark).length).toBe(2);
+    await r.fulfill({ response: resp, body: html.replace(mark, mark + " @@@ ") });
+  });
+  const perr = [];
+  bp.on("pageerror", (e) => perr.push(String(e)));
+  await bp.goto(escLink(hull));
+  await expect.poll(() => perr.length).toBeGreaterThan(0);   // das große Skript scheitert …
+  expect(bp.url()).toBe(BASE_URL + "/");                      // … die Daten stehen trotzdem nicht mehr in der Adresse
+  expect(await bp.evaluate(() => [location.hash, typeof window.FEIBEITSBLATT_ESCAPE_LINK])).toEqual(["", "string"]);
+  await bctx.close();
   // Link im Schreibbereich: sofort aus der Adresse entfernt, nichts übernommen
   const other = escHull(escRec(ESCT.code, { confirm: "27182818" }));
   await page.evaluate((x) => { location.hash = x; }, escLink(other).slice(1));
@@ -5848,12 +5915,20 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
   expect(await page.inputValue("#a-1")).toBe(TXT);
   expect((await draftOfPage(page)).escape).toEqual(hull);
 
-  /* ---------- 8. Vorhandener Zwischenstand: erneute Ankunft → direkt in den Schreibbereich (neue Daten gewinnen) ---------- */
+  /* ---------- 8. Vorhandener Zwischenstand: erneute Ankunft → direkt in den Schreibbereich (neue Daten gewinnen, sichtbar gemeldet) ---------- */
   await page.goto("about:blank");
   await page.goto(escLink(other));
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
   expect(await page.inputValue("#a-1")).toBe(TXT);
   await expect.poll(async () => ((await draftOfPage(page)) || {}).escape).toEqual(other);
+  await expect(page.locator("#esc-updated")).toBeVisible();
+  await expect(page.locator("#esc-updated")).toHaveText(ESC_UPDATED);
+  // dieselben Daten noch einmal: keine Meldung
+  await page.goto("about:blank");
+  await page.goto(escLink(other));
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#save-state")).toHaveText(/./);
+  await expect(page.locator("#esc-updated")).toBeHidden();
   // Fehler bei der Ankunft: der vorhandene Zwischenstand bleibt über „Weiterschreiben“ erreichbar
   for (const [link, msg] of [["/#escape=%%%", ESC_LINK_BAD], [escLink(escHull(escRec(""))), ESC_NOT_OPEN]]) {
     await page.goto("about:blank"); await page.goto(link);
@@ -5946,18 +6021,28 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await fp.click("#p-btn");
   await expect(fp.locator("#screen-editor")).toHaveClass(/active/);
   await typeAt(fp, "#a-1", "Antwort von Eri.");
+  // jede Antwort auf /api/submit vorgeben (status 0 = Netzfehler); ein Versuch gilt erst als beendet, wenn er gesendet hat und
+  // „Abgeben“ wieder frei ist (sonst prüfte die Erwartung noch den Zustand des vorigen Versuchs)
+  let posts = 0;
+  const failWith = async (status, body) => {
+    await fp.unroute("**/api/submit");
+    await fp.route("**/api/submit", (r) => { posts++; return status ? r.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }) : r.abort(); });
+  };
   const trySubmit = async () => {
+    const n = posts;
     await fp.click("#submit-btn");
     await confirmDialog(fp, "Ohne KI-Feedback abgeben?");
+    await expect.poll(() => posts).toBeGreaterThan(n);
+    await expect(fp.locator("#submit-btn")).toBeEnabled();
     await expect(fp.locator("#submit-status")).toHaveClass(/bad/);
   };
-  await fp.route("**/api/submit", (r) => r.abort());
+  await failWith(0);
   await trySubmit();
   const box = fp.locator("#submit-esc");
   await expect(box).toBeVisible();
   await expect(fp.locator("#submit-esc-text")).toHaveText("Noch nicht abgegeben: Die Abgabe ist wegen eines technischen Fehlers fehlgeschlagen. Versuche es gleich noch einmal. Klappt es nicht, lade diese Datei herunter und reiche sie per E-Mail bei " + OP.email + " ein.");
   await expect(fp.locator(`#submit-esc-text a[href="mailto:${OP.email}"]`)).toHaveCount(1);
-  await expect(fp.locator("#submit-esc-note")).toHaveText("Die Datei enthält deinen vollen Namen, dein Geburtsdatum und deine Antworten – schicke sie nur an diese Adresse.");
+  await expect(fp.locator("#submit-esc-note")).toHaveText("Die Datei enthält deinen vollen Namen, dein Geburtsdatum, deinen Bestätigungscode und deine Antworten – schicke sie nur an diese Adresse.");
   const [fdl] = await Promise.all([fp.waitForEvent("download"), fp.click("#submit-esc-pdf")]);
   expect(fdl.suggestedFilename()).toBe(`Escape-Room-FastFashion-Test-Abschluss-${ymd()}-nicht-abgegeben.pdf`);
   expect((await fp.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");
@@ -5970,16 +6055,44 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   for (const x of ["noch nicht abgegeben", "Antwort von Eri.", "Name: Erika Musterfrau", "Bestätigungscode: 27182818", "• <img src=x onerror=window.__x=1>"]) expect(ftext).toContain(x);
   expect(ftext).not.toContain("Tippzeit");
   expect(ftext).not.toContain("abgegeben am");
-  await fp.unroute("**/api/submit");
   // Antwort ohne JSON (z. B. eine Zwischenstelle) → ebenso technisch
-  await fp.route("**/api/submit", (r) => r.fulfill({ status: 403, contentType: "text/html", body: "<html><body>Forbidden</body></html>" }));
+  await fp.unroute("**/api/submit");
+  await fp.route("**/api/submit", (r) => { posts++; return r.fulfill({ status: 403, contentType: "text/html", body: "<html><body>Forbidden</body></html>" }); });
   await trySubmit();
   await expect(box).toBeVisible();
-  await fp.unroute("**/api/submit");
   // Prüffehler des Servers → kein E-Mail-Weg (neu laden und noch einmal abgeben hilft)
-  await fp.route("**/api/submit", (r) => r.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die Abgabe ist beschädigt.", code: "bad_envelope" }) }));
+  await failWith(400, { ok: false, error: "Die Abgabe ist beschädigt.", code: "bad_envelope" });
   await trySubmit();
   await expect(box).toBeHidden();
+  // Blatt voll (409): zuerst die Lehrkraft (sie kann Einträge löschen) – der E-Mail-Weg erst, wenn es danach wieder scheitert
+  await failWith(409, { ok: false, error: "Für dieses Feibeitsblatt sind bereits sehr viele Abgaben gespeichert. Bitte wende dich an deine Lehrkraft.", code: "too_many_submissions" });
+  await trySubmit();
+  await expect(fp.locator("#submit-status")).toContainText("Bitte wende dich an deine Lehrkraft.");
+  await expect(box).toBeHidden();
+  await trySubmit();
+  await expect(box).toBeVisible();
+  // Blatt gelöscht (404): sofort
+  await failWith(404, { ok: false, error: "Zu diesem Code gibt es kein Feibeitsblatt.", code: "not_found" });
+  await trySubmit();
+  await expect(box).toBeVisible();
+  // zu viele Abgaben aus diesem Netz (429): erst warten – vor Ablauf der Wartezeit kein E-Mail-Weg, auch nicht beim zweiten Mal …
+  const RATE = "Gerade wurden von diesem Netzwerk sehr viele Abgaben gesendet. Bitte versuche es in etwa 1 Minute erneut – deine Antworten bleiben auf diesem Gerät gespeichert.";
+  await failWith(429, { ok: false, error: RATE, code: "rate_limited", retryAfter: 60 });
+  await trySubmit();
+  await expect(fp.locator("#submit-status")).toHaveText(RATE + " Deine Antworten sind noch da.");
+  await expect(box).toBeHidden();
+  await trySubmit();
+  await expect(box).toBeHidden();
+  // … nach der Wartezeit schon (hier 1 Sekunde; ein Netzfehler dazwischen beginnt neu)
+  await failWith(0);
+  await trySubmit();
+  await expect(box).toBeVisible();
+  await failWith(429, { ok: false, error: RATE, code: "rate_limited", retryAfter: 1 });
+  await trySubmit();
+  await expect(box).toBeHidden();
+  await fp.waitForTimeout(1200);
+  await trySubmit();
+  await expect(box).toBeVisible();
   await fp.unroute("**/api/submit");
   await fp.click("#submit-btn");
   await confirmDialog(fp, "Ohne KI-Feedback abgeben?");
@@ -5987,6 +6100,37 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await expect(box).toBeHidden();
   expect(await fp.evaluate(() => [document.querySelectorAll("img[src=x]").length, window.__x])).toEqual([0, undefined]);
   await closePage(f);
+
+  /* ---------- 11b. Abgabe zu groß (zweimal 413): erst ohne Tippzeiten, dann ohne die Fehler-Einzelheiten – sie scheitert nie daran ---------- */
+  const l = await openPage(browser);
+  const lp = l.page;
+  const lena = escRec(ESCT.code, { person: { vorname: "Lena", nachname: "Beispiel", geburtsdatum: "12.03.2010", klasse: "10c" }, confirm: "16180339" });
+  await lp.goto("about:blank"); await lp.goto(escLink(escHull(lena)));
+  await expect(lp.locator("#screen-person")).toHaveClass(/active/);
+  await lp.click("#p-btn");
+  await expect(lp.locator("#screen-editor")).toHaveClass(/active/);
+  await typeAt(lp, "#a-1", "Antwort von Len.");
+  const sent = [];
+  await lp.route("**/api/submit", (r) => {
+    sent.push(JSON.parse(r.request().postData()));
+    return sent.length <= 2 ? r.fulfill({ status: 413, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die Abgabe ist zu groß.", code: "too_large" }) }) : r.continue();
+  });
+  await lp.click("#submit-btn");
+  await confirmDialog(lp, "Ohne KI-Feedback abgeben?");
+  await expect(lp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(sent.length).toBe(3);
+  const [l1, l2, l3] = await Promise.all(sent.map((b) => openEnvelope(priv, b.envelope)));
+  const withErrors = (x) => x.stations.some((st) => st.errors.length > 0);
+  expect(l1.typing.answers.length).toBe(2);   // erst mit Tippzeiten und Fehlern
+  expect(withErrors(l1.escape)).toBe(true);
+  expect(l2.typing).toEqual({ v: 1, omitted: "too_large" });   // dann ohne Tippzeiten
+  expect(withErrors(l2.escape)).toBe(true);
+  expect(l3.typing).toEqual({ v: 1, omitted: "too_large" });   // zuletzt auch ohne die Fehler-Einzelheiten
+  expect(l3.escape.omitted).toBe("too_large");
+  expect(withErrors(l3.escape)).toBe(false);
+  expect(l3.escape.stations.map((st) => st.attempts)).toEqual(ESC_STATIONS.map((st) => st.attempts));
+  await lp.unroute("**/api/submit");
+  await closePage(l);
 
   /* ---------- 12. Lehrkraft-Ansicht ---------- */
   const t = await openPage(browser);
@@ -5996,11 +6140,18 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await expect(tp.locator("#screen-start")).toHaveClass(/active/);
   await teacherLogin(tp, PW);
   await tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" }).click();
-  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(2);
+  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(3);
   await tp.click("#t-expand-all");
   const dmax = tp.locator("#t-subs-body tr.details", { hasText: "Kaya hat gelernt" }).locator(".desc").first();
   const deri = tp.locator("#t-subs-body tr.details", { hasText: "Antwort von Eri." }).locator(".desc").first();
-  await expect(tp.locator("#t-subs-body tr.details .desc")).toHaveCount(2);
+  await expect(tp.locator("#t-subs-body tr.details .desc")).toHaveCount(3);
+  // Lena: Abgabe nur ohne Tippzeiten und ohne Fehler-Einzelheiten angekommen (11b)
+  const dlen = tp.locator("#t-subs-body tr.details", { hasText: "Antwort von Len." });
+  await expect(dlen.locator(".desc-sum")).toHaveText("Abgeschlossen am 27.10.2026, 11:15 Uhr · im ersten Versuch fehlerfrei: 4 von 6 Stationen · " +
+    "Fehler im ersten Versuch: nicht übermittelt (die Abgabe wäre sonst zu groß gewesen) · Zwischenstand-Dateien des Escape-Rooms: 1");
+  await expect(dlen.locator(".dtt-sum")).toHaveText("Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.");
+  await dlen.locator("details.desc-more summary").click();
+  await expect(dlen.locator(".desc-att, .desc-ok").nth(1)).toHaveText("3 Versuche – die Fehler im ersten Versuch wurden nicht übermittelt");
   await expect(dmax.locator(".desc-h")).toHaveText("Escape-Room „FastFashion-Test“");
   await expect(dmax.locator(".desc-sum")).toHaveText("Abgeschlossen am 27.10.2026, 11:15 Uhr · im ersten Versuch fehlerfrei: 4 von 6 Stationen · Fehler im ersten Versuch insgesamt: 3 · Zwischenstand-Dateien des Escape-Rooms: 1");
   await expect(dmax.locator(".desc-check")).toHaveText("Prüfsumme des Datensatzes: stimmt – ein Indiz, kein Beweis.");
@@ -6022,7 +6173,7 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await expect(deri.locator(".desc-errs li b")).toHaveText(["<img src=x onerror=window.__x=1>"]);
   await expect(deri.locator(".desc-body > p").last()).toHaveText("Keine.");
   expect(await tp.evaluate(() => [document.querySelectorAll("img[src=x]").length, window.__x])).toEqual([0, undefined]);
-  for (const x of ["Maximilian", "Mustermann", "31415926", "27182818", "Erika"]) await expect(tp.locator("#t-subs")).not.toContainText(x);
+  for (const x of ["Maximilian", "Mustermann", "31415926", "27182818", "Erika", "Beispiel", "16180339"]) await expect(tp.locator("#t-subs")).not.toContainText(x);
   const [tdl] = await Promise.all([tp.waitForEvent("download"), dmax.locator("button.desc-pdf").click()]);
   expect(tdl.suggestedFilename()).toMatch(new RegExp(`^Escape-Room-FastFashion-Test-Ueberblick-${ESCT.shown}-Eintrag-\\d+\\.pdf$`));
   const tpdf = await readFile(await tdl.path());
@@ -6046,7 +6197,20 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await expect(tp.locator("#b-esc-fields")).toBeVisible();
   expect([await tp.inputValue("#b-esc-name"), await tp.inputValue("#b-esc-id")]).toEqual([ESC_ROOM.name, ESC_ROOM.id]);
   await expect(tp.locator("#b-import")).toHaveText("Das neue Feibeitsblatt gehört wieder zum Escape-Room „FastFashion-Test“ und bekommt einen neuen Code – tragen Sie ihn danach im Quelltext des Escape-Rooms ein.");
-  await tp.click("#b-back");   // nichts geändert → ohne Rückfrage
+  // der Hinweis gilt nur, solange das neue Blatt wirklich zu diesem Escape-Room gehört (Haken, Name und Kennung)
+  await tp.click("#b-esc");
+  await expect(tp.locator("#b-esc")).not.toBeChecked();
+  await expect(tp.locator("#b-esc")).toBeFocused();   // kein Fokussprung
+  await expect(tp.locator("#b-import")).toBeHidden();
+  await tp.click("#b-esc");
+  await expect(tp.locator("#b-esc")).toBeFocused();
+  await expect(tp.locator("#b-import")).toBeVisible();
+  await tp.fill("#b-esc-name", "Anderer Raum");
+  await expect(tp.locator("#b-import")).toBeHidden();
+  await tp.fill("#b-esc-name", ESC_ROOM.name);
+  await expect(tp.locator("#b-import")).toBeVisible();
+  await tp.click("#b-back");   // geändert (und zurückgeändert) → Rückfrage
+  await confirmDialog(tp, "Eingaben verwerfen?");
   await expect(tp.locator("#tv-overview")).toBeVisible();
   // Sicherung: Datensatz mit escape (ohne Abgaben), sichtbar eine Zeile zum Escape-Room → Import → neues Blatt für denselben Raum
   await finale.click();
@@ -6066,6 +6230,11 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   expect([await tp.inputValue("#b-esc-name"), await tp.inputValue("#b-esc-id")]).toEqual([ESC_ROOM.name, ESC_ROOM.id]);
   await expect(tp.locator("#b-import")).toContainText(`(bisheriger Code ${ESCT.shown}`);
   await expect(tp.locator("#b-import")).toContainText("Es gehört zum Escape-Room „FastFashion-Test“ – den neuen Code tragen Sie danach im Quelltext des Escape-Rooms ein.");
+  await tp.uncheck("#b-esc");   // ohne Haken: ein normales Blatt – der Satz zum Escape-Room verschwindet, der übrige Hinweis bleibt
+  await expect(tp.locator("#b-import-esc")).toBeHidden();
+  await expect(tp.locator("#b-import")).toBeVisible();
+  await tp.check("#b-esc");
+  await expect(tp.locator("#b-import-esc")).toBeVisible();
   await tp.fill("#b-title", "Finale FastFashion – Kurs B");
   await tp.click("#b-gen");
   await expect(tp.locator("#b-res-esc")).toBeVisible();

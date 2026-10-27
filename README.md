@@ -234,13 +234,15 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
 **Arena-Tunnel** am Ende des Escape-Rooms: Er öffnet das Feibeitsblatt im selben Tab und übergibt im Link (hinter
 `#escape=`) einen Datensatz mit vollem Namen, Geburtsdatum, Klasse, Bestätigungscode und den Ergebnissen aus dem
 Escape-Room (je Station Versuche und Fehler im ersten Versuch, Lösungserläuterungen, genutzte Zwischenstand-Dateien des
-Escape-Rooms). Die Seite liest ihn als Erstes, entfernt ihn sofort aus der Adresszeile und hält ihn bis zum Schreibbereich
-nur im Arbeitsspeicher. Denselben Datensatz enthält die **Überblick-PDF** des Escape-Rooms: Wer später weitermachen will
+Escape-Rooms). Die Seite liest ihn als Erstes (schon im Kopf der Seite, bevor sie aufgebaut ist), entfernt ihn sofort aus
+der Adresszeile und hält ihn bis zum Schreibbereich nur im Arbeitsspeicher; im Verlauf des Browsers bleibt der Link aber in
+der Regel stehen (der Datenschutzhinweis sagt das). Denselben Datensatz enthält die **Überblick-PDF** des Escape-Rooms: Wer später weitermachen will
 oder das Gerät wechselt, lädt sie auf der Startseite unter „Zwischenstand-PDF hochladen“ hoch. Danach gibt es nur
 Einzelarbeit (die Frage nach der Arbeitsform entfällt): Der Angaben-Bildschirm ist vorausgefüllt – Kürzel aus den ersten
 drei bzw. zwei Buchstaben der Namen, Geburtstag ohne Jahr, Klasse – mit dem Hinweis „Du kommst aus dem Escape-Room „…“ –
 deine Angaben sind schon eingetragen.“ (fehlt etwas, nennt er die Lücke); „← zur Startseite“ verwirft die Daten wieder. Liegt
-auf dem Gerät schon ein Zwischenstand derselben Person, geht es direkt dort weiter. Zwischenstand und Zwischenstand-PDF
+auf dem Gerät schon ein Zwischenstand derselben Person, geht es direkt dort weiter (bringt sie andere Daten aus dem
+Escape-Room mit als die gespeicherten, gelten die neuen, und die Seite sagt das über den Aufgaben). Zwischenstand und Zwischenstand-PDF
 tragen den Datensatz mit, damit **eine** Datei zum Fortsetzen genügt. Den Code eines solchen Blattes auf der Startseite
 einzutippen führt nicht weiter – die Seite verweist auf den Arena-Tunnel und die Überblick-PDF. Ist das Finale noch nicht
 freigeschaltet (im Escape-Room steht noch kein Code), gehört der Datensatz zu einem anderen Escape-Room oder gibt es das
@@ -252,7 +254,9 @@ Lösungserläuterungen („Genaue Daten: …“ etwas kleiner) und den genutzten
 Scheitert die Abgabe aus technischen Gründen (Netz, Server), bietet die Seite zusätzlich „Abschluss-PDF für die E-Mail
 herunterladen“ an: dieselbe Datei mit dem Vermerk „Noch nicht abgegeben …“, die die Schülerin bzw. der Schüler – nur wenn
 ein neuer Versuch nicht klappt – per E-Mail an die Adresse aus `window.FEIBEITSBLATT_OPERATOR` schicken kann. Lehnt der
-Server die Abgabe als fehlerhaft ab, erscheint dieser Weg nicht.
+Server die Abgabe als fehlerhaft ab, erscheint dieser Weg nicht. Kommen gerade zu viele Abgaben aus demselben Netz, erscheint
+er erst, wenn ein neuer Versuch nach der genannten Wartezeit wieder scheitert; ist das Blatt voll (400 Abgaben bzw. 40 MB),
+erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie wenden (Sie können Einträge löschen).
 
 ## So arbeiten Sie als Lehrkraft
 
@@ -1043,10 +1047,14 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   von Schüler:innen gehen dabei nie mit. Die Checklisten-Seite der Schüler:innen lädt nur die gespeicherte Checkliste
   vom Server (die IP-Adresse wird dabei wie beim Laden der Seite verarbeitet); die Häkchen verlassen das Gerät nicht.
 - **Escape-Room-Finale:** Der Arena-Tunnel des Escape-Rooms übergibt den Datensatz (voller Name, Geburtsdatum, Klasse,
-  Bestätigungscode, Ergebnisse) im Teil der Adresse hinter `#`. Diesen Teil schickt der Browser an keinen Server – weder an
-  GitHub noch an Cloudflare; die Seite liest ihn im Browser und entfernt ihn sofort aus der Adresszeile. Im **Verlauf des
-  Browsers** kann die ursprüngliche Adresse aber stehen bleiben; der Datenschutzhinweis rät, sie auf einem geteilten Gerät
-  dort zu löschen (eine andere Übergabe ginge nur mit einer neuen Version der Schnittstelle). Auch eine hochgeladene
+  Bestätigungscode, Ergebnisse) im Teil der Adresse hinter `#`. Diesen Teil schickt der Browser beim Laden an keinen
+  Server – weder an GitHub noch an Cloudflare; die Seite liest ihn im Browser und entfernt ihn sofort aus der Adresszeile.
+  Im **Verlauf des Browsers** bleibt die ursprüngliche Adresse aber in der Regel stehen (`history.replaceState` entfernt sie
+  nur aus der Adresszeile und dem Verlauf des Tabs), und ist die **Synchronisierung des Verlaufs** eingeschaltet (z. B. ein
+  Google-Konto auf Chromebooks oder Firefox Sync), gelangt sie auch zum Anbieter des Browsers. Der Datenschutzhinweis sagt
+  das und rät, den Link auf einem geteilten Gerät im Verlauf zu löschen; „← zur Startseite“ erinnert nach einer Ankunft per
+  Link daran. Abhilfe ginge nur mit einer neuen Version der Schnittstelle (ein Link ohne vollen Namen, Geburtsdatum und
+  Bestätigungscode – diese Angaben dann nur über die Überblick-PDF oder per Eingabe). Auch eine hochgeladene
   Überblick-PDF liest nur der Browser. Der Server sieht beim Öffnen nur den Blatt-Code wie sonst. Mit Erstversuch und Abgabe
   gehen nur die Ergebnisse aus dem Escape-Room an Sie – verschlüsselt, ohne vollen Namen, Geburtsdatum, Bestätigungscode
   und Lösungserläuterungen; an einen KI-Dienst gehen die Daten aus dem Escape-Room nie. **E-Mail nach einer technisch

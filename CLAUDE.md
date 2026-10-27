@@ -562,7 +562,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   auf; „Alle Zuordnungen löschen“ mit Bestätigung. Wiederherstellen ist asynchron (jede Zeile erneut gegen `checks`), bis dahin
   liefert `value` den gespeicherten Text und Klicks bleiben wirkungslos. Weltkarte ohne KI-Feedback-Box, auch nicht auf dem
   Abschlussbildschirm und in der Lösungs-PDF (`S.lastSubmission.kinds`); „→“ druckt die PDF als „->“ (`pdfPlain`; ebenso „−“ → „-“, „≈“ → „~“, „‑“/„‐“ → „-“, schmale Leerzeichen → Leerzeichen –
-  sonst stünde „?23,8 %“ da). **Lehrkraft:** `answerEditor` je Zeile (`tr._ans`,
+  sonst stünde „?23,8 %“ da; Buchstaben außerhalb von WinAnsi per `pdfLatin` als Grundbuchstabe mit den Akzenten, die WinAnsi kennt –
+  „Yılmaz“ → „Yilmaz“, „ễ“ → „ê“, „Ł“ → „L“ –, andere Schriften bleiben „?“; Block `PDFPLAIN`, Unit-Test in `escape.test.mjs`). **Lehrkraft:** `answerEditor` je Zeile (`tr._ans`,
   Auswahl `#bt-n`, Spalten `#bc-n` je Zeile oder „;“, Zeilen `#br-n`, Vorschau; Karten-Editor mit Bezeichnung, Hinweis, einem
   Bild, Länder-Chips über die deutschen Namen, ↑/↓/✕; Auftrag an die KI ausgeblendet), Karten-id beim Anlegen aus der Bezeichnung
   (`itemIds`/`slugId`), `b-gen` verlangt je Karte ein anklickbares Land und verschiedene Bezeichnungen, wartet auf das
@@ -851,10 +852,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `[a-z0-9-]{3,60}`, name einzeilig 1–80; `validateEscapeSpec`/`escapeOut` in lib.js, nur beim Anlegen – Blätter bleiben
   unveränderlich; D1 `sheets.escape_id`/`escape_name` per `ensureColumns`, NULL = normales Blatt; die vorhandenen `SELECT`s lesen nur
   zwei Spalten mehr – keine zusätzliche D1-Abfrage, Unit-Test zählt). **Lehrkraft:** Builder `#b-esc` „Feibeitsblatt für einen
-  Escape-Room (Finale)“ (`aria-controls`, Haken → Fokus in `#b-esc-name`) mit `#b-esc-name`/`#b-esc-id` und `#b-esc-hint`; `b-gen`
+  Escape-Room (Finale)“ (`aria-controls`; kein Fokussprung beim Haken – WCAG 3.2.2, die Felder folgen per Tab) mit `#b-esc-name`/`#b-esc-id` und `#b-esc-hint`; `b-gen`
   prüft wie der Server (Fehler „Escape-Room: …“ in `#b-err`, Feld `.invalid` + Fokus), Ergebnis `#b-res-esc` statt `#b-res-normal`
   nur, wenn die Antwort `escape` trägt. „Als Vorlage“, Sicherung (Datensatz `escape` nur, wenn gesetzt; sichtbare Zeile „Escape-Room:
-  „…“ (Kennung …) – …“) und Import (`cleanSheetRecord` → `cleanEscapeSpec`; `#b-import` nennt den Raum) tragen es mit. Liste:
+  „…“ (Kennung …) – …“) und Import (`cleanSheetRecord` → `cleanEscapeSpec`; `#b-import` nennt den Raum) tragen es mit – den Satz zum Raum
+  (`builderNote`/`syncBuilderNote`, `span#b-import-esc`) zeigt `#b-import` nur, solange Haken, Name und Kennung zum bisherigen Blatt passen. Liste:
   `td.code.esc` mit `span.escbadge` „Escape-Room“ + Name statt des Codes; Blattdetails per `selEscapeUi` (schon aus dem Listeneintrag):
   `#t-sel-code-lbl` „Code für den Quelltext des Escape-Rooms“, `#t-sel-meta` mit Raum und Kennung, Hinweis `#t-sel-esc`,
   `#t-analog`/`#t-analog-hint` verborgen (`openAnalog` kehrt zurück; Worker: Checkliste POST/PUT → 400 `escape_sheet`,
@@ -867,16 +869,20 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `confirm`, `word`, `completedAt`, `stations [{label, attempts, errors [{item, wrong?, right?, note?}]}]`, `notes [{label, text}]`,
   `resumes [{place, savedAt, loadedAt}]`), `s = fbEscapeHash("FbEscape|v1|" + d)` (cyrb53-Variante über UTF-16-Einheiten, 16 Hex;
   Testvektoren `"FbEscape|v1|{}"` → `0bdda452e8d9ff95`, `'FbEscape|v1|{"a":"Größe – „x“"}'` → `6721119dc06e029b`) – öffentlich
-  nachrechenbar, **nur ein Indiz** gegen versehentliche oder plumpe Änderungen. Link: `#escape=<base64url(UTF-8), ohne „=“>` – die
-  **erste Anweisung des Skripts** liest ihn (`escLinkRaw`) und entfernt ihn per `history.replaceState(null, "", pathname + search)`;
-  verarbeitet wird er nach `cleanupDrafts` statt `showResume` (`escArriveLink`); `hashchange` mit `#escape=` entfernt ihn immer sofort
+  nachrechenbar, **nur ein Indiz** gegen versehentliche oder plumpe Änderungen. Link: `#escape=<base64url(UTF-8), ohne „=“>` – schon
+  ein **kleines ES5-Skript im Kopf** (vor dem Aufbau der Seite, unabhängig vom großen Skript – auch wenn dieses scheitert) legt ihn in
+  `window.FEIBEITSBLATT_ESCAPE_LINK` ab und entfernt ihn per `history.replaceState(null, "", pathname + search)`; die erste Anweisung des
+  großen Skripts übernimmt ihn (`escLinkRaw`, Rückfall: Hash selbst lesen) und löscht die Variable; verarbeitet wird er nach
+  `cleanupDrafts` statt `showResume` (`escArriveLink`). Im **Verlauf des Browsers** bleibt der Link trotzdem (mit Verlaufs-Synchronisierung
+  auch beim Anbieter des Browsers) – `ESC_PRIV.stay`, `ESC_BACK("link")` und README sagen das, nie „nicht gespeichert“ ohne diesen Zusatz; `hashchange` mit `#escape=` entfernt ihn immer sofort
   und übernimmt ihn nur auf freien Bildschirmen (`CHECK_SCREENS` und Impressum), sonst verworfen (Schreibbereich bleibt). Überblick-PDF:
   unkomprimierter `/Type /EmbeddedFile`-Stream mit `/FbEscape 1` (`/EmbeddedFiles` `feibeitsblatt-escape.json`, `/AF`) →
   „Zwischenstand-PDF hochladen“ → `readStartPdf` (ersetzt `readDraftPdf`; Kennzeichen und eingebettete Dateien in einem Durchlauf,
   ≤ 60 Objekte; ein Zwischenstand gewinnt immer, auch weiter hinten, sonst die erste Hülle; tolerant wie `/FbDraft 1`: FlateDecode,
   `/Length n 0 R`, ohne Kennzeichen, kompakt geschrieben; `/FbEscape 1` ohne brauchbare Hülle → `escape-bad`).
   **Block `ESCAPE:BEGIN`…`ESCAPE:END`** (reine Funktionen nach dem Block GROUP; `test/unit/escape.test.mjs`): `escB64urlBytes` (feste
-  Reihenfolge: Länge zuerst, `%`-Kodierung, nur Base64url-Zeichen, `atob` in try), `escHull` (Objekt, Text oder Bytes; UTF-8 `fatal`;
+  Reihenfolge: Länge zuerst, `%`-Kodierung, Form per beidseitig verankertem `^[A-Za-z0-9_-]+={0,2}$` und erst dann höchstens zwei „=“
+  abschneiden – nie `/=+$/`, das läuft bei vielen „=“ in manchen Browsern quadratisch zurück –, `atob` in try), `escHull` (Objekt, Text oder Bytes; UTF-8 `fatal`;
   Größe immer als kompakte Hülle ≤ `ESC_MAX_BYTES` 96 KB gemessen – auch aus dem Zwischenstand; neues Objekt mit genau vier Feldern),
   `escCheck` (`"ok"`/`"mismatch"`), `cleanEscape` (fremde Daten: Objekte aus einzeln gelesenen, typgeprüften Feldern neu gebaut – nie
   Spread/`Object.assign` fremder Objekte, `__proto__` aus `JSON.parse`; Arrays erst kappen, dann verarbeiten; `code` muss "" oder ein
@@ -888,20 +894,29 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Lehrkraft genau `{room:{id, name}, word, completedAt, stations, resumes, check}`), `escTrim` (Notfall: `errors: []`,
   `omitted:"too_large"`), `escHasDetails`, `escCleanPayload`/`escSummary` (Lehrkraft; fehlerfrei = genau ein Versuch ohne Fehler, wie
   die Überblick-PDF des Raums; bei `omitted` Fehlerzahl `null`), `cleanEscapeSpec` (Blatt-Feld, `null` statt Fehler).
-  **Ankunft** `escArrive(hull, src)` (`ESC.run` gegen späte Antworten; `escDrop()` in `startGo`, `importDraftPdf`, `openChecklist` und
-  `openLegal` verwirft eine liegen gebliebene Ankunft samt Vorbelegung): Hülle ungültig → `ESC_LINK_BAD`/`ESC_PDF_BAD`, `code: ""` →
-  `ESC_NOT_OPEN`, Blatt fehlt → `ESC_NO_SHEET`, Netz/5xx → Meldung + `#start-esc-retry` „Erneut versuchen“ (die Daten bleiben im
-  Arbeitsspeicher), anderer Raum → `ESC_WRONG`; nach jedem Abbruch `showResume()`. Dann nur Einzelarbeit (kein `#screen-mode`): liegt
+  **Ankunft** `escArrive(hull, src)` (`ESC.run` gegen späte Antworten; `escDrop()` in `startGo`, `importDraftPdf`, „Weiterschreiben“
+  (`#resume-btn`), `openChecklist` und `openLegal` verwirft eine liegen gebliebene Ankunft samt Vorbelegung). `ESC.run` ist die
+  Lauf-Kennung der Startseite: `startGo`, `importDraftPdf`, „Weiterschreiben“ und `escLoad` laden per `fetchSheet` (ändert `S` nicht) und
+  übernehmen erst per `useSheet`, wenn ihr Lauf noch gilt – eine späte Antwort ändert nie das gerade geöffnete Blatt (sonst ging z. B.
+  eine Abgabe an das Escape-Blatt, während der Schreibbereich ein normales zeigte). Hülle ungültig → `ESC_LINK_BAD`/`ESC_PDF_BAD`,
+  `code: ""` → `ESC_NOT_OPEN`, Blatt fehlt → `ESC_NO_SHEET`, Netz/5xx → Meldung + `#start-esc-retry` „Erneut versuchen“ (die Daten bleiben
+  im Arbeitsspeicher; hatte der Knopf den Fokus, bekommt er ihn nach einem erneuten Fehlschlag zurück, nach einem endgültigen Abbruch
+  das Code-Feld), anderer Raum → `ESC_WRONG`; nach jedem endgültigen Abbruch (nicht bei Netzfehlern mit „Erneut versuchen“)
+  `showResume()`. Dann nur Einzelarbeit (kein `#screen-mode`): liegt
   auf dem Gerät ein Zwischenstand derselben Person mit Text → direkt `openEditor()`, sonst `openPerson(false, pre)` mit `#p-escape`
-  (`p.note`, `role="status"`; Lücken „Bitte trage noch … ein.“, Fokus aufs erste leere Feld, sonst `#p-btn`), `sheetLine` „Escape-Room
-  „…“ · n Aufgaben“, `#p-back` „← zur Startseite“ (verwirft, `#start-status` `ESC_BACK`). Bis zum Schreibbereich bleiben die Daten nur
+  (`p.note`, `role="status"`; Lücken „Bitte trage noch … ein.“, Fokus aufs erste leere Feld, sonst `#p-btn` – dieses Element bekommt
+  `aria-describedby="p-escape"` per `describedBy`, denn die vor dem Einblenden gefüllte Statusmeldung würde nicht angesagt), `sheetLine`
+  „Escape-Room „…“ · n Aufgaben“, `#p-back` „← zur Startseite“ (verwirft, `#start-status` `ESC_BACK(src)` – „Diese Seite hat … nicht
+  gespeichert.“, per Link zusätzlich der Satz zum Verlauf des Browsers; `S.escPending.src`). Bis zum Schreibbereich bleiben die Daten nur
   im Arbeitsspeicher (`S.escPending`; `escPendingFor`: Code und Raum müssen zum Blatt passen). `openEditor` klärt die Hülle vor allem
-  anderen (`escFromHull`; eine neue Ankunft gewinnt gegen die Hülle im Zwischenstand; die Prüfsumme wird immer neu gerechnet, nie
+  anderen (`escFromHull`; eine neue Ankunft gewinnt gegen die Hülle im Zwischenstand – ersetzt sie eine andere, meldet das
+  `p#esc-updated` (`role="status"`, per `liveFill` erst eingeblendet, dann gefüllt, mit dem Abschlusszeitpunkt), dieselbe Hülle bleibt still; die Prüfsumme wird immer neu gerechnet, nie
   gespeichert übernommen; Escape-Blatt ohne passende Hülle oder als Gruppe → `ESC_NEED`) und speichert sofort (`arrived`); `S.escape =
   {hull, rec, check}`. Alle Texte und Dateinamen nennen den Raum mit `S.sheet.escape.name` (vom Server), nie mit Daten aus dem Link.
   Startseite: der Code eines Escape-Blattes → `ESC_START`, kein Weiter; der Hinweis unter „Zwischenstand-PDF hochladen“ nennt die
   Überblick-PDF. **Zwischenstand** und Zwischenstand-PDF tragen die Hülle unverändert (`draftRecord` → `escape`, `cleanDraft` per
-  `escHull`; Zwischenstand-PDF mit Zeile „Escape-Room: …“ und Punkt unter „Bitte beachte“, ohne `/FbEscape 1`); `#sheet-meta` nennt das
+  `escHull`; Zwischenstand-PDF mit Zeile „Escape-Room: …“ und Punkt unter „Bitte beachte“, ohne `/FbEscape 1`, als
+  `application/octet-stream` wie die übrigen Escape-PDFs – nur speichern, nie als Vorschau im Tab); `#sheet-meta` nennt das
   Finale, der Dialog „Abbrechen und Zwischenstand löschen“ auch die Daten aus dem Raum. Erstversuch und Abgabe: `payload.escape =
   escPayload(rec, escCheck(hull))` – nur verschlüsselt, ohne vollen Namen, ohne volles Datum, ohne Bestätigungscode, ohne `notes`; nie in
   `/api/feedback`; passt der Umschlag nicht, erst ohne Tippzeiten, dann `escTrim` (`sealPayload`, `sendSealed` bei 413/409) – eine
@@ -911,10 +926,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   je Station Versuche und Fehler im ersten Versuch, neue Seite „Lösungserläuterungen“ mit „Genaue Daten: …“ 9 pt grau, „Verwendung von
   Zwischenstand-Dateien des Escape-Rooms“) über `pdfPager`/`pdfAssemble` (gemeinsam mit der Lösungs-PDF, Objektnummern unverändert),
   `application/octet-stream` (nur speichern, nie im Tab), `Escape-Room-<Raum>-Abschluss-<JJJJ-MM-TT>.pdf` (`escFileRoom`), nie
-  Tippzeiten. Technisch gescheiterte Abgabe (`escTechnical`: jeder Fehler außer `ESC_NOT_TECHNICAL` – Prüffehler des Servers – und
-  413): `#submit-esc` mit `mailLink()` und `#submit-esc-pdf` „Abschluss-PDF für die E-Mail herunterladen“ (bewusst ein Knopf statt
-  eines automatischen Downloads; Vermerk `ESC_FAILED_PDF_NOTE` rot ganz oben, „Stand: … – noch nicht abgegeben“,
-  `…-nicht-abgegeben.pdf`, ohne Tippzeiten; verborgen bei jedem neuen Versuch und nach Erfolg). **Lehrkraft-Ansicht:** `loadSubs` →
+  Tippzeiten. Technisch gescheiterte Abgabe (`escFailKind`/`escMailNow`: sofort bei
+  jedem Fehler außer `ESC_NOT_TECHNICAL` – Prüffehler des Servers –, 413 und den „weichen“: 429 `rate_limited` erst, wenn ein neuer Versuch
+  nach `retryAfter` wieder scheitert, 409 `too_many_submissions` erst beim nächsten Fehlschlag (`S.escSoft`; jeder andere Fehler beginnt
+  neu) – der Code steht öffentlich im Raum, ein gefülltes Blatt soll nicht gleich alle auf den unverschlüsselten E-Mail-Weg schicken; bei
+  429 ohne „versuche es gleich noch einmal“): `#submit-esc` (erst eingeblendet, dann `#submit-esc-text` gefüllt – sonst nicht angesagt) mit
+  `mailLink()` und `#submit-esc-pdf` „Abschluss-PDF für die E-Mail herunterladen“ (bewusst ein Knopf statt eines automatischen Downloads;
+  `#submit-esc-note` nennt vollen Namen, Geburtsdatum, Bestätigungscode und Antworten; Vermerk `ESC_FAILED_PDF_NOTE` rot ganz oben,
+  „Stand: … – noch nicht abgegeben“, `…-nicht-abgegeben.pdf`, ohne Tippzeiten; verborgen bei jedem neuen Versuch und nach Erfolg). **Lehrkraft-Ansicht:** `loadSubs` →
   `escCleanPayload` (eigenes try/catch); `escDetailDom` nur bei Escape-Blättern (sonst wird `escape` ignoriert): `.desc-h` mit dem
   Namen des Blattes, `.desc-sum` „Abgeschlossen am … · im ersten Versuch fehlerfrei: x von n Stationen · Fehler im ersten Versuch
   insgesamt: f · Zwischenstand-Dateien des Escape-Rooms: k|keine“ (bei `omitted` „nicht übermittelt …“; ohne Daten „Ohne Daten aus dem
@@ -926,14 +945,18 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Escape-Room sind eigene Knoten ohne Tippzeit-Wörter: `p.privacy#p-privacy-esc` (`escPrivacyShort`) unter `#p-privacy-short`,
   `p#privacy-esc` (`escPrivacyEditor`) unter `#privacy`, `privacyNoticeDom(…, {escape: name})` (Option hinter `ttSwitch`) mit Absätzen
   bzw. Listenpunkten aus `ESC_PRIV` (Wozu; Welche Daten – nach dem `TT_ACCESS`-Absatz, mit der Rechtsgrundlage Buchst. b bzw. § 25
-  Abs. 2 Nr. 2 TDDDG, die Liste „Rechtsgrundlage“ bleibt gleich; Lehrkraft; E-Mail-Weg `escMailItem` – sonst stimmte „nicht deinen
-  vollen Namen …“ nicht; Wie lange samt Browser-Verlauf des Links und Aufbewahrung der E-Mail „bis deine Lehrkraft sie übernommen
-  hat“ – Entscheidung des Betreibers offen). „Impressum & Datenschutz“: `#legal-escape` in allgemeiner Form, `#legal-privfull`
+  Abs. 2 Nr. 2 TDDDG, die Liste „Rechtsgrundlage“ bleibt gleich; Lehrkraft samt „verschlüsselt bei Cloudflare gespeichert“ – der
+  Cloudflare-Punkt selbst bleibt unverändert; E-Mail-Weg `escMailItem` – sonst stimmte „nicht deinen vollen Namen …“ nicht; Wie lange
+  samt Browser-Verlauf des Links und Verlaufs-Synchronisierung und Aufbewahrung der E-Mail „bis deine Lehrkraft sie übernommen hat“ –
+  Entscheidung des Betreibers offen). „Impressum & Datenschutz“: `#legal-escape` in allgemeiner Form, `#legal-privfull`
   unverändert; Vorschau der Lehrkraft: `PV_ESC_NOTE` in `#pv-preview-note`. **Tests:** `escape.test.mjs` (Testvektoren, 200 Zufallstexte
   gegen die Kopie in `test/escape-fixture.mjs`; dort auch `escHull`, `b64url` und `overviewPdf(hull, {flate, marker, compact, lenRef})`
   im Objektaufbau der Überblick-PDF des Raums), lib-/worker-Tests, Smoke-Schritt „Escape-Room-Blatt“ (auch: KI-Prompt ohne mitgeschickte
   Raum-Daten, D1 ohne Klartext), E2E 7n/7o (eigene Fixtures: unkomprimiert, FlateDecode ohne Kennzeichen, manipulierte Prüfsumme;
-  `ESCAPE_PDF_OUT=<Ordner>` speichert die PDF-Dateien und Bildschirmfotos). Testdaten frei erfunden, `confirm` in Tests eine beliebige
+  Wettlauf langsames Escape-Blatt gegen hochgeladenen Zwischenstand eines normalen Blattes – Abgabe an dessen Code; Hash weg auch bei
+  einem Syntaxfehler im großen Skript; Fokus nach erneut gescheitertem „Erneut versuchen“; `#esc-updated`; E-Mail-Weg bei 404 sofort,
+  bei 409/429 erst später; zweimal 413 → ohne Tippzeiten, dann ohne Fehler-Einzelheiten samt Lehrkraft-Kurzfassung; `#b-import` folgt
+  dem Haken; `ESCAPE_PDF_OUT=<Ordner>` speichert die PDF-Dateien und Bildschirmfotos). Testdaten frei erfunden, `confirm` in Tests eine beliebige
   Ziffernfolge; keine Datei aus einem echten Escape-Room als Fixture.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
