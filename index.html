@@ -181,6 +181,12 @@
   .checkrow{display:flex; gap:8px; align-items:flex-start; font-family:var(--sans); font-size:13.5px}
   .checkrow input{margin-top:3px}
   .notebox{margin:12px 0 0; padding:12px 16px; background:var(--soft); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; font-size:14px; line-height:1.5}
+  /* Ankunft aus einem Escape-Room (Startseite, Angaben) und gescheiterte Abgabe eines Escape-Room-Finales */
+  #p-escape{margin:0 0 16px}
+  #start-esc-retry{margin:10px 0 0}
+  #submit-esc{border-left-color:var(--red); text-align:left}
+  #submit-esc p{margin:0 0 8px}
+  #submit-esc .fhint{margin:8px 0 0}
   /* Checkliste zum analogen Arbeitsblatt (Seite hinter dem QR-Code; mobil zuerst, Tippflächen ≥ 44 px) */
   .card.wide{max-width:640px}
   #chk-sheet{margin:0 0 16px}
@@ -519,6 +525,7 @@
   .startpriv{font-size:12px; color:var(--muted); line-height:1.5; margin:18px 0 0}
   .pprivacy{margin:2px 0 16px}
   .pprivacy .privacy{margin:0}
+  .pprivacy .privacy + .privacy{margin-top:6px}   /* Escape-Room-Finale: eigener Absatz unter der Kurzfassung */
   details.privfull{margin:8px 0 0; font-size:12.5px; line-height:1.5; color:var(--muted); max-width:640px}
   details.privfull > summary{cursor:pointer; color:var(--ink); font-weight:600}
   details.privfull .privh{font-family:var(--sans); font-size:12.5px; font-weight:600; letter-spacing:0; line-height:1.4; margin:10px 0 2px; color:var(--ink)}
@@ -807,11 +814,13 @@
         <p class="fhint" id="code-hint">6 Zeichen, z. B. K7Q-M4X.</p>
       </div>
       <p class="err" id="start-err" aria-live="polite"></p>
+      <p class="status" id="start-status" aria-live="polite"></p>
+      <button type="button" class="btn ghost small hidden" id="start-esc-retry">Erneut versuchen</button>
       <button type="button" class="btn block" id="start-btn">Weiter</button>
       <div class="pdfrow">
         <button type="button" class="btn ghost small" id="start-pdf">Zwischenstand-PDF hochladen</button>
         <input type="file" id="start-pdf-file" class="sr-only" accept="application/pdf,.pdf" tabindex="-1" aria-hidden="true">
-        <p class="fhint">Hast du deinen Zwischenstand als PDF-Datei gesichert, kannst du ihn hier hochladen und weiterarbeiten.</p>
+        <p class="fhint">Hast du deinen Zwischenstand als PDF-Datei gesichert, kannst du ihn hier hochladen und weiterarbeiten. Kommst du aus einem Escape-Room, lade hier deine Überblick-PDF hoch.</p>
       </div>
       <p class="startpriv" id="start-privacy"></p>
     </div>
@@ -850,6 +859,7 @@
       <p class="sheetline" id="p-sheet"></p>
       <h1 id="person-h">Deine Angaben</h1>
       <p class="sub" id="p-sub">Bitte trage deine Angaben ein. Danach öffnet sich der Schreibbereich.</p>
+      <p class="notebox hidden" id="p-escape" role="status"></p>
       <div id="p-single">
         <div class="field">
           <label for="p-vorname">Vorname – die ersten drei Buchstaben</label>
@@ -925,6 +935,7 @@
         <p class="fin-text" id="fin-text">Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.</p>
         <button type="button" class="btn" id="fb-btn">KI um ein Feedback bitten</button>
         <p class="privacy" id="privacy"></p>
+        <p class="privacy hidden" id="privacy-esc"></p>
         <div id="privfull-ed"></div>
         <p class="status" id="fb-status" aria-live="polite"></p>
         <div class="fbwait hidden" id="fb-wait"><span id="fb-wait-num" aria-hidden="true"></span><button type="button" class="linkbtn" id="fb-wait-stop">Nicht länger warten</button></div>
@@ -934,6 +945,12 @@
           <button type="button" class="btn" id="submit-btn" aria-describedby="submit-hint">Abgeben</button>
           <p class="fhint" id="submit-hint"></p>
           <p class="status" id="submit-status" aria-live="polite"></p>
+          <div class="notebox hidden" id="submit-esc">
+            <p id="submit-esc-text" role="status"></p>
+            <button type="button" class="btn ghost small" id="submit-esc-pdf" aria-describedby="submit-esc-note">Abschluss-PDF für die E-Mail herunterladen</button>
+            <p class="fhint" id="submit-esc-note">Die Datei enthält deinen vollen Namen, dein Geburtsdatum und deine Antworten – schicke sie nur an diese Adresse.</p>
+            <p class="status" id="submit-esc-status" aria-live="polite"></p>
+          </div>
         </div>
       </section>
     </div>
@@ -1004,6 +1021,7 @@
       <p class="status" id="legal-status" aria-live="polite"></p>
       <div id="legal-privacy"></div>
       <p class="fhint legal-other" id="legal-other">Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. Bei Partner- oder Gruppenarbeit gilt alles ebenso für alle in der Gruppe; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.</p>
+      <section class="legal-esc" id="legal-escape" aria-labelledby="legal-escape-h"></section>
       <button type="button" class="backlink" id="legal-home2">← zur Startseite</button>
     </div>
   </div>
@@ -1452,6 +1470,13 @@
  *  Nutzerdaten nur über textContent/DOM-APIs, nie über innerHTML.        *
  * ====================================================================== */
 
+/* Escape-Room: Daten im Link (#escape=…) sofort aus der Adresse entfernen – nur im Arbeitsspeicher, bis der Zwischenstand gespeichert ist */
+let escLinkRaw = null;
+try {
+  const hs = String(location.hash || "");
+  if (/^#escape=/i.test(hs)) { escLinkRaw = hs.slice(8); history.replaceState(null, "", location.pathname + location.search); }
+} catch (e) { /* ohne History-API: trotzdem verarbeiten */ }
+
 /* ---------------------------- Helfer ---------------------------- */
 const API = String(window.FEIBEITSBLATT_API || "").replace(/\/+$/, "");
 const $ = (id) => document.getElementById(id);
@@ -1706,6 +1731,91 @@ function escSummary(stations, omitted) {
   return { n: list.length, clean: list.filter((st) => st.attempts === 1 && !st.errors.length).length,
     errors: omitted ? null : list.reduce((k, st) => k + st.errors.length, 0), attempts: list.reduce((k, st) => k + st.attempts, 0) };
 }
+/* Ankunft aus dem Raum: per Link (#escape=<Base64url der Hülle>) oder als eingebettete Datei der Überblick-PDF (/FbEscape 1) */
+const ESC_CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;   // Blatt-Code (eigene Kopie: der Block hängt nicht vom Skriptkopf ab)
+const ESC_B64_MAX = Math.ceil(ESC_MAX_BYTES * 4 / 3) + 4;          // Base64-Länge einer Hülle an der Obergrenze
+// Link: Base64url (ohne „=“; prozentkodiert geht auch) → Bytes oder null. Die Länge wird vor jeder Arbeit geprüft.
+function escB64urlBytes(s) {
+  if (typeof s !== "string" || s.length > 3 * ESC_B64_MAX + 16) return null;
+  let v = s;
+  if (v.indexOf("%") >= 0) { try { v = decodeURIComponent(v); } catch (e) { return null; } }
+  v = v.replace(/=+$/, "");
+  if (!v || v.length > ESC_B64_MAX || v.length % 4 === 1 || !/^[A-Za-z0-9_-]+$/.test(v)) return null;
+  let bin;
+  try { bin = atob(v.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((v.length + 3) % 4)); } catch (e) { return null; }
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+// Hülle aus Bytes (UTF-8), JSON-Text oder Objekt (Zwischenstand) → neues Objekt {kind, v, d, s} oder null; höchstens ESC_MAX_BYTES
+// (immer an der kompakten Form gemessen – auch für Objekte aus dem Zwischenstand)
+function escHull(x) {
+  let o = x;
+  try {
+    if (o instanceof Uint8Array) { if (o.length > ESC_MAX_BYTES) return null; o = new TextDecoder("utf-8", { fatal: true }).decode(o); }
+    if (typeof o === "string") { if (o.length > ESC_MAX_BYTES) return null; o = JSON.parse(o); }
+  } catch (e) { return null; }
+  if (!escObj(o) || o.kind !== ESC_KIND || o.v !== 1 || typeof o.d !== "string" || typeof o.s !== "string" || !/^[0-9a-f]{16}$/.test(o.s)) return null;
+  const hull = { kind: ESC_KIND, v: 1, d: o.d, s: o.s };
+  try { if (new TextEncoder().encode(JSON.stringify(hull)).length > ESC_MAX_BYTES) return null; } catch (e) { return null; }
+  return hull;
+}
+// Geburtsdatum aus dem Raum: genau „TT.MM.JJJJ“, ein echtes Kalenderdatum zwischen 1900 und heute – sonst ""
+function escBirth(v, now = new Date()) {
+  const m = typeof v === "string" ? /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(v) : null;
+  if (!m) return "";
+  const d = +m[1], mo = +m[2], y = +m[3], dt = new Date(Date.UTC(y, mo - 1, d));
+  if (y < 1900 || dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return "";
+  return y * 10000 + mo * 100 + d > now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate() ? "" : v;
+}
+// Datensatz des Raums (JSON.parse(hull.d)) prüfen und kappen → neues Objekt oder null (ungültiger Raum oder Code). room.url wird nicht
+// übernommen (nirgends gebraucht). confirm: nur Ziffern, wird nur angezeigt, nie geprüft.
+function cleanEscape(x) {
+  if (!escObj(x)) return null;
+  const room = escRoom(x.room);
+  if (!room || typeof x.code !== "string" || x.code.length > 40) return null;
+  const code = x.code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code && !(ESC_CODE_RE.test(code) && /[A-Z]/.test(code) && /[0-9]/.test(code))) return null;
+  const p = escObj(x.person) ? x.person : {}, klasse = normKlasse(escLine(p.klasse, 40));
+  return {
+    code, room,
+    person: { vorname: escLine(p.vorname, 60), nachname: escLine(p.nachname, 60), geburtsdatum: escBirth(p.geburtsdatum), klasse: KLASSE_RE.test(klasse) ? klasse : "" },
+    confirm: typeof x.confirm === "string" && /^\d{1,20}$/.test(x.confirm) ? x.confirm : "",
+    word: escLine(x.word, ESC_WORD_MAX), completedAt: escIso(x.completedAt),
+    stations: escStations(x.stations),
+    notes: (Array.isArray(x.notes) ? x.notes.slice(0, ESC_STATIONS) : []).filter(escObj).map((n) => ({ label: escLine(n.label, ESC_STR_MAX), text: escText(n.text, ESC_TEXT_MAX) })),
+    resumes: escResumes(x.resumes)
+  };
+}
+// Kürzel aus den vollen Namen: nur Buchstaben („Anna-Lena“ → „Ann“, „de la Cruz“ → „De“), die ersten drei bzw. zwei, wie auf dem Angaben-Bildschirm
+function escKuerzel(vorname, nachname) {
+  const part = (s, n) => nameCase(Array.from(String(s == null ? "" : s).normalize("NFC").replace(/[^\p{L}\p{M}]+/gu, "")).slice(0, n).join(""));
+  return { v: part(vorname, 3), n: part(nachname, 2) };
+}
+// Vorbelegung des Angaben-Bildschirms (Einzelarbeit): Kürzel, Geburtstag (Tag, Monat), Klasse; complete = alles gültig → person wie personGo
+function escPerson(rec) {
+  const p = rec.person, k = escKuerzel(p.vorname, p.nachname), len = (s) => Array.from(s).length;
+  const okV = len(k.v) >= 2 && len(k.v) <= 3 && LETTERS.test(k.v), okN = len(k.n) >= 1 && len(k.n) <= 2 && LETTERS.test(k.n);
+  const m = /^(\d{2})\.(\d{2})\.\d{4}$/.exec(p.geburtsdatum || ""), gtag = m ? String(+m[1]) : "", gmonat = m ? String(+m[2]) : "";
+  const b = m ? parseBdayInput(gtag, gmonat) : { err: "leer" }, okK = !!p.klasse && KLASSE_RE.test(p.klasse);
+  const complete = okV && okN && !b.err && okK;
+  return { vorname: k.v, nachname: k.n, gtag, gmonat, klasse: p.klasse || "", okV, okN, okBday: !b.err, okK, complete,
+    person: complete ? { vorname: k.v, nachname: k.n, geburtsdatum: b.iso, klasse: p.klasse } : null };
+}
+// Nutzlast an die Lehrkraft (verschlüsselt mit Erstversuch und Abgabe): nur die Ergebnisse – ohne Personendaten, Bestätigungscode,
+// Lösungserläuterungen und Code; check = Prüfsumme der Hülle ("ok" | "mismatch")
+const escPayload = (rec, check) => ({
+  room: { id: rec.room.id, name: rec.room.name }, word: rec.word, completedAt: rec.completedAt,
+  stations: rec.stations.map((st) => ({ label: st.label, attempts: st.attempts, errors: st.errors.map((e) => {
+    const o = { item: e.item };
+    for (const k of ["wrong", "right", "note"]) if (e[k]) o[k] = e[k];
+    return o;
+  }) })),
+  resumes: rec.resumes.map((r) => ({ place: r.place, savedAt: r.savedAt, loadedAt: r.loadedAt })), check
+});
+const escHasDetails = (x) => !!(x && Array.isArray(x.stations) && x.stations.some((st) => st && Array.isArray(st.errors) && st.errors.length));
+// Notfall: wäre die Abgabe sonst zu groß, ohne die Fehler-Einzelheiten (eine Abgabe scheitert nie an den Daten aus dem Raum)
+const escTrim = (x) => Object.assign({}, x, { stations: x.stations.map((st) => ({ label: st.label, attempts: st.attempts, errors: [] })), omitted: "too_large" });
 /* ESCAPE:END */
 /* ---------- Tippzeiten (wie im Feiditor): je Zeichen der Abstand zum im Text vorangehenden Zeichen ----------
  * Je UTF-16-Einheit der Textform ein Byte: 0–70 = Abstand in ms (aufgerundet), 71 = mehr als 70 ms, erstes Zeichen oder
@@ -2890,7 +3000,10 @@ const S = {
   ltConsent: false, ltDeclined: false,   // Rechtschreibprüfung: Selbstauskunft im Dialog je geöffnetem Blatt („Trifft nicht zu“ → Buttons weg); nie gespeichert
   attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
   fbRun: 0, fbStop: null, fbAbort: null,   // laufende Feedback-Anfrage: Lauf-Kennung (gegen späte Antworten nach Abbruch/Wechsel), Warten abbrechen, Anfrage abbrechen
-  lastSubmission: null   // die soeben abgegebene Lösung (nur im Arbeitsspeicher, bis „Neues Feibeitsblatt öffnen“) – für die PDF der Lösungen
+  lastSubmission: null,   // die soeben abgegebene Lösung (nur im Arbeitsspeicher, bis „Neues Feibeitsblatt öffnen“) – für die PDF der Lösungen
+  // Finale eines Escape-Rooms: escPending = aus dem Raum angekommen, Schreibbereich noch nicht offen (nur Arbeitsspeicher); escape = zum
+  // geöffneten Blatt – je {hull, rec, check} (Hülle unverändert für den Zwischenstand, geprüfter Datensatz, Prüfsumme)
+  escPending: null, escape: null
 };
 const LAST_KEY = "feibeitsblatt:last";   // zuletzt geöffnetes Blatt + Angaben: „Weiterschreiben?“ nach Neuladen
 
@@ -2915,7 +3028,8 @@ async function loadSheet(code) {
     files: sh.tasks.map((t) => cleanFiles(t && t.files)),   // je Aufgabe: PDF-Dateien der Lehrkraft zum Herunterladen
     aiRecipients: recipientsOf(sh),   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
     aiFeedback: sh.aiFeedback !== false,   // false = keine Aufgabe mit Auftrag an die KI: kein KI-Feedback (ältere Worker: wie bisher)
-    privacy: cleanPrivacy(sh.privacy)   // Löschfrist für den Datenschutzhinweis (null = keine gespeichert)
+    privacy: cleanPrivacy(sh.privacy),   // Löschfrist für den Datenschutzhinweis (null = keine gespeichert)
+    escape: cleanEscapeSpec(sh.escape)   // Finale eines Escape-Rooms {id, name} (nur über den Raum zu öffnen) – sonst null
   };
 }
 // Empfänger aus der Antwort; eine ältere Worker-Version liefert nur aiProvider/aiReserve → daraus ableiten (ids leer → der neue
@@ -3058,6 +3172,38 @@ const PRIV_IHR = {
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
 };
 const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
+/* Feibeitsblatt als Finale eines Escape-Rooms (nur Einzelarbeit, also nur die du-Form): eigene Absätze bzw. Listenpunkte neben den
+   übrigen – nie in deren Sätze gemischt. Voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät (Zwischenstand,
+   Zwischenstand-PDF, Abschluss-PDF); an die Lehrkraft gehen nur die Ergebnisse, verschlüsselt, nie an eine KI. Ausnahme auf Wunsch der
+   Schülerin: die Abschluss-PDF per E-Mail nach einer technisch gescheiterten Abgabe (ESC_MAIL_ITEM). */
+const ESC_MAIL_TO = OPERATOR.email ? "an den Betreiber" : "an deine Lehrkraft";
+const escPrivacyShort = (name) => `Aus dem Escape-Room „${name}“ bleiben dein voller Name, dein Geburtsdatum und dein Bestätigungscode auf diesem Gerät; nur deine Ergebnisse dort gehen verschlüsselt an deine Lehrkraft.`;
+const escPrivacyEditor = (name) => `Aus dem Escape-Room „${name}“ stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode nur in deinem Zwischenstand auf diesem Gerät und in PDF-Dateien, die du herunterlädst; ` +
+  "an deine Lehrkraft gehen davon nur deine Ergebnisse aus dem Escape-Room – verschlüsselt mit Erstversuch und Abgabe, nie an eine KI.";
+const ESC_PRIV = {
+  // name = Name des Raums (Blatt) bzw. "" auf „Impressum & Datenschutz“ (kein bestimmtes Blatt)
+  purpose: (name) => (name
+    ? `Dieses Feibeitsblatt ist das Finale des Escape-Rooms „${name}“: Damit du nichts noch einmal eintragen musst, übernimmt diese Seite deine Angaben und Ergebnisse aus dem Escape-Room, `
+    : "Ist ein Feibeitsblatt das Finale eines Escape-Rooms, übernimmt diese Seite deine Angaben und Ergebnisse aus dem Escape-Room, damit du nichts noch einmal eintragen musst, ") +
+    "und deine Lehrkraft sieht, wie du die Stationen gelöst hast.",
+  data: (name) => `Bei einem Escape-Room-Finale übernimmt diese Seite aus dem Escape-Room${name ? ` „${name}“` : ""} deinen vollen Namen, dein Geburtsdatum, deine Klasse, deinen Bestätigungscode und deine Ergebnisse ` +
+    "(je Station die Zahl der Versuche und die Fehler im ersten Versuch mit deinen Antworten, die Lösungserläuterungen, wann du fertig warst und wann du Zwischenstand-Dateien des Escape-Rooms genutzt hast). " +
+    "Daraus bildet sie deine Kürzel und deinen Geburtstag ohne Jahr. Sie gehören zum Bearbeiten und Abgeben (Art. 6 Abs. 1 Buchst. b DSGVO; im Zwischenstand auf diesem Gerät § 25 Abs. 2 Nr. 2 TDDDG).",
+  teacher: "Bei einem Escape-Room-Finale bekommt deine Lehrkraft verschlüsselt auch deine Ergebnisse aus dem Escape-Room und ob die Prüfsumme des Datensatzes stimmt – nicht deinen vollen Namen, " +
+    "dein Geburtsdatum, deinen Bestätigungscode oder die Lösungserläuterungen. An einen KI-Dienst gehen die Daten aus dem Escape-Room nie.",
+  stay: "Bei einem Escape-Room-Finale stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode bis zur Abgabe auch in deinem Zwischenstand und in jeder Zwischenstand-PDF-Datei, " +
+    "die du sicherst, und – wenn du sie herunterlädst – in deiner Abschluss-PDF; diese Dateien löschst du selbst. Der Link aus dem Escape-Room enthält dieselben Daten: Diese Seite entfernt ihn " +
+    "sofort aus der Adresszeile, im Verlauf deines Browsers kann er aber stehen bleiben – lösche ihn dort auf einem geteilten Gerät. " +
+    `Schickst du deine Abschluss-PDF nach einer gescheiterten Abgabe per E-Mail ${ESC_MAIL_TO}, bewahrt ${OPERATOR.email ? "der Betreiber" : "deine Lehrkraft"} sie auf, bis deine Lehrkraft sie übernommen hat.`,
+};
+// Empfänger, nur auf Wunsch der Schülerin (E-Mail nach einer technisch gescheiterten Abgabe) – mit mailto-Link (je Stelle ein eigener Knoten)
+function escMailItem(withAi, tag = "li") {
+  const tail = ` Die Datei enthält deinen vollen Namen, dein Geburtsdatum, deinen Bestätigungscode, deine Antworten${withAi ? ", das KI-Feedback" : ""} und deine Ergebnisse aus dem Escape-Room; ` +
+    `sie geht unverschlüsselt über deinen E-Mail-Anbieter und den ${OPERATOR.email ? "des Betreibers" : "deiner Lehrkraft"}.`;
+  return OPERATOR.email
+    ? h(tag, null, [`Nur wenn deine Abgabe bei einem Escape-Room-Finale wegen eines technischen Fehlers scheitert und du deine Abschluss-PDF per E-Mail schickst: der Betreiber (${OP_NAME}, E-Mail `, mailLink(), ")." + tail])
+    : h(tag, { text: "Nur wenn deine Abgabe bei einem Escape-Room-Finale wegen eines technischen Fehlers scheitert und du deine Abschluss-PDF per E-Mail schickst: deine Lehrkraft." + tail });
+}
 /* Tippzeit-Messung (nicht bei Blättern nur mit Weltkarten – dort wird nichts gemessen; Entscheidung des Betreibers vom 27.10.2026,
    zweite Fassung nach Rechtsprüfung): Die Kurzfassungen (privacyShortText, renderPrivacy samt Vorschau der Lehrkraft) nennen sie in genau
    einem neutralen Satz (TT_SHORT, ohne Hervorhebung). Der ausführliche Hinweis nennt Zweck (TT_USE, derselbe Wortlaut wie im Hinweis der
@@ -3142,6 +3288,7 @@ function ttSwitchDom(o, g, withAi) {
 function privacyNoticeDom(p, list, opts) {
   const o = opts || {}, H = o.h || "h3", withAi = o.withAi !== false, days = p ? p.retentionDays : null;
   const g = !!o.group, t = (du, ihr) => (g ? ihr : du), B = g ? PRIV_IHR : PRIV_DU, tt = o.typing !== false;
+  const esc = o.escape && !g ? String(o.escape) : "";   // Finale eines Escape-Rooms (Name; nur Einzelarbeit): eigene Absätze und Listenpunkte
   const head = (x) => h(H, { class: "privh", text: x }), para = (x) => h("p", { text: x }), paraN = (...k) => h("p", null, k);
   const ai = withAi && !o.general ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
   const cfAt = ai.findIndex((x) => x.id === "cloudflare");
@@ -3151,6 +3298,7 @@ function privacyNoticeDom(p, list, opts) {
     "Eure Lehrkraft – nur sie kann eure auf dem Server gespeicherten Angaben und Antworten lesen.") +
     (tt ? t(" Sie sieht auch die Tippzeiten – als Färbung deiner Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie.",
       " Sie sieht auch die Tippzeiten – als Färbung eurer Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie.") : "") })];
+  if (esc) items.push(h("li", { text: ESC_PRIV.teacher }));
   // Cloudflare betreibt Server und Datenbank; mit Workers AI ist Cloudflare zugleich der KI-Dienst (ein Eintrag statt zwei)
   items.push(h("li", { text: "Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU. " +
     t(`Gespeichert werden deine Angaben und Antworten${tt ? " (samt Tippzeiten)" : ""} dort nur verschlüsselt.`, `Gespeichert werden eure Angaben und Antworten${tt ? " (samt Tippzeiten)" : ""} dort nur verschlüsselt.`) +
@@ -3183,6 +3331,7 @@ function privacyNoticeDom(p, list, opts) {
   "Nur wenn ihr die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis der Eltern): " +
     "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne eure Angaben, aber mit der Internetadresse eures Geräts. ") +
     "Learneo ist nach dem EU-US Data Privacy Framework zertifiziert; ersatzweise gelten Standardvertragsklauseln." }));
+  if (esc) items.push(escMailItem(withAi));
   const what = withAi ? t("Deine Abgabe – und ein Erstversuch, falls du nach dem KI-Feedback nicht abgibst –", "Eure Abgabe – und ein Erstversuch, falls ihr nach dem KI-Feedback nicht abgebt –")
     : t("Deine Abgabe", "Eure Abgabe");
   // Rechtsgrundlagen (Art. 13 Abs. 1 Buchst. c): Nutzung des kostenlosen Angebots, Einwilligung für LanguageTool, berechtigtes Interesse
@@ -3229,6 +3378,7 @@ function privacyNoticeDom(p, list, opts) {
       "Eure Lehrkraft sieht eure Antworten (mit KI-Feedback eure erste und eure überarbeitete Fassung) und das KI-Feedback zu eurer ersten Fassung; die Rückmeldung zu eurer abgegebenen Fassung seht nur ihr.")
       : t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten.", "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt. Eure Lehrkraft sieht eure Antworten.")) +
       (tt ? TT_PURPOSE(g) : "") + B.checkPurpose),
+    esc ? para(ESC_PRIV.purpose(esc)) : null,
     head("Rechtsgrundlage"),
     h("ul", null, bases.map((x) => h("li", { text: x }))),
     head("Welche Daten?"),
@@ -3244,6 +3394,7 @@ function privacyNoticeDom(p, list, opts) {
         " und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) eures Geräts; gespeichert wird sie nicht im Klartext, ") +
       "sondern nur unkenntlich gemacht in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang."),
     tt ? para(TT_ACCESS(g)) : null,   // Zugriff auf das Gerät (§ 25 TDDDG) – sachlich, im Fließtext
+    esc ? para(ESC_PRIV.data(esc)) : null,   // Daten aus dem Escape-Room samt Rechtsgrundlage (die Liste der Rechtsgrundlagen bleibt überall gleich)
     head("Wer bekommt die Daten?"),
     h("ul", null, items),
     head("Wie lange werden die Daten gespeichert?"),
@@ -3262,6 +3413,7 @@ function privacyNoticeDom(p, list, opts) {
       (cfAt >= 0 ? ` Workers AI speichert ${t("deine", "eure")} Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten ` +
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
       (ai.some((x) => x.id !== "cloudflare") || o.general ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
+    esc ? para(ESC_PRIV.stay) : null,
     head(t("Musst du mitmachen?", "Müsst ihr mitmachen?")),
     para(t("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. ",
       "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
@@ -3306,8 +3458,10 @@ const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der A
 function renderPersonPrivacy() {
   const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
-  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))]),
-    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live" }));
+  const esc = !g && sh.escape ? sh.escape.name : "";   // Finale eines Escape-Rooms: ein eigener Absatz unter der Kurzfassung
+  box.append(...[h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))]),
+    esc ? h("p", { class: "privacy", id: "p-privacy-esc", text: escPrivacyShort(esc) }) : null,
+    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live", escape: esc })].filter(Boolean));
   $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
 }
 function renderPrivacy() {
@@ -3347,8 +3501,13 @@ function renderPrivacy() {
   const full = $("privfull-ed");
   full.textContent = "";
   // im Schreibbereich bleibt es beim „du“; eine Gruppe hat aber keinen Geburtstag angegeben (noBday, wie noPersonData)
+  const esc = S.sheet.escape && !isGroup(S.person) ? S.sheet.escape.name : "";
   full.appendChild(privacyNoticeDom(S.sheet.privacy, S.sheet.aiRecipients || [], { h: "h3", withAi, pages: PAGES_HOST, id: "privfull-ed-d", noBday: isGroup(S.person),
-    typing: ttMeasured(S.sheet), ttSwitch: "live" }));   // Schalter für den Widerspruch gegen die Tippzeit-Messung (an S.ttOptOut gebunden)
+    typing: ttMeasured(S.sheet), ttSwitch: "live", escape: esc }));   // Schalter für den Widerspruch gegen die Tippzeit-Messung (an S.ttOptOut gebunden)
+  // Finale eines Escape-Rooms: ein eigener Absatz direkt unter dem Hinweis (#privacy)
+  const pe = $("privacy-esc");
+  pe.textContent = esc ? escPrivacyEditor(esc) : "";
+  pe.classList.toggle("hidden", !esc);
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -3365,8 +3524,14 @@ async function startGo() {
   if (!CODE_RE.test(code) || !/[A-Z]/.test(code) || !/[0-9]/.test(code)) {
     err.textContent = "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code. (In Codes kommen I, L, O, 0 und 1 nicht vor.)"; return;
   }
+  escDrop(); $("start-esc-retry").classList.add("hidden"); setStatus($("start-status"), "", "");   // Daten aus einem Escape-Room gelten nur für ihr Blatt
   busy(btn, true, "Einen Moment …");
-  try { await loadSheet(code); S.ttOptOut = false; openMode(); }   // neues Blatt: ein Widerspruch vom Angaben-Bildschirm eines anderen gilt nicht
+  try {
+    await loadSheet(code);
+    // Finale eines Escape-Rooms: nur über den Raum (Link am Ende oder Überblick-PDF) – die Eingabe des Codes ist gesperrt
+    if (S.sheet.escape) { const name = S.sheet.escape.name; resetStudent(); err.textContent = ESC_START(name); return; }
+    S.ttOptOut = false; openMode();   // neues Blatt: ein Widerspruch vom Angaben-Bildschirm eines anderen gilt nicht
+  }
   catch (e) { err.textContent = startErr(e); }
   finally { busy(btn, false); }
 }
@@ -3425,13 +3590,21 @@ async function importDraftPdf(file) {
   if (!subtle) { err.textContent = "Dieser Browser unterstützt die nötige Verschlüsselung nicht (Seite bitte über https öffnen)."; return; }
   if (!file) return;
   if (file.size > PDF_MAX_BYTES) { err.textContent = "Diese Datei ist zu groß für einen Zwischenstand. " + PDF_NOT_DRAFT; return; }
+  escDrop(); $("start-esc-retry").classList.add("hidden"); setStatus($("start-status"), "", "");
   busy(btn, true, "Datei wird gelesen …");
   try {
-    let d = null;
-    try { d = cleanDraft(await readDraftPdf(await file.arrayBuffer())); } catch (e) { d = null; }
+    let d = null, r = null;
+    try { r = await readStartPdf(await file.arrayBuffer()); } catch (e) { r = { kind: e && e.message === "escape-bad" ? "escape-bad" : "" }; }
+    // Überblick-PDF aus einem Escape-Room: derselbe Weg wie über den Link am Ende des Raums
+    if (r.kind === "escape") { busy(btn, false); $("code-input").value = ""; return await escArrive(r.o, "pdf"); }
+    if (r.kind === "escape-bad") { err.textContent = ESC_PDF_BAD; showResume(); return; }
+    if (r.kind === "draft") d = cleanDraft(r.o);
     if (!d) { err.textContent = PDF_NOT_DRAFT; return; }
     await loadSheet(d.code);
     if (S.sheet.tasks.length !== d.answers.length) { resetStudent(); err.textContent = "Der Zwischenstand passt nicht zu diesem Feibeitsblatt (andere Anzahl Aufgaben). Bitte frag deine Lehrkraft."; return; }
+    // Finale eines Escape-Rooms: nur mit den Daten aus dem Raum (in der Datei); bei anderen Blättern zählen mitgebrachte Daten nicht
+    if (S.sheet.escape) { if (!escFromHull(d.escape, S.sheet, S.code, d.person)) { resetStudent(); err.textContent = ESC_NEED; showResume(); return; } }
+    else d.escape = null;
     // Liegt auf diesem Gerät schon ein neuerer Zwischenstand derselben Person? Dann nachfragen, welcher gelten soll.
     const person = d.person;
     let local = null;
@@ -3453,11 +3626,88 @@ async function importDraftPdf(file) {
 $("start-pdf").addEventListener("click", () => { const f = $("start-pdf-file"); f.value = ""; f.click(); });
 $("start-pdf-file").addEventListener("change", () => { const f = $("start-pdf-file").files && $("start-pdf-file").files[0]; if (f) importDraftPdf(f); });
 
+/* ---------- Ankunft aus einem Escape-Room (Feibeitsblatt als Finale; Link #escape=… oder Überblick-PDF) ----------
+ * Die Hülle wird geprüft (Prüfsumme: "ok" | "mismatch" – nur ein Indiz), der Datensatz gekappt (cleanEscape); der Code muss zu einem
+ * Blatt für denselben Escape-Room gehören. Nur Einzelarbeit: der Angaben-Bildschirm ist vorausgefüllt (Kürzel aus den vollen Namen,
+ * Geburtstag ohne Jahr, Klasse); liegt auf diesem Gerät schon ein Zwischenstand derselben Person, geht es dort weiter. Bis der
+ * Schreibbereich offen ist, bleiben die Daten nur im Arbeitsspeicher (S.escPending); danach stehen sie im Zwischenstand. Alle Texte nennen
+ * den Raum mit dem Namen, den die Lehrkraft eingetragen hat (S.sheet.escape.name) – nie mit Daten aus dem Link. */
+const ESC_LINK_BAD = "Der Link aus dem Escape-Room ist unvollständig. Lade deine Überblick-PDF unter „Zwischenstand-PDF hochladen“ hoch.";
+const ESC_PDF_BAD = "In dieser Überblick-PDF steckt kein vollständiger Datensatz aus dem Escape-Room. Lade genau die Datei hoch, die du im Escape-Room heruntergeladen hast – kein Screenshot und kein Ausdruck davon.";
+const ESC_NOT_OPEN = "Dieses Escape-Room-Finale ist noch nicht freigeschaltet. Deine Lehrkraft sagt dir, wann es losgeht – dann kommst du über den Arena-Tunnel am Ende des Escape-Rooms hierher " +
+  "(mit der Zwischenstand-Datei des Escape-Rooms kommst du dorthin zurück).";
+const ESC_NO_SHEET = "Zu diesem Escape-Room-Finale gibt es kein Feibeitsblatt (mehr). Bitte sag deiner Lehrkraft Bescheid.";
+const ESC_WRONG = "Die Daten aus dem Escape-Room passen nicht zu diesem Feibeitsblatt. Bitte sag deiner Lehrkraft Bescheid.";
+const ESC_NEED = "Dieser Zwischenstand gehört zu einem Escape-Room-Finale, enthält aber keine Daten aus dem Escape-Room. Lade deine Überblick-PDF unter „Zwischenstand-PDF hochladen“ hoch.";
+const ESC_START = (name) => `Dieses Feibeitsblatt gehört zum Escape-Room „${name}“. Öffne es über den Arena-Tunnel am Ende des Escape-Rooms – oder lade deine Überblick-PDF unter „Zwischenstand-PDF hochladen“ hoch.`;
+const ESC_BACK = "Deine Daten aus dem Escape-Room wurden auf diesem Gerät nicht gespeichert. Du kannst jederzeit über den Arena-Tunnel oder mit deiner Überblick-PDF zurückkommen.";
+const NO_CRYPTO = "Dieser Browser unterstützt die nötige Verschlüsselung nicht (Seite bitte über https öffnen).";
+const ESC = { run: 0 };   // Lauf-Kennung einer Ankunft (eine spätere Ankunft, ein Code oder eine andere Seite macht sie hinfällig)
+// Angekommene Daten verwerfen (ein Code, eine Datei, eine andere Seite) – samt den daraus vorausgefüllten Angaben
+function escDrop() { ESC.run++; if (S.escPending) { S.escPending = null; PERSON_FIELDS.forEach((id) => { $(id).value = ""; }); } }
+// Angekommene Daten gelten nur für das Blatt, zu dem sie gehören (Code und Kennung des Raums) – sonst werden sie nie übernommen
+const escPendingFor = (sheet, code) => (S.escPending && sheet && sheet.escape && S.escPending.rec.code === code && S.escPending.rec.room.id === sheet.escape.id ? S.escPending : null);
+// Hülle aus einem Zwischenstand → {hull, rec, check} für dieses Blatt oder null (Prüfsumme immer neu gerechnet, nie gespeichert übernommen)
+function escFromHull(x, sheet, code, person) {
+  const hull = escHull(x);
+  if (!hull || !sheet || !sheet.escape || isGroup(person)) return null;
+  let rec = null;
+  try { rec = cleanEscape(JSON.parse(hull.d)); } catch (e) { rec = null; }
+  return rec && rec.room.id === sheet.escape.id && rec.code === code ? { hull, rec, check: escCheck(hull) } : null;
+}
+// Link aus dem Raum (#escape=…, schon aus der Adresse entfernt)
+function escArriveLink(raw) { return escArrive(escHull(escB64urlBytes(raw)), "link"); }
+async function escArrive(hull, src) {
+  ESC.run++; CHK.run++; LEGAL.run++;   // eine laufende Ankunft, Checkliste oder „Impressum & Datenschutz“ schreibt nichts mehr
+  const run = ESC.run, err = $("start-err");
+  resetStudent(); show("screen-start");
+  $("resume-box").classList.add("hidden");
+  $("code-input").value = "";
+  if (!subtle) { err.textContent = NO_CRYPTO; return; }
+  let rec = null;
+  if (hull) { try { rec = cleanEscape(JSON.parse(hull.d)); } catch (e) { rec = null; } }
+  if (!rec) { err.textContent = src === "pdf" ? ESC_PDF_BAD : ESC_LINK_BAD; showResume(); return; }
+  if (!rec.code) { err.textContent = ESC_NOT_OPEN; showResume(); return; }
+  S.escPending = { hull, rec, check: escCheck(hull) };
+  return escLoad(run);
+}
+// Blatt zur Ankunft laden (auch „Erneut versuchen“ nach einem Netzfehler – die Daten bleiben bis dahin im Arbeitsspeicher)
+async function escLoad(run) {
+  const pend = S.escPending, err = $("start-err"), btn = $("start-btn"), retry = $("start-esc-retry");
+  if (!pend || run !== ESC.run) return;
+  err.textContent = ""; retry.classList.add("hidden");
+  busy(btn, true, "Einen Moment …");
+  try {
+    try { await loadSheet(pend.rec.code); }
+    catch (e) {
+      if (run !== ESC.run || S.escPending !== pend) return;
+      if (e.code === "not_found" || e.code === "bad_key") { resetStudent(); err.textContent = e.code === "bad_key" ? startErr(e) : ESC_NO_SHEET; showResume(); return; }
+      err.textContent = errMsg(e, "s") + " Deine Daten aus dem Escape-Room sind noch da – versuche es gleich noch einmal.";
+      retry.classList.remove("hidden");
+      return;
+    }
+    if (run !== ESC.run || S.escPending !== pend) return;
+    if (!S.sheet.escape || S.sheet.escape.id !== pend.rec.room.id) { resetStudent(); err.textContent = ESC_WRONG; showResume(); return; }
+    S.ttOptOut = false;   // neues Blatt: ein Widerspruch vom Angaben-Bildschirm eines anderen gilt nicht
+    const pre = escPerson(pend.rec);
+    if (pre.complete) {   // schon ein Zwischenstand derselben Person auf diesem Gerät: dort weiter (wie „Weiterschreiben“)
+      let has = false;
+      try { const x = JSON.parse((await draftRaw(S.code, pre.person)) || "null"); has = !!(x && Array.isArray(x.answers) && x.answers.some((a) => String(a || "").trim())); } catch (e) { has = false; }
+      if (run !== ESC.run || S.escPending !== pend) return;
+      if (has) { S.person = pre.person; await openEditor(); return; }
+    }
+    openPerson(false, pre);
+  } catch (e) { if (run === ESC.run && screen === "screen-start") err.textContent = startErr(e); }
+  finally { busy(btn, false); }
+}
+$("start-esc-retry").addEventListener("click", () => escLoad(ESC.run));
+
 /* ---------- 2. Arbeitsform: Einzelarbeit oder Partner- / Gruppenarbeit (nach dem Code; „Weiterschreiben“ und die
    Zwischenstand-PDF kennen sie schon) ---------- */
 function sheetLine(el) {
   el.textContent = "";
-  el.append(S.sheet.title, h("small", { text: `Code ${fmtCode(S.code)} · ${S.sheet.tasks.length} ${S.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}` }));
+  const n = `${S.sheet.tasks.length} ${S.sheet.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}`;
+  el.append(S.sheet.title, h("small", { text: S.sheet.escape ? `Escape-Room „${S.sheet.escape.name}“ · ${n}` : `Code ${fmtCode(S.code)} · ${n}` }));
 }
 function openMode(focusId) {
   sheetLine($("m-sheet"));
@@ -3469,8 +3719,9 @@ $("mode-group").addEventListener("click", () => openPerson(true));
 $("m-back").addEventListener("click", () => { resetStudent(); show("screen-start"); showResume(); focusSoon("code-input", 30); });
 
 /* ---------- 3. Angaben (Einzelarbeit: Kürzel, Geburtstag, Klasse; Gruppe: je Person ein Kürzelfeld, einmal die Klasse) ---------- */
-function openPerson(group) {
-  S.groupMode = !!group;
+/* pre: Vorbelegung aus einem Escape-Room (escPerson) – nur Einzelarbeit; die Felder bleiben änderbar */
+function openPerson(group, pre) {
+  S.groupMode = !!group && !pre;
   sheetLine($("p-sheet"));
   $("person-h").textContent = group ? "Eure Angaben" : "Deine Angaben";
   $("p-sub").textContent = group ? "Bitte tragt eure Angaben ein. Danach öffnet sich der Schreibbereich." : "Bitte trage deine Angaben ein. Danach öffnet sich der Schreibbereich.";
@@ -3480,9 +3731,20 @@ function openPerson(group) {
   $("p-err").textContent = ""; pErrAt = null;
   PERSON_FIELDS.forEach((id) => $(id).classList.remove("invalid"));
   memberInputs().forEach((f) => f.classList.remove("invalid"));
+  const note = $("p-escape");
+  $("p-back").textContent = pre ? "← zur Startseite" : "← zurück zur Auswahl";
+  let focusId = group ? "p-m-1" : "p-vorname";
+  if (pre) {
+    $("p-vorname").value = pre.vorname; $("p-nachname").value = pre.nachname; $("p-gtag").value = pre.gtag; $("p-gmonat").value = pre.gmonat; $("p-klasse").value = pre.klasse;
+    const missing = [!pre.okV || !pre.okN ? "die Kürzel deines Namens" : "", !pre.okBday ? "deinen Geburtstag" : "", !pre.okK ? "deine Klasse" : ""].filter(Boolean);
+    note.textContent = `Du kommst aus dem Escape-Room „${S.sheet.escape.name}“ – deine Angaben sind schon eingetragen.` +
+      (missing.length ? ` Bitte trage noch ${missing.join(missing.length > 2 ? ", " : " und ").replace(/, (?=[^,]*$)/, " und ")} ein.` : "");
+    focusId = !pre.okV ? "p-vorname" : !pre.okN ? "p-nachname" : !pre.okBday ? (pre.gtag ? "p-gmonat" : "p-gtag") : !pre.okK ? "p-klasse" : "p-btn";
+  } else note.textContent = "";
+  note.classList.toggle("hidden", !pre);
   renderPersonPrivacy();
   show("screen-person");
-  focusSoon(group ? "p-m-1" : "p-vorname", 30);
+  focusSoon(focusId, 30);
 }
 const PERSON_FIELDS = ["p-vorname", "p-nachname", "p-gtag", "p-gmonat", "p-klasse"];
 async function personGo() {
@@ -3580,7 +3842,17 @@ onEnter($("p-nachname"), () => $("p-gtag").focus());
 onEnter($("p-gtag"), () => $("p-gmonat").focus());   // kein automatischer Sprung nach zwei Ziffern (verwirrt, stört die Tastatur)
 onEnter($("p-gmonat"), () => $("p-klasse").focus());
 onEnter($("p-klasse"), personGo, $("p-btn"));
-$("p-back").addEventListener("click", () => { $("p-err").textContent = ""; openMode(S.groupMode ? "mode-group" : "mode-single"); });
+$("p-back").addEventListener("click", () => {
+  $("p-err").textContent = "";
+  if (S.escPending) {   // aus einem Escape-Room angekommen (keine Arbeitsform): zur Startseite, die Daten werden verworfen
+    ESC.run++; resetStudent(); $("code-input").value = "";
+    show("screen-start"); showResume();
+    setStatus($("start-status"), ESC_BACK, "");
+    focusSoon("code-input", 30);
+    return;
+  }
+  openMode(S.groupMode ? "mode-group" : "mode-single");
+});
 
 /* ---------- 4. Schreibfläche ---------- */
 /* Schlüssel des Zwischenstands: nur ein Hash – Kürzel, Geburtstag und Klasse stehen nicht lesbar im Speicher. Gruppe: Code|gruppe|
@@ -3629,24 +3901,43 @@ async function draftRaw(code, p, key) {
    Zwischenstand: „Weiterschreiben“, Zwischenstand-PDF) */
 async function openEditor(fromPerson) {
   const p = S.person, sh = S.sheet, askedOut = fromPerson === true && S.ttOptOut;
+  // Zwischenstand lesen (aus einer hochgeladenen PDF-Datei oder von diesem Gerät) und – bei einem Escape-Room-Finale – die Daten aus dem
+  // Raum klären, bevor sich irgendetwas am Zustand oder am Schreibbereich ändert: fehlen sie, geht es ohne halb aufgebauten Schreibbereich
+  // zurück zur Startseite. Neu angekommene Daten (Link, Überblick-PDF) gewinnen immer gegenüber denen im Zwischenstand.
+  const key = await draftKeyFor(S.code, p);
+  const imported = S.importDraft; S.importDraft = null;
+  let d = imported;
+  if (!d) { const raw = await draftRaw(S.code, p, key); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
+  const pending = escPendingFor(sh, S.code), arrived = !!pending;
+  S.escPending = null;
+  let esc = null;
+  if (sh.escape) {
+    esc = pending && !isGroup(p) ? { hull: pending.hull, rec: pending.rec, check: escCheck(pending.hull) } : escFromHull(d && d.escape, sh, S.code, p);
+    if (!esc) {
+      resetStudent(); $("code-input").value = "";
+      show("screen-start"); $("start-err").textContent = ESC_NEED; showResume();
+      focusSoon("code-input", 30);
+      return;
+    }
+  }
+  S.escape = esc;   // normales Blatt: Daten aus einem fremden Zwischenstand entfallen
   S.ttOptOut = false; S.ttResend = false; S.firstSending = null; S.ttLastRaw = null; S.ttGen++;
   S.submitted = false; S.first = null; S.firstTyping = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbPending = false; S.ltCache = new Map();
   S.attempt = ""; S.firstSent = false;
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltConsent = false; S.ltDeclined = false;   // Selbstauskunft zu LanguageTool gilt nur, solange dieses Blatt geöffnet ist
-  S.draftKey = await draftKeyFor(S.code, p);
+  S.draftKey = key;
   $("who-lbl").textContent = isGroup(p) ? "Gruppe" : "Verfasser:in";
   $("who-name").textContent = personLabel(p);
   $("ed-title").textContent = sh.title;
   $("sheet-title").textContent = sh.title;
-  $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.`;
+  $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}` + (esc ? ` · Finale des Escape-Rooms „${sh.escape.name}“` : "") +
+    " · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.";
+  $("submit-esc").classList.add("hidden");
   renderPrivacy();
   buildTasks();
-  // Zwischenstand wiederherstellen: aus einer hochgeladenen PDF-Datei oder von diesem Gerät
+  // Zwischenstand wiederherstellen
   let restored = false, pendingLost = false;
-  const imported = S.importDraft; S.importDraft = null;
-  let d = imported;
-  if (!d) { const raw = await draftRaw(S.code, p, S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
   S.ttLastRaw = store.get(S.draftKey);   // so liegt der Stand jetzt im Speicher – ein Widerspruch darin ist der eigene (ttFollowStored)
   const held = !imported && heldDrafts.has(S.draftKey);   // nur im Arbeitsspeicher (Speicher voll)
   try {
@@ -3696,7 +3987,8 @@ async function openEditor(fromPerson) {
   // sofort speichern: den Stand aus der PDF auf diesem Gerät weiterführen, einen verlorenen Versuch nur einmal zählen, einen Stand
   // nur im Arbeitsspeicher erneut sichern – scheitert es, sagt die Statuszeile das (statt „übernommen“/„wiederhergestellt“)
   const quotaOver = quotaExpired();   // Stand von einem früheren Tag: das Tageskontingent ist inzwischen erneuert
-  const saveFailed = (imported || pendingLost || held || quotaOver || ttChanged) && !saveDraft();
+  // arrived: aus einem Escape-Room angekommen – die Daten aus dem Raum sofort sichern (bis hierher nur im Arbeitsspeicher)
+  const saveFailed = (imported || pendingLost || held || quotaOver || ttChanged || arrived) && !saveDraft();
   S.tas.forEach(updateCounter);
   renderFeedbackState();
   setSaveState(saveFailed ? SAVE_FAILED : imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", saveFailed);
@@ -4305,7 +4597,8 @@ function draftRecord() {
   return { v: 1, t: Date.now(), answers: now.texts, first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt,
     ...(S.feedback ? { feedbackAi: { aiGenerated: true, digitalSourceType: AI_SOURCE } } : {}),   // KI-Kennzeichnung (cleanDraft liest das Feld nicht)
     fbUnavailable: S.fbUnavailable || "", fbUnavailableDay: S.fbUnavailable ? S.fbUnavailableDay || "" : "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent,
-    ...(typing ? { typing } : {}), ...(S.ttOptOut ? { ttOptOut: true } : {}), ...(S.ttResend ? { ttResend: true } : {}) };
+    ...(typing ? { typing } : {}), ...(S.ttOptOut ? { ttOptOut: true } : {}), ...(S.ttResend ? { ttResend: true } : {}),
+    ...(S.escape ? { escape: S.escape.hull } : {}) };   // Escape-Room-Finale: die Hülle unverändert (die Prüfsumme lässt sich so jederzeit neu rechnen)
 }
 const SAVE_FAILED = "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden";
 function saveDraft() {
@@ -4387,7 +4680,8 @@ function pdfWrap(str, size, bold, maxW) {   // Zeilenumbruch an Leerzeichen; ein
 const pdfUtf16 = (str) => { let x = "<FEFF"; for (let i = 0; i < str.length; i++) x += str.charCodeAt(i).toString(16).padStart(4, "0"); return x + ">"; };   // Info-Texte (PDFDocEncoding ≠ WinAnsi)
 const latin1 = (str) => { const u = new Uint8Array(str.length); for (let i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 0xFF; return u; };
 /* Zwischenstand d (siehe draftRecord + kind/code/sheetTitle/person) → PDF-Bytes */
-function makeDraftPdf(d, withAi = true) {   // withAi = false: Blatt ohne Auftrag an die KI (kein Hinweis zum KI-Feedback)
+// withAi = false: Blatt ohne Auftrag an die KI (kein Hinweis zum KI-Feedback); escName: Finale eines Escape-Rooms (d.escape trägt die Daten aus dem Raum)
+function makeDraftPdf(d, withAi = true, escName = "") {
   const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M;   // A4, Ränder
   const ops = [];
   const put = (x, yTop, str, size, bold, color) => ops.push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - yTop).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
@@ -4400,6 +4694,8 @@ function makeDraftPdf(d, withAi = true) {   // withAi = false: Blatt ohne Auftra
   y = para(M, y, "Diese Datei ist kein fertiges Arbeitsblatt und keine Abgabe, sondern ein gesicherter Zwischenstand: Die Antworten stecken als Daten in der Datei, damit du später weiterschreiben kannst.", 11, false, TW, 15, "0.3 0.3 0.3") + 12;
   const row = (label, val) => { put(M, y, label, 11, true); y = para(M + 100, y, val, 11, false, TW - 100, 15); };
   row("Feibeitsblatt:", `${d.sheetTitle || "Feibeitsblatt"} (Code ${fmtCode(d.code)})`);
+  const esc = !!(d.escape && escName);
+  if (esc) row("Escape-Room:", `„${escName}“ – mit deinen Daten aus dem Escape-Room`);
   row("Gesichert am:", fmtDT(when) + " Uhr");
   if (isGroup(p)) row("Gruppe:", personLabel(p)); else row("Angaben:", personLabel(p));
   const fbState = Array.isArray(d.feedback) ? "schon erhalten"
@@ -4424,7 +4720,8 @@ function makeDraftPdf(d, withAi = true) {   // withAi = false: Blatt ohne Auftra
   put(M, y, "Bitte beachte", 12.5, true); y += 18;
   ["Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
     "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
-    withAi ? "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites Feedback gibt es nicht." : ""
+    withAi ? "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites Feedback gibt es nicht." : "",
+    esc ? "Die Datei enthält auch deine Daten aus dem Escape-Room (voller Name, Geburtsdatum, Bestätigungscode und Ergebnisse) – damit kannst du hier weitermachen." : ""
   ].filter(Boolean).forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
   put(M, H - 40, "Erstellt mit Feibeitsblatt · " + url, 9, false, "0.45 0.45 0.45");
   // Objekte zusammensetzen
@@ -4452,8 +4749,9 @@ function makeDraftPdf(d, withAi = true) {   // withAi = false: Blatt ohne Auftra
   for (const b of parts) { out.set(b, o); o += b.length; }
   return out;
 }
-/* PDF-Bytes → eingebetteter Zwischenstand (Objekt) oder Fehler. Sucht das Kennzeichen /FbDraft 1 bzw. eingebettete
-   Dateien (/Type /EmbeddedFile), liest den Stream (Länge direkt oder als Verweis), entpackt FlateDecode bei Bedarf. */
+/* PDF-Leser (Zwischenstand, Überblick-PDF aus einem Escape-Room, Sicherung eines Feibeitsblatts): Kennzeichen bzw. eingebettete
+   Dateien (/Type /EmbeddedFile) suchen, den Stream lesen (Länge direkt oder als Verweis), FlateDecode bei Bedarf entpacken. */
+/* PDFREAD:BEGIN – reine Funktionen; brauchen nur td (TextDecoder) und aus dem Block ESCAPE ESC_KIND und escHull (test/unit/escape.test.mjs liest diesen Block) */
 // PDF-Bytes als Latin-1-Zeichenkette (ein Zeichen je Byte): Offsets in der Zeichenkette = Offsets in den Bytes
 function pdfLatin1(u) { let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return s; }
 function pdfDoc(buf) { const u = new Uint8Array(buf); return { u, s: pdfLatin1(u), ints: null }; }
@@ -4541,22 +4839,34 @@ async function feibeitsblattPdfKind(u8) {
   }
   return null;
 }
-async function readDraftPdf(buf) {
+/* „Zwischenstand-PDF hochladen“: PDF-Bytes → {kind: "draft", o} (Zwischenstand des Feibeitsblatts) oder {kind: "escape", o} (Hülle aus
+   der Überblick-PDF eines Escape-Rooms) – sonst Fehler "nopdf" | "escape-bad" (Kennzeichen /FbEscape 1, aber keine brauchbare Hülle) |
+   "nodraft". Kandidaten in einem Durchlauf: erst die Kennzeichen, dann jede eingebettete Datei (auch kompakt „/Type/EmbeddedFile“, ohne
+   Kennzeichen nach dem Neuspeichern), je Objekt einmal, höchstens 60. Ein Zwischenstand gewinnt immer, auch wenn er weiter hinten liegt;
+   sonst gilt die erste Hülle (escHull: Form und höchstens ESC_MAX_BYTES). */
+async function readStartPdf(buf) {
   const doc = pdfDoc(buf), s = doc.s;
   if (s.slice(0, 5) !== "%PDF-") throw new Error("nopdf");
-  const starts = [];   // erst das Kennzeichen, dann jede eingebettete Datei (auch kompakt geschrieben: „/Type/EmbeddedFile“)
-  for (const re of [/\/FbDraft\s+1\b/g, /\/Type\s*\/EmbeddedFile\b/g]) for (const m of s.matchAll(re)) { if (starts.length >= 60) break; starts.push(m.index); }
+  const marked = [], files = [];
+  for (const m of s.matchAll(/\/Fb(?:Draft|Escape)\s+1\b|\/Type\s*\/EmbeddedFile\b/g)) {
+    (m[0][1] === "F" && m[0][2] === "b" ? marked : files).push(m.index);
+    if (marked.length + files.length >= 240) break;
+  }
   const tried = new Set();
-  for (const i of starts) {
+  let hull = null;
+  for (const i of marked.concat(files)) {
+    if (tried.size >= 60) break;
     const x = pdfStreamAt(doc, i);
     if (!x || tried.has(x.obj)) continue; tried.add(x.obj);
-    try {
-      const o = JSON.parse(td.decode(await pdfStreamData(doc.u, x, 4 * 1024 * 1024)));
-      if (o && o.kind === "feibeitsblatt-draft") return o;
-    } catch (e) { /* nächster Kandidat */ }
+    let o = null;
+    try { o = JSON.parse(td.decode(await pdfStreamData(doc.u, x, 4 * 1024 * 1024))); } catch (e) { continue; }
+    if (o && o.kind === "feibeitsblatt-draft") return { kind: "draft", o };
+    if (!hull && o && o.kind === ESC_KIND) hull = escHull(o);
   }
-  throw new Error("nodraft");
+  if (hull) return { kind: "escape", o: hull };
+  throw new Error(/\/FbEscape\s+1\b/.test(s) ? "escape-bad" : "nodraft");
 }
+/* PDFREAD:END */
 /* Zwischenstand aus einer Datei prüfen und normalisieren (wie die Eingabefelder) → Objekt oder null */
 function cleanDraft(o) {
   if (!o || typeof o !== "object" || o.v !== 1 || o.kind !== "feibeitsblatt-draft") return null;
@@ -4594,7 +4904,8 @@ function cleanDraft(o) {
     attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true,
     // Widerspruch gegen die Tippzeit-Messung bleibt gemerkt (dann keine Tippzeiten); ein noch zu ersetzender Erstversuch nur mit Feedback
     ttOptOut: fl.optOut, ttResend: fl.resend && !!feedback,
-    typing: fl.optOut ? null : (() => { try { return ttCleanDraft(o.typing, answers, first); } catch (e) { return null; } })()   // nur, was genau zu den gekappten Texten passt
+    typing: fl.optOut ? null : (() => { try { return ttCleanDraft(o.typing, answers, first); } catch (e) { return null; } })(),   // nur, was genau zu den gekappten Texten passt
+    escape: escHull(o.escape)   // Daten aus einem Escape-Room (Form und Größe; ob sie zum Blatt passen, klärt openEditor)
   };
 }
 function downloadBlob(blob, name) {
@@ -4609,7 +4920,7 @@ $("ed-pdf").addEventListener("click", () => {
     saveDraft();
     const d = Object.assign(draftRecord(), { kind: "feibeitsblatt-draft", code: S.code, sheetTitle: S.sheet.title, person: personOut(S.person) });
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
-    downloadBlob(new Blob([makeDraftPdf(d, S.sheet.aiFeedback || !!S.feedback)], { type: "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
+    downloadBlob(new Blob([makeDraftPdf(d, S.sheet.aiFeedback || !!S.feedback, S.escape && S.sheet.escape ? S.sheet.escape.name : "")], { type: "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
     setSaveState("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf", false);
   } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
 });
@@ -4710,12 +5021,18 @@ function pdfAssemble(pages, meta) {
   for (const b of parts) { out.set(b, o); o += b.length; }
   return out;
 }
+/* sub.failed: Escape-Room-Finale, Abgabe technisch gescheitert – Vermerk ganz oben, „Stand“ statt „abgegeben am“, keine Sätze zur zweiten
+   Rückmeldung; sub.escape = {rec, name}: danach die Seiten mit dem Überblick aus dem Raum (escPdfPages, mode "student") */
 function makeSolutionsPdf(sub) {
   const pg = pdfPager(), { para, gap } = pg;
-  const p = sub.person || {}, when = toDate(sub.receivedAt) || new Date(), grp = isGroup(p);
+  const p = sub.person || {}, when = toDate(sub.receivedAt) || new Date(), grp = isGroup(p), failed = !!sub.failed;
+  if (failed) {
+    pg.box([{ str: ESC_FAILED_PDF_NOTE, size: 11, bold: true, color: ESC_PDF.red }], { fill: "1 0.94 0.93", stroke: ESC_PDF.red, width: 1.5 });
+    gap(14);
+  }
   para("Meine Lösungen – " + (sub.title || "Feibeitsblatt"), 17, true);
   gap(4);
-  para(`${grp ? "Gruppe: " + p.gruppe.join(", ") : p.vorname + " · " + p.nachname} · Klasse ${p.klasse} · abgegeben am ${fmtDT(when)} Uhr · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
+  para(`${grp ? "Gruppe: " + p.gruppe.join(", ") : p.vorname + " · " + p.nachname} · Klasse ${p.klasse} · ${failed ? "Stand: " + fmtDT(when) + " Uhr – noch nicht abgegeben" : "abgegeben am " + fmtDT(when) + " Uhr"} · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
   const fb2 = sub.feedback2 && Array.isArray(sub.feedback2.results) ? sub.feedback2 : null;
   // Was je Aufgabe gedruckt wird – vorab, damit der Kopf sagen kann, ob KI-Rückmeldungen darin stehen
   const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
@@ -4728,7 +5045,8 @@ function makeSolutionsPdf(sub) {
     return { fin, first, fb, kept, f2: hasAiPoints(f2) ? f2 : null, showFb: !!fb && (hasAiPoints(fb) || !!fb.note) };
   });
   const hasAi = items.some((it) => it.f2 || (it.showFb && hasAiPoints(it.fb)));
-  if (Array.isArray(sub.feedback) && !fb2) {
+  if (failed) { /* noch nicht abgegeben: weder eine zweite Rückmeldung noch ein Vermerk zur Abgabe ohne KI-Feedback */ }
+  else if (Array.isArray(sub.feedback) && !fb2) {
     gap(4);
     para(sub.fb2Final ? "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gab es diesmal nicht." : "Die KI-Rückmeldung zu deiner abgegebenen Fassung lag beim Herunterladen noch nicht vor.", 10.5, false, { color: "0.35 0.35 0.35" });
   } else if (!Array.isArray(sub.feedback) && sub.noAi !== "none") {   // einmal im Kopf statt bei Aufgabe 1; ohne Wertung
@@ -4748,7 +5066,7 @@ function makeSolutionsPdf(sub) {
     gap(2);
     if (tasks[i]) para(String(tasks[i]), 11, false, { color: "0.25 0.25 0.25" });
     gap(6);
-    para("Meine Lösung (abgegebene Fassung):", 10.5, true);
+    para(failed ? "Meine Lösung (Stand beim Herunterladen):" : "Meine Lösung (abgegebene Fassung):", 10.5, true);
     para(fin.trim() ? fin : "(leer)", 11, false);
     if (f2) {
       gap(6);
@@ -4767,6 +5085,11 @@ function makeSolutionsPdf(sub) {
     }
     gap(16);
   });
+  // Escape-Room-Finale: der Überblick aus dem Raum auf eigenen Seiten (voller Name, Bestätigungscode, Lösungserläuterungen – nur für die Schülerin)
+  if (sub.escape && sub.escape.rec) {
+    if (pg.pages[pg.pages.length - 1].length) pg.newPage(); else pg.y = pg.TOP;   // eine schon begonnene leere Seite weiterverwenden
+    escPdfPages(pg, sub.escape.rec, { mode: "student", name: sub.escape.name });
+  }
   // Fußzeile je Seite (bei einer Gruppe mit vielen Kürzeln notfalls „Gruppe (n)“), dann Objekte zusammensetzen
   pg.footer(sub.title || "", grp ? "Gruppe " + p.gruppe.join(", ") : p.vorname + " " + p.nachname, grp ? `Gruppe (${p.gruppe.length})` : null);
   const title = "Meine Lösungen – " + (sub.title || "Feibeitsblatt");
@@ -4776,7 +5099,9 @@ function makeSolutionsPdf(sub) {
  * Kopf, Angaben, Zahlen (fehlerfrei im ersten Versuch, Fehler zusammen), je Station die Versuche und die Fehler im ersten Versuch,
  * dann die Verwendung von Zwischenstand-Dateien des Raums. mode "teacher" (Lehrkräfte-Ansicht, gebaut aus der entschlüsselten Abgabe):
  * Kürzel, Geburtstag ohne Jahr, Klasse und der Satz zur Prüfsumme – mehr bekommt die Lehrkraft nicht (keinen vollen Namen, keinen
- * Bestätigungscode, keine Lösungserläuterungen). Schwarz auf weiß mit farbigen Überschriften, nie Tippzeiten. */
+ * Bestätigungscode, keine Lösungserläuterungen). mode "student" (Abschluss-PDF der Schülerin auf der Bestätigungsseite bzw. nach einer
+ * gescheiterten Abgabe, aus dem Datensatz des Raums): voller Name, Geburtsdatum, Klasse, Bestätigungscode und die Lösungserläuterungen,
+ * keine Prüfsumme. Schwarz auf weiß mit farbigen Überschriften, nie Tippzeiten. */
 const ESC_PDF = { head: "0 0.29 0.6", grey: "0.35 0.35 0.35", red: "0.7 0.15 0.12", green: "0.12 0.42 0.16" };
 const escAttempts = (n) => (n === 1 ? "1 Versuch" : n + " Versuche");
 const escWhen = (v) => (v && toDate(v) ? fmtDT(v) + " Uhr" : "–");
@@ -4795,6 +5120,13 @@ function escPdfPages(pg, esc, o) {
     para(`Feibeitsblatt „${o.title || "Feibeitsblatt"}“ · Code ${fmtCode(o.code)}`, 10.5, false, { color: ESC_PDF.grey });
     gap(4);
     para("Übermittelt mit der Abgabe: die Ergebnisse aus dem Escape-Room – ohne vollen Namen, ohne Geburtsjahr, ohne Bestätigungscode und ohne Lösungserläuterungen.", 9.5, false, { color: ESC_PDF.grey });
+  }
+  if (o.mode === "student") {   // Abschluss-PDF der Schülerin: die Angaben aus dem Raum (wie in dessen Überblick-PDF)
+    const pr = esc.person || {};
+    gap(4);
+    para("Name: " + ([pr.vorname, pr.nachname].filter(Boolean).join(" ") || "–"), 11, true);
+    para(`Geburtsdatum: ${pr.geburtsdatum || "–"} · Klasse: ${pr.klasse || "–"}`, 10.5, false);
+    para("Bestätigungscode: " + (esc.confirm || "–"), 11, true);
   }
   gap(6);
   para(`Escape-Room abgeschlossen am ${escWhen(esc.completedAt)}` + (esc.word ? ` · Codewort: ${esc.word}` : ""), 10.5, false);
@@ -4822,18 +5154,39 @@ function escPdfPages(pg, esc, o) {
     }
     gap(14);
   });
+  // Abschluss-PDF der Schülerin: die Lösungserläuterungen des Raums auf einer neuen Seite – der Absatz „Genaue Daten: …“ kleiner und grau
+  if (o.mode === "student" && Array.isArray(esc.notes) && esc.notes.length) {
+    pg.newPage();
+    para("Lösungserläuterungen", 15, true);
+    gap(10);
+    esc.notes.forEach((n, i) => {
+      pg.room(70);
+      para(n.label || "Station " + (i + 1), 12.5, true, { color: ESC_PDF.head });
+      gap(3);
+      String(n.text || "").split(/\n{2,}/).filter((x) => x.trim()).forEach((x, k) => {
+        if (k) gap(5);
+        if (/^Genaue Daten:/.test(x)) para(x, 9, false, { color: ESC_PDF.grey });
+        else para(x, 10.5, false);
+      });
+      gap(14);
+    });
+  }
   pg.room(60);
   para("Verwendung von Zwischenstand-Dateien des Escape-Rooms", 12.5, true, { color: ESC_PDF.head });
   gap(2);
   if (!esc.resumes.length) para("Keine.", 10.5, false);
   for (const r of esc.resumes) para(`• ${r.place || "–"} · gespeichert am ${escWhen(r.savedAt)} · geladen am ${escWhen(r.loadedAt)}`, 10.5, false, { indent: 10 });
 }
+const DONE_PDF = "Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht";
+const DONE_PDF_ESC = "Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter und speichere sie in deinen Unterlagen zu unserem Unterricht";
 $("done-pdf").addEventListener("click", () => {
   const sub = S.lastSubmission, st = $("done-status");
   if (!sub) { setStatus(st, "Die Lösungen sind auf diesem Gerät nicht mehr verfügbar.", "bad"); return; }
   try {
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
-    downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/pdf" }), `Feibeitsblatt-Loesungen-${fmtCode(sub.code)}-${stamp}.pdf`);
+    // Escape-Room-Finale: Gesamt-PDF mit dem Überblick (voller Name, Bestätigungscode) – nur zum Speichern, nie im Tab; Name ohne Personendaten
+    if (sub.escape) downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/octet-stream" }), `Escape-Room-${escFileRoom(sub.escape.name)}-Abschluss-${stamp}.pdf`);
+    else downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/pdf" }), `Feibeitsblatt-Loesungen-${fmtCode(sub.code)}-${stamp}.pdf`);
     if (Array.isArray(sub.feedback) && !sub.feedback2 && !sub.fb2Final) {   // die zweite Rückmeldung fehlt noch: hinweisen und später erinnern
       sub.pdfBeforeFb2 = true;
       setStatus(st, sub.fb2State === "loading"
@@ -4870,7 +5223,8 @@ $("ed-cancel").addEventListener("click", async () => {
   // Ein Erstversuch (erste Fassung + KI-Feedback + Angaben) liegt schon bei der Lehrkraft – das Löschen hier nimmt ihn nicht zurück
   const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." +
     (S.feedback && S.firstSent ? " Deine erste Fassung mit dem KI-Feedback und deinen Angaben hat deine Lehrkraft schon verschlüsselt als Erstversuch bekommen; waren deine Angaben falsch, sag ihr Bescheid – sie kann den Eintrag löschen." : "") +
-    (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
+    (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten." : "") +
+    (S.escape ? " Auch deine Daten aus dem Escape-Room werden von diesem Gerät gelöscht – mit deiner Überblick-PDF kannst du jederzeit wieder hierher kommen." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
   if (!ok || submitBusy($("submit-status"), SENDING_CANCEL)) return;
   clearTimeout(saveTimer);
   delDraft(S.draftKey); store.del(LAST_KEY);
@@ -5195,9 +5549,10 @@ function renderSteps() {
   const ai = !!(S.sheet.aiFeedback || S.feedback);   // wie renderFeedbackState
   // „gerade nicht möglich“: gemeldeter Grund (fbBlockedNow) oder keine KI eingerichtet (ohne Klick erkennbar)
   const blocked = !S.feedback && (fbBlockedNow() || !(S.sheet.aiRecipients || []).length);
+  const esc = !!S.sheet.escape;   // Finale eines Escape-Rooms: die Abschluss-PDF enthält auch den Überblick aus dem Raum
   const items = ai ? [["Aufgaben bearbeiten"], ["KI-Feedback anfordern", blocked ? "(freiwillig, empfohlen – gerade nicht möglich)" : "(freiwillig, empfohlen)"],
-    ["Lösungen mithilfe des KI-Feedbacks überarbeiten"], ["Abgeben"], ["Lösungen und letztes Feedback herunterladen", STEP_LATE]]
-    : [["Aufgaben bearbeiten"], ["Abgeben"], ["Lösungen herunterladen", STEP_LATE]];
+    ["Lösungen mithilfe des KI-Feedbacks überarbeiten"], ["Abgeben"], [esc ? "Lösungen, letztes Feedback und Escape-Room-Überblick herunterladen" : "Lösungen und letztes Feedback herunterladen", STEP_LATE]]
+    : [["Aufgaben bearbeiten"], ["Abgeben"], [esc ? "Lösungen und Escape-Room-Überblick herunterladen" : "Lösungen herunterladen", STEP_LATE]];
   const cur = ai ? (S.submitting ? 4 : S.feedback ? 3 : S.busyFeedback ? 2 : 1) : (S.submitting ? 2 : 1);
   const key = JSON.stringify(items);
   if (ol._key !== key) {
@@ -5452,6 +5807,7 @@ async function sendFirstAttempt() {
     };
     try { payload.typing = S.ttOptOut ? ttOptOutPayload() : { v: 1, answers: S.first.map((_, i) => ({ first: (S.firstTyping && S.firstTyping[i]) || null, final: null })) }; }
     catch (e) { payload.typing = { v: 1, omitted: "error" }; }
+    if (S.escape) payload.escape = escPayload(S.escape.rec, escCheck(S.escape.hull));   // Ergebnisse aus dem Escape-Room (ohne Personendaten)
     await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "first", attempt: att }));
     if (S.attempt !== att) return;   // inzwischen eine andere Bearbeitung (zurückgesetzt, anderes Blatt): deren Stand nicht anfassen
     S.firstSent = true;
@@ -5466,25 +5822,30 @@ async function sendFirstAttempt() {
   if (again) sendFirstAttempt();
 }
 
-/* Nutzlast verschlüsseln; wäre der Umschlag für den Server zu groß, ohne Tippzeiten ({v:1, omitted:"too_large"}) – eine Abgabe
-   scheitert nie an den Tippzeiten. Fehler beim Verschlüsseln → ApiError("crypto"). */
+/* Nutzlast verschlüsseln; wäre der Umschlag für den Server zu groß, erst ohne Tippzeiten ({v:1, omitted:"too_large"}), dann – bei einem
+   Escape-Room-Finale – ohne die Fehler-Einzelheiten aus dem Raum (escTrim): eine Abgabe scheitert nie an den Tippzeiten oder den Daten aus
+   dem Raum. Fehler beim Verschlüsseln → ApiError("crypto"). */
 async function sealPayload(payload) {
   try {
     let env = await Crypto.seal(S.pub, payload);
     if (!ttEnvelopeFits(env) && ttHasData(payload.typing)) { payload.typing = { v: 1, omitted: "too_large" }; env = await Crypto.seal(S.pub, payload); }
+    if (!ttEnvelopeFits(env) && escHasDetails(payload.escape)) { payload.escape = escTrim(payload.escape); env = await Crypto.seal(S.pub, payload); }
     return env;
   } catch (e) { throw new ApiError("crypto"); }
 }
-/* Erstversuch bzw. Abgabe senden. Lehnt der Server sie als zu groß ab (413; 409 = Blatt voll, auch nach Bytes) und trug die Nutzlast
-   Tippzeiten, folgt einmal genau dieselbe Nutzlast ohne sie (nichts neu lesen: die Felder sind beim Senden nicht gesperrt). */
+/* Erstversuch bzw. Abgabe senden. Lehnt der Server sie als zu groß ab (413; 409 = Blatt voll, auch nach Bytes), folgt genau dieselbe
+   Nutzlast erst ohne Tippzeiten, dann ohne die Fehler-Einzelheiten aus dem Escape-Room – je einmal, nichts neu lesen (die Felder sind beim
+   Senden nicht gesperrt). */
 async function sendSealed(payload, bodyOf) {
   const send = async () => api("POST", "/api/submit", { body: bodyOf(await sealPayload(payload)), timeout: 60000 });
-  try { return await send(); }
-  catch (e) {
-    const big = e instanceof ApiError && (e.code === "too_large" || e.code === "too_many_submissions" || e.status === 413);
-    if (!big || !ttHasData(payload.typing)) throw e;
-    payload.typing = { v: 1, omitted: "too_large" };
-    return send();
+  for (;;) {
+    try { return await send(); }
+    catch (e) {
+      const big = e instanceof ApiError && (e.code === "too_large" || e.code === "too_many_submissions" || e.status === 413);
+      if (big && ttHasData(payload.typing)) { payload.typing = { v: 1, omitted: "too_large" }; continue; }
+      if (big && escHasDetails(payload.escape)) { payload.escape = escTrim(payload.escape); continue; }
+      throw e;
+    }
   }
 }
 
@@ -5725,6 +6086,7 @@ async function submitAll() {
     return;
   }
   if (!ok) return;
+  $("submit-esc").classList.add("hidden");   // Hinweis einer gescheiterten Abgabe (Escape-Room-Finale) gilt für den neuen Versuch nicht
   S.submitting = true; $("fb-btn").disabled = true;   // bis zum Ende des Sendens (finally): kein KI-Feedback, kein „Abbrechen“
   renderSteps();
   // Erst nach dem Dialog einstufen: eine laufende Anfrage kann inzwischen gescheitert sein (dann gilt ihr Grund). Hat der Dialog
@@ -5757,6 +6119,7 @@ async function submitAll() {
         return { first: ft != null && ft === f && payload.answers[i].first === fin ? "=" : ft, final: f };
       }) };
     } catch (e) { payload.typing = { v: 1, omitted: "error" }; }
+    if (S.escape) payload.escape = escPayload(S.escape.rec, escCheck(S.escape.hull));   // Ergebnisse aus dem Escape-Room (ohne Personendaten)
     saveDraft();
     const r = await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }));
     S.submitted = true;
@@ -5771,7 +6134,10 @@ async function submitAll() {
     // Für den Download-Button (#done-pdf) auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
     S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
       feedback: payload.feedback, feedbackError: payload.feedbackError || "", noAi: payload.noAi || "", receivedAt: d.getTime(),
-      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false };
+      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false,
+      escape: S.escape && S.sheet.escape ? { rec: S.escape.rec, name: S.sheet.escape.name } : null };   // Escape-Room-Finale: Überblick für die Abschluss-PDF
+    $("done-pdf").textContent = S.lastSubmission.escape ? DONE_PDF_ESC : DONE_PDF;
+    $("submit-esc").classList.add("hidden");
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
     closeDlg(null);   // ein während des Sendens geöffneter Dialog (z. B. Rechtschreibprüfung) bleibt nicht über der Bestätigung stehen – ohne Antwort (null, nicht „Trifft nicht zu“)
@@ -5787,6 +6153,7 @@ async function submitAll() {
     }
     setStatus(st, (e.code === "crypto" ? "Deine Abgabe konnte nicht verschlüsselt werden." : errMsg(e, "s")) +
       " Deine Antworten sind noch da – versuche es gleich noch einmal.", "bad");
+    if (S.escape && escTechnical(e)) showSubmitEsc();   // Escape-Room-Finale: Abschluss-PDF für die E-Mail an den Betreiber
   } finally {
     S.submitting = false;
     if (!S.submitted) ttClearLate();   // „Deine Abgabe wird gerade gesendet …“ am Schalter gilt nicht mehr: er wirkt wieder
@@ -5795,6 +6162,37 @@ async function submitAll() {
   }
 }
 $("submit-btn").addEventListener("click", submitAll);
+/* ---------- Escape-Room-Finale: Abgabe technisch gescheitert → Abschluss-PDF für die E-Mail ----------
+ * Technisch ist jeder Fehler außer den Prüffehlern des Servers (die Schülerin kann kürzen bzw. neu laden): Netz, Zeitüberschreitung,
+ * Antworten ohne JSON (http_<Status>, z. B. eine Zwischenstelle), Blatt gelöscht oder voll, Tageskontingent, Verschlüsselung … Bewusst ein
+ * Knopf statt eines automatischen Downloads (ein Download ohne Klick nach einem Fehler kann der Browser sperren). Die Datei enthält den
+ * aktuellen Stand (Antworten, erste Fassung, KI-Feedback) und den Überblick aus dem Raum – nie Tippzeiten. */
+const ESC_NOT_TECHNICAL = new Set(["bad_envelope", "bad_request", "bad_json", "bad_answers", "too_long", "too_large"]);
+const escTechnical = (e) => !(e instanceof ApiError && (ESC_NOT_TECHNICAL.has(e.code) || e.status === 413));
+const ESC_FAILED_PDF_NOTE = "Noch nicht abgegeben: Die Abgabe ist wegen eines technischen Fehlers fehlgeschlagen. " +
+  (OPERATOR.email ? `Reiche diese Datei bitte per E-Mail bei ${OPERATOR.email} ein.` : "Reiche diese Datei bitte per E-Mail bei deiner Lehrkraft ein.");
+function showSubmitEsc() {
+  const txt = $("submit-esc-text"), a = mailLink();
+  txt.textContent = "";
+  txt.append("Noch nicht abgegeben: Die Abgabe ist wegen eines technischen Fehlers fehlgeschlagen. Versuche es gleich noch einmal. Klappt es nicht, lade diese Datei herunter und reiche sie per E-Mail bei ",
+    ...(a ? [a, " ein."] : ["deiner Lehrkraft ein."]));
+  $("submit-esc-note").textContent = "Die Datei enthält deinen vollen Namen, dein Geburtsdatum und deine Antworten – " + (a ? "schicke sie nur an diese Adresse." : "gib sie nur deiner Lehrkraft.");
+  setStatus($("submit-esc-status"), "", "");
+  $("submit-esc").classList.remove("hidden");
+}
+$("submit-esc-pdf").addEventListener("click", () => {
+  const st = $("submit-esc-status");
+  if (S.submitted || !S.sheet || !S.person || !S.escape || !S.sheet.escape) return;
+  try {
+    const texts = S.tas.map((t) => t.value), withFb = !!S.feedback;   // nur die Texte – nie Tippzeiten
+    const sub = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: personOut(S.person),
+      answers: texts.map((fin, i) => ({ first: withFb && S.first ? S.first[i] : fin, final: fin })), feedback: withFb ? S.feedback.map(fbOut) : null,
+      receivedAt: Date.now(), feedback2: null, failed: true, escape: { rec: S.escape.rec, name: S.sheet.escape.name } };
+    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+    downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/octet-stream" }), `Escape-Room-${escFileRoom(S.sheet.escape.name)}-Abschluss-${stamp}-nicht-abgegeben.pdf`);
+    setStatus(st, "Die PDF-Datei wird heruntergeladen.", "ok");
+  } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuche es noch einmal.", "bad"); }
+});
 
 /* Schreibfläche leeren (gemeinsam genutzte Geräte) */
 function clearEditor() {
@@ -5816,10 +6214,13 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null, escPending: null, escape: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   resetMembers();   // Kürzelfelder der Gruppe: wieder ein leeres Feld beim nächsten Öffnen
-  $("p-err").textContent = ""; $("start-err").textContent = "";
+  $("p-err").textContent = ""; $("start-err").textContent = ""; setStatus($("start-status"), "", "");
+  // Escape-Room: Hinweise und Knöpfe einer Ankunft bzw. einer gescheiterten Abgabe
+  $("p-escape").classList.add("hidden"); $("p-escape").textContent = ""; $("p-back").textContent = "← zurück zur Auswahl";
+  $("start-esc-retry").classList.add("hidden"); $("submit-esc").classList.add("hidden");
   $("done-del").textContent = ""; $("done-del").classList.add("hidden");
 }
 $("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").value = ""; show("screen-start"); showResume(); focusSoon("code-input", 30); });
@@ -8511,6 +8912,8 @@ function renderPvEffect() {
 }
 /* Vorschau: derselbe Baustein wie bei den Schüler:innen, mit der (auch ungespeicherten) Frist – für ein Blatt mit KI-Feedback und so,
    wie der Hinweis unter dieser Adresse erscheint. Darunter, was bei anderen Blättern bzw. über die andere Adresse abweicht. */
+const PV_ESC_NOTE = "Bei Feibeitsblättern für einen Escape-Room kommen Sätze zu den Daten aus dem Escape-Room hinzu (voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät " +
+  "der Schüler:innen – außer sie schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie).";
 function renderPvPreview() {
   const f = pvForm(), p = cleanPrivacy(f), list = cleanRecipients(T.privacy && T.privacy.aiRecipients), box = $("pv-preview");
   box.textContent = "";
@@ -8519,7 +8922,7 @@ function renderPvPreview() {
     privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull", ttSwitch: "preview" }),
     h("p", { class: "fhint", id: "pv-preview-note", text: (CHECK_HOST ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${CHECK_HOST}, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „${GITHUB_ITEM}“ ` : "") +
       "Bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen der Satz zur Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „" + TT_OBJ_HEAD + "“ – dort wird nichts gemessen. " +
-      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
+      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " + PV_ESC_NOTE + " Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
 }
 function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der Auswahl steht, als eigene Möglichkeit zeigen
   const sel = $("pv-days");
@@ -8741,6 +9144,7 @@ function renderChecklist(r) {
   $("chk-body").classList.remove("hidden");
 }
 async function openChecklist(code) {
+  escDrop();   // angekommene Daten aus einem Escape-Room gelten nicht mehr
   const run = ++CHK.run, st = $("chk-status"), err = $("chk-err");
   CHK.code = code; CHK.tasks = [];
   show("screen-check");
@@ -8802,7 +9206,15 @@ const legalHash = () => /^#impressum$/i.test(location.hash || "");
   [OPERATOR.name, OPERATOR.street, OPERATOR.city, OPERATOR.country].filter(Boolean).forEach((x, i) => { if (i) addr.appendChild(h("br")); addr.appendChild(document.createTextNode(x)); });
   if (a) mail.append("E-Mail: ", a);
 })();
+// Feibeitsblatt als Finale eines Escape-Rooms: eigener Abschnitt in allgemeiner Form (der Hinweis darüber bleibt, wie er ist)
+(function renderLegalEscape() {
+  $("legal-escape").append(h("h2", { class: "legal-h2", id: "legal-escape-h", text: "Feibeitsblatt als Finale eines Escape-Rooms" }),
+    h("p", { text: "Manche Feibeitsblätter sind das Finale eines Escape-Rooms: Du öffnest sie über den Link am Ende des Escape-Rooms oder mit deiner Überblick-PDF " +
+      "(auf der Startseite „Zwischenstand-PDF hochladen“); es gibt dann nur Einzelarbeit. Zusätzlich zu den Angaben oben gilt:" }),
+    h("p", { text: ESC_PRIV.purpose("") }), h("p", { text: ESC_PRIV.data("") }), h("p", { text: ESC_PRIV.teacher }), escMailItem(true, "p"), h("p", { text: ESC_PRIV.stay }));
+})();
 async function openLegal() {
+  escDrop();   // angekommene Daten aus einem Escape-Room gelten nicht mehr
   const run = ++LEGAL.run, st = $("legal-status"), box = $("legal-privacy");
   show("screen-legal");
   box.textContent = "";
@@ -8823,6 +9235,13 @@ $("legal-home2").addEventListener("click", leaveLegal);
 // und Lehrkraft-Bereich bleiben unberührt
 window.addEventListener("hashchange", () => {
   const c = checkHashCode(), free = CHECK_SCREENS.has(screen) || screen === "screen-legal";
+  // Link aus einem Escape-Room: sofort aus der Adresse entfernen; übernommen nur auf freien Bildschirmen, sonst verworfen
+  const hs = String(location.hash || "");
+  if (/^#escape=/i.test(hs)) {
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { /* egal */ }
+    if (free) escArriveLink(hs.slice(8));
+    return;
+  }
   if (c !== null) { if (free) openChecklist(c); }
   else if (legalHash()) { if (free) openLegal(); }
   else if (screen === "screen-check") leaveChecklist("");
@@ -8842,8 +9261,11 @@ $("chk-privacy").textContent = "Datenschutz: Deine Häkchen bleiben auf diesem G
   "passend zu deinem Feibeitsblatt auch, wenn du es mit seinem Code digital öffnest (auf der Startseite „Weiter“).";
 cleanupDrafts();
 cleanupChecks();
-showResume();
-{ const c = checkHashCode(); if (c !== null) openChecklist(c); else if (legalHash()) openLegal(); }   // Adresse aus dem QR-Code des analogen Arbeitsblattes bzw. Link „Impressum & Datenschutz“
+if (escLinkRaw !== null) { const raw = escLinkRaw; escLinkRaw = null; escArriveLink(raw); }   // aus dem Arena-Tunnel eines Escape-Rooms
+else {
+  showResume();
+  const c = checkHashCode(); if (c !== null) openChecklist(c); else if (legalHash()) openLegal();   // Adresse aus dem QR-Code des analogen Arbeitsblattes bzw. Link „Impressum & Datenschutz“
+}
 setTimeout(() => { if (screen === "screen-start") $("code-input").focus(); }, 50);
 
 /* ---------- QR-Code (Link zur Checkliste auf dem analogen Arbeitsblatt; nur zur Laufzeit gebraucht) ----------

@@ -97,7 +97,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `pdfStr` oktal-maskiert, Breiten aus `PDF_W_REG/BOLD` für den Umbruch) mit orangem Kasten, URI-Link-Annotation
   auf `PUBLIC_URL` (`window.FEIBEITSBLATT_PUBLIC`) und dem Datensatz (`draftRecord()` + `kind:"feibeitsblatt-draft"`,
   `code`, `sheetTitle`, `person`) als UTF-8-JSON in einem `/Type /EmbeddedFile`-Stream mit Kennzeichen `/FbDraft 1`
-  (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readDraftPdf` sucht die Kennzeichen
+  (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readStartPdf` (Block `PDFREAD`; liefert den Zwischenstand oder – Kennzeichen `/FbEscape 1` – die Hülle aus der Überblick-PDF eines Escape-Rooms) sucht die Kennzeichen
   im Latin-1-String, liest `/Length` (direkt oder Verweis, sonst bis `endstream`) und entpackt `FlateDecode` per
   `DecompressionStream` – neu gespeicherte PDFs bleiben lesbar; `cleanDraft` prüft wie die Eingabefelder (Code,
   Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`,
@@ -491,7 +491,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `Feibeitsblatt-<Code>-<Titel>.pdf`, Titel per `pdfAscii` nur ASCII (Chromium verwirft Download-Namen mit Umlauten/„–“
   auf manchen Systemen und nimmt „download“ – so in der E2E-Sandbox). `#t-import` „Feibeitsblatt aus PDF-Datei laden“ (Übersicht) → `#t-import-file` →
   `importSheetPdf` (≤ `SHEET_PDF_MAX_BYTES` 80 MB) → `readSheetPdf`: `pdfDoc` (`pdfLatin1`) + `pdfStreamAt(doc, i)` /
-  `pdfStreamData(u, x, max)` (gemeinsam mit `readDraftPdf`: Länge direkt oder als Verweis – Verweise einmal je Datei
+  `pdfStreamData(u, x, max)` (gemeinsam mit `readStartPdf`: Länge direkt oder als Verweis – Verweise einmal je Datei
   über `pdfIndirectInts` (alle Werte je Nummer, Regex mit `(?<!\d)` gegen quadratischen Rücklauf); eine Länge gilt nur,
   wenn direkt dahinter `endstream` steht (`fits`), sonst bis zum nächsten `endstream`; FlateDecode per `DecompressionStream`, **abgebrochen über `max`**:
   Datensatz 8 MB, Bild/Datei die erwartete Größe, Zwischenstand 4 MB). Kennzeichen werden tolerant und in **einem**
