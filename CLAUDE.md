@@ -1,6 +1,7 @@
 # Feibeitsblatt – Hinweise für die Entwicklung
 
-Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit-Messung): Lehrkraft legt Aufgaben +
+Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft, Widerspruch
+per Schalter im Datenschutzhinweis): Lehrkraft legt Aufgaben +
 Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu einer
@@ -77,7 +78,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Feedback als Erstversuch (`sendFirstAttempt`, payload `stage:"first"`, `answers[].final = null`, `submittedAt:null`;
   scheitert das Senden, wird es beim nächsten Öffnen nachgeholt – `S.firstSent`). Gleiche `attempt` → `UPDATE`
   derselben Zeile (`replaced`), ein Erstversuch überschreibt nie eine Abgabe (`kept:true`); ohne `attempt` wird
-  eingefügt. `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
+  eingefügt. Widerspricht jemand nach dem Senden der Tippzeit-Messung, ersetzt der Browser den Erstversuch mit derselben
+  `attempt` ohne Tippzeiten (`S.ttResend`, siehe Tippzeit-Messung). `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
   `#p-klasse-hint` sagt es den Schüler:innen so: Angaben gehen mit dem KI-Feedback (Erstversuch), ohne KI-Feedback erst
   bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
   Lehrkraft-Ansicht: Kürzel `.st-final` (grün) / `.st-first` (orange, `#b85c00`), Legende `#t-subs-legend`,
@@ -98,7 +100,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readDraftPdf` sucht die Kennzeichen
   im Latin-1-String, liest `/Length` (direkt oder Verweis, sonst bis `endstream`) und entpackt `FlateDecode` per
   `DecompressionStream` – neu gespeicherte PDFs bleiben lesbar; `cleanDraft` prüft wie die Eingabefelder (Code,
-  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`). Startseite: `#start-pdf` →
+  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`,
+  Tippzeiten `typing` per `ttCleanDraft` nur passend, Widerspruch `ttOptOut`/`ttResend` per `ttDraftFlags` – dann `typing: null`). Startseite: `#start-pdf` →
   `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB, Blatt laden, Aufgabenzahl prüfen, bei neuerem
   lokalen Stand nachfragen) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
@@ -299,15 +302,28 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy` (nur
   `{retentionDays}`), `privacyShortText` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
   kostenloses Angebot.“, nennt den KI-Dienst), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
-  general, flat, summary})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit 9 Abschnitten (`.privh`: Wer ist
+  general, flat, summary, typing, ttSwitch})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit 9 Abschnitten (`.privh`: Wer ist
   verantwortlich? – Betreiber mit Anschrift und E-Mail, „privates, nicht kommerzielles und kostenloses Angebot – kein Angebot
-  einer Schule“, die Lehrkraft liest; Wozu; Rechtsgrundlage als Liste: Bearbeiten/Abgeben/Zwischenstand/Erstversuch/Gruppe
-  **und das KI-Feedback** Art. 6 Abs. 1 Buchst. b DSGVO (bewusst keine Einwilligung, keine Altersabfrage), LanguageTool
+  einer Schule“, die Lehrkraft liest; Wozu (mit `TT_PURPOSE`: Tippzeiten machen den Schreibprozess sichtbar, Zweck `TT_USE`, kein
+  Beweis, keine automatische Entscheidung, beim Schreiben nicht angezeigt); Rechtsgrundlage als Liste: Bearbeiten/Abgeben/Zwischenstand/Erstversuch/Gruppe
+  **und das KI-Feedback** Art. 6 Abs. 1 Buchst. b DSGVO (bewusst keine Einwilligung, keine Altersabfrage), **Tippzeiten**
+  Buchst. f (berechtigtes Interesse, den Schreibprozess sichtbar zu machen, damit die Lehrkraft bei Auffälligkeiten über die
+  Arbeitsweise sprechen kann; `TT_USE`; Widerspruch mit dem Schalter – vom Betreiber so entschieden), LanguageTool
   Einwilligung Buchst. a (Klick + Bestätigung im Altersdialog, Widerruf), Aufruf/Auslieferung/Missbrauchsschutz Buchst. f
-  (Widerspruch), Speichern im Browser § 25 Abs. 2 Nr. 2 TDDDG – Schreibweise „Buchst.“, nie „lit.“; Welche Daten; Wer bekommt;
-  Wie lange; Musst du; Entscheidet die KI (nur mit KI); Deine Rechte in drei Absätzen: Rechte samt Art. 21 und Widerruf,
-  Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die verschlüsselten Abgaben), Beschwerde bei der Aufsichtsbehörde
-  mit Anschrift und Link; Angaben `h2`
+  (Widerspruch), Speichern im Browser § 25 Abs. 2 Nr. 2 TDDDG **nur für Angaben und Antworten im Zwischenstand** und die Häkchen
+  (**nie stillschweigend auf die Tippzeiten ausdehnen** – ob Speichern/Auslesen der Eingabezeitpunkte eine Einwilligung braucht,
+  prüft der Betreiber noch; der Hinweis beschreibt die Speicherung nur sachlich) – Schreibweise „Buchst.“, nie „lit.“; Welche Daten
+  („Außerdem deine Antworten mit ihren Tippzeiten (je eingegebenem Zeichen … keine Uhrzeiten; nach einem Widerspruch keine)“); Wer bekommt
+  (Lehrkraft „Sie sieht auch die Tippzeiten – als Färbung …; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten
+  nie.“, Cloudflare „(samt Tippzeiten)“);
+  Wie lange (Tippzeiten gehören zu Erstversuch und Abgabe, bis dahin auch im Zwischenstand und in einer Zwischenstand-PDF);
+  Musst du („… solange du nicht widersprichst (Schalter unter „Deine Rechte“)“); Entscheidet die KI (nur mit KI); Deine Rechte:
+  Rechte samt Art. 21 und Widerruf, Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die verschlüsselten Abgaben), dann
+  der Schalter für den Widerspruch gegen die Tippzeit-Messung (`ttSwitchDom`, siehe Tippzeit-Messung; auf „Impressum &
+  Datenschutz“ nur ein Absatz, wo er steht), Beschwerde bei der Aufsichtsbehörde mit Anschrift und Link. Alle Tippzeit-Sätze
+  entfallen bei Blättern nur mit Weltkarten (`typing: ttMeasured(sh)` – dort wird nichts gemessen); `renderPrivacy` sagt nur
+  „Erstversuch und Abgabe enthalten auch die Tippzeiten deiner Antworten … – außer du widersprichst der Messung unter „Alle
+  Informationen zum Datenschutz“.“ (`privacyShortText` unverändert); Angaben `h2`
   `#p-privfull` mit `#p-privacy-short` in `renderPersonPrivacy`, Editor `h3` in `#privfull-ed` aus `renderPrivacy` –
   beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`: für ein Blatt mit
   KI-Feedback unter der Adresse der Lehrkraft, darunter `#pv-preview-note` – ist `!PAGES_HOST` und `PUBLIC_HOST` (aus
@@ -525,6 +541,72 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   erfunden): E2E 7d liest ihren Datensatz selbst und vergleicht – eine andere Sicherung derselben Form lässt sich einsetzen.
   E2E 7c: Weltkarte + Tabelle anlegen, zuordnen (falsch 3 s rot, richtig gleiche Farbe/Pfeil), Zoom, Tastatur, Tabelle,
   Neuladen, Feedback-Prompt, Abgabe, Lehrkraft-Ansicht, Sicherung/Import.
+- **Tippzeit-Messung (nur im Browser; Server, KI und Lösungs-PDF unverändert):** je `textarea.answer`/`textarea.tcell` (nie
+  Weltkarte) `el._tt = {text, recs:[{t, g?}], undo, lastDel, ver}` (`ttNew`); Zeitpunkt `performance.now()` im Capture-Listener
+  `input` (`_evTs`/`_evType`, vor jedem frühen `return`; nie `Date.now` – E2E 3e hält ihn fest), Abgleich `ttSync` (über
+  `ttSyncSafe` als erste Zeile von `answerChanged`, Netz im `compositionend`) → `ttApply`: Präfix/Suffix wie `inserted` (`ttDiff`,
+  nie ein Ersatzzeichen-Paar teilen; `selectionEnd` wählt bei gleichen Nachbarn – „aa“ → „aaa“ – die getippte Stelle),
+  `deleteCompositionText` übersprungen; alle Einheiten eines Ereignisses gleicher Zeitpunkt → erstes gemessen, weitere 0 ms =
+  rot (wie im Feiditor; so beschlossen); `historyUndo`/`Redo` holen die Zeiten gelöschter Abschnitte zurück (Puffer
+  `TT_UNDO_MAX` 20, `TT_UNDO_CHARS` 2 × 8100, der neueste bleibt immer). In `input` nichts Schweres: kodiert wird beim
+  Speichern/Senden (`ttB64Of`, gemerkt je Stand; Tabellen `_ttTable`/`_ttKey`/`_ttRestore` je Zelle). **Format v1:** je
+  UTF-16-Einheit der Textform ein Byte – 0–70 = ms (`Math.ceil`), 71 `TT_SLOW` = mehr/erstes Zeichen/unbekannter
+  Vorgänger/negativer Abstand, 255 `TT_NONE` = ohne Messung (Leerraum, Tabellenkopf/„ | “/Zeilenumbruch, wiederhergestellter Text
+  ohne Daten); jeder andere Wert oder eine andere Länge → ganze Antwort ohne Messung (`ttDecode`); Base64 (`ttEncode`,
+  ≤ `TT_B64_MAX` 10 800). Längere Pausen nur als 71, nie Uhrzeiten (Datensparsamkeit). Klassen `ttClass` ≤ 15 rot (`TT_RED_MS`),
+  ≤ 70 gelb, sonst grün; Rot-Anteil `ttShare` je Graphem (`ttGraphemes`: `Intl.Segmenter` erst bei Bedarf und mit
+  `typeof`-Prüfung, sonst Rückfall) mit dem Wert der ersten Einheit, ohne Leerraum/255, `Math.round`, ab `TT_HIGH_PCT` 50 %
+  (`>=`, `ttHigh`) „– hoch“. **Zwischenstand** (localStorage, `heldDrafts`, Zwischenstand-PDF unkomprimiert): `typing:{v:1,
+  answers:[B|null], first:[B|null]|null}` im selben Datensatz wie der Text (`draftRecord` über `answersNow` + `ttDraftOut`; Speicher
+  voll → einmal ohne `typing`, erst dann `heldDrafts`), gelesen per `cleanDraft`/`openEditor` → `ttCleanDraft` (nur Base64, die
+  genau zum gekappten Text passt) → `ttRestore` (eingefrorenes `g`, sonst 255 – nie rot; erst nach allen Texten und `S.first`,
+  je Aufgabe in try; kein zusätzliches Speichern), `S.firstTyping` aus demselben `snapshot()` wie `S.first`.
+  `TT_KEEP_IN_DRAFT` (eingecheckt `true`, so beschlossen): `false` = nur im Arbeitsspeicher, `ttDraftStrip` entfernt sie beim
+  Laden (`cleanupDrafts`). **Nutzlast** (Erstversuch/Abgabe, nur verschlüsselt, `payload.v` bleibt 1): `typing:{v:1,
+  answers:[{first: B|"="|null, final: B|null}]}` (`"="` = gleicher Text und gleiche Werte wie final, ohne KI-Feedback immer;
+  Erstversuch `final:null`), nach Widerspruch `ttOptOutPayload()` = `{v:1, optOut:true}`, zu groß `{v:1, omitted:"too_large"}`
+  (`sealPayload`: `ttEnvelopeFits` = `validateEnvelope`; `sendSealed`: 413 bzw. 409 → einmal genau dieselbe Nutzlast ohne Werte,
+  nichts neu lesen), Rechenfehler `{v:1, omitted:"error"}` – **eine Abgabe scheitert nie an den Tippzeiten**; **nie** in
+  `/api/feedback`, `S.lastSubmission`, Lösungs-PDF, keine Anzeige für Schüler:innen. **Lehrkraft:** `loadSubs` → `ttCleanPayload`
+  (eigenes try/catch; → `null` | `{optOut}` | `{omitted}` | `{list}`, nur Base64-Form, `"="` nur bei gleichem Text), dekodiert
+  erst beim Aufklappen: `buildDetail` → `ttDetail(p, types, n, isFirst, noFb)` (`{sum, per:[{first, fin, line}]}`, Zeilen als
+  Stücke aus `ttSummary`/`ttPctText`/`ttShareParts` – bei Tabellen nur die Zellen), `ttDom`/`answerDom(…, codes, info)` (Spans
+  `tt-r|tt-y|tt-g` ohne title/aria; `textContent` der Zelle = Antworttext – Tests lesen ihn; `ttSegmentsCut`: mehr als `TT_SEG_MAX`
+  2000 Abschnitte → Gelb+Grün zusammen, dann nur Rot, dann keine Färbung, `ttCutNote` sagt es), `p.dtt` je Aufgabe
+  („Tippzeiten – Rot-Anteil: erste Eingabe 41 % (von 29 Zeichen) · nach dem KI-Feedback 36 % (von 33 Zeichen)“; ohne KI-Feedback
+  ohne Bezeichnung, Erstversuch nur die erste; teilweise „(von 150 Zeichen; 320 ohne Messung)“; hoch als `span.tt-high`; bei
+  ≥ 90 % 0-ms-Rot `TT_ZERO_NOTE`), `p.dtt-sum` je Eintrag nach `.dmeta`/`.dgroup` („Tippzeiten – Rot-Anteil über alle Aufgaben:
+  erste Fassung … · abgegebene Fassung …“, „Tippzeiten: ohne Messung (älterer Stand).“, `TT_OPTOUT_NOTE` „Tippzeiten: ohne Messung
+  (widersprochen).“, „Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.“, „Tippzeiten: nicht übermittelt
+  (technischer Fehler beim Senden).“; Blatt nur mit Weltkarten: keine Zeile); der Rot-Anteil steht **nie in der Liste** (keine
+  Verdachtsrangliste, 5 `th` bleiben). `#t-tt` nach `#t-subs-legend` (sichtbar mit lesbaren Einträgen und einer gemessenen
+  Aufgabe): `#t-tt-legend` („… ohne Färbung = Text ohne Messung (z. B. ältere Stände oder nach einem Widerspruch) …“),
+  `#t-tt-hint` („Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. … Nutzen Sie die
+  Färbung `TT_USE`. Schüler:innen können der Messung im Datenschutzhinweis widersprechen …; dann steht in den Details „ohne
+  Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.“), `#t-tt-off` „Färbung aus“ (`aria-pressed` =
+  aus, `T.ttOff` je Sitzung, `applyTtOff` → Klasse `tt-off` an `#t-subs`, gilt auch für neu gebaute Details; `logout` setzt
+  zurück). Farben `--tt-r/-y/-g` hinter schwarzer Schrift, Rot zusätzlich unterstrichen. **Zweck überall derselbe Wortlaut**
+  (`TT_USE` im Block, Hinweis, README): „nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem
+  Täuschungsverdacht“ – kein Text darf einem anderen widersprechen; LanguageTool schreibt nie ins Feld – nie als Ursache für Rot
+  nennen. **Widerspruch (Art. 21 DSGVO):** Schalter = Checkbox mit Label `TT_SWITCH_DU` „Tippzeiten für dieses Feibeitsblatt nicht
+  messen“ (Angaben-Bildschirm einer Gruppe: `TT_SWITCH_IHR` „Tippzeiten für euer Feibeitsblatt nicht messen“, Einleitung „… es
+  genügt, wenn eine oder einer von euch das möchte:“), Wirkung `TT_SWITCH_EFFECT` per `aria-describedby`, Rückmeldung
+  `p.ttopt-st` `role="status"` (`TT_OPT_ON`/`TT_OPT_ON_G`/`TT_OPT_OFF`), ganze Zeile `label.ttopt` klickbar (≥ 44 px) –
+  `ttSwitchDom` in `privacyNoticeDom` mit `ttSwitch:"live"` (`#p-privfull`, `#privfull-ed`; ids `<id>-ttoff`) bzw. `"preview"`
+  (gesperrt, `#pv-preview`); sonst zeigt die Oberfläche der Schüler:innen nichts von der Messung. Ein `change`-Listener am
+  `document` → `S.ttOptOut`: **an** = `ttResetAll(false)` (alle `_tt` und `S.firstTyping` verworfen; `ttSync` misst nicht,
+  `answersNow` liefert `null`), im Schreibbereich sofort `saveDraft` (ohne `typing`, mit `ttOptOut:true`); ist ein Erstversuch
+  gesendet → `S.ttResend` → `sendFirstAttempt` ersetzt ihn mit derselben `attempt` (UPDATE derselben Zeile) durch einen ohne
+  Tippzeiten (Lauf-Kennung `S.firstSending`, nie zwei gleichzeitig; war einer mit Werten unterwegs, gleich danach noch einmal;
+  `S.attempt` gewechselt → nichts anfassen; Fehler nur `console.warn` ohne Inhalte, `ttResend` im Zwischenstand → beim nächsten
+  Öffnen wie ein nicht gesendeter Erstversuch); **aus** = `ttResetAll(true)` (nur ab jetzt gemessen, vorhandener Text 255; ein
+  fälliges Ersetzen bleibt fällig). Während `S.submitting` abgelehnt (`TT_OPT_LATE`, Haken springt zurück). Auf dem
+  Angaben-Bildschirm gesetzt, gilt er beim Öffnen (`openEditor(true)` aus `personGo`/`groupGo`; trägt der Stand dieses Geräts
+  Tippzeiten oder einen gesendeten Erstversuch → verwerfen, sofort speichern, ersetzen); „Weiterschreiben“ und
+  Zwischenstand-PDF nehmen nur den gemerkten (`ttDraftFlags`: `ttOptOut`, `ttResend` nur mit `firstSent`); `startGo` und
+  `resetStudent` setzen zurück, `syncTtBoxes` gleicht alle Schalter an. Reine Helfer zwischen `/* TYPING:BEGIN` und
+  `/* TYPING:END */` (dort auch `cellText`/`tableText`/`tableRows` und ihre Spiegel `ttCellText`/`ttTableText`/`ttTableCells`/
+  `ttTableLines`; nur `btoa`/`atob`/`Intl`, kein `$`/`S`/`h`/`document`), `test/unit/typing.test.mjs`, E2E 7l und 7m.
 - **Material zu Aufgaben:** formatierter Lehrkraft-Text je Aufgabe, gespeichert im `tasks`-JSON als `material` =
   Absätze aus Läufen `{t, f?, h?}` (`f` ⊆ `"biu"` in dieser Reihenfolge, `h` = http(s)-Link). **Nie HTML**
   speichern oder rendern: `validateMaterial` (lib.js) normalisiert und prüft (`LIMITS.material` 8000 Zeichen,
@@ -704,7 +786,17 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   speichern lässt (Speicher voll/gesperrt), hält `heldDrafts` im Arbeitsspeicher (neuer als der gespeicherte Stand; `draftStored`
   liest, `delDraft` löscht beides, `saveDraft` liefert `ok`; `openEditor` speichert so einen Stand sofort erneut und zeigt sonst
   `SAVE_FAILED`). Lehrkraft: Abmeldung nach 20 min ohne Eingabe; Abgaben-Listen seitenweise laden; fremde Payloads vor
-  dem Rendern kappen (≤ 30 Antworten).
+  dem Rendern kappen (≤ 30 Antworten). **Ablauf-Kasten** `#ed-steps` (orange, Tokens `--orange`/`--orange-bg`/`--orange-cur`/
+  `--orange-ink`; `h2#ed-steps-h` „So gehst du vor“, `ol#ed-steps-list` mit nativer Nummerierung zwischen `header.sheet-head` und
+  `#tasks` – außerhalb von `#tasks`, `h1#sheet-title` bleibt die erste Überschrift –, scrollt mit `.paperwrap`, weder sticky noch
+  Live-Region): `renderSteps` aus `renderFeedbackState`, bei `busyFeedback`, `unlock`, `submitting` und `stopFeedbackRun` (baut die
+  Liste nur bei geänderten Einträgen neu, `ol._key`; sonst nur `li.cur` + `aria-current="step"`). Mit KI: „Aufgaben bearbeiten“,
+  „KI-Feedback anfordern (freiwillig, empfohlen)“ (ohne Empfänger oder mit gemeldetem Grund `fbBlockedNow`: „(freiwillig, empfohlen
+  – gerade nicht möglich)“), „Lösungen mithilfe des KI-Feedbacks überarbeiten“, „Abgeben“, „Lösungen und letztes Feedback
+  herunterladen“ + `STEP_LATE` („– nur direkt nach der Abgabe auf der Bestätigungsseite (nicht nach Neuladen oder „Neues
+  Feibeitsblatt öffnen“)“); ohne KI „Aufgaben bearbeiten“, „Abgeben“, „Lösungen herunterladen“ + `STEP_LATE`. Aktuell: 1, bei
+  laufender Anfrage 2, nach dem Feedback 3, beim Senden 4 (ohne KI 1/2); der letzte Schritt nie (`clearEditor` leert den Kasten,
+  nicht auf `#screen-done`). Beim Öffnen kein Wegscrollen (`scrollTop = 0`, Fokus mit `preventScroll`).
 - **Das KI-Feedback ist freiwillig** (Handreichung KI des HKM, Juli 2023: S. 10 allgemein „derzeit nur auf
   freiwilliger Basis“; S. 17 kein Nachteil ohne KI – dort für volljährige Schüler:innen, sinngemäß übertragen).
   „Abgeben“ ist nie wegen fehlenden Feedbacks gesperrt (nur ein ganz leeres Blatt: Meldung wie beim Feedback; leere
@@ -772,7 +864,17 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `/api/privacy`, GitHub Pages per `addInitScript` → `FEIBEITSBLATT_API`, Betreiberkasten, Löschfrist, Vorschau, alte
   Schulangaben per `d1Query` → beim Laden der Übersicht entfernt; `PRIVAT_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos), 2/3/3b/4/5
   (Hinweis mit Betreiber und Löschfrist, keine Schulangaben in D1/API, `#privfull-ed` nach Weiterschreiben, KI-Kennzeichnung, `#done-del`, Lösungs-PDF mit/ohne XMP
-  samt Aufbauprüfung `pdfStructure`), 7i (Kürzen mit Nachfrage, Verlängern, Cron lokal); Unit: `scheduled` auf der
+  samt Aufbauprüfung `pdfStructure`), 7i (Kürzen mit Nachfrage, Verlängern, Cron lokal); Tippzeiten: Unit `typing.test.mjs`
+  (Block TYPING per `new Function`, `TT_ENV_MAX` = `LIMITS.envelopeBytes`, Eigenschaftstests gegen `tableText`/`tableRows`,
+  Rückfall ohne `Intl.Segmenter`, Schalter `TT_KEEP_IN_DRAFT` beider Stellungen, Widerspruch `ttOptOutPayload`/`ttDraftFlags`/
+  `ttCleanPayload`/`ttDetail`, `TT_USE` im Hinweis), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
+  Werte je Zeichen im Zwischenstand vor und nach dem Feedback samt Neuladen, nie an die KI, Erstversuch/Abgabe aus D1
+  entschlüsselt – `openPrivateKey`/`openEnvelope` aus smoke.mjs –, Ablauf-Kasten, 413 → einmal ohne, Lehrkraft-Färbung, „Färbung
+  aus“, lange Antworten, nur Weltkarten) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
+  Erstversuchs scheitert erst und wird beim nächsten Öffnen nachgeholt, PDF auf einem anderen Gerät, Zurücknehmen, Abgabe
+  `optOut`, Gruppe in der „ihr“-Form, Lehrkraft „ohne Messung (widersprochen)“); die wörtlichen Hinweise prüfen 1b (`TT_PURPOSE`,
+  `TT_EFFECT`, Schalter auf „Impressum & Datenschutz“ nur als Absatz, Vorschau gesperrt) und `privBases`. Beide Tests laufen vor
+  Test 8 (Passwortwechsel). Unit: `scheduled` auf der
   gemeinsamen D1 (und einmal frisch importiert `?scheduled`), `d1.failIf` für ein scheiterndes PURGE, `Math.random`
   gestubbt beim Zählen der D1-Abfragen und in Tests mit zurückdatierten Einträgen (`noRandomCleanup`: sonst löscht das
   2-%-Aufräumen sie gelegentlich vor der Prüfung).

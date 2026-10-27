@@ -10,7 +10,8 @@ const block = html.slice(i, j);
 const NAMES = "TT_RED_MS, TT_YELLOW_MS, TT_SLOW, TT_NONE, TT_HIGH_PCT, TT_MAX_LEN, TT_B64_MAX, TT_ENV_MAX, TT_UNDO_MAX, TT_UNDO_CHARS, TT_SEG_MAX, " +
   "TT_KEEP_IN_DRAFT, cellText, tableText, tableRows, ttDiff, ttNew, ttApply, ttCodes, ttClass, ttEncode, ttDecode, ttGraphemes, ttSegments, " +
   "ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload, " +
-  "ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE, ttSegmentsCut, ttCutNote, TT_CUT_NOTES, ttDraftStrip, ttDetail";
+  "ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE, ttSegmentsCut, ttCutNote, TT_CUT_NOTES, ttDraftStrip, ttDetail, " +
+  "ttOptOutPayload, ttDraftFlags, TT_OPTOUT_NOTE, TT_USE";
 // Intl als Parameter: so lässt sich der Rückfall ohne Intl.Segmenter (Firefox vor Version 125) prüfen
 const load = (src, intl) => new Function("Intl", src + "\nreturn { " + NAMES + " };")(intl === undefined ? Intl : intl);
 const T = load(block);
@@ -19,6 +20,7 @@ const {
   cellText, tableText, tableRows, ttDiff, ttNew, ttApply, ttCodes, ttClass, ttEncode, ttDecode, ttGraphemes, ttSegments,
   ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload,
   ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE, ttSegmentsCut, ttCutNote, TT_CUT_NOTES, ttDraftStrip, ttDetail,
+  ttOptOutPayload, ttDraftFlags, TT_OPTOUT_NOTE, TT_USE,
 } = T;
 
 const codesOf = (tt) => Array.from(ttCodes(tt));
@@ -645,4 +647,43 @@ test("typing: Lehrkraft – Anteile ohne Tabellenkopf, Rot-Anteil in Worten, Hin
   const fast = { n: 10, r: 6, y: 0, g: 4, zero: 5, none: 0, pct: 60 };
   assert.equal(join(ttSummary("X: ", [{ label: "", share: fast }])), "X: 60 % (von 10 Zeichen) – hoch");
   assert.equal(join(ttSummary("X: ", [{ label: "a", share: { ...fast, zero: 6 } }, { label: "b", share: { n: 0, r: 0, zero: 0, none: 0, pct: null } }])), "X: a 60 % (von 10 Zeichen) – hoch · b leer. " + TT_ZERO_NOTE);
+});
+
+test("typing: Widerspruch – Nutzlast ohne Werte, Lehrkraft sieht „ohne Messung (widersprochen)“, der Zwischenstand merkt ihn", () => {
+  const join = (pieces) => (pieces ? pieces.map((x) => x.t).join("") : null);
+  const a = ttEncode(Uint8Array.from([71, 0])), ans = [{ first: "ab", final: "ab" }, { first: "x", final: "xy" }];
+  // Erstversuch und Abgabe: {v:1, optOut:true} – je Aufruf ein neues Objekt (sealPayload ersetzt typing bei Bedarf), kein Versuch ohne Messung nötig
+  assert.deepEqual(ttOptOutPayload(), { v: 1, optOut: true });
+  assert.notEqual(ttOptOutPayload(), ttOptOutPayload());
+  assert.equal(ttHasData(ttOptOutPayload()), false);
+  // Lehrkraft (loadSubs): widersprochen schlägt mitgeschickte Werte; nur genau true zählt, andere Version → ohne Messung (älterer Stand)
+  assert.deepEqual(ttCleanPayload({ v: 1, optOut: true }, ans), { optOut: true });
+  assert.deepEqual(ttCleanPayload({ v: 1, optOut: true, answers: [{ first: "=", final: a }, { first: a, final: null }] }, ans), { optOut: true });
+  assert.deepEqual(ttCleanPayload({ v: 1, optOut: true, omitted: "too_large" }, ans), { optOut: true });
+  assert.equal(ttCleanPayload({ v: 1, optOut: "ja" }, ans), null);
+  assert.equal(ttCleanPayload({ v: 1, optOut: 1 }, ans), null);
+  assert.equal(ttCleanPayload({ v: 2, optOut: true }, ans), null);
+  assert.deepEqual(ttCleanPayload({ v: 1, optOut: false, answers: [{ first: "=", final: a }, {}] }, ans).list[0], { first: "=", final: a });
+  // Details: eine Zeile für den ganzen Eintrag, keine je Aufgabe, keine Werte (also keine Färbung); Blatt nur mit Weltkarten: nichts
+  const det = ttDetail({ answers: ans, typing: { optOut: true } }, ["text", "table"], 2, false, false);
+  assert.equal(join(det.sum), "Tippzeiten: ohne Messung (widersprochen).");
+  assert.equal(TT_OPTOUT_NOTE, "Tippzeiten: ohne Messung (widersprochen).");
+  assert.deepEqual(det.per, [{ first: null, fin: null, line: null }, { first: null, fin: null, line: null }]);
+  assert.equal(join(ttDetail({ answers: ans, typing: { optOut: true } }, ["text", "text"], 2, true, false).sum), TT_OPTOUT_NOTE);   // auch beim Erstversuch
+  assert.equal(join(ttDetail({ answers: ans, typing: { optOut: true } }, ["text", "text"], 2, false, true).sum), TT_OPTOUT_NOTE);   // auch ohne KI-Feedback
+  assert.equal(ttDetail({ answers: ans, typing: { optOut: true } }, ["map", "map"], 2, false, false).sum, null);
+  // Zwischenstand (Gerät, Zwischenstand-PDF): Widerspruch und ein noch zu ersetzender Erstversuch (nur nach dem Senden; bleibt auch,
+  // wenn der Widerspruch zurückgenommen wurde – der gesendete Eintrag trägt ja noch Tippzeiten)
+  assert.deepEqual(ttDraftFlags({ ttOptOut: true, ttResend: true, firstSent: true }), { optOut: true, resend: true });
+  assert.deepEqual(ttDraftFlags({ ttOptOut: true, ttResend: true, firstSent: false }), { optOut: true, resend: false });
+  assert.deepEqual(ttDraftFlags({ ttOptOut: true }), { optOut: true, resend: false });
+  assert.deepEqual(ttDraftFlags({ ttResend: true, firstSent: true }), { optOut: false, resend: true });
+  for (const bad of [null, undefined, 5, "x", [], {}, { ttOptOut: "true" }, { ttOptOut: 1 }, { ttResend: "true", firstSent: true }, [{ ttOptOut: true }]])
+    assert.deepEqual(ttDraftFlags(bad), { optOut: false, resend: false });
+  // derselbe Zweck überall: Hinweis der Lehrkraft und Datenschutzhinweis nutzen denselben Wortlaut
+  assert.equal(TT_USE, "nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht");
+  assert.ok(html.includes("Nutzen Sie die Färbung " + TT_USE + "."));
+  assert.ok(html.includes("Die Färbung dient ${TT_USE};"));
+  assert.ok(html.includes("die Tippzeiten dienen ${TT_USE}."));
+  assert.ok(!/\blit\./.test(html));   // Schreibweise „Buchst.“, nie „lit.“
 });

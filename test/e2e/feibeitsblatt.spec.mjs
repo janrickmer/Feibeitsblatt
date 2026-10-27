@@ -125,15 +125,34 @@ const OP_RESP = OP.name + ", " + OP.addr + ", E-Mail: " + OP.email + ". Feibeits
 const OP_SHORT = "Verantwortlich ist " + OP.name + " – Feibeitsblatt ist ein privates, kostenloses Angebot.";
 const OP_COMPLAIN = "Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren – für den Betreiber zuständig ist: " + OP_AUTH + ", datenschutz.hessen.de (öffnet in neuem Tab).";
 const OP_INFO = "Verantwortlich für den Datenschutz: " + OP.name + " (Betreiber dieser Seite, privates Angebot). ";
-// Rechtsgrundlagen (du-Form): Bearbeiten/Abgeben/KI-Feedback (b), LanguageTool (a), Aufruf/Missbrauchsschutz (f), Speicher im Browser (§ 25 TDDDG)
+// Rechtsgrundlagen (du-Form): Bearbeiten/Abgeben/KI-Feedback (b), Tippzeiten (f, Widerspruch per Schalter), LanguageTool (a),
+// Aufruf/Missbrauchsschutz (f), Speicher im Browser (§ 25 TDDDG – nur Angaben und Antworten im Zwischenstand, nicht die Tippzeiten)
+const TT_USE = "nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht";
+const TT_SWITCH = "Tippzeiten für dieses Feibeitsblatt nicht messen", TT_SWITCH_G = "Tippzeiten für euer Feibeitsblatt nicht messen";
+// Tippzeiten im ausführlichen Hinweis (du-Form, Blatt mit KI-Feedback): Zweck und Wirkung des Schalters für den Widerspruch
+const TT_PURPOSE = "Beim Schreiben misst diese Seite außerdem die Tippzeiten – wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht –, um den Schreibprozess sichtbar zu machen: " +
+  "Deine Lehrkraft sieht deine Antworten farbig markiert; rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
+  "durch Wortvorschläge, Autokorrektur oder Diktat. So kann sie bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen. " +
+  "Die Färbung dient " + TT_USE + "; sie ist kein Beweis, und es gibt keine automatische Entscheidung. Beim Schreiben zeigt dir die Seite die Messung nicht an.";
+const TT_EFFECT = "Setzt du den Haken, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen – auch in deinem Zwischenstand; " +
+  "einen schon an deine Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten. Bei deiner Abgabe sieht deine Lehrkraft dann „ohne Messung (widersprochen)“. " +
+  "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – lösche sie und sichere den Zwischenstand bei Bedarf neu. " +
+  "Nimmst du den Haken wieder weg, misst die Seite erst ab dann wieder. Nach der Abgabe wende dich dafür an den Betreiber oder an deine Lehrkraft.";
+const TT_EFFECT_G = "Setzt ihr den Haken, misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen – auch in eurem Zwischenstand; " +
+  "einen schon an eure Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten. Bei eurer Abgabe sieht eure Lehrkraft dann „ohne Messung (widersprochen)“. " +
+  "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – löscht sie und sichert den Zwischenstand bei Bedarf neu. " +
+  "Nehmt ihr den Haken wieder weg, misst die Seite erst ab dann wieder. Nach der Abgabe wendet euch dafür an den Betreiber oder an eure Lehrkraft.";
 const privBases = (withAi, deliver) => [
   "Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand" + (withAi ? ", der Erstversuch" : "") + " und die Abgabe" +
     (withAi ? " – und das KI-Feedback, wenn du es anforderst: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " + (withAi ? "diese Funktionen" : "es") + " selbst an.",
+  "Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen in deinem Zwischenstand" + (withAi ? ", im Erstversuch" : "") + " und in der Abgabe): " +
+    "Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit deine Lehrkraft bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen kann; " +
+    "die Tippzeiten dienen " + TT_USE + ". Der Messung kannst du widersprechen – mit dem Schalter „" + TT_SWITCH + "“ (siehe „Deine Rechte“).",
   "Rechtschreibprüfung (LanguageTool): deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Du gibst sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und deiner Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
     "Du kannst sie jederzeit für die Zukunft widerrufen, indem du die Prüfung nicht mehr nutzt.",
   "Aufruf und Auslieferung dieser Seite (" + deliver + ") und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – " +
     "das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen kannst du Widerspruch einlegen (siehe „Deine Rechte“).",
-  "Speichern im Browser deines Geräts (dein Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von dir gewünschte Funktion unbedingt erforderlich.",
+  "Speichern im Browser deines Geräts (deine Angaben und Antworten im Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von dir gewünschte Funktion unbedingt erforderlich.",
 ];
 const DELIVER_WORKER = "über Cloudflare; die Checklisten-Seite über GitHub Pages";   // Tests: die Seite kommt vom Worker, der QR-Code führt auf GitHub Pages
 const PRIV_HEADS = ["Wer ist verantwortlich?", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
@@ -792,6 +811,11 @@ async function checkLegal(lp, { days = 30, deliver = DELIVER_WORKER, github = CH
   await expect(lpriv).toContainText("Wende dich dafür an den Betreiber (E-Mail: " + OP.email + ").");
   await expect(lpriv).toContainText("Einer Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO).");
   await expect(lpriv).toContainText(OP_COMPLAIN);
+  // Widerspruch gegen die Tippzeit-Messung: ohne geöffnetes Blatt kein Schalter, aber wo er steht und was er bewirkt
+  await expect(lpriv.locator("input")).toHaveCount(0);
+  await expect(lpriv).toContainText("Der Messung der Tippzeiten kannst du direkt widersprechen, sobald du ein Feibeitsblatt geöffnet hast: Unter „Alle Informationen zum Datenschutz“ – " +
+    "auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben – steht im Abschnitt „Deine Rechte“ der Schalter „" + TT_SWITCH + "“. " + TT_EFFECT);
+  await expect(lpriv).toContainText(TT_PURPOSE);
   await expect(recipients(lpriv, "h3").filter({ hasText: "GitHub" })).toHaveText([github]);
   const auth = lpriv.locator(`a[href="${OP_AUTH_URL}"]`);
   await expect(auth).toHaveAttribute("target", "_blank");
@@ -884,6 +908,19 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await expect(full).toContainText("Deine Einwilligung zur Rechtschreibprüfung kannst du jederzeit für die Zukunft widerrufen – nutze die Prüfung dann einfach nicht mehr; Prüfungen, die schon stattgefunden haben, bleiben davon unberührt.");
   await expect(full).toContainText(OP_COMPLAIN);
   expect(await full.locator("a").evaluateAll((as) => as.map((a) => a.getAttribute("href")))).toEqual(["mailto:" + OP.email, "mailto:" + OP.email, OP_AUTH_URL]);
+  // Tippzeiten: Zweck (nur als Anlass für ein Gespräch), Daten, Empfänger, Speicherdauer, Freiwilligkeit – und unter „Deine Rechte“ der Schalter
+  await expect(full).toContainText(TT_PURPOSE);
+  await expect(full).toContainText("Außerdem deine Antworten mit ihren Tippzeiten (je eingegebenem Zeichen, wie viele Millisekunden seit dem vorangehenden Zeichen vergangen sind – längere Pausen nur als „mehr als 70 Millisekunden“, keine Uhrzeiten; nach einem Widerspruch keine), die KI-Rückmeldungen");
+  await expect(recipients(full, "h2").first()).toHaveText("Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen. Sie sieht auch die Tippzeiten – als Färbung deiner Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie.");
+  await expect(full).toContainText("Gespeichert werden deine Angaben und Antworten (samt Tippzeiten) dort nur verschlüsselt.");
+  await expect(full).toContainText("Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; bis zur Abgabe stehen sie auch in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei, wenn du ihn so sicherst.");
+  await expect(full).toContainText("Die Tippzeiten misst diese Seite, solange du nicht widersprichst (Schalter unter „Deine Rechte“).");
+  const ttSw = full.getByRole("checkbox", { name: TT_SWITCH });
+  await expect(ttSw).toBeEnabled();
+  await expect(ttSw).not.toBeChecked();
+  expect(await ttSw.evaluate((e) => [e.id, document.getElementById(e.getAttribute("aria-describedby")).textContent, e.closest(".ttoptbox").firstElementChild.textContent]))
+    .toEqual(["p-privfull-ttoff", TT_EFFECT, "Der Messung der Tippzeiten kannst du direkt hier widersprechen:"]);
+  expect(await ttSw.evaluate((e) => e.closest("label").getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);   // ganze Zeile klickbar
   // die Seite kommt hier vom Worker: GitHub nur für die Checklisten-Seite hinter dem QR-Code
   await expect(recipients(full, "h2").filter({ hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
   await expect(full).not.toContainText("liefert diese Seite aus");
@@ -941,6 +978,7 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   const pv = page.locator("#pv-preview");
   expect(await pv.locator("details.privfull").evaluate((e) => e.open)).toBe(true);   // Vorschau aufgeklappt
   await expect(pv.locator("h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(pv.getByRole("checkbox", { name: TT_SWITCH })).toBeDisabled();   // Vorschau: der Schalter der Schüler:innen ohne Wirkung
   await expect(pv.locator(".privacy")).toContainText(OP_SHORT);
   await expect(pv).toContainText(OP_RESP);
   // die Vorschau gilt für diese Adresse (Worker): GitHub nur für die Checklisten-Seite, für die ganze Seite als Zusatz darunter
@@ -1652,9 +1690,11 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-privfull")).toContainText(OP_RESP + " Eure Angaben und Antworten liest eure Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen könnt ihr euch an den Betreiber oder an eure Lehrkraft wenden.");
   await expect(page.locator('#p-privfull h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText([
     "Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand, der Erstversuch und die Abgabe – und das KI-Feedback, wenn ihr es anfordert: Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert diese Funktionen selbst an.",
+    "Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen in eurem Zwischenstand, im Erstversuch und in der Abgabe): Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit eure Lehrkraft bei Auffälligkeiten mit euch über eure Arbeitsweise sprechen kann; " +
+      "die Tippzeiten dienen " + TT_USE + ". Der Messung könnt ihr widersprechen – mit dem Schalter „" + TT_SWITCH_G + "“ (siehe „Eure Rechte“).",
     "Rechtschreibprüfung (LanguageTool): eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Ihr gebt sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und eurer Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr die Prüfung nicht mehr nutzt.",
     "Aufruf und Auslieferung dieser Seite (" + DELIVER_WORKER + ") und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen könnt ihr Widerspruch einlegen (siehe „Eure Rechte“).",
-    "Speichern im Browser eures Geräts (euer Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."]);
+    "Speichern im Browser eures Geräts (eure Angaben und Antworten im Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."]);
   await expect(page.locator("#p-privfull")).toContainText("Wendet euch dafür an den Betreiber (E-Mail: " + OP.email + ").");
   await expect(page.locator("#p-privfull")).toContainText("Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren – für den Betreiber zuständig ist: " + OP_AUTH + ", datenschutz.hessen.de (öffnet in neuem Tab).");
   expect(await page.locator("#p-privfull").textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
@@ -4875,8 +4915,8 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await expect(tp.locator("#t-sel-code")).toHaveText(shown);
   await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben · 1 älterer Erstversuch von Schüler:innen, die inzwischen abgegeben haben, wird nicht angezeigt");
   await expect(tp.locator("#t-tt")).toBeVisible();
-  await expect(tp.locator("#t-tt-legend")).toHaveText("Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): rot (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat) · gelb = über 15 bis 70 ms · grün = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).");
-  await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.");
+  await expect(tp.locator("#t-tt-legend")).toHaveText("Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): rot (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat) · gelb = über 15 bis 70 ms · grün = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände oder nach einem Widerspruch); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).");
+  await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung " + TT_USE + ". Schüler:innen können der Messung im Datenschutzhinweis widersprechen (Schalter „" + TT_SWITCH + "“); dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.");
   const off = tp.locator("#t-tt-off");
   await expect(off).toHaveAttribute("aria-pressed", "false");
   const mains = tp.locator("#t-subs-body tr.main");
@@ -4982,6 +5022,201 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
   await expect(mains).toHaveCount(3);
   await expect(tp.locator("#t-tt")).toBeVisible();
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis (Schreibbereich; Angaben-Bildschirm einer Gruppe in der „ihr“-Form) → keine Tippzeiten mehr im Zwischenstand und in der Zwischenstand-PDF, ein schon gesendeter Erstversuch wird mit derselben Kennung ohne sie ersetzt (scheitert das, beim nächsten Öffnen), Zurücknehmen misst nur ab dann; Abgabe trägt optOut, die Lehrkraft sieht „ohne Messung (widersprochen)“", async ({ browser }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  const teacher = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value);
+  const priv = await openPrivateKey((await deriveTeacherKeys(PW, teacher.kdf)).encKey, teacher.encPrivateKey);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Widerspruch");
+  await tp.fill("#bq-1", "Schreibe einen kurzen Satz.");
+  await tp.fill("#bs-1", "- Ein Satz");
+  await tp.fill("#bq-2", "Erkläre einen Begriff.");
+  await tp.fill("#bs-2", "- Haus");
+  await tp.selectOption("#bt-2", "table");
+  await tp.fill("#bc-2", "Begriff; Erklärung");
+  await tp.fill("#br-2", "2");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  // gespeicherte Einträge dieses Blattes, entschlüsselt wie auf der Lehrkraft-Seite
+  const rows = async () => Promise.all((await d1Query(`SELECT id, stage, attempt, envelope FROM submissions WHERE sheet_code='${code}' ORDER BY id`))
+    .map(async (r) => ({ id: r.id, stage: r.stage, attempt: r.attempt, p: await openEnvelope(priv, JSON.parse(r.envelope)) })));
+  const draftOf = (pg) => pg.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
+  const draftWhen = async (pg, pred) => { await expect.poll(async () => { const d = await draftOf(pg); return !!d && pred(d); }, { timeout: 10_000 }).toBe(true); return draftOf(pg); };
+  const codesOf = (b) => Array.from(Buffer.from(b, "base64"));
+  const ON = "Widerspruch eingetragen: Diese Seite misst bei diesem Feibeitsblatt keine Tippzeiten.";
+  const OFF = "Widerspruch zurückgenommen: Ab jetzt misst diese Seite die Tippzeiten wieder.";
+
+  /* ---------- Schüler:in 1: KI-Feedback (Erstversuch mit Tippzeiten), dann Widerspruch im Schreibbereich ---------- */
+  const s = await openPage(browser);
+  const { page } = s, warns = [];
+  page.on("console", (m) => { if (m.type() === "warning" && m.text().startsWith("Feibeitsblatt")) warns.push(m.text()); });
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "wil", nachname: "wi", geb: "--07-08", klasse: "7a" });
+  await typeAt(page, "#a-1", "Ich tippe", { delay: 120 });
+  const cells = page.locator("#a-2 textarea.tcell:not(.measure)");
+  await cells.nth(0).click();
+  await page.keyboard.type("Haus", { delay: 120 });
+  const A2 = "Begriff | Erklärung\nHaus |";
+  let d = await draftWhen(page, (x) => x.answers[0] === "Ich tippe" && x.answers[1] === A2);
+  if (TT_KEEP) expect(codesOf(d.typing.answers[0])).toEqual([71, 71, 71, 255, 71, 71, 71, 71, 71]);
+  await requestFeedback(page);
+  await expect.poll(async () => (await rows()).map((x) => x.stage), { timeout: 30_000 }).toEqual(["first"]);
+  const [r1] = await rows();
+  expect(r1.p.answers).toEqual([{ first: "Ich tippe", final: null }, { first: A2, final: null }]);
+  expect(codesOf(r1.p.typing.answers[0].first)).toEqual([71, 71, 71, 255, 71, 71, 71, 71, 71]);
+  d = await draftWhen(page, (x) => x.firstSent === true);
+  if (TT_KEEP) expect(d.typing.first.map((b) => Buffer.from(b, "base64").length)).toEqual(["Ich tippe".length, A2.length]);
+
+  // der Schalter steht im ausführlichen Hinweis unter den Aufgaben („du“), per Tastatur bedienbar; das Ersetzen scheitert erst
+  let aborted = 0;
+  await page.route("**/api/submit", (route) => { aborted++; return route.abort(); });
+  const ed = page.locator("#privfull-ed");
+  await ed.locator("summary").click();
+  const sw = ed.getByRole("checkbox", { name: TT_SWITCH });
+  await expect(sw).not.toBeChecked();
+  expect(await sw.evaluate((e) => [e.id, document.getElementById(e.getAttribute("aria-describedby")).textContent])).toEqual(["privfull-ed-d-ttoff", TT_EFFECT]);
+  await sw.focus();
+  await page.keyboard.press("Space");
+  await expect(sw).toBeChecked();
+  await expect(sw).toBeFocused();
+  await expect(ed.locator(".ttopt-st")).toHaveText(ON);
+  await expect(ed.locator(".ttopt-st")).toHaveAttribute("role", "status");
+  // sofort gespeichert: keine Tippzeiten mehr, der Widerspruch und das noch fällige Ersetzen gemerkt
+  d = await draftWhen(page, (x) => x.ttOptOut === true && x.ttResend === true);
+  expect(d.typing).toBeUndefined();
+  const ttState = () => page.evaluate(() => [document.getElementById("a-1")._tt, Array.from(document.querySelectorAll("#a-2 textarea.tcell:not(.measure)"), (c) => c._tt)]);
+  expect(await ttState()).toEqual([null, [null, null, null, null]]);   // Messungen in den Feldern verworfen
+  await expect.poll(() => aborted, { timeout: 10_000 }).toBe(1);
+  await expect.poll(() => warns.length).toBe(1);
+  expect(warns[0]).toBe("Feibeitsblatt: Erstversuch ohne Tippzeiten noch nicht ersetzt – wird beim nächsten Öffnen nachgeholt.");   // leise, ohne Inhalte
+  expect((await rows())[0].p.typing.answers).toBeTruthy();   // noch der alte Eintrag
+  await page.unroute("**/api/submit");
+  // ohne Messung weitergeschrieben: nichts gemessen, nichts gespeichert
+  await typeAt(page, "#a-1", " neu", { delay: 120 });
+  d = await draftWhen(page, (x) => x.answers[0] === "Ich tippe neu");
+  expect(d.typing).toBeUndefined();
+  expect(await ttState()).toEqual([null, [null, null, null, null]]);
+  // die Zwischenstand-PDF merkt sich den Widerspruch (und das noch fällige Ersetzen) – ohne Tippzeiten
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#ed-pdf")]);
+  const pdf = await readFile(await dl.path());
+  const i0 = pdf.indexOf("/FbDraft 1"), d0 = pdf.indexOf("stream\n", i0) + 7, d1 = pdf.indexOf("\nendstream", d0);
+  const rec = JSON.parse(pdf.subarray(d0, d1).toString("utf8"));
+  expect([rec.ttOptOut, rec.ttResend, rec.typing, rec.answers[0]]).toEqual([true, true, undefined, "Ich tippe neu"]);
+
+  // Neuladen → „Weiterschreiben“: der Schalter zeigt den Widerspruch, das Ersetzen wird nachgeholt (dieselbe Zeile, dieselbe Kennung)
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect.poll(async () => (await rows())[0].p.typing, { timeout: 30_000 }).toEqual({ v: 1, optOut: true });
+  const [r2] = await rows();
+  expect([r2.id, r2.stage, r2.attempt]).toEqual([r1.id, "first", r1.attempt]);
+  expect([r2.p.answers, r2.p.feedback, r2.p.person]).toEqual([r1.p.answers, r1.p.feedback, r1.p.person]);   // sonst derselbe Erstversuch
+  d = await draftWhen(page, (x) => x.ttOptOut === true && !("ttResend" in x));
+  await ed.locator("summary").click();
+  await expect(sw).toBeChecked();
+  await expect(ed.locator(".ttopt-st")).toHaveText("");
+  // die Zwischenstand-PDF auf einem anderen Gerät hochgeladen: der Widerspruch gilt dort weiter (Schalter gesetzt, nichts gemessen)
+  const o = await openPage(browser);
+  await o.page.setInputFiles("#start-pdf-file", { name: "stand.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(o.page.locator("#screen-editor")).toHaveClass(/active/);
+  await o.page.locator("#privfull-ed summary").click();
+  await expect(o.page.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH })).toBeChecked();
+  await typeAt(o.page, "#a-1", "!", { delay: 120 });
+  const od = await draftWhen(o.page, (x) => x.answers[0] === "Ich tippe neu!" && !("ttResend" in x));   // das Ersetzen ist erledigt
+  expect([od.ttOptOut, od.typing]).toEqual([true, undefined]);
+  await closePage(o);
+  expect((await rows())[0].p.typing).toEqual({ v: 1, optOut: true });
+
+  // zurücknehmen: ab jetzt wird wieder gemessen – der vorhandene Text bleibt „ohne Messung“ (255), auch die erste Fassung
+  await sw.click();
+  await expect(sw).not.toBeChecked();
+  await expect(ed.locator(".ttopt-st")).toHaveText(OFF);
+  await typeAt(page, "#a-1", " ja", { delay: 120 });
+  d = await draftWhen(page, (x) => x.answers[0] === "Ich tippe neu ja");
+  expect(d.ttOptOut).toBeUndefined();
+  if (TT_KEEP) {
+    expect(codesOf(d.typing.answers[0])).toEqual([...Array(13).fill(255), 255, 71, 71]);
+    expect(codesOf(d.typing.answers[1]).every((c) => c === 255)).toBe(true);
+    expect(d.typing.first).toEqual([null, null]);
+  }
+  // … und wieder widersprechen; die Abgabe trägt dann nur den Widerspruch
+  await sw.click();
+  await expect(sw).toBeChecked();
+  await expect(ed.locator(".ttopt-st")).toHaveText(ON);
+  d = await draftWhen(page, (x) => x.ttOptOut === true);
+  expect(d.typing).toBeUndefined();
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Jetzt abgeben?");
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect.poll(async () => (await rows()).map((x) => [x.id, x.stage]), { timeout: 30_000 }).toEqual([[r1.id, "final"]]);
+  const fin = (await rows())[0].p;
+  expect(fin.typing).toEqual({ v: 1, optOut: true });
+  expect(fin.answers).toEqual([{ first: "Ich tippe", final: "Ich tippe neu ja" }, { first: A2, final: A2 }]);
+  // an die KI gingen nie Tippzeiten (erstes Feedback und zweite Rückmeldung)
+  await expect.poll(async () => (await s.calls((e) => e.path === "/api/feedback")).length, { timeout: 30_000 }).toBe(2);
+  for (const c of await s.calls((e) => e.path === "/api/feedback")) expect(c.reqBody).not.toMatch(/typing|ttOptOut|optOut/);
+  await closePage(s);
+
+  /* ---------- Gruppe: Widerspruch schon auf dem Angaben-Bildschirm („ihr“-Form) → von Anfang an ohne Messung ---------- */
+  const g = await openPage(browser);
+  const gp = g.page;
+  await enterCode(gp, shown);
+  await expect(gp.locator("#screen-mode")).toHaveClass(/active/);
+  await gp.click("#mode-group");
+  await expect(gp.locator("#screen-person")).toHaveClass(/active/);
+  await gp.fill("#p-m-1", "max mu");
+  await gp.click("#p-add");
+  await gp.fill("#p-m-2", "li mu");
+  await gp.fill("#p-klasse", "7a");
+  const pf = gp.locator("#p-privfull");
+  await pf.locator("summary").click();
+  const gsw = pf.getByRole("checkbox", { name: TT_SWITCH_G });
+  await expect(gsw).not.toBeChecked();
+  expect(await gsw.evaluate((e) => [document.getElementById(e.getAttribute("aria-describedby")).textContent, e.closest(".ttoptbox").firstElementChild.textContent]))
+    .toEqual([TT_EFFECT_G, "Der Messung der Tippzeiten könnt ihr direkt hier widersprechen – es genügt, wenn eine oder einer von euch das möchte:"]);
+  await expect(pf).toContainText("Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (Schalter unter „Eure Rechte“).");
+  await gsw.click();
+  await expect(gsw).toBeChecked();
+  await expect(pf.locator(".ttopt-st")).toHaveText("Widerspruch eingetragen: Diese Seite misst bei eurem Feibeitsblatt keine Tippzeiten.");
+  expect(await pf.textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
+  await gp.click("#p-btn");
+  await expect(gp.locator("#screen-editor")).toHaveClass(/active/);
+  // im Schreibbereich derselbe Schalter („du“-Form wie der ganze Schreibbereich), schon gesetzt
+  await gp.locator("#privfull-ed summary").click();
+  await expect(gp.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH })).toBeChecked();
+  await typeAt(gp, "#a-1", "Wir", { delay: 120 });
+  d = await draftWhen(gp, (x) => x.answers[0] === "Wir");
+  expect([d.ttOptOut, d.typing]).toEqual([true, undefined]);
+  await gp.click("#submit-btn");
+  await confirmDialog(gp, "Ohne KI-Feedback abgeben?");
+  await expect(gp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect.poll(async () => (await rows()).length, { timeout: 30_000 }).toBe(2);
+  const grp = (await rows())[1].p;
+  expect([grp.person.gruppe, grp.typing]).toEqual([["MaxMu", "LiMu"], { v: 1, optOut: true }]);
+  await closePage(g);
+
+  /* ---------- Lehrkraft: „ohne Messung (widersprochen)“, keine Färbung, keine Anteile ---------- */
+  await tp.click("#t-refresh");
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(2);
+  await tp.click("#t-expand-all");
+  const dets = tp.locator("#t-subs-body tr.details:visible");
+  await expect(dets).toHaveCount(2);
+  await expect(dets.locator(".detbox > .dtt-sum")).toHaveText(["Tippzeiten: ohne Messung (widersprochen).", "Tippzeiten: ohne Messung (widersprochen)."]);
+  await expect(dets.locator(".dtt, .tt-r, .tt-y, .tt-g")).toHaveCount(0);
+  expect(await dets.nth(0).locator(".dtask").nth(0).locator("table.cmp tbody td").nth(1).textContent()).toBe("Ich tippe neu ja");
   // aufräumen
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
