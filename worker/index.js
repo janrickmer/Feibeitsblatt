@@ -958,7 +958,7 @@ async function routeSubmit(c) {
   const code = normalizeCode(body.code);
   if (!isValidCode(code)) throw sheetNotFound();
   const envelope = validateEnvelope(body.envelope);
-  const { stage, attempt } = validateSubmitMeta(body);
+  const { stage, attempt, replace } = validateSubmitMeta(body);
   const [sh, cnt, ex, pv] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
@@ -967,9 +967,17 @@ async function routeSubmit(c) {
     settingStmt(c.db, "privacy"),   // Löschfrist jetzt (nicht beim Öffnen des Blattes): die Bestätigungsseite nennt das Löschdatum
   ]);
   if (!firstRow(sh)) throw sheetNotFound();
+  // Nachgereichte zweite KI-Rückmeldung (replace): nur eine schon vorhandene Abgabe derselben Bearbeitung ersetzen – hat die Lehrkraft
+  // sie inzwischen gelöscht (oder gibt es sie nicht), wird nichts angelegt und nichts gezählt
+  const old = attempt ? firstRow(ex) : null;
+  if (replace && (!old || old.stage !== "final")) return json({ ok: true, gone: true });
   await countAll(c, [{ kind: "submit" }, { kind: "submit_bytes", weight: envelope.length }]);   // nur gültige Abgaben zählen
   const retentionDays = (privacyOut(parseSetting(firstRow(pv))) || {}).retentionDays || null;   // null = keine automatische Löschung
-  const prev = attempt ? firstRow(ex) : null;
+  const prev = old;
+  if (replace) {   // Eingang (received_at) bleibt der Zeitpunkt der Abgabe – auch für die Löschfrist
+    await c.db.prepare("UPDATE submissions SET envelope=?1 WHERE id=?2 AND stage='final'").bind(envelope, prev.id).run();
+    return json({ ok: true, id: Number(prev.id), replaced: "final", retentionDays });
+  }
   if (prev) {
     if (prev.stage === "final" && stage === "first") return json({ ok: true, id: Number(prev.id), receivedAt: c.now, kept: true, retentionDays });   // Abgabe bleibt
     await c.db.prepare("UPDATE submissions SET envelope=?1, received_at=?2, stage=?3 WHERE id=?4").bind(envelope, c.now, stage, prev.id).run();

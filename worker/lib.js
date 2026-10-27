@@ -162,7 +162,11 @@ export function validateSubmitMeta(body) {
     if (!ATTEMPT_RE.test(attempt)) throw new InputError("Ungültige Kennung der Bearbeitung.", "bad_request");
   }
   if (stage === "first" && !attempt) throw new InputError("Ein Erstversuch braucht eine Kennung der Bearbeitung.", "bad_request");
-  return { stage, attempt };
+  // replace: die schon angekommene Abgabe derselben Bearbeitung ersetzen (zweite KI-Rückmeldung nachgereicht) – nie neu anlegen
+  if (body.replace != null && body.replace !== true && body.replace !== false) throw new InputError("Ungültige Anfrage.", "bad_request");
+  const replace = body.replace === true;
+  if (replace && (stage !== "final" || !attempt)) throw new InputError("Ersetzen geht nur für eine Abgabe mit Kennung der Bearbeitung.", "bad_request");
+  return { stage, attempt, replace };
 }
 
 /* Einzelne Einträge löschen (Lösch- oder Einschränkungswunsch einer Person): {ids: [1–50 positive Ganzzahlen]} → ids ohne
@@ -672,7 +676,7 @@ export const RATE = {
   feedback_chars: { max: 800000, windowMs: 3600e3 },   // … gewichtet nach Zeichen der Antworten
   sheet_feedback: { max: 600, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (begrenzt Missbrauch je Blatt; das kontoweite
                                                        // Tageskontingent von Workers AI ist kleiner und bleibt aufbrauchbar – dafür gibt es die Reserve)
-  submit: { max: 240, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu zwei Aufrufe)
+  submit: { max: 360, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu drei Aufrufe: Erstversuch, Abgabe, zweite Rückmeldung)
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
   checklist: { max: 30, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste zum analogen Arbeitsblatt je IP (Lehrkraft)
 };

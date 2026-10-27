@@ -177,8 +177,10 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Wer an diesen Aufgaben nichts geändert hat, löst keine neue Anfrage aus. Ohne erstes KI-Feedback (ohne KI-Feedback
    abgegeben, KI nicht eingerichtet oder ausgefallen) gibt es auch keine zweite Rückmeldung; ebenso, wenn beim
    Weiterschreiben kein KI-Dienst mehr eingerichtet ist (dann sagt der Abgabe-Dialog das, und nichts wird noch einmal
-   gesendet). Die zweite Rückmeldung bleibt nur im Browser: Sie wird
-   nicht gespeichert und geht nicht an Sie als Lehrkraft.
+   gesendet). Ist die zweite Rückmeldung da, schickt die Seite sie verschlüsselt auch an Sie: Sie ersetzt die Abgabe
+   derselben Bearbeitung (ein zusätzlicher Aufruf; hat sich nichts geändert, wird nichts gesendet). Haben Sie die
+   Abgabe inzwischen gelöscht, legt der Server nichts neu an. Klappt das Nachreichen nicht (Seite vorher geschlossen,
+   keine Verbindung), bleibt die Abgabe ohne sie.
    Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
    Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
    heruntergeladen, bevor die zweite Rückmeldung da ist, steht das in der Datei, und die Seite erinnert daran, sie
@@ -310,7 +312,12 @@ Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit einget
    eine Legende über der Tabelle erklärt die Farben, und die Zusammenfassung lautet dann z. B. „3 Abgaben ·
    1 Erstversuch ohne Überarbeitung“. Aufgeklappt sehen Sie je Aufgabe eine Tabelle mit Spalte 1 „Erste Eingabe
    (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“ (bei einem Erstversuch steht dort „(noch
-   nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Eine Tabelle
+   nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat, und bei
+   Aufgaben, die nach dem Feedback geändert wurden, die „KI-Rückmeldung zur abgegebenen Fassung“ (sobald die Seite der
+   Schülerin bzw. des Schülers sie nachgereicht hat). Am Ende der Details lädt **„Lösungs-PDF herunterladen“** dieselbe
+   PDF-Datei herunter, die die Schülerin bzw. der Schüler nach der Abgabe bekommt (Aufgaben, Fassungen und
+   KI-Rückmeldungen; im Dateinamen Code, Klasse, Kürzel und Abgabedatum, nie der Geburtstag) – erzeugt in Ihrem
+   Browser, nichts geht dafür an den Server. Fehlt die zweite Rückmeldung, steht das in der Datei. Eine Tabelle
    erscheint dort als Tabelle, eine Weltkarten-Zuordnung als Liste („Kaffee → Brasilien“) mit „Zugeordnet: x von n“.
    In den aufgeklappten „Aufgaben und Aufträge an die KI“ eines Blattes steht je Aufgabe die Antwortart, bei der Weltkarte
    mit allen Karten und ihren richtigen Ländern. Gibt die
@@ -850,7 +857,7 @@ Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden).
 | Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI** | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten, KI-Feedback, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten, KI-Feedback und – nachgereicht – die KI-Rückmeldung zur abgegebenen Fassung, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“) | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
 | Erstversuche: dieselben Angaben mit der ersten Fassung und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
 | Checkliste zum analogen Arbeitsblatt: Vorschlag der KI (Entwurf) und die von Ihnen gespeicherten Punkte | Cloudflare D1 (EU), Tabelle `sheet_checklists` | unverschlüsselt; die gespeicherte Fassung (nie der Entwurf) ist für alle abrufbar, die den Code bzw. den QR-Code kennen | bis Sie das Blatt löschen |
 | Löschfrist (früher gespeicherte Angaben einer Schule entfernt der Server beim Aufräumen) | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; öffentlich abrufbar (Datenschutzhinweis eines Blattes, Seite „Impressum & Datenschutz“ über `GET /api/privacy`) | bis Sie sie ändern |
@@ -1153,7 +1160,7 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
 | KI-Anfragen je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 800 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht |
 | KI-Anfragen je Feibeitsblatt | 600 pro Tag (bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
-| Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe) |
+| Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 360 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu drei Übermittlungen: Erstversuch beim KI-Feedback, Abgabe und die nachgereichte KI-Rückmeldung zur abgegebenen Fassung) |
 | Checkliste zum analogen Arbeitsblatt | höchstens 8 Punkte je Aufgabe, je 160 Zeichen; KI-Vorschläge 30 pro Stunde je Netzwerk (IP-Adresse) |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner) |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
