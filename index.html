@@ -4614,6 +4614,7 @@ function ttFollowStored(raw) {
 }
 window.addEventListener("storage", (e) => {
   try {
+    if (e.key && S.fb2Base && e.key === S.fb2Base.key) fb2FollowOptOut(e.newValue);   // nach der Abgabe: nachgereicht wird dann ohne Tippzeiten
     if (!e.key || e.key !== S.draftKey || screen !== "screen-editor") return;
     if (ttFollowStored(e.newValue) && S.ttResend) sendFirstAttempt();
   } catch (x) { /* egal: saveDraft und das Senden sehen ohnehin nach */ }
@@ -6036,10 +6037,11 @@ const FB2_HOLD_MS = 15 * 60e3;   // = REPLACE_WINDOW_MS (worker/lib.js) – dana
    Schüler:innen – nie Tippzeiten) und nur so lange im Arbeitsspeicher, wie noch nachgereicht werden kann (TT_ACCESS: „bis zur Abgabe
    (und, wenn … nachgereicht wird, bis dahin)“): freigegeben nach dem Nachreichen (geklappt oder endgültig gescheitert), ohne Änderung
    (same), ohne mögliche zweite Rückmeldung (finalFeedbackGone), bei „Neues Feibeitsblatt öffnen“ (resetStudent) und spätestens nach
-   FB2_HOLD_MS. */
+   FB2_HOLD_MS; die Werte selbst schon, sobald ein Widerspruch aus einem anderen Tab ankommt (fb2FollowOptOut). key = Schlüssel des
+   Zwischenstands der Abgabe (dort sieht fb2FollowOptOut nach). */
 function fb2Hold(sub, payload, r) {
   if (!sub || !payload || !S.pub || !ATTEMPT_RE.test(S.attempt) || !Number.isSafeInteger(r && r.receivedAt) || r.receivedAt <= 0) return;
-  const base = { sub, payload, pub: S.pub, attempt: S.attempt, submitAt: r.receivedAt, timer: 0 };
+  const base = { sub, payload, pub: S.pub, attempt: S.attempt, submitAt: r.receivedAt, key: S.draftKey, timer: 0 };
   base.timer = setTimeout(() => { if (S.fb2Base === base) S.fb2Base = null; }, FB2_HOLD_MS);
   S.fb2Base = base;
 }
@@ -6048,6 +6050,28 @@ function fb2Release(sub) {
   if (!base || (sub && base.sub !== sub)) return;
   clearTimeout(base.timer);
   S.fb2Base = null;
+}
+const fb2OptedOut = (base) => !!(base && base.payload.typing && base.payload.typing.optOut === true);
+/* Widerspruch gegen die Tippzeit-Messung, nachdem dieser Tab abgegeben hat: Ein zweiter Tab mit demselben Stand weiß nichts von der
+   Abgabe und trägt den Widerspruch in den Zwischenstand unter demselben Schlüssel ein (diesen hat dieser Tab bei der Abgabe gelöscht –
+   ein Stand dort stammt also aus einem anderen Tab; was dieser Tab selbst zuletzt geschrieben hat, S.ttLastRaw, zählt wie bei
+   ttFollowStored nicht), oder er kam schon, während die Abgabe gesendet wurde (ttFollowStored hat dann S.ttOptOut gesetzt). Dann hält
+   diese Seite die Tippzeiten nicht mehr (TT_ACCESS: „nach einem Widerspruch nicht mehr“): Die gehaltene Nutzlast trägt ab jetzt
+   {v:1, optOut:true}, wird die zweite Rückmeldung noch nachgereicht, ersetzt sie die Abgabe ohne Tippzeiten (die Lehrkraft sieht „ohne
+   Messung (widersprochen)“). Geprüft beim storage-Ereignis und – für eingefrorene Tabs – vor jedem Nachreichen. → true = jetzt übernommen. */
+function fb2FollowOptOut(raw) {
+  const base = S.fb2Base;
+  if (!base || fb2OptedOut(base)) return false;
+  let on = S.ttOptOut === true;
+  if (!on && base.key) {
+    try {
+      if (raw === undefined) raw = store.get(base.key);
+      on = raw !== S.ttLastRaw && !!ttStoredFlags(raw);
+    } catch (e) { on = false; }
+  }
+  if (!on) return false;
+  base.payload.typing = ttOptOutPayload();   // die Werte sind damit nicht mehr erreichbar
+  return true;
 }
 async function sendFeedback2(sub) {
   const base = S.fb2Base;
@@ -6058,14 +6082,20 @@ async function sendFeedback2(sub) {
   try {
     for (let tries = 1; tries <= 3; tries++) {
       if (S.lastSubmission !== sub || S.fb2Base !== base) return;   // „Neues Feibeitsblatt öffnen“ oder Frist vorbei: nichts mehr nachreichen
+      fb2FollowOptOut();   // Widerspruch aus einem anderen Tab (auch wenn dieser Tab das storage-Ereignis verpasst hat)
+      if (fb2OptedOut(base)) payload.typing = base.payload.typing;
+      const withValues = ttHasData(payload.typing);
       try {
         await sendSealed(payload, (envelope) => ({ code: sub.code, envelope, stage: "feedback2", attempt: base.attempt, receivedAt: base.submitAt }), base.pub);
-        sub.fb2Sent = true;
-        return;
       } catch (e) {
         if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) return;   // endgültig (auch 413 trotz Rückfällen)
         if (tries < 3) await sleep(2000 * tries);
+        continue;
       }
+      // kam der Widerspruch, während die Werte unterwegs waren: gleich noch einmal ohne sie (wie beim Ersetzen des Erstversuchs)
+      if (withValues && fb2OptedOut(base) && S.fb2Base === base) { tries = 0; continue; }
+      sub.fb2Sent = true;
+      return;
     }
   } finally { fb2Release(sub); }   // geklappt oder endgültig gescheitert: die Nutzlast samt Tippzeiten wird nicht mehr gebraucht
 }

@@ -873,3 +873,49 @@ test("typing: nach der Abgabe – die angenommene Nutzlast (mit Tippzeiten) nur 
   assert.ok(body("function resetStudent()", "\n}\n").includes("fb2Release();"));
   assert.ok(body("function fb2Hold(", "\n}\n").includes("setTimeout(() => { if (S.fb2Base === base) S.fb2Base = null; }, FB2_HOLD_MS);"));
 });
+
+test("typing: Widerspruch aus einem anderen Tab nach der Abgabe – die gehaltene Nutzlast verliert die Tippzeit-Werte, nachgereicht wird ohne sie", () => {
+  const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
+  const src = body("const fb2OptedOut = ", "\n}\n") + "\n}\n";
+  const run = (S, stored) => {
+    const store = { get: (k) => { if (k !== "k1") throw new Error("Schlüssel"); return stored; } };
+    const f = new Function("S", "store", "ttStoredFlags", "ttOptOutPayload", src + "\nreturn { fb2OptedOut, fb2FollowOptOut };");
+    return f(S, store, ttStoredFlags, ttOptOutPayload);
+  };
+  const values = () => ({ v: 1, answers: [{ first: "=", final: "R0dH" }] });
+  const mk = (typing, extra = {}) => ({ fb2Base: { key: "k1", payload: { v: 1, answers: [], typing } }, ttOptOut: false, ttLastRaw: null, ...extra });
+  const OPT = JSON.stringify({ v: 1, answers: ["a"], ttOptOut: true, attempt: "0123456789abcdef" });
+  const NO = JSON.stringify({ v: 1, answers: ["a"], attempt: "0123456789abcdef" });
+  // ein anderer Tab hat (unter dem Schlüssel der Abgabe) widersprochen → {optOut}
+  let S = mk(values());
+  let fns = run(S, OPT);
+  assert.equal(fns.fb2FollowOptOut(), true);
+  assert.deepEqual(S.fb2Base.payload.typing, { v: 1, optOut: true });
+  assert.equal(fns.fb2OptedOut(S.fb2Base), true);
+  assert.equal(fns.fb2FollowOptOut(), false);   // schon übernommen
+  // auch über das storage-Ereignis (raw übergeben, der Speicher wird dann nicht gelesen)
+  S = mk(values()); fns = run(S, null);
+  assert.equal(fns.fb2FollowOptOut(OPT), true);
+  // kein Widerspruch, gelöschter Stand, eigener zuletzt geschriebener Stand, kaputter Text → unverändert
+  for (const [raw, extra] of [[NO, {}], [null, {}], [OPT, { ttLastRaw: OPT }], ["{kaputt\"ttOptOut\":true", {}]]) {
+    S = mk(values(), extra); fns = run(S, raw);
+    assert.equal(fns.fb2FollowOptOut(), false);
+    assert.deepEqual(S.fb2Base.payload.typing, values());
+  }
+  // Widerspruch kam schon, während die Abgabe gesendet wurde (S.ttOptOut) → ebenso; auch „nicht übermittelt“ wird zu {optOut}
+  S = mk(values(), { ttOptOut: true }); fns = run(S, null);
+  assert.equal(fns.fb2FollowOptOut(), true);
+  S = mk({ v: 1, omitted: "too_large" }, { ttOptOut: true }); fns = run(S, null);
+  assert.equal(fns.fb2FollowOptOut(), true);
+  assert.deepEqual(S.fb2Base.payload.typing, { v: 1, optOut: true });
+  // nichts gehalten → nichts zu tun
+  fns = run({ fb2Base: null, ttOptOut: true }, OPT);
+  assert.equal(fns.fb2FollowOptOut(), false);
+  // geprüft beim storage-Ereignis und vor jedem Nachreichen; kam der Widerspruch, während die Werte unterwegs waren, gleich noch einmal
+  assert.ok(html.includes("if (e.key && S.fb2Base && e.key === S.fb2Base.key) fb2FollowOptOut(e.newValue);"));
+  const send = body("async function sendFeedback2(sub)", "\n}\n");
+  const kFollow = send.indexOf("fb2FollowOptOut();"), kUse = send.indexOf("if (fb2OptedOut(base)) payload.typing = base.payload.typing;"), kSend = send.indexOf("await sendSealed(payload");
+  assert.ok(kFollow > send.indexOf("for (let tries = 1;") && kUse > kFollow && kSend > kUse);
+  assert.ok(send.indexOf("if (withValues && fb2OptedOut(base) && S.fb2Base === base) { tries = 0; continue; }") > kSend);
+  assert.ok(body("function fb2Hold(", "\n}\n").includes("key: S.draftKey"));
+});

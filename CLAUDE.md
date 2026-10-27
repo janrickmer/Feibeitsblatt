@@ -159,11 +159,12 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   der Server bei der Abgabe angenommen hat** (nach den Rückfällen von `sealPayload`/`sendSealed`, die `payload` dabei selbst kürzen –
   also auch `typing` `{optOut}`/`{omitted}` und ein per `escTrim` gekürztes `escape`; nichts neu gelesen) + `feedback2: {at, results}` (nur neu
   beurteilte Aufgaben, die übrigen `null`) – so bleiben Tippzeiten und Daten aus dem Escape-Room beim Ersetzen erhalten. Gemerkt in
-  **`S.fb2Base`** = `{sub, payload, pub, attempt, submitAt = receivedAt der Abgabe-Antwort, timer}` (`fb2Hold`, nur mit erstem
+  **`S.fb2Base`** = `{sub, payload, pub, attempt, submitAt = receivedAt der Abgabe-Antwort, key = S.draftKey, timer}` (`fb2Hold`, nur mit erstem
   Feedback), **getrennt von `S.lastSubmission`** (daraus entstehen die PDF-Dateien der Schüler:innen – nie Tippzeiten) und nur, solange
   noch nachgereicht werden kann: `fb2Release` nach dem Nachreichen (geklappt, `gone` oder endgültig gescheitert – `finally` in
   `sendFeedback2`), bei `same`, ohne erstes Feedback, in `finalFeedbackGone`, in `resetStudent` und spätestens nach `FB2_HOLD_MS`
-  (= `REPLACE_WINDOW_MS`, Unit-Test vergleicht); `submitAll` setzt außerdem `S.firstTyping` nach der Abgabe auf `null` (`TT_ACCESS` sagt
+  (= `REPLACE_WINDOW_MS`, Unit-Test vergleicht), die Tippzeit-Werte darin schon bei einem Widerspruch aus einem anderen Tab
+  (`fb2FollowOptOut`, siehe Tippzeit-Messung, „Zweiter Tab“); `submitAll` setzt außerdem `S.firstTyping` nach der Abgabe auf `null` (`TT_ACCESS` sagt
   „bis zur Abgabe (und, wenn … nachgereicht wird, bis dahin)“). Wird der Umschlag erst mit `feedback2` zu groß (`ttEnvelopeFits` bzw. 413/409),
   gilt dieselbe Reihenfolge wie bei der Abgabe (`sendSealed(payload, bodyOf, base.pub)`): erst ohne Tippzeit-Werte (`omitted:"too_large"`),
   dann `escTrim` – **Entscheidung:** die zweite Rückmeldung scheitert wie die Abgabe nie an den Tippzeiten oder den Daten aus dem Raum,
@@ -718,6 +719,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bei gesendetem Erstversuch `S.ttResend`); was der Tab selbst zuletzt geschrieben bzw. beim Öffnen gelesen hat (`S.ttLastRaw`,
   gesetzt in `saveDraft`/`openEditor`), zählt nicht – sonst ließe er sich nie zurücknehmen. **Der Widerspruch gewinnt:**
   Zurücknehmen gilt nur in dem Tab, in dem es geschieht (speichert ein anderer Tab danach mit Widerspruch, gilt er wieder).
+  **Nach der Abgabe** (Bestätigungsseite, `S.fb2Base` gehalten; `ttFollowStored` endet bei `S.submitted`): Ein zweiter Tab weiß nichts
+  von der Abgabe und trägt den Widerspruch unter demselben Schlüssel ein (`S.fb2Base.key`; der abgebende Tab hat ihn bei der Abgabe
+  gelöscht, `S.ttLastRaw` zählt nicht) bzw. er kam schon während des Sendens (`S.ttOptOut`) → `fb2FollowOptOut` (beim `storage`-Ereignis
+  und vor jedem Versuch in `sendFeedback2`) ersetzt `typing` der gehaltenen Nutzlast durch `{optOut}` – nachgereicht wird ohne Werte, die
+  Lehrkraft sieht „ohne Messung (widersprochen)“; war das Nachreichen mit Werten schon unterwegs, gleich danach noch einmal ohne sie. So
+  stimmt „(nach einem Widerspruch nicht mehr)“ in `TT_ACCESS`; kommt keine zweite Rückmeldung (`same`, gescheitert), bleibt die Abgabe beim
+  Server, wie sie ist (`TT_SWITCH_SCOPE`).
   `startGo` und `resetStudent` setzen zurück, `syncTtBoxes` gleicht alle Schalter an. Reine Helfer zwischen `/* TYPING:BEGIN` und
   `/* TYPING:END */` (dort auch `cellText`/`tableText`/`tableRows` und ihre Spiegel `ttCellText`/`ttTableText`/`ttTableCells`/
   `ttTableLines`; nur `btoa`/`atob`/`Intl`, kein `$`/`S`/`h`/`document`), `test/unit/typing.test.mjs`, E2E 7l und 7m.
@@ -1103,15 +1111,18 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Zeichen im Zwischenstand vor und nach dem Feedback samt Neuladen; nie an die KI, Erstversuch/Abgabe aus D1
   entschlüsselt – `openPrivateKey`/`openEnvelope` aus smoke.mjs –, Ablauf-Kasten, 413 → einmal ohne, Lehrkraft-Färbung, „Färbung
   aus“, lange Antworten, nur Weltkarten – auch bei den Schüler:innen ohne `TT_SHORT` und ohne Abschnitt; die nachgereichte zweite
-  Rückmeldung = angenommene Abgabe + `feedback2` samt Tippzeiten in D1, danach `S.fb2Base` null; Schüler:in 4: mit `feedback2` 413 → einmal
-  ohne Tippzeit-Werte, angekommen; Schüler:in 5: Nachreichen scheitert dreimal → D1 unverändert) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
+  Rückmeldung = angenommene Abgabe + `feedback2` samt Tippzeiten in D1; Schüler:in 4: mit `feedback2` 413 → einmal
+  ohne Tippzeit-Werte, angekommen; Schüler:in 5: Nachreichen scheitert dreimal → D1 unverändert, danach kein weiterer Versuch; dass
+  `S.fb2Base` freigegeben wird, prüft nur `typing.test.mjs` über den Quelltext) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
   Erstversuchs scheitert erst und wird beim nächsten Öffnen nachgeholt, PDF auf einem anderen Gerät, Zurücknehmen, Ablehnung
   während des Sendens (angehaltenes bzw. scheiterndes `/api/submit`, Farbe), Abgabe `optOut`; Haken auf „Deine Angaben“ bei
   getipptem Stand mit Erstversuch → sofort gespeichert und ersetzt; anderes Gerät ohne Widerspruch; zweiter Tab übernimmt ihn
   sofort; an und aus während einer angehaltenen KI-Anfrage → erste Fassung ohne Werte; ältere Zwischenstand-PDF auf demselben
   Gerät → Widerspruch bleibt; Gruppe in der „ihr“-Form, Neuladen ohne Eingabe, `_tt` aller Felder; Lehrkraft „ohne Messung
   (widersprochen)“ bei Abgaben, Erstversuch und ausgeblendetem älterem Erstversuch; nach dem Nachreichen der zweiten Rückmeldung
-  bleibt `{optOut:true}` in D1); die wörtlichen Hinweise prüfen 1b
+  bleibt `{optOut:true}` in D1; zweiter Tab widerspricht, nachdem der erste abgegeben hat und die zweite Rückmeldung noch aussteht – der
+  erste eingefroren (storage-Ereignis per `stopImmediatePropagation` verpasst, KI-Anfrage angehalten) bzw. mit angehaltenem Nachreichen
+  unterwegs → in D1 `{optOut:true}`, nachgereicht einmal ohne bzw. erst mit, dann ohne Werte); die wörtlichen Hinweise prüfen 1b
   (`TT_PURPOSE`, `TT_EFFECT`/`TT_SCOPE`, `TT_STAY`, `TT_ACCESS`, Kurzfassung und Vorschau mit genau `TT_SHORT`, Abschnitt
   `TT_OBJ_HEAD` vor „Deine Rechte“, auf „Impressum & Datenschutz“ nur als Absatz, Vorschau gesperrt), 2 (`renderPrivacy` mit
   `TT_SHORT`, `#privfull-ed` mit Abschnitt), 2b (Kurzfassung der Gruppe mit `TT_SHORT_G`, `TT_ACCESS_G`) und `privBases` – die Erwartungen folgen `TT_KEEP` (aus index.html gelesen); beim Umlegen von

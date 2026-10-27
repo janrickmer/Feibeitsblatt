@@ -5306,7 +5306,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await closePage(t);
 });
 
-test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis (Schreibbereich; Angaben-Bildschirm, auch einer Gruppe in der „ihr“-Form) → keine Tippzeiten mehr im Zwischenstand und in der Zwischenstand-PDF, ein schon gesendeter Erstversuch wird mit derselben Kennung ohne sie ersetzt (scheitert das, beim nächsten Öffnen; auch beim Öffnen über „Deine Angaben“), Zurücknehmen misst nur ab dann, auch während einer laufenden KI-Anfrage; gilt sofort im zweiten Tab, bleibt beim Neuladen ohne Eingabe und beim Hochladen einer älteren Zwischenstand-PDF; während des Sendens abgelehnt; Abgabe trägt optOut, die Lehrkraft sieht „ohne Messung (widersprochen)“ – auch beim Erstversuch und beim ausgeblendeten älteren Erstversuch", async ({ browser }) => {
+test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis (Schreibbereich; Angaben-Bildschirm, auch einer Gruppe in der „ihr“-Form) → keine Tippzeiten mehr im Zwischenstand und in der Zwischenstand-PDF, ein schon gesendeter Erstversuch wird mit derselben Kennung ohne sie ersetzt (scheitert das, beim nächsten Öffnen; auch beim Öffnen über „Deine Angaben“), Zurücknehmen misst nur ab dann, auch während einer laufenden KI-Anfrage; gilt sofort im zweiten Tab (auch nach der Abgabe im ersten: die zweite Rückmeldung wird dann ohne Tippzeiten nachgereicht), bleibt beim Neuladen ohne Eingabe und beim Hochladen einer älteren Zwischenstand-PDF; während des Sendens abgelehnt; Abgabe trägt optOut, die Lehrkraft sieht „ohne Messung (widersprochen)“ – auch beim Erstversuch und beim ausgeblendeten älteren Erstversuch", async ({ browser }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -5693,6 +5693,68 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
   await older.locator("summary").click();
   await expect(older.locator(".detbox.older > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (widersprochen).");
   await expect(older.locator(".dtt, .tt-r, .tt-y, .tt-g")).toHaveCount(0);
+
+  /* ---------- Schüler:in 5 und 6: zwei Tabs – der erste gibt ab, der zweite widerspricht, während die zweite Rückmeldung noch aussteht ----------
+   * Der zweite Tab weiß nichts von der Abgabe; sein Widerspruch steht im Zwischenstand (den der erste bei der Abgabe gelöscht hat). Der erste
+   * reicht danach keine Tippzeit-Werte mehr nach – die Abgabe wird mit {optOut} ersetzt: a) eingefroren (storage-Ereignis verpasst), der
+   * Widerspruch kommt, während die KI noch arbeitet → er sieht vor dem Nachreichen nach; b) der Widerspruch kommt, während das Nachreichen mit
+   * den Werten unterwegs ist → angekommen, dann gleich noch einmal ohne sie */
+  const stripFb2 = (p) => { const y = { ...p }; delete y.typing; delete y.feedback2; return y; };
+  const lateOptOut = async (who, name, frozen) => {
+    const x = await openPage(browser), xa = x.page;
+    await enterCode(xa, shown);
+    await fillPerson(xa, who);
+    await typeAt(xa, "#a-1", "Fünf", { delay: 120 });
+    await xa.click("#fb-btn");
+    await confirmDialog(xa, "Noch nicht alles beantwortet");   // Aufgabe 2 bleibt leer
+    await expect(xa.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+    await draftWhen(xa, (y) => y.firstSent === true);
+    await typeAt(xa, "#a-1", " und mehr", { delay: 120 });
+    await draftWhen(xa, (y) => y.answers[0] === "Fünf und mehr");
+    const xb = await x.context.newPage(), xbErrors = [];
+    xb.on("pageerror", (e) => xbErrors.push(String(e)));
+    await xb.goto("/");
+    await xb.click("#resume-btn");
+    await expect(xb.locator("#screen-editor")).toHaveClass(/active/);
+    await expect(xb.locator("#a-1")).toHaveValue("Fünf und mehr");
+    if (frozen) await xa.evaluate(() => window.addEventListener("storage", (e) => e.stopImmediatePropagation(), true));
+    let release; const held = new Promise((r) => { release = r; });
+    const posted = [];
+    if (frozen) await xa.route("**/api/feedback", async (route) => { await held; await route.continue(); });   // die KI arbeitet noch
+    await xa.route("**/api/submit", async (route) => {
+      const b = JSON.parse(route.request().postData());
+      if (b.stage === "feedback2") { posted.push(b); if (!frozen && posted.length === 1) await held; }   // das erste Nachreichen unterwegs
+      await route.continue();
+    });
+    await submit(xa);
+    const finalOf = async () => (await rowsOf(name)).find((r) => r.stage === "final");
+    await expect.poll(async () => !!(await finalOf()), { timeout: 30_000 }).toBe(true);
+    const fin = (await finalOf()).p;
+    expect(fin.typing.answers.some((a) => typeof a.final === "string" && a.final.length > 1)).toBe(true);   // die Abgabe trägt Tippzeit-Werte
+    if (!frozen) await expect.poll(() => posted.length, { timeout: 60_000 }).toBe(1);
+    // der zweite Tab widerspricht (er zeigt noch den Schreibbereich)
+    await xb.locator("#privfull-ed summary").click();
+    const sb = xb.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH });
+    await sb.click();
+    await expect(sb).toBeChecked();
+    await expect(xb.locator("#privfull-ed .ttopt-st")).toHaveText(ON);
+    await draftWhen(xb, (y) => y.ttOptOut === true);
+    release();
+    await expect(xa.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 60_000 });
+    await expect.poll(async () => { const r = await finalOf(); return r && r.p.feedback2 ? r.p.typing : null; }, { timeout: 30_000 }).toEqual({ v: 1, optOut: true });
+    await xa.waitForTimeout(2500);   // danach nichts mehr
+    const sent = await Promise.all(posted.map((b) => openEnvelope(priv, b.envelope)));
+    expect(sent.map((p) => p.typing.optOut === true)).toEqual(frozen ? [true] : [false, true]);
+    for (const p of sent) expect(stripFb2(p)).toEqual(stripFb2(fin));   // sonst genau die angenommene Abgabe
+    const got = await finalOf();
+    expect((await rowsOf(name)).map((r) => r.stage)).toEqual(["final"]);
+    expect(got.p).toEqual(sent.at(-1));
+    expect(got.p.feedback2.results[0]).toBeTruthy();
+    expect(xbErrors).toEqual([]);
+    await closePage(x);
+  };
+  await lateOptOut({ vorname: "fue", nachname: "fu", geb: "--02-03", klasse: "7a" }, "Fue", true);
+  await lateOptOut({ vorname: "sec", nachname: "se", geb: "--03-04", klasse: "7a" }, "Sec", false);
   // aufräumen
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
@@ -6336,7 +6398,10 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await expect(detMax.locator(".dtask").nth(0).locator(".dfb2")).toHaveCount(0);
   await expect(detMax.locator(".dtt-sum")).toHaveCount(1);   // die Tippzeiten sind nach dem Nachreichen noch da
   const [ldl] = await Promise.all([tp.waitForEvent("download"), detMax.locator("button.dpdf").click()]);
-  expect(ldl.suggestedFilename()).toBe(`Feibeitsblatt-Loesungen-${ESCT.shown}-10b-MaxMu-${ymd()}.pdf`);
+  // Datum im Dateinamen = Tag des Eingangs (Ortszeit des Browsers, wie „Abgegeben am …“) – nicht der Tag des Downloads
+  const [, gd, gm, gy] = /^Abgegeben am (\d\d)\.(\d\d)\.(\d{4}), /.exec(await detMax.locator(".dmeta").textContent()) || [];
+  expect(gy).toBeTruthy();
+  expect(ldl.suggestedFilename()).toBe(`Feibeitsblatt-Loesungen-${ESCT.shown}-10b-MaxMu-${gy}-${gm}-${gd}.pdf`);
   const lpdf = await readFile(await ldl.path());
   await escSave("7o-lehrkraft-loesungen.pdf", lpdf);
   pdfStructure(lpdf, 5);

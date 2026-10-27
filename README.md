@@ -1105,7 +1105,8 @@ tippen die Schüler:innen, sie werden normal gemessen.
   dem Gerät und nicht in der Zwischenstand-PDF –, dann im Erstversuch und in der Abgabe (nur verschlüsselt, lesbar nur für
   Sie). Mit KI-Feedback hält die Seite die angekommene Abgabe samt Tippzeiten danach noch im Arbeitsspeicher, bis die
   KI-Rückmeldung zur abgegebenen Fassung nachgereicht ist oder keine mehr kommt (höchstens 15 Minuten); das Nachreichen
-  ersetzt die Abgabe mit denselben Tippzeiten. Wird die Seite neu geladen oder mit einer Zwischenstand-PDF weitergeschrieben, gilt der bis dahin geschriebene
+  ersetzt die Abgabe mit denselben Tippzeiten (widerspricht die Schülerin oder der Schüler in dieser Zeit in einem anderen
+  Tab mit demselben Stand, verwirft die Seite sie und reicht die Abgabe nur mit dem Vermerk des Widerspruchs nach). Wird die Seite neu geladen oder mit einer Zwischenstand-PDF weitergeschrieben, gilt der bis dahin geschriebene
   Text deshalb als „ohne Messung“ (ohne Färbung); gemessen wird ab dann neu. Sie gehen nie an einen KI-Dienst oder an
   LanguageTool, stehen nie in der Lösungs-PDF der Schüler:innen, und beim Schreiben zeigt die Seite sie nicht an.
   Gelöscht werden sie mit dem Eintrag (Löschfrist). Das gilt mit der eingecheckten Einstellung
