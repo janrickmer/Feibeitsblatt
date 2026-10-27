@@ -42,6 +42,7 @@ const STEP_LATE = "– nur direkt nach der Abgabe auf der Bestätigungsseite (ni
 const STEPS_AI = ["Aufgaben bearbeiten", "KI-Feedback anfordern (freiwillig, empfohlen)", "Lösungen mithilfe des KI-Feedbacks überarbeiten", "Abgeben",
   "Lösungen und letztes Feedback herunterladen " + STEP_LATE];
 const STEPS_NO_AI = ["Aufgaben bearbeiten", "Abgeben", "Lösungen herunterladen " + STEP_LATE];
+const STEP_FB_BLOCKED = "KI-Feedback anfordern (freiwillig, empfohlen – gerade nicht möglich)";   // kein KI-Dienst eingerichtet bzw. Grund gemeldet
 /* Tippzeiten im Zwischenstand: je Antwort (bzw. erster Fassung) genau so viele Werte wie Zeichen – oder gar keine (Schalter aus) */
 function expectDraftTyping(d, answers, first) {
   if (!TT_KEEP) { expect(d.typing).toBeUndefined(); return; }
@@ -1405,7 +1406,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(i0).toBeGreaterThan(0);
   const draft = JSON.parse(pdf.subarray(d0, d1).toString("utf8"));
   expect(draft).toMatchObject({ v: 1, kind: "feibeitsblatt-draft", code: S.code, sheetTitle: TITLE, person: A.person, answers: A.final, first: A.first, attempt: fp.attempt, firstSent: true });
-  expectDraftTyping(draft, A.final, A.first);   // Tippzeiten im selben Datensatz (unverschlüsselt in der PDF – „Indiz, kein Beweis“)
+  expectDraftTyping(draft, A.final, A.first);   // Tippzeiten im selben Datensatz (unverschlüsselt in der PDF – zeigen nur das Tempo)
   expect(draft.feedback.map((f) => ({ covered: f.covered, missing: f.missing, ...noteOf(f) }))).toEqual(exp);
   await expect(page.locator("#save-state")).toHaveText("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf");
   // … auf einem „frischen“ Gerät (neuer Kontext ohne Browserdaten) hochgeladen: erst eine fremde PDF → Meldung, dann die echte →
@@ -2846,6 +2847,8 @@ test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort de
   const QUOTA_FALLBACK = "Das KI-Feedback ist gerade nicht möglich (" + QUOTA_REASON + "). Du kannst es morgen noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.";
   await expect(page.locator("#fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht. Du kannst ohne KI-Feedback abgeben oder es morgen noch einmal versuchen.");
   await expect(page.locator("#fb-fallback")).toHaveText(QUOTA_FALLBACK);
+  await expect(page.locator("#ed-steps-list li").nth(1)).toHaveText(STEP_FB_BLOCKED);
+  await expect(page.locator("#ed-steps-list li.cur")).toHaveText(STEPS_AI[0]);
   await expect(page.locator("#fb-wait")).toBeHidden();   // kein automatischer neuer Versuch
   await page.waitForTimeout(500);
   expect((await s.calls((r) => r.path === "/api/feedback")).length).toBe(1);
@@ -2864,6 +2867,7 @@ test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort de
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
   await expect(page.locator("#fb-fallback")).toBeHidden();
   await expect(page.locator("#fb-btn")).toBeEnabled();
+  await expect(page.locator("#ed-steps-list li")).toHaveText(STEPS_AI);   // Kontingent erneuert: wieder „(freiwillig, empfohlen)“
   expect(JSON.parse(await page.evaluate((k) => localStorage.getItem(k), dKey))).toMatchObject({ fbUnavailable: "", fbUnavailableDay: "", fbFails: 1 });
   await page.click("#submit-btn");
   expect(await confirmDialog(page, "Ohne KI-Feedback abgeben?", false)).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
@@ -3058,6 +3062,9 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p5.locator("#fb-btn")).toBeEnabled();                // … Feedback wieder möglich …
   await expect(p5.locator("#fb-status")).toHaveText("");            // … und kein „Die KI arbeitet …“ mehr
   await expect(p5.locator("#submit-btn")).toBeEnabled();
+  await expect(p5.locator("#ed-steps-list li")).toHaveText(STEPS_AI);   // der Kasten steht wieder auf „Aufgaben bearbeiten“
+  await expect(p5.locator("#ed-steps-list li.cur")).toHaveText(STEPS_AI[0]);
+  await expect(p5.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
   await typeAt(p5, "#a-2", " Nachtrag.");
   releaseJ();
   await p5.waitForTimeout(500);
@@ -3091,6 +3098,8 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p6.locator("#privacy")).toContainText(NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.");
   await expect(p6.locator("#privacy")).not.toContainText("KI-Dienst deiner Lehrkraft");
   await expect(p6.locator("#privfull-ed")).toContainText(NO_AI_SET);   // derselbe Inhalt wie im ausführlichen Hinweis
+  await expect(p6.locator("#ed-steps-list li").nth(1)).toHaveText(STEP_FB_BLOCKED);   // schon vor dem ersten Klick erkennbar
+  await expect(p6.locator("#ed-steps-list li.cur")).toHaveText(STEPS_AI[0]);
   for (let i = 0; i < 2; i++) await typeAt(p6, "#a-" + (i + 1), K.first[i]);
   await p6.click("#submit-btn");
   expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?", false)).toBe("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI." + toTeacherUnavailable);
@@ -3110,6 +3119,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p6.locator("#fb-btn")).toBeFocused();
   expect(sheetGets).toBe(3);
   await expect(p6.locator("#fb-fallback")).toBeHidden();   // „KI nicht eingerichtet“ gilt nicht mehr …
+  await expect(p6.locator("#ed-steps-list li")).toHaveText(STEPS_AI);
   await expect(p6.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
   await expect(p6.locator("#privacy")).toContainText("an den KI-Dienst „127.0.0.1:");
   expect(await s6.calls((r) => r.path === "/api/feedback")).toEqual([]);   // nichts gesendet
@@ -4603,7 +4613,7 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   await closePage(t);
 });
 
-test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wortvorschlag ein und füllt eine Tabelle → Werte je Zeichen im Zwischenstand, auch nach Neuladen vor und nach dem KI-Feedback; nie an die KI; Erstversuch und Abgabe tragen sie verschlüsselt; der Kasten zeigt den aktuellen Schritt; 413 → einmal ohne Messung; Lehrkraft sieht Textmarker, Rot-Anteile (ab 50 % „hoch“), Legende, Hinweis und „Färbung aus“", async ({ browser }) => {
+test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wortvorschlag ein und füllt eine Tabelle → Werte je Zeichen im Zwischenstand, auch nach Neuladen vor und nach dem KI-Feedback; nie an die KI; Erstversuch und Abgabe tragen sie verschlüsselt; der Kasten zeigt den aktuellen Schritt; 413 → einmal ohne Messung; Lehrkraft sieht Textmarker, Rot-Anteile (ab 50 % „hoch“, auch in der Gesamtzeile) beim Erstversuch, bei der Abgabe, ohne KI-Feedback und bei einem ausgeblendeten älteren Erstversuch (lang: Gelb und Grün zusammengefasst), Legende, Hinweis und „Färbung aus“ (auch nach einem Neubau der Details); Blatt nur mit Weltkarten ohne Tippzeiten-Kasten", async ({ browser, request }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -4726,6 +4736,20 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   expect(first.typing.answers.map((a) => a.final)).toEqual([null, null]);
   expect(codesOf(first.typing.answers[0].first)).toEqual([...EXP1, ...W]);
   expect(codesOf(first.typing.answers[1].first)).toEqual(EXP2);
+  // die Lehrkraft sieht den Erstversuch: nur die erste Fassung mit ihrem Rot-Anteil (zweite Spalte „noch nicht überarbeitet“)
+  const ZERO = "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur oder Diktat).";
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Erstversuch ohne Überarbeitung");
+  await expect(tp.locator("#t-tt")).toBeVisible();
+  await tp.locator("#t-subs-body tr.main").first().click();
+  const detF = tp.locator("#t-subs-body tr.details:visible"), dtF = (k) => detF.locator(".dtask").nth(k);
+  await expect(detF.locator(".dtt-sum")).toHaveText("Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 45 % (von 40 Zeichen)");
+  await expect(dtF(0).locator("table.cmp tbody td")).toHaveText([A1b, "(noch nicht überarbeitet)"]);
+  await expect(dtF(0).locator("table.cmp tbody td").first().locator(".tt-r")).toHaveText(["ortvorschlag"]);
+  await expect(dtF(0).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 41 % (von 29 Zeichen)");
+  await expect(dtF(1).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 55 % (von 11 Zeichen) – hoch. " + ZERO);
+  await expect(dtF(1).locator(".dtt .tt-high")).toHaveText(["erste Eingabe 55 % (von 11 Zeichen) – hoch"]);
   if (TT_KEEP) {
     // Neuladen nach dem KI-Feedback: die erste Fassung behält ihre Werte (Abgabe nach „Weiterschreiben“)
     d = await draftWhen((x) => x.firstSent === true && Array.isArray(x.typing && x.typing.first));
@@ -4791,8 +4815,20 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   // „ohne Messung“ (255, nie rot) – neu Getipptes wird weiter gemessen
   const d2 = await draftWhen((x) => x.answers[0] === "Kurz", p2);
   if (TT_KEEP) expect(codesOf(d2.typing.answers[0])).toEqual([71, 71, 71, 71]);
-  else expect(d2.typing).toBeUndefined();
+  else {
+    expect(d2.typing).toBeUndefined();
+    // ein Stand aus der Zeit mit Schalter an (Tippzeiten im Zwischenstand) – nach dem Speichern beim Verlassen der Seite nachgestellt
+    await p2.evaluate(() => window.addEventListener("beforeunload", () => {
+      const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")), d = JSON.parse(localStorage.getItem(k));
+      d.typing = { v: 1, answers: ["R0dHRw==", ""], first: null }; localStorage.setItem(k, JSON.stringify(d)); sessionStorage.setItem("tt-t", String(d.t));
+    }));
+  }
   await p2.reload();
+  if (!TT_KEEP) {   // … beim Laden der Seite sind die Tippzeiten weg, Text und Zeitpunkt bleiben (auch ohne „Weiterschreiben“)
+    const d2b = await draftOf(p2);
+    expect(d2b.typing).toBeUndefined();
+    expect([d2b.answers, String(d2b.t)]).toEqual([["Kurz", ""], await p2.evaluate(() => sessionStorage.getItem("tt-t"))]);
+  }
   await p2.click("#resume-btn");
   await expect(p2.locator("#screen-editor")).toHaveClass(/active/);
   await expect(p2.locator("#a-1")).toHaveValue("Kurz");
@@ -4812,17 +4848,39 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   expect(strip(e2)).toEqual(strip(e1));
   await closePage(s2);
 
+  /* ---------- Schüler:in 3: ohne KI-Feedback, ein Wort per Wortvorschlag → eine Fassung, Rot-Anteil hoch (auch über alle Aufgaben) ---------- */
+  const s3 = await openPage(browser);
+  const p3 = s3.page;
+  await enterCode(p3, shown);
+  await fillPerson(p3, { vorname: "vic", nachname: "vo", geb: "--05-06", klasse: "7a" });
+  await p3.click("#a-1");
+  await p3.keyboard.insertText("Vorschlag");
+  await p3.click("#submit-btn");
+  await confirmDialog(p3, "Ohne KI-Feedback abgeben?");
+  await expect(p3.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await closePage(s3);
+
+  // ein älterer Erstversuch von Schüler:in 1 (z. B. auf einem anderen Gerät), sehr lang und im üblichen Tempo getippt: mehr Farbwechsel,
+  // als die Ansicht zeigt → Gelb und Grün zusammengefasst (grün) mit Hinweis, nie „ohne Messung“
+  const pub = (await (await request.get("/api/sheet/" + code)).json()).sheet.publicKey;
+  const LONG = "ab".repeat(1100), nowIso = new Date().toISOString();
+  const olderPayload = { v: 1, stage: "first", sheetCode: code, sheetTitle: "Tippzeiten", person: { vorname: "Tim", nachname: "Ti", geburtsdatum: "--01-02", klasse: "7a" },
+    answers: [{ first: LONG, final: null }, { first: "", final: null }], feedback: [{ covered: ["Ein Satz"], missing: [] }, { covered: [], missing: ["Haus"] }],
+    feedbackAt: nowIso, submittedAt: null,
+    typing: { v: 1, answers: [{ first: Buffer.from(Array.from(LONG, (_, x) => (x % 2 ? 30 : 71))).toString("base64"), final: null }, { first: "", final: null }] } };
+  expect((await request.post("/api/submit", { data: { code, stage: "first", attempt: "00112233445566aa", envelope: await makeEnvelope(pub, olderPayload) } })).status()).toBe(200);
+
   /* ---------- Lehrkraft: Textmarker, Rot-Anteile, Legende, Hinweis, „Färbung aus“ ---------- */
-  await tp.click("#b-res-back");
+  await tp.click("#t-refresh");
   await expect(tp.locator("#t-sel-code")).toHaveText(shown);
-  await expect(tp.locator("#t-subs-sum")).toHaveText("2 Abgaben");
+  await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben · 1 älterer Erstversuch von Schüler:innen, die inzwischen abgegeben haben, wird nicht angezeigt");
   await expect(tp.locator("#t-tt")).toBeVisible();
   await expect(tp.locator("#t-tt-legend")).toHaveText("Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): rot (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat) · gelb = über 15 bis 70 ms · grün = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).");
-  await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung ist ein Indiz, kein Beweis: Rot entsteht auch beim selbstständigen Schreiben – etwa durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten –, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.");
+  await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.");
   const off = tp.locator("#t-tt-off");
   await expect(off).toHaveAttribute("aria-pressed", "false");
   const mains = tp.locator("#t-subs-body tr.main");
-  await expect(mains).toHaveCount(2);
+  await expect(mains).toHaveCount(3);
   await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Ti", "Tim", "02.01.", "7a"]);
   expect(await tp.locator("#t-subs-body").textContent()).not.toContain("%");   // der Rot-Anteil steht nie in der Liste
   await mains.nth(0).click();
@@ -4847,6 +4905,17 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await expect(dt(1).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 55 % (von 11 Zeichen) – hoch · nach dem KI-Feedback 55 % (von 11 Zeichen) – hoch. Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur oder Diktat).");
   await expect(dt(1).locator(".dtt .tt-high")).toHaveText(["erste Eingabe 55 % (von 11 Zeichen) – hoch", "nach dem KI-Feedback 55 % (von 11 Zeichen) – hoch"]);
   expect(await dt(1).locator(".dtt .tt-high").first().evaluate((e) => getComputedStyle(e).color)).toBe(RED);
+  // der ausgeblendete ältere Erstversuch: gemessen, aber zu viele Wechsel für die Anzeige → grün zusammengefasst, mit Hinweis
+  const older = det.locator("details.dolder");
+  await expect(older.locator("summary")).toHaveText("1 älterer Erstversuch dieser Person (in der Liste ausgeblendet)");
+  await older.locator("summary").click();
+  const olderBox = older.locator(".detbox.older");
+  await expect(older.locator(".detbox.older > .dtt-sum")).toHaveText("Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 0 % (von 2.200 Zeichen)");
+  await expect(olderBox.locator(".dtask").nth(0).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 0 % (von 2.200 Zeichen). Wegen der Länge sind Gelb und Grün in der Färbung zusammengefasst (beides grün).");
+  await expect(olderBox.locator(".dtask").nth(0).locator("table.cmp tbody td").first().locator(".tt-g")).toHaveText([LONG]);
+  await expect(olderBox.locator(".tt-y, .tt-r")).toHaveCount(0);
+  await expect(olderBox.locator(".dtask").nth(1).locator(".dtt")).toHaveCount(0);   // leere Antwort: keine Zeile
+  await older.locator("summary").click();
   const red = dt(0).locator(".tt-r").first();
   const look = (loc) => loc.evaluate((e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.textDecorationLine]; });
   expect(await look(red)).toEqual(["rgb(255, 196, 189)", "underline"]);   // Rot nicht nur über die Farbe: unterstrichen
@@ -4859,8 +4928,18 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   expect(await look(red)).toEqual(["rgba(0, 0, 0, 0)", "none"]);
   expect(await td1.nth(1).textContent()).toBe(A1c);
   expect(await tp.locator("#t-tt-legend .tt-r").evaluate((e) => getComputedStyle(e).backgroundColor)).toBe("rgb(255, 196, 189)");
+  // aufgeklappte Details werden neu gebaut (renderRetentionHint – hier über „Datenschutz und Löschfrist“ und zurück): auch dann ohne Farben
+  const builtBefore = await dt(0).elementHandle();
+  await tp.click("#t-privacy");
+  await expect(tp.locator("#pv-days")).toBeEnabled();
+  await tp.click("#pv-back");
+  await expect(tp.locator("#t-subs")).toBeVisible();
+  expect(await builtBefore.evaluate((e) => e.isConnected)).toBe(false);   // wirklich neu gebaut
+  await expect(dt(0).locator(".dtt")).toHaveCount(1);
+  expect(await look(dt(0).locator(".tt-r").first())).toEqual(["rgba(0, 0, 0, 0)", "none"]);
+  expect(await td1.nth(1).textContent()).toBe(A1c);
   await tp.click("#t-refresh");
-  await expect(mains).toHaveCount(2);
+  await expect(mains).toHaveCount(3);
   await expect(off).toHaveAttribute("aria-pressed", "true");
   await expect(tp.locator("#t-subs")).toHaveClass(/\btt-off\b/);
   await off.click();
@@ -4873,6 +4952,36 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await expect(det2.locator(".dtt")).toHaveCount(0);
   await expect(det2.locator(".tt-r, .tt-y, .tt-g")).toHaveCount(0);
   expect(await det2.locator("table.cmp.one tbody td").first().textContent()).toBe("Kurz da");
+  // Schüler:in 3 (ohne KI-Feedback): eine Spalte, eine Zeile ohne Bezeichnung; hoch – auch die Gesamtzeile rot und fett hervorgehoben
+  await mains.nth(2).click();
+  const det3 = tp.locator("#t-subs-body tr.details:visible").filter({ hasText: "Vorschlag" });
+  await expect(det3.locator("table.cmp.one tbody td").first().locator(".tt-r")).toHaveText(["orschlag"]);
+  await expect(det3.locator("table.cmp.one tbody td").first().locator(".tt-g")).toHaveText(["V"]);
+  await expect(det3.locator(".dtask").nth(0).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: 89 % (von 9 Zeichen) – hoch. " + ZERO);
+  await expect(det3.locator(".dtask").nth(1).locator(".dtt")).toHaveCount(0);
+  await expect(det3.locator(".dtt-sum")).toHaveText("Tippzeiten – Rot-Anteil über alle Aufgaben: 89 % (von 9 Zeichen) – hoch. " + ZERO);
+  const sumHigh = det3.locator(".dtt-sum .tt-high");
+  await expect(sumHigh).toHaveText(["89 % (von 9 Zeichen) – hoch"]);
+  expect(await sumHigh.evaluate((e) => [getComputedStyle(e).color, getComputedStyle(e).fontWeight])).toEqual([RED, "700"]);
+  // Blatt nur mit Weltkarten (hier per Antwort des Servers nachgestellt): dort wird nie gemessen – kein Tippzeiten-Kasten, keine Zeilen
+  const sheetUrl = "**/api/teacher/sheets/" + code;
+  const mapOnly = async (route) => {
+    const res = await route.fetch(), j = await res.json();
+    j.sheet.tasks = j.sheet.tasks.map((x) => ({ ...x, answer: { type: "map", map: "world", items: [{ id: "x", label: "X", countries: [{ id: "276", name: "Deutschland" }] }] } }));
+    await route.fulfill({ response: res, json: j });
+  };
+  await tp.route(sheetUrl, mapOnly);
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(mains).toHaveCount(3);
+  await expect(tp.locator("#t-subs-legend")).toBeVisible();
+  await expect(tp.locator("#t-tt")).toBeHidden();
+  await mains.nth(0).click();
+  await expect(tp.locator("#t-subs-body tr.details:visible .dtask")).toHaveCount(2);
+  await expect(tp.locator("#t-subs-body .dtt-sum, #t-subs-body .dtt, #t-subs-body .tt-r, #t-subs-body .tt-g")).toHaveCount(0);
+  await tp.unroute(sheetUrl, mapOnly);
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(mains).toHaveCount(3);
+  await expect(tp.locator("#t-tt")).toBeVisible();
   // aufräumen
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");

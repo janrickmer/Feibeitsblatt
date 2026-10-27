@@ -646,7 +646,7 @@
   .btn.ghost[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--paper2)}   /* gedrückt (Färbung ist aus): gefüllt */
   .btn.ghost[aria-pressed="true"]:hover{background:#332e25}
   .dtt{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:6px 0 0}
-  .dtt .tt-high{color:var(--red); font-weight:700}
+  .dtt .tt-high,.dtt-sum .tt-high{color:var(--red); font-weight:700}
   .dtt-sum{font-family:var(--sans); font-size:13px; margin:-4px 0 12px}
   @media (forced-colors: active){ .tt-r,.tt-y,.tt-g{forced-color-adjust:none} }
   .dangerzone{margin-top:34px; padding-top:20px; border-top:1px solid var(--line); display:flex; flex-direction:column; align-items:flex-start; gap:12px}
@@ -1080,7 +1080,7 @@
         <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
         <div class="ttbox hidden" id="t-tt">
           <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
-          <p class="tthint" id="t-tt-hint">Die Färbung ist ein Indiz, kein Beweis: Rot entsteht auch beim selbstständigen Schreiben – etwa durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten –, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.</p>
+          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.</p>
           <button type="button" class="btn ghost small" id="t-tt-off" aria-pressed="false">Färbung aus</button>
         </div>
         <p class="status" id="t-subs-status" aria-live="polite"></p>
@@ -1584,8 +1584,8 @@ const TT_SLOW = 71, TT_NONE = 255;            // 71 = mehr als 70 ms bzw. erstes
 const TT_HIGH_PCT = 50;                       // Rot-Anteil ab 50 % hervorheben (>=, wie im Check)
 const TT_MAX_LEN = 8100, TT_B64_MAX = 10800;  // Text wie die Kappung in loadSubs (MAX_ANSWER + 100), Base64 = 4·⌈8100/3⌉
 const TT_ENV_MAX = 400 * 1024;                // = LIMITS.envelopeBytes (worker/lib.js) – der Unit-Test vergleicht
-const TT_UNDO_MAX = 20, TT_UNDO_CHARS = 4000; // Puffer gelöschter Abschnitte für Rückgängig/Wiederholen
-const TT_SEG_MAX = 2000;                      // mehr Farbabschnitte in einer Antwort bzw. Zelle → nur Rot markieren, notfalls gar nichts
+const TT_UNDO_MAX = 20, TT_UNDO_CHARS = 2 * TT_MAX_LEN;   // Puffer gelöschter Abschnitte für Rückgängig/Wiederholen (der neueste bleibt immer)
+const TT_SEG_MAX = 2000;                      // mehr Farbabschnitte in einer Antwort bzw. Zelle → Gelb und Grün zusammen, dann nur Rot, notfalls nichts
 /* Schalter: false = Tippzeiten nur im Arbeitsspeicher, nie im Zwischenstand (Gerät, heldDrafts, Zwischenstand-PDF) – nach Neuladen
    oder Import gilt der wiederhergestellte Text dann als „ohne Messung“. Erstversuch und Abgabe tragen sie in beiden Fällen. */
 const TT_KEEP_IN_DRAFT = true;
@@ -1646,7 +1646,8 @@ function ttApply(tt, next, now, type, caret) {
     else if (tt.lastDel && !m && last && d.at === last.at) { last.text += text; last.recs = last.recs.concat(recs); }
     else tt.undo.push({ at: d.at, text, recs });
     let chars = 0; for (const u of tt.undo) chars += u.text.length;
-    while (tt.undo.length > TT_UNDO_MAX || (tt.undo.length && chars > TT_UNDO_CHARS)) chars -= tt.undo.shift().text.length;
+    // gekappt wird von den ältesten her – den neuesten Abschnitt nie (sonst wäre ein großes Rückgängig rot: Strg+A, Entf, Strg+Z)
+    while (tt.undo.length > TT_UNDO_MAX || (tt.undo.length > 1 && chars > TT_UNDO_CHARS)) chars -= tt.undo.shift().text.length;
   }
   tt.lastDel = d.del > 0 && !m;
   tt.recs = tt.recs.slice(0, d.at).concat(add, tt.recs.slice(d.at + d.del));
@@ -1713,32 +1714,44 @@ function ttGraphemes(text) {
   return out;
 }
 /* Anzeige: Läufe gleicher Klasse [{s, c}] (c = "r" | "y" | "g" | "" ohne Färbung), nie mitten im Graphem; Leerraum ohne Färbung,
-   aber Leerzeichen zwischen zwei Graphemen gleicher Klasse übernehmen sie (durchgehender Textmarker), \n trennt immer. Mehr als
-   max Läufe (zu viele Elemente, z. B. manipulierte Daten) → nur Rot, notfalls gar keine Färbung. Verkettet ergeben sie text. */
-function ttSegments(text, codes, max) {
+   aber Leerzeichen zwischen zwei Graphemen gleicher Klasse übernehmen sie (durchgehender Textmarker), \n trennt immer. Verkettet
+   ergeben sie text. Mehr als max Läufe (zu viele Elemente: sehr lange Antworten – 70 ms liegt im üblichen Tipptempo, Gelb und Grün
+   wechseln oft – oder manipulierte Daten) → stufenweise einfacher: cut 1 = Gelb und Grün zusammen als Grün, 2 = nur Rot, 3 = keine
+   Färbung (ttCutNote sagt es in der Zeile zum Rot-Anteil). → {segs, cut} */
+const TT_CUT_MAPS = [(c) => c, (c) => (c === "y" ? "g" : c), (c) => (c === "r" ? c : "")];
+function ttSegmentsCut(text, codes, max) {
   text = String(text == null ? "" : text);
-  if (!text) return [];
-  if (!codes || codes.length !== text.length) return [{ s: text, c: "" }];
-  const lim = max || TT_SEG_MAX, gs = ttGraphemes(text), n = gs.length - 1, cls = new Array(n);
+  if (!text) return { segs: [], cut: 0 };
+  if (!codes || codes.length !== text.length) return { segs: [{ s: text, c: "" }], cut: 0 };
+  const lim = max || TT_SEG_MAX, gs = ttGraphemes(text), n = gs.length - 1, base = new Array(n);
   const space = (k) => text.charCodeAt(gs[k]) === 32 && gs[k + 1] - gs[k] === 1;
-  for (let k = 0; k < n; k++) cls[k] = ttWs(text.charCodeAt(gs[k])) ? "" : ttClass(codes[gs[k]]);
-  for (let k = 0; k < n;) {
-    if (!space(k)) { k++; continue; }
-    let e = k; while (e < n && space(e)) e++;
-    if (k > 0 && e < n && cls[k - 1] && cls[k - 1] === cls[e]) for (let x = k; x < e; x++) cls[x] = cls[e];
-    k = e;
-  }
-  const build = (only) => {
+  for (let k = 0; k < n; k++) base[k] = ttWs(text.charCodeAt(gs[k])) ? "" : ttClass(codes[gs[k]]);
+  const build = (map) => {
+    const cls = base.map(map);
+    for (let k = 0; k < n;) {
+      if (!space(k)) { k++; continue; }
+      let e = k; while (e < n && space(e)) e++;
+      if (k > 0 && e < n && cls[k - 1] && cls[k - 1] === cls[e]) for (let x = k; x < e; x++) cls[x] = cls[e];
+      k = e;
+    }
     const out = [];
-    for (let k = 0; k < n; k++) {
-      const c = only && cls[k] !== only ? "" : cls[k], s = text.slice(gs[k], gs[k + 1]), last = out[out.length - 1];
+    for (let k = 0; k < n && out.length <= lim; k++) {
+      const c = cls[k], s = text.slice(gs[k], gs[k + 1]), last = out[out.length - 1];
       if (last && last.c === c) last.s += s; else out.push({ s, c });
     }
     return out;
   };
-  let segs = build("");
-  if (segs.length > lim) segs = build("r");
-  return segs.length > lim ? [{ s: text, c: "" }] : segs;
+  for (let cut = 0; cut < TT_CUT_MAPS.length; cut++) { const segs = build(TT_CUT_MAPS[cut]); if (segs.length <= lim) return { segs, cut }; }
+  return { segs: [{ s: text, c: "" }], cut: TT_CUT_MAPS.length };
+}
+const ttSegments = (text, codes, max) => ttSegmentsCut(text, codes, max).segs;
+/* Zeile zum Rot-Anteil (Stücke wie ttSummary) + Hinweis, wenn die Färbung wegen der Länge vereinfacht ist (cut wie ttSegmentsCut) */
+const TT_CUT_NOTES = ["", "Wegen der Länge sind Gelb und Grün in der Färbung zusammengefasst (beides grün).",
+  "Wegen der Länge ist in der Färbung nur Rot markiert.", "Wegen der Länge ist diese Antwort nicht gefärbt."];
+function ttCutNote(pieces, cut) {
+  const note = TT_CUT_NOTES[cut];
+  if (!note || !Array.isArray(pieces) || !pieces.length) return pieces;
+  return pieces.concat([{ t: (/\.$/.test(pieces[pieces.length - 1].t) ? " " : ". ") + note, high: false }]);
 }
 /* Anteile über mehrere Texte: list = [[text, codes | null]] → {n (gemessen), r, y, g, zero (rot mit 0 ms), none (ohne Messung), pct}
    je Graphem ohne Leerraum mit dem Wert seiner ersten Einheit; pct = Rot-Anteil in ganzen Prozent (null ohne Messung) */
@@ -1831,6 +1844,13 @@ const ttHasData = (t) => !!(t && Array.isArray(t.answers) && t.answers.some((a) 
 function ttDraftOut(answers, first, keep = TT_KEEP_IN_DRAFT) {
   return keep && Array.isArray(answers) ? { v: 1, answers, first: Array.isArray(first) ? first : null } : null;
 }
+/* Gespeicherter Zwischenstand (geparst) aus einer Zeit, als TT_KEEP_IN_DRAFT noch true war: ohne den Schalter die Tippzeiten daraus
+   entfernen (cleanupDrafts beim Laden der Seite – auch für Stände, die nie wieder geöffnet werden) → true, wenn d geändert wurde */
+function ttDraftStrip(d, keep = TT_KEEP_IN_DRAFT) {
+  if (keep || !d || typeof d !== "object" || Array.isArray(d) || !Object.prototype.hasOwnProperty.call(d, "typing")) return false;
+  delete d.typing;
+  return true;
+}
 /* Gelesener Zwischenstand → {v:1, answers: [B|null], first: [B|null] | null} | null; je Antwort nur Base64, die genau zum Text
    passt (answers bzw. first = die schon gekappten Texte); ohne TT_KEEP_IN_DRAFT immer null („ohne Messung“) */
 function ttCleanDraft(t, answers, first, keep = TT_KEEP_IN_DRAFT) {
@@ -1885,6 +1905,36 @@ function ttSummary(head, parts) {
     out.push({ t: (p.label ? p.label + " " : "") + ttPctText(o), high: hi });
   });
   if (r && z / r >= 0.9) out.push({ t: ". " + TT_ZERO_NOTE, high: false });
+  return out;
+}
+/* Tippzeiten einer Abgabe für die Details der Lehrkraft (erst beim Aufklappen dekodiert): p = gekappte Nutzlast (typing aus
+   ttCleanPayload), types = Antwortart je Aufgabe ("text" | "table" | "map"), n Aufgaben. → {sum, per: [{first, fin, line}]}: je Aufgabe
+   die Werte beider Fassungen (null = ohne Messung) und die Zeile zum Rot-Anteil (Stücke wie ttSummary, null bei leerer Antwort), dazu
+   die Zeile über alle Aufgaben – keine bei Blättern nur mit Weltkarten (dort wird nichts gemessen). Ohne KI-Feedback (noFb) eine
+   Fassung ohne Bezeichnung (die abgegebene), beim Erstversuch nur die erste. Der Rot-Anteil steht nie in der Liste. */
+function ttDetail(p, types, n, isFirst, noFb) {
+  const specs = Array.from({ length: n }, (_, i) => (types && types[i]) || "text");
+  const out = { sum: null, per: specs.map(() => ({ first: null, fin: null, line: null })) };
+  if (!specs.some((t) => t !== "map")) return out;
+  const ty = p.typing, one = (t) => [{ t, high: false }];
+  if (!ty) { out.sum = one("Tippzeiten: ohne Messung (älterer Stand)."); return out; }
+  if (ty.omitted) { out.sum = one(ty.omitted === "too_large" ? "Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen." : "Tippzeiten: nicht übermittelt (technischer Fehler beim Senden)."); return out; }
+  const labels = (a, b) => (noFb ? [""] : isFirst ? [a] : [a, b]);   // ohne KI-Feedback eine Fassung, Erstversuch nur die erste
+  const both = (l, sF, sE) => l.map((label, k) => ({ label, share: noFb || k ? sE : sF }));
+  const allF = [], allE = [];
+  specs.forEach((type, i) => {
+    if (type === "map") return;
+    const a = (Array.isArray(p.answers) && p.answers[i]) || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
+    const L = ty.list && ty.list[i], tab = type === "table";
+    const finC = L ? ttDecode(L.final, fin) : null;
+    const firstC = L ? (L.first === "=" ? (first === fin ? finC : null) : ttDecode(L.first, first)) : null;
+    const pF = ttShareParts(first, firstC, tab), pE = ttShareParts(fin, finC, tab), per = out.per[i];
+    per.first = firstC; per.fin = finC;
+    const parts = both(labels("erste Eingabe", "nach dem KI-Feedback"), ttShare(pF), ttShare(pE));
+    if (parts.some((x) => x.share.n || x.share.none)) per.line = ttSummary("Tippzeiten – Rot-Anteil: ", parts);
+    allF.push(...pF); allE.push(...pE);
+  });
+  out.sum = ttSummary("Tippzeiten – Rot-Anteil über alle Aufgaben: ", both(labels("erste Fassung", "abgegebene Fassung"), ttShare(allF), ttShare(allE)));
   return out;
 }
 /* TYPING:END */
@@ -2540,19 +2590,20 @@ function mapLines(text) {   // → [{label, name}] und die Schlusszeile
 }
 /* Antwort mit Tippzeit-Färbung (Lehrkraft): Läufe gleicher Klasse als Textmarker (span.tt-r|tt-y|tt-g, ohne title/aria – die Zeile
    .dtt nennt den Rot-Anteil in Worten), ohne Messung und Leerraum als Textknoten; textContent bleibt genau der Text. Ohne Werte oder
-   bei einem Fehler: der Text als ein Textknoten wie bisher. */
-function ttDom(text, codes) {
+   bei einem Fehler: der Text als ein Textknoten wie bisher. info (optional): info.cut = stärkste Vereinfachung der Färbung (ttSegmentsCut) */
+function ttDom(text, codes, info) {
   text = String(text == null ? "" : text);
   if (!codes) return document.createTextNode(text);
   try {
-    const f = document.createDocumentFragment();
-    for (const x of ttSegments(text, codes)) f.appendChild(x.c ? h("span", { class: "tt-" + x.c, text: x.s }) : document.createTextNode(x.s));
+    const f = document.createDocumentFragment(), r = ttSegmentsCut(text, codes);
+    for (const x of r.segs) f.appendChild(x.c ? h("span", { class: "tt-" + x.c, text: x.s }) : document.createTextNode(x.s));
+    if (info && r.cut > (info.cut || 0)) info.cut = r.cut;
     return f;
   } catch (e) { return document.createTextNode(text); }
 }
 /* Antwort in der Lehrkraft-Ansicht: Tabelle als <table>, Weltkarte als Liste – nur über textContent; codes = Tippzeiten zur Textform
-   (Tabelle: je Zelle gefärbt, Kopf nie) oder null */
-function answerDom(text, spec, codes) {
+   (Tabelle: je Zelle gefärbt, Kopf nie) oder null; info wie bei ttDom */
+function answerDom(text, spec, codes, info) {
   const t = String(text || "");
   if (spec && spec.type === "table" && t.trim()) {
     let lines = null;
@@ -2562,7 +2613,7 @@ function answerDom(text, spec, codes) {
     const row = (c) => Array.from({ length: n }, (_, k) => c[k] || { v: "", codes: null });
     return h("div", { class: "tablew-scroll" }, [h("table", { class: "anstable ro" }, [
       h("thead", null, [h("tr", null, row(lines[0]).map((c) => h("th", { scope: "col", text: c.v })))]),
-      h("tbody", null, lines.slice(1, 1 + ANS_LIMITS.rows + 5).map((l) => h("tr", null, row(l).map((c) => (c.codes ? h("td", null, [ttDom(c.v, c.codes)]) : h("td", { text: c.v }))))))])]);
+      h("tbody", null, lines.slice(1, 1 + ANS_LIMITS.rows + 5).map((l) => h("tr", null, row(l).map((c) => (c.codes ? h("td", null, [ttDom(c.v, c.codes, info)]) : h("td", { text: c.v }))))))])]);
   }
   if (spec && spec.type === "map" && t.trim()) {
     const pairs = mapLines(t), last = t.split("\n").filter((l) => /^Zugeordnet: /.test(l)).pop();
@@ -4304,7 +4355,11 @@ function cleanupDrafts() {
   const limit = Date.now() - DRAFT_DAYS * 864e5;
   store.keys().forEach((k) => {
     if (!k || k.indexOf("feibeitsblatt:draft:") !== 0) return;
-    try { const d = JSON.parse(store.get(k)); if (!d || !(d.t > limit)) store.del(k); } catch (e) { store.del(k); }
+    try {
+      const d = JSON.parse(store.get(k));
+      if (!d || !(d.t > limit)) store.del(k);
+      else if (ttDraftStrip(d)) store.set(k, JSON.stringify(d));   // ohne TT_KEEP_IN_DRAFT: frühere Tippzeiten weg (Text und t bleiben)
+    } catch (e) { store.del(k); }
   });
   if (!lastSession()) store.del(LAST_KEY);
 }
@@ -5592,7 +5647,9 @@ function renderSubs() {
   $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : subsSummary(finals, firsts) +
     (hn ? ` · ${hn === 1 ? "1 älterer Erstversuch" : hn + " ältere Erstversuche"} von Schüler:innen, die inzwischen abgegeben haben, ${hn === 1 ? "wird" : "werden"} nicht angezeigt` : "");
   $("t-subs-legend").classList.toggle("hidden", n === 0);
-  $("t-tt").classList.toggle("hidden", n === 0);
+  // Tippzeiten-Kasten nur, wenn es etwas zu färben gibt: lesbare Einträge und eine Aufgabe, bei der gemessen wird (nicht nur Weltkarten)
+  const selTasks = (T.selSheet && T.selSheet.tasks) || [];
+  $("t-tt").classList.toggle("hidden", !T.subs.some((s) => s.p) || !(!selTasks.length || selTasks.some((t) => cleanAnswer(t.answer).type !== "map")));
   applyTtOff();
   renderRetentionHint();
   $("t-expand-all").textContent = "Alle aufklappen";
@@ -5639,34 +5696,6 @@ function noAiNote(p) {
   if (p.noAi === "declined") return "Ohne KI-Feedback abgegeben.";
   return "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich" + (p.feedbackError ? " (" + p.feedbackError + ")" : "") + ".";
 }
-/* Tippzeiten einer Abgabe für die Details (erst beim Aufklappen dekodiert): je Aufgabe die Werte beider Fassungen (null = ohne Messung)
-   und die Zeile zum Rot-Anteil (Stücke wie ttSummary, null bei leerer Antwort), dazu die Zeile über alle Aufgaben – keine bei Blättern
-   nur mit Weltkarten (dort wird nichts gemessen). Nur ein Anlass für ein Gespräch: der Rot-Anteil steht nie in der Liste. */
-function ttDetail(p, tasks, n, isFirst, noFb) {
-  const specs = Array.from({ length: n }, (_, i) => (tasks[i] ? cleanAnswer(tasks[i].answer) : { type: "text" }));
-  const out = { sum: null, per: specs.map(() => ({ first: null, fin: null, line: null })) };
-  if (!specs.some((sp) => sp.type !== "map")) return out;
-  const ty = p.typing, one = (t) => [{ t, high: false }];
-  if (!ty) { out.sum = one("Tippzeiten: ohne Messung (älterer Stand)."); return out; }
-  if (ty.omitted) { out.sum = one(ty.omitted === "too_large" ? "Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen." : "Tippzeiten: nicht übermittelt (technischer Fehler beim Senden)."); return out; }
-  const labels = (a, b) => (noFb ? [""] : isFirst ? [a] : [a, b]);   // ohne KI-Feedback eine Fassung, Erstversuch nur die erste
-  const both = (l, sF, sE) => l.map((label, k) => ({ label, share: noFb || k ? sE : sF }));
-  const allF = [], allE = [];
-  specs.forEach((spec, i) => {
-    if (spec.type === "map") return;
-    const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
-    const L = ty.list && ty.list[i], tab = spec.type === "table";
-    const finC = L ? ttDecode(L.final, fin) : null;
-    const firstC = L ? (L.first === "=" ? (first === fin ? finC : null) : ttDecode(L.first, first)) : null;
-    const pF = ttShareParts(first, firstC, tab), pE = ttShareParts(fin, finC, tab), per = out.per[i];
-    per.first = firstC; per.fin = finC;
-    const parts = both(labels("erste Eingabe", "nach dem KI-Feedback"), ttShare(pF), ttShare(pE));
-    if (parts.some((x) => x.share.n || x.share.none)) per.line = ttSummary("Tippzeiten – Rot-Anteil: ", parts);
-    allF.push(...pF); allE.push(...pE);
-  });
-  out.sum = ttSummary("Tippzeiten – Rot-Anteil über alle Aufgaben: ", both(labels("erste Fassung", "abgegebene Fassung"), ttShare(allF), ttShare(allE)));
-  return out;
-}
 const ttLineDom = (cls, pieces) => h("p", { class: cls }, pieces.map((x) => (x.high ? h("span", { class: "tt-high", text: x.t }) : x.t)));
 /* „Färbung aus“ (#t-tt-off, aria-pressed = Färbung ist aus): gilt für diese Sitzung und alle Details (Klasse an #t-subs – gebaute
    Details werden neu gebaut, z. B. von renderRetentionHint) */
@@ -5690,7 +5719,7 @@ function buildDetail(s, older) {
   if (grp) box.appendChild(h("p", { class: "dgroup", text: "Gruppenarbeit: " + p.person.gruppe.join(", ") }));
   const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
   let tt = null;   // Tippzeiten: ein Fehler kostet nur die Färbung und die Anteile, nie die Details
-  try { tt = ttDetail(p, tasks, n, isFirst, noFb); } catch (e) { tt = null; }
+  try { tt = ttDetail(p, Array.from({ length: n }, (_, i) => (tasks[i] ? cleanAnswer(tasks[i].answer).type : "text")), n, isFirst, noFb); } catch (e) { tt = null; }
   if (tt && tt.sum) box.appendChild(ttLineDom("dtt-sum", tt.sum));
   if (older) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: grp ? "Eine frühere Bearbeitung derselben Gruppe (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Gruppe inzwischen abgegeben hat."
@@ -5704,12 +5733,13 @@ function buildDetail(s, older) {
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
     const spec = tasks[i] ? cleanAnswer(tasks[i].answer) : { type: "text" }, ty = (tt && tt.per[i]) || { first: null, fin: null, line: null };
+    const info = { cut: 0 };   // Färbung wegen der Länge vereinfacht? (Hinweis in der Zeile zum Rot-Anteil)
     const cell = (txt, label, extra, pending, codes) => {
       const td = h("td", { "data-label": label });
       if (pending) td.appendChild(h("span", { class: "empty", text: "(noch nicht überarbeitet)" }));
       else if (txt.trim()) {   // mit Tippzeiten als Textmarker; bei einem Fehler wie bisher als reiner Text
         let node = null;
-        if (codes) { try { node = answerDom(txt, spec, codes) || ttDom(txt, codes); } catch (e) { node = null; } }
+        if (codes) { try { node = answerDom(txt, spec, codes, info) || ttDom(txt, codes, info); } catch (e) { node = null; } }
         td.appendChild(node || answerDom(txt, spec) || document.createTextNode(txt));
       } else td.appendChild(h("span", { class: "empty", text: "(leer)" }));
       if (extra) td.appendChild(extra);
@@ -5724,19 +5754,20 @@ function buildDetail(s, older) {
       if (f.note) fbEl.appendChild(h("p", { class: "fb-note", text: f.note }));
       else if (!f.covered.length && !f.missing.length) fbEl.appendChild(h("p", { class: "fb-note", text: "Keine Rückmeldung." }));
     }
+    const cmp = noFb ? h("table", { class: "cmp one" }, [   // zuerst die Zellen (sie melden info.cut), dann die Zeile zum Rot-Anteil
+      h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L0 })])]),
+      h("tbody", null, [h("tr", null, [cell(fin, L0, null, false, ty.fin)])])
+    ]) : h("table", { class: "cmp" }, [
+      h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
+      h("tbody", null, [h("tr", null, [cell(first, L1, null, false, ty.first), cell(fin, L2, !isFirst && first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null, isFirst, ty.fin)])])
+    ]);
     box.appendChild(h("div", { class: "dtask" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) + (spec.type === "text" ? "" : " · " + ANSWER_TYPE_LABEL[spec.type]) }),
       taskTextDom("p", { class: "dtask-text" }, tasks[i] ? tasks[i].text : "", tasks[i] && tasks[i].textFmt),
       tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
       tasks[i] ? teacherFiles(T.sel, tasks[i].files, i + 1) : null,
-      noFb ? h("table", { class: "cmp one" }, [
-        h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L0 })])]),
-        h("tbody", null, [h("tr", null, [cell(fin, L0, null, false, ty.fin)])])
-      ]) : h("table", { class: "cmp" }, [
-        h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
-        h("tbody", null, [h("tr", null, [cell(first, L1, null, false, ty.first), cell(fin, L2, !isFirst && first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null, isFirst, ty.fin)])])
-      ]),
-      ty.line ? ttLineDom("dtt", ty.line) : null,
+      cmp,
+      ty.line ? ttLineDom("dtt", ttCutNote(ty.line, info.cut)) : null,
       f ? fbEl : null
     ]));
   }

@@ -10,7 +10,7 @@ const block = html.slice(i, j);
 const NAMES = "TT_RED_MS, TT_YELLOW_MS, TT_SLOW, TT_NONE, TT_HIGH_PCT, TT_MAX_LEN, TT_B64_MAX, TT_ENV_MAX, TT_UNDO_MAX, TT_UNDO_CHARS, TT_SEG_MAX, " +
   "TT_KEEP_IN_DRAFT, cellText, tableText, tableRows, ttDiff, ttNew, ttApply, ttCodes, ttClass, ttEncode, ttDecode, ttGraphemes, ttSegments, " +
   "ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload, " +
-  "ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE";
+  "ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE, ttSegmentsCut, ttCutNote, TT_CUT_NOTES, ttDraftStrip, ttDetail";
 // Intl als Parameter: so lässt sich der Rückfall ohne Intl.Segmenter (Firefox vor Version 125) prüfen
 const load = (src, intl) => new Function("Intl", src + "\nreturn { " + NAMES + " };")(intl === undefined ? Intl : intl);
 const T = load(block);
@@ -18,7 +18,7 @@ const {
   TT_SLOW, TT_NONE, TT_B64_MAX, TT_ENV_MAX, TT_UNDO_MAX, TT_UNDO_CHARS, TT_SEG_MAX, TT_KEEP_IN_DRAFT,
   cellText, tableText, tableRows, ttDiff, ttNew, ttApply, ttCodes, ttClass, ttEncode, ttDecode, ttGraphemes, ttSegments,
   ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload,
-  ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE,
+  ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE, ttSegmentsCut, ttCutNote, TT_CUT_NOTES, ttDraftStrip, ttDetail,
 } = T;
 
 const codesOf = (tt) => Array.from(ttCodes(tt));
@@ -181,15 +181,45 @@ test("typing: Rückgängig/Wiederholen holen die alten Zeiten zurück, Puffer ge
   typeText(k, "abc", 0, 100);
   for (let x = 0; x < 25; x++) { ttApply(k, k.text + "x", 1000 + x * 10, "insertText"); ttApply(k, k.text.slice(0, -1), 1005 + x * 10, "deleteContentBackward"); }
   assert.equal(k.undo.length, TT_UNDO_MAX);
-  // … und höchstens TT_UNDO_CHARS Zeichen (ein zu großer Abschnitt wird gar nicht gemerkt)
+  // … und höchstens TT_UNDO_CHARS Zeichen – gekappt von den ältesten her, der neueste Abschnitt bleibt immer (auch allein zu groß)
+  assert.equal(TT_UNDO_CHARS, 2 * T.TT_MAX_LEN);
   const big = ttNew("y".repeat(TT_UNDO_CHARS + 1), null);
   ttApply(big, "", 1000, "deleteContentBackward");
-  assert.equal(big.undo.length, 0);
-  const two = ttNew("a".repeat(3000) + "b".repeat(2000), null);
-  ttApply(two, "a".repeat(3000), 1000, "deleteContentBackward");   // 2000 b
-  ttApply(two, "a".repeat(3000) + "c", 1001, "insertText");
-  ttApply(two, "c", 1002, "deleteContentBackward");                // 3000 a → zusammen 5000 > 4000
-  assert.deepEqual(two.undo.map((u) => u.text.length), [3000]);
+  assert.deepEqual(big.undo.map((u) => u.text.length), [TT_UNDO_CHARS + 1]);
+  const two = ttNew("a".repeat(9000) + "b".repeat(8000), null);
+  ttApply(two, "a".repeat(9000), 1000, "deleteContentBackward");   // 8000 b
+  ttApply(two, "a".repeat(9000) + "c", 1001, "insertText");
+  ttApply(two, "c", 1002, "deleteContentBackward");                // 9000 a → zusammen 17 000 > 16 200
+  assert.deepEqual(two.undo.map((u) => u.text.length), [9000]);
+  const pair = ttNew("a".repeat(5000) + "b".repeat(3000), null);   // zwei frühere Löschungen unter der Grenze bleiben beide
+  ttApply(pair, "a".repeat(5000), 1000, "deleteContentBackward");
+  ttApply(pair, "a".repeat(5000) + "c", 1001, "insertText");
+  ttApply(pair, "c", 1002, "deleteContentBackward");
+  assert.deepEqual(pair.undo.map((u) => u.text.length), [3000, 5000]);
+});
+
+test("typing: Rückgängig nach dem Löschen eines langen Textes (Strg+A, Entf, Strg+Z) und Wiederholen eines langen Blocks bleiben gemessen", () => {
+  // 4500 Zeichen langsam getippt (über der früheren Grenze von 4000 Zeichen), alles gelöscht, Rückgängig → wieder die alten Werte, kein Rot
+  const r = rng(7), long = Array.from({ length: 4500 }, () => pick(r, ["a", "b", "c", " ", "d", "e"])).join("");
+  const tt = ttNew("", null);
+  typeText(tt, long, 1000, 150);
+  const before = codesOf(tt);
+  ttApply(tt, "", 1e6, "deleteContentBackward");
+  ttApply(tt, long, 1e6 + 500, "historyUndo");
+  assert.deepEqual(codesOf(tt), before);
+  assert.equal(ttShare([[tt.text, ttCodes(tt)]]).r, 0);
+  // alles markiert und überschrieben, dann Rückgängig: der lange Text kommt mit seinen Werten zurück
+  ttApply(tt, "x", 2e6, "insertText");
+  ttApply(tt, long, 2e6 + 500, "historyUndo");
+  assert.deepEqual(codesOf(tt), before);
+  // Chrome: durchgehend getippter Text ist ein Rückgängig-Schritt – Strg+Z und gleich Strg+Y bei 8000 Zeichen (MAX_ANSWER)
+  const max = "w".repeat(LIMITS.answer), m = ttNew("", null);
+  typeText(m, max, 0, 100);
+  const mBefore = codesOf(m);
+  ttApply(m, "", 1e7, "historyUndo");
+  ttApply(m, max, 1e7 + 300, "historyRedo");
+  assert.deepEqual(codesOf(m), mBefore);
+  assert.equal(ttShare([[m.text, ttCodes(m)]]).pct, 0);
 });
 
 test("typing: Rückgängig holt auch eingefrorene Werte und ein ersetztes Wort zurück; Löschen mit Cursor trifft die gelöschte Stelle", () => {
@@ -350,12 +380,42 @@ test("typing: Abschnitte für die Anzeige – Verkettung = Text, Leerzeichen, \\
   assert.deepEqual(ttSegments("abc", null), [{ s: "abc", c: "" }]);
   assert.deepEqual(ttSegments("abc", new Uint8Array(2)), [{ s: "abc", c: "" }]);   // falsche Länge
   assert.deepEqual(ttSegments("", null), []);
-  // Obergrenze: zu viele Wechsel → nur Rot; immer noch zu viele → gar keine Färbung
+  // Obergrenze: zu viele Wechsel → Gelb und Grün zusammen (grün); dann nur Rot; immer noch zu viele → gar keine Färbung
   const yg = "abcdef", ygc = Uint8Array.from([30, 71, 30, 71, 0, 0]);
-  assert.deepEqual(ttSegments(yg, ygc, 3), [{ s: "abcd", c: "" }, { s: "ef", c: "r" }]);
+  assert.deepEqual(ttSegmentsCut(yg, ygc, 3), { segs: [{ s: "abcd", c: "g" }, { s: "ef", c: "r" }], cut: 1 });
+  assert.deepEqual(ttSegmentsCut(yg, ygc, 5), { segs: [{ s: "a", c: "y" }, { s: "b", c: "g" }, { s: "c", c: "y" }, { s: "d", c: "g" }, { s: "ef", c: "r" }], cut: 0 });
+  assert.deepEqual(ttSegments(yg, ygc, 3), [{ s: "abcd", c: "g" }, { s: "ef", c: "r" }]);
+  // ein Leerzeichen zwischen Gelb und Grün übernimmt nach dem Zusammenfassen die Klasse
+  assert.deepEqual(ttSegmentsCut("ab cd", Uint8Array.from([30, 30, 255, 71, 71]), 2), { segs: [{ s: "ab cd", c: "g" }], cut: 1 });
+  // \n trennt: zusammengefasst noch zu viele, nur Rot passt
+  assert.deepEqual(ttSegmentsCut("ab\ncd", Uint8Array.from([30, 0, 255, 71, 0]), 4), { segs: [{ s: "a", c: "" }, { s: "b", c: "r" }, { s: "\nc", c: "" }, { s: "d", c: "r" }], cut: 2 });
+  assert.deepEqual(ttSegmentsCut(yg, Uint8Array.from([0, 71, 0, 71, 0, 71]), 3), { segs: [{ s: yg, c: "" }], cut: 3 });
   assert.deepEqual(ttSegments(yg, Uint8Array.from([0, 71, 0, 71, 0, 71]), 3), [{ s: yg, c: "" }]);
+  assert.deepEqual(ttSegmentsCut("", null), { segs: [], cut: 0 });
+  assert.deepEqual(ttSegmentsCut("abc", null), { segs: [{ s: "abc", c: "" }], cut: 0 });
+  // lange, normal getippte Antwort ohne Rot mit mehr als TT_SEG_MAX Wechseln: gemessene Zeichen bleiben gefärbt (grün), nie „ohne Messung“
   const many = "ab".repeat(TT_SEG_MAX + 1), mc = Uint8Array.from({ length: many.length }, (_, x) => (x % 2 ? 30 : 71));
-  assert.deepEqual(ttSegments(many, mc), [{ s: many, c: "" }]);
+  assert.deepEqual(ttSegmentsCut(many, mc), { segs: [{ s: many, c: "g" }], cut: 1 });
+  // 8000 Zeichen mit Wörtern, Rot dazwischen: Verkettung bleibt der Text, Rot bleibt rot, nie mehr als TT_SEG_MAX Läufe
+  const r3 = rng(3);
+  let text = ""; const codes = [];
+  while (text.length < 8000) { const w = pick(r3, ["Haus", "Baum", "Tür", "Fenster"]); text += w + " "; codes.push(...Array.from(w, () => (r3() < 0.02 ? 0 : r3() < 0.3 ? 40 : 71)), 255); }
+  const res = ttSegmentsCut(text, Uint8Array.from(codes));
+  assert.equal(res.cut, 1);
+  assert.ok(res.segs.length <= TT_SEG_MAX);
+  assert.equal(res.segs.map((x) => x.s).join(""), text);
+  assert.ok(res.segs.every((x) => x.c !== "y"));
+  const reds = (segs) => segs.filter((x) => x.c === "r").map((x) => x.s.trim()).join("|");
+  assert.equal(reds(res.segs), reds(ttSegmentsCut(text, Uint8Array.from(codes), 1e6).segs));
+  // Hinweis in der Zeile zum Rot-Anteil
+  const line = [{ t: "Tippzeiten – Rot-Anteil: ", high: false }, { t: "0 % (von 4.002 Zeichen)", high: false }];
+  assert.equal(ttCutNote(line, 0), line);
+  assert.deepEqual(ttCutNote(line, 1).map((x) => x.t).join(""), "Tippzeiten – Rot-Anteil: 0 % (von 4.002 Zeichen). " + TT_CUT_NOTES[1]);
+  assert.equal(ttCutNote([{ t: "X 60 % – hoch. " + TT_ZERO_NOTE, high: false }], 2).map((x) => x.t).join(""), "X 60 % – hoch. " + TT_ZERO_NOTE + " " + TT_CUT_NOTES[2]);
+  assert.equal(ttCutNote(line, 3).at(-1).high, false);
+  assert.deepEqual(TT_CUT_NOTES.slice(1), ["Wegen der Länge sind Gelb und Grün in der Färbung zusammengefasst (beides grün).",
+    "Wegen der Länge ist in der Färbung nur Rot markiert.", "Wegen der Länge ist diese Antwort nicht gefärbt."]);
+  assert.equal(ttCutNote(null, 1), null);
 });
 
 test("typing: Rot-Anteil – je Graphem ohne Leerraum und ohne 255, gerundet, ab 50 % hoch", () => {
@@ -464,6 +524,20 @@ test("typing: Zwischenstand – nur passende Werte, Schalter TT_KEEP_IN_DRAFT", 
   assert.equal(off.ttDraftOut([a], [b]), null);
   assert.equal(off.ttCleanDraft({ v: 1, answers: [a] }, ["ab "], null), null);
   assert.deepEqual(off.ttDraftOut([a], null, true), { v: 1, answers: [a], first: null });   // ausdrücklich übergeben gilt weiter
+  // Stände aus der Zeit mit Schalter an: ohne Schalter werden ihre Tippzeiten beim Laden der Seite entfernt (Text und Zeitpunkt bleiben)
+  const old = () => ({ v: 1, t: 123, answers: ["ab "], typing: { v: 1, answers: [a], first: null } });
+  const d0 = old();
+  assert.equal(ttDraftStrip(d0, true), false);
+  assert.deepEqual(d0, old());
+  assert.equal(ttDraftStrip(d0), false);   // eingecheckt: true → nichts entfernen
+  assert.equal(off.ttDraftStrip(d0), true);
+  assert.deepEqual(d0, { v: 1, t: 123, answers: ["ab "] });
+  assert.equal(off.ttDraftStrip(d0), false);   // schon ohne: nichts zu tun (nicht neu speichern)
+  const d1 = old();
+  assert.equal(ttDraftStrip(d1, false), true);
+  assert.equal("typing" in d1, false);
+  for (const bad of [null, undefined, 5, "x", [], { v: 1, answers: [] }]) assert.equal(ttDraftStrip(bad, false), false);
+  assert.equal(ttDraftStrip({ typing: null }, false), true);   // auch ein leeres Feld fällt weg
 });
 
 test("typing: Nutzlast für die Lehrkraft – Form, „=“ nur bei gleichem Text, omitted, wirft nie", () => {
@@ -486,6 +560,52 @@ test("typing: Nutzlast für die Lehrkraft – Form, „=“ nur bei gleichem Tex
   assert.equal(ttHasData({ v: 1, answers: [{ first: null, final: null }] }), false);
   assert.equal(ttHasData({ v: 1, omitted: "too_large" }), false);
   assert.equal(ttHasData(null), false);
+});
+
+test("typing: Lehrkraft-Details – Abgabe, Erstversuch, ohne KI-Feedback, Weltkarten, ohne Messung, weggelassen", () => {
+  const join = (pieces) => (pieces ? pieces.map((x) => x.t).join("") : null);
+  const enc = (arr) => ttEncode(Uint8Array.from(arr));
+  // erste Fassung „abc“ (b rot), abgegebene „abcd“ (alles grün) → beide Teile mit Bezeichnung
+  const p = { answers: [{ first: "abc", final: "abcd" }, { first: "", final: "" }],
+    typing: { list: [{ first: enc([71, 0, 71]), final: enc([71, 71, 71, 71]) }, { first: "", final: "" }] } };
+  const fin = ttDetail(p, ["text", "text"], 2, false, false);
+  assert.equal(join(fin.sum), "Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 33 % (von 3 Zeichen) · abgegebene Fassung 0 % (von 4 Zeichen)");
+  assert.equal(join(fin.per[0].line), "Tippzeiten – Rot-Anteil: erste Eingabe 33 % (von 3 Zeichen) · nach dem KI-Feedback 0 % (von 4 Zeichen)");
+  assert.deepEqual(Array.from(fin.per[0].first), [71, 0, 71]);
+  assert.deepEqual(Array.from(fin.per[0].fin), [71, 71, 71, 71]);
+  assert.equal(fin.per[1].line, null);   // leere Antwort: keine Zeile
+  // Erstversuch: nur die erste Fassung (final ist leer)
+  const fp = { answers: [{ first: "abc", final: "" }, { first: "", final: "" }], typing: { list: [{ first: enc([71, 0, 71]), final: null }, { first: "", final: null }] } };
+  const first = ttDetail(fp, ["text", "text"], 2, true, false);
+  assert.equal(join(first.sum), "Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 33 % (von 3 Zeichen)");
+  assert.equal(join(first.per[0].line), "Tippzeiten – Rot-Anteil: erste Eingabe 33 % (von 3 Zeichen)");
+  // ohne KI-Feedback: eine Fassung ohne Bezeichnung – die abgegebene (auch wenn first abweicht)
+  const nf = { answers: [{ first: "abc", final: "abcd" }], typing: { list: [{ first: enc([0, 0, 0]), final: enc([71, 0, 0, 0]) }] } };
+  const one = ttDetail(nf, ["text"], 1, false, true);
+  assert.equal(join(one.per[0].line), "Tippzeiten – Rot-Anteil: 75 % (von 4 Zeichen) – hoch. " + TT_ZERO_NOTE);
+  assert.equal(join(one.sum), "Tippzeiten – Rot-Anteil über alle Aufgaben: 75 % (von 4 Zeichen) – hoch. " + TT_ZERO_NOTE);
+  assert.deepEqual(one.sum.filter((x) => x.high).map((x) => x.t), ["75 % (von 4 Zeichen) – hoch"]);   // auch in der Gesamtzeile markiert
+  // „=“: gleiche Werte wie die abgegebene Fassung, nur bei gleichem Text
+  const eq = { answers: [{ first: "ab", final: "ab" }], typing: { list: [{ first: "=", final: enc([71, 20]) }] } };
+  assert.deepEqual(Array.from(ttDetail(eq, ["text"], 1, false, false).per[0].first), [71, 20]);
+  const neq = { answers: [{ first: "ab", final: "abc" }], typing: { list: [{ first: "=", final: enc([71, 20, 71]) }] } };
+  assert.equal(ttDetail(neq, ["text"], 1, false, false).per[0].first, null);
+  // Tabelle: Kopf zählt nicht; Weltkarte wird übersprungen; nur Weltkarten → keine Zeilen
+  const tab = ttTableText(["A", "B"], [["xy", "z"]], [[Uint8Array.from([71, 0]), Uint8Array.from([71])]]);
+  const tp = { answers: [{ first: tab.text, final: tab.text }, { first: "Peru → Peru", final: "Peru → Peru" }],
+    typing: { list: [{ first: "=", final: ttEncode(tab.codes) }, { first: null, final: null }] } };
+  const tdet = ttDetail(tp, ["table", "map"], 2, false, false);
+  assert.equal(join(tdet.per[0].line), "Tippzeiten – Rot-Anteil: erste Eingabe 33 % (von 3 Zeichen) · nach dem KI-Feedback 33 % (von 3 Zeichen)");
+  assert.equal(tdet.per[1].line, null);
+  assert.equal(join(tdet.sum), "Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 33 % (von 3 Zeichen) · abgegebene Fassung 33 % (von 3 Zeichen)");
+  assert.deepEqual(ttDetail(tp, ["map", "map"], 2, false, false), { sum: null, per: [{ first: null, fin: null, line: null }, { first: null, fin: null, line: null }] });
+  // ohne Messung (ältere Stände), weggelassen, fehlende Antworten und Arten
+  assert.equal(join(ttDetail({ answers: [{ first: "a", final: "a" }], typing: null }, ["text"], 1, false, false).sum), "Tippzeiten: ohne Messung (älterer Stand).");
+  assert.equal(join(ttDetail({ answers: [], typing: { omitted: "too_large" } }, [], 1, false, false).sum), "Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.");
+  assert.equal(join(ttDetail({ answers: [], typing: { omitted: "error" } }, null, 1, false, false).sum), "Tippzeiten: nicht übermittelt (technischer Fehler beim Senden).");
+  const part = ttDetail({ answers: [{ first: "ab", final: "ab" }], typing: { list: [{ first: "=", final: null }] } }, ["text", "text"], 2, false, false);
+  assert.equal(join(part.per[0].line), "Tippzeiten – Rot-Anteil: erste Eingabe ohne Messung · nach dem KI-Feedback ohne Messung");
+  assert.equal(part.per[1].line, null);
 });
 
 test("typing: Lehrkraft – Anteile ohne Tabellenkopf, Rot-Anteil in Worten, Hinweis bei Zeichen aus einem Zug", () => {
