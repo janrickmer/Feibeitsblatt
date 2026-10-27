@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { LIMITS } from "../../worker/lib.js";
+import { LIMITS, REPLACE_WINDOW_MS } from "../../worker/lib.js";
 
 const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
 const i = html.indexOf("/* TYPING:BEGIN"), j = html.indexOf("/* TYPING:END */");
@@ -730,21 +730,32 @@ test("typing: Kurzfassungen nennen die Messung in genau einem neutralen Satz (TT
   const ed = code(body("function renderPrivacy()", 'const full = $("privfull-ed")'));
   assert.equal(ed.split(SHORT_EXPR).length - 1, 1);
   assert.doesNotMatch(ed.replace(SHORT_EXPR, ""), /Tippzeit|misst|Messung|[Ww]idersprech|Widerspruch|Schalter|\bTT_|ttMeasured|typing/);
-  // § 25 TDDDG: nur die Tatsache (Zugriff auf das Gerät) – keine behauptete Ausnahme, keine Einwilligung; Zwischenstand nur mit keep
+  // § 25 TDDDG: nur die Tatsache (Zugriff auf das Gerät) – keine behauptete Ausnahme, keine Einwilligung; Zwischenstand nur mit keep;
+  // mit KI-Feedback (ai, Vorgabe) auch, dass die Seite sie nach der Abgabe hält, bis die zweite Rückmeldung nachgereicht ist (sendFeedback2)
+  const HELD = (g) => ` (und, wenn die KI-Rückmeldung zu ${g ? "eurer" : "deiner"} abgegebenen Fassung noch nachgereicht wird, bis dahin)`;
   for (const g of [false, true]) {
-    const a1 = on.TT_ACCESS(g), a0 = off.TT_ACCESS(g);
-    for (const x of [a1, a0]) {
-      assert.match(x, /^Für die Tippzeiten liest diese Seite beim Schreiben in (deinem|eurem) Browser die Zeitpunkte (deiner|eurer) Eingaben aus/);
-      assert.match(x, /bis zur Abgabe im Arbeitsspeicher/);
-      assert.match(x, /\(nach einem Widerspruch nicht mehr\) – das ist ein Zugriff auf (dein|euer) Gerät im Sinne von § 25 TDDDG\.$/);
-      assert.doesNotMatch(x, /unbedingt erforderlich|Einwilligung|Abs\. [12]|Ausnahme|zulässig/);
-      assert.doesNotMatch(x, g ? /\b(du|dein\w*|dir|dich)\b/i : /\b(ihr|euer|eure\w*|euch)\b/i);
+    for (const ai of [true, false]) {
+      const a1 = on.TT_ACCESS(g, true, ai), a0 = off.TT_ACCESS(g, false, ai);
+      for (const x of [a1, a0]) {
+        assert.match(x, /^Für die Tippzeiten liest diese Seite beim Schreiben in (deinem|eurem) Browser die Zeitpunkte (deiner|eurer) Eingaben aus/);
+        assert.ok(x.includes("bis zur Abgabe" + (ai ? HELD(g) : "") + " im Arbeitsspeicher"), x);
+        assert.equal(x.includes("nachgereicht"), ai, x);
+        assert.match(x, /\(nach einem Widerspruch nicht mehr\) – das ist ein Zugriff auf (dein|euer) Gerät im Sinne von § 25 TDDDG\.$/);
+        assert.doesNotMatch(x, /unbedingt erforderlich|Einwilligung|Abs\. [12]|Ausnahme|zulässig/);
+        assert.doesNotMatch(x, g ? /\b(du|dein\w*|dir|dich)\b/i : /\b(ihr|euer|eure\w*|euch)\b/i);
+      }
+      assert.match(a1, /Zwischenstand/);
+      assert.ok(a1.includes(`speichert die Tippzeiten bis ${ai ? "zur Abgabe" : "dahin"} auch in ${g ? "eurem" : "deinem"} Zwischenstand`), a1);
+      assert.doesNotMatch(a0, /Zwischenstand/);
     }
-    assert.match(a1, /Zwischenstand/);
-    assert.doesNotMatch(a0, /Zwischenstand/);
+    assert.equal(on.TT_ACCESS(g), on.TT_ACCESS(g, true, true));   // Vorgabe: Blatt mit KI-Feedback
+    assert.equal(B.TT_ACCESS(g), B.TT_ACCESS(g, TT_KEEP_IN_DRAFT, true));
   }
-  assert.equal(off.TT_ACCESS(false), "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher " +
+  assert.equal(off.TT_ACCESS(false), "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe " +
+    "(und, wenn die KI-Rückmeldung zu deiner abgegebenen Fassung noch nachgereicht wird, bis dahin) im Arbeitsspeicher " +
     "(nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");
+  assert.equal(off.TT_ACCESS(false, false, false), "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher " +
+    "(nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");   // Blatt ohne KI-Feedback: wie bisher
   // … und nach einem Widerspruch liest die Seite wirklich keine Zeitpunkte mehr (Capture-Listener „input“, ttSync)
   assert.ok(html.includes("if (!S.ttOptOut) { ta._evType = e.inputType || \"\"; ta._evTs = performance.now(); }"));
   assert.ok(html.includes("if (S.ttOptOut) { el._evTs = el._evType = undefined; return; }"));
@@ -754,7 +765,7 @@ test("typing: Kurzfassungen nennen die Messung in genau einem neutralen Satz (TT
   for (const x of ["TT_PURPOSE(g)", "TT_SWITCH_DU", "TT_SWITCH_IHR", "mit ihren Tippzeiten", "Sie sieht auch die Tippzeiten", "(samt Tippzeiten)",
     "Die Tippzeiten gehören zu", "Die Tippzeiten misst diese Seite, solange", "(siehe „${TT_OBJ_HEAD}“)", "– siehe „${TT_OBJ_HEAD}“. "]) assert.ok(full.includes(x), x);
   const at = (x) => { const k = full.indexOf(x); assert.ok(k > 0, x); assert.equal(full.indexOf(x, k + 1), -1, x); return k; };
-  const order = ['head("Welche Daten?")', "tt ? para(TT_ACCESS(g)) : null", 'head("Wer bekommt die Daten?")', 'head(t("Entscheidet die KI über dich?"',
+  const order = ['head("Welche Daten?")', "tt ? para(TT_ACCESS(g, TT_KEEP_IN_DRAFT, withAi)) : null", 'head("Wer bekommt die Daten?")', 'head(t("Entscheidet die KI über dich?"',
     "tt ? head(TT_OBJ_HEAD) : null", "tt ? ttSwitchDom(o, g, withAi) : null", 'head(t("Deine Rechte", "Eure Rechte"))'].map(at);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.equal(full.indexOf("ttSwitchDom", order[5] + "tt ? ttSwitchDom".length), -1);   // der Schalter steht nicht (mehr) unter „Deine Rechte“
@@ -830,4 +841,35 @@ test("typing: Datenschutzhinweis – Wirkung und Geltungsbereich des Schalters f
   assert.equal(on.TT_SWITCH_EFFECT(false, true), "Setzt du den Haken, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen – auch in deinem Zwischenstand. " +
     "Einen schon an deine Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten; die alte Fassung bleibt verschlüsselt noch bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage) in der Datensicherung der Datenbank. " +
     "Bei deiner Abgabe sieht deine Lehrkraft dann „ohne Messung (widersprochen)“ – das ist dein Recht und für deine Lehrkraft kein Anlass für einen Verdacht. Nimmst du den Haken wieder weg, misst die Seite erst ab dann wieder.");
+});
+
+test("typing: nach der Abgabe – die angenommene Nutzlast (mit Tippzeiten) nur getrennt von S.lastSubmission und nur, bis die zweite Rückmeldung nachgereicht ist", () => {
+  const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
+  // höchstens so lange, wie der Server ein Nachreichen annimmt
+  assert.match(html, /const FB2_HOLD_MS = 15 \* 60e3;/);
+  assert.equal(15 * 60e3, REPLACE_WINDOW_MS);
+  // S.lastSubmission (daraus entstehen die PDF-Dateien der Schüler:innen) trägt nie die Nutzlast, ihre Tippzeiten oder den Schlüssel
+  const last = body("S.lastSubmission = {", "};");
+  for (const x of ["payload,", "payload:", "typing", "pub", "fb2Base"]) assert.ok(!last.includes(x), x);
+  for (const f of ["function makeSolutionsPdf(", "function escPdfPages("]) {
+    const src = body(f, "\n}\n");
+    for (const x of ["fb2Base", "typing", ".payload"]) assert.ok(!src.includes(x), f + " " + x);
+  }
+  // gemerkt nur mit erstem Feedback, nach der Annahme (sendSealed hat die Rückfälle schon angewandt); die Tippzeiten der ersten Fassung weg
+  const submit = body("async function submitAll()", "\n}\n");
+  const kSent = submit.indexOf("await sendSealed(payload"), kHold = submit.indexOf("if (withFb) fb2Hold(S.lastSubmission, payload, r);");
+  assert.ok(kSent > 0 && kHold > kSent);
+  assert.ok(submit.indexOf("S.firstTyping = null;") > kSent);
+  // Nachreichen: genau diese Nutzlast + feedback2, dieselben Rückfälle wie bei der Abgabe (sendSealed), danach immer freigegeben
+  const send = body("async function sendFeedback2(sub)", "\n}\n");
+  assert.ok(send.includes("const payload = { ...base.payload, feedback2: "));
+  assert.ok(send.includes("await sendSealed(payload, (envelope) => ({ code: sub.code, envelope, stage: \"feedback2\", attempt: base.attempt, receivedAt: base.submitAt }), base.pub);"));
+  assert.ok(send.includes("} finally { fb2Release(sub); }"));
+  // freigegeben, sobald nichts mehr nachgereicht wird
+  assert.ok(body("function finalFeedbackGone(sub)", "\n}\n").includes("fb2Release(sub);"));
+  const req = body("async function requestFinalFeedback()", "\n}\n");
+  assert.ok(req.includes("if (!sub || !Array.isArray(sub.feedback)) { fb2Release(sub); return; }"));
+  assert.ok(req.indexOf("fb2Release(sub);   // nichts nachzureichen") > req.indexOf("same: true"));
+  assert.ok(body("function resetStudent()", "\n}\n").includes("fb2Release();"));
+  assert.ok(body("function fb2Hold(", "\n}\n").includes("setTimeout(() => { if (S.fb2Base === base) S.fb2Base = null; }, FB2_HOLD_MS);"));
 });

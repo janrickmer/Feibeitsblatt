@@ -555,6 +555,23 @@ async function main() {
       assert.equal(r.json.submissions.length, 1);
       assert.equal(/Escape-Fehler-Marker|GLOBUS|Fakten-Marker/.test(r.text), false, "nur der Umschlag");
       assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[0].envelope), escPayload);
+      // nachgereichte zweite KI-Rückmeldung (stage „feedback2“) bei einem Escape-Blatt wie bei jedem Blatt: der Browser schickt die
+      // angenommene Nutzlast + feedback2 – Daten aus dem Raum und Tippzeiten bleiben beim Ersetzen erhalten
+      const escAttempt = "0a1b2c3d4e5f6a7b";
+      const escFinal = { ...escPayload, answers: [{ first: "Fakten-Marker", final: "Fakten-Marker mit mehr" }], feedback: [{ covered: ["Fakten"], missing: [] }],
+        feedbackAt: new Date().toISOString(), typing: { v: 1, answers: [{ first: "R0dHRw==", final: "R0dHRw==" }] } };
+      delete escFinal.noAi;
+      r = await api("POST", "/api/submit", { code: ec, envelope: await makeEnvelope(T.publicKey, escFinal), stage: "final", attempt: escAttempt }); submitCount++;
+      assert.equal(r.status, 200, r.text);
+      const escId = r.json.id, escAt = r.json.receivedAt;
+      const escFb2 = { ...escFinal, feedback2: { at: new Date().toISOString(), results: [{ covered: ["Fakten"], missing: ["Mehr Belege"] }] } };
+      r = await api("POST", "/api/submit", { code: ec, envelope: await makeEnvelope(T.publicKey, escFb2), stage: "feedback2", attempt: escAttempt, receivedAt: escAt }); submitCount++;
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.id, escId); assert.equal(r.json.replaced, "final");
+      r = await api("GET", "/api/teacher/sheets/" + ec + "/submissions", undefined, { auth });
+      assert.equal(r.json.submissions.length, 2);
+      const escGot = await openEnvelope(privateKey, r.json.submissions.find((x) => x.id === escId).envelope);
+      assert.deepEqual(escGot, escFb2);
+      assert.deepEqual([escGot.escape, escGot.typing], [escFinal.escape, escFinal.typing]);
       await sleep(500);
       for (const f of await filesUnder(STATE)) {
         const buf = await readFile(f).catch(() => null); if (!buf) continue;
@@ -563,7 +580,7 @@ async function main() {
       assert.equal((await api("DELETE", "/api/teacher/sheets/" + ec, undefined, { auth })).status, 200);
       r = await api("GET", "/api/sheet/" + ec); misses++; expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);   // gelöscht: das Finale findet kein Blatt mehr
     }
-    ok("Escape-Room-Blatt: escape {id, name} beim Anlegen geprüft, öffentlich und für die Lehrkraft geliefert (normale Blätter null), kein analoges Arbeitsblatt, KI-Feedback ohne Daten aus dem Raum, Daten aus dem Raum nur im verschlüsselten Umschlag, mit dem Blatt gelöscht");
+    ok("Escape-Room-Blatt: escape {id, name} beim Anlegen geprüft, öffentlich und für die Lehrkraft geliefert (normale Blätter null), kein analoges Arbeitsblatt, KI-Feedback ohne Daten aus dem Raum, Daten aus dem Raum nur im verschlüsselten Umschlag (auch nach dem Nachreichen der zweiten Rückmeldung samt Tippzeiten), mit dem Blatt gelöscht");
 
     step = "Abgabe";
     const sheetPub = (await api("GET", "/api/sheet/" + code)).json.sheet;
@@ -600,6 +617,7 @@ async function main() {
     assert.deepEqual([r.json.sheets[0].submissionCount, r.json.sheets[0].firstCount], [1, 1]);
     r = await api("POST", "/api/submit", { code, envelope, stage: "final", attempt }); submitCount++;   // Abgabe derselben Bearbeitung
     assert.equal(r.status, 200, r.text); assert.equal(r.json.id, firstId); assert.equal(r.json.replaced, "first");
+    const finalAt = r.json.receivedAt;
     r = await api("POST", "/api/submit", { code, envelope: envFirst, stage: "first", attempt }); submitCount++;   // verspäteter Erstversuch
     assert.equal(r.status, 200, r.text); assert.equal(r.json.kept, true);
     r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
@@ -607,7 +625,20 @@ async function main() {
     assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[1].envelope), payload);
     r = await api("GET", "/api/teacher/sheets", undefined, { auth });
     assert.deepEqual([r.json.sheets[0].submissionCount, r.json.sheets[0].firstCount], [2, 0]);
-    ok("Erstversuch: stage first mit Kennung; die Abgabe derselben Bearbeitung ersetzt ihn; ein späterer Erstversuch bleibt wirkungslos");
+    // nachgereichte zweite KI-Rückmeldung: ersetzt nur die vorhandene Abgabe derselben Bearbeitung, legt nie eine neue an
+    const fb2Payload = { ...payload, feedback2: { at: new Date().toISOString(), results: payload.answers.map(() => null) } };
+    const envFb2 = await makeEnvelope(sheetPub.publicKey, fb2Payload);
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt, receivedAt: finalAt }); submitCount++;
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.id, firstId); assert.equal(r.json.replaced, "final");
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt: "fedcba9876543210", receivedAt: finalAt });   // zählt nicht
+    assert.deepEqual(r.json, { ok: true, gone: true });
+    r = await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt, receivedAt: finalAt - 1 });   // andere Fassung
+    assert.deepEqual(r.json, { ok: true, gone: true });
+    expectErr(await api("POST", "/api/submit", { code, envelope: envFb2, stage: "feedback2", attempt }), 400, "bad_request");
+    r = await api("GET", "/api/teacher/sheets/" + code + "/submissions", undefined, { auth });
+    assert.deepEqual(r.json.submissions.map((s) => s.stage), ["final", "final"]);
+    assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[1].envelope), fb2Payload);
+    ok("Erstversuch: stage first mit Kennung; die Abgabe derselben Bearbeitung ersetzt ihn; ein späterer Erstversuch bleibt wirkungslos; „feedback2“ ergänzt nur genau die eigene Abgabe");
 
     step = "Datenbank ohne Klartext";
     await sleep(500);
@@ -722,13 +753,13 @@ async function main() {
     r = await api("GET", "/api/sheet/" + otherCode);
     assert.equal(r.status, 200, "gültige Codes öffnen trotz Sperre: " + r.text);
     ok("unbekannte Codes: nach 30 Fehlgriffen 429; gültige Codes öffnen weiter");
-    // Abgaben: jede gültige Abgabe und jeder Erstversuch zählt je IP (240/h); unbekannte Codes zählen nicht
+    // Abgaben: jede gültige Abgabe und jeder Erstversuch zählt je IP (360/h); unbekannte Codes zählen nicht
     const otherPub = r.json.sheet.publicKey;
     const env2 = await makeEnvelope(otherPub, { v: 1, sheetCode: otherCode, person: { vorname: "Tes", nachname: "Tt", geburtsdatum: "2010-01-01", klasse: "5a" }, answers: [{ first: "", final: "x" }] });
-    for (; submitCount < 240; submitCount++) { r = await api("POST", "/api/submit", { code: otherCode, envelope: env2 }); assert.equal(r.status, 200, r.text); }
+    for (; submitCount < 360; submitCount++) { r = await api("POST", "/api/submit", { code: otherCode, envelope: env2 }); assert.equal(r.status, 200, r.text); }
     expectErr(await api("POST", "/api/submit", { code: otherCode, envelope: env2 }), 429, "rate_limited");
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found");
-    ok("Abgabe: die 241. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
+    ok("Abgabe: die 361. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
 
     step = "Zeitplan";
     await cron(Date.now() + 8 * 86400e3);   // acht Tage später: nach der Frist von 7 Tagen

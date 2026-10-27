@@ -167,7 +167,7 @@ test("rate-limit buckets never contain the IP; messages in German", async () => 
   assert.notEqual(await bucketOf("auth", "203.0.113.7"), b.replace("door", "auth"));
   assert.deepEqual(Object.fromEntries(Object.entries(RATE).map(([k, v]) => [k, [v.max, v.windowMs / 60000]])),
     { door: [10, 15], auth: [10, 15], auth_all: [200, 60], lookup_miss: [30, 10], feedback: [240, 60], feedback_chars: [800000, 60],
-      sheet_feedback: [600, 1440], submit: [240, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [30, 60] });
+      sheet_feedback: [600, 1440], submit: [360, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [30, 60] });
   assert.match(rateMessage("auth", 61), /^Zu viele falsche Passwörter\. Mit dem richtigen Passwort .* in etwa 2 Minuten möglich\.$/);
   assert.equal(rateMessage("door", 30), "Zu viele Fehlversuche. Ein neuer Versuch ist in etwa 1 Minute möglich.");
   assert.match(rateMessage("lookup_miss", 120), /richtigen Code geht es weiter/);

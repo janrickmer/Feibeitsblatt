@@ -76,14 +76,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   nur additiv und idempotent im `SCHEMA`-Array; nachträgliche Spalten wie `stage`/`attempt` und `sheets.escape_id`/`escape_name`
   (Escape-Room-Blatt, NULL = normales Blatt) per `ensureColumns` (`LATER_COLUMNS`; beide `PRAGMA table_info` in einem Batch →
   fehlende `ALTER TABLE … ADD COLUMN` in einem Batch, Fehler bei Wettlauf zweier Isolates werden durch erneutes Nachsehen abgefangen).
-- **Erstversuch ↔ Abgabe:** `POST /api/submit` nimmt `{code, envelope, stage?: "first"|"final", attempt?: 16 Hex}`
+- **Erstversuch ↔ Abgabe:** `POST /api/submit` nimmt `{code, envelope, stage?: "first"|"final"|"feedback2", attempt?: 16 Hex, receivedAt?}`
   (`validateSubmitMeta`; `first` braucht `attempt`). Der Browser erzeugt je Bearbeitung eine Kennung (`S.attempt`,
   `hexOf(8 Zufallsbytes)`, im Zwischenstand gespeichert) und schickt nach erhaltenem KI-Feedback die erste Fassung +
   Feedback als Erstversuch (`sendFirstAttempt`, payload `stage:"first"`, `answers[].final = null`, `submittedAt:null`;
   scheitert das Senden, wird es beim nächsten Öffnen nachgeholt – `S.firstSent`). Gleiche `attempt` → `UPDATE`
   derselben Zeile (`replaced`), ein Erstversuch überschreibt nie eine Abgabe (`kept:true`); ohne `attempt` wird
   eingefügt. Widerspricht jemand nach dem Senden der Tippzeit-Messung, ersetzt der Browser den Erstversuch mit derselben
-  `attempt` ohne Tippzeiten (`S.ttResend`, siehe Tippzeit-Messung). `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
+  `attempt` ohne Tippzeiten (`S.ttResend`, siehe Tippzeit-Messung). `stage: "feedback2"` (mit `attempt` und `receivedAt` der Abgabe-Antwort,
+  `validateSubmitMeta` → `replace`) ersetzt nur genau die eigene Abgabe, legt nie eine an und zählt ohne passende Abgabe nicht (siehe Zweite
+  KI-Rückmeldung). `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
   `#p-klasse-hint` sagt es den Schüler:innen so: Angaben gehen mit dem KI-Feedback (Erstversuch), ohne KI-Feedback erst
   bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
   Lehrkraft-Ansicht: Kürzel `.st-final` (grün) / `.st-first` (orange, `#b85c00`), Legende `#t-subs-legend`,
@@ -125,7 +127,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `AI_PDF_NOTE` unter dem Kopf, `/Subject` + `/Keywords` im Info-Dict, XMP-Stream (`xmpPacket`, UTF-8, `/Length` in Bytes,
   letztes Objekt `6 + 2·Seiten`, `/Metadata` im Katalog) mit `Iptc4xmpExt:DigitalSourceType` `compositeSynthetic`;
   Dateiname `Feibeitsblatt-Loesungen-<Code>-<Datum>.pdf`, ohne Geburtstag.
-- **Zweite KI-Rückmeldung zur abgegebenen Fassung (nur im Browser, kein eigener Server-Endpunkt):** `submitAll`
+- **Zweite KI-Rückmeldung zur abgegebenen Fassung (im Browser, kein eigener Server-Endpunkt):** `submitAll`
   gibt **zuerst** ab (die Abgabe hängt nie von der KI ab), merkt sich in `S.lastSubmission` die Empfänger-ids
   (`recipients`) und ruft danach `requestFinalFeedback()` – nur mit erstem Feedback (`S.feedback`; ohne KI keine
   zweite Rückmeldung, `#done-fb` bleibt verborgen). „Geändert“ entscheidet `fb2Changes(firsts, finals, feedback)`
@@ -153,9 +155,41 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Überarbeiten“, nach der Abgabe „Tipps zum Weiterlernen“). PDF ohne zweite Rückmeldung
   heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
   erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
-  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2). `feedback2` bleibt nur im Arbeitsspeicher (nicht beim Server, nicht bei der Lehrkraft). Abgabe-Dialog
-  nennt die Empfänger (`recipientSentence`) bzw. „nichts geändert – nichts wird noch einmal gesendet“; Datenschutzhinweis
-  und Feedback-Dialog nennen das zweite Senden. Je Schüler:in also bis zu zwei KI-Anfragen → Rate-Limits verdoppelt.
+  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2). Ist sie da (und nicht `same`), reicht `sendFeedback2(sub)` sie verschlüsselt an die Lehrkraft nach: **genau die Nutzlast, die
+  der Server bei der Abgabe angenommen hat** (nach den Rückfällen von `sealPayload`/`sendSealed`, die `payload` dabei selbst kürzen –
+  also auch `typing` `{optOut}`/`{omitted}` und ein per `escTrim` gekürztes `escape`; nichts neu gelesen) + `feedback2: {at, results}` (nur neu
+  beurteilte Aufgaben, die übrigen `null`) – so bleiben Tippzeiten und Daten aus dem Escape-Room beim Ersetzen erhalten. Gemerkt in
+  **`S.fb2Base`** = `{sub, payload, pub, attempt, submitAt = receivedAt der Abgabe-Antwort, timer}` (`fb2Hold`, nur mit erstem
+  Feedback), **getrennt von `S.lastSubmission`** (daraus entstehen die PDF-Dateien der Schüler:innen – nie Tippzeiten) und nur, solange
+  noch nachgereicht werden kann: `fb2Release` nach dem Nachreichen (geklappt, `gone` oder endgültig gescheitert – `finally` in
+  `sendFeedback2`), bei `same`, ohne erstes Feedback, in `finalFeedbackGone`, in `resetStudent` und spätestens nach `FB2_HOLD_MS`
+  (= `REPLACE_WINDOW_MS`, Unit-Test vergleicht); `submitAll` setzt außerdem `S.firstTyping` nach der Abgabe auf `null` (`TT_ACCESS` sagt
+  „bis zur Abgabe (und, wenn … nachgereicht wird, bis dahin)“). Wird der Umschlag erst mit `feedback2` zu groß (`ttEnvelopeFits` bzw. 413/409),
+  gilt dieselbe Reihenfolge wie bei der Abgabe (`sendSealed(payload, bodyOf, base.pub)`): erst ohne Tippzeit-Werte (`omitted:"too_large"`),
+  dann `escTrim` – **Entscheidung:** die zweite Rückmeldung scheitert wie die Abgabe nie an den Tippzeiten oder den Daten aus dem Raum,
+  dafür können in diesem seltenen Fall deren Werte bzw. Fehler-Einzelheiten aus der gespeicherten Abgabe verschwinden (die Lehrkraft sieht
+  „nicht übermittelt …“); „nie schlechter“ gilt für alles andere – Antworten, Feedback, Angaben, Vermerke, Kern der Escape-Daten bleiben
+  genau wie angenommen, und kommt nichts an (Netz, 5xx, 413 trotz Rückfällen, Frist vorbei), bleibt die Abgabe beim Server, wie sie ist
+  (der Server ersetzt atomar). Gesendet per `POST /api/submit` mit `stage: "feedback2"` (ein eigener Wert, den ein älterer
+  Server mit 400 ablehnt, statt daraus eine Abgabe zu machen), `attempt` und `receivedAt` (`validateSubmitMeta` → `replace`) –
+  der Server ersetzt nur genau diese Abgabe: `stage` final, dieselbe Kennung, `received_at` gleich `receivedAt` (eine inzwischen
+  neuere Abgabe derselben Bearbeitung bleibt) und höchstens `REPLACE_WINDOW_MS` (15 min) nach dem Eingang (der Eingang bleibt
+  stehen – ohne Frist ließe sich eine Abgabe Tage später austauschen); `UPDATE … SET envelope … AND received_at=?` atomar, sonst
+  `{gone:true}` ohne Zählung und ohne Einfügen (eine gelöschte Abgabe kommt nie zurück); bis zu 3 Versuche, 4xx außer 408/429
+  endgültig, die Schüler:innen sehen davon nichts; bei Escape-Blättern genauso. **Lehrkraft:** `loadSubs` kappt `feedback2` (eigenes
+  try/catch, wie `ttCleanPayload` und `escCleanPayload`), `fb2Of(p)`
+  leitet wie der Browser ab (keine Änderung → `same`, die erste Rückmeldung gilt; sonst nur mit nachgereichtem `feedback2`,
+  sonst `null`), `buildDetail` zeigt je geänderter Aufgabe `.dfb.dfb2` „KI-Rückmeldung zur abgegebenen Fassung“ („Tipps zum
+  Weiterlernen“, `markAi` `feedback-final`) und für Abgaben (nicht Erstversuche) `.dpdf` „Lösungs-PDF herunterladen“ →
+  `makeSolutionsPdf(teacherSolutionsSub(s))` (dieselbe Datei wie bei den Schüler:innen über `pdfPager`/`pdfAssemble`, samt XMP-/KI-Kennzeichnung;
+  fehlt die zweite Rückmeldung: `fb2Missing` → „… wurde nicht an die Lehrkraft übermittelt.“; bei Escape-Blättern nur die
+  Lösungsseiten – `teacherSolutionsSub` setzt kein `escape`, den Überblick gibt es über „Überblick als PDF herunterladen“ –, nie
+  Tippzeiten, nie ein voller Name), daneben in den Details weiter `p.dtt`/`p.dtt-sum` und `escDetailDom`, Dateiname `teacherSolutionsName`
+  `Feibeitsblatt-Loesungen-<Code>-<Klasse>-<Kürzel bzw. Gruppe-…>-<Abgabedatum>.pdf` (ASCII, nie Geburtstag). Abgabe-Dialog
+  nennt die Empfänger (`recipientSentence`) bzw. „nichts geändert – nichts wird noch einmal gesendet“ und „Die neue Rückmeldung
+  geht danach verschlüsselt auch an deine Lehrkraft.“; Datenschutzhinweis und Feedback-Dialog nennen das zweite Senden und dass
+  die Lehrkraft die Rückmeldung bekommt. Je Schüler:in also bis zu zwei KI-Anfragen → Rate-Limits verdoppelt; bis zu drei
+  Aufrufe von `/api/submit` (Erstversuch, Abgabe, Nachreichen) → `submit` 360/h.
 - **Krypto (nur im Browser; Server sieht nie Passwort oder Klartext-Abgaben):** PBKDF2-HMAC-SHA256, 600 000
   Iterationen, Salt 16 Byte → `master`; HKDF-SHA256 mit `info` `feibeitsblatt/enc/v1` (AES-GCM-256-Schlüssel) und
   `feibeitsblatt/auth/v1` (`authKey`; Server speichert nur SHA-256 hex, Vergleich in konstanter Zeit).
@@ -324,15 +358,19 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Betreibers bräuchte ihr Speichern im Zwischenstand eine Einwilligung nach § 25 Abs. 1 TDDDG) – Schreibweise „Buchst.“,
   nie „lit.“; Welche Daten („Außerdem deine Antworten mit ihren Tippzeiten (je eingegebenem Zeichen … keine Uhrzeiten; nach einem
   Widerspruch keine)“, darunter als eigener Absatz im Fließtext `TT_ACCESS(g, keep)`: „Für die Tippzeiten liest diese Seite beim
-  Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher (nach einem Widerspruch
-  nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.“ – mit `TT_KEEP_IN_DRAFT` „…, hält sie … und speichert die
-  Tippzeiten bis dahin auch in deinem Zwischenstand …“; **nur die Tatsache – nie eine Ausnahme („unbedingt erforderlich“) oder eine
+  Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe (und, wenn die KI-Rückmeldung zu deiner
+  abgegebenen Fassung noch nachgereicht wird, bis dahin) im Arbeitsspeicher (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf
+  dein Gerät im Sinne von § 25 TDDDG.“ – die Klammer `TT_HELD(g, ai)` nur bei Blättern mit KI-Feedback (`TT_ACCESS(g, keep, ai)`, Aufruf mit
+  `withAi`; sonst wie bisher), denn bis dahin hält `S.fb2Base` die angenommene Nutzlast; mit `TT_KEEP_IN_DRAFT` „…, hält sie … und speichert die
+  Tippzeiten bis zur Abgabe (ohne KI-Feedback: bis dahin) auch in deinem Zwischenstand …“; **nur die Tatsache – nie eine Ausnahme („unbedingt erforderlich“) oder eine
   Einwilligung behaupten** (Entscheidung des Betreibers nach Rechtsprüfung; offen – README „Weiter vom Betreiber zu prüfen“ –, ob schon
   das Erfassen samt Senden eine Einwilligung nach § 25 Abs. 1 TDDDG braucht); damit der Satz stimmt, merkt der Capture-Listener `input`
   nach einem Widerspruch keinen Zeitpunkt (`performance.now()` nur ohne `S.ttOptOut`)); Wer bekommt (Lehrkraft „Sie sieht auch die Tippzeiten – als Färbung …; an einen KI-Dienst oder an die
   Rechtschreibprüfung gehen die Tippzeiten nie.“, Cloudflare „(samt Tippzeiten)“);
-  Wie lange („Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; bis dahin hält diese Seite sie nur
-  im Arbeitsspeicher – …“, mit `TT_KEEP_IN_DRAFT` stattdessen „bis zur Abgabe stehen sie auch in deinem Zwischenstand – …“);
+  Wie lange („Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; bis zur Abgabe (und, wenn die
+  KI-Rückmeldung zu deiner abgegebenen Fassung noch nachgereicht wird, bis dahin) hält diese Seite sie nur im Arbeitsspeicher – …“, ohne
+  KI-Feedback wie bisher „… und werden mit ihr gelöscht; bis dahin hält …“, mit `TT_KEEP_IN_DRAFT` stattdessen „bis zur Abgabe stehen sie
+  auch in deinem Zwischenstand – …“);
   Musst du („… solange du nicht widersprichst (siehe „Widerspruch gegen die Tippzeit-Messung“)“); Entscheidet die KI (nur mit KI);
   **Widerspruch gegen die Tippzeit-Messung** (`TT_OBJ_HEAD`, eigener Abschnitt nur mit Messung, gleiche Ebene wie die übrigen, vor
   „Deine Rechte“): der Schalter (`ttSwitchDom`, siehe Tippzeit-Messung; auf „Impressum & Datenschutz“ nur ein Absatz, wo er steht –
@@ -341,8 +379,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   siehe „Widerspruch gegen die Tippzeit-Messung“.“) und Widerruf, Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die
   verschlüsselten Abgaben), Beschwerde bei der Aufsichtsbehörde mit Anschrift und Link. Die Rechtsgrundlage der Tippzeiten verweist
   ebenfalls auf den Abschnitt („(siehe „Widerspruch gegen die Tippzeit-Messung“)“). **Was zum Zwischenstand und zur Zwischenstand-PDF gesagt wird, hängt an `TT_KEEP_IN_DRAFT`** (`ttInDraft`
-  in `privacyNoticeDom`, Parameter `keep` von `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE`; ohne – eingecheckt –: „bis dahin hält diese Seite
-  sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.“, kein „außer den
+  in `privacyNoticeDom`, Parameter `keep` von `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE`; ohne – eingecheckt –: „bis zur Abgabe (und, wenn …,
+  bis dahin) hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.“, kein „außer den
   Tippzeiten darin“ beim § 25) – nie fest verdrahten. Alle Tippzeit-Sätze entfallen bei Blättern nur mit Weltkarten (`typing:
   ttMeasured(sh)` – dort wird nichts gemessen; dann auch kein `TT_SHORT` und kein Abschnitt zum Widerspruch). **Kurzfassungen:
   genau ein neutraler Satz** – Entscheidung des Betreibers vom 27.10.2026, zweite Fassung nach Rechtsprüfung (die erste Fassung „gar
@@ -612,7 +650,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Erstversuch `final:null`), nach Widerspruch `ttOptOutPayload()` = `{v:1, optOut:true}`, zu groß `{v:1, omitted:"too_large"}`
   (`sealPayload`: `ttEnvelopeFits` = `validateEnvelope`; `sendSealed`: 413 bzw. 409 → einmal genau dieselbe Nutzlast ohne Werte,
   nichts neu lesen), Rechenfehler `{v:1, omitted:"error"}` – **eine Abgabe scheitert nie an den Tippzeiten**; **nie** in
-  `/api/feedback`, `S.lastSubmission`, Lösungs-PDF, keine Anzeige für Schüler:innen. **Lehrkraft:** `loadSubs` → `ttCleanPayload`
+  `/api/feedback`, `S.lastSubmission`, Lösungs-PDF, keine Anzeige für Schüler:innen. Nach der Abgabe nur noch in der angenommenen
+  Nutzlast `S.fb2Base` für das Nachreichen der zweiten Rückmeldung (siehe dort; dieselben Rückfälle, freigegeben, sobald nichts mehr
+  nachgereicht wird, spätestens nach 15 Minuten), `S.firstTyping` wird nach der Abgabe `null`. **Lehrkraft:** `loadSubs` → `ttCleanPayload`
   (eigenes try/catch; → `null` | `{optOut}` | `{omitted}` | `{list}`, nur Base64-Form, `"="` nur bei gleichem Text), dekodiert
   erst beim Aufklappen: `buildDetail` → `ttDetail(p, types, n, isFirst, noFb)` (`{sum, per:[{first, fin, line}]}`, Zeilen als
   Stücke aus `ttSummary`/`ttPctText`/`ttShareParts` – bei Tabellen nur die Zellen), `ttDom`/`answerDom(…, codes, info)` (Spans
@@ -920,7 +960,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Finale, der Dialog „Abbrechen und Zwischenstand löschen“ auch die Daten aus dem Raum. Erstversuch und Abgabe: `payload.escape =
   escPayload(rec, escCheck(hull))` – nur verschlüsselt, ohne vollen Namen, ohne volles Datum, ohne Bestätigungscode, ohne `notes`; nie in
   `/api/feedback`; passt der Umschlag nicht, erst ohne Tippzeiten, dann `escTrim` (`sealPayload`, `sendSealed` bei 413/409) – eine
-  Abgabe scheitert nie an den Daten aus dem Raum. Ablauf-Kasten: letzter Punkt „Lösungen, letztes Feedback und Escape-Room-Überblick
+  Abgabe scheitert nie an den Daten aus dem Raum. Die nachgereichte zweite Rückmeldung (`sendFeedback2`, stage „feedback2“) trägt
+  `escape` genau so, wie es mit der Abgabe angekommen ist (`S.fb2Base`); die Lösungs-PDF der Lehrkraft („Lösungs-PDF herunterladen“)
+  enthält bei Escape-Blättern nur die Lösungsseiten (ohne `escPdfPages`). Ablauf-Kasten: letzter Punkt „Lösungen, letztes Feedback und Escape-Room-Überblick
   herunterladen“ (ohne KI „Lösungen und Escape-Room-Überblick herunterladen“) + `STEP_LATE`. `#screen-done`: Gesamt-PDF =
   `makeSolutionsPdf` (Lösungsseiten) + `escPdfPages(pg, esc, {mode:"student"})` (Name, Geburtsdatum, Klasse, Bestätigungscode, Codewort,
   je Station Versuche und Fehler im ersten Versuch, neue Seite „Lösungserläuterungen“ mit „Genaue Daten: …“ 9 pt grau, „Verwendung von
@@ -955,7 +997,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Raum-Daten, D1 ohne Klartext), E2E 7n/7o (eigene Fixtures: unkomprimiert, FlateDecode ohne Kennzeichen, manipulierte Prüfsumme;
   Wettlauf langsames Escape-Blatt gegen hochgeladenen Zwischenstand eines normalen Blattes – Abgabe an dessen Code; Hash weg auch bei
   einem Syntaxfehler im großen Skript; Fokus nach erneut gescheitertem „Erneut versuchen“; `#esc-updated`; E-Mail-Weg bei 404 sofort,
-  bei 409/429 erst später; zweimal 413 → ohne Tippzeiten, dann ohne Fehler-Einzelheiten samt Lehrkraft-Kurzfassung; `#b-import` folgt
+  bei 409/429 erst später; zweimal 413 → ohne Tippzeiten, dann ohne Fehler-Einzelheiten samt Lehrkraft-Kurzfassung; die nachgereichte
+  zweite Rückmeldung in D1 entschlüsselt samt `escape` und `typing`, Lösungs-PDF der Lehrkraft nur mit den Lösungsseiten; `#b-import` folgt
   dem Haken; `ESCAPE_PDF_OUT=<Ordner>` speichert die PDF-Dateien und Bildschirmfotos). Testdaten frei erfunden, `confirm` in Tests eine beliebige
   Ziffernfolge; keine Datei aus einem echten Escape-Room als Fixture.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
@@ -1032,8 +1075,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Codes immer), `feedback` 240/h + `feedback_chars` 800 000/h je IP + `sheet_feedback` 600/Tag je Blatt (je Schüler:in bis zu zwei
   KI-Anfragen) (gezählt
   erst, wenn die Anfrage gültig ist und zur KI geht; bei BUSY/RATE_LIMIT/TIMEOUT/SERVER/NETWORK/DAILY_LIMIT
-  Rückerstattung), `submit` 240/h + `submit_bytes` 60 MB/h (nur gültige Abgaben/Erstversuche zu existierenden
-  Blättern; je Schüler:in bis zu zwei Aufrufe), `checklist` 30/h je IP (KI-Vorschlag der Checkliste, Erstattung wie beim Feedback).
+  Rückerstattung), `submit` 360/h + `submit_bytes` 60 MB/h (nur gültige Abgaben/Erstversuche zu existierenden
+  Blättern; je Schüler:in bis zu drei Aufrufe, ein `feedback2` ohne passende Abgabe zählt nicht), `checklist` 30/h je IP (KI-Vorschlag der Checkliste, Erstattung wie beim Feedback).
   Je Blatt höchstens 400 Abgaben / 40 MB. Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
   als Pfeffer), IPv6 vorher auf /64 gekürzt (`ipKey`) – nie Klartext-IPs speichern. Schulnetz = eine IP für viele.
 - **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`); `node test/smoke.mjs` (API gegen echten
@@ -1053,18 +1096,22 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Rückfall ohne `Intl.Segmenter`, Schalter `TT_KEEP_IN_DRAFT` beider Stellungen, Widerspruch `ttOptOutPayload`/`ttDraftFlags`/
   `ttCleanPayload`/`ttDetail`, `ttStoredFlags`/`ttKeepOptOut`, `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE` in beiden Stellungen von
   `TT_KEEP_IN_DRAFT`, `TT_USE` im Hinweis, Kurzfassungen mit genau dem Satz `TT_SHORT`, `TT_ACCESS` ohne behauptete Ausnahme oder
-  Einwilligung, eigener Abschnitt vor „Deine Rechte“), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
+  Einwilligung und mit/ohne `TT_HELD`, eigener Abschnitt vor „Deine Rechte“; `S.fb2Base` getrennt von `S.lastSubmission`, freigegeben,
+  `FB2_HOLD_MS` = `REPLACE_WINDOW_MS`), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
   eingecheckt (`TT_KEEP_IN_DRAFT` aus): kein `typing` im Zwischenstand, ein alter Stand mit Tippzeiten wird beim Laden bereinigt
   (`ttDraftStrip`), Text von vor dem Neuladen geht als 255 („ohne Messung“) in die Abgabe; nur mit umgelegtem Schalter Werte je
   Zeichen im Zwischenstand vor und nach dem Feedback samt Neuladen; nie an die KI, Erstversuch/Abgabe aus D1
   entschlüsselt – `openPrivateKey`/`openEnvelope` aus smoke.mjs –, Ablauf-Kasten, 413 → einmal ohne, Lehrkraft-Färbung, „Färbung
-  aus“, lange Antworten, nur Weltkarten – auch bei den Schüler:innen ohne `TT_SHORT` und ohne Abschnitt) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
+  aus“, lange Antworten, nur Weltkarten – auch bei den Schüler:innen ohne `TT_SHORT` und ohne Abschnitt; die nachgereichte zweite
+  Rückmeldung = angenommene Abgabe + `feedback2` samt Tippzeiten in D1, danach `S.fb2Base` null; Schüler:in 4: mit `feedback2` 413 → einmal
+  ohne Tippzeit-Werte, angekommen; Schüler:in 5: Nachreichen scheitert dreimal → D1 unverändert) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
   Erstversuchs scheitert erst und wird beim nächsten Öffnen nachgeholt, PDF auf einem anderen Gerät, Zurücknehmen, Ablehnung
   während des Sendens (angehaltenes bzw. scheiterndes `/api/submit`, Farbe), Abgabe `optOut`; Haken auf „Deine Angaben“ bei
   getipptem Stand mit Erstversuch → sofort gespeichert und ersetzt; anderes Gerät ohne Widerspruch; zweiter Tab übernimmt ihn
   sofort; an und aus während einer angehaltenen KI-Anfrage → erste Fassung ohne Werte; ältere Zwischenstand-PDF auf demselben
   Gerät → Widerspruch bleibt; Gruppe in der „ihr“-Form, Neuladen ohne Eingabe, `_tt` aller Felder; Lehrkraft „ohne Messung
-  (widersprochen)“ bei Abgaben, Erstversuch und ausgeblendetem älterem Erstversuch); die wörtlichen Hinweise prüfen 1b
+  (widersprochen)“ bei Abgaben, Erstversuch und ausgeblendetem älterem Erstversuch; nach dem Nachreichen der zweiten Rückmeldung
+  bleibt `{optOut:true}` in D1); die wörtlichen Hinweise prüfen 1b
   (`TT_PURPOSE`, `TT_EFFECT`/`TT_SCOPE`, `TT_STAY`, `TT_ACCESS`, Kurzfassung und Vorschau mit genau `TT_SHORT`, Abschnitt
   `TT_OBJ_HEAD` vor „Deine Rechte“, auf „Impressum & Datenschutz“ nur als Absatz, Vorschau gesperrt), 2 (`renderPrivacy` mit
   `TT_SHORT`, `#privfull-ed` mit Abschnitt), 2b (Kurzfassung der Gruppe mit `TT_SHORT_G`, `TT_ACCESS_G`) und `privBases` – die Erwartungen folgen `TT_KEEP` (aus index.html gelesen); beim Umlegen von

@@ -155,8 +155,13 @@ export function validateEnvelope(env) {
 /* Erstversuch oder Abgabe: stage "first" = erste Fassung samt KI-Feedback (noch nicht abgegeben), "final" = Abgabe.
    attempt = vom Browser erzeugte Kennung je Bearbeitung; die Abgabe ersetzt damit den Erstversuch derselben Bearbeitung. */
 export const ATTEMPT_RE = /^[0-9a-f]{16}$/;
+export const REPLACE_WINDOW_MS = 15 * 60e3;   // zweite KI-Rückmeldung nachreichen: nur so lange nach dem Eingang der Abgabe
 export function validateSubmitMeta(body) {
-  const stage = body.stage == null ? "final" : body.stage;
+  let stage = body.stage == null ? "final" : body.stage;
+  // „feedback2“: die schon angekommene Abgabe derselben Bearbeitung um die zweite KI-Rückmeldung ergänzen (ersetzen, nie neu
+  // anlegen) – ein eigener Wert, damit ein älterer Server ihn ablehnt statt eine Abgabe daraus zu machen
+  const replace = stage === "feedback2";
+  if (replace) stage = "final";
   if (stage !== "first" && stage !== "final") throw new InputError("Unbekannte Art der Abgabe.", "bad_request");
   let attempt = null;
   if (body.attempt != null) {
@@ -164,7 +169,11 @@ export function validateSubmitMeta(body) {
     if (!ATTEMPT_RE.test(attempt)) throw new InputError("Ungültige Kennung der Bearbeitung.", "bad_request");
   }
   if (stage === "first" && !attempt) throw new InputError("Ein Erstversuch braucht eine Kennung der Bearbeitung.", "bad_request");
-  return { stage, attempt };
+  if (!replace) return { stage, attempt, replace: false, receivedAt: null };
+  // nur genau die eigene Abgabe: Kennung und der Eingangszeitpunkt, den der Server bei der Abgabe gemeldet hat
+  const receivedAt = body.receivedAt;
+  if (!attempt || !Number.isSafeInteger(receivedAt) || receivedAt <= 0) throw new InputError("Ergänzen geht nur für die eigene Abgabe.", "bad_request");
+  return { stage, attempt, replace, receivedAt };
 }
 
 /* Einzelne Einträge löschen (Lösch- oder Einschränkungswunsch einer Person): {ids: [1–50 positive Ganzzahlen]} → ids ohne
@@ -694,7 +703,7 @@ export const RATE = {
   feedback_chars: { max: 800000, windowMs: 3600e3 },   // … gewichtet nach Zeichen der Antworten
   sheet_feedback: { max: 600, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (begrenzt Missbrauch je Blatt; das kontoweite
                                                        // Tageskontingent von Workers AI ist kleiner und bleibt aufbrauchbar – dafür gibt es die Reserve)
-  submit: { max: 240, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu zwei Aufrufe)
+  submit: { max: 360, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu drei Aufrufe: Erstversuch, Abgabe, zweite Rückmeldung)
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
   checklist: { max: 30, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste zum analogen Arbeitsblatt je IP (Lehrkraft)
 };
