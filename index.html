@@ -535,6 +535,7 @@
   .ttopt input:focus-visible{outline:2px solid var(--accent2); outline-offset:2px}
   .ttopt:has(input:disabled), .ttopt input:disabled{cursor:default}
   .ttopt-st{color:var(--green); font-weight:600}
+  .ttopt-st.late{color:var(--orange-ink)}   /* abgelehnt, solange die Abgabe gesendet wird – keine Erfolgsfarbe */
   .donedel{font-family:var(--sans); font-size:13px; line-height:1.45; color:var(--muted); margin:-14px 0 20px; text-align:left}
   .moodle-hint{
     margin:16px 0 0; padding:14px 20px; background:#fdecea; border:1.5px solid #f5b8b1; border-radius:8px;
@@ -1087,8 +1088,8 @@
         <p class="batchhint hidden" id="t-subs-retention"></p>
         <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
         <div class="ttbox hidden" id="t-tt">
-          <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände oder nach einem Widerspruch); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
-          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung im Datenschutzhinweis widersprechen (Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“); dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.</p>
+          <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände oder nach einem Widerspruch); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
+          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung im Datenschutzhinweis widersprechen (Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“); dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.</p>
           <button type="button" class="btn ghost small" id="t-tt-off" aria-pressed="false">Färbung aus</button>
         </div>
         <p class="status" id="t-subs-status" aria-live="polite"></p>
@@ -1880,6 +1881,27 @@ function ttDraftFlags(d) {
   const ok = !!d && typeof d === "object" && !Array.isArray(d);
   return { optOut: ok && d.ttOptOut === true, resend: ok && d.ttResend === true && d.firstSent === true };
 }
+/* Gespeicherter Zwischenstand als Text (localStorage, evtl. von einem anderen Tab mit demselben Stand geschrieben) → {resend, attempt},
+   wenn er einen Widerspruch trägt, sonst null. Geparst wird nur, wenn das Kennzeichen vorkommt (saveDraft fragt bei jeder Pause): In
+   JSON.stringify steht der Schlüssel genau so; in einer Antwort wären die Anführungszeichen maskiert. Wirft nie. */
+function ttStoredFlags(raw) {
+  if (typeof raw !== "string" || raw.indexOf('"ttOptOut":true') < 0) return null;
+  try {
+    const d = JSON.parse(raw), fl = ttDraftFlags(d);
+    return fl.optOut ? { resend: fl.resend, attempt: typeof d.attempt === "string" ? d.attempt : "" } : null;
+  } catch (e) { return null; }
+}
+/* Zwischenstand-PDF hochgeladen (d = cleanDraft-Ergebnis), auf dem Gerät liegt aber ein Stand mit Widerspruch (local, geparst): Der
+   Widerspruch bleibt – ein Import nimmt ihn nie zurück. Ein schon gesendeter Erstversuch aus der Datei trägt womöglich Tippzeiten → ersetzen;
+   ein auf dem Gerät noch fälliges Ersetzen gilt weiter, wenn es dieselbe Bearbeitung ist (gleiche Kennung). Gibt d zurück (angepasst). */
+function ttKeepOptOut(d, local) {
+  const fl = ttDraftFlags(local);
+  if (!d || typeof d !== "object" || !fl.optOut) return d;
+  const sent = !!d.feedback && d.firstSent === true;
+  if (sent && (d.ttOptOut !== true || (fl.resend && local.attempt === d.attempt))) d.ttResend = true;
+  d.ttOptOut = true; d.typing = null;
+  return d;
+}
 /* Lehrkraft (loadSubs): typing einer entschlüsselten Nutzlast → null (ohne Messung) | {optOut} (widersprochen) | {omitted} |
    {list: [{first, final}]}; nur Base64-Form (dekodiert wird erst beim Aufklappen), „=“ nur bei gleichem Text; answers = die schon
    gekappten Antworten. Wirft nie. */
@@ -1913,7 +1935,7 @@ function ttPctText(o) {
   if (!o || !o.n) return o && o.none ? "ohne Messung" : "leer";
   return `${o.pct} % (von ${k(o.n)} Zeichen${o.none ? "; " + k(o.none) + " ohne Messung" : ""})` + (ttHigh(o.pct) ? " – hoch" : "");
 }
-const TT_ZERO_NOTE = "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur oder Diktat).";
+const TT_ZERO_NOTE = "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur, Diktat oder ein übernommener Korrekturvorschlag des Browsers).";
 const TT_OPTOUT_NOTE = "Tippzeiten: ohne Messung (widersprochen).";
 // Zweck der Färbung – derselbe Wortlaut im Datenschutzhinweis, im Hinweis der Lehrkraft (#t-tt-hint), in README und CLAUDE.md
 const TT_USE = "nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht";
@@ -2728,6 +2750,8 @@ const S = {
   ttOptOut: false,   // Widerspruch gegen die Tippzeit-Messung (Schalter im Datenschutzhinweis; im Zwischenstand gemerkt, auf dem Angaben-Bildschirm vorab)
   ttResend: false,   // ein Erstversuch mit Tippzeiten ist gesendet: wird mit derselben Kennung ohne sie ersetzt (sendFirstAttempt, sonst beim nächsten Öffnen)
   firstSending: null,   // Erstversuch gerade unterwegs (Lauf-Kennung; kein zweiter gleichzeitig)
+  ttGen: 0,   // zählt jedes Verwerfen der Messung (ttResetAll): Werte, die eine laufende KI-Anfrage vorher gelesen hat, gelten dann nicht mehr
+  ttLastRaw: null,   // Zwischenstand, wie dieser Tab ihn zuletzt geschrieben bzw. beim Öffnen gelesen hat (ttFollowStored: kein Widerspruch eines anderen Tabs)
   fbFails: 0, fbUnavailable: "",   // Fehlversuche beim KI-Feedback; ab dem zweiten bzw. ohne eingerichtete KI der Grund als Text
   fbUnavailableDay: "",   // UTC-Tag, an dem der Grund entstand – „Kontingent für heute aufgebraucht“ gilt nur bis 0:00 UTC (quotaExpired)
   fbPending: false,   // eine Anfrage dieses Laufs ist unterwegs (im Zwischenstand: ein Abbruch durch Schließen des Tabs zählt beim nächsten Öffnen als Fehlversuch)
@@ -2851,8 +2875,9 @@ const authorityTail = () => (AUTH_TEXT ? [" – für den Betreiber zuständig is
   authorityLink(), OPERATOR.authority.url ? "." : null] : ["."]);
 // Kurzfassung (nennt auch den KI-Dienst: auf dem Server wird nur verschlüsselt gespeichert, das KI-Feedback aber geht an einen Dienst –
 // nach dem KI-Feedback bei der Abgabe noch einmal, zweite Rückmeldung)
-// group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe)
-function privacyShortText(p, list, withAi, group) {
+// group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe); typing: das Blatt misst Tippzeiten
+// (ttMeasured) – dann gehört die Messung samt Widerspruch in die erste Ebene (TT_SHORT, wie renderPrivacy im Schreibbereich)
+function privacyShortText(p, list, withAi, group, typing) {
   const days = p && p.retentionDays;
   const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst" };
   return `Verantwortlich ist ${OP_NAME} – Feibeitsblatt ist ein privates, kostenloses Angebot. Auf dem Server werden ${w.d} Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur ${w.d} Lehrkraft. ` +
@@ -2860,7 +2885,8 @@ function privacyShortText(p, list, withAi, group) {
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
       : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn ${w.du} es ${w.anf}, gehen ${w.d} Antworten – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
         (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") + ", bei der Abgabe dann noch einmal die danach geänderten Antworten. Auch die Rechtschreibprüfung ist freiwillig."
-      : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.");
+      : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.") +
+    (typing ? TT_SHORT(group) : "");
 }
 // Zwischenstand auf dem Gerät: gelöscht wird nur beim nächsten Aufruf der Seite (cleanupDrafts) – nie „höchstens 7 Tage“ zusagen
 const DRAFT_STAY = `Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
@@ -2903,47 +2929,64 @@ const PRIV_IHR = {
 const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
 /* Tippzeit-Messung im Hinweis (nicht bei Blättern nur mit Weltkarten – dort wird nichts gemessen): Zweck (TT_USE, derselbe Wortlaut wie
    im Hinweis der Lehrkraft), Rechtsgrundlage berechtigtes Interesse (Buchst. f) mit Widerspruch per Schalter. Der Satz zu § 25 Abs. 2
-   Nr. 2 TDDDG nennt nur Angaben und Antworten im Zwischenstand – für die Tippzeiten dort prüft der Betreiber die Grundlage noch. */
+   Nr. 2 TDDDG nimmt die Tippzeiten im Zwischenstand ausdrücklich aus – ihre Grundlage dort prüft der Betreiber noch. Was im Zwischenstand
+   und in der Zwischenstand-PDF steht, hängt an TT_KEEP_IN_DRAFT (keep): Die Sätze dazu folgen dem Schalter, nie fest verdrahtet. */
 const TT_SWITCH_DU = "Tippzeiten für dieses Feibeitsblatt nicht messen", TT_SWITCH_IHR = "Tippzeiten für euer Feibeitsblatt nicht messen";
 const ttMeasured = (sh) => !(sh && Array.isArray(sh.answers) && sh.tasks && sh.tasks.length && sh.tasks.every((_, i) => sh.answers[i] && sh.answers[i].type === "map"));
 const TT_PURPOSE = (g) => (g
   ? " Beim Schreiben misst diese Seite außerdem die Tippzeiten – wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht –, um den Schreibprozess sichtbar zu machen: " +
-    "Eure Lehrkraft sieht eure Antworten farbig markiert; rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
-    "durch Wortvorschläge, Autokorrektur oder Diktat. So kann sie bei Auffälligkeiten mit euch über eure Arbeitsweise sprechen. " +
+    "Eure Lehrkraft sieht eure Antworten farbig markiert und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe); rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
+    "durch Wortvorschläge, Autokorrektur, Diktat oder einen übernommenen Korrekturvorschlag des Browsers. So kann sie bei Auffälligkeiten mit euch über eure Arbeitsweise sprechen. " +
     `Die Färbung dient ${TT_USE}; sie ist kein Beweis, und es gibt keine automatische Entscheidung. Beim Schreiben zeigt euch die Seite die Messung nicht an.`
   : " Beim Schreiben misst diese Seite außerdem die Tippzeiten – wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht –, um den Schreibprozess sichtbar zu machen: " +
-    "Deine Lehrkraft sieht deine Antworten farbig markiert; rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
-    "durch Wortvorschläge, Autokorrektur oder Diktat. So kann sie bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen. " +
+    "Deine Lehrkraft sieht deine Antworten farbig markiert und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe); rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
+    "durch Wortvorschläge, Autokorrektur, Diktat oder einen übernommenen Korrekturvorschlag des Browsers. So kann sie bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen. " +
     `Die Färbung dient ${TT_USE}; sie ist kein Beweis, und es gibt keine automatische Entscheidung. Beim Schreiben zeigt dir die Seite die Messung nicht an.`);
-// Wirkung des Schalters (Erstversuch nur bei Blättern mit KI-Feedback)
-const TT_SWITCH_EFFECT = (g, withAi) => (g
-  ? "Setzt ihr den Haken, misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen – auch in eurem Zwischenstand" +
-    (withAi ? "; einen schon an eure Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten" : "") +
-    ". Bei eurer Abgabe sieht eure Lehrkraft dann „ohne Messung (widersprochen)“. Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten " +
-    "weiter – löscht sie und sichert den Zwischenstand bei Bedarf neu. Nehmt ihr den Haken wieder weg, misst die Seite erst ab dann wieder. " +
-    "Nach der Abgabe wendet euch dafür an den Betreiber oder an eure Lehrkraft."
-  : "Setzt du den Haken, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen – auch in deinem Zwischenstand" +
-    (withAi ? "; einen schon an deine Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten" : "") +
-    ". Bei deiner Abgabe sieht deine Lehrkraft dann „ohne Messung (widersprochen)“. Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten " +
-    "weiter – lösche sie und sichere den Zwischenstand bei Bedarf neu. Nimmst du den Haken wieder weg, misst die Seite erst ab dann wieder. " +
-    "Nach der Abgabe wende dich dafür an den Betreiber oder an deine Lehrkraft.");
-/* Widerspruch gegen die Tippzeit-Messung unter „Deine Rechte“: Schalter (Checkbox mit Label, Wirkung per aria-describedby, Rückmeldung
-   in .ttopt-st) – "live" an S.ttOptOut gebunden (Änderungen: document-Listener „change“), "preview" gesperrt; ohne Schalter (Seite
-   „Impressum & Datenschutz“, kein Blatt geöffnet) ein Absatz, wo er steht */
+/* Kurzfassung (Angaben-Bildschirm, Vorschau der Lehrkraft) – derselbe Inhalt wie renderPrivacy im Schreibbereich */
+const TT_SHORT = (g) => (g
+  ? ` Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); eure Lehrkraft sieht eure Antworten dadurch farbig markiert. Die Färbung dient ${TT_USE}. ` +
+    "Widersprechen könnt ihr mit dem Schalter unter „Alle Informationen zum Datenschutz“."
+  : ` Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); deine Lehrkraft sieht deine Antworten dadurch farbig markiert. Die Färbung dient ${TT_USE}. ` +
+    "Widersprechen kannst du mit dem Schalter unter „Alle Informationen zum Datenschutz“.");
+// Wirkung des Schalters (Erstversuch nur bei Blättern mit KI-Feedback; Zwischenstand nur mit TT_KEEP_IN_DRAFT) – per aria-describedby
+const TT_SWITCH_EFFECT = (g, withAi, keep = TT_KEEP_IN_DRAFT) => (g
+  ? "Setzt ihr den Haken, misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen" + (keep ? " – auch in eurem Zwischenstand" : "") +
+    ". " + (withAi ? `Einen schon an eure Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten; die alte Fassung bleibt verschlüsselt noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ` : "") +
+    "Bei eurer Abgabe sieht eure Lehrkraft dann „ohne Messung (widersprochen)“ – das ist euer Recht und für eure Lehrkraft kein Anlass für einen Verdacht. " +
+    "Nehmt ihr den Haken wieder weg, misst die Seite erst ab dann wieder."
+  : "Setzt du den Haken, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen" + (keep ? " – auch in deinem Zwischenstand" : "") +
+    ". " + (withAi ? `Einen schon an deine Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten; die alte Fassung bleibt verschlüsselt noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ` : "") +
+    "Bei deiner Abgabe sieht deine Lehrkraft dann „ohne Messung (widersprochen)“ – das ist dein Recht und für deine Lehrkraft kein Anlass für einen Verdacht. " +
+    "Nimmst du den Haken wieder weg, misst die Seite erst ab dann wieder.");
+// Geltungsbereich: der Widerspruch steht im Zwischenstand dieses Geräts (und in danach gesicherten Zwischenstand-PDFs) – nicht beim
+// Server, der die Person nicht kennt; ebenfalls per aria-describedby
+const TT_SWITCH_SCOPE = (g, withAi, keep = TT_KEEP_IN_DRAFT) => (g
+  ? "Der Haken gilt für eure Bearbeitung auf diesem Gerät und für Zwischenstand-PDF-Dateien, die ihr danach sichert. Fangt ihr auf einem anderen Gerät oder nach „Abbrechen und Zwischenstand löschen“ neu an, setzt ihn erneut. " +
+    (keep ? "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – löscht sie und sichert den Zwischenstand bei Bedarf neu. " : "") +
+    (withAi ? "Einen Erstversuch, den ihr auf einem anderen Gerät gesendet habt, kann diese Seite nicht ersetzen – wendet euch dafür an eure Lehrkraft (sie kann ihn löschen). " : "") +
+    "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit eurer ganzen Abgabe löschen – wendet euch für einen Widerspruch dann an eure Lehrkraft oder an den Betreiber."
+  : "Der Haken gilt für deine Bearbeitung auf diesem Gerät und für Zwischenstand-PDF-Dateien, die du danach sicherst. Fängst du auf einem anderen Gerät oder nach „Abbrechen und Zwischenstand löschen“ neu an, setze ihn erneut. " +
+    (keep ? "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – lösche sie und sichere den Zwischenstand bei Bedarf neu. " : "") +
+    (withAi ? "Einen Erstversuch, den du auf einem anderen Gerät gesendet hast, kann diese Seite nicht ersetzen – wende dich dafür an deine Lehrkraft (sie kann ihn löschen). " : "") +
+    "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.");
+/* Widerspruch gegen die Tippzeit-Messung unter „Deine Rechte“: Schalter (Checkbox mit Label, Wirkung und Geltungsbereich per
+   aria-describedby, Rückmeldung in .ttopt-st direkt unter dem Schalter) – "live" an S.ttOptOut gebunden (Änderungen: document-Listener
+   „change“), "preview" gesperrt; ohne Schalter (Seite „Impressum & Datenschutz“, kein Blatt geöffnet) ein Absatz, wo er steht */
 function ttSwitchDom(o, g, withAi) {
   const t = (du, ihr) => (g ? ihr : du);
   if (o.ttSwitch !== "live" && o.ttSwitch !== "preview") {
     return h("p", { text: `Der Messung der Tippzeiten kannst du direkt widersprechen, sobald du ein Feibeitsblatt geöffnet hast: Unter „Alle Informationen zum Datenschutz“ – auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben – steht im Abschnitt „Deine Rechte“ der Schalter „${TT_SWITCH_DU}“. ` +
-      TT_SWITCH_EFFECT(false, withAi) });
+      TT_SWITCH_EFFECT(false, withAi) + " " + TT_SWITCH_SCOPE(false, withAi) });
   }
   const live = o.ttSwitch === "live", id = (o.id || "priv") + "-ttoff";
   return h("div", { class: "ttoptbox" + (g ? " ihr" : "") }, [
     h("p", { text: t("Der Messung der Tippzeiten kannst du direkt hier widersprechen:", "Der Messung der Tippzeiten könnt ihr direkt hier widersprechen – es genügt, wenn eine oder einer von euch das möchte:") }),
     h("label", { class: "ttopt", for: id }, [
-      h("input", { type: "checkbox", class: "tt-optout", id, checked: live && S.ttOptOut, disabled: !live, "aria-describedby": id + "-d" }),
+      h("input", { type: "checkbox", class: "tt-optout", id, checked: live && S.ttOptOut, disabled: !live, "aria-describedby": id + "-d " + id + "-s" }),
       h("span", { text: t(TT_SWITCH_DU, TT_SWITCH_IHR) })]),
-    h("p", { id: id + "-d", text: TT_SWITCH_EFFECT(g, withAi) }),
     live ? h("p", { class: "ttopt-st", role: "status" }) : null,
+    h("p", { id: id + "-d", text: TT_SWITCH_EFFECT(g, withAi) }),
+    h("p", { id: id + "-s", text: TT_SWITCH_SCOPE(g, withAi) }),
   ]);
 }
 /* Alle Informationen (Art. 13 Abs. 1 und 2): p = Löschfrist (cleanPrivacy) oder null, list = KI-Empfänger [{id, label, transfer}],
@@ -3003,15 +3046,19 @@ function privacyNoticeDom(p, list, opts) {
   // Rechtsgrundlagen (Art. 13 Abs. 1 Buchst. c): Nutzung des kostenlosen Angebots, Einwilligung für LanguageTool, berechtigtes Interesse
   // für Aufruf und Missbrauchsschutz, § 25 TDDDG für den Speicher im Browser – sachlich, ohne Garantien
   const deliver = o.pages ? "über Cloudflare und GitHub Pages" : CHECK_HOST ? "über Cloudflare; die Checklisten-Seite über GitHub Pages" : "über Cloudflare";
+  // Tippzeiten: eigene Rechtsgrundlage (Buchst. f) – Buchst. b und § 25 TDDDG nehmen sie ausdrücklich aus (Entscheidung des Betreibers;
+  // ob ihr Speichern im Browser eine Einwilligung braucht, prüft er noch). Im Zwischenstand stehen sie nur mit TT_KEEP_IN_DRAFT.
+  const ttInDraft = tt && TT_KEEP_IN_DRAFT, ttOut = tt ? " (außer den Tippzeiten darin, siehe nächster Punkt)" : "";
+  const ttWhere = (your) => [ttInDraft && `in ${your} Zwischenstand`, withAi && "im Erstversuch", "in der Abgabe"].filter(Boolean).join(", ").replace(/, (?=[^,]*$)/, " und ");
   const bases = [
-    t(`Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe` +
+    t(`Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
       (withAi ? " – und das KI-Feedback, wenn du es anforderst: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " + (withAi ? "diese Funktionen" : "es") + " selbst an.",
-    `Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe` +
+    `Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
       (withAi ? " – und das KI-Feedback, wenn ihr es anfordert: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert " + (withAi ? "diese Funktionen" : "es") + " selbst an."),
-    tt ? t(`Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen in deinem Zwischenstand${withAi ? ", im Erstversuch" : ""} und in der Abgabe): ` +
+    tt ? t(`Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen ${ttWhere("deinem")}): ` +
       "Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit deine Lehrkraft bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen kann; " +
       `die Tippzeiten dienen ${TT_USE}. Der Messung kannst du widersprechen – mit dem Schalter „${TT_SWITCH_DU}“ (siehe „Deine Rechte“).`,
-    `Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen in eurem Zwischenstand${withAi ? ", im Erstversuch" : ""} und in der Abgabe): ` +
+    `Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen ${ttWhere("eurem")}): ` +
       "Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit eure Lehrkraft bei Auffälligkeiten mit euch über eure Arbeitsweise sprechen kann; " +
       `die Tippzeiten dienen ${TT_USE}. Der Messung könnt ihr widersprechen – mit dem Schalter „${TT_SWITCH_IHR}“ (siehe „Eure Rechte“).`) : null,
     t("Rechtschreibprüfung (LanguageTool): deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Du gibst sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und deiner Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
@@ -3021,8 +3068,8 @@ function privacyNoticeDom(p, list, opts) {
     `Aufruf und Auslieferung dieser Seite (${deliver}) und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – ` +
       t("das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen kannst du Widerspruch einlegen (siehe „Deine Rechte“).",
         "das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen könnt ihr Widerspruch einlegen (siehe „Eure Rechte“)."),
-    t("Speichern im Browser deines Geräts (deine Angaben und Antworten im Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von dir gewünschte Funktion unbedingt erforderlich.",
-      "Speichern im Browser eures Geräts (eure Angaben und Antworten im Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."),
+    t(`Speichern im Browser deines Geräts (dein Zwischenstand${ttInDraft ? " – außer den Tippzeiten darin –" : ""}, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von dir gewünschte Funktion unbedingt erforderlich.`,
+      `Speichern im Browser eures Geräts (euer Zwischenstand${ttInDraft ? " – außer den Tippzeiten darin –" : ""}, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich.`),
   ].filter(Boolean);
   const mail = !!OPERATOR.email;   // je Stelle ein eigener Link (ein DOM-Knoten steht nur an einer Stelle)
   const kids = [
@@ -3060,8 +3107,12 @@ function privacyNoticeDom(p, list, opts) {
       : days ? `${what} wird ${days} Tage nach dem Eingang auf dem Server automatisch gelöscht (oder kurz danach); ${t("deine", "eure")} Lehrkraft kann sie auch früher löschen.`
       : `${what} wird gespeichert, bis ${t("deine", "eure")} Lehrkraft sie nach der Durchsicht löscht.`) +
       ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${B.draftStay}` +
-      (tt ? t(` Die Tippzeiten gehören zu ${withAi ? "Erstversuch und Abgabe" : "deiner Abgabe"} und werden mit ${withAi ? "ihnen" : "ihr"} gelöscht; bis zur Abgabe stehen sie auch in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei, wenn du ihn so sicherst.`,
-        ` Die Tippzeiten gehören zu ${withAi ? "Erstversuch und Abgabe" : "eurer Abgabe"} und werden mit ${withAi ? "ihnen" : "ihr"} gelöscht; bis zur Abgabe stehen sie auch in eurem Zwischenstand und in einer Zwischenstand-PDF-Datei, wenn ihr ihn so sichert.`) : "") +
+      (tt ? t(` Die Tippzeiten gehören zu ${withAi ? "Erstversuch und Abgabe" : "deiner Abgabe"} und werden mit ${withAi ? "ihnen" : "ihr"} gelöscht; ` +
+          (ttInDraft ? "bis zur Abgabe stehen sie auch in deinem Zwischenstand – und in jeder Zwischenstand-PDF-Datei, die du sicherst, bis du sie löschst."
+            : "bis dahin hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht."),
+        ` Die Tippzeiten gehören zu ${withAi ? "Erstversuch und Abgabe" : "eurer Abgabe"} und werden mit ${withAi ? "ihnen" : "ihr"} gelöscht; ` +
+          (ttInDraft ? "bis zur Abgabe stehen sie auch in eurem Zwischenstand – und in jeder Zwischenstand-PDF-Datei, die ihr sichert, bis ihr sie löscht."
+            : "bis dahin hält diese Seite sie nur im Arbeitsspeicher – in eurem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.")) : "") +
       B.checkStay +
       (cfAt >= 0 ? ` Workers AI speichert ${t("deine", "eure")} Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten ` +
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
@@ -3105,7 +3156,7 @@ const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der A
 function renderPersonPrivacy() {
   const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
-  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g)]),
+  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))]),
     privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live" }));
   $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
 }
@@ -3136,9 +3187,10 @@ function renderPrivacy() {
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
       : `Deine Abgabe wird zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
-    // Tippzeiten: nur der Hinweis, dass sie mitgehen (dieselbe Aussage wie der ausführliche Hinweis) – keine Anzeige der Messung
-    (ttMeasured(S.sheet) ? (withAi ? "Erstversuch und Abgabe enthalten" : "Die Abgabe enthält") + " auch die Tippzeiten deiner Antworten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht) – " +
-      "außer du widersprichst der Messung unter „Alle Informationen zum Datenschutz“. " : "") +
+    // Tippzeiten: derselbe Inhalt wie die Kurzfassung auf dem Angaben-Bildschirm (TT_SHORT) und dass sie mitgehen – keine Anzeige der Messung
+    (ttMeasured(S.sheet) ? "Beim Schreiben misst diese Seite außerdem die Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht); " +
+      (withAi ? "sie gehen mit Erstversuch und Abgabe" : "sie gehen mit der Abgabe") + " verschlüsselt an deine Lehrkraft, die deine Antworten dadurch farbig markiert sieht. " +
+      `Die Färbung dient ${TT_USE}. Widersprechen kannst du mit dem Schalter unter „Alle Informationen zum Datenschutz“. ` : "") +
     `Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (ist er älter als ${DRAFT_DAYS} Tage, löscht ihn diese Seite beim nächsten Aufruf in diesem Browser) – ` +
     `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter).` +
     (withAi ? ` Die KI kann sich irren: Prüfe ihr Feedback selbst.` : ""));
@@ -3241,6 +3293,8 @@ async function importDraftPdf(file) {
         ok: "Stand aus der PDF-Datei", cancel: "Neueren Stand von diesem Gerät", safeFirst: true });
       if (!usePdf) d = null;
     }
+    // Ein Widerspruch gegen die Tippzeit-Messung, der auf diesem Gerät gespeichert ist, gilt weiter – auch mit einer älteren Datei
+    if (d) d = ttKeepOptOut(d, local);
     S.person = person; S.importDraft = d;
     $("code-input").value = "";
     await openEditor();
@@ -3426,7 +3480,7 @@ async function draftRaw(code, p, key) {
    Zwischenstand: „Weiterschreiben“, Zwischenstand-PDF) */
 async function openEditor(fromPerson) {
   const p = S.person, sh = S.sheet, askedOut = fromPerson === true && S.ttOptOut;
-  S.ttOptOut = false; S.ttResend = false; S.firstSending = null;
+  S.ttOptOut = false; S.ttResend = false; S.firstSending = null; S.ttLastRaw = null; S.ttGen++;
   S.submitted = false; S.first = null; S.firstTyping = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbPending = false; S.ltCache = new Map();
   S.attempt = ""; S.firstSent = false;
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
@@ -3444,6 +3498,7 @@ async function openEditor(fromPerson) {
   const imported = S.importDraft; S.importDraft = null;
   let d = imported;
   if (!d) { const raw = await draftRaw(S.code, p, S.draftKey); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
+  S.ttLastRaw = store.get(S.draftKey);   // so liegt der Stand jetzt im Speicher – ein Widerspruch darin ist der eigene (ttFollowStored)
   const held = !imported && heldDrafts.has(S.draftKey);   // nur im Arbeitsspeicher (Speicher voll)
   try {
     if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
@@ -3465,12 +3520,13 @@ async function openEditor(fromPerson) {
     }
   } catch (e) { /* kaputter Entwurf: ignorieren */ }
   // Widerspruch gegen die Tippzeit-Messung: aus dem Zwischenstand oder – über den Angaben-Bildschirm geöffnet – von dort. Kam er erst
-  // dort, trägt der Stand dieses Geräts aber Tippzeiten bzw. einen gesendeten Erstversuch: verwerfen, sofort speichern, Erstversuch ersetzen
+  // dort, sofort speichern (auch ohne bisherigen Stand: sonst ginge er bei einem Neuladen vor der ersten Eingabe verloren); trägt der
+  // Stand dieses Geräts Tippzeiten bzw. einen gesendeten Erstversuch: verwerfen, Erstversuch ersetzen
   const okDraft = !!(d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length);
   const fl = okDraft ? ttDraftFlags(d) : { optOut: false, resend: false };
   S.ttOptOut = askedOut || fl.optOut;
   S.ttResend = fl.resend && S.firstSent && !!S.feedback;
-  const ttChanged = askedOut && !fl.optOut && okDraft && (d.typing != null || S.firstSent);
+  const ttChanged = askedOut && !fl.optOut;
   if (ttChanged && S.firstSent && S.feedback) S.ttResend = true;
   if (S.ttOptOut) ttResetAll(false);
   // Tippzeiten erst nach allen Texten und der ersten Fassung, je Aufgabe einzeln: ein Fehler kostet höchstens die Messung, nie den
@@ -3987,6 +4043,7 @@ function answersNow() {
  * Erstversuch wird mit derselben Kennung ohne Tippzeiten ersetzt (S.ttResend; scheitert das, beim nächsten Öffnen). Aus: nur ab jetzt
  * neu gemessen – der vorhandene Text gilt als „ohne Messung“. Auf dem Angaben-Bildschirm wirkt der Haken beim Öffnen (openEditor). */
 function ttResetAll(fresh) {   // alle Messungen verwerfen (fresh: neu ab dem jetzigen Text, ohne Werte → 255)
+  S.ttGen++;   // eine laufende KI-Anfrage hat ihre Werte vorher gelesen: die gelten danach nicht mehr (requestFeedback)
   if (!fresh) S.firstTyping = null;
   for (const t of S.tas || []) {
     try {
@@ -3999,15 +4056,54 @@ function ttResetAll(fresh) {   // alle Messungen verwerfen (fresh: neu ab dem je
 function syncTtBoxes() {   // alle Schalter (auch der auf dem Angaben-Bildschirm) zeigen den Stand
   document.querySelectorAll("input.tt-optout:not([disabled])").forEach((cb) => { cb.checked = !!S.ttOptOut; });
 }
-const TT_OPT_ON = "Widerspruch eingetragen: Diese Seite misst bei diesem Feibeitsblatt keine Tippzeiten.";
-const TT_OPT_ON_G = "Widerspruch eingetragen: Diese Seite misst bei eurem Feibeitsblatt keine Tippzeiten.";
+const TT_OPT_ON = "Widerspruch eingetragen: Auf diesem Gerät misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr.";
+const TT_OPT_ON_G = "Widerspruch eingetragen: Auf diesem Gerät misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr.";
+const TT_OPT_TAB = "Widerspruch eingetragen (in einem anderen Tab mit diesem Feibeitsblatt): Auf diesem Gerät misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr.";
 const TT_OPT_OFF = "Widerspruch zurückgenommen: Ab jetzt misst diese Seite die Tippzeiten wieder.";
-const TT_OPT_LATE = "Deine Abgabe wird gerade gesendet – ein Widerspruch gilt für sie nicht mehr. Wende dich dafür an den Betreiber oder an deine Lehrkraft.";
+// Klick auf den Schalter, während die Abgabe gesendet wird (die Nutzlast ist schon gebaut): Haken springt zurück; scheitert das Senden,
+// leert submitAll die Meldung (ttClearLate) – dann gilt der Schalter wieder
+const TT_OPT_LATE = "Deine Abgabe wird gerade gesendet – für sie gilt ein Widerspruch nicht mehr. Scheitert das Senden, kannst du den Haken danach setzen. " +
+  "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.";
+const TT_OPT_LATE_OFF = "Deine Abgabe wird gerade gesendet – ohne Tippzeiten, wie du es eingetragen hast. Scheitert das Senden, kannst du den Haken danach entfernen.";
+function ttClearLate() { document.querySelectorAll(".ttopt-st.late").forEach((st) => { st.textContent = ""; st.classList.remove("late"); }); }
+/* Widerspruch aus einem anderen Tab mit demselben Zwischenstand (gleiches Blatt, gleiche Person, gleicher Speicher): gilt auch hier. Geprüft
+   beim storage-Ereignis und – für Tabs, die es verpasst haben (eingefroren) – vor jedem Speichern und Senden. raw = gespeicherter Stand
+   (sonst aus dem Speicher gelesen); was dieser Tab selbst zuletzt geschrieben bzw. beim Öffnen gelesen hat (S.ttLastRaw), zählt nicht – sonst
+   ließe sich ein Widerspruch hier nie zurücknehmen. Der Widerspruch gewinnt: Zurücknehmen gilt nur im Tab, in dem es geschieht. */
+function ttFollowStored(raw) {
+  if (S.ttOptOut || !S.draftKey || S.submitted || !S.tas || !S.tas.length) return false;
+  let fl = null;
+  try {
+    if (raw === undefined) raw = store.get(S.draftKey);
+    if (raw === S.ttLastRaw) return false;
+    fl = ttStoredFlags(raw);
+  } catch (e) { fl = null; }
+  if (!fl) return false;
+  S.ttOptOut = true;
+  ttResetAll(false);
+  // ein gesendeter Erstversuch dieser Bearbeitung trägt womöglich Tippzeiten (ohne firstSent sendet sendFirstAttempt ihn ohnehin ohne sie)
+  if (S.feedback && (S.firstSent || (fl.resend && fl.attempt === S.attempt))) S.ttResend = true;
+  syncTtBoxes();
+  document.querySelectorAll(".ttoptbox .ttopt-st").forEach((st) => { st.classList.remove("late"); st.textContent = TT_OPT_TAB; });
+  return true;
+}
+window.addEventListener("storage", (e) => {
+  try {
+    if (!e.key || e.key !== S.draftKey || screen !== "screen-editor") return;
+    if (ttFollowStored(e.newValue) && S.ttResend) sendFirstAttempt();
+  } catch (x) { /* egal: saveDraft und das Senden sehen ohnehin nach */ }
+});
 document.addEventListener("change", (e) => {
   const cb = e.target;
   if (!cb || !cb.classList || !cb.classList.contains("tt-optout") || cb.disabled) return;
   const box = cb.closest(".ttoptbox"), st = box && box.querySelector(".ttopt-st"), grp = !!(box && box.classList.contains("ihr"));
-  if (S.submitting) { cb.checked = !!S.ttOptOut; if (st) st.textContent = TT_OPT_LATE; return; }   // die Nutzlast ist schon gebaut
+  if (S.submitting) {   // die Nutzlast ist schon gebaut
+    const late = S.ttOptOut ? TT_OPT_LATE_OFF : TT_OPT_LATE;
+    cb.checked = !!S.ttOptOut;
+    if (st) { st.classList.add("late"); st.textContent = late; }
+    return;
+  }
+  if (st) st.classList.remove("late");
   const on = cb.checked;
   if (on !== S.ttOptOut) {
     S.ttOptOut = on;
@@ -4066,10 +4162,13 @@ const SAVE_FAILED = "Zwischenstand konnte auf diesem Gerät nicht gespeichert we
 function saveDraft() {
   clearTimeout(saveTimer);
   if (!S.draftKey || S.submitted) return false;
+  // Widerspruch aus einem anderen Tab mit demselben Stand: erst übernehmen, dann speichern (nie mit Tippzeiten überschreiben)
+  if (ttFollowStored() && S.ttResend) setTimeout(sendFirstAttempt, 0);
   const d = draftRecord(), rec = JSON.stringify(d);
-  let ok = store.set(S.draftKey, rec);
+  let ok = store.set(S.draftKey, rec), stored = rec;
   // Speicher voll: lieber den Text ohne Tippzeiten auf dem Gerät als nur im Arbeitsspeicher (nach Neuladen „ohne Messung“)
-  if (!ok && d.typing) { const lean = Object.assign({}, d); delete lean.typing; ok = store.set(S.draftKey, JSON.stringify(lean)); }
+  if (!ok && d.typing) { const lean = Object.assign({}, d); delete lean.typing; stored = JSON.stringify(lean); ok = store.set(S.draftKey, stored); }
+  if (ok) S.ttLastRaw = stored;   // so steht er jetzt im Speicher (ttFollowStored: das ist kein Widerspruch eines anderen Tabs)
   if (ok) heldDrafts.delete(S.draftKey); else heldDrafts.set(S.draftKey, rec);   // nicht gespeichert: für „Weiterschreiben“ im Arbeitsspeicher (samt Tippzeiten)
   setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : SAVE_FAILED, !ok);
   return ok;
@@ -4956,9 +5055,9 @@ async function requestFeedback() {
   const snapshot = () => {   // Antworten jetzt lesen – vor jedem Versuch neu, damit Feedback und erste Fassung zum gesendeten Text passen
     const { texts: answers, typing } = answersNow();   // Tippzeiten im selben Moment (nur für die erste Fassung, nie an die KI)
     const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
-    return { answers, typing, empty, tooLong: tooLongTotal(answers) };
+    return { answers, typing, ttGen: S.ttGen, empty, tooLong: tooLongTotal(answers) };   // ttGen: wurde die Messung danach verworfen?
   };
-  let { answers, typing, empty, tooLong } = snapshot();
+  let { answers, typing, ttGen, empty, tooLong } = snapshot();
   if (empty.length === answers.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
   if (tooLong) { setStatus(st, tooLong, "bad"); return; }
   // Ohne Empfänger war beim Laden keine KI eingerichtet: erst nachsehen, ob die Lehrkraft sie inzwischen eingerichtet hat (nur ein GET).
@@ -5045,7 +5144,7 @@ async function requestFeedback() {
             failed(e, 1, "Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
             return;
           }
-          ({ answers, typing, empty, tooLong } = snapshot());
+          ({ answers, typing, ttGen, empty, tooLong } = snapshot());
           if (tooLong) { failed(e, 1, tooLong); return; }   // frühere Versuche dieses Laufs gingen schon an den Server: Fehlversuch
           continue;
         }
@@ -5074,7 +5173,8 @@ async function requestFeedback() {
     if (run !== S.fbRun) return;
     if (!Array.isArray(r.results) || r.results.length !== answers.length) { failed(new ApiError("bad_result"), 1, "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal."); return; }
     S.first = answers.slice();   // genau die gesendete Fassung
-    S.firstTyping = S.ttOptOut ? null : typing.slice();   // … und ihre Tippzeiten aus demselben snapshot() (inzwischen widersprochen: keine)
+    // … und ihre Tippzeiten aus demselben snapshot() – inzwischen widersprochen bzw. die Messung verworfen (auch an und wieder aus): keine
+    S.firstTyping = S.ttOptOut || ttGen !== S.ttGen ? null : typing.slice();
     S.feedback = r.results.map(normFb);
     S.feedbackAt = new Date().toISOString();
     S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbFails = 0; S.fbPending = false;
@@ -5097,6 +5197,7 @@ const fbOut = (f) => (f.note ? { covered: f.covered, missing: f.missing, note: f
 /* Erstversuch: erste Fassung + KI-Feedback verschlüsselt an die Lehrkraft übermitteln. Die spätere Abgabe (gleiche Kennung)
    ersetzt ihn auf dem Server. Schlägt die Übermittlung fehl, wird sie beim nächsten Öffnen nachgeholt. */
 async function sendFirstAttempt() {
+  ttFollowStored();   // Widerspruch aus einem anderen Tab mit demselben Stand gilt auch hier (dann ohne Tippzeiten)
   // Widerspruch nach dem Senden (S.ttResend): denselben Eintrag (gleiche Kennung → UPDATE derselben Zeile) ohne Tippzeiten ersetzen
   const resend = S.firstSent && S.ttResend;
   if (!S.feedback || !S.first || (S.firstSent && !resend) || S.submitted || !S.attempt || !S.pub || S.firstSending) return;
@@ -5398,6 +5499,7 @@ async function submitAll() {
   busy(btn, true, "Wird abgegeben …");
   setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
   try {
+    ttFollowStored();   // Widerspruch aus einem anderen Tab mit demselben Stand gilt auch für diese Abgabe
     const now = answersNow();   // Antworten und Tippzeiten im selben Moment
     const payload = {
       v: 1, stage: "final", sheetCode: S.code, sheetTitle: S.sheet.title,
@@ -5448,6 +5550,7 @@ async function submitAll() {
       " Deine Antworten sind noch da – versuche es gleich noch einmal.", "bad");
   } finally {
     S.submitting = false;
+    if (!S.submitted) ttClearLate();   // „Deine Abgabe wird gerade gesendet …“ am Schalter gilt nicht mehr: er wirkt wieder
     busy(btn, false); if (S.submitted) btn.disabled = true;
     else if (S.sheet) renderFeedbackState();   // gescheitert: KI-Feedback wieder möglich
   }
@@ -5474,7 +5577,7 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   resetMembers();   // Kürzelfelder der Gruppe: wieder ein leeres Feld beim nächsten Öffnen
   $("p-err").textContent = ""; $("start-err").textContent = "";
@@ -8067,7 +8170,7 @@ function renderPvPreview() {
   const f = pvForm(), p = cleanPrivacy(f), list = cleanRecipients(T.privacy && T.privacy.aiRecipients), box = $("pv-preview");
   box.textContent = "";
   // CHECK_HOST: Zwischenstand-PDF und QR-Code führen auf GitHub Pages – dort nennt der Hinweis GitHub für die ganze Seite
-  box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true)]),
+  box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true, false, true)]),
     privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull", ttSwitch: "preview" }),
     h("p", { class: "fhint", id: "pv-preview-note", text: (CHECK_HOST ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${CHECK_HOST}, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „${GITHUB_ITEM}“ ` : "") +
       "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));

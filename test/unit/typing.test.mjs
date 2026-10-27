@@ -11,7 +11,7 @@ const NAMES = "TT_RED_MS, TT_YELLOW_MS, TT_SLOW, TT_NONE, TT_HIGH_PCT, TT_MAX_LE
   "TT_KEEP_IN_DRAFT, cellText, tableText, tableRows, ttDiff, ttNew, ttApply, ttCodes, ttClass, ttEncode, ttDecode, ttGraphemes, ttSegments, " +
   "ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload, " +
   "ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE, ttSegmentsCut, ttCutNote, TT_CUT_NOTES, ttDraftStrip, ttDetail, " +
-  "ttOptOutPayload, ttDraftFlags, TT_OPTOUT_NOTE, TT_USE";
+  "ttOptOutPayload, ttDraftFlags, ttStoredFlags, ttKeepOptOut, TT_OPTOUT_NOTE, TT_USE";
 // Intl als Parameter: so lässt sich der Rückfall ohne Intl.Segmenter (Firefox vor Version 125) prüfen
 const load = (src, intl) => new Function("Intl", src + "\nreturn { " + NAMES + " };")(intl === undefined ? Intl : intl);
 const T = load(block);
@@ -20,7 +20,7 @@ const {
   cellText, tableText, tableRows, ttDiff, ttNew, ttApply, ttCodes, ttClass, ttEncode, ttDecode, ttGraphemes, ttSegments,
   ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload,
   ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE, ttSegmentsCut, ttCutNote, TT_CUT_NOTES, ttDraftStrip, ttDetail,
-  ttOptOutPayload, ttDraftFlags, TT_OPTOUT_NOTE, TT_USE,
+  ttOptOutPayload, ttDraftFlags, ttStoredFlags, ttKeepOptOut, TT_OPTOUT_NOTE, TT_USE,
 } = T;
 
 const codesOf = (tt) => Array.from(ttCodes(tt));
@@ -638,7 +638,9 @@ test("typing: Lehrkraft – Anteile ohne Tabellenkopf, Rot-Anteil in Worten, Hin
   const two = ttSummary("Tippzeiten – Rot-Anteil: ", [{ label: "erste Eingabe", share: sTab }, { label: "nach dem KI-Feedback", share: sTab }]);
   assert.equal(join(two), "Tippzeiten – Rot-Anteil: erste Eingabe 55 % (von 11 Zeichen) – hoch · nach dem KI-Feedback 55 % (von 11 Zeichen) – hoch. " + TT_ZERO_NOTE);
   assert.deepEqual(two.map((x) => x.high), [false, true, false, true, false]);
-  assert.equal(TT_ZERO_NOTE, "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur oder Diktat).");
+  // auch ein per Rechtsklick übernommener Korrekturvorschlag des Browsers kommt in einem Zug (insertReplacementText) – LanguageTool nie
+  assert.equal(TT_ZERO_NOTE, "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur, Diktat oder ein übernommener Korrekturvorschlag des Browsers).");
+  assert.doesNotMatch(TT_ZERO_NOTE, /LanguageTool|Rechtschreibprüfung/);
   const sum = ttSummary("Tippzeiten – Rot-Anteil über alle Aufgaben: ", [{ label: "erste Fassung", share: ttShare([[text, codes], ...ttShareParts(ex.text, ex.codes, true)]) }]);
   assert.equal(join(sum), "Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 45 % (von 40 Zeichen)");
   // ohne Bezeichnung (eine Fassung); nicht hoch → kein Hinweis, auch wenn alle roten Zeichen 0 ms haben
@@ -680,10 +682,77 @@ test("typing: Widerspruch – Nutzlast ohne Werte, Lehrkraft sieht „ohne Messu
   assert.deepEqual(ttDraftFlags({ ttResend: true, firstSent: true }), { optOut: false, resend: true });
   for (const bad of [null, undefined, 5, "x", [], {}, { ttOptOut: "true" }, { ttOptOut: 1 }, { ttResend: "true", firstSent: true }, [{ ttOptOut: true }]])
     assert.deepEqual(ttDraftFlags(bad), { optOut: false, resend: false });
-  // derselbe Zweck überall: Hinweis der Lehrkraft und Datenschutzhinweis nutzen denselben Wortlaut
+  // derselbe Zweck überall: Hinweis der Lehrkraft, Kurzfassungen und Datenschutzhinweis nutzen denselben Wortlaut
   assert.equal(TT_USE, "nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht");
   assert.ok(html.includes("Nutzen Sie die Färbung " + TT_USE + "."));
   assert.ok(html.includes("Die Färbung dient ${TT_USE};"));
   assert.ok(html.includes("die Tippzeiten dienen ${TT_USE}."));
+  assert.equal(html.split("Die Färbung dient ${TT_USE}. ").length - 1, 3);   // Kurzfassung du/ihr (TT_SHORT) und renderPrivacy
   assert.ok(!/\blit\./.test(html));   // Schreibweise „Buchst.“, nie „lit.“
+});
+
+test("typing: Widerspruch eines anderen Tabs und beim Import einer Zwischenstand-PDF – gespeichert gewinnt der Widerspruch", () => {
+  // ttStoredFlags: roher Text aus dem Speicher; geparst nur mit Kennzeichen, eine Antwort mit demselben Text zählt nicht (maskiert)
+  const rec = (o) => JSON.stringify({ v: 1, t: 1, answers: ["x"], attempt: "0123456789abcdef", firstSent: true, ...o });
+  assert.deepEqual(ttStoredFlags(rec({ ttOptOut: true })), { resend: false, attempt: "0123456789abcdef" });
+  assert.deepEqual(ttStoredFlags(rec({ ttOptOut: true, ttResend: true })), { resend: true, attempt: "0123456789abcdef" });
+  assert.deepEqual(ttStoredFlags(rec({ ttOptOut: true, ttResend: true, firstSent: false })), { resend: false, attempt: "0123456789abcdef" });
+  assert.equal(ttStoredFlags(rec({})), null);
+  assert.equal(ttStoredFlags(rec({ ttResend: true })), null);   // nur ein fälliges Ersetzen, kein Widerspruch
+  assert.equal(ttStoredFlags(rec({ answers: ['"ttOptOut":true'] })), null);
+  assert.equal(ttStoredFlags(JSON.stringify({ answers: ["a"], note: '{"ttOptOut":true}' })), null);
+  for (const bad of [null, undefined, 5, {}, "", '"ttOptOut":true', '{"ttOptOut":true', '["ttOptOut":true]', '{"ttOptOut":"true"}'])
+    assert.equal(ttStoredFlags(bad), null);
+  assert.deepEqual(ttStoredFlags('{"ttOptOut":true,"attempt":5}'), { resend: false, attempt: "" });
+  // ttKeepOptOut: der Widerspruch auf dem Gerät bleibt; Werte aus der Datei weg; ein gesendeter Erstversuch aus der Datei wird ersetzt
+  const fb = [{ covered: [], missing: [] }], ty = { v: 1, answers: ["AQ=="], first: null };
+  const pdf = (o) => ({ v: 1, answers: ["x"], first: ["x"], feedback: fb, attempt: "aaaaaaaaaaaaaaaa", firstSent: true, ttOptOut: false, ttResend: false, typing: ty, ...o });
+  const local = (o) => ({ v: 1, attempt: "aaaaaaaaaaaaaaaa", firstSent: true, ttOptOut: true, ...o });
+  let d = ttKeepOptOut(pdf(), local());
+  assert.deepEqual([d.ttOptOut, d.ttResend, d.typing], [true, true, null]);
+  d = ttKeepOptOut(pdf({ firstSent: false }), local());
+  assert.deepEqual([d.ttOptOut, d.ttResend, d.typing], [true, false, null]);   // nicht gesendet: geht ohnehin ohne Tippzeiten
+  d = ttKeepOptOut(pdf({ feedback: null, first: null }), local());
+  assert.deepEqual([d.ttOptOut, d.ttResend], [true, false]);
+  // schon in der Datei widersprochen und ersetzt: nur ein auf dem Gerät noch fälliges Ersetzen derselben Bearbeitung gilt weiter
+  d = ttKeepOptOut(pdf({ ttOptOut: true, typing: null }), local());
+  assert.deepEqual([d.ttOptOut, d.ttResend], [true, false]);
+  d = ttKeepOptOut(pdf({ ttOptOut: true, typing: null }), local({ ttResend: true }));
+  assert.deepEqual([d.ttOptOut, d.ttResend], [true, true]);
+  d = ttKeepOptOut(pdf({ ttOptOut: true, typing: null }), local({ ttResend: true, attempt: "bbbbbbbbbbbbbbbb" }));
+  assert.deepEqual([d.ttOptOut, d.ttResend], [true, false]);
+  // ohne Widerspruch auf dem Gerät: unverändert (derselbe Gegenstand)
+  for (const l of [null, undefined, {}, local({ ttOptOut: false }), local({ ttOptOut: "true" }), [local()]]) {
+    const x = pdf();
+    assert.equal(ttKeepOptOut(x, l), x);
+    assert.deepEqual(x, pdf());
+  }
+  assert.equal(ttKeepOptOut(null, local()), null);
+});
+
+test("typing: Datenschutzhinweis – Wirkung und Geltungsbereich des Schalters folgen TT_KEEP_IN_DRAFT", () => {
+  // die beiden Bausteine aus index.html (stehen außerhalb des Blocks TYPING, hängen nur an BACKUP_DAYS und TT_KEEP_IN_DRAFT)
+  const a = html.indexOf("const TT_SWITCH_EFFECT = "), b = html.indexOf("/* Widerspruch gegen die Tippzeit-Messung unter „Deine Rechte“");
+  assert.ok(a > 0 && b > a);
+  const BD = html.match(/const BACKUP_DAYS = ("[^"]+");/)[1];
+  const texts = (keep) => new Function("TT_KEEP_IN_DRAFT", "BACKUP_DAYS", html.slice(a, b) + "\nreturn { TT_SWITCH_EFFECT, TT_SWITCH_SCOPE };")(keep, JSON.parse(BD));
+  const on = texts(true), off = texts(false);
+  for (const g of [false, true]) for (const ai of [false, true]) {
+    const e1 = on.TT_SWITCH_EFFECT(g, ai), e0 = off.TT_SWITCH_EFFECT(g, ai), s1 = on.TT_SWITCH_SCOPE(g, ai), s0 = off.TT_SWITCH_SCOPE(g, ai);
+    assert.match(e1, /auch in (deinem|eurem) Zwischenstand/);
+    assert.doesNotMatch(e0, /Zwischenstand/);   // ohne Speichern im Zwischenstand nichts dazu
+    assert.match(s1, /Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter/);
+    assert.doesNotMatch(s0, /enthält die bisherigen Tippzeiten/);
+    for (const x of [e1, e0, s1, s0]) assert.doesNotMatch(x, g ? /\b(du|dein\w*|dir|dich)\b/i : /\b(ihr|euer|eure\w*|euch)\b/i);
+    // Erstversuch nur bei Blättern mit KI-Feedback – samt Datensicherung nach dem Ersetzen und dem Erstversuch eines anderen Geräts
+    assert.equal(/Erstversuch/.test(e1) && /Datensicherung der Datenbank/.test(e1), ai);
+    assert.equal(/auf einem anderen Gerät gesendet/.test(s1), ai);
+    // Geltungsbereich und nach der Abgabe: nur zusammen mit der ganzen Abgabe
+    assert.match(s0, /gilt für (deine|eure) Bearbeitung auf diesem Gerät/);
+    assert.match(s0, /nur zusammen mit (deiner|eurer) ganzen Abgabe löschen/);
+    assert.doesNotMatch(e1 + s1, /LanguageTool/);
+  }
+  assert.equal(on.TT_SWITCH_EFFECT(false, true), "Setzt du den Haken, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen – auch in deinem Zwischenstand. " +
+    "Einen schon an deine Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten; die alte Fassung bleibt verschlüsselt noch bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage) in der Datensicherung der Datenbank. " +
+    "Bei deiner Abgabe sieht deine Lehrkraft dann „ohne Messung (widersprochen)“ – das ist dein Recht und für deine Lehrkraft kein Anlass für einen Verdacht. Nimmst du den Haken wieder weg, misst die Seite erst ab dann wieder.");
 });
