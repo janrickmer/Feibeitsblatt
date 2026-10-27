@@ -527,7 +527,7 @@
   details.privfull ul{margin:2px 0 0; padding-left:18px}
   details.privfull li{margin:3px 0}
   details.privfull a{color:var(--accent)}
-  /* Widerspruch gegen die Tippzeit-Messung (Schalter unter „Deine Rechte“): ganze Zeile klickbar, mindestens 44 px hoch */
+  /* Widerspruch gegen die Tippzeit-Messung (Schalter im eigenen Abschnitt des ausführlichen Hinweises): ganze Zeile klickbar, mindestens 44 px hoch */
   .ttoptbox{margin:6px 0 8px}
   .ttopt{display:flex; align-items:flex-start; gap:10px; min-height:44px; margin:5px 0; padding:9px 10px; border:1px solid var(--line); border-radius:6px;
     background:var(--paper2); color:var(--ink); font-family:var(--sans); font-size:13.5px; font-weight:600; line-height:1.4; letter-spacing:0; text-transform:none; cursor:pointer}
@@ -1089,7 +1089,7 @@
         <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
         <div class="ttbox hidden" id="t-tt">
           <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (<span id="t-tt-none">z. B. ältere Stände oder nach einem Widerspruch</span>); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
-          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung im ausführlichen Datenschutzhinweis („Alle Informationen zum Datenschutz“) widersprechen (Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“); dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht. Die Kurzfassung des Hinweises, die Schüler:innen ohne Aufklappen sehen, nennt die Messung nicht.</p>
+          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung widersprechen: Die Kurzfassung des Datenschutzhinweises nennt die Messung in einem Satz, im ausführlichen Hinweis („Alle Informationen zum Datenschutz“) steht im Abschnitt „Widerspruch gegen die Tippzeit-Messung“ der Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“. Nach einem Widerspruch steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.</p>
           <button type="button" class="btn ghost small" id="t-tt-off" aria-pressed="false">Färbung aus</button>
         </div>
         <p class="status" id="t-subs-status" aria-live="polite"></p>
@@ -1600,7 +1600,7 @@ const TT_SEG_MAX = 2000;                      // mehr Farbabschnitte in einer An
 /* Schalter: false = Tippzeiten nur im Arbeitsspeicher, nie im Zwischenstand (Gerät, heldDrafts, Zwischenstand-PDF) – nach Neuladen
    oder Import gilt der wiederhergestellte Text dann als „ohne Messung“. Erstversuch und Abgabe tragen sie in beiden Fällen.
    Eingecheckt false (Entscheidung des Betreibers vom 27.10.2026, Annahme: Speichern im Zwischenstand bräuchte eine Einwilligung nach
-   § 25 Abs. 1 TDDDG – ein Einwilligungsdialog wäre auffällig). Beim Umlegen README und CLAUDE.md von Hand anpassen. */
+   § 25 Abs. 1 TDDDG – die Seite fragt keine ab). Beim Umlegen README und CLAUDE.md von Hand anpassen. */
 const TT_KEEP_IN_DRAFT = false;
 /* Tabelle ↔ Text: erste Zeile die Überschriften, dann je ausgefüllter Zeile „Zelle | Zelle“ („|“ in Zellen wird „/“) */
 const cellText = (s) => String(s == null ? "" : s).replace(/\|/g, "/").replace(/\s+/g, " ").trim();
@@ -2877,10 +2877,10 @@ const authorityTail = () => (AUTH_TEXT ? [" – für den Betreiber zuständig is
   authorityLink(), OPERATOR.authority.url ? "." : null] : ["."]);
 // Kurzfassung (nennt auch den KI-Dienst: auf dem Server wird nur verschlüsselt gespeichert, das KI-Feedback aber geht an einen Dienst –
 // nach dem KI-Feedback bei der Abgabe noch einmal, zweite Rückmeldung)
-// group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe). Die Tippzeit-Messung und den
-// Schalter für den Widerspruch nennt nur der ausführliche Hinweis (privacyNoticeDom) – Entscheidung des Betreibers vom 27.10.2026: für
-// Schüler:innen nicht auffällig, niemand wird gezielt zur Entscheidung geführt. Nicht ohne Rückfrage hierher (oder in renderPrivacy) holen.
-function privacyShortText(p, list, withAi, group) {
+// group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe); typing: das Blatt misst Tippzeiten
+// (ttMeasured) – dann am Ende genau der eine neutrale Satz TT_SHORT, nichts weiter zur Messung (Schalter, Wirkung und Geltungsbereich stehen
+// im eigenen Abschnitt des ausführlichen Hinweises, privacyNoticeDom)
+function privacyShortText(p, list, withAi, group, typing) {
   const days = p && p.retentionDays;
   const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst" };
   return `Verantwortlich ist ${OP_NAME} – Feibeitsblatt ist ein privates, kostenloses Angebot. Auf dem Server werden ${w.d} Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur ${w.d} Lehrkraft. ` +
@@ -2888,7 +2888,8 @@ function privacyShortText(p, list, withAi, group) {
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
       : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn ${w.du} es ${w.anf}, gehen ${w.d} Antworten – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
         (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") + ", bei der Abgabe dann noch einmal die danach geänderten Antworten. Auch die Rechtschreibprüfung ist freiwillig."
-      : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.");
+      : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.") +
+    (typing ? " " + TT_SHORT(group) : "");
 }
 // Zwischenstand auf dem Gerät: gelöscht wird nur beim nächsten Aufruf der Seite (cleanupDrafts) – nie „höchstens 7 Tage“ zusagen
 const DRAFT_STAY = `Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
@@ -2929,12 +2930,28 @@ const PRIV_IHR = {
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
 };
 const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
-/* Tippzeit-Messung nur im ausführlichen Hinweis (nicht in den Kurzfassungen; nicht bei Blättern nur mit Weltkarten – dort wird nichts
-   gemessen): Zweck (TT_USE, derselbe Wortlaut wie im Hinweis der Lehrkraft), Rechtsgrundlage berechtigtes Interesse (Buchst. f) mit
-   Widerspruch per Schalter. Was im Zwischenstand und in der Zwischenstand-PDF steht, hängt an TT_KEEP_IN_DRAFT (keep): Die Sätze dazu
-   folgen dem Schalter, nie fest verdrahtet. Mit keep nimmt der Satz zu § 25 Abs. 2 Nr. 2 TDDDG die Tippzeiten im Zwischenstand
-   ausdrücklich aus (für sie bräuchte es nach Annahme des Betreibers eine Einwilligung – deshalb eingecheckt false). */
+/* Tippzeit-Messung (nicht bei Blättern nur mit Weltkarten – dort wird nichts gemessen; Entscheidung des Betreibers vom 27.10.2026,
+   zweite Fassung nach Rechtsprüfung): Die Kurzfassungen (privacyShortText, renderPrivacy samt Vorschau der Lehrkraft) nennen sie in genau
+   einem neutralen Satz (TT_SHORT, ohne Hervorhebung). Der ausführliche Hinweis nennt Zweck (TT_USE, derselbe Wortlaut wie im Hinweis der
+   Lehrkraft), Rechtsgrundlage berechtigtes Interesse (Buchst. f), den Zugriff auf das Gerät (§ 25 TDDDG, nur als Tatsache – keine
+   behauptete Ausnahme, keine Einwilligung) und hat für den Widerspruch einen eigenen Abschnitt (TT_OBJ_HEAD) mit dem Schalter, getrennt
+   von „Deine Rechte“ (Art. 21 Abs. 4 DSGVO). Was im Zwischenstand und in der Zwischenstand-PDF steht, hängt an TT_KEEP_IN_DRAFT (keep):
+   Die Sätze dazu folgen dem Schalter, nie fest verdrahtet. Mit keep nimmt der Satz zu § 25 Abs. 2 Nr. 2 TDDDG die Tippzeiten im
+   Zwischenstand ausdrücklich aus (eingecheckt false: sie stehen nicht im Zwischenstand). */
 const TT_SWITCH_DU = "Tippzeiten für dieses Feibeitsblatt nicht messen", TT_SWITCH_IHR = "Tippzeiten für euer Feibeitsblatt nicht messen";
+const TT_OBJ_HEAD = "Widerspruch gegen die Tippzeit-Messung";   // Überschrift des eigenen Abschnitts (gleiche Ebene wie die übrigen .privh)
+// Kurzfassung: genau dieser Satz (du bzw. „ihr“ auf dem Angaben-Bildschirm einer Gruppe) – keine weiteren Tippzeit-Sätze dort
+const TT_SHORT = (g) => (g
+  ? "Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen könnt ihr unter „Alle Informationen zum Datenschutz“."
+  : "Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen kannst du unter „Alle Informationen zum Datenschutz“.");
+// Zugriff auf das Gerät (§ 25 TDDDG) – nur die Tatsache, im Fließtext unter „Welche Daten?“; was im Zwischenstand steht, folgt TT_KEEP_IN_DRAFT
+const TT_ACCESS = (g, keep = TT_KEEP_IN_DRAFT) => (g
+  ? "Für die Tippzeiten liest diese Seite beim Schreiben in eurem Browser die Zeitpunkte eurer Eingaben aus" +
+    (keep ? ", hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis dahin auch in eurem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
+    " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf euer Gerät im Sinne von § 25 TDDDG."
+  : "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus" +
+    (keep ? ", hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis dahin auch in deinem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
+    " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");
 const ttMeasured = (sh) => !(sh && Array.isArray(sh.answers) && sh.tasks && sh.tasks.length && sh.tasks.every((_, i) => sh.answers[i] && sh.answers[i].type === "map"));
 const TT_PURPOSE = (g) => (g
   ? " Beim Schreiben misst diese Seite außerdem die Tippzeiten – wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht –, um den Schreibprozess sichtbar zu machen: " +
@@ -2966,13 +2983,13 @@ const TT_SWITCH_SCOPE = (g, withAi, keep = TT_KEEP_IN_DRAFT) => (g
     (keep ? "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – lösche sie und sichere den Zwischenstand bei Bedarf neu. " : "") +
     (withAi ? "Einen Erstversuch, den du auf einem anderen Gerät gesendet hast, kann diese Seite nicht ersetzen – wende dich dafür an deine Lehrkraft (sie kann ihn löschen). " : "") +
     "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.");
-/* Widerspruch gegen die Tippzeit-Messung unter „Deine Rechte“: Schalter (Checkbox mit Label, Wirkung und Geltungsbereich per
-   aria-describedby, Rückmeldung in .ttopt-st direkt unter dem Schalter) – "live" an S.ttOptOut gebunden (Änderungen: document-Listener
-   „change“), "preview" gesperrt; ohne Schalter (Seite „Impressum & Datenschutz“, kein Blatt geöffnet) ein Absatz, wo er steht */
+/* Inhalt des eigenen Abschnitts „Widerspruch gegen die Tippzeit-Messung“ (TT_OBJ_HEAD): Schalter (Checkbox mit Label, Wirkung und
+   Geltungsbereich per aria-describedby, Rückmeldung in .ttopt-st direkt unter dem Schalter) – "live" an S.ttOptOut gebunden (Änderungen:
+   document-Listener „change“), "preview" gesperrt; ohne Schalter (Seite „Impressum & Datenschutz“, kein Blatt geöffnet) ein Absatz, wo er steht */
 function ttSwitchDom(o, g, withAi) {
   const t = (du, ihr) => (g ? ihr : du);
   if (o.ttSwitch !== "live" && o.ttSwitch !== "preview") {
-    return h("p", { text: `Der Messung der Tippzeiten kannst du direkt widersprechen, sobald du ein Feibeitsblatt geöffnet hast: Unter „Alle Informationen zum Datenschutz“ – auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben – steht im Abschnitt „Deine Rechte“ der Schalter „${TT_SWITCH_DU}“. ` +
+    return h("p", { text: `Der Messung der Tippzeiten kannst du direkt widersprechen, sobald du ein Feibeitsblatt geöffnet hast: Unter „Alle Informationen zum Datenschutz“ – auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben – steht im Abschnitt „${TT_OBJ_HEAD}“ der Schalter „${TT_SWITCH_DU}“. ` +
       TT_SWITCH_EFFECT(false, withAi) + " " + TT_SWITCH_SCOPE(false, withAi) });
   }
   const live = o.ttSwitch === "live", id = (o.id || "priv") + "-ttoff";
@@ -3056,10 +3073,10 @@ function privacyNoticeDom(p, list, opts) {
       (withAi ? " – und das KI-Feedback, wenn ihr es anfordert: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert " + (withAi ? "diese Funktionen" : "es") + " selbst an."),
     tt ? t(`Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen ${ttWhere("deinem")}): ` +
       "Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit deine Lehrkraft bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen kann; " +
-      `die Tippzeiten dienen ${TT_USE}. Der Messung kannst du widersprechen – mit dem Schalter „${TT_SWITCH_DU}“ (siehe „Deine Rechte“).`,
+      `die Tippzeiten dienen ${TT_USE}. Der Messung kannst du widersprechen – mit dem Schalter „${TT_SWITCH_DU}“ (siehe „${TT_OBJ_HEAD}“).`,
     `Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen ${ttWhere("eurem")}): ` +
       "Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit eure Lehrkraft bei Auffälligkeiten mit euch über eure Arbeitsweise sprechen kann; " +
-      `die Tippzeiten dienen ${TT_USE}. Der Messung könnt ihr widersprechen – mit dem Schalter „${TT_SWITCH_IHR}“ (siehe „Eure Rechte“).`) : null,
+      `die Tippzeiten dienen ${TT_USE}. Der Messung könnt ihr widersprechen – mit dem Schalter „${TT_SWITCH_IHR}“ (siehe „${TT_OBJ_HEAD}“).`) : null,
     t("Rechtschreibprüfung (LanguageTool): deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Du gibst sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und deiner Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
       "Du kannst sie jederzeit für die Zukunft widerrufen, indem du die Prüfung nicht mehr nutzt.",
     "Rechtschreibprüfung (LanguageTool): eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Ihr gebt sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und eurer Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
@@ -3098,6 +3115,7 @@ function privacyNoticeDom(p, list, opts) {
       t(" und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) deines Geräts; gespeichert wird sie nicht im Klartext, ",
         " und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) eures Geräts; gespeichert wird sie nicht im Klartext, ") +
       "sondern nur unkenntlich gemacht in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang."),
+    tt ? para(TT_ACCESS(g)) : null,   // Zugriff auf das Gerät (§ 25 TDDDG) – sachlich, im Fließtext
     head("Wer bekommt die Daten?"),
     h("ul", null, items),
     head("Wie lange werden die Daten gespeichert?"),
@@ -3121,25 +3139,30 @@ function privacyNoticeDom(p, list, opts) {
       "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
       (withAi ? "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig: " : "Die Rechtschreibprüfung ist freiwillig: ") +
       t("Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.", "Ihr könnt auch ohne sie abgeben, ohne dass euch daraus ein Nachteil entsteht.") +
-      (tt ? t(" Die Tippzeiten misst diese Seite, solange du nicht widersprichst (Schalter unter „Deine Rechte“).", " Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (Schalter unter „Eure Rechte“).") : "")),
+      (tt ? t(` Die Tippzeiten misst diese Seite, solange du nicht widersprichst (siehe „${TT_OBJ_HEAD}“).`, ` Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (siehe „${TT_OBJ_HEAD}“).`) : "")),
     withAi ? head(t("Entscheidet die KI über dich?", "Entscheidet die KI über euch?")) : null,
     withAi ? para(t("Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.",
       "Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über eure Arbeit entscheidet eure Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüft sie selbst.")) : null,
+    // Widerspruch gegen die Tippzeit-Messung: eigener Abschnitt mit dem Schalter (bzw. auf „Impressum & Datenschutz“, wo er steht),
+    // getrennt von „Deine Rechte“ (Art. 21 Abs. 4 DSGVO) – dort nur ein kurzer Verweis
+    tt ? head(TT_OBJ_HEAD) : null,
+    tt ? ttSwitchDom(o, g, withAi) : null,
     head(t("Deine Rechte", "Eure Rechte")),
     // Gruppe: die Rechte hat jede Person für sich. Kontakt: der Betreiber (E-Mail); lesen und einzeln löschen kann die verschlüsselten
     // Abgaben nur die Lehrkraft; Beschwerde bei der für den Betreiber zuständigen Aufsichtsbehörde
     paraN(t("Du kannst Auskunft über deine gespeicherten Daten verlangen, sie berichtigen, löschen oder einschränken lassen und sie in einem gängigen, maschinenlesbaren Format bekommen. " +
       "Einer Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO). " +
+      (tt ? `Der Tippzeit-Messung kannst du direkt mit einem Schalter widersprechen – siehe „${TT_OBJ_HEAD}“. ` : "") +
       "Deine Einwilligung zur Rechtschreibprüfung kannst du jederzeit für die Zukunft widerrufen – nutze die Prüfung dann einfach nicht mehr; Prüfungen, die schon stattgefunden haben, bleiben davon unberührt.",
     "Jede und jeder von euch kann Auskunft über die eigenen gespeicherten Daten verlangen, sie berichtigen, löschen oder einschränken lassen und sie in einem gängigen, maschinenlesbaren Format bekommen. " +
       "Einer Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO kann jede und jeder aus Gründen, die sich aus der eigenen besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO). " +
+      (tt ? `Der Tippzeit-Messung könnt ihr direkt mit einem Schalter widersprechen – siehe „${TT_OBJ_HEAD}“. ` : "") +
       "Eure Einwilligung zur Rechtschreibprüfung könnt ihr jederzeit für die Zukunft widerrufen – nutzt die Prüfung dann einfach nicht mehr; Prüfungen, die schon stattgefunden haben, bleiben davon unberührt.")),
     paraN(t("Wende dich dafür an den Betreiber", "Wendet euch dafür an den Betreiber") + (mail ? " (E-Mail: " : "."), mailLink(), mail ? ")." : null,
       t(" Deine Abgaben liegen auf dem Server verschlüsselt – lesen und einzeln löschen kann sie nur deine Lehrkraft; du kannst dich deshalb auch an sie wenden. " +
         "Was nur auf deinem Gerät liegt (Zwischenstand, Häkchen), löschst du selbst.",
       " Eure Abgaben liegen auf dem Server verschlüsselt – lesen und einzeln löschen kann sie nur eure Lehrkraft; ihr könnt euch deshalb auch an sie wenden. " +
         "Was nur auf eurem Gerät liegt (Zwischenstand, Häkchen), löscht ihr selbst.")),
-    tt ? ttSwitchDom(o, g, withAi) : null,   // Widerspruch gegen die Tippzeit-Messung: Schalter (bzw. auf „Impressum & Datenschutz“, wo er steht)
     paraN(t("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren", "Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren"),
       ...authorityTail()),
   ];
@@ -3155,7 +3178,7 @@ const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der A
 function renderPersonPrivacy() {
   const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
-  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g)]),
+  box.append(h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))]),
     privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live" }));
   $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
 }
@@ -3186,11 +3209,13 @@ function renderPrivacy() {
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
       : `Deine Abgabe wird zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
-    // Tippzeiten: wie in der Kurzfassung des Angaben-Bildschirms kein Wort dazu – Messung und Schalter stehen nur im ausführlichen Hinweis darunter
+    // Tippzeiten: genau der eine neutrale Satz wie in der Kurzfassung des Angaben-Bildschirms (TT_SHORT) – der Schalter steht im eigenen
+    // Abschnitt des ausführlichen Hinweises darunter
+    (ttMeasured(S.sheet) ? TT_SHORT(false) + " " : "") +
     `Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (ist er älter als ${DRAFT_DAYS} Tage, löscht ihn diese Seite beim nächsten Aufruf in diesem Browser) – ` +
     `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter).` +
     (withAi ? ` Die KI kann sich irren: Prüfe ihr Feedback selbst.` : ""));
-  // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm) – samt Tippzeit-Messung und Schalter
+  // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm) – samt eigenem Abschnitt mit dem Schalter
   const full = $("privfull-ed");
   full.textContent = "";
   // im Schreibbereich bleibt es beim „du“; eine Gruppe hat aber keinen Geburtstag angegeben (noBday, wie noPersonData)
@@ -4033,8 +4058,8 @@ function answersNow() {
 }
 /* ---------- Widerspruch gegen die Tippzeit-Messung (Art. 21 DSGVO) ----------
  * Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“ (Gruppe auf dem Angaben-Bildschirm: „… für euer Feibeitsblatt …“) im
- * ausführlichen Datenschutzhinweis (privacyNoticeDom mit ttSwitch: #p-privfull, #privfull-ed) – sonst zeigt die Oberfläche der
- * Schüler:innen nichts von der Messung. An: keine Messung mehr, alle Werte verworfen (Felder, erste Fassung, Zwischenstand – sofort
+ * eigenen Abschnitt „Widerspruch gegen die Tippzeit-Messung“ des ausführlichen Datenschutzhinweises (privacyNoticeDom mit ttSwitch:
+ * #p-privfull, #privfull-ed) – sonst nennt die Oberfläche der Schüler:innen die Messung nur im einen Satz der Kurzfassungen (TT_SHORT). An: keine Messung mehr, alle Werte verworfen (Felder, erste Fassung, Zwischenstand – sofort
  * gespeichert, mit ttOptOut auch in der Zwischenstand-PDF), Erstversuch und Abgabe tragen {v:1, optOut:true}; ein schon gesendeter
  * Erstversuch wird mit derselben Kennung ohne Tippzeiten ersetzt (S.ttResend; scheitert das, beim nächsten Öffnen). Aus: nur ab jetzt
  * neu gemessen – der vorhandene Text gilt als „ohne Messung“. Auf dem Angaben-Bildschirm wirkt der Haken beim Öffnen (openEditor). */
@@ -4680,7 +4705,7 @@ document.addEventListener("beforeinput", (e) => {
 }, true);
 document.addEventListener("input", (e) => {
   const ta = answerOf(e.target); if (!ta) return;
-  ta._evType = e.inputType || ""; ta._evTs = performance.now();   // Tippzeiten: abgeglichen wird in answerChanged (ttSync)
+  if (!S.ttOptOut) { ta._evType = e.inputType || ""; ta._evTs = performance.now(); }   // Tippzeiten (nach einem Widerspruch nicht): abgeglichen wird in answerChanged (ttSync)
   if (e.isComposing || e.inputType === "insertCompositionText") return;   // während einer Komposition (IME, Diktat) nichts anfassen
   const t = e.inputType || "", prev = ta._ok === undefined ? "" : ta._ok;
   if (t === "historyUndo" || t === "historyRedo") { ta._ok = ta.value; return; }
@@ -8168,10 +8193,10 @@ function renderPvPreview() {
   const f = pvForm(), p = cleanPrivacy(f), list = cleanRecipients(T.privacy && T.privacy.aiRecipients), box = $("pv-preview");
   box.textContent = "";
   // CHECK_HOST: Zwischenstand-PDF und QR-Code führen auf GitHub Pages – dort nennt der Hinweis GitHub für die ganze Seite
-  box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true, false)]),
+  box.append(h("p", { class: "privacy" }, [h("b", { text: "Datenschutz: " }), privacyShortText(p, list, true, false, true)]),
     privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull", ttSwitch: "preview" }),
     h("p", { class: "fhint", id: "pv-preview-note", text: (CHECK_HOST ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${CHECK_HOST}, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „${GITHUB_ITEM}“ ` : "") +
-      "Die Tippzeit-Messung und den Schalter für den Widerspruch nennt nur dieser ausführliche Hinweis, nicht die Kurzfassung darüber (bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen sie – dort wird nichts gemessen). " +
+      "Bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen der Satz zur Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „" + TT_OBJ_HEAD + "“ – dort wird nichts gemessen. " +
       "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
 }
 function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der Auswahl steht, als eigene Möglichkeit zeigen

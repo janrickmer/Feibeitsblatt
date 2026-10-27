@@ -1,7 +1,7 @@
 # Feibeitsblatt – Hinweise für die Entwicklung
 
-Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft, Widerspruch
-per Schalter nur im ausführlichen Datenschutzhinweis): Lehrkraft legt Aufgaben +
+Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft; die Kurzfassung
+des Datenschutzhinweises nennt die Messung in einem Satz, Widerspruch per Schalter im eigenen Abschnitt des ausführlichen Hinweises): Lehrkraft legt Aufgaben +
 Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu einer
@@ -300,9 +300,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   teacher-INSERT `privacy` {30, auto} an – nur wenn dieser Aufruf die Lehrkraft angelegt hat, noch keine Zeile da ist und
   es keine Blätter gibt (bestehende Installationen löschen erst nach dem ersten Speichern; „Passwort vergessen“ behält
   die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy` (nur
-  `{retentionDays}`), `privacyShortText(p, list, withAi, group)` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
-  kostenloses Angebot.“, nennt den KI-Dienst; **kein Wort zur Tippzeit-Messung**, siehe unten), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
-  general, flat, summary, typing, ttSwitch})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit 9 Abschnitten (`.privh`: Wer ist
+  `{retentionDays}`), `privacyShortText(p, list, withAi, group, typing)` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
+  kostenloses Angebot.“, nennt den KI-Dienst; mit `typing` (`ttMeasured`) am Ende **genau der eine Satz `TT_SHORT`**, siehe unten), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
+  general, flat, summary, typing, ttSwitch})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit bis zu 10 Abschnitten (`.privh`: Wer ist
   verantwortlich? – Betreiber mit Anschrift und E-Mail, „privates, nicht kommerzielles und kostenloses Angebot – kein Angebot
   einer Schule“, die Lehrkraft liest; Wozu (mit `TT_PURPOSE`: Tippzeiten machen den Schreibprozess sichtbar, die Lehrkraft sieht
   die Färbung **und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe)**, Ursachen für Rot samt
@@ -318,30 +318,43 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `TT_KEEP_IN_DRAFT` „– außer den Tippzeiten darin –“; **nie stillschweigend auf die Tippzeiten ausdehnen** – nach Annahme des
   Betreibers bräuchte ihr Speichern im Zwischenstand eine Einwilligung nach § 25 Abs. 1 TDDDG) – Schreibweise „Buchst.“,
   nie „lit.“; Welche Daten („Außerdem deine Antworten mit ihren Tippzeiten (je eingegebenem Zeichen … keine Uhrzeiten; nach einem
-  Widerspruch keine)“); Wer bekommt (Lehrkraft „Sie sieht auch die Tippzeiten – als Färbung …; an einen KI-Dienst oder an die
+  Widerspruch keine)“, darunter als eigener Absatz im Fließtext `TT_ACCESS(g, keep)`: „Für die Tippzeiten liest diese Seite beim
+  Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher (nach einem Widerspruch
+  nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.“ – mit `TT_KEEP_IN_DRAFT` „…, hält sie … und speichert die
+  Tippzeiten bis dahin auch in deinem Zwischenstand …“; **nur die Tatsache – nie eine Ausnahme („unbedingt erforderlich“) oder eine
+  Einwilligung behaupten** (Entscheidung des Betreibers nach Rechtsprüfung); damit der Satz stimmt, merkt der Capture-Listener `input`
+  nach einem Widerspruch keinen Zeitpunkt (`performance.now()` nur ohne `S.ttOptOut`)); Wer bekommt (Lehrkraft „Sie sieht auch die Tippzeiten – als Färbung …; an einen KI-Dienst oder an die
   Rechtschreibprüfung gehen die Tippzeiten nie.“, Cloudflare „(samt Tippzeiten)“);
   Wie lange („Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; bis dahin hält diese Seite sie nur
   im Arbeitsspeicher – …“, mit `TT_KEEP_IN_DRAFT` stattdessen „bis zur Abgabe stehen sie auch in deinem Zwischenstand – …“);
-  Musst du („… solange du nicht widersprichst (Schalter unter „Deine Rechte“)“); Entscheidet die KI (nur mit KI); Deine Rechte:
-  Rechte samt Art. 21 und Widerruf, Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die verschlüsselten Abgaben), dann
-  der Schalter für den Widerspruch gegen die Tippzeit-Messung (`ttSwitchDom`, siehe Tippzeit-Messung; auf „Impressum &
-  Datenschutz“ nur ein Absatz, wo er steht, mit `TT_SWITCH_EFFECT` und `TT_SWITCH_SCOPE`), Beschwerde bei der Aufsichtsbehörde mit
-  Anschrift und Link. **Was zum Zwischenstand und zur Zwischenstand-PDF gesagt wird, hängt an `TT_KEEP_IN_DRAFT`** (`ttInDraft`
+  Musst du („… solange du nicht widersprichst (siehe „Widerspruch gegen die Tippzeit-Messung“)“); Entscheidet die KI (nur mit KI);
+  **Widerspruch gegen die Tippzeit-Messung** (`TT_OBJ_HEAD`, eigener Abschnitt nur mit Messung, gleiche Ebene wie die übrigen, vor
+  „Deine Rechte“): der Schalter (`ttSwitchDom`, siehe Tippzeit-Messung; auf „Impressum & Datenschutz“ nur ein Absatz, wo er steht –
+  „… steht im Abschnitt „Widerspruch gegen die Tippzeit-Messung“ der Schalter …“ –, mit `TT_SWITCH_EFFECT` und `TT_SWITCH_SCOPE`);
+  Deine Rechte: Rechte samt Art. 21, ein kurzer Verweis („Der Tippzeit-Messung kannst du direkt mit einem Schalter widersprechen –
+  siehe „Widerspruch gegen die Tippzeit-Messung“.“) und Widerruf, Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die
+  verschlüsselten Abgaben), Beschwerde bei der Aufsichtsbehörde mit Anschrift und Link. Die Rechtsgrundlage der Tippzeiten verweist
+  ebenfalls auf den Abschnitt („(siehe „Widerspruch gegen die Tippzeit-Messung“)“). **Was zum Zwischenstand und zur Zwischenstand-PDF gesagt wird, hängt an `TT_KEEP_IN_DRAFT`** (`ttInDraft`
   in `privacyNoticeDom`, Parameter `keep` von `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE`; ohne – eingecheckt –: „bis dahin hält diese Seite
   sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.“, kein „außer den
   Tippzeiten darin“ beim § 25) – nie fest verdrahten. Alle Tippzeit-Sätze entfallen bei Blättern nur mit Weltkarten (`typing:
-  ttMeasured(sh)` – dort wird nichts gemessen). **Messung und Schalter stehen für Schüler:innen nur im ausführlichen Hinweis
-  (`privacyNoticeDom`: `#p-privfull`, `#privfull-ed`) und auf „Impressum & Datenschutz“** – Entscheidung des Betreibers vom
-  27.10.2026: nicht auffällig, niemanden gezielt zur Entscheidung führen. Die Kurzfassungen (`privacyShortText` auf dem
-  Angaben-Bildschirm und in der Vorschau, `renderPrivacy` im Schreibbereich) und alle anderen sichtbaren Stellen nennen weder
-  Messung noch Schalter – **nicht ohne Rückfrage wieder dorthin holen** (Unit-Test: Kurzfassungen im Quelltext; E2E 1b/2/2b:
-  Kurzfassungen per `NO_TT`; E2E 2/2b außerdem `expectNoTtVisible` – alles Sichtbare samt aria-label/title/placeholder/alt und
-  den Texten hinter aria-labelledby/-describedby bei geschlossenem `details.privfull`: Angaben einzeln und als Gruppe,
-  Schreibbereich vor und nach dem KI-Feedback, Dialoge zur Rechtschreibprüfung, zum KI-Feedback und zur Abgabe, Bestätigung;
-  dazu `#privfull-ed` beim Öffnen zu, Schalter nicht fokussierbar); offen beim Betreiber (README „Annahme des Betreibers“): ob
-  die erste Ebene bei Minderjährigen die Messung nennen muss (Art. 12 Abs. 1 DSGVO, WP260 rev.01). Weglassen ist kein
-  Widerspruch zum ausführlichen Hinweis, Abweichendes wäre einer. Der Schalter bleibt ein eigener, abgesetzter Absatz unter „Deine
-  Rechte“ (Art. 21 Abs. 4 DSGVO); „ohne Messung (widersprochen)“ bleibt für die Lehrkraft sichtbar. Angaben `h2`
+  ttMeasured(sh)` – dort wird nichts gemessen; dann auch kein `TT_SHORT` und kein Abschnitt zum Widerspruch). **Kurzfassungen:
+  genau ein neutraler Satz** – Entscheidung des Betreibers vom 27.10.2026, zweite Fassung nach Rechtsprüfung (die erste Fassung „gar
+  nicht in der Kurzfassung“ ist überholt): `TT_SHORT(g)` „Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen
+  kannst du unter „Alle Informationen zum Datenschutz“.“ (Angaben-Bildschirm einer Gruppe: „… widersprechen könnt ihr unter …“),
+  ohne Hervorhebung, ohne Aufforderung, nur bei `ttMeasured` – am Ende von `privacyShortText` (Angaben-Bildschirm, Vorschau der
+  Lehrkraft) und in `renderPrivacy` (Schreibbereich, immer „du“) vor dem Satz zum Zwischenstand. **Keine weiteren Tippzeit-Sätze in
+  den Kurzfassungen oder an anderen sichtbaren Stellen** (Dialoge, Bestätigung) – Schalter, Wirkung und Geltungsbereich stehen nur im
+  eigenen Abschnitt des ausführlichen Hinweises (`#p-privfull`, `#privfull-ed`) und beschreibend auf „Impressum & Datenschutz“; nicht
+  ohne Rückfrage ändern (Unit-Test: `privacyShortText` ausgewertet, `renderPrivacy` im Quelltext, `TT_ACCESS`, Reihenfolge der
+  Abschnitte; E2E 1b/2/2b: Kurzfassungen per `expectTtShort` – genau einmal der Satz, sonst nichts per `NO_TT`; E2E 2/2b außerdem
+  `expectOnlyTtShort(page, where, n)` – alles Sichtbare samt aria-label/title/placeholder/alt und den Texten hinter
+  aria-labelledby/-describedby bei geschlossenem `details.privfull` enthält zur Messung nur `n`-mal den Satz: Angaben einzeln und als
+  Gruppe, Schreibbereich vor und nach dem KI-Feedback, Dialoge zur Rechtschreibprüfung, zum KI-Feedback und zur Abgabe (je 1),
+  Bestätigung (0); dazu `#privfull-ed` beim Öffnen zu, Schalter nicht fokussierbar; 7l: Blatt nur mit Weltkarten ohne Satz und
+  Abschnitt). Kurzfassungen und ausführlicher Hinweis dürfen sich nicht widersprechen. Der Abschnitt „Widerspruch gegen die
+  Tippzeit-Messung“ bleibt getrennt von „Deine Rechte“ (Art. 21 Abs. 4 DSGVO); „ohne Messung (widersprochen)“ bleibt für die
+  Lehrkraft sichtbar. Angaben `h2`
   `#p-privfull` mit `#p-privacy-short` in `renderPersonPrivacy`, Editor `h3` in `#privfull-ed` aus `renderPrivacy` –
   beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`: für ein Blatt mit
   KI-Feedback unter der Adresse der Lehrkraft, darunter `#pv-preview-note` – ist `!PAGES_HOST` und `PUBLIC_HOST` (aus
@@ -580,7 +593,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   genau zum gekappten Text passt) → `ttRestore` (eingefrorenes `g`, sonst 255 – nie rot; erst nach allen Texten und `S.first`,
   je Aufgabe in try; kein zusätzliches Speichern), `S.firstTyping` aus demselben `snapshot()` wie `S.first`.
   `TT_KEEP_IN_DRAFT` (eingecheckt `false` – Entscheidung des Betreibers vom 27.10.2026, Annahme: Speichern der Tippzeiten im
-  Zwischenstand bräuchte eine Einwilligung nach § 25 TDDDG; kein Einwilligungsdialog, der wäre auffällig): `false` = nur im
+  Zwischenstand bräuchte eine Einwilligung nach § 25 TDDDG; die Seite fragt keine ab): `false` = nur im
   Arbeitsspeicher (nach Neuladen oder Import einer Zwischenstand-PDF gilt der Text als „ohne Messung“), `ttDraftStrip` entfernt sie
   beim Laden (`cleanupDrafts`); `true` = auch im Zwischenstand und in der Zwischenstand-PDF; die Datenschutztexte im Browser und
   `#t-tt-none` folgen dem Schalter (siehe Datenschutz-Angaben), **beim Umlegen README (Tabelle, Rechtsgrundlagen, Abschnitt
@@ -608,9 +621,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `TT_KEEP_IN_DRAFT` setzt das Skript `#t-tt-none` auf „… oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert
   keine Tippzeiten“),
   `#t-tt-hint` („Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. … Nutzen Sie die
-  Färbung `TT_USE`. Schüler:innen können der Messung im ausführlichen Datenschutzhinweis („Alle Informationen zum Datenschutz“)
-  widersprechen …; dann steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen
-  Verdacht. Die Kurzfassung des Hinweises, die Schüler:innen ohne Aufklappen sehen, nennt die Messung nicht.“; Ursachen auch „durch einen per Rechtsklick
+  Färbung `TT_USE`. Schüler:innen können der Messung widersprechen: Die Kurzfassung des Datenschutzhinweises nennt die Messung in
+  einem Satz, im ausführlichen Hinweis („Alle Informationen zum Datenschutz“) steht im Abschnitt „Widerspruch gegen die
+  Tippzeit-Messung“ der Schalter „…“. Nach einem Widerspruch steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht
+  und kein Anlass für einen Verdacht.“; Ursachen auch „durch einen per Rechtsklick
   übernommenen Korrekturvorschlag des Browsers“), `#t-tt-off` „Färbung aus“ (`aria-pressed` =
   aus, `T.ttOff` je Sitzung, `applyTtOff` → Klasse `tt-off` an `#t-subs`, gilt auch für neu gebaute Details; `logout` setzt
   zurück). Farben `--tt-r/-y/-g` hinter schwarzer Schrift, Rot zusätzlich unterstrichen. **Zweck überall derselbe Wortlaut**
@@ -629,9 +643,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   oder an den Betreiber.“) – der Server kennt die Person nicht, der Widerspruch steht nur im Zwischenstand. Rückmeldung
   `p.ttopt-st` `role="status"` direkt unter dem Schalter (`TT_OPT_ON` „Widerspruch eingetragen: Auf diesem Gerät misst diese Seite
   bei diesem Feibeitsblatt keine Tippzeiten mehr.“/`TT_OPT_ON_G`/`TT_OPT_OFF`/`TT_OPT_TAB`), ganze Zeile `label.ttopt` klickbar
-  (≥ 44 px) – `ttSwitchDom` in `privacyNoticeDom` mit `ttSwitch:"live"` (`#p-privfull`, `#privfull-ed`; ids `<id>-ttoff`,
-  `-ttoff-d`, `-ttoff-s`) bzw. `"preview"` (gesperrt, `#pv-preview`); sonst zeigt die Oberfläche der Schüler:innen nichts von der
-  Messung. Ein `change`-Listener am `document` → `S.ttOptOut`: **an** = `ttResetAll(false)` (alle `_tt` und `S.firstTyping`
+  (≥ 44 px) – `ttSwitchDom` im eigenen Abschnitt `TT_OBJ_HEAD` von `privacyNoticeDom` mit `ttSwitch:"live"` (`#p-privfull`,
+  `#privfull-ed`; ids `<id>-ttoff`, `-ttoff-d`, `-ttoff-s`) bzw. `"preview"` (gesperrt, `#pv-preview`); sonst nennt die Oberfläche der
+  Schüler:innen die Messung nur im Satz `TT_SHORT` der Kurzfassungen. Ein `change`-Listener am `document` → `S.ttOptOut`: **an** = `ttResetAll(false)` (alle `_tt` und `S.firstTyping`
   verworfen, `S.ttGen++`; `ttSync` misst nicht, `answersNow` liefert `null`), im Schreibbereich sofort `saveDraft` (ohne `typing`,
   mit `ttOptOut:true`); ist ein Erstversuch gesendet → `S.ttResend` → `sendFirstAttempt` ersetzt ihn mit derselben `attempt`
   (UPDATE derselben Zeile) durch einen ohne Tippzeiten (Lauf-Kennung `S.firstSending`, nie zwei gleichzeitig; war einer mit Werten
@@ -918,21 +932,22 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (Block TYPING per `new Function`, `TT_ENV_MAX` = `LIMITS.envelopeBytes`, Eigenschaftstests gegen `tableText`/`tableRows`,
   Rückfall ohne `Intl.Segmenter`, Schalter `TT_KEEP_IN_DRAFT` beider Stellungen, Widerspruch `ttOptOutPayload`/`ttDraftFlags`/
   `ttCleanPayload`/`ttDetail`, `ttStoredFlags`/`ttKeepOptOut`, `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE` in beiden Stellungen von
-  `TT_KEEP_IN_DRAFT`, `TT_USE` im Hinweis, Kurzfassungen ohne Messung im Quelltext), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
+  `TT_KEEP_IN_DRAFT`, `TT_USE` im Hinweis, Kurzfassungen mit genau dem Satz `TT_SHORT`, `TT_ACCESS` ohne behauptete Ausnahme oder
+  Einwilligung, eigener Abschnitt vor „Deine Rechte“), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
   eingecheckt (`TT_KEEP_IN_DRAFT` aus): kein `typing` im Zwischenstand, ein alter Stand mit Tippzeiten wird beim Laden bereinigt
   (`ttDraftStrip`), Text von vor dem Neuladen geht als 255 („ohne Messung“) in die Abgabe; nur mit umgelegtem Schalter Werte je
   Zeichen im Zwischenstand vor und nach dem Feedback samt Neuladen; nie an die KI, Erstversuch/Abgabe aus D1
   entschlüsselt – `openPrivateKey`/`openEnvelope` aus smoke.mjs –, Ablauf-Kasten, 413 → einmal ohne, Lehrkraft-Färbung, „Färbung
-  aus“, lange Antworten, nur Weltkarten) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
+  aus“, lange Antworten, nur Weltkarten – auch bei den Schüler:innen ohne `TT_SHORT` und ohne Abschnitt) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
   Erstversuchs scheitert erst und wird beim nächsten Öffnen nachgeholt, PDF auf einem anderen Gerät, Zurücknehmen, Ablehnung
   während des Sendens (angehaltenes bzw. scheiterndes `/api/submit`, Farbe), Abgabe `optOut`; Haken auf „Deine Angaben“ bei
   getipptem Stand mit Erstversuch → sofort gespeichert und ersetzt; anderes Gerät ohne Widerspruch; zweiter Tab übernimmt ihn
   sofort; an und aus während einer angehaltenen KI-Anfrage → erste Fassung ohne Werte; ältere Zwischenstand-PDF auf demselben
   Gerät → Widerspruch bleibt; Gruppe in der „ihr“-Form, Neuladen ohne Eingabe, `_tt` aller Felder; Lehrkraft „ohne Messung
   (widersprochen)“ bei Abgaben, Erstversuch und ausgeblendetem älterem Erstversuch); die wörtlichen Hinweise prüfen 1b
-  (`TT_PURPOSE`, `TT_EFFECT`/`TT_SCOPE`, `TT_STAY`, Kurzfassung und Vorschau ohne Messung (`NO_TT`), Schalter auf „Impressum &
-  Datenschutz“ nur als Absatz, Vorschau gesperrt), 2 (`renderPrivacy` ohne Messung, `#privfull-ed` mit), 2b (Kurzfassung der
-  Gruppe ohne) und `privBases` – die Erwartungen folgen `TT_KEEP` (aus index.html gelesen); beim Umlegen von
+  (`TT_PURPOSE`, `TT_EFFECT`/`TT_SCOPE`, `TT_STAY`, `TT_ACCESS`, Kurzfassung und Vorschau mit genau `TT_SHORT`, Abschnitt
+  `TT_OBJ_HEAD` vor „Deine Rechte“, auf „Impressum & Datenschutz“ nur als Absatz, Vorschau gesperrt), 2 (`renderPrivacy` mit
+  `TT_SHORT`, `#privfull-ed` mit Abschnitt), 2b (Kurzfassung der Gruppe mit `TT_SHORT_G`, `TT_ACCESS_G`) und `privBases` – die Erwartungen folgen `TT_KEEP` (aus index.html gelesen); beim Umlegen von
   `TT_KEEP_IN_DRAFT` 1, 1b, 2, 2b, 7l, 7m einmal in der anderen Stellung laufen lassen. Beide Tests laufen vor Test 8
   (Passwortwechsel). Unit: `scheduled` auf der
   gemeinsamen D1 (und einmal frisch importiert `?scheduled`), `d1.failIf` für ein scheiterndes PURGE, `Math.random`

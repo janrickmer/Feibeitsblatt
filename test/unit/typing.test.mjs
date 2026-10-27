@@ -688,7 +688,7 @@ test("typing: Widerspruch – Nutzlast ohne Werte, Lehrkraft sieht „ohne Messu
   for (const bad of [null, undefined, 5, "x", [], {}, { ttOptOut: "true" }, { ttOptOut: 1 }, { ttResend: "true", firstSent: true }, [{ ttOptOut: true }]])
     assert.deepEqual(ttDraftFlags(bad), { optOut: false, resend: false });
   // derselbe Zweck überall: Hinweis der Lehrkraft und ausführlicher Datenschutzhinweis nutzen denselben Wortlaut (die Kurzfassungen
-  // nennen die Messung nicht – siehe nächster Test)
+  // nennen nur die Messung und wo man widerspricht – siehe nächster Test)
   assert.equal(TT_USE, "nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht");
   assert.ok(html.includes("Nutzen Sie die Färbung " + TT_USE + "."));
   assert.ok(html.includes("Die Färbung dient ${TT_USE};"));
@@ -697,22 +697,73 @@ test("typing: Widerspruch – Nutzlast ohne Werte, Lehrkraft sieht „ohne Messu
   assert.ok(!/\blit\./.test(html));   // Schreibweise „Buchst.“, nie „lit.“
 });
 
-test("typing: Kurzfassungen des Datenschutzhinweises nennen weder Messung noch Schalter – nur der ausführliche Hinweis (Entscheidung des Betreibers)", () => {
+test("typing: Kurzfassungen nennen die Messung in genau einem neutralen Satz (TT_SHORT); der ausführliche Hinweis hat den eigenen Abschnitt zum Widerspruch und den Satz zu § 25 TDDDG", () => {
   const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
   const code = (src) => src.replace(/^\s*\/\/.*$/gm, "");   // ganze Kommentarzeilen zählen nicht
-  // Angaben-Bildschirm und Vorschau der Lehrkraft (privacyShortText), Schreibbereich (renderPrivacy bis zum ausführlichen Hinweis)
-  const short = code(body("function privacyShortText(", "\n}\n")), ed = code(body("function renderPrivacy()", 'const full = $("privfull-ed")'));
-  for (const src of [short, ed]) assert.doesNotMatch(src, /Tippzeit|misst|Messung|[Ww]idersprech|Widerspruch|Schalter|\bTT_|ttMeasured|typing/);
-  assert.match(short, /^function privacyShortText\(p, list, withAi, group\) \{/);
-  assert.ok(!html.includes("TT_SHORT"));
+  const TT_WORDS = /Tippzeit|misst|Messung|gemessen|[Ww]idersprech|Widerspruch|Schalter|Haken/;
+  // die Bausteine (TT_OBJ_HEAD, TT_SHORT, TT_ACCESS) aus index.html – sie hängen nur an TT_KEEP_IN_DRAFT
+  const blocks = (keep) => new Function("TT_KEEP_IN_DRAFT", body("const TT_OBJ_HEAD = ", "const ttMeasured = ") + "\nreturn { TT_OBJ_HEAD, TT_SHORT, TT_ACCESS };")(keep);
+  const B = blocks(TT_KEEP_IN_DRAFT), on = blocks(true), off = blocks(false);
+  const SHORT_DU = "Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen kannst du unter „Alle Informationen zum Datenschutz“.";
+  const SHORT_IHR = "Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen könnt ihr unter „Alle Informationen zum Datenschutz“.";
+  assert.equal(B.TT_SHORT(false), SHORT_DU);
+  assert.equal(B.TT_SHORT(true), SHORT_IHR);
+  assert.equal(B.TT_OBJ_HEAD, "Widerspruch gegen die Tippzeit-Messung");
+  // Angaben-Bildschirm und Vorschau der Lehrkraft (privacyShortText): mit Messung genau dieser Satz am Ende, sonst nichts zur Messung
+  const shortSrc = body("function privacyShortText(", "\n}\n") + "\n}";
+  assert.match(shortSrc, /^function privacyShortText\(p, list, withAi, group, typing\) \{/);
+  const short = new Function("OP_NAME", "RESERVE_WHEN", "TT_SHORT", shortSrc + "\nreturn privacyShortText;")("Betreiber", "nicht antwortet", B.TT_SHORT);
+  const one = [{ id: "groq", label: "Groq" }], two = [{ id: "groq", label: "Groq" }, { id: "cloudflare", label: "Cloudflare" }];
+  for (const g of [false, true]) for (const withAi of [false, true]) for (const list of [[], one, two]) for (const p of [null, { retentionDays: 30 }]) {
+    const s = B.TT_SHORT(g), on1 = short(p, list, withAi, g, true), off1 = short(p, list, withAi, g, false);
+    assert.ok(on1.endsWith(" " + s), on1);
+    assert.equal(on1.split(s).length - 1, 1);
+    assert.equal(on1, off1 + " " + s);
+    assert.doesNotMatch(off1, TT_WORDS);   // Blatt nur mit Weltkarten: kein Wort zur Messung
+    assert.doesNotMatch(on1, g ? /\b(du|dein\w*|dir|dich)\b/i : /\b(ihr|euer|eure\w*|euch)\b/i);
+  }
   assert.equal((html.match(/privacyShortText\(/g) || []).length, 3);   // Definition, Angaben-Bildschirm, Vorschau der Lehrkraft
-  // der ausführliche Hinweis behält alles: Zweck, Rechtsgrundlage mit Widerspruch, Daten, Empfänger, Speicherdauer, Schalter unter „Deine Rechte“
+  assert.ok(html.includes("privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))"));
+  assert.ok(html.includes("privacyShortText(p, list, true, false, true)"));   // Vorschau: ein Blatt mit KI-Feedback und Messung
+  // Schreibbereich (renderPrivacy bis zum ausführlichen Hinweis): derselbe Satz in der du-Form, nur bei Blättern mit Messung, sonst nichts
+  const SHORT_EXPR = '(ttMeasured(S.sheet) ? TT_SHORT(false) + " " : "")';
+  const ed = code(body("function renderPrivacy()", 'const full = $("privfull-ed")'));
+  assert.equal(ed.split(SHORT_EXPR).length - 1, 1);
+  assert.doesNotMatch(ed.replace(SHORT_EXPR, ""), /Tippzeit|misst|Messung|[Ww]idersprech|Widerspruch|Schalter|\bTT_|ttMeasured|typing/);
+  // § 25 TDDDG: nur die Tatsache (Zugriff auf das Gerät) – keine behauptete Ausnahme, keine Einwilligung; Zwischenstand nur mit keep
+  for (const g of [false, true]) {
+    const a1 = on.TT_ACCESS(g), a0 = off.TT_ACCESS(g);
+    for (const x of [a1, a0]) {
+      assert.match(x, /^Für die Tippzeiten liest diese Seite beim Schreiben in (deinem|eurem) Browser die Zeitpunkte (deiner|eurer) Eingaben aus/);
+      assert.match(x, /bis zur Abgabe im Arbeitsspeicher/);
+      assert.match(x, /\(nach einem Widerspruch nicht mehr\) – das ist ein Zugriff auf (dein|euer) Gerät im Sinne von § 25 TDDDG\.$/);
+      assert.doesNotMatch(x, /unbedingt erforderlich|Einwilligung|Abs\. [12]|Ausnahme|zulässig/);
+      assert.doesNotMatch(x, g ? /\b(du|dein\w*|dir|dich)\b/i : /\b(ihr|euer|eure\w*|euch)\b/i);
+    }
+    assert.match(a1, /Zwischenstand/);
+    assert.doesNotMatch(a0, /Zwischenstand/);
+  }
+  assert.equal(off.TT_ACCESS(false), "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher " +
+    "(nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");
+  // … und nach einem Widerspruch liest die Seite wirklich keine Zeitpunkte mehr (Capture-Listener „input“, ttSync)
+  assert.ok(html.includes("if (!S.ttOptOut) { ta._evType = e.inputType || \"\"; ta._evTs = performance.now(); }"));
+  assert.ok(html.includes("if (S.ttOptOut) { el._evTs = el._evType = undefined; return; }"));
+  // der ausführliche Hinweis: Zweck, Rechtsgrundlage mit Widerspruch, Daten samt § 25 TDDDG, Empfänger, Speicherdauer – und ein eigener
+  // Abschnitt „Widerspruch gegen die Tippzeit-Messung“ mit dem Schalter vor „Deine Rechte“ (dort nur ein Verweis)
   const full = body("function privacyNoticeDom(", "\n}\n");
   for (const x of ["TT_PURPOSE(g)", "TT_SWITCH_DU", "TT_SWITCH_IHR", "mit ihren Tippzeiten", "Sie sieht auch die Tippzeiten", "(samt Tippzeiten)",
-    "Die Tippzeiten gehören zu", "Die Tippzeiten misst diese Seite, solange", "tt ? ttSwitchDom(o, g, withAi) : null"]) assert.ok(full.includes(x), x);
+    "Die Tippzeiten gehören zu", "Die Tippzeiten misst diese Seite, solange", "(siehe „${TT_OBJ_HEAD}“)", "– siehe „${TT_OBJ_HEAD}“. "]) assert.ok(full.includes(x), x);
+  const at = (x) => { const k = full.indexOf(x); assert.ok(k > 0, x); assert.equal(full.indexOf(x, k + 1), -1, x); return k; };
+  const order = ['head("Welche Daten?")', "tt ? para(TT_ACCESS(g)) : null", 'head("Wer bekommt die Daten?")', 'head(t("Entscheidet die KI über dich?"',
+    "tt ? head(TT_OBJ_HEAD) : null", "tt ? ttSwitchDom(o, g, withAi) : null", 'head(t("Deine Rechte", "Eure Rechte"))'].map(at);
+  assert.deepEqual(order, [...order].sort((x, y) => x - y));
+  assert.equal(full.indexOf("ttSwitchDom", order[5] + "tt ? ttSwitchDom".length), -1);   // der Schalter steht nicht (mehr) unter „Deine Rechte“
+  assert.ok(!full.includes("Schalter unter „"));
   // … auf dem Angaben-Bildschirm und im Schreibbereich mit dem Schalter (live), in der Vorschau der Lehrkraft gesperrt
   assert.equal((html.match(/typing: ttMeasured\((sh|S\.sheet)\), ttSwitch: "live"/g) || []).length, 2);
   assert.ok(html.includes('id: "pv-privfull", ttSwitch: "preview"'));
+  // Seite „Impressum & Datenschutz“: kein Schalter, aber ein Absatz, wo er steht (im eigenen Abschnitt)
+  assert.ok(body("function ttSwitchDom(", "\n}\n").includes("steht im Abschnitt „${TT_OBJ_HEAD}“ der Schalter „${TT_SWITCH_DU}“. "));
 });
 
 test("typing: Widerspruch eines anderen Tabs und beim Import einer Zwischenstand-PDF – gespeichert gewinnt der Widerspruch", () => {
@@ -756,7 +807,7 @@ test("typing: Widerspruch eines anderen Tabs und beim Import einer Zwischenstand
 
 test("typing: Datenschutzhinweis – Wirkung und Geltungsbereich des Schalters folgen TT_KEEP_IN_DRAFT", () => {
   // die beiden Bausteine aus index.html (stehen außerhalb des Blocks TYPING, hängen nur an BACKUP_DAYS und TT_KEEP_IN_DRAFT)
-  const a = html.indexOf("const TT_SWITCH_EFFECT = "), b = html.indexOf("/* Widerspruch gegen die Tippzeit-Messung unter „Deine Rechte“");
+  const a = html.indexOf("const TT_SWITCH_EFFECT = "), b = html.indexOf("function ttSwitchDom(");
   assert.ok(a > 0 && b > a);
   const BD = html.match(/const BACKUP_DAYS = ("[^"]+");/)[1];
   const texts = (keep) => new Function("TT_KEEP_IN_DRAFT", "BACKUP_DAYS", html.slice(a, b) + "\nreturn { TT_SWITCH_EFFECT, TT_SWITCH_SCOPE };")(keep, JSON.parse(BD));

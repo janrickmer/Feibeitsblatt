@@ -12,9 +12,9 @@ Schüler:innen selbst abhaken, ob ihre Antworten die Erwartungen erfüllen.
 Wie im Feiditor misst Feibeitsblatt beim Schreiben die **Tippzeiten** (je Zeichen den Abstand zum vorangehenden Zeichen).
 In der Lehrkräfte-Übersicht sehen Sie die Antworten farbig markiert. Nutzen Sie die Färbung nur als Anlass für ein
 Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Die Schüler:innen sehen die
-Messung beim Schreiben nicht, und die Kurzfassungen des Datenschutzhinweises erwähnen sie nicht; der ausführliche
-Datenschutzhinweis („Alle Informationen zum Datenschutz“) erklärt sie, und dort können sie ihr mit einem Schalter
-widersprechen (siehe [Tippzeiten](#tippzeiten)).
+Messung beim Schreiben nicht; die Kurzfassung des Datenschutzhinweises nennt sie in einem Satz, der ausführliche
+Datenschutzhinweis („Alle Informationen zum Datenschutz“) erklärt sie, und dort können sie ihr in einem eigenen Abschnitt
+mit einem Schalter widersprechen (siehe [Tippzeiten](#tippzeiten)).
 
 Technisch besteht Feibeitsblatt aus einer Webseite (`index.html`) und einem kleinen Server (Cloudflare Worker mit
 einer D1-Datenbank in der EU), beides im kostenlosen Tarif von Cloudflare. Die Abgaben werden schon im Browser der
@@ -74,9 +74,9 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    leere Zeile Abstand. Einfügen aus der Zwischenablage und Hineinziehen von Text sind gesperrt – es darf nur
    selbst getippt werden. Autokorrektur und Diktierfunktion der Tastatur bleiben möglich (in der Tippzeit-Färbung
    der Lehrkraft erscheinen solche Eingaben rot, ebenso ein per Rechtsklick übernommener Korrekturvorschlag des Browsers). Beim Schreiben misst die Seite die Tippzeiten, ohne sie anzuzeigen;
-   nur im ausführlichen Datenschutzhinweis unter den Aufgaben (und schon auf dem Angaben-Bildschirm) – nicht in den
-   Kurzfassungen – steht das, und dort können die Schüler:innen der Messung mit dem Schalter „Tippzeiten für dieses
-   Feibeitsblatt nicht messen“ widersprechen (siehe [Tippzeiten](#tippzeiten)). Der Zwischenstand wird
+   die Kurzfassungen des Datenschutzhinweises (auf dem Angaben-Bildschirm und unter den Aufgaben) sagen das in einem Satz,
+   und im ausführlichen Hinweis darunter können die Schüler:innen der Messung im Abschnitt „Widerspruch gegen die
+   Tippzeit-Messung“ mit dem Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“ widersprechen (siehe [Tippzeiten](#tippzeiten)). Der Zwischenstand wird
    laufend auf dem Gerät gespeichert („Zwischenstand auf diesem Gerät gespeichert“). Wird die Seite neu geladen
    oder versehentlich geschlossen, bietet die Startseite an, mit den gespeicherten Angaben weiterzuschreiben
    („Weiterschreiben“); mit „Abbrechen und Zwischenstand von diesem Gerät löschen“ oben rechts lässt sich ein
@@ -604,8 +604,9 @@ der Server beim nächsten Aufräumen.
    was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
    Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub als Empfänger für die ganze
    Seite (unter der Worker-Adresse nur für die Checklisten-Seite hinter dem QR-Code); bei Blättern ohne Auftrag an die KI
-   entfallen die Angaben zum KI-Feedback; die Tippzeit-Messung und den Schalter für den Widerspruch nennt nur der
-   ausführliche Hinweis, nicht die Kurzfassung; bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
+   entfallen die Angaben zum KI-Feedback; bei Blättern nur mit Weltkarten-Zuordnung entfallen der Satz zur
+   Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „Widerspruch gegen
+   die Tippzeit-Messung“ (dort wird nichts gemessen); bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
    Angaben-Bildschirm in der „ihr“-Form (derselbe Inhalt). „Speichern“ – die Schüler:innen sehen die Löschfrist beim
    nächsten Öffnen eines Feibeitsblattes, die Seite „Impressum & Datenschutz“ sofort.
 
@@ -861,7 +862,8 @@ Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
   Lehrkraft bei Auffälligkeiten mit der Schülerin bzw. dem Schüler über die Arbeitsweise sprechen kann; die Tippzeiten
   dienen nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.
   Widerspruchsrecht nach Art. 21 DSGVO, praktisch umgesetzt durch den Schalter „Tippzeiten für dieses Feibeitsblatt nicht
-  messen“ im ausführlichen Datenschutzhinweis (siehe [Tippzeiten](#tippzeiten)).
+  messen“ im eigenen Abschnitt „Widerspruch gegen die Tippzeit-Messung“ des ausführlichen Datenschutzhinweises; die
+  Kurzfassung nennt die Messung und den Weg zum Widerspruch in einem Satz (siehe [Tippzeiten](#tippzeiten)).
 - **Rechtschreibprüfung (LanguageTool):** Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO – erteilt mit dem Klick und der
   Bestätigung im Dialog (ohne Bestätigung wird nichts gesendet), für die Zukunft widerrufbar, indem man die Prüfung nicht
   mehr nutzt.
@@ -871,7 +873,9 @@ Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
 - **Speichern im Browser** (Zwischenstand, Häkchen der Checkliste): § 25 Abs. 2 Nr. 2 TDDDG (für die gewünschte Funktion
   unbedingt erforderlich). Die Tippzeiten stehen nicht im Zwischenstand: Der Betreiber geht davon aus, dass ihr Speichern
   auf dem Gerät eine Einwilligung nach § 25 Abs. 1 TDDDG bräuchte, und verzichtet darauf (`TT_KEEP_IN_DRAFT = false`,
-  kein Einwilligungsdialog); bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher.
+  kein Einwilligungsdialog); bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher. Für die Messung liest die Seite
+  beim Schreiben die Zeitpunkte der Eingaben im Browser aus; das nennt der Hinweis unter „Welche Daten?“ sachlich als
+  Zugriff auf das Gerät im Sinne von § 25 TDDDG – als Tatsache, ohne eine Ausnahme oder eine Einwilligung zu behaupten.
 
 Für Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und den Widerruf nennt der Hinweis den Betreiber (E-Mail);
 weil nur die Lehrkraft die verschlüsselten Abgaben lesen und einzeln löschen kann, verweist er auch auf sie. Beschweren
@@ -1005,12 +1009,14 @@ tippen die Schüler:innen, sie werden normal gemessen.
   `TT_KEEP_IN_DRAFT = false`; mit `true` stünden sie zusätzlich unverschlüsselt im Zwischenstand und in der
   Zwischenstand-PDF (siehe [Entwicklung](#entwicklung)).
 - **Widerspruch (Art. 21 DSGVO):** Im ausführlichen Datenschutzhinweis – auf dem Angaben-Bildschirm und im
-  Schreibbereich unter den Aufgaben, Abschnitt „Deine Rechte“ – steht der Schalter **„Tippzeiten für dieses
+  Schreibbereich unter den Aufgaben – hat der Widerspruch einen eigenen Abschnitt **„Widerspruch gegen die
+  Tippzeit-Messung“** (getrennt von „Deine Rechte“, dort steht ein Verweis) mit dem Schalter **„Tippzeiten für dieses
   Feibeitsblatt nicht messen“** (auf dem Angaben-Bildschirm einer Partner- oder Gruppenarbeit „… für euer Feibeitsblatt
   …“; es genügt, wenn eine Person der Gruppe widerspricht); die Seite „Impressum & Datenschutz“ sagt, wo er steht. Die
-  Kurzfassungen auf dem Angaben-Bildschirm und im Schreibbereich erwähnen weder die Messung noch den Schalter
-  (Entscheidung des Betreibers vom 27.10.2026: für die Schüler:innen nicht auffällig – niemand wird beim Öffnen gezielt
-  zu dieser Entscheidung geführt). Mit dem Haken misst die Seite nicht mehr und verwirft die schon gemessenen Werte (der
+  Kurzfassungen auf dem Angaben-Bildschirm und im Schreibbereich nennen die Messung in genau einem neutralen Satz:
+  „Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen kannst du unter „Alle Informationen zum
+  Datenschutz“.“ (bei einer Gruppe „… könnt ihr …“; Entscheidung des Betreibers vom 27.10.2026 nach Rechtsprüfung).
+  Mit dem Haken misst die Seite nicht mehr und verwirft die schon gemessenen Werte (der
   Zwischenstand merkt sich den Widerspruch, auch in einer danach gesicherten Zwischenstand-PDF); ein schon
   gesendeter Erstversuch wird mit derselben Kennung ohne Tippzeiten ersetzt – scheitert das, beim nächsten Öffnen. Die
   alte Fassung bleibt dabei (verschlüsselt) noch bis zu 7 Tage, bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage, in
@@ -1031,19 +1037,16 @@ tippen die Schüler:innen, sie werden normal gemessen.
   („nicht übermittelt – die Abgabe wäre sonst zu groß gewesen“) – eine Abgabe scheitert nie an den Tippzeiten. (Mit
   `TT_KEEP_IN_DRAFT = true` gilt das Doppelte auch für den Zwischenstand; passt er dann nicht mehr in den Speicher des
   Browsers, wird er ohne Tippzeiten gespeichert.)
-- **Annahme des Betreibers (27.10.2026):** Das Speichern der Tippzeiten im Zwischenstand auf dem Gerät bräuchte eine
-  Einwilligung nach § 25 Abs. 1 TDDDG – deshalb speichert die Seite sie dort nicht und fragt keine Einwilligung ab.
-  **Weiter vom Betreiber zu prüfen:** ob schon das Erfassen der Eingabezeitpunkte im Arbeitsspeicher der Seite unter
-  § 25 TDDDG fällt (der Hinweis stützt die Messung auf Art. 6 Abs. 1 Buchst. f DSGVO), ob der Hinweis auf das
-  Widerspruchsrecht nur im ausführlichen Datenschutzhinweis den Anforderungen von Art. 21 Abs. 4 DSGVO genügt
-  (ausdrücklich, spätestens bei der ersten Kommunikation, getrennt von anderen Informationen – der Schalter steht dort
-  in einem eigenen, abgesetzten Absatz), ob die erste Ebene – die Kurzfassungen auf dem Angaben-Bildschirm und im
-  Schreibbereich – bei minderjährigen Schüler:innen die Messung nennen muss (Art. 12 Abs. 1 DSGVO verlangt besondere
-  Verständlichkeit bei Informationen für Kinder; nach den Transparenz-Leitlinien der Artikel-29-Gruppe, WP260 rev.01,
-  Rn. 35 ff., soll die erste Ebene auch Verarbeitungen nennen, die die Betroffenen am meisten überraschen oder
-  beeinträchtigen) und ob die Aufzählungen dort („Deine Abgabe wird zusammen mit …“) ohne die Tippzeiten zulässig sind,
-  die Abwägung des berechtigten Interesses bei minderjährigen Schüler:innen und ob eine Datenschutz-Folgenabschätzung
-  (Art. 35 DSGVO) nötig ist.
+- **Entscheidungen des Betreibers (27.10.2026, nach Rechtsprüfung):** Die erste Ebene – die Kurzfassungen auf dem
+  Angaben-Bildschirm und im Schreibbereich – nennt die Messung in einem neutralen Satz, ohne Hervorhebung und ohne
+  Aufforderung, und sagt, wo man widerspricht; der Widerspruch hat im ausführlichen Hinweis einen eigenen Abschnitt,
+  getrennt von den übrigen Informationen (Art. 21 Abs. 4 DSGVO). Unter „Welche Daten?“ steht sachlich, dass die Seite
+  beim Schreiben die Zeitpunkte der Eingaben im Browser ausliest und bis zur Abgabe im Arbeitsspeicher hält – ein Zugriff
+  auf das Gerät im Sinne von § 25 TDDDG; der Hinweis nennt das als Tatsache und behauptet weder eine Ausnahme nach § 25
+  Abs. 2 TDDDG noch eine Einwilligung. Das Speichern der Tippzeiten im Zwischenstand auf dem Gerät bräuchte nach Annahme
+  des Betreibers eine Einwilligung nach § 25 Abs. 1 TDDDG – deshalb speichert die Seite sie dort nicht und fragt keine
+  Einwilligung ab. **Weiter vom Betreiber zu prüfen:** die Abwägung des berechtigten Interesses bei minderjährigen
+  Schüler:innen und ob eine Datenschutz-Folgenabschätzung (Art. 35 DSGVO) nötig ist.
 
 ### Empfehlungen
 
@@ -1080,7 +1083,8 @@ tippen die Schüler:innen, sie werden normal gemessen.
    löschen“. Falsche Angaben (z. B. ein vertipptes Kürzel): den Eintrag löschen und neu abgeben
    lassen. Eine Gruppenabgabe lässt sich nur als Ganzes löschen – möchte ein Mitglied die Löschung, betrifft das die
    gemeinsame Abgabe (gegebenenfalls gibt der Rest der Gruppe neu ab). Der Messung der Tippzeiten widersprechen die
-   Schüler:innen bis zur Abgabe selbst mit dem Schalter im ausführlichen Datenschutzhinweis ([Tippzeiten](#tippzeiten)); nach der
+   Schüler:innen bis zur Abgabe selbst mit dem Schalter im Abschnitt „Widerspruch gegen die Tippzeit-Messung“ des
+   ausführlichen Datenschutzhinweises ([Tippzeiten](#tippzeiten)); nach der
    Abgabe lassen sich die Tippzeiten nur zusammen mit der ganzen Abgabe löschen: den Eintrag löschen und – wenn gewünscht –
    mit gesetztem Haken neu abgeben lassen. Ein auf einem anderen Gerät gesendeter Erstversuch mit Tippzeiten (in den
    Details der Abgabe unter „ältere Erstversuche“) lässt sich nur so entfernen. Über eine Einschränkung oder einen anderen
@@ -1095,8 +1099,8 @@ tippen die Schüler:innen, sie werden normal gemessen.
 Platzhalter in eckigen Klammern bitte ersetzen; die Empfängerliste muss zu Ihren KI-Einstellungen passen (sie steht
 auch im Datenschutzhinweis unter dem Feedback-Button und auf der Seite „Impressum & Datenschutz“). Der Baustein
 beschreibt auch die Tippzeit-Messung und den Widerspruch dagegen – so vollständig wie der ausführliche
-Datenschutzhinweis, anders als die Kurzfassungen in der Seite. Er richtet sich auch an die Schüler:innen: Wer ihn
-weitergibt, macht sie damit – anders als die Seite beim normalen Öffnen – auf die Messung und den Schalter aufmerksam.
+Datenschutzhinweis (die Kurzfassungen in der Seite nennen die Messung nur in einem Satz). Er richtet sich auch an die
+Schüler:innen.
 
 > Liebe Schülerinnen und Schüler, liebe Eltern,
 >
@@ -1132,11 +1136,12 @@ weitergibt, macht sie damit – anders als die Seite beim normalen Öffnen – a
 > ganze Abgabe den Anteil roter Zeichen in Prozent – rot, wenn Zeichen sehr schnell oder in einem Zug entstanden sind
 > (z. B. durch Wortvorschläge, Autokorrektur, Diktat oder einen übernommenen Korrekturvorschlag des Browsers). Das ist kein
 > Beweis: Die Färbung dient nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem
-> Täuschungsverdacht. Bis zur Abgabe hält die Seite die Tippzeiten nur im Arbeitsspeicher (nicht im Zwischenstand auf
+> Täuschungsverdacht. Für die Messung liest die Seite beim Schreiben im Browser die Zeitpunkte der Eingaben aus (ein
+> Zugriff auf das Gerät im Sinne von § 25 TDDDG); bis zur Abgabe hält sie die Tippzeiten nur im Arbeitsspeicher (nicht im Zwischenstand auf
 > dem Gerät und nicht in einer Zwischenstand-PDF-Datei); sie gehen nur verschlüsselt mit Erstversuch und Abgabe an die
 > Lehrkraft, nie an einen KI-Dienst; beim Schreiben zeigt die Seite sie nicht an. Der Messung kann man jederzeit bis zur
 > Abgabe selbst widersprechen – mit dem Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“ im ausführlichen
-> Datenschutzhinweis („Alle Informationen zum Datenschutz“, Abschnitt „Deine Rechte“; dann werden auch die schon
+> Datenschutzhinweis („Alle Informationen zum Datenschutz“, Abschnitt „Widerspruch gegen die Tippzeit-Messung“; dann werden auch die schon
 > gemessenen Werte verworfen). Der Haken gilt für die Bearbeitung auf dem jeweiligen Gerät;
 > wer auf einem anderen Gerät weiterschreibt, setzt ihn dort erneut. Ein Widerspruch ist für die Lehrkraft als „ohne
 > Messung (widersprochen)“ sichtbar – das ist ein Recht der Schülerinnen und Schüler und kein Anlass für einen Verdacht.
