@@ -36,6 +36,8 @@
     --paper:#f7f4ec; --paper2:#fffdf8; --ink:#221f1a; --muted:#6f675a;
     --line:#ddd5c4; --accent:#6b4f2c; --accent2:#8a6a3c; --shadow:rgba(40,30,15,.10);
     --red:#b3261e; --green:#1f6b2a; --soft:#efe9dd;
+    --orange:#c96a00; --orange-bg:#fff1de; --orange-cur:#ffd9a6; --orange-ink:#8a4500;   /* Ablauf-Kasten (Rand bzw. Text auf dem Kasten ≥ 3:1 bzw. ≥ 4,5:1) */
+    --tt-r:#ffc4bd; --tt-y:#fff0a0; --tt-g:#cdeec6;   /* Tippzeit-Färbung (Textmarker hinter schwarzer Schrift, ≥ 13:1) */
     --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
     --sans:"Avenir Next",Avenir,"Segoe UI","Helvetica Neue",system-ui,sans-serif;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -257,6 +259,17 @@
   .sheet-head{margin:0 0 1.78em}
   .sheet-title{font-family:var(--serif); font-weight:700; font-size:1.45em; line-height:1.3; margin:0; overflow-wrap:anywhere}
   .sheet-meta{font-family:var(--sans); font-size:13px; color:var(--muted); margin:6px 0 0; line-height:1.5}
+  /* Ablauf-Kasten „So gehst du vor“ (zwischen Kopf und Aufgaben, scrollt mit .paperwrap): der aktuelle Schritt fett, mit Balken und
+     aria-current="step" – nicht nur über die Farbe */
+  .steps{margin:0 0 1.78em; padding:12px 16px 12px 14px; background:var(--orange-bg); border:1.5px solid var(--orange); border-radius:8px;
+    font-family:var(--sans); font-size:14.5px; line-height:1.45; color:var(--ink)}
+  .steps-h{margin:0 0 4px; font-family:var(--sans); font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--orange-ink)}
+  .steps-list{margin:0; padding-left:1.6em}
+  .steps-list li{margin:1px 0; padding:1px 6px; border-radius:5px}
+  .steps-list li::marker{font-weight:700; color:var(--orange-ink)}
+  .steps-list li.cur{font-weight:700; background:var(--orange-cur); box-shadow:inset 3px 0 0 var(--orange)}
+  .step-note{color:var(--muted); font-weight:400}
+  .steps-list li.cur .step-note{color:var(--ink)}
   /* Jede Aufgabe ist ein Block; zwischen Antwortblock und nächster Aufgabenstellung genau eine Leerzeile (1 Zeilenhöhe). */
   /* Aufgabe als Raster: Frage, Antwortteil und – falls vorhanden – Miniaturbilder rechts daneben (auf schmalen
      Bildschirmen zwischen Frage und Antwortfeld). Ohne Bilder bleibt die Höhe exakt wie ein normaler Block. */
@@ -621,6 +634,21 @@
   .dfb .fb-ok{color:var(--green)}
   .dfb .fb-miss{color:var(--red)}
   .dfb ul{margin:0; padding-left:18px}
+  /* Tippzeiten (Lehrkraft): Textmarker hinter der Schrift; Rot zusätzlich unterstrichen (nicht nur Farbe); „Färbung aus“ = #t-subs.tt-off */
+  .tt-r,.tt-y,.tt-g{color:#000; -webkit-box-decoration-break:clone; box-decoration-break:clone}
+  .tt-r{background:var(--tt-r); text-decoration:underline 2px var(--red); text-underline-offset:3px; text-decoration-skip-ink:none}
+  .tt-y{background:var(--tt-y)}
+  .tt-g{background:var(--tt-g)}
+  #t-subs.tt-off .tt-r,#t-subs.tt-off .tt-y,#t-subs.tt-off .tt-g{background:none; color:inherit; text-decoration:none}
+  .ttbox{margin:4px 0 8px}
+  .ttbox .legend{margin:0 0 4px}
+  .tthint{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:2px 0 6px}
+  .btn.ghost[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--paper2)}   /* gedrückt (Färbung ist aus): gefüllt */
+  .btn.ghost[aria-pressed="true"]:hover{background:#332e25}
+  .dtt{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:6px 0 0}
+  .dtt .tt-high{color:var(--red); font-weight:700}
+  .dtt-sum{font-family:var(--sans); font-size:13px; margin:-4px 0 12px}
+  @media (forced-colors: active){ .tt-r,.tt-y,.tt-g{forced-color-adjust:none} }
   .dangerzone{margin-top:34px; padding-top:20px; border-top:1px solid var(--line); display:flex; flex-direction:column; align-items:flex-start; gap:12px}
   /* Neues Feibeitsblatt: Tabelle mit Aufgabenstellung | Auftrag an die KI (intern: solution) */
   table.builder td{padding:10px 12px}
@@ -693,6 +721,7 @@
     .stitle{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}   /* der Titel steht ohnehin auf dem Blatt */
     .paperwrap{padding:16px 10px 40px}
     .sheet{padding:28px 18px 40px}
+    .steps{padding:10px 12px; font-size:14px}
     #screen-teacher{padding:24px 12px 16px}
     .pbox{padding:18px 16px}
     .bigcode{font-size:28px}
@@ -850,6 +879,10 @@
         <h1 class="sheet-title" id="sheet-title"></h1>
         <p class="sheet-meta" id="sheet-meta"></p>
       </header>
+      <section class="steps" id="ed-steps" aria-labelledby="ed-steps-h">
+        <h2 class="steps-h" id="ed-steps-h">So gehst du vor</h2>
+        <ol class="steps-list" id="ed-steps-list"></ol>
+      </section>
       <div id="tasks"></div>
       <section class="finish" aria-labelledby="fin-h">
         <h2 class="task-label" id="fin-h">Abschluss</h2>
@@ -1045,6 +1078,11 @@
         <p class="batchsum" id="t-subs-sum"></p>
         <p class="batchhint hidden" id="t-subs-retention"></p>
         <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
+        <div class="ttbox hidden" id="t-tt">
+          <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
+          <p class="tthint" id="t-tt-hint">Die Färbung ist ein Indiz, kein Beweis: Rot entsteht auch beim selbstständigen Schreiben – etwa durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten –, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.</p>
+          <button type="button" class="btn ghost small" id="t-tt-off" aria-pressed="false">Färbung aus</button>
+        </div>
         <p class="status" id="t-subs-status" aria-live="polite"></p>
         <div class="tablewrap" style="margin-top:10px">
           <table class="batch subs" id="t-subs">
@@ -1818,6 +1856,37 @@ function ttCleanPayload(t, answers) {
     }) };
   } catch (e) { return null; }
 }
+/* Lehrkraft: Liste für ttShare zu einer Antwort – bei Tabellen nur die Zellen (Kopf und Trenner zählen weder als gemessen noch als
+   „ohne Messung“), sonst der ganze Text */
+function ttShareParts(text, codes, table) {
+  text = String(text == null ? "" : text);
+  if (!table) return [[text, codes || null]];
+  const out = [];
+  for (const cells of ttTableLines(text, codes).slice(1)) for (const c of cells) out.push([c.v, c.codes]);
+  return out;
+}
+/* Rot-Anteil in Worten: „41 % (von 29 Zeichen)“, „34 % (von 150 Zeichen; 320 ohne Messung)“, ab 50 % mit „ – hoch“;
+   ohne gemessene Zeichen „ohne Messung“ bzw. „leer“ */
+function ttPctText(o) {
+  const k = (x) => x.toLocaleString("de-DE");
+  if (!o || !o.n) return o && o.none ? "ohne Messung" : "leer";
+  return `${o.pct} % (von ${k(o.n)} Zeichen${o.none ? "; " + k(o.none) + " ohne Messung" : ""})` + (ttHigh(o.pct) ? " – hoch" : "");
+}
+const TT_ZERO_NOTE = "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur oder Diktat).";
+/* Zeile zum Rot-Anteil: head + Teile [{label, share}] → Stücke [{t, high}] (verkettet die Zeile; high = hervorgehoben). Ist ein Teil
+   hoch und sind dort mindestens 90 % der roten Zeichen 0 ms (im selben Zug wie andere eingegeben), folgt TT_ZERO_NOTE. */
+function ttSummary(head, parts) {
+  const out = [{ t: head, high: false }];
+  let r = 0, z = 0;
+  parts.forEach((p, k) => {
+    if (k) out.push({ t: " · ", high: false });
+    const o = p.share, hi = !!(o && o.n && ttHigh(o.pct));
+    if (hi) { r += o.r; z += o.zero; }
+    out.push({ t: (p.label ? p.label + " " : "") + ttPctText(o), high: hi });
+  });
+  if (r && z / r >= 0.9) out.push({ t: ". " + TT_ZERO_NOTE, high: false });
+  return out;
+}
 /* TYPING:END */
 /* Angaben zeigen (Topbar, „Weiterschreiben?“, Zwischenstand-PDF): „Max · Mu · 04.05. · Klasse 8b“ bzw. „MaxMu, LiMu · Klasse 8b“ */
 function personLabel(p) {
@@ -2469,15 +2538,31 @@ function mapLines(text) {   // → [{label, name}] und die Schlusszeile
   for (const l of String(text || "").split("\n")) { const j = l.lastIndexOf(MAP_ARROW); if (j > 0) out.push({ label: l.slice(0, j).trim(), name: l.slice(j + MAP_ARROW.length).trim() }); }
   return out;
 }
-/* Antwort in der Lehrkraft-Ansicht: Tabelle als <table>, Weltkarte als Liste – nur über textContent */
-function answerDom(text, spec) {
+/* Antwort mit Tippzeit-Färbung (Lehrkraft): Läufe gleicher Klasse als Textmarker (span.tt-r|tt-y|tt-g, ohne title/aria – die Zeile
+   .dtt nennt den Rot-Anteil in Worten), ohne Messung und Leerraum als Textknoten; textContent bleibt genau der Text. Ohne Werte oder
+   bei einem Fehler: der Text als ein Textknoten wie bisher. */
+function ttDom(text, codes) {
+  text = String(text == null ? "" : text);
+  if (!codes) return document.createTextNode(text);
+  try {
+    const f = document.createDocumentFragment();
+    for (const x of ttSegments(text, codes)) f.appendChild(x.c ? h("span", { class: "tt-" + x.c, text: x.s }) : document.createTextNode(x.s));
+    return f;
+  } catch (e) { return document.createTextNode(text); }
+}
+/* Antwort in der Lehrkraft-Ansicht: Tabelle als <table>, Weltkarte als Liste – nur über textContent; codes = Tippzeiten zur Textform
+   (Tabelle: je Zelle gefärbt, Kopf nie) oder null */
+function answerDom(text, spec, codes) {
   const t = String(text || "");
   if (spec && spec.type === "table" && t.trim()) {
-    const lines = t.split("\n").filter((l) => l.trim()), head = lines[0].split("|").map((x) => x.trim()), n = Math.max(1, Math.min(ANS_LIMITS.columns, head.length));
-    const row = (l) => { const c = l.split("|").map((x) => x.trim()); return Array.from({ length: n }, (_, k) => c[k] || ""); };
+    let lines = null;
+    if (codes) { try { lines = ttTableLines(t, codes); } catch (e) { lines = null; } }   // dieselbe Zerlegung, mit den Werten je Zelle
+    if (!lines || !lines.length) lines = t.split("\n").filter((l) => l.trim()).map((l) => l.split("|").map((x) => ({ v: x.trim(), codes: null })));
+    const n = Math.max(1, Math.min(ANS_LIMITS.columns, lines[0].length));
+    const row = (c) => Array.from({ length: n }, (_, k) => c[k] || { v: "", codes: null });
     return h("div", { class: "tablew-scroll" }, [h("table", { class: "anstable ro" }, [
-      h("thead", null, [h("tr", null, row(lines[0]).map((c) => h("th", { scope: "col", text: c })))]),
-      h("tbody", null, lines.slice(1, 1 + ANS_LIMITS.rows + 5).map((l) => h("tr", null, row(l).map((c) => h("td", { text: c })))))])]);
+      h("thead", null, [h("tr", null, row(lines[0]).map((c) => h("th", { scope: "col", text: c.v })))]),
+      h("tbody", null, lines.slice(1, 1 + ANS_LIMITS.rows + 5).map((l) => h("tr", null, row(l).map((c) => (c.codes ? h("td", null, [ttDom(c.v, c.codes)]) : h("td", { text: c.v }))))))])]);
   }
   if (spec && spec.type === "map" && t.trim()) {
     const pairs = mapLines(t), last = t.split("\n").filter((l) => /^Zugeordnet: /.test(l)).pop();
@@ -4552,6 +4637,32 @@ function markAi(el, kind, on, source) {
   return el;
 }
 // Das KI-Feedback ist freiwillig (Handreichung KI des HKM, Juli 2023, S. 10: „derzeit nur auf freiwilliger Basis“) – Abschluss-Text,
+/* Ablauf-Kasten „So gehst du vor“ (#ed-steps, oben auf dem Blatt): Schritte je nach Blatt (mit bzw. ohne KI-Feedback), der aktuelle
+   als li.cur mit aria-current="step". Gebaut wird nur, wenn sich die Schritte ändern; sonst wechseln Klasse und aria-current an Ort und
+   Stelle. Der letzte Schritt (Herunterladen) gelingt nur auf der Bestätigungsseite – im Editor ist er nie der aktuelle. */
+const STEP_LATE = "– nur direkt nach der Abgabe auf der Bestätigungsseite (nicht nach Neuladen oder „Neues Feibeitsblatt öffnen“)";
+function renderSteps() {
+  const ol = $("ed-steps-list");
+  if (!S.sheet) { ol.textContent = ""; ol._key = ""; return; }
+  const ai = !!(S.sheet.aiFeedback || S.feedback);   // wie renderFeedbackState
+  // „gerade nicht möglich“: gemeldeter Grund (fbBlockedNow) oder keine KI eingerichtet (ohne Klick erkennbar)
+  const blocked = !S.feedback && (fbBlockedNow() || !(S.sheet.aiRecipients || []).length);
+  const items = ai ? [["Aufgaben bearbeiten"], ["KI-Feedback anfordern", blocked ? "(freiwillig, empfohlen – gerade nicht möglich)" : "(freiwillig, empfohlen)"],
+    ["Lösungen mithilfe des KI-Feedbacks überarbeiten"], ["Abgeben"], ["Lösungen und letztes Feedback herunterladen", STEP_LATE]]
+    : [["Aufgaben bearbeiten"], ["Abgeben"], ["Lösungen herunterladen", STEP_LATE]];
+  const cur = ai ? (S.submitting ? 4 : S.feedback ? 3 : S.busyFeedback ? 2 : 1) : (S.submitting ? 2 : 1);
+  const key = JSON.stringify(items);
+  if (ol._key !== key) {
+    ol.textContent = "";
+    items.forEach(([t, note]) => ol.appendChild(h("li", null, [t, note ? " " : null, note ? h("span", { class: "step-note", text: note }) : null])));
+    ol._key = key;
+  }
+  Array.from(ol.children).forEach((li, k) => {
+    const on = k + 1 === cur;
+    li.classList.toggle("cur", on);
+    if (on) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+  });
+}
 // Feedback-Dialoge und Abgabe-Dialog sagen es mit denselben Worten
 const FB_VOLUNTARY = "Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.";
 function renderFeedbackState() {
@@ -4589,6 +4700,7 @@ function renderFeedbackState() {
   rh.textContent = reviseText; rh.classList.toggle("hidden", !has);
   eh.textContent = "Du hast das KI-Feedback erhalten. Überarbeite jetzt deine Antworten und gib danach ganz unten ab.";
   eh.classList.toggle("hidden", !has);
+  renderSteps();
   growAll();
 }
 /* Gesamtlänge aller Antworten (Grenze des Servers für das KI-Feedback) */
@@ -4676,8 +4788,9 @@ async function requestFeedback() {
   if (!ok || submitBusy(st, SENDING_FB)) return;
   const run = ++S.fbRun, t0 = Date.now();
   S.busyFeedback = true; btn.disabled = true;
+  renderSteps();
   let tries = 0, busySeen = 0;
-  const unlock = () => { S.busyFeedback = false; S.fbPending = false; btn.disabled = !!S.feedback; S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; };
+  const unlock = () => { S.busyFeedback = false; S.fbPending = false; btn.disabled = !!S.feedback; S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; renderSteps(); };
   // Fehlversuch(e) zählen (fbFails > 0 heißt: eine Anfrage lief schon – eine Abgabe ohne Feedback gilt dann nicht als „selbst
   // gewählt“, siehe noAiState); nach zweien zeigt die Seite den Grund (S.fbUnavailable), Abgeben geht ohnehin immer
   const failed = (e, count, msg) => {
@@ -5050,6 +5163,7 @@ async function submitAll() {
   }
   if (!ok) return;
   S.submitting = true; $("fb-btn").disabled = true;   // bis zum Ende des Sendens (finally): kein KI-Feedback, kein „Abbrechen“
+  renderSteps();
   // Erst nach dem Dialog einstufen: eine laufende Anfrage kann inzwischen gescheitert sein (dann gilt ihr Grund). Hat der Dialog
   // aber „nicht möglich (Grund)“ gesagt, bleibt es dabei – auch wenn ein Nachsehen (requestFeedback) während des offenen Dialogs
   // die inzwischen eingerichtete KI gefunden hat: Die Lehrkraft sieht, was der Dialog angekündigt hat.
@@ -5121,6 +5235,7 @@ function clearEditor() {
   $("tasks").textContent = "";
   S.tas = []; S.outs = []; S.fbs = [];
   $("who-name").textContent = ""; $("ed-title").textContent = ""; $("sheet-title").textContent = "";
+  $("ed-steps-list").textContent = ""; $("ed-steps-list")._key = "";
 }
 /* Laufende Feedback-Anfrage samt Warten beenden: späte Antworten werden anhand der Lauf-Kennung verworfen */
 function stopFeedbackRun() {
@@ -5129,6 +5244,7 @@ function stopFeedbackRun() {
   if (S.fbAbort) { try { S.fbAbort.abort(); } catch (e) { /* egal */ } }
   S.fbStop = null; S.fbAbort = null; S.busyFeedback = false;
   $("fb-wait").classList.add("hidden");
+  if (S.sheet && S.tas.length) renderSteps();
 }
 function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
@@ -5276,7 +5392,8 @@ async function logout(force, why) {
   clearTimeout(idleTimer);
   T.importRun = (T.importRun || 0) + 1; T.exportRun = (T.exportRun || 0) + 1;   // laufende Importe/Exporte enden mit der Sitzung
   T.analogRun = (T.analogRun || 0) + 1;                                          // ebenso Vorschlag, Speichern und PDF des analogen Arbeitsblattes
-  Object.assign(T, { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], subsHidden: [], ai: null, privacy: null, builderDirty: false });
+  Object.assign(T, { door: "", kdf: null, authKey: "", priv: null, pkcs8: null, sheets: [], sel: null, selSheet: null, subs: [], subsHidden: [], ai: null, privacy: null, builderDirty: false, ttOff: false });
+  applyTtOff(); $("t-tt").classList.add("hidden");
   ["t-privinfo", "t-privwarn", "t-subs-retention"].forEach((id) => { $(id).textContent = ""; $(id).classList.add("hidden"); });
   $("t-sheets-body").textContent = ""; $("t-subs-body").textContent = ""; $("t-sel").classList.add("hidden");
   setStatus($("t-import-status"), "", ""); setStatus($("t-export-status"), "", "");
@@ -5381,7 +5498,7 @@ async function selectSheet(code) {
   $("t-sel-tasks").textContent = ""; $("t-sel-det").open = false;
   $("t-subs-body").textContent = ""; $("t-subs-sum").textContent = "";
   setStatus($("t-del-status"), "", ""); setStatus($("t-export-status"), "", "");
-  T.selSheet = null; T.subs = []; T.subsHidden = []; $("t-subs-legend").classList.add("hidden");
+  T.selSheet = null; T.subs = []; T.subsHidden = []; $("t-subs-legend").classList.add("hidden"); $("t-tt").classList.add("hidden");
   setStatus($("t-subs-status"), "Abgaben werden geladen und entschlüsselt …", "busy");
   try {
     const r = await TA("/api/teacher/sheets/" + encodeURIComponent(code));
@@ -5435,6 +5552,8 @@ async function loadSubs() {
             ? { gruppe: p.person.gruppe.slice(0, GROUP_MAX).map((k) => cut(k, 20)), klasse: cut(p.person.klasse, 20) }
             : { vorname: cut(p.person.vorname, 20), nachname: cut(p.person.nachname, 20), geburtsdatum: cut(p.person.geburtsdatum, 10), klasse: cut(p.person.klasse, 20) };
           p.answers = p.answers.slice(0, 30).map((a) => ({ first: cut(a && a.first, MAX_ANSWER + 100), final: cut(a && a.final, MAX_ANSWER + 100) }));
+          // Tippzeiten: nur geprüfte Base64-Form (dekodiert wird erst beim Aufklappen); ein Fehler kostet nur die Messung, nie den Eintrag
+          try { p.typing = ttCleanPayload(p.typing, p.answers); } catch (e) { p.typing = null; }
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
           p.noAi = NO_AI_MODES.has(p.noAi) ? p.noAi : "";   // ohne KI-Feedback: ohne Anfrage / nicht möglich / Blatt ohne KI
           p.feedbackError = cut(p.feedbackError, 100);
@@ -5473,6 +5592,8 @@ function renderSubs() {
   $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : subsSummary(finals, firsts) +
     (hn ? ` · ${hn === 1 ? "1 älterer Erstversuch" : hn + " ältere Erstversuche"} von Schüler:innen, die inzwischen abgegeben haben, ${hn === 1 ? "wird" : "werden"} nicht angezeigt` : "");
   $("t-subs-legend").classList.toggle("hidden", n === 0);
+  $("t-tt").classList.toggle("hidden", n === 0);
+  applyTtOff();
   renderRetentionHint();
   $("t-expand-all").textContent = "Alle aufklappen";
   $("t-expand-all").disabled = n === 0;
@@ -5518,6 +5639,42 @@ function noAiNote(p) {
   if (p.noAi === "declined") return "Ohne KI-Feedback abgegeben.";
   return "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich" + (p.feedbackError ? " (" + p.feedbackError + ")" : "") + ".";
 }
+/* Tippzeiten einer Abgabe für die Details (erst beim Aufklappen dekodiert): je Aufgabe die Werte beider Fassungen (null = ohne Messung)
+   und die Zeile zum Rot-Anteil (Stücke wie ttSummary, null bei leerer Antwort), dazu die Zeile über alle Aufgaben – keine bei Blättern
+   nur mit Weltkarten (dort wird nichts gemessen). Nur ein Anlass für ein Gespräch: der Rot-Anteil steht nie in der Liste. */
+function ttDetail(p, tasks, n, isFirst, noFb) {
+  const specs = Array.from({ length: n }, (_, i) => (tasks[i] ? cleanAnswer(tasks[i].answer) : { type: "text" }));
+  const out = { sum: null, per: specs.map(() => ({ first: null, fin: null, line: null })) };
+  if (!specs.some((sp) => sp.type !== "map")) return out;
+  const ty = p.typing, one = (t) => [{ t, high: false }];
+  if (!ty) { out.sum = one("Tippzeiten: ohne Messung (älterer Stand)."); return out; }
+  if (ty.omitted) { out.sum = one(ty.omitted === "too_large" ? "Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen." : "Tippzeiten: nicht übermittelt (technischer Fehler beim Senden)."); return out; }
+  const labels = (a, b) => (noFb ? [""] : isFirst ? [a] : [a, b]);   // ohne KI-Feedback eine Fassung, Erstversuch nur die erste
+  const both = (l, sF, sE) => l.map((label, k) => ({ label, share: noFb || k ? sE : sF }));
+  const allF = [], allE = [];
+  specs.forEach((spec, i) => {
+    if (spec.type === "map") return;
+    const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
+    const L = ty.list && ty.list[i], tab = spec.type === "table";
+    const finC = L ? ttDecode(L.final, fin) : null;
+    const firstC = L ? (L.first === "=" ? (first === fin ? finC : null) : ttDecode(L.first, first)) : null;
+    const pF = ttShareParts(first, firstC, tab), pE = ttShareParts(fin, finC, tab), per = out.per[i];
+    per.first = firstC; per.fin = finC;
+    const parts = both(labels("erste Eingabe", "nach dem KI-Feedback"), ttShare(pF), ttShare(pE));
+    if (parts.some((x) => x.share.n || x.share.none)) per.line = ttSummary("Tippzeiten – Rot-Anteil: ", parts);
+    allF.push(...pF); allE.push(...pE);
+  });
+  out.sum = ttSummary("Tippzeiten – Rot-Anteil über alle Aufgaben: ", both(labels("erste Fassung", "abgegebene Fassung"), ttShare(allF), ttShare(allE)));
+  return out;
+}
+const ttLineDom = (cls, pieces) => h("p", { class: cls }, pieces.map((x) => (x.high ? h("span", { class: "tt-high", text: x.t }) : x.t)));
+/* „Färbung aus“ (#t-tt-off, aria-pressed = Färbung ist aus): gilt für diese Sitzung und alle Details (Klasse an #t-subs – gebaute
+   Details werden neu gebaut, z. B. von renderRetentionHint) */
+function applyTtOff() {
+  $("t-tt-off").setAttribute("aria-pressed", T.ttOff ? "true" : "false");
+  $("t-subs").classList.toggle("tt-off", !!T.ttOff);
+}
+$("t-tt-off").addEventListener("click", () => { T.ttOff = !T.ttOff; applyTtOff(); });
 // older: ein in der Liste ausgeblendeter älterer Erstversuch derselben Person (in den Details ihrer Abgabe, ohne eigenen Löschknopf)
 function buildDetail(s, older) {
   const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [], isFirst = s.stage === "first";
@@ -5531,6 +5688,10 @@ function buildDetail(s, older) {
   box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
   const grp = isGroup(p.person);
   if (grp) box.appendChild(h("p", { class: "dgroup", text: "Gruppenarbeit: " + p.person.gruppe.join(", ") }));
+  const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
+  let tt = null;   // Tippzeiten: ein Fehler kostet nur die Färbung und die Anteile, nie die Details
+  try { tt = ttDetail(p, tasks, n, isFirst, noFb); } catch (e) { tt = null; }
+  if (tt && tt.sum) box.appendChild(ttLineDom("dtt-sum", tt.sum));
   if (older) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: grp ? "Eine frühere Bearbeitung derselben Gruppe (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Gruppe inzwischen abgegeben hat."
       : "Eine frühere Bearbeitung derselben Person (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Person inzwischen abgegeben hat." }));
@@ -5539,15 +5700,18 @@ function buildDetail(s, older) {
   } else if (noFb && noAiNote(p)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: noAiNote(p) }));
   }
-  const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
   const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback", L0 = "Abgegebene Fassung (ohne KI-Feedback)";
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
-    const spec = tasks[i] ? cleanAnswer(tasks[i].answer) : { type: "text" };
-    const cell = (txt, label, extra, pending) => {
+    const spec = tasks[i] ? cleanAnswer(tasks[i].answer) : { type: "text" }, ty = (tt && tt.per[i]) || { first: null, fin: null, line: null };
+    const cell = (txt, label, extra, pending, codes) => {
       const td = h("td", { "data-label": label });
       if (pending) td.appendChild(h("span", { class: "empty", text: "(noch nicht überarbeitet)" }));
-      else if (txt.trim()) td.appendChild(answerDom(txt, spec) || document.createTextNode(txt)); else td.appendChild(h("span", { class: "empty", text: "(leer)" }));
+      else if (txt.trim()) {   // mit Tippzeiten als Textmarker; bei einem Fehler wie bisher als reiner Text
+        let node = null;
+        if (codes) { try { node = answerDom(txt, spec, codes) || ttDom(txt, codes); } catch (e) { node = null; } }
+        td.appendChild(node || answerDom(txt, spec) || document.createTextNode(txt));
+      } else td.appendChild(h("span", { class: "empty", text: "(leer)" }));
       if (extra) td.appendChild(extra);
       return td;
     };
@@ -5567,11 +5731,12 @@ function buildDetail(s, older) {
       tasks[i] ? teacherFiles(T.sel, tasks[i].files, i + 1) : null,
       noFb ? h("table", { class: "cmp one" }, [
         h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L0 })])]),
-        h("tbody", null, [h("tr", null, [cell(fin, L0)])])
+        h("tbody", null, [h("tr", null, [cell(fin, L0, null, false, ty.fin)])])
       ]) : h("table", { class: "cmp" }, [
         h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L1 }), h("th", { scope: "col", text: L2 })])]),
-        h("tbody", null, [h("tr", null, [cell(first, L1), cell(fin, L2, !isFirst && first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null, isFirst)])])
+        h("tbody", null, [h("tr", null, [cell(first, L1, null, false, ty.first), cell(fin, L2, !isFirst && first === fin && fin.trim() ? h("span", { class: "same", text: "(unverändert)" }) : null, isFirst, ty.fin)])])
       ]),
+      ty.line ? ttLineDom("dtt", ty.line) : null,
       f ? fbEl : null
     ]));
   }

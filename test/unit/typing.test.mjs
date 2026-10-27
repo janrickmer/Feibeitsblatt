@@ -9,7 +9,8 @@ const i = html.indexOf("/* TYPING:BEGIN"), j = html.indexOf("/* TYPING:END */");
 const block = html.slice(i, j);
 const NAMES = "TT_RED_MS, TT_YELLOW_MS, TT_SLOW, TT_NONE, TT_HIGH_PCT, TT_MAX_LEN, TT_B64_MAX, TT_ENV_MAX, TT_UNDO_MAX, TT_UNDO_CHARS, TT_SEG_MAX, " +
   "TT_KEEP_IN_DRAFT, cellText, tableText, tableRows, ttDiff, ttNew, ttApply, ttCodes, ttClass, ttEncode, ttDecode, ttGraphemes, ttSegments, " +
-  "ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload";
+  "ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload, " +
+  "ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE";
 // Intl als Parameter: so lässt sich der Rückfall ohne Intl.Segmenter (Firefox vor Version 125) prüfen
 const load = (src, intl) => new Function("Intl", src + "\nreturn { " + NAMES + " };")(intl === undefined ? Intl : intl);
 const T = load(block);
@@ -17,6 +18,7 @@ const {
   TT_SLOW, TT_NONE, TT_B64_MAX, TT_ENV_MAX, TT_UNDO_MAX, TT_UNDO_CHARS, TT_SEG_MAX, TT_KEEP_IN_DRAFT,
   cellText, tableText, tableRows, ttDiff, ttNew, ttApply, ttCodes, ttClass, ttEncode, ttDecode, ttGraphemes, ttSegments,
   ttShare, ttHigh, ttCellText, ttTableText, ttTableCells, ttTableLines, ttEnvelopeFits, ttHasData, ttDraftOut, ttCleanDraft, ttCleanPayload,
+  ttShareParts, ttPctText, ttSummary, TT_ZERO_NOTE,
 } = T;
 
 const codesOf = (tt) => Array.from(ttCodes(tt));
@@ -399,4 +401,43 @@ test("typing: Nutzlast für die Lehrkraft – Form, „=“ nur bei gleichem Tex
   assert.equal(ttHasData({ v: 1, answers: [{ first: null, final: null }] }), false);
   assert.equal(ttHasData({ v: 1, omitted: "too_large" }), false);
   assert.equal(ttHasData(null), false);
+});
+
+test("typing: Lehrkraft – Anteile ohne Tabellenkopf, Rot-Anteil in Worten, Hinweis bei Zeichen aus einem Zug", () => {
+  const join = (pieces) => pieces.map((x) => x.t).join("");
+  // Text: wie im E2E-Test 7l („Wortvorschlag“ in einem Zug eingefügt) – Leerzeichen zählen nicht mit
+  const text = "Ich tippe Wortvorschlag ja weiter", codes = new Uint8Array(text.length).fill(71);
+  for (let x = 0; x < text.length; x++) if (text[x] === " ") codes[x] = TT_NONE;
+  for (let x = text.indexOf("W") + 1; x < text.indexOf("W") + 13; x++) codes[x] = 0;
+  assert.deepEqual(ttShareParts(text, codes, false), [[text, codes]]);
+  assert.deepEqual(ttShareParts(text, undefined, false), [[text, null]]);
+  const sText = ttShare(ttShareParts(text, codes, false));
+  assert.deepEqual(sText, { n: 29, r: 12, y: 0, g: 17, zero: 12, none: 0, pct: 41 });
+  assert.equal(ttPctText(sText), "41 % (von 29 Zeichen)");
+  // Tabelle: nur die Zellen – Kopf und „|“ zählen weder als gemessen noch als „ohne Messung“
+  const ex = ttTableText(["Begriff", "Erklärung"], [["Haus", "Gebäude"]], [[Uint8Array.from([71, 71, 71, 71]), Uint8Array.from([71, 0, 0, 0, 0, 0, 0])]]);
+  assert.deepEqual(ttShareParts(ex.text, ex.codes, true).map(([v, c]) => [v, Array.from(c)]), [["Haus", [71, 71, 71, 71]], ["Gebäude", [71, 0, 0, 0, 0, 0, 0]]]);
+  const sTab = ttShare(ttShareParts(ex.text, ex.codes, true));
+  assert.deepEqual(sTab, { n: 11, r: 6, y: 0, g: 5, zero: 6, none: 0, pct: 55 });
+  assert.equal(ttPctText(sTab), "55 % (von 11 Zeichen) – hoch");
+  assert.deepEqual(ttShare(ttShareParts(ex.text, null, true)), { n: 0, r: 0, y: 0, g: 0, zero: 0, none: 11, pct: null });   // ohne Werte
+  assert.deepEqual(ttShareParts("", null, true), []);
+  // in Worten: teilweise gemessen (Tausenderpunkt), ohne Messung, leer
+  assert.equal(ttPctText({ n: 1500, r: 3, zero: 0, none: 320, pct: 0 }), "0 % (von 1.500 Zeichen; 320 ohne Messung)");
+  assert.equal(ttPctText({ n: 0, r: 0, zero: 0, none: 4, pct: null }), "ohne Messung");
+  assert.equal(ttPctText({ n: 0, r: 0, zero: 0, none: 0, pct: null }), "leer");
+  assert.equal(ttPctText(null), "leer");
+  // Zeilen wie in den Details (Aufgabe 2 aus 7l: hoch, alle roten Zeichen 0 ms → Hinweis; die hohen Teile sind markiert)
+  const two = ttSummary("Tippzeiten – Rot-Anteil: ", [{ label: "erste Eingabe", share: sTab }, { label: "nach dem KI-Feedback", share: sTab }]);
+  assert.equal(join(two), "Tippzeiten – Rot-Anteil: erste Eingabe 55 % (von 11 Zeichen) – hoch · nach dem KI-Feedback 55 % (von 11 Zeichen) – hoch. " + TT_ZERO_NOTE);
+  assert.deepEqual(two.map((x) => x.high), [false, true, false, true, false]);
+  assert.equal(TT_ZERO_NOTE, "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur oder Diktat).");
+  const sum = ttSummary("Tippzeiten – Rot-Anteil über alle Aufgaben: ", [{ label: "erste Fassung", share: ttShare([[text, codes], ...ttShareParts(ex.text, ex.codes, true)]) }]);
+  assert.equal(join(sum), "Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 45 % (von 40 Zeichen)");
+  // ohne Bezeichnung (eine Fassung); nicht hoch → kein Hinweis, auch wenn alle roten Zeichen 0 ms haben
+  assert.equal(join(ttSummary("Tippzeiten – Rot-Anteil: ", [{ label: "", share: sText }])), "Tippzeiten – Rot-Anteil: 41 % (von 29 Zeichen)");
+  // hoch, aber weniger als 90 % der roten Zeichen aus einem Zug → kein Hinweis
+  const fast = { n: 10, r: 6, y: 0, g: 4, zero: 5, none: 0, pct: 60 };
+  assert.equal(join(ttSummary("X: ", [{ label: "", share: fast }])), "X: 60 % (von 10 Zeichen) – hoch");
+  assert.equal(join(ttSummary("X: ", [{ label: "a", share: { ...fast, zero: 6 } }, { label: "b", share: { n: 0, r: 0, zero: 0, none: 0, pct: null } }])), "X: a 60 % (von 10 Zeichen) – hoch · b leer. " + TT_ZERO_NOTE);
 });

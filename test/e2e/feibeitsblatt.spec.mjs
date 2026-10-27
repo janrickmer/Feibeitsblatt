@@ -9,7 +9,7 @@ import { inflateSync, deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { expectedResults, expectedChecklist } from "../mock-ai.mjs";
 import jsQR from "jsqr";
-import { deriveTeacherKeys, makeEnvelope } from "../smoke.mjs";
+import { deriveTeacherKeys, makeEnvelope, openPrivateKey, openEnvelope } from "../smoke.mjs";
 import { makePng } from "../png.mjs";
 import { MOCK_URL, BASE_URL } from "./env.mjs";
 import {
@@ -37,6 +37,11 @@ const SOLUTION_LINES = TASKS.flatMap((t) => t.solution.split("\n").map((l) => l.
 const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}$/;
 // Schalter in index.html: Tippzeiten im Zwischenstand speichern (true) oder nur im Arbeitsspeicher halten (false)
 const TT_KEEP = /\bconst TT_KEEP_IN_DRAFT = true;/.test(readFileSync(new URL("../../index.html", import.meta.url), "utf8"));
+/* Ablauf-Kasten „So gehst du vor“ (oben auf dem Blatt) */
+const STEP_LATE = "– nur direkt nach der Abgabe auf der Bestätigungsseite (nicht nach Neuladen oder „Neues Feibeitsblatt öffnen“)";
+const STEPS_AI = ["Aufgaben bearbeiten", "KI-Feedback anfordern (freiwillig, empfohlen)", "Lösungen mithilfe des KI-Feedbacks überarbeiten", "Abgeben",
+  "Lösungen und letztes Feedback herunterladen " + STEP_LATE];
+const STEPS_NO_AI = ["Aufgaben bearbeiten", "Abgeben", "Lösungen herunterladen " + STEP_LATE];
 /* Tippzeiten im Zwischenstand: je Antwort (bzw. erster Fassung) genau so viele Werte wie Zeichen – oder gar keine (Schalter aus) */
 function expectDraftTyping(d, answers, first) {
   if (!TT_KEEP) { expect(d.typing).toBeUndefined(); return; }
@@ -226,10 +231,10 @@ async function fillPerson(page, input) {
   await page.click("#p-btn");
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
 }
-async function typeAt(page, sel, text) {
+async function typeAt(page, sel, text, opts) {   // opts z. B. { delay: 120 } (Tippzeiten: jede Taste mit Pause)
   await page.click(sel);
   await page.keyboard.press("Control+End");
-  await page.keyboard.type(text);
+  await page.keyboard.type(text, opts);
 }
 async function requestFeedback(page) {
   await expect(page.locator("#submit-btn")).toBeEnabled();   // das KI-Feedback ist freiwillig: Abgeben geht immer
@@ -3274,6 +3279,9 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   expect(JSON.parse((await s3.calls((r) => r.path.startsWith("/api/sheet/")))[0].body).sheet.aiFeedback).toBe(false);
   await expect(p3.locator("#fb-btn")).toBeHidden();
   await expect(p3.locator("#fin-text")).toHaveText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab.");
+  await expect(p3.locator("#ed-steps-list li")).toHaveText(STEPS_NO_AI);   // Ablauf-Kasten: drei Schritte, ohne KI-Feedback
+  await expect(p3.locator("#ed-steps-list li").nth(0)).toHaveAttribute("aria-current", "step");
+  await expect(p3.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
   await expect(p3.locator("#privacy")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
   await expect(p3.locator("#privacy")).not.toContainText("KI-Dienst");
   // ausführlicher Hinweis und Klasse-Hinweis ohne KI: kein KI-Dienst, kein Abschnitt zur KI, Angaben erst bei der Abgabe
@@ -3360,6 +3368,11 @@ test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Ers
   await expect(olderKim.locator(".dmeta")).toHaveText(/^Älterer Erstversuch vom \d\d\.\d\d\.\d{4}, \d\d:\d\d \(ohne Überarbeitung\) · KI-Feedback am /);
   await expect(olderKim.locator("table.cmp tbody td")).toHaveText([kimFirst.answers[0].first, "(noch nicht überarbeitet)"]);
   await expect(olderKim.locator("button")).toHaveCount(0);
+  // Tippzeiten: diese Stände wurden ohne Messung abgegeben – ein Satz statt Prozenten, keine Färbung
+  await expect(detKim.locator(".detbox:not(.older) > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (älterer Stand).");
+  await expect(olderKim.locator(".detbox.older > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (älterer Stand).");
+  await expect(detKim.locator(".dtt")).toHaveCount(0);
+  await expect(tp.locator("#t-subs-body .tt-r, #t-subs-body .tt-y, #t-subs-body .tt-g")).toHaveCount(0);
   await expect(detKim.getByRole("button", { name: "Diesen Eintrag löschen" })).toHaveCount(1);
   // Löschwunsch einer Person: „Diesen Eintrag löschen“ löscht Kims Abgabe samt dem ausgeblendeten Erstversuch, alle anderen bleiben
   await detKim.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
@@ -4587,6 +4600,250 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   await confirmDialog(tp, "Feibeitsblatt löschen?");
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   expect(await d1Query(`SELECT sheet_code FROM sheet_checklists WHERE sheet_code='${code}'`)).toEqual([]);
+  await closePage(t);
+});
+
+test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wortvorschlag ein und füllt eine Tabelle → Werte je Zeichen im Zwischenstand, auch nach Neuladen vor und nach dem KI-Feedback; nie an die KI; Erstversuch und Abgabe tragen sie verschlüsselt; der Kasten zeigt den aktuellen Schritt; 413 → einmal ohne Messung; Lehrkraft sieht Textmarker, Rot-Anteile (ab 50 % „hoch“), Legende, Hinweis und „Färbung aus“", async ({ browser }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  // Schlüssel der Lehrkraft zum Entschlüsseln dessen, was der Browser sendet (wie die Lehrkraft-Seite, nur in Node)
+  const teacher = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value);
+  const priv = await openPrivateKey((await deriveTeacherKeys(PW, teacher.kdf)).encKey, teacher.encPrivateKey);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Tippzeiten");
+  await tp.fill("#bq-1", "Schreibe einen kurzen Satz.");
+  await tp.fill("#bs-1", "- Ein Satz");
+  await tp.fill("#bq-2", "Erkläre einen Begriff.");
+  await tp.fill("#bs-2", "- Haus");
+  await tp.selectOption("#bt-2", "table");
+  await tp.fill("#bc-2", "Begriff; Erklärung");
+  await tp.fill("#br-2", "2");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim();
+
+  /* ---------- Schüler:in 1 ---------- */
+  const s = await openPage(browser);
+  const { page } = s;
+  const logTypes = () => page.evaluate(() => { window.__types = []; document.addEventListener("input", (e) => window.__types.push(e.inputType + ":" + (e.data || "").length), true); });
+  await logTypes();
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "tim", nachname: "ti", geb: "--01-02", klasse: "7a" });
+  // Ablauf-Kasten: fünf Schritte, der erste aktuell (fett, aria-current), zwischen Kopf und Aufgaben im Fluss des Blattes
+  const steps = page.locator("#ed-steps-list li"), cur = page.locator("#ed-steps-list li.cur");
+  await expect(page.locator("#ed-steps-h")).toHaveText("So gehst du vor");
+  await expect(steps).toHaveText(STEPS_AI);
+  await expect(steps.nth(0)).toHaveAttribute("aria-current", "step");
+  await expect(page.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
+  await expect(page.locator("#a-1")).toBeFocused();
+  expect(await page.evaluate(() => {
+    const e = document.getElementById("ed-steps");
+    return { pos: getComputedStyle(e).position, prev: e.previousElementSibling.className, next: e.nextElementSibling.id,
+      weight: getComputedStyle(document.querySelector("#ed-steps-list li.cur")).fontWeight, top: document.getElementById("paperwrap").scrollTop };
+  })).toEqual({ pos: "static", prev: "sheet-head", next: "tasks", weight: "700", top: 0 });   // beim Öffnen nicht weggescrollt
+  const moved = await page.evaluate(() => {
+    const w = document.getElementById("paperwrap"), e = document.getElementById("ed-steps"), y0 = e.getBoundingClientRect().top;
+    w.scrollTop = 200; const d = w.scrollTop, y1 = e.getBoundingClientRect().top; w.scrollTop = 0;
+    return { d, dy: y0 - y1 };
+  });
+  expect(moved.d).toBeGreaterThan(0);
+  expect(moved.dy).toBeCloseTo(moved.d, 0);   // scrollt mit dem Blatt (weder sticky noch fixed)
+
+  // Tippen mit Pausen (grün), ein Wortvorschlag in einem Zug (erstes Zeichen gemessen, der Rest 0 ms = rot), Tabelle
+  await page.click("#a-1");
+  await page.keyboard.type("Ich tippe ", { delay: 120 });
+  await page.waitForTimeout(150);
+  await page.keyboard.insertText("Wortvorschlag");
+  await page.keyboard.type(" ja", { delay: 120 });
+  const cells = page.locator("#a-2 textarea.tcell:not(.measure)");
+  await cells.nth(0).click(); await page.waitForTimeout(150);
+  await page.keyboard.type("Haus", { delay: 120 });
+  await cells.nth(1).click(); await page.waitForTimeout(150);
+  await page.keyboard.insertText("Gebäude");
+  const types = await page.evaluate(() => window.__types);
+  expect(types).toContain("insertText:13");   // so lässt sich ein Fehlschlag deuten (Eingabeart und Länge je Ereignis)
+  expect(types).toContain("insertText:7");
+  const A1 = "Ich tippe Wortvorschlag ja", A1b = A1 + " weiter", A1c = A1b + " Ende", A2 = "Begriff | Erklärung\nHaus | Gebäude";
+  const rep = (v, n) => Array(n).fill(v), codesOf = (b) => Array.from(Buffer.from(b, "base64"));
+  const EXP1 = [71, 71, 71, 255, 71, 71, 71, 71, 71, 255, 71, ...rep(0, 12), 255, 71, 71], W = [255, ...rep(71, 6)], E = [255, ...rep(71, 4)];
+  const EXP2 = [...rep(255, 20), 71, 71, 71, 71, 255, 255, 255, 71, ...rep(0, 6)];
+  const draftOf = () => page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
+  const draftWhen = async (pred) => { await expect.poll(async () => { const d = await draftOf(); return !!d && pred(d); }, { timeout: 10_000 }).toBe(true); return draftOf(); };
+  let d = await draftWhen((x) => x.answers[0] === A1 && x.answers[1] === A2);
+  if (TT_KEEP) {
+    expect(codesOf(d.typing.answers[0])).toEqual(EXP1);
+    expect(codesOf(d.typing.answers[1])).toEqual(EXP2);   // Kopf, „ | “ und Zeilenumbruch ohne Messung (255)
+    expect(d.typing.first).toBeNull();
+    // Neuladen: die Werte bleiben (eingefroren), ein neues Zeichen dahinter gilt als Pause
+    await page.reload();
+    await logTypes();
+    await page.click("#resume-btn");
+    await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+    await typeAt(page, "#a-1", " weiter", { delay: 120 });
+    d = await draftWhen((x) => x.answers[0] === A1b);
+    expect(codesOf(d.typing.answers[0])).toEqual([...EXP1, ...W]);
+    expect(codesOf(d.typing.answers[1])).toEqual(EXP2);
+  } else {   // Schalter aus: nur im Arbeitsspeicher – nach Neuladen wäre der Text „ohne Messung“, deshalb hier ohne Neuladen
+    expect(d.typing).toBeUndefined();
+    await typeAt(page, "#a-1", " weiter", { delay: 120 });
+  }
+
+  // KI-Feedback: während die Anfrage läuft, ist Schritt 2 aktuell, danach Schritt 3; an die KI gehen nur die Texte
+  let releaseFb; const fbHeld = new Promise((r) => { releaseFb = r; });
+  await page.route("**/api/feedback", async (route) => { await fbHeld; await route.continue(); });
+  await page.click("#fb-btn");
+  await confirmDialog(page, "KI-Feedback anfordern?");
+  await expect(cur).toHaveText(STEPS_AI[1]);
+  await expect(steps.nth(1)).toHaveAttribute("aria-current", "step");
+  releaseFb();
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await page.unroute("**/api/feedback");
+  await expect(cur).toHaveText(STEPS_AI[2]);
+  await expect(page.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
+  const fb1 = await s.calls((e) => e.path === "/api/feedback");
+  expect(fb1).toHaveLength(1);
+  expect(Object.keys(JSON.parse(fb1[0].reqBody)).sort()).toEqual(["answers", "code", "recipients"]);
+  expect(JSON.parse(fb1[0].reqBody).answers).toEqual([A1b, A2]);
+  expect(fb1[0].reqBody).not.toContain("typing");
+
+  // Erstversuch (im Hintergrund gesendet): Tippzeiten der ersten Fassung im verschlüsselten Umschlag, final null
+  const sealed = async (stage) => {
+    const c = (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).filter((b) => b.stage === stage);
+    return c.length ? openEnvelope(priv, c.at(-1).envelope) : null;
+  };
+  await expect.poll(async () => !!(await sealed("first")), { timeout: 30_000 }).toBe(true);
+  const first = await sealed("first");
+  expect(first.answers).toEqual([{ first: A1b, final: null }, { first: A2, final: null }]);
+  expect(first.typing.v).toBe(1);
+  expect(first.typing.answers.map((a) => a.final)).toEqual([null, null]);
+  expect(codesOf(first.typing.answers[0].first)).toEqual([...EXP1, ...W]);
+  expect(codesOf(first.typing.answers[1].first)).toEqual(EXP2);
+  if (TT_KEEP) {
+    // Neuladen nach dem KI-Feedback: die erste Fassung behält ihre Werte (Abgabe nach „Weiterschreiben“)
+    d = await draftWhen((x) => x.firstSent === true && Array.isArray(x.typing && x.typing.first));
+    expect(d.typing.first).toEqual(first.typing.answers.map((a) => a.first));
+    await page.reload();
+    await page.click("#resume-btn");
+    await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+    await expect(cur).toHaveText(STEPS_AI[2]);
+    await typeAt(page, "#a-1", " Ende", { delay: 120 });
+    d = await draftWhen((x) => x.answers[0] === A1c);
+    expect(d.typing.first).toEqual(first.typing.answers.map((a) => a.first));
+  } else await typeAt(page, "#a-1", " Ende", { delay: 120 });
+
+  // Abgabe: während des Sendens ist „Abgeben“ der aktuelle Schritt; der Erstversuch geht ungehindert durch
+  let releaseSub; const subHeld = new Promise((r) => { releaseSub = r; });
+  await page.route("**/api/submit", async (route) => { if (JSON.parse(route.request().postData() || "{}").stage === "final") await subHeld; await route.continue(); });
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Jetzt abgeben?");
+  await expect(cur).toHaveText("Abgeben");
+  releaseSub();
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#ed-steps-list li")).toHaveCount(0);   // Schreibfläche geleert (gemeinsam genutzte Geräte)
+  const fin = await sealed("final");
+  expect(fin.answers).toEqual([{ first: A1b, final: A1c }, { first: A2, final: A2 }]);
+  expect(fin.answers.every((a) => typeof a.first === "string" && typeof a.final === "string")).toBe(true);
+  expect(fin.typing.v).toBe(1);
+  expect(fin.typing.answers[0].first).toBe(first.typing.answers[0].first);
+  expect(codesOf(fin.typing.answers[0].final)).toEqual([...EXP1, ...W, ...E]);
+  expect(fin.typing.answers[1].first).toBe("=");   // Tabelle unverändert: gleiche Werte, gleicher Text
+  expect(codesOf(fin.typing.answers[1].final)).toEqual(EXP2);
+  // die zweite KI-Rückmeldung bekommt wieder nur Texte
+  await expect.poll(async () => (await s.calls((e) => e.path === "/api/feedback")).length, { timeout: 30_000 }).toBe(2);
+  const fb2 = (await s.calls((e) => e.path === "/api/feedback"))[1];
+  expect(Object.keys(JSON.parse(fb2.reqBody)).sort()).toEqual(["answers", "code", "only", "recipients"]);
+  expect(fb2.reqBody).not.toContain("typing");
+  await closePage(s);
+
+  /* ---------- Schüler:in 2: der Server lehnt die erste Abgabe als zu groß ab → einmal dieselbe Nutzlast ohne Tippzeiten ---------- */
+  const s2 = await openPage(browser);
+  const p2 = s2.page, bodies = [];
+  await p2.route("**/api/submit", async (route) => {
+    bodies.push(route.request().postData());
+    if (bodies.length === 1) return route.fulfill({ status: 413, contentType: "application/json", body: JSON.stringify({ ok: false, code: "too_large", error: "Die Abgabe ist zu groß." }) });
+    return route.continue();
+  });
+  await enterCode(p2, shown);
+  await fillPerson(p2, { vorname: "uli", nachname: "ul", geb: "--03-04", klasse: "7a" });
+  await typeAt(p2, "#a-1", "Kurz", { delay: 120 });
+  await p2.click("#submit-btn");
+  await confirmDialog(p2, "Ohne KI-Feedback abgeben?");
+  await expect(p2.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(bodies).toHaveLength(2);
+  const e1 = await openEnvelope(priv, JSON.parse(bodies[0]).envelope), e2 = await openEnvelope(priv, JSON.parse(bodies[1]).envelope);
+  expect(e1.typing.answers.map((a) => a.first)).toEqual(["=", "="]);   // ohne KI-Feedback: erste = abgegebene Fassung
+  expect(codesOf(e1.typing.answers[0].final)).toEqual([71, 71, 71, 71]);
+  expect(e2.typing).toEqual({ v: 1, omitted: "too_large" });
+  const strip = (x) => { const y = { ...x }; delete y.typing; return y; };
+  expect(strip(e2)).toEqual(strip(e1));
+  await closePage(s2);
+
+  /* ---------- Lehrkraft: Textmarker, Rot-Anteile, Legende, Hinweis, „Färbung aus“ ---------- */
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("2 Abgaben");
+  await expect(tp.locator("#t-tt")).toBeVisible();
+  await expect(tp.locator("#t-tt-legend")).toHaveText("Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): rot (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat) · gelb = über 15 bis 70 ms · grün = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (z. B. ältere Stände); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).");
+  await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung ist ein Indiz, kein Beweis: Rot entsteht auch beim selbstständigen Schreiben – etwa durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten –, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht.");
+  const off = tp.locator("#t-tt-off");
+  await expect(off).toHaveAttribute("aria-pressed", "false");
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(2);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Ti", "Tim", "02.01.", "7a"]);
+  expect(await tp.locator("#t-subs-body").textContent()).not.toContain("%");   // der Rot-Anteil steht nie in der Liste
+  await mains.nth(0).click();
+  const det = tp.locator("#t-subs-body tr.details:visible");
+  await expect(det.locator(".dtt-sum")).toHaveText("Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 45 % (von 40 Zeichen) · abgegebene Fassung 41 % (von 44 Zeichen)");
+  const dt = (k) => det.locator(".dtask").nth(k);
+  // Aufgabe 1: der Text der Zellen bleibt genau die Antwort; grün getippt, der Wortvorschlag rot (bis auf sein erstes Zeichen)
+  const td1 = dt(0).locator("table.cmp tbody td");
+  expect(await td1.nth(0).textContent()).toBe(A1b);
+  expect(await td1.nth(1).textContent()).toBe(A1c);
+  await expect(td1.nth(0).locator(".tt-g")).toHaveText(["Ich tippe W", "ja weiter"]);
+  await expect(td1.nth(1).locator(".tt-g")).toHaveText(["Ich tippe W", "ja weiter Ende"]);
+  await expect(td1.nth(1).locator(".tt-r")).toHaveText(["ortvorschlag"]);
+  await expect(dt(0).locator(".tt-y")).toHaveCount(0);
+  await expect(dt(0).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 41 % (von 29 Zeichen) · nach dem KI-Feedback 36 % (von 33 Zeichen)");
+  await expect(dt(0).locator(".dtt .tt-high")).toHaveCount(0);
+  // Aufgabe 2 (Tabelle): je Zelle gefärbt, der Kopf nie; Rot-Anteil hoch – fast alles in einem Zug
+  await expect(dt(1).locator("table.anstable td")).toHaveText(["Haus", "Gebäude", "Haus", "Gebäude"]);
+  await expect(dt(1).locator("table.anstable td .tt-r")).toHaveText(["ebäude", "ebäude"]);
+  await expect(dt(1).locator("table.anstable td .tt-g")).toHaveText(["Haus", "G", "Haus", "G"]);
+  await expect(dt(1).locator("table.anstable th span")).toHaveCount(0);
+  await expect(dt(1).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 55 % (von 11 Zeichen) – hoch · nach dem KI-Feedback 55 % (von 11 Zeichen) – hoch. Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur oder Diktat).");
+  await expect(dt(1).locator(".dtt .tt-high")).toHaveText(["erste Eingabe 55 % (von 11 Zeichen) – hoch", "nach dem KI-Feedback 55 % (von 11 Zeichen) – hoch"]);
+  expect(await dt(1).locator(".dtt .tt-high").first().evaluate((e) => getComputedStyle(e).color)).toBe(RED);
+  const red = dt(0).locator(".tt-r").first();
+  const look = (loc) => loc.evaluate((e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.textDecorationLine]; });
+  expect(await look(red)).toEqual(["rgb(255, 196, 189)", "underline"]);   // Rot nicht nur über die Farbe: unterstrichen
+  // „Färbung aus“: gedrückt (sichtbar gefüllt), alle Details ohne Farben, der Text bleibt; die Legende bleibt farbig; übersteht Aktualisieren
+  await off.click();
+  await expect(off).toHaveAttribute("aria-pressed", "true");
+  await expect(tp.locator("#t-subs")).toHaveClass(/\btt-off\b/);
+  await tp.mouse.move(0, 0);   // ohne Hover; die Farbe geht mit einem Übergang über
+  await expect(off).toHaveCSS("background-color", "rgb(34, 31, 26)");
+  expect(await look(red)).toEqual(["rgba(0, 0, 0, 0)", "none"]);
+  expect(await td1.nth(1).textContent()).toBe(A1c);
+  expect(await tp.locator("#t-tt-legend .tt-r").evaluate((e) => getComputedStyle(e).backgroundColor)).toBe("rgb(255, 196, 189)");
+  await tp.click("#t-refresh");
+  await expect(mains).toHaveCount(2);
+  await expect(off).toHaveAttribute("aria-pressed", "true");
+  await expect(tp.locator("#t-subs")).toHaveClass(/\btt-off\b/);
+  await off.click();
+  await expect(off).toHaveAttribute("aria-pressed", "false");
+  await expect(tp.locator("#t-subs")).not.toHaveClass(/\btt-off\b/);
+  // Schüler:in 2: Tippzeiten wegen der Größe weggelassen – ein Satz, keine Färbung
+  await mains.nth(1).click();
+  const det2 = tp.locator("#t-subs-body tr.details:visible").filter({ hasText: "Kurz" });
+  await expect(det2.locator(".dtt-sum")).toHaveText("Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.");
+  await expect(det2.locator(".dtt")).toHaveCount(0);
+  await expect(det2.locator(".tt-r, .tt-y, .tt-g")).toHaveCount(0);
+  expect(await det2.locator("table.cmp.one tbody td").first().textContent()).toBe("Kurz");
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   await closePage(t);
 });
 
