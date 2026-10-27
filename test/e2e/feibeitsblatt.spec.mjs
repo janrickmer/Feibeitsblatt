@@ -4621,7 +4621,8 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await tp.fill("#br-2", "2");
   await tp.click("#b-gen");
   await expect(tp.locator("#b-result")).toBeVisible();
-  const shown = (await tp.locator("#b-res-code").textContent()).trim();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const rowsOf = () => d1Query(`SELECT id, stage, attempt, envelope FROM submissions WHERE sheet_code='${code}' ORDER BY id`);
 
   /* ---------- Schüler:in 1 ---------- */
   const s = await openPage(browser);
@@ -4668,8 +4669,8 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   const rep = (v, n) => Array(n).fill(v), codesOf = (b) => Array.from(Buffer.from(b, "base64"));
   const EXP1 = [71, 71, 71, 255, 71, 71, 71, 71, 71, 255, 71, ...rep(0, 12), 255, 71, 71], W = [255, ...rep(71, 6)], E = [255, ...rep(71, 4)];
   const EXP2 = [...rep(255, 20), 71, 71, 71, 71, 255, 255, 255, 71, ...rep(0, 6)];
-  const draftOf = () => page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
-  const draftWhen = async (pred) => { await expect.poll(async () => { const d = await draftOf(); return !!d && pred(d); }, { timeout: 10_000 }).toBe(true); return draftOf(); };
+  const draftOf = (pg) => pg.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
+  const draftWhen = async (pred, pg = page) => { await expect.poll(async () => { const d = await draftOf(pg); return !!d && pred(d); }, { timeout: 10_000 }).toBe(true); return draftOf(pg); };
   let d = await draftWhen((x) => x.answers[0] === A1 && x.answers[1] === A2);
   if (TT_KEEP) {
     expect(codesOf(d.typing.answers[0])).toEqual(EXP1);
@@ -4707,13 +4708,19 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   expect(JSON.parse(fb1[0].reqBody).answers).toEqual([A1b, A2]);
   expect(fb1[0].reqBody).not.toContain("typing");
 
-  // Erstversuch (im Hintergrund gesendet): Tippzeiten der ersten Fassung im verschlüsselten Umschlag, final null
+  // Erstversuch (im Hintergrund gesendet): erst seine Zeile in D1 abwarten, dann den gespeicherten Umschlag entschlüsseln – derselbe
+  // Inhalt wie gesendet; Tippzeiten der ersten Fassung, final null
   const sealed = async (stage) => {
     const c = (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).filter((b) => b.stage === stage);
     return c.length ? openEnvelope(priv, c.at(-1).envelope) : null;
   };
+  await expect.poll(async () => (await rowsOf()).map((x) => x.stage), { timeout: 30_000 }).toEqual(["first"]);
+  const [row1] = await rowsOf();
+  expect(Object.keys(JSON.parse(row1.envelope)).sort()).toEqual(["ct", "ek", "iv", "v"]);   // beim Server nur der Umschlag
+  const first = await openEnvelope(priv, JSON.parse(row1.envelope));
   await expect.poll(async () => !!(await sealed("first")), { timeout: 30_000 }).toBe(true);
-  const first = await sealed("first");
+  expect(await sealed("first")).toEqual(first);
+  expect(first.stage).toBe("first");
   expect(first.answers).toEqual([{ first: A1b, final: null }, { first: A2, final: null }]);
   expect(first.typing.v).toBe(1);
   expect(first.typing.answers.map((a) => a.final)).toEqual([null, null]);
@@ -4738,10 +4745,16 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await page.click("#submit-btn");
   await confirmDialog(page, "Jetzt abgeben?");
   await expect(cur).toHaveText("Abgeben");
+  await expect(steps.nth(3)).toHaveAttribute("aria-current", "step");
+  await expect(page.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
   releaseSub();
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#ed-steps-list li")).toHaveCount(0);   // Schreibfläche geleert (gemeinsam genutzte Geräte)
-  const fin = await sealed("final");
+  // die Abgabe ersetzt den Erstversuch (gleiche Kennung, dieselbe Zeile); gespeichert ist genau das Gesendete
+  const rows2 = await rowsOf();
+  expect(rows2.map((x) => [x.id, x.stage, x.attempt])).toEqual([[row1.id, "final", row1.attempt]]);
+  const fin = await openEnvelope(priv, JSON.parse(rows2[0].envelope));
+  expect(await sealed("final")).toEqual(fin);
   expect(fin.answers).toEqual([{ first: A1b, final: A1c }, { first: A2, final: A2 }]);
   expect(fin.answers.every((a) => typeof a.first === "string" && typeof a.final === "string")).toBe(true);
   expect(fin.typing.v).toBe(1);
@@ -4754,6 +4767,13 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   const fb2 = (await s.calls((e) => e.path === "/api/feedback"))[1];
   expect(Object.keys(JSON.parse(fb2.reqBody)).sort()).toEqual(["answers", "code", "only", "recipients"]);
   expect(fb2.reqBody).not.toContain("typing");
+  // die Lösungs-PDF (aus dem Arbeitsspeicher der Bestätigungsseite) enthält Texte, nie Tippzeiten
+  await expect(page.locator("#done-fb-list .fbbox")).not.toHaveCount(0, { timeout: 30_000 });
+  const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const sol = await readFile(await sdl.path());
+  expect(pdfShownText(sol)).toContain(A1c);
+  for (const b of [fin.typing.answers[0].first, fin.typing.answers[0].final, fin.typing.answers[1].final]) expect(sol.toString("latin1")).not.toContain(b);
+  expect(sol.toString("latin1")).not.toContain("typing");   // (der Titel des Blattes heißt „Tippzeiten“)
   await closePage(s);
 
   /* ---------- Schüler:in 2: der Server lehnt die erste Abgabe als zu groß ab → einmal dieselbe Nutzlast ohne Tippzeiten ---------- */
@@ -4767,13 +4787,26 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await enterCode(p2, shown);
   await fillPerson(p2, { vorname: "uli", nachname: "ul", geb: "--03-04", klasse: "7a" });
   await typeAt(p2, "#a-1", "Kurz", { delay: 120 });
+  // Neuladen (in beiden Stellungen des Schalters): mit TT_KEEP_IN_DRAFT behält „Kurz“ seine Werte, ohne gilt es danach als
+  // „ohne Messung“ (255, nie rot) – neu Getipptes wird weiter gemessen
+  const d2 = await draftWhen((x) => x.answers[0] === "Kurz", p2);
+  if (TT_KEEP) expect(codesOf(d2.typing.answers[0])).toEqual([71, 71, 71, 71]);
+  else expect(d2.typing).toBeUndefined();
+  await p2.reload();
+  await p2.click("#resume-btn");
+  await expect(p2.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(p2.locator("#a-1")).toHaveValue("Kurz");
+  await typeAt(p2, "#a-1", " da", { delay: 120 });
+  await draftWhen((x) => x.answers[0] === "Kurz da", p2);
   await p2.click("#submit-btn");
   await confirmDialog(p2, "Ohne KI-Feedback abgeben?");
   await expect(p2.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   expect(bodies).toHaveLength(2);
   const e1 = await openEnvelope(priv, JSON.parse(bodies[0]).envelope), e2 = await openEnvelope(priv, JSON.parse(bodies[1]).envelope);
+  expect(e1.answers).toEqual([{ first: "Kurz da", final: "Kurz da" }, { first: "", final: "" }]);
   expect(e1.typing.answers.map((a) => a.first)).toEqual(["=", "="]);   // ohne KI-Feedback: erste = abgegebene Fassung
-  expect(codesOf(e1.typing.answers[0].final)).toEqual([71, 71, 71, 71]);
+  expect(codesOf(e1.typing.answers[0].final)).toEqual([...(TT_KEEP ? [71, 71, 71, 71] : [255, 255, 255, 255]), 255, 71, 71]);
+  expect(e1.typing.answers[1].final).toBe("");   // leere Tabelle: leerer Text, keine Werte
   expect(e2.typing).toEqual({ v: 1, omitted: "too_large" });
   const strip = (x) => { const y = { ...x }; delete y.typing; return y; };
   expect(strip(e2)).toEqual(strip(e1));
@@ -4835,11 +4868,11 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await expect(tp.locator("#t-subs")).not.toHaveClass(/\btt-off\b/);
   // Schüler:in 2: Tippzeiten wegen der Größe weggelassen – ein Satz, keine Färbung
   await mains.nth(1).click();
-  const det2 = tp.locator("#t-subs-body tr.details:visible").filter({ hasText: "Kurz" });
+  const det2 = tp.locator("#t-subs-body tr.details:visible").filter({ hasText: "Kurz da" });
   await expect(det2.locator(".dtt-sum")).toHaveText("Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.");
   await expect(det2.locator(".dtt")).toHaveCount(0);
   await expect(det2.locator(".tt-r, .tt-y, .tt-g")).toHaveCount(0);
-  expect(await det2.locator("table.cmp.one tbody td").first().textContent()).toBe("Kurz");
+  expect(await det2.locator("table.cmp.one tbody td").first().textContent()).toBe("Kurz da");
   // aufräumen
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");

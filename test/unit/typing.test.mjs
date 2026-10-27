@@ -192,6 +192,91 @@ test("typing: Rückgängig/Wiederholen holen die alten Zeiten zurück, Puffer ge
   assert.deepEqual(two.undo.map((u) => u.text.length), [3000]);
 });
 
+test("typing: Rückgängig holt auch eingefrorene Werte und ein ersetztes Wort zurück; Löschen mit Cursor trifft die gelöschte Stelle", () => {
+  // eingefroren (aus dem Zwischenstand): Rücktaste bis leer, dann Rückgängig → wieder genau diese Werte
+  const f = ttNew("Haus", Uint8Array.from([71, 3, 40, 0]));
+  for (let k = 0; k < 4; k++) ttApply(f, f.text.slice(0, -1), 1000 + k * 100, "deleteContentBackward");
+  ttApply(f, "Haus", 2000, "historyUndo");
+  assert.deepEqual(codesOf(f), [71, 3, 40, 0]);
+  // Wort markiert und überschrieben, dann Rückgängig: das alte Wort mit seinen Zeiten, nicht rot
+  const w = ttNew("", null);
+  typeText(w, "Ein Wort", 1000, 30);
+  assert.deepEqual(codesOf(w), [71, 30, 30, 255, 30, 30, 30, 30]);
+  ttApply(w, "Ein x", 5000, "insertText", 5);
+  assert.deepEqual(codesOf(w), [71, 30, 30, 255, 71]);
+  ttApply(w, "Ein Wort", 6000, "historyUndo");
+  assert.deepEqual(codesOf(w), [71, 30, 30, 255, 30, 30, 30, 30]);
+  // „Hallo“ → „Halo“: mit Cursor (nach der Rücktaste an Stelle 2) verschwindet das erste „l“, ohne ihn das zweite
+  const h = () => { const tt = ttNew("", null); typeText(tt, "Hallo", 0, 30); return tt; };   // Zeitpunkte 0, 30, 60, 90, 120
+  const c1 = h(); ttApply(c1, "Halo", 500, "deleteContentBackward", 2);
+  assert.deepEqual(codesOf(c1), [71, 30, 60, 30]);
+  const c2 = h(); ttApply(c2, "Halo", 500, "deleteContentBackward");
+  assert.deepEqual(codesOf(c2), [71, 30, 30, 60]);
+  // Werte und Text passen nicht zusammen (nur bei manipuliertem Zustand) → null statt falscher Werte
+  const bad = ttNew("ab", null); bad.recs.pop();
+  assert.equal(ttCodes(bad), null);
+});
+
+test("typing: langsam getippt bleibt grün – egal wo eingefügt, gelöscht oder ersetzt wird (Eigenschaftstest)", () => {
+  const r = rng(1104), pool = ["a", "B", "ä", "ß", " ", "\n", "😀", "e", "́", "x"];
+  // Stellen zwischen Codepunkten (ein Cursor steht nie mitten in einem Ersatzzeichen-Paar)
+  const stops = (s) => { const o = [0]; for (let x = 0; x < s.length;) { x += s.codePointAt(x) > 0xffff ? 2 : 1; o.push(x); } return o; };
+  for (let run = 0; run < 60; run++) {
+    const tt = ttNew("", null);
+    let t = 1000;
+    for (let k = 0; k < 80; k++) {
+      t += 71 + Math.floor(r() * 300);   // jedes Ereignis mehr als 70 ms nach dem vorigen
+      const s = tt.text, st = stops(s), op = r();
+      let a = pick(r, st), b = pick(r, st);
+      if (a > b) [a, b] = [b, a];
+      if (op < 0.6 || !s) { const ch = pick(r, pool); ttApply(tt, s.slice(0, a) + ch + s.slice(a), t, "insertText", a + ch.length); }
+      else if (op < 0.85) { if (b === a) continue; ttApply(tt, s.slice(0, a) + s.slice(b), t, "deleteContentBackward", a); }
+      else { const ch = pick(r, pool); ttApply(tt, s.slice(0, a) + ch + s.slice(b), t, "insertText", a + ch.length); }
+      assert.equal(tt.recs.length, tt.text.length);
+      const c = ttCodes(tt), gs = ttGraphemes(tt.text);
+      assert.equal(c.length, tt.text.length);
+      for (let g = 0; g < gs.length - 1; g++) {
+        const i = gs[g];
+        if (/\s/.test(tt.text[i])) assert.equal(c[i], TT_NONE);
+        else assert.equal(c[i], TT_SLOW, JSON.stringify([tt.text, i]));
+      }
+      const sh = ttShare([[tt.text, c]]);
+      assert.equal(sh.r + sh.y, 0);
+      assert.ok(ttSegments(tt.text, c).every((x) => x.c === "g" || x.c === ""));
+    }
+  }
+});
+
+test("typing: mehrere Zeichen in einem Ereignis – das erste gemessen, jedes weitere Graphem rot mit 0 ms (Eigenschaftstest)", () => {
+  const r = rng(77), pool = ["a", "B", "ä", "ß", " ", " ", "\n", "😀", "👍🏽", "é", "Wort"];
+  for (let run = 0; run < 200; run++) {
+    const tt = ttNew("", null);
+    let t = 0, red = 0, measured = 0;
+    for (let k = 0, n = 1 + Math.floor(r() * 8); k < n; k++) {
+      let chunk = ""; for (let x = 0, m = 1 + Math.floor(r() * 4); x < m; x++) chunk += pick(r, pool);
+      t += 71 + Math.floor(r() * 500);
+      ttApply(tt, tt.text + chunk, t, "insertText");
+      const gs = ttGraphemes(chunk);
+      for (let g = 0; g < gs.length - 1; g++) {
+        if (/\s/.test(chunk[gs[g]])) continue;
+        measured++;
+        if (g > 0) red++;   // Vorgänger im selben Ereignis (auch ein Leerzeichen davor) → 0 ms
+      }
+    }
+    const sh = ttShare([[tt.text, ttCodes(tt)]]);
+    assert.deepEqual([sh.n, sh.r, sh.zero, sh.y, sh.none], [measured, red, red, 0, 0], JSON.stringify(tt.text));
+  }
+});
+
+test("typing: Base64 wie Buffer in Node – Lehrkraft-Seite und Tests lesen dieselben Bytes", () => {
+  const r = rng(3);
+  for (const n of [0, 1, 2, 3, 4, 5, 8100, 0x8000 - 1, 0x8000, 0x8000 + 5, 3 * 0x8000 + 2]) {
+    const codes = Uint8Array.from({ length: n }, () => randCode(r)), s = ttEncode(codes);
+    assert.equal(s, Buffer.from(codes).toString("base64"), "Länge " + n);   // auch über die Blockgrenze von ttEncode hinweg
+    if (n <= T.TT_MAX_LEN) assert.deepEqual(Array.from(ttDecode(Buffer.from(codes).toString("base64"), "x".repeat(n))), Array.from(codes));
+  }
+});
+
 test("typing: Emoji und kombinierte Zeichen in einem Ereignis zählen als ein Graphem mit dem Wert der ersten Einheit", () => {
   for (const g of ["😀", "👍🏽", "é", "🇩🇪", "👨‍👩‍👧"]) {
     const tt = ttNew("", null);
