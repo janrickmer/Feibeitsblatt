@@ -139,7 +139,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], videos: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
     aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)", transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }],
     // die Neuinstallation (Setup ohne Blätter) löscht nach 30 Tagen (updatedAt/auto bleiben intern)
     privacy: { retentionDays: 30 }, escape: null });
@@ -208,7 +208,7 @@ test("sheet material: gespeichert, öffentlich und für die Lehrkraft geliefert,
   assert.deepEqual(r.json.sheet.tasks.map((t) => t.material), [material, []]);
   assert.equal(/solution|musterl/i.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets/" + c, { auth });
-  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", textFmt: [], solution: "k", material, images: [], files: [], answer: { type: "text" } });
+  assert.deepEqual(r.json.sheet.tasks[0], { text: "A", textFmt: [], solution: "k", material, videos: [], images: [], files: [], answer: { type: "text" } });
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: [[{ t: "x", h: "javascript:alert(1)" }]] }] } });
   assert.equal(r.status, 400); assert.match(r.json.error, /^Aufgabe 1: Ein Link im Material ist ungültig/);
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", material: "fett" }] } });
@@ -228,7 +228,7 @@ test("formatierte Aufgabenstellung (textFmt): nur mit Formatierung gespeichert, 
   assert.deepEqual(r.json.sheet.tasks.map((t) => [t.text, t.textFmt]), [[plain, textFmt], ["Nur Text", []]]);
   assert.equal(/solution|Achte auf Licht/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets/" + c, { auth });
-  assert.deepEqual(r.json.sheet.tasks[0], { text: plain, textFmt, solution: "Achte auf Licht und Wasser.", material: [], images: [], files: [], answer: { type: "text" } });
+  assert.deepEqual(r.json.sheet.tasks[0], { text: plain, textFmt, solution: "Achte auf Licht und Wasser.", material: [], videos: [], images: [], files: [], answer: { type: "text" } });
   assert.deepEqual(r.json.sheet.tasks[1].textFmt, []);
   // KI: die Aufgabenstellung nur als reiner Text – ohne Formatierung und ohne Link-Adresse
   const before = mock.state.requests.length;
@@ -245,6 +245,86 @@ test("formatierte Aufgabenstellung (textFmt): nur mit Formatierung gespeichert, 
   r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A", textFmt: "<b>A</b>" }] } });
   assert.equal(r.status, 400); assert.equal(r.json.error, "Aufgabe 1: Die Aufgabenstellung hat ein ungültiges Format.");
   await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+});
+
+test("YouTube-Videos: nur Kennung, Startzeit und Titel gespeichert (nur wenn vorhanden), öffentlich und für die Lehrkraft geliefert, nie an die KI; ungültig → 400; von Hand Verdorbenes entfällt", async () => {
+  const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen zählen
+  const videos = [
+    { id: "M7lc1UVf-VE", start: 90, title: " Foto\nsynthese\u202e ", url: "https://youtu.be/M7lc1UVf-VE?si=TRACKING&t=90", thumbnail: "https://i.ytimg.com/vi/M7lc1UVf-VE/0.jpg" },
+    { id: "M7lc1UVf-VE", start: 90, title: "doppelt" },   // dasselbe Video mit derselben Startzeit entfällt still
+    { id: "aqz-KE-bpKQ", start: 0 },
+  ];
+  const V = [{ id: "M7lc1UVf-VE", start: 90, title: "Foto synthese" }, { id: "aqz-KE-bpKQ" }];
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Videos", tasks: [{ text: "Erkläre die Photosynthese.", solution: "Achte auf Licht.", videos }, { text: "B", videos: [] }] } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  try {
+    assert.equal(r.json.videoCount, 2);   // so prüft der Browser, dass der Server die Videos gespeichert hat
+    const raw = d1.db.prepare("SELECT tasks FROM sheets WHERE code=?").get(c).tasks, stored = JSON.parse(raw);
+    assert.deepEqual(stored[0].videos, V);
+    assert.equal("videos" in stored[1], false);   // leer → wie beim Material kein Feld
+    assert.equal(/si=|TRACKING|ytimg|"url"|thumbnail|youtu/.test(raw), false, raw);   // nie eine URL oder ein Vorschaubild
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheets WHERE code=?").get(c).n, 1);
+    // öffentlich und für die Lehrkraft: immer eine Liste (wie material), nur {id, start?, title?}
+    r = await call("GET", "/api/sheet/" + c);
+    assert.deepEqual(r.json.sheet.tasks.map((t) => t.videos), [V, []]);
+    assert.equal(/solution|Achte auf Licht|youtube|TRACKING|"url"/.test(r.text), false, r.text);
+    assert.equal(r.queries, (await call("GET", "/api/sheet/" + code)).queries);   // keine zusätzliche D1-Abfrage
+    r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+    assert.deepEqual(r.json.sheet.tasks.map((t) => t.videos), [V, []]);
+    assert.equal(r.json.sheet.tasks[0].solution, "Achte auf Licht.");
+    // ein Blatt ohne Videos meldet videoCount 0 (fehlt das Feld, ist der Worker älter)
+    r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Ohne", tasks: [{ text: "A" }] } });
+    assert.equal(r.json.videoCount, 0);
+    await call("DELETE", "/api/teacher/sheets/" + r.json.code, { auth });
+    // KI: weder Kennung noch Titel noch YouTube – weder im Feedback noch im Vorschlag der Checkliste
+    const before = mock.state.requests.length;
+    r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Pflanzen brauchen Licht.", "x"], recipients: ["custom:127.0.0.1:" + mock.port] } });
+    assert.equal(r.status, 200, r.text);
+    r = await call("POST", "/api/teacher/sheets/" + c + "/checklist", { auth, body: {} });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.generated, true);
+    const sent = mock.state.requests.slice(before);
+    assert.equal(sent.length, 2);
+    const prompt = sent.map((q) => q.messages.map((m) => m.content).join("\n")).join("\n");
+    assert.ok(prompt.includes("Erkläre die Photosynthese."), prompt);
+    assert.equal(/M7lc1UVf-VE|aqz-KE-bpKQ|youtu|Foto synthese|Video/i.test(prompt), false, prompt);
+    // ungültig → 400 mit deutscher Meldung, nichts angelegt
+    const n0 = d1.db.prepare("SELECT COUNT(*) AS n FROM sheets").get().n;
+    const ok = { id: "M7lc1UVf-VE" };
+    for (const [list, msg] of [
+      ["x", "Aufgabe 2: Die Videos haben ein ungültiges Format."],
+      [{ id: "M7lc1UVf-VE" }, "Aufgabe 2: Die Videos haben ein ungültiges Format."],
+      [[ok, { id: "aqz-KE-bpKQ" }, { id: "dQw4w9WgXcQ" }, { id: "Zz_9-aB3cD4" }], "Aufgabe 2: Höchstens 3 YouTube-Videos je Aufgabe."],
+      [[{ id: "abc" }], "Aufgabe 2: Video 1: Das ist kein gültiger YouTube-Link."],
+      [[{ id: "dQw4w9WgXc\"" }], "Aufgabe 2: Video 1: Das ist kein gültiger YouTube-Link."],
+      [[ok, { id: "https://www.youtube.com/watch?v=M7lc1UVf-VE" }], "Aufgabe 2: Video 2: Das ist kein gültiger YouTube-Link."],
+      [[{ ...ok, start: -1 }], "Aufgabe 2: Video 1: Die Startzeit ist ungültig."],
+      [[{ ...ok, start: 1.5 }], "Aufgabe 2: Video 1: Die Startzeit ist ungültig."],
+      [[{ ...ok, start: LIMITS.videoStart }], "Aufgabe 2: Video 1: Die Startzeit ist ungültig."],
+      [[{ ...ok, title: "x".repeat(121) }], "Aufgabe 2: Video 1: Der Titel ist zu lang (höchstens 120 Zeichen)."],
+    ]) {
+      r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks: [{ text: "A" }, { text: "B", videos: list }] } });
+      assert.equal(r.status, 400, JSON.stringify(list)); assert.equal(r.json.error, msg);
+    }
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheets").get().n, n0);
+    // eine von Hand geänderte Zeile: Ungültiges entfällt, höchstens 3, nie eine eingeschleuste Adresse
+    stored[0].videos = [{ id: "javascript:x" }, { id: "../../x?a=" }, "M7lc1UVf-VE",
+      { id: "M7lc1UVf-VE", start: "1;alert(1)", title: "<img src=x onerror=alert(1)>", url: "https://evil.example/" },
+      { id: "aqz-KE-bpKQ", start: 90 }, { id: "dQw4w9WgXcQ" }, { id: "Zz_9-aB3cD4" }];
+    stored[1].videos = { id: "M7lc1UVf-VE" };
+    d1.db.prepare("UPDATE sheets SET tasks=? WHERE code=?").run(JSON.stringify(stored), c);
+    const want = [[{ id: "M7lc1UVf-VE", title: "<img src=x onerror=alert(1)>" }, { id: "aqz-KE-bpKQ", start: 90 }, { id: "dQw4w9WgXcQ" }], []];
+    r = await call("GET", "/api/sheet/" + c);
+    assert.deepEqual(r.json.sheet.tasks.map((t) => t.videos), want);   // der Titel bleibt Text – die Seite setzt ihn per textContent
+    assert.equal(/evil\.example|javascript|\.\.\/|1;alert/.test(r.text), false, r.text);
+    r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+    assert.deepEqual(r.json.sheet.tasks.map((t) => t.videos), want);
+    // keine neue Spalte (Videos stehen im tasks-JSON)
+    assert.deepEqual(d1.db.prepare("PRAGMA table_info(sheets)").all().map((x) => x.name), ["code", "title", "tasks", "created_at", "escape_id", "escape_name"]);
+  } finally {
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    Math.random = rnd;
+  }
 });
 
 test("sheet images: Grenzen je Aufgabe und je Blatt (12 MB), wiederholbarer Upload mit id, Bildbeschreibung", async () => {

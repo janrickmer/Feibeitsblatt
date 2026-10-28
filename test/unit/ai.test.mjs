@@ -614,6 +614,20 @@ test("buildChecklistMessages: nur Aufgaben mit Auftrag an die KI (keine Weltkart
   assert.deepEqual(expectedChecklist(""), []);
   assert.deepEqual(buildChecklistMessages([{ text: "A", solution: "" }]).nrs, []);
 });
+test("YouTube-Videos gehen nie an die KI: Feedback- und Checklisten-Prompt byte-gleich mit und ohne videos (Präfix-Caching), weder Kennung noch Titel", () => {
+  const base = [
+    { text: "Erkläre die Photosynthese.", solution: "- Licht\n- Wasser", material: [[{ t: "Lies den Auszug." }]] },
+    { text: "Fülle aus.", solution: "Weizen", answer: { type: "table", columns: ["Produkt", "Land"], rows: 2 } },
+    { text: "Meinung?", solution: "" },
+  ];
+  const videos = [{ id: "M7lc1UVf-VE", start: 90, title: "Geheimer Videotitel" }, { id: "aqz-KE-bpKQ" }];
+  const withVideos = base.map((t) => ({ ...t, videos }));
+  const answers = ["Pflanzen brauchen Licht.", "Weizen | Ukraine", "egal"];
+  for (const only of [undefined, null, [1], [2]]) assert.deepEqual(buildFeedbackMessages(withVideos, answers, only), buildFeedbackMessages(base, answers, only), String(only));
+  assert.deepEqual(buildChecklistMessages(withVideos), buildChecklistMessages(base));
+  const all = JSON.stringify([buildFeedbackMessages(withVideos, answers), buildChecklistMessages(withVideos)]);
+  assert.equal(/M7lc1UVf-VE|aqz-KE-bpKQ|Geheimer Videotitel|youtu|videos/i.test(all), false);
+});
 test("checklist prompt: Du-Form, prüfbare kurze Punkte (nur so viele, wie der Auftrag hergibt), Inhalte aus dem Auftrag erlaubt (außer er verbietet, die Lösung zu verraten), keine Noten, Injection-Schutz, JSON-Form; kurz genug", () => {
   for (const part of [
     "Je Aufgabe 1 bis 6 Punkte – nur so viele, wie Aufgabe und Auftrag hergeben –, höchstens 8",   // nie einen Punkt erfinden, um auf zwei zu kommen

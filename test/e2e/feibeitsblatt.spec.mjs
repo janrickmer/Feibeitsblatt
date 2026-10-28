@@ -15,7 +15,7 @@ import { escHull, b64url, overviewPdf } from "../escape-fixture.mjs";
 import { MOCK_URL, BASE_URL } from "./env.mjs";
 import {
   PASTE_MSG, UNKNOWN_CODE_MSG, NO_SOLUTION_NOTE, GREEN, RED, openPage, closePage, confirmDialog, teacherLogin,
-  lineHeightOf, gapAfterTask, mockState, mockReset, mockMode, d1Query, scanState,
+  lineHeightOf, gapAfterTask, mockState, mockReset, mockMode, d1Query, scanState, isYouTubeUrl,
 } from "./helpers.mjs";
 
 test.describe.configure({ mode: "serial" });
@@ -311,6 +311,43 @@ const fmtBd = (b) => b.slice(5) + "." + b.slice(2, 4) + ".";   // "--05-04" → 
 const WIN = { 0x84: "„", 0x93: "“", 0x95: "•", 0x96: "–" };
 const pdfShownText = (buf) => [...buf.toString("latin1").matchAll(/\(((?:\\[\s\S]|[^\\)])*)\) Tj/g)]
   .map((m) => m[1].replace(/\\([0-7]{3}|[\s\S])/g, (_, c) => (c.length === 3 ? WIN[parseInt(c, 8)] || String.fromCharCode(parseInt(c, 8)) : c))).join(" ");
+
+/* ---------- YouTube-Videos unter dem Material (Test 7q; Gegenproben in 1, 1b, 2, 4b, 5, 7d) ---------- */
+// Kennungen echter, öffentlich bekannter Videos (11 Zeichen, Groß-/Kleinschreibung zählt) – YouTube selbst erreichen die Tests nie
+const YT_ID1 = "M7lc1UVf-VE", YT_ID2 = "aqz-KE-bpKQ", YT_ID3 = "dQw4w9WgXcQ";
+const YT_LOAD = "Video von YouTube laden", YT_TAB = "Video in neuem Tab öffnen";
+// Hinweis unter jedem Platzhalter (Wortlaut fest)
+const YT_CONSENT = "Erst nach diesem Klick wird das Video von YouTube (Google) geladen. Dabei erhält Google unter anderem deine IP-Adresse und kann Cookies setzen; Daten können in die USA gelangen.";
+const ytWatch = (id, s) => "https://www.youtube.com/watch?v=" + id + (s ? "&t=" + s + "s" : "");   // überall derselbe Link (auch QR-Code)
+const ytEmbed = (id, s) => "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1" + (s ? "&start=" + s : "");   // nur im iframe nach dem Klick
+const YT_ERR_OTHER = "Das ist kein Link zu einem YouTube-Video. Erlaubt sind Links von youtube.com und youtu.be, z. B. https://www.youtube.com/watch?v=…";
+const YT_ERR_PLAYLIST = "Playlists lassen sich nicht einbetten – bitte den Link eines einzelnen Videos eingeben.";
+const YT_ERR_EMPTY = "Bitte den Link des YouTube-Videos eingeben.";
+// Datenschutz (nur bei Blättern mit Videos): Kurzsatz unter der Kurzfassung, Absätze und Punkte im ausführlichen Hinweis (du bzw. ihr)
+const YT_SHORT = "Zu diesem Feibeitsblatt gehören Videos von YouTube: Ein Video lädt diese Seite erst nach deinem Klick auf „Video von YouTube laden“ – dabei erhält Google unter anderem deine IP-Adresse und kann Cookies setzen; Daten können in die USA gelangen.";
+const YT_SHORT_G = "Zu eurem Feibeitsblatt gehören Videos von YouTube: Ein Video lädt diese Seite erst nach eurem Klick auf „Video von YouTube laden“ – dabei erhält Google unter anderem eure IP-Adresse und kann Cookies setzen; Daten können in die USA gelangen.";
+const YT_PURPOSE = "Hat deine Lehrkraft zu einer Aufgabe ein Video von YouTube eingebettet, kannst du es auf dieser Seite ansehen – geladen wird es erst nach deinem Klick auf „Video von YouTube laden“.";
+const YT_DATA = "Lädst du ein Video, erhält Google die Internetadresse (IP-Adresse) deines Geräts, technische Daten zu deinem Browser und Gerät, die Adresse dieser Seite (ohne den Code deines Feibeitsblattes) " +
+  "und welches Video du lädst und wie du es abspielst; YouTube kann dabei Cookies und ähnliche Daten in deinem Browser speichern und auslesen. " +
+  "Deine Angaben und Antworten bekommt Google nicht, und diese Seite speichert nicht, welche Videos du geladen hast.";
+const YT_BASIS = "Videos von YouTube: deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO – für Cookies und ähnliche Daten in deinem Browser zusammen mit § 25 Abs. 1 TDDDG. " +
+  "Du gibst sie für jedes Video mit dem Klick auf „Video von YouTube laden“ – ohne Klick wird nichts von YouTube geladen. " +
+  "Du kannst sie jederzeit für die Zukunft widerrufen, indem du keine weiteren Videos lädst; ein geladenes Video verschwindet, wenn du die Seite neu lädst, schließt oder den Schreibbereich verlässt.";
+const YT_BASIS_G = "Videos von YouTube: eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO – für Cookies und ähnliche Daten in eurem Browser zusammen mit § 25 Abs. 1 TDDDG. " +
+  "Ihr gebt sie für jedes Video mit dem Klick auf „Video von YouTube laden“ – ohne Klick wird nichts von YouTube geladen. " +
+  "Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr keine weiteren Videos ladet; ein geladenes Video verschwindet, wenn ihr die Seite neu ladet, schließt oder den Schreibbereich verlasst.";
+const YT_RECIPIENT = "Nur wenn du ein Video lädst (freiwillig, mit dem Klick auf „Video von YouTube laden“): Google Ireland Limited (Dublin, Irland), Anbieter von YouTube im EWR. " +
+  "Google bekommt dabei die Internetadresse deines Geräts und welches Video du lädst – ohne deine Angaben und Antworten – und verarbeitet die Daten nach seinen eigenen Bedingungen, auch in den USA (Google LLC). " +
+  "Für Übermittlungen in die USA stützt sich Google auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. " +
+  "Öffnest du ein Video mit „Video in neuem Tab öffnen“ (oder über einen Link im Video), rufst du YouTube direkt auf; dort gelten die Bedingungen von YouTube.";
+const YT_STAY = "Wie lange Google die Daten zu einem geladenen Video aufbewahrt, regeln die Bedingungen von Google. Cookies und ähnliche Daten von YouTube bleiben in deinem Browser, " +
+  "bis sie ablaufen oder du sie in den Einstellungen deines Browsers löschst.";
+const YT_CHOICE = "Ob du ein Video von YouTube lädst, entscheidest du selbst – ohne deinen Klick lädt diese Seite nichts von YouTube.";
+const YT_RIGHTS = "Deine Einwilligung zum Laden von Videos kannst du jederzeit für die Zukunft widerrufen – lade dann einfach keine weiteren Videos; Ladevorgänge, die schon stattgefunden haben, " +
+  "bleiben davon unberührt. Deine Rechte zu den Daten, die Google beim Laden eines Videos erhält, kannst du auch direkt bei Google geltend machen.";
+// Lehrkraft: Satz unter der Vorschau des Datenschutzhinweises
+const PV_VIDEO_NOTE = "Bei Feibeitsblättern mit Videos von YouTube kommen Sätze zu YouTube hinzu: Ein Video wird erst nach einem Klick der Schüler:innen geladen (Einwilligung, " +
+  "Art. 6 Abs. 1 Buchst. a DSGVO und § 25 Abs. 1 TDDDG); dann erhält Google Ireland Limited unter anderem die IP-Adresse und kann Cookies setzen, Daten können in die USA gelangen.";
 
 /* ---------- Hilfen für den Schreibbereich ---------- */
 async function enterCode(page, typed) {
@@ -705,6 +742,14 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await ed1.locator("b").click();
   await expect(row0.locator('.bmat .fmtbtn[aria-pressed="true"]')).toHaveCount(1);
   await expect(row0.locator(".bmat .fmtbtn", { hasText: "F" })).toHaveAttribute("aria-pressed", "true");
+  // die Werkzeugleiste des Materials bleibt, wie sie ist; der Knopf für YouTube-Videos steht darunter (eigener Tab-Stopp, kein Formatknopf)
+  await expect(row0.locator(".bmat .fmtbtn")).toHaveText(["F", "K", "U", "Link"]);
+  const vidAdd0 = row0.locator(".bmat .bvid-add");
+  await expect(vidAdd0).toHaveText("YouTube-Video im Feibeitsblatt einbetten");
+  await expect(vidAdd0).toHaveAccessibleName("YouTube-Video im Feibeitsblatt einbetten – zu Aufgabe 1");
+  await expect(vidAdd0).not.toHaveClass(/fmtbtn/);
+  expect(await vidAdd0.evaluate((b) => !!(b.closest(".bmat-bar") || b.closest(".acts")))).toBe(false);
+  await expect(row0.locator(".bvid")).toHaveCount(0);
   // Material zu Aufgabe 2 aus der Zwischenablage (HTML): nur fett/kursiv/unterstrichen und http(s)-Links bleiben
   const ed2 = page.locator("#b-rows > tr").nth(1).locator(".bmat-edit");
   await ed2.click();
@@ -860,6 +905,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(si1.locator(".tfiles .filebtn .filebtn-meta")).toHaveText("PDF, 600 KB · herunterladen");
   await expect(page.locator("#t-sel-tasks .si").nth(0).locator(".tfiles")).toHaveCount(0);
   await expect(page.locator("#t-sel-tasks .si").nth(2).locator(".tfiles")).toHaveCount(0);
+  await expect(page.locator("#t-sel-tasks .tvideos, #t-sel-tasks iframe")).toHaveCount(0);   // ohne Videos
 
   // Der API-Schlüssel verlässt den Server nie
   for (const r of await t.calls()) expect(r.body, r.method + " " + r.path).not.toContain(AI_KEY);
@@ -921,6 +967,15 @@ async function checkLegal(lp, { days = 30, deliver = DELIVER_WORKER, github = CH
     "Manche Feibeitsblätter sind das Finale eines Escape-Rooms: Du öffnest sie über den Link am Ende des Escape-Rooms oder mit deiner Überblick-PDF (auf der Startseite „Zwischenstand-PDF hochladen“); es gibt dann nur Einzelarbeit. Zusätzlich zu den Angaben oben gilt:",
     ESC_PURPOSE_GENERAL, ESC_DATA(""), ESC_TEACHER, ESC_MAIL, ESC_STAY]);
   await expect(lesc.locator(`a[href="mailto:${OP.email}"]`)).toHaveCount(1);
+  // Feibeitsblätter mit YouTube-Videos: ebenso ein eigener Abschnitt in allgemeiner Form (der Hinweis darüber nennt YouTube nicht)
+  const lvid = lp.locator("#legal-video");
+  await expect(lvid.locator("h2")).toHaveText("Feibeitsblätter mit Videos von YouTube");
+  await expect(lvid.locator("p")).toHaveText([
+    "Manche Feibeitsblätter enthalten Videos von YouTube, die deine Lehrkraft unter dem Material einer Aufgabe eingebettet hat; zuerst siehst du dort nur einen Platzhalter ohne Vorschaubild. Zusätzlich zu den Angaben oben gilt dann:",
+    YT_PURPOSE, YT_DATA, YT_BASIS, YT_RECIPIENT, YT_STAY, YT_CHOICE, YT_RIGHTS,
+    "Auf einem ausgedruckten Feibeitsblatt führt zu jedem Video ein QR-Code mit der ausgeschriebenen Adresse direkt zu YouTube: Scannst du ihn oder gibst du die Adresse ein, rufst du YouTube direkt auf; dort gelten die Bedingungen von YouTube."]);
+  await expect(lvid.locator("iframe, img, a")).toHaveCount(0);
+  await expect(lpriv).not.toContainText(/YouTube|Google/);
   for (const w of ["Deine Schule", "Datenschutzbeauftragte", "Schulgesetz", "HSchG", "frag deine Lehrkraft"]) await expect(lp.locator("#screen-legal")).not.toContainText(w);
   await expect(lp.locator("#foot-legal")).toBeHidden();   // auf der Seite selbst kein Link auf sich
   await expect(lp.locator("#pagefoot")).toContainText("Copyright Jan-Rickmer Feindt");
@@ -1104,6 +1159,7 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
     "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
     "Bei Feibeitsblättern für einen Escape-Room kommen Sätze zu den Daten aus dem Escape-Room hinzu (voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät " +
     "der Schüler:innen – außer sie schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie). " +
+    PV_VIDEO_NOTE + " " +
     "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“).");
   // Vorschau mit der (noch ungespeicherten) Frist – derselbe Baustein wie bei den Schüler:innen
   await page.selectOption("#pv-days", String(DAYS));
@@ -1190,6 +1246,8 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(pfull.locator('a[href^="mailto:"]')).toHaveText([OP.email, OP.email]);   // Verantwortlicher und Kontakt für die Rechte
   await pfull.locator("summary").click();   // wieder zu
   await expectOnlyTtShort(page, "Angaben (Einzelarbeit)");
+  await expect(page.locator("#p-privacy-yt")).toHaveCount(0);   // Blatt ohne Videos: kein Wort zu YouTube (Google)
+  await expect(page.locator("#p-privacy")).not.toContainText(/YouTube|Google/);
 
   // Angaben: Prüfungen der Reihe nach
   const err = page.locator("#p-err");
@@ -1371,6 +1429,11 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(await page.locator("#privfull-ed details.privfull").evaluate((d) => d.open)).toBe(false);
   expect(await page.locator("#privfull-ed-d-ttoff").evaluate((el) => { el.focus(); return document.activeElement === el; })).toBe(false);
   await expectOnlyTtShort(page, "Schreibbereich vor dem Tippen");
+  // Blatt ohne Videos: kein Platzhalter, kein Satz zu YouTube (Google) – weder im Hinweis noch im ausführlichen Hinweis
+  await expect(page.locator("#tasks .task-video, #tasks iframe")).toHaveCount(0);
+  await expect(page.locator("#privacy")).not.toContainText(/YouTube|Google/);
+  await expect(page.locator("#privacy-yt")).toBeHidden();
+  await expect(page.locator("#privfull-ed")).not.toContainText(/YouTube|Google/);
 
   // Abstand zur nächsten Aufgabe: eine Leerzeile
   expect(Math.abs((await gapAfterTask(page, 1)) - lh)).toBeLessThan(1);
@@ -2728,6 +2791,7 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
   expect(rec.tasks.map((x) => x.images.length)).toEqual([2, 0, 0]);
   const sha = (b) => createHash("sha256").update(b).digest("hex");
   expect(rec.tasks.map((x) => x.files)).toEqual([[], [{ ref: rec.exportId + "-3", name: PDF_NAME, bytes: PDF_BUF.length, sha256: sha(PDF_BUF) }], []]);
+  expect(rec.tasks.some((x) => "videos" in x)).toBe(false);   // videos nur, wenn vorhanden (Sicherungen ohne Videos bleiben gleich)
   const blob = (ref) => { const x = pdfStream(pdf, "/FbBlob (" + ref + ")"); return pdf.subarray(x.start, x.start + x.len); };
   expect(blob(rec.tasks[1].files[0].ref).equals(PDF_BUF)).toBe(true);   // PDF-Datei unverändert angehängt
   for (const [k, m] of rec.tasks[0].images.entries()) {   // Bilder: Original-Bytes wie auf dem Server, Prüfsumme stimmt
@@ -2890,7 +2954,7 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     expect(j.sheet.escape).toBe(null);   // kein Finale eines Escape-Rooms
     expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX, transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }]);
     expect(j.sheet.privacy).toEqual({ retentionDays: DAYS });   // nur die Frist (ohne updatedAt; verantwortlich ist der Betreiber, fest in index.html)
-    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, textFmt: [], material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
+    expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, textFmt: [], material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" }, videos: [] })));   // videos wie material: immer da, hier leer
     expect(j.sheet.tasks[0].images.map((m) => m.mode)).toEqual(["thumb", "inline"]);
     S.sheetBodies.push(body);
   }
@@ -4071,6 +4135,7 @@ test("7d Testdatei „Ein Auto – eine Welt“: Import übernimmt alles (Weltka
   expect(types).toEqual(["map", "table", "text", "text"]);
   const map = rec.tasks[0].answer, cardImgs = rec.tasks[0].images.filter((m) => m.mode === "card");
   expect(map.items).toHaveLength(12); expect(cardImgs).toHaveLength(12);
+  expect(rec.tasks.some((x) => "videos" in x)).toBe(false);   // Sicherung aus der Zeit vor den Videos: lädt unverändert
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -4105,6 +4170,7 @@ test("7d Testdatei „Ein Auto – eine Welt“: Import übernimmt alles (Weltka
   await expect(page.locator("#a-2 tbody tr")).toHaveCount(rec.tasks[1].answer.rows);
   await expect(page.locator("textarea.answer:not(.measure)")).toHaveCount(2);
   await expect(page.locator("#t-1 .task-material")).toHaveCount(rec.tasks[0].material.length ? 1 : 0);
+  await expect(page.locator(".task-video, .task-videos")).toHaveCount(0);
   const big = map.items.findIndex((x) => x.countries.some((c) => ["076", "036", "156", "643", "840", "124"].includes(c.id)));
   const cid = map.items[big].countries.find((c) => ["076", "036", "156", "643", "840", "124"].includes(c.id)).id;
   await page.locator("#a-1 .mcard").nth(big).click();
@@ -4577,6 +4643,11 @@ function pdfQr(content) {
   const res = jsQR(img, w, w, { inversionAttempts: "dontInvert" });
   return { text: res && res.data, module: Number(m[1]), side: n * Number(m[1]) };
 }
+// alle QR-Codes eines Seiteninhalts in Reihenfolge (pdfQr liest nur den ersten): {text, module, side, x, top (PDF-Koordinate der Oberkante)}
+function pdfQrs(content) {
+  return [...content.matchAll(/q 0 g ([\d.]+) 0 0 -([\d.]+) ([\d.]+) ([\d.]+) cm\n((?:\d+ \d+ \d+ 1 re\n)+)f\nQ/g)]
+    .map((m) => ({ ...pdfQr(m[0]), x: Number(m[3]), top: Number(m[4]) }));
+}
 function analogPdfOf(buf) {
   const streams = pdfStreams(buf), contents = streams.filter((x) => !/\/Subtype/.test(x.dict)).map((x) => x.data.toString("latin1"));
   return { streams, contents, lines: contents.map(pdfLinesOf), pieces: contents.map(pdfPieces), all: contents.join("\n"),
@@ -4868,10 +4939,10 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   // Ohne Punkte: Rückfrage, gespeichert wird eine leere Checkliste, das PDF hat keinen QR-Code
   for (let n = 1; n <= 4; n++) await tp.fill("#ck-" + n, "");
   await tp.click("#ck-save");
-  const noQrText = await confirmDialog(tp, "Ohne QR-Code herunterladen?", false);
-  expect(noQrText).toBe("Ohne Checklistenpunkte enthält das PDF keinen QR-Code. Trotzdem herunterladen?");
-  const [dl2] = await Promise.all([tp.waitForEvent("download"), (async () => { await tp.click("#ck-save"); await confirmDialog(tp, "Ohne QR-Code herunterladen?"); })()]);
-  await expect(tp.locator("#ck-status")).toHaveText(/^Gespeichert\. Das PDF \(\d+ KB\) wird heruntergeladen\. Ohne Checklistenpunkte enthält es keinen QR-Code\.$/, { timeout: 30_000 });
+  const noQrText = await confirmDialog(tp, "Ohne Checkliste herunterladen?", false);
+  expect(noQrText).toBe("Ohne Checklistenpunkte enthält das PDF keinen QR-Code zur Checkliste. Trotzdem herunterladen?");
+  const [dl2] = await Promise.all([tp.waitForEvent("download"), (async () => { await tp.click("#ck-save"); await confirmDialog(tp, "Ohne Checkliste herunterladen?"); })()]);
+  await expect(tp.locator("#ck-status")).toHaveText(/^Gespeichert\. Das PDF \(\d+ KB\) wird heruntergeladen\. Ohne Checklistenpunkte enthält es keinen QR-Code zur Checkliste\.$/, { timeout: 30_000 });
   const B = analogPdfOf(await readFile(await dl2.path()));
   expect(pdfQr(B.all)).toBeNull();
   expect(B.lines.flat()).not.toContain("Checkliste");
@@ -4995,6 +5066,533 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   await confirmDialog(tp, "Feibeitsblatt löschen?");
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   expect(await d1Query(`SELECT sheet_code FROM sheet_checklists WHERE sheet_code='${code}'`)).toEqual([]);
+  await closePage(t);
+});
+
+/* ---------- YouTube-Videos unter dem Material ---------- */
+// Gespeicherte Videos je Aufgabe eines Blattes (D1, wie der Worker sie ablegt: nur Kennung, Startzeit, Titel)
+// VIDEO_SHOTS_OUT=<Ordner> npm run test:e2e speichert Bildschirmfotos von Blatt-Editor, Platzhalter, geladenem Video (Attrappe) und
+// Lehrkraft-Ansicht (375 bzw. 1280 px); das analoge Arbeitsblatt mit Videos landet mit ANALOG_PDF_OUT wie in 7k
+const VIDEO_SHOTS = process.env.VIDEO_SHOTS_OUT || "";
+const videosInD1 = async (code) => JSON.parse((await d1Query(`SELECT tasks FROM sheets WHERE code='${code}'`))[0].tasks).map((x) => x.videos);
+test("7q YouTube-Videos: Lehrkraft bettet unter dem Material Videos ein (Link, Shorts, Einbettungscode – fremde Hosts und Playlists abgelehnt, höchstens 3) → Schüler:in sieht nur Platzhalter, nichts lädt vor; erst ein Klick lädt genau dieses Video über youtube-nocookie.com (nur mit der Herkunft als Referer), nichts wird gespeichert; Datenschutzhinweis nennt YouTube nur hier; nie an die KI; Lehrkraft-Ansichten nur mit Links; Vorlage, Sicherung → Import (manipulierte Einträge fallen weg) und analoges Arbeitsblatt mit QR-Code und Adresse in Courier", async ({ browser, request }) => {
+  const YT_TITLE = "Blätter unter dem Mikroskop – Teil 1";
+  const Q1 = "Beschreibe, was du auf den Aufnahmen siehst.", Q2 = "Erkläre, wozu Blätter Spaltöffnungen haben.", Q3 = "Was hat dich überrascht?";
+  const SOL1 = "Achte darauf, ob Zellen und Chloroplasten genannt werden.", SOL2 = "Gasaustausch und Verdunstung sollen vorkommen.";
+  const MAT1 = "Sieh dir die Aufnahmen in Ruhe an und notiere drei Stichworte.";
+  const V1 = { id: YT_ID1, start: 90, title: YT_TITLE }, V2 = { id: YT_ID2 }, V3 = { id: YT_ID3, start: 42 };
+  const STORED = [[V1, V2], [V3], undefined];   // videos nur, wenn vorhanden (wie material)
+  const LINKS = [ytWatch(YT_ID1, 90), ytWatch(YT_ID2), ytWatch(YT_ID3, 42)];
+  const TAB = " (öffnet in neuem Tab)";
+  const SMALL_PDF = Buffer.from("%PDF-1.4\n% Anleitung\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
+  // Rechtsgrundlagen bei einem Blatt mit Videos: die Einwilligung für YouTube direkt nach der Rechtschreibprüfung, sonst unverändert
+  const ytBases = privBases(true, DELIVER_WORKER);
+  ytBases.splice(3, 0, YT_BASIS);
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Blätter und Licht");
+  const rows = tp.locator("#b-rows > tr"), r0 = rows.nth(0), r1 = rows.nth(1);
+  await tp.fill("#bq-1", Q1);
+  await tp.fill("#bs-1", SOL1);
+  await r0.locator(".bmat-edit").click();
+  await tp.keyboard.type(MAT1);
+  await r0.locator("input.bfile-input").setInputFiles({ name: "Anleitung.pdf", mimeType: "application/pdf", buffer: SMALL_PDF });
+  await expect(r0.locator(".bfile")).toHaveCount(1);
+
+  // Knopf unter dem Material (nicht in der Werkzeugleiste) → eigener Dialog: Fokus im Feld, Tab bleibt im Dialog, Esc schließt
+  await expect(r0.locator(".bmat .fmtbtn")).toHaveText(["F", "K", "U", "Link"]);
+  const add0 = r0.locator(".bmat .bvid-add"), dlg = tp.locator("#ytdlg");
+  await expect(add0).toHaveText("YouTube-Video im Feibeitsblatt einbetten");
+  await expect(add0).toHaveAccessibleName("YouTube-Video im Feibeitsblatt einbetten – zu Aufgabe 1");
+  await add0.click();
+  await expect(dlg).toHaveClass(/open/);
+  await expect(dlg).toHaveAccessibleName("YouTube-Video einbetten");
+  await expect(tp.locator("#yd-desc")).toHaveText("Die Schüler:innen sehen zuerst nur einen Platzhalter; das Video wird erst nach ihrem Klick von YouTube geladen. Auf dem analogen Arbeitsblatt steht ein QR-Code mit dem Link.");
+  await expect(tp.locator("#yd-url")).toBeFocused();
+  await expect(tp.locator("#yd-url")).toHaveAccessibleName("Link des YouTube-Videos");
+  await expect(tp.locator("#yd-url")).toHaveAttribute("placeholder", "https://www.youtube.com/watch?v=…");
+  await expect(tp.locator("#yd-title")).toHaveAccessibleName("Titel (freiwillig)");
+  await expect(tp.locator("#yd-title")).toHaveAttribute("maxlength", "120");
+  await expect(tp.locator("#yd-ok")).toHaveText("Einbetten");
+  await expect(tp.locator("#yd-cancel")).toHaveText("Abbrechen");
+  await expect(tp.locator("#yd-err")).toHaveAttribute("role", "alert");
+  await tp.locator("#yd-ok").focus();
+  await tp.keyboard.press("Tab");
+  await expect(tp.locator("#yd-url")).toBeFocused();
+  await tp.keyboard.press("Shift+Tab");
+  await expect(tp.locator("#yd-ok")).toBeFocused();
+  await tp.keyboard.press("Escape");
+  await expect(dlg).not.toHaveClass(/open/);
+  await expect(add0).toBeFocused();
+  // Eine Markierung, die im Feld beginnt und neben dem Kasten endet, schließt den Dialog nicht (Eingaben bleiben); ein Klick auf den
+  // Hintergrund schon
+  await add0.click();
+  await tp.fill("#yd-url", "https://youtu.be/" + YT_ID1);
+  await tp.waitForTimeout(450);   // Schutz gegen den Doppelklick auf den Öffner (400 ms) ist vorbei
+  const fb = await tp.locator("#yd-url").boundingBox(), bb = await dlg.locator(".box").boundingBox();
+  await tp.mouse.move(fb.x + fb.width - 10, fb.y + fb.height / 2);
+  await tp.mouse.down();
+  await tp.mouse.move(bb.x - 20, fb.y + fb.height / 2, { steps: 5 });
+  await tp.mouse.up();
+  await expect(dlg).toHaveClass(/open/);
+  await expect(tp.locator("#yd-url")).toHaveValue("https://youtu.be/" + YT_ID1);
+  await tp.mouse.click(Math.max(2, bb.x - 20), Math.max(2, bb.y - 20));
+  await expect(dlg).not.toHaveClass(/open/);
+  await expect(add0).toBeFocused();
+  await expect(r0.locator("li.bvid")).toHaveCount(0);
+  // abgelehnt (die Meldung nennt den Grund, nichts wird übernommen): leer, fremder Host (auch mit „youtube.com“ vorn), javascript:,
+  // Playlist, Kennung mit 10 bzw. 12 Zeichen
+  await add0.click();
+  await expect(tp.locator("#yd-url")).toBeFocused();
+  for (const [input, msg] of [["", YT_ERR_EMPTY], ["example.org/watch?v=" + YT_ID1, YT_ERR_OTHER], ["https://www.youtube.com.evil.de/watch?v=" + YT_ID1, YT_ERR_OTHER],
+    ["javascript:alert(1)", YT_ERR_OTHER], ["https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG", YT_ERR_PLAYLIST],
+    ["https://youtu.be/" + YT_ID1.slice(0, 10), YT_ERR_OTHER], ["https://www.youtube.com/watch?v=" + YT_ID1 + "x", YT_ERR_OTHER]]) {
+    await tp.fill("#yd-url", input);
+    await tp.click("#yd-ok");
+    await expect(tp.locator("#yd-err"), input).toHaveText(msg);
+    await expect(tp.locator("#yd-url")).toHaveClass(/invalid/);
+    await expect(tp.locator("#yd-url")).toBeFocused();
+    await expect(dlg).toHaveClass(/open/);
+  }
+  // angenommen: youtu.be mit Tracking-Parameter und Startzeit („1m30s“) → nur Kennung und Startzeit, dazu ein Titel
+  await tp.fill("#yd-url", "https://youtu.be/" + YT_ID1 + "?si=TRACKING&t=1m30s");
+  await expect(tp.locator("#yd-err")).toHaveText("");
+  await expect(tp.locator("#yd-url")).not.toHaveClass(/invalid/);
+  await expect(tp.locator("#yd-found")).toHaveText("Erkannt: " + LINKS[0] + " (Start bei 1:30)");
+  await tp.fill("#yd-title", YT_TITLE);
+  await tp.keyboard.press("Enter");
+  await expect(dlg).not.toHaveClass(/open/);
+  await expect(add0).toBeFocused();
+  const bv = r0.locator(".bvid");
+  await expect(bv).toHaveCount(1);
+  await expect(bv.nth(0).locator(".bvid-name")).toHaveText(YT_TITLE + " · " + LINKS[0] + TAB);
+  await expect(bv.nth(0).locator(".bimg-meta")).toHaveText("ab 1:30");
+  expect(await bv.nth(0).locator("a").evaluate((a) => [a.getAttribute("href"), a.target, a.rel])).toEqual([LINKS[0], "_blank", "noopener noreferrer"]);
+  // ohne Schema und ohne Titel (feature=, pp= fallen weg)
+  await add0.click();
+  await tp.fill("#yd-url", "www.youtube.com/watch?v=" + YT_ID2 + "&feature=share&pp=ygUFdGVzdA");
+  await tp.click("#yd-ok");
+  await expect(bv).toHaveCount(2);
+  await expect(bv.nth(1).locator(".bvid-name")).toHaveText(LINKS[1] + TAB);
+  await expect(bv.nth(1).locator(".bimg-meta")).toHaveCount(0);
+  // dasselbe Video mit derselben Startzeit nur einmal je Aufgabe; Shorts → drittes Video, danach ist der Knopf gesperrt (per Tab erreichbar)
+  await add0.click();
+  await tp.fill("#yd-url", "https://www.youtube.com/watch?v=" + YT_ID1 + "&t=90");
+  await tp.click("#yd-ok");
+  await expect(tp.locator("#yd-err")).toHaveText("Dieses Video ist bei dieser Aufgabe schon eingebettet.");
+  await tp.fill("#yd-url", "https://www.youtube.com/shorts/" + YT_ID3);
+  await tp.click("#yd-ok");
+  await expect(bv).toHaveCount(3);
+  await expect(add0).toHaveAttribute("aria-disabled", "true");
+  await expect(r0.locator(".bvid-stat")).toHaveText("Höchstens 3 Videos je Aufgabe.");
+  await expect(add0).toHaveAccessibleDescription("Höchstens 3 Videos je Aufgabe.");
+  await add0.focus();
+  await tp.keyboard.press("Enter");   // tut nichts
+  await expect(dlg).not.toHaveClass(/open/);
+  await expect(bv).toHaveCount(3);
+  // Entfernen (eigener Knopf je Video, nicht der der Zeile); der Fokus geht zurück auf den Knopf zum Einbetten
+  const del3 = bv.nth(2).locator(".iconbtn.x");
+  await expect(del3).toHaveAccessibleName("Video 3 zu Aufgabe 1 entfernen");
+  await del3.click();
+  await expect(bv).toHaveCount(2);
+  await expect(add0).toHaveAttribute("aria-disabled", "false");
+  await expect(r0.locator(".bvid-stat")).toHaveText("");
+  await expect(add0).toBeFocused();
+  await expect(rows).toHaveCount(3);
+  // Aufgabe 2: eingefügter Einbettungscode von YouTube (nur der src wird gelesen, &amp; → &)
+  await tp.fill("#bq-2", Q2);
+  await tp.fill("#bs-2", SOL2);
+  await r1.locator(".bvid-add").click();
+  await tp.fill("#yd-url", `<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/${YT_ID3}?si=abc123&amp;start=42" title="YouTube video player" frameborder="0" allowfullscreen></iframe>`);
+  await tp.click("#yd-ok");
+  await expect(r1.locator(".bvid")).toHaveCount(1);
+  await expect(r1.locator(".bvid a")).toHaveAttribute("href", LINKS[2]);
+  // eine Zeile nur mit einem Video ist nicht leer: „Zeile entfernen“ fragt nach, „Code generieren“ verlangt eine Aufgabenstellung
+  const r2 = rows.nth(2);
+  await r2.locator(".bvid-add").click();
+  await tp.fill("#yd-url", "https://youtu.be/" + YT_ID2);
+  await tp.click("#yd-ok");
+  await expect(r2.locator(".bvid")).toHaveCount(1);
+  await r2.locator(".acts .x").click();
+  expect(await confirmDialog(tp, "Zeile entfernen?", false)).toBe("Aufgabenstellung, Auftrag an die KI, Material, Videos, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.");
+  await expect(rows).toHaveCount(3);
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-err")).toHaveText("Zeile 3: Bitte eine Aufgabenstellung eintragen.");
+  await r2.locator(".bvid .iconbtn.x").click();
+  await expect(r2.locator(".bvid")).toHaveCount(0);
+  await tp.fill("#bq-3", Q3);
+  await shots(tp, "7q-blatt-editor", [1280], VIDEO_SHOTS);
+  // im Blatt-Editor nie ein Player oder Vorschaubild
+  expect(await tp.evaluate(() => document.querySelectorAll('iframe, img[src*="ytimg"], img[src*="youtube"]').length)).toBe(0);
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#b-res-img")).toHaveText("Die PDF-Datei ist gespeichert.", { timeout: 30_000 });
+  await expect(tp.locator("#b-res-vid")).toBeHidden();   // der Server hat alle Videos übernommen
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const posted = (await t.calls((r) => r.method === "POST" && r.path === "/api/teacher/sheets")).at(-1);
+  expect(JSON.parse(posted.reqBody).tasks.map((x) => x.videos)).toEqual(STORED);
+  expect(JSON.parse(posted.body).videoCount).toBe(3);
+  // D1: nur Kennung, Startzeit und Titel – keine Adresse, keine Tracking-Parameter
+  const [row] = await d1Query(`SELECT tasks FROM sheets WHERE code='${code}'`);
+  expect(JSON.parse(row.tasks).map((x) => x.videos)).toEqual(STORED);
+  expect(row.tasks).not.toMatch(/si=|TRACKING|abc123|feature|ygUF|youtube|youtu\.be|iframe|"url"/i);
+  const pub = await (await request.get("/api/sheet/" + code)).json();
+  expect(pub.sheet.tasks.map((x) => x.videos)).toEqual([[V1, V2], [V3], []]);
+  expect(JSON.stringify(pub)).not.toMatch(/solution|Chloroplasten|Gasaustausch/);
+
+  // Schüler:in: Angaben mit eigenem Satz zu YouTube unter der Kurzfassung und YouTube im ausführlichen Hinweis
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await chooseSingle(page);
+  await expect(page.locator("#p-privacy-short")).not.toContainText(/YouTube|Google/);   // die Kurzfassung selbst bleibt unverändert
+  await expectTtShort(page.locator("#p-privacy-short"));
+  await expect(page.locator("#p-privacy-yt")).toHaveText(YT_SHORT);
+  const pf = page.locator("#p-privfull");
+  await pf.locator("summary").click();
+  await expect(pf.locator("h2.privh")).toHaveText(PRIV_HEADS);   // keine eigene Überschrift
+  await expect(pf.locator('h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText(ytBases);
+  await expect(recipients(pf, "h2").filter({ hasText: "Google" })).toHaveText([YT_RECIPIENT]);
+  await expect(pf.locator('h2.privh:text-is("Wozu werden deine Daten verarbeitet?") + p + p')).toHaveText(YT_PURPOSE);
+  await expect(pf.locator('h2.privh:text-is("Welche Daten?") + p + p')).toHaveText(TT_ACCESS);   // die übrigen Absätze bleiben, wo sie sind
+  await expect(pf.locator('h2.privh:text-is("Welche Daten?") + p + p + p')).toHaveText(YT_DATA);
+  await expect(pf.locator('h2.privh:text-is("Wie lange werden die Daten gespeichert?") + p + p')).toHaveText(YT_STAY);
+  await expect(pf.locator('h2.privh:text-is("Musst du mitmachen?") + p')).toHaveText(/ Ob du ein Video von YouTube lädst, entscheidest du selbst – ohne deinen Klick lädt diese Seite nichts von YouTube\.$/);
+  await expect(pf).toContainText(YT_RIGHTS);
+  expect(await pf.textContent()).not.toMatch(/\blit\.|Deine Schule|Datenschutzbeauftragte/);
+  await pf.locator("summary").click();
+  await expectOnlyTtShort(page, "Angaben (Videos)");
+  await page.fill("#p-vorname", "lu"); await page.fill("#p-nachname", "ha");
+  await page.fill("#p-gtag", "3"); await page.fill("#p-gmonat", "3"); await page.fill("#p-klasse", "6a");
+  await page.click("#p-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+
+  // Schreibbereich: direkt unter dem Material je Video ein Platzhalter (Titel, Hinweis, „Video von YouTube laden“, „Video in neuem Tab öffnen“)
+  const fig = (n, k) => page.locator(`#v-${n}-${k}`);
+  await expect(page.locator("#t-1 figure.task-video")).toHaveCount(2);
+  await expect(page.locator("#t-2 figure.task-video")).toHaveCount(1);
+  await expect(page.locator("#t-3 .task-video, #t-3 .task-videos")).toHaveCount(0);
+  expect(await page.$$eval("#t-1 .task-body > *", (l) => l.slice(0, 3).map((e) => e.className))).toEqual(["task-material", "task-videos", "task-files"]);
+  await expect(page.locator("#t-1 .yt-title")).toHaveText([YT_TITLE + " (ab 1:30)", "Video 2 zu Aufgabe 1"]);
+  await expect(page.locator("#t-2 .yt-title")).toHaveText(["Video 1 zu Aufgabe 2 (ab 0:42)"]);
+  await expect(page.locator("#tasks .yt-note")).toHaveText([YT_CONSENT, YT_CONSENT, YT_CONSENT]);
+  const load11 = fig(1, 1).locator("button.yt-load");
+  await expect(page.locator("#tasks button.yt-load")).toHaveText([YT_LOAD, YT_LOAD, YT_LOAD]);
+  await expect(load11).toHaveAccessibleName(YT_LOAD + " – " + YT_TITLE);
+  await expect(load11).toHaveAccessibleDescription(YT_CONSENT);
+  await expect(fig(1, 2).locator("button.yt-load")).toHaveAccessibleName(YT_LOAD + " – Video 2 zu Aufgabe 1");
+  const opens = page.locator("#tasks a.yt-open");
+  await expect(opens).toHaveText([YT_TAB + TAB, YT_TAB + TAB, YT_TAB + TAB]);
+  await expect(opens.nth(0).locator(".sr-only")).toHaveText("(öffnet in neuem Tab)");
+  await expect(opens.nth(0)).toHaveAccessibleName(YT_TAB + " – " + YT_TITLE);
+  await expect(opens.nth(1)).toHaveAccessibleName(YT_TAB + " – Video 2 zu Aufgabe 1");
+  expect(await opens.evaluateAll((l) => l.map((a) => [a.getAttribute("href"), a.target, a.rel]))).toEqual(LINKS.map((u) => [u, "_blank", "noopener noreferrer"]));
+  // vor dem Klick lädt nichts: kein iframe, kein Vorschaubild (auch nicht als Hintergrund), keine Anfrage an YouTube/Google
+  const noPreload = () => page.evaluate(() => [document.querySelectorAll("iframe").length,
+    document.querySelectorAll('img[src*="ytimg"], img[src*="youtube"], img[src*="google"], link[href*="youtube"], link[href*="ytimg"], link[href*="google"]').length,
+    [...document.querySelectorAll(".task-video, .task-video *")].filter((e) => /url\(/.test(getComputedStyle(e).backgroundImage)).length]);
+  expect(await noPreload()).toEqual([0, 0, 0]);
+  expect(s.yt).toEqual([]);
+  expect(s.foreign.filter(isYouTubeUrl)).toEqual([]);
+  // schmaler Bildschirm: der Platzhalter bleibt in der Aufgabe, der Hinweis wird nicht abgeschnitten
+  await page.setViewportSize({ width: 375, height: 800 });
+  expect(await page.evaluate(() => [...document.querySelectorAll("#tasks .task-video")].map((f) => {
+    const r = f.getBoundingClientRect(), t = f.closest(".task").getBoundingClientRect(), note = f.querySelector(".yt-note");
+    return r.left >= t.left - 0.5 && r.right <= t.right + 0.5 && note.scrollWidth <= note.clientWidth && note.scrollHeight <= note.clientHeight;
+  }))).toEqual([true, true, true]);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await shots(page, "7q-platzhalter", [375, 1280], VIDEO_SHOTS);
+  // Datenschutz im Schreibbereich (immer „du“): der Hinweis selbst bleibt gleich, darunter ein eigener Absatz; YouTube im ausführlichen Hinweis
+  await expect(page.locator("#privacy")).not.toContainText(/YouTube|Google/);
+  await expect(page.locator("#privacy-yt")).toBeVisible();
+  await expect(page.locator("#privacy-yt")).toHaveText(YT_SHORT);
+  await expect(recipients(page.locator("#privfull-ed"), "h3").filter({ hasText: "Google" })).toHaveText([YT_RECIPIENT]);
+  await expect(page.locator('#privfull-ed h3.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText(ytBases);
+  await expectOnlyTtShort(page, "Schreibbereich (Videos)");
+  // Tippen, Zwischenstand: weder Kennungen noch „youtube“ auf dem Gerät
+  await typeAt(page, "#a-1", "Ich sehe viele grüne Zellen.");
+  await typeAt(page, "#a-2", "Für den Gasaustausch.");
+  await typeAt(page, "#a-3", "Wie klein alles ist.");
+  await page.waitForTimeout(700);
+  const lsDump = () => page.evaluate(() => Object.keys(localStorage).sort().map((k) => [k, localStorage.getItem(k)]));
+  const ls1 = await lsDump();
+  expect(ls1.some(([k]) => k.startsWith("feibeitsblatt:draft:"))).toBe(true);
+  expect(JSON.stringify(ls1)).not.toMatch(/youtube|M7lc1UVf|aqz-KE|dQw4w9|Mikroskop/i);
+  // Neuladen → „Weiterschreiben“: wieder nur Platzhalter, nichts geladen
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#tasks .yt-ph")).toHaveCount(3);
+  expect(await page.inputValue("#a-2")).toBe("Für den Gasaustausch.");
+  expect(await noPreload()).toEqual([0, 0, 0]);
+  expect(s.yt).toEqual([]);
+
+  // Per Tastatur laden (Enter): genau dieses Video als iframe über youtube-nocookie.com – erst jetzt eine Anfrage, mit der Herkunft als Referer
+  const keys1 = (await lsDump()).map(([k]) => k);
+  await load11.focus();
+  await page.keyboard.press("Enter");
+  const fr11 = fig(1, 1).locator(".yt-frame iframe");
+  await expect(fr11).toHaveCount(1);
+  await expect(fig(1, 1).locator(".yt-ph")).toHaveCount(0);
+  expect(await fr11.evaluate((f) => [f.src, f.title, f.getAttribute("referrerpolicy"), f.getAttribute("allow"), f.hasAttribute("allowfullscreen"), f.getAttribute("sandbox")])).toEqual([
+    ytEmbed(YT_ID1, 90), "YouTube-Video: " + YT_TITLE, "strict-origin-when-cross-origin", "autoplay; encrypted-media; picture-in-picture; fullscreen", true,
+    "allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"]);
+  await expect(fr11).toBeFocused();   // der Knopf ist weg – der Fokus springt nicht an den Seitenanfang
+  await expect.poll(() => s.yt.length).toBe(1);
+  expect(s.yt[0].url).toBe(ytEmbed(YT_ID1, 90));
+  expect(s.yt[0].isNav).toBe(true);
+  expect(s.yt[0].headers.referer).toBe(BASE_URL + "/");   // nur die Herkunft – nie Pfad, Hash oder Code
+  expect(s.yt[0].headers.cookie).toBeUndefined();
+  await expect(page.frameLocator("#v-1-1 iframe").locator("#yt-stub")).toBeVisible();
+  const frame = page.frames().find((f) => f.url() === ytEmbed(YT_ID1, 90));
+  expect(await frame.evaluate(() => document.referrer)).toBe(BASE_URL + "/");
+  // Titel und „Video in neuem Tab öffnen“ bleiben neben dem Video
+  await expect(fig(1, 1).locator(".yt-after .yt-title")).toHaveText(YT_TITLE + " (ab 1:30)");
+  await expect(fig(1, 1).locator(".yt-after a.yt-open")).toHaveAttribute("href", LINKS[0]);
+  await shots(page, "7q-video-geladen", [375, 1280], VIDEO_SHOTS);
+  // die übrigen Videos bleiben Platzhalter (Zustimmung je Video); auf dem Gerät wird nichts gespeichert
+  await expect(fig(1, 2).locator(".yt-ph")).toBeVisible();
+  await expect(fig(2, 1).locator(".yt-ph")).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(s.yt.map((r) => r.url)).toEqual([ytEmbed(YT_ID1, 90)]);
+  const ls2 = await lsDump();
+  expect(ls2.map(([k]) => k)).toEqual(keys1);
+  expect(JSON.stringify(ls2)).not.toMatch(/youtube|M7lc1UVf|aqz-KE|dQw4w9/i);
+  await expect(page.locator("#privacy-yt")).toHaveText(YT_SHORT);
+  // „Video in neuem Tab öffnen“: YouTube direkt, ohne Opener und ohne Referer; das Video im Blatt bleibt ungeladen
+  const [popup] = await Promise.all([page.context().waitForEvent("page"), fig(1, 2).locator("a.yt-open").click()]);
+  await popup.waitForLoadState();
+  expect(popup.url()).toBe(LINKS[1]);
+  expect(await popup.evaluate(() => [window.opener, document.referrer])).toEqual([null, ""]);
+  await popup.close();
+  const watch = s.yt.find((r) => r.url === LINKS[1]);
+  expect(watch.headers.referer).toBeUndefined();
+  await expect(fig(1, 2).locator(".yt-ph")).toBeVisible();
+  expect(s.yt.map((r) => r.url)).toEqual([ytEmbed(YT_ID1, 90), LINKS[1]]);
+  // Neuladen → „Weiterschreiben“: wieder der Platzhalter (die Zustimmung gilt nur für diesen Seitenaufruf)
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#tasks .yt-ph")).toHaveCount(3);
+  expect(await noPreload()).toEqual([0, 0, 0]);
+  await page.waitForTimeout(300);
+  expect(s.yt).toHaveLength(2);
+  // per Maus laden, dann KI-Feedback: der Prompt enthält nichts zu den Videos
+  await fig(1, 1).locator("button.yt-load").click();
+  await expect.poll(() => s.yt.length).toBe(3);
+  await expect(page.frameLocator("#v-1-1 iframe").locator("#yt-stub")).toBeVisible();
+  // der Player im Format 16:9, nie breiter als die Aufgabe (auch schmal)
+  await page.setViewportSize({ width: 375, height: 800 });
+  const [frBox, taskBox] = await Promise.all([fig(1, 1).locator("iframe").boundingBox(), page.locator("#t-1").boundingBox()]);
+  expect(frBox.x).toBeGreaterThanOrEqual(taskBox.x - 0.5);
+  expect(frBox.x + frBox.width).toBeLessThanOrEqual(taskBox.x + taskBox.width + 0.5);
+  expect(Math.abs(frBox.height - frBox.width * 9 / 16)).toBeLessThan(1.5);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await mockReset();
+  await requestFeedback(page);
+  const prompt = (await mockState()).requests[0].messages.map((m) => m.content).join("\n");
+  expect(prompt).toContain(MAT1);   // Gegenprobe: das Material geht mit
+  expect(prompt).not.toMatch(/youtube|youtu\.be|M7lc1UVf-VE|aqz-KE-bpKQ|dQw4w9WgXcQ|Mikroskop|nocookie/i);
+  await expect(fig(1, 1).locator(".yt-frame iframe")).toHaveCount(1);   // das Feedback lässt das Video stehen
+  // Abgabe: der Schreibbereich wird verlassen – das Video stoppt (iframe entfernt)
+  await submit(page);
+  await expect(page.locator("#tasks iframe, #tasks .task-video.loaded")).toHaveCount(0);
+  expect(s.yt.map((r) => r.url)).toEqual([ytEmbed(YT_ID1, 90), LINKS[1], ytEmbed(YT_ID1, 90)]);
+  s.allowYouTube = true;   // nur die beiden Videos nach dem Klick (und der Link in neuem Tab)
+  await closePage(s);
+
+  // Partner- / Gruppenarbeit: auf dem Angaben-Bildschirm „ihr“, im Schreibbereich „du“
+  const g = await openPage(browser);
+  const gp = g.page;
+  await enterCode(gp, shown);
+  await expect(gp.locator("#screen-mode")).toHaveClass(/active/);
+  await gp.click("#mode-group");
+  await expect(gp.locator("#screen-person")).toHaveClass(/active/);
+  await expect(gp.locator("#p-privacy-yt")).toHaveText(YT_SHORT_G);
+  const gpf = gp.locator("#p-privfull");
+  await gpf.locator("summary").click();
+  await expect(gpf.locator("h2.privh")).toHaveText(PRIV_HEADS_GROUP);
+  await expect(gpf.locator('h2.privh:text-is("Rechtsgrundlage") + ul > li').nth(3)).toHaveText(YT_BASIS_G);
+  await expect(recipients(gpf, "h2").filter({ hasText: "Google" })).toHaveCount(1);
+  await expect(recipients(gpf, "h2").filter({ hasText: "Google" })).toContainText("Nur wenn ihr ein Video ladet (freiwillig, mit dem Klick auf „Video von YouTube laden“): Google Ireland Limited (Dublin, Irland), Anbieter von YouTube im EWR.");
+  expect(await gpf.textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
+  await gpf.locator("summary").click();
+  await expectOnlyTtShort(gp, "Angaben einer Gruppe (Videos)");
+  await gp.fill("#p-m-1", "MaxMu");
+  await gp.click("#p-add");
+  await gp.keyboard.type("LiMu");
+  await gp.fill("#p-klasse", "6a");
+  await gp.click("#p-btn");
+  await expect(gp.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(gp.locator("#privacy-yt")).toHaveText(YT_SHORT);
+  await expect(gp.locator("#tasks .yt-note")).toHaveText([YT_CONSENT, YT_CONSENT, YT_CONSENT]);
+  expect(g.yt).toEqual([]);
+  await closePage(g);
+
+  // Manipulierte Antwort des Servers: ungültige Kennungen und Startzeiten entfallen, höchstens 3, Titel nur als Text
+  const m = await openPage(browser);
+  const mp = m.page;
+  await mp.route(`**/api/sheet/${code}`, async (route) => {
+    const res = await route.fetch(), json = await res.json();
+    json.sheet.tasks[0].videos = [
+      { id: "../../x?a=", start: 5, title: "Weg" },
+      { id: YT_ID1, start: "1;alert(1)", title: '<img src=x onerror="window.__xss=1">', url: "https://evil.example/" },
+      { id: YT_ID2, start: 1e9 },
+      { id: YT_ID3, start: 30, title: "Drei‮abc" },
+      { id: "AAAAAAAAAAA", title: "Vier" },
+    ];
+    json.sheet.tasks[1].videos = { id: YT_ID3 };
+    return route.fulfill({ response: res, json });
+  });
+  await enterCode(mp, shown);
+  await fillPerson(mp, { vorname: "ab", nachname: "cd", geb: "--07-07", klasse: "6a" });
+  await expect(mp.locator("#t-1 figure.task-video")).toHaveCount(3);
+  await expect(mp.locator("#t-1 .yt-title")).toHaveText(['<img src=x onerror="window.__xss=1">', "Video 2 zu Aufgabe 1", "Dreiabc (ab 0:30)"]);
+  await expect(mp.locator("#t-2 .task-video")).toHaveCount(0);
+  expect(await mp.locator("#t-1 a.yt-open").evaluateAll((l) => l.map((a) => a.getAttribute("href")))).toEqual([ytWatch(YT_ID1), ytWatch(YT_ID2), ytWatch(YT_ID3, 30)]);
+  await expect(mp.locator("#tasks .task-videos img")).toHaveCount(0);
+  expect(await mp.evaluate(() => window.__xss)).toBeUndefined();
+  expect(m.yt).toEqual([]);
+  await closePage(m);
+
+  // Lehrkraft: Blattdetails und Abgaben-Details nennen die Videos nur als Links (neuer Tab) – kein Player, kein Vorschaubild
+  const LI = [`${YT_TITLE} (ab 1:30): ${LINKS[0]}${TAB}`, `Video 2: ${LINKS[1]}${TAB}`];
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  const si = tp.locator("#t-sel-tasks .si");
+  await expect(si.nth(0).locator(".tvideos .sublabel")).toHaveText("Videos (YouTube)");
+  await expect(si.nth(0).locator(".tvideos li")).toHaveText(LI);
+  expect(await si.nth(0).locator(".tvideos a").evaluateAll((l) => l.map((a) => [a.getAttribute("href"), a.target, a.rel]))).toEqual([[LINKS[0], "_blank", "noopener noreferrer"], [LINKS[1], "_blank", "noopener noreferrer"]]);
+  await expect(si.nth(1).locator(".tvideos li")).toHaveText([`Video 1 (ab 0:42): ${LINKS[2]}${TAB}`]);
+  await expect(si.nth(2).locator(".tvideos")).toHaveCount(0);
+  await expect(si.nth(0).locator(".material")).toHaveCount(1);
+  await shots(tp, "7q-lehrkraft-blatt", [1280], VIDEO_SHOTS);
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(1);
+  await tp.locator("#t-subs-body tr.main").nth(0).click();
+  const dts = tp.locator("#t-subs-body tr.details:visible .dtask");
+  await expect(dts.nth(0).locator(".tvideos li")).toHaveText(LI);
+  await expect(dts.nth(1).locator(".tvideos li")).toHaveText([`Video 1 (ab 0:42): ${LINKS[2]}${TAB}`]);
+  await expect(dts.nth(2).locator(".tvideos")).toHaveCount(0);
+  expect(await tp.evaluate(() => document.querySelectorAll('iframe, img[src*="ytimg"], img[src*="youtube"]').length)).toBe(0);
+
+  // Analoges Arbeitsblatt: je Video ein QR-Code zum Link auf youtube.com, rechts „Video auf YouTube (Google)“ und der Titel, darunter die
+  // Adresse in Courier (anklickbar); am Ende der QR-Code zur Checkliste
+  const CHECK_URL = "https://feibeitsblatt.janrickmer.de/#checkliste=" + code;
+  await tp.click("#t-analog");
+  await expect(tp.locator("#tv-analog")).toBeVisible();
+  await expect(tp.locator("#ck-1")).toHaveValue(expectedChecklist(SOL1).join("\n"));
+  const [adl] = await Promise.all([tp.waitForEvent("download"), tp.click("#ck-save")]);
+  await expect(tp.locator("#ck-status")).toHaveText(/^Gespeichert\. Das PDF \(\d+ KB\) wird heruntergeladen\.$/, { timeout: 30_000 });
+  const abuf = await readFile(await adl.path());
+  if (process.env.ANALOG_PDF_OUT) { await mkdir(process.env.ANALOG_PDF_OUT, { recursive: true }); await writeFile(join(process.env.ANALOG_PDF_OUT, "7q-analog-videos.pdf"), abuf); }
+  const ast = pdfStructure(abuf, 7);   // Info bleibt Objekt 7, Courier danach
+  expect(ast.s).toContain("/Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding");
+  const AP = analogPdfOf(abuf), atext = AP.lines.map((ls) => ls.join("\n")).join("\n");
+  const qrs = AP.contents.flatMap((c, k) => pdfQrs(c).map((q) => ({ ...q, page: k })));
+  expect(qrs.map((q) => q.text)).toEqual([...LINKS, CHECK_URL]);   // Blattreihenfolge, die Checkliste zuletzt
+  for (const q of qrs) expect(q.side).toBeCloseTo(90, 1);
+  const mono = AP.pieces.flat().filter((p) => p.font === "F5");
+  expect(mono.map((p) => p.t)).toEqual(LINKS);   // nur die Adressen der Videos in Courier
+  for (const [k, q] of qrs.slice(0, 3).entries()) {   // genau eine Zeile direkt unter dem QR-Code: die Adresse
+    const under = AP.pieces[q.page].filter((p) => p.y < q.top - q.side && p.y > q.top - q.side - 20);
+    expect(under.map((p) => [p.font, p.t])).toEqual([["F5", LINKS[k]]]);
+    expect(under[0].x).toBeCloseTo(50, 1);
+  }
+  for (const u of LINKS) expect(ast.s.split(`/A << /S /URI /URI (${u}) >>`).length - 1, u).toBe(2);   // QR-Code und Adresse
+  expect(atext.split("Video auf YouTube (Google)").length - 1).toBe(3);
+  expect(AP.pieces.flat().filter((p) => p.t === "Video auf YouTube (Google)").map((p) => p.font)).toEqual(["F2", "F2", "F2"]);
+  expect(atext).toContain(YT_TITLE);
+  expect(atext).toContain("ab 1:30");
+  expect(atext).toContain("ab 0:42");
+  // Reihenfolge: Material → Videos → Namen der PDF-Dateien
+  expect(atext.indexOf(MAT1)).toBeLessThan(atext.indexOf("Video auf YouTube (Google)"));
+  expect(atext.indexOf("Video auf YouTube (Google)")).toBeLessThan(atext.indexOf("Material zum Herunterladen (nur digital): Anleitung.pdf"));
+  expect(abuf.toString("latin1") + AP.all).not.toMatch(/youtube-nocookie|ytimg/);
+  expect(AP.images).toHaveLength(0);   // kein Vorschaubild
+  expect(atext).not.toMatch(/Chloroplasten|Gasaustausch|Du beachtest/);
+  await tp.click("#ck-back");   // gespeichert → ohne Rückfrage
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+
+  // „Als Vorlage verwenden“: der Editor zeigt die Videos; nichts geändert → zurück ohne Rückfrage; gespeichert → neues Blatt mit denselben Videos
+  const codes = [shown];
+  await tp.click("#t-template");
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(rows.nth(0).locator(".bvid-name")).toHaveText([YT_TITLE + " · " + LINKS[0] + TAB, LINKS[1] + TAB]);
+  await expect(rows.nth(1).locator(".bvid a")).toHaveAttribute("href", LINKS[2]);
+  await expect(rows.nth(2).locator(".bvid")).toHaveCount(0);
+  await tp.click("#b-back");
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  await expect(tp.locator("#dlg.open")).toHaveCount(0);
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await tp.click("#t-template");
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(rows.nth(0).locator(".bvid")).toHaveCount(2);
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#b-res-img")).toHaveText("Die PDF-Datei ist gespeichert.", { timeout: 30_000 });
+  await expect(tp.locator("#b-res-vid")).toBeHidden();
+  codes.push((await tp.locator("#b-res-code").textContent()).trim());
+  expect(await videosInD1(codes[1].replace("-", ""))).toEqual(STORED);
+  await tp.click("#b-res-back");
+
+  // Sicherung: Datensatz mit videos (nur bei Aufgaben mit Videos), sichtbar je Video eine Zeile mit dem Link; kein Anhang, kein Bild
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  const [edl] = await Promise.all([tp.waitForEvent("download"), tp.click("#t-export")]);
+  const pdf = await readFile(await edl.path()), rec = sheetRecordOf(pdf);
+  expect(rec.v).toBe(1);
+  expect(rec.tasks.map((x) => x.videos)).toEqual(STORED);
+  expect(rec.tasks.map((x) => x.files.length)).toEqual([1, 0, 0]);
+  const ps = pdf.toString("latin1");
+  expect(ps.match(/\/FbBlob ?\(/g)).toHaveLength(1);   // nur die PDF-Datei – Videos sind reine Daten
+  expect(ps).not.toMatch(/\/Subtype \/Image|youtube-nocookie|ytimg/);
+  const shownTxt = pdfShownText(pdf);
+  expect(shownTxt).toContain(`Video: ${YT_TITLE} – ${LINKS[0]}`);
+  expect(shownTxt).toContain(`Video: ${LINKS[1]}`);
+  expect(shownTxt).toContain(`Video: ${LINKS[2]}`);
+  expect(shownTxt).toContain("Videos (als Links zu YouTube)");
+  // Import: der Editor zeigt die Videos (ohne Hinweis); zurück ohne Rückfrage
+  await tp.setInputFiles("#t-import-file", { name: "Blaetter.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(tp.locator("#b-err")).toHaveText("");
+  await expect(rows.nth(0).locator(".bvid-name")).toHaveText([YT_TITLE + " · " + LINKS[0] + TAB, LINKS[1] + TAB]);
+  await expect(rows.nth(1).locator(".bvid a")).toHaveAttribute("href", LINKS[2]);
+  await tp.click("#b-back");
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  await expect(tp.locator("#dlg.open")).toHaveCount(0);
+  // manipulierter Datensatz (wie von einem PDF-Programm neu gespeichert): ein Eintrag mit ungültiger Kennung fällt weg – mit Hinweis
+  const mod = JSON.parse(JSON.stringify(rec));
+  mod.tasks[0].videos = [{ id: "../../x?a=", title: "Kaputt" }, ...rec.tasks[0].videos];
+  const modJson = Buffer.from(JSON.stringify(mod), "utf8");
+  const pdfMod = editStream(pdf, "/FbSheet 1", { data: () => deflateSync(modJson), dict: (d) => d.replace(/\/Size \d+/, "/Size " + modJson.length) });
+  await tp.setInputFiles("#t-import-file", { name: "Blaetter-geaendert.pdf", mimeType: "application/pdf", buffer: pdfMod });
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(tp.locator("#b-err")).toHaveText("Ein YouTube-Video aus der PDF-Datei ließ sich nicht übernehmen (ungültige Angaben oder mehr als 3 Videos je Aufgabe) und fehlt hier.");
+  await expect(rows.nth(0).locator(".bvid-name")).toHaveText([YT_TITLE + " · " + LINKS[0] + TAB, LINKS[1] + TAB]);
+  await expect(tp.locator("#tv-builder")).not.toContainText("Kaputt");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#b-res-img")).toHaveText("Die PDF-Datei ist gespeichert.", { timeout: 30_000 });
+  codes.push((await tp.locator("#b-res-code").textContent()).trim());
+  expect(new Set(codes).size).toBe(3);
+  expect(await videosInD1(codes[2].replace("-", ""))).toEqual(STORED);
+  await tp.click("#b-res-back");
+
+  // aufräumen: alle drei Blätter löschen; die Lehrkraft-Seite hat YouTube nie angefragt
+  for (const c of codes.reverse()) {
+    await tp.locator("#t-sheets-body tr", { hasText: c }).click();
+    await expect(tp.locator("#t-sel-code")).toHaveText(c);
+    await tp.click("#t-del-sheet");
+    await confirmDialog(tp, "Feibeitsblatt löschen?");
+    await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+    await expect(tp.locator("#t-sheets-body tr", { hasText: c })).toHaveCount(0);
+  }
+  for (const c of codes) expect(await d1Query(`SELECT code FROM sheets WHERE code='${c.replace("-", "")}'`)).toEqual([]);
+  expect(t.yt).toEqual([]);
   await closePage(t);
 });
 
