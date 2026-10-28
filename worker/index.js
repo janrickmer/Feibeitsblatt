@@ -6,7 +6,7 @@ import {
   validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateOnly, validateAiInput,
   keyHintOf, sealSecret, openSecret, bucketOf, ipKey, rateMessage, RATE, LIMITS, InputError,
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
-  withMapChecks, teacherAnswer, publicAnswer,
+  withMapChecks, teacherAnswer, publicAnswer, videosOut,
   validatePrivacyInput, privacyOut, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
   validateChecklist, checklistOut, escapeOut, REPLACE_WINDOW_MS,
 } from "./lib.js";
@@ -387,7 +387,8 @@ async function routeSheetCreate(c) {
     const tasksJson = JSON.stringify(hasMap ? await withMapChecks(tasks, code) : tasks);   // Prüfwerte hängen vom Code ab
     const r = await c.db.prepare("INSERT INTO sheets(code,title,tasks,created_at,escape_id,escape_name) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(code) DO NOTHING")
       .bind(code, title, tasksJson, c.now, escape ? escape.id : null, escape ? escape.name : null).run();
-    if (r.meta && r.meta.changes) return json({ ok: true, code, title, createdAt: c.now, taskCount: tasks.length, escape });
+    // videoCount: so viele Videos sind gespeichert – der Browser warnt, wenn er Videos geschickt hat und die Zahl fehlt (älterer Worker)
+    if (r.meta && r.meta.changes) return json({ ok: true, code, title, createdAt: c.now, taskCount: tasks.length, escape, videoCount: tasks.reduce((k, t) => k + (t.videos ? t.videos.length : 0), 0) });
   }
   throw new Error("Kein freier Code gefunden");
 }
@@ -404,7 +405,7 @@ async function routeSheetGet(c, codeRaw) {
   ]);
   const s = firstRow(sh);
   if (!s) throw sheetGone();
-  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), textFmt: Array.isArray(t.textFmt) ? t.textFmt : [], solution: String(t.solution || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1), files: filesForTask(fi.results, i + 1), answer: teacherAnswer(t.answer) }));
+  const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), textFmt: Array.isArray(t.textFmt) ? t.textFmt : [], solution: String(t.solution || ""), material: Array.isArray(t.material) ? t.material : [], videos: videosOut(t.videos), images: imagesForTask(im.results, i + 1), files: filesForTask(fi.results, i + 1), answer: teacherAnswer(t.answer) }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, createdAt: s.created_at, tasks, submissionCount: (firstRow(cnt) || {}).n || 0, escape: escapeOut(s.escape_id, s.escape_name) } });
 }
 
@@ -841,13 +842,14 @@ async function routePublicSheet(c, codeRaw) {
   const aiReserve = list.length > 1 ? providerLabel(list[1].provider, list[1].baseUrl) : null;   // für ältere, noch gecachte Seiten
   // Niemals Aufträge an die KI (solution) ausliefern: nur Aufgabentext (rein und – falls vorhanden – formatiert als textFmt) und
   // Bild-Metadaten verlassen den Server; die Länder einer Weltkarten-Zuordnung nur als Prüfwerte (SHA-256 von Code|Karte|Land),
-  // Kartenbilder nur, wenn sie zu dieser Aufgabe gespeichert sind
+  // Kartenbilder nur, wenn sie zu dieser Aufgabe gespeichert sind; YouTube-Videos nur als geprüfte Kennung (videosOut, nie eine
+  // URL – die Adressen baut der Browser auf festen Hosts), immer als Liste wie material
   // aiFeedback: Hat mindestens eine Aufgabe einen Auftrag an die KI (keine Weltkarte)? Sonst zeigt die Seite keinen
   // Feedback-Button (nur ein Ja/Nein – nie der Auftrag selbst)
   const parsed = parseTasks(s.tasks), aiFeedback = parsed.some(wantsFeedback);
   const tasks = await Promise.all(parsed.map(async (t, i) => {
     const images = imagesForTask(im.results, i + 1);
-    return { text: String(t.text || ""), textFmt: Array.isArray(t.textFmt) ? t.textFmt : [], material: Array.isArray(t.material) ? t.material : [], images, files: filesForTask(fi.results, i + 1),
+    return { text: String(t.text || ""), textFmt: Array.isArray(t.textFmt) ? t.textFmt : [], material: Array.isArray(t.material) ? t.material : [], videos: videosOut(t.videos), images, files: filesForTask(fi.results, i + 1),
       answer: await publicAnswer(t.answer, code, new Set(images.filter((m) => m.mode === "card").map((m) => m.id))) };
   }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}),

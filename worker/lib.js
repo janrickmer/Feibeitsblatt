@@ -97,6 +97,8 @@ export const LIMITS = {
                                    // erlaubt 500 MB je Datenbank, der Rest bleibt für Abgaben, Blätter und Zähler
   material: 8000,                  // Material je Aufgabe (Zeichen), formatiert als Absätze aus Läufen
   materialParagraphs: 200, materialRuns: 600, materialLinks: 60, href: 1000,
+  // YouTube-Videos unter dem Material je Aufgabe (nur Kennung, Startsekunde < videoStart und Titel – nie eine URL)
+  videosPerTask: 3, videoTitle: 120, videoStart: 86400,
   // Antwortarten (answer je Aufgabe): Tabelle und Weltkarten-Zuordnung
   tableColumns: 8, columnName: 60, tableRows: 30,
   mapItems: 40, itemId: 40, itemLabel: 120, itemHint: 400, itemCountries: 10, countryName: 80,
@@ -217,9 +219,11 @@ export function validateSheetInput(body, now = Date.now()) {
     if (text.length > LIMITS.taskText) throw new InputError("Aufgabe " + n + ": Die Aufgabenstellung ist zu lang (höchstens " + LIMITS.taskText + " Zeichen).");
     if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Der Auftrag an die KI ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
     const material = validateMaterial(t.material, n);
+    const videos = validateVideos(t.videos, n);
     const task = { text, solution };
     if (isFormatted(textFmt)) task.textFmt = textFmt;
     if (material.length) task.material = material;
+    if (videos.length) task.videos = videos;   // wie das Material nur, wenn vorhanden
     if (answer) task.answer = answer;
     return task;
   });
@@ -412,6 +416,61 @@ export const materialText = (m) => (Array.isArray(m) ? m : []).map((p) => (Array
 // Formatierte Aufgabenstellung (textFmt): Läufe wie beim Material, aber mit der Zeichengrenze der Aufgabenstellung
 export const validateTextFmt = (raw, n) => validateMaterial(raw, n, FMT_TASK_TEXT);
 export const isFormatted = (m) => m.some((p) => p.some((r) => r.f || r.h));   // mindestens ein Lauf fett/kursiv/unterstrichen oder verlinkt
+
+/* ---------- YouTube-Videos unter dem Material: videos = [{id, start?, title?}] je Aufgabe (fehlt = keine) ----------
+ * id = Kennung des Videos (11 Zeichen A–Z, a–z, 0–9, _ und - – Groß-/Kleinschreibung zählt, nie kleinschreiben), start =
+ * Startsekunde 1 … LIMITS.videoStart − 1 (0/fehlt = von vorn), title = von der Lehrkraft eingetragener Titel (einzeilig, freiwillig).
+ * Nie eine URL speichern oder ausliefern: Den Link zerlegt der Browser, die Adressen (Einbettung über youtube-nocookie.com erst nach
+ * dem Klick, Link zu youtube.com) baut er aus der geprüften Kennung auf festen Hosts – so kann weder ein gefälschter POST noch eine
+ * von Hand geänderte Zeile eine beliebige Adresse in ein iframe bringen. Videos gehen nie an die KI (ai.js liest sie nicht). */
+export const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+const videoTitleOf = (v) => cleanLine(v).slice(0, LIMITS.videoTitle).replace(/[\uD800-\uDBFF]$/, "");   // ohne halbes Ersatzzeichen-Paar
+export function validateVideos(raw, n) {
+  if (raw == null) return [];
+  const where = n ? "Aufgabe " + n + ": " : "";
+  if (!Array.isArray(raw)) throw new InputError(where + "Die Videos haben ein ungültiges Format.");
+  if (raw.length > LIMITS.videosPerTask) throw new InputError(where + "Höchstens " + LIMITS.videosPerTask + " YouTube-Videos je Aufgabe.");
+  const seen = new Set(), out = [];
+  raw.forEach((v, k) => {
+    const c = where + "Video " + (k + 1) + ": ";
+    if (!isObj(v) || typeof v.id !== "string" || !VIDEO_ID_RE.test(v.id)) throw new InputError(c + "Das ist kein gültiger YouTube-Link.");
+    const start = v.start == null ? 0 : v.start;
+    if (!Number.isInteger(start) || start < 0 || start >= LIMITS.videoStart) throw new InputError(c + "Die Startzeit ist ungültig.");
+    if (v.title != null && typeof v.title !== "string") throw new InputError(c + "Der Titel muss ein Text sein.");
+    const tooLong = () => new InputError(c + "Der Titel ist zu lang (höchstens " + LIMITS.videoTitle + " Zeichen).");
+    if (v.title && v.title.length > 4 * LIMITS.videoTitle + 100) throw tooLong();   // vor dem Bereinigen (10 ms CPU)
+    const title = v.title ? cleanLine(v.title) : "";
+    if (title.length > LIMITS.videoTitle) throw tooLong();
+    const key = v.id + "|" + start;
+    if (seen.has(key)) return;   // dasselbe Video mit derselben Startzeit nur einmal
+    seen.add(key);
+    const o = { id: v.id };   // unbekannte Felder (url, html, Vorschaubild …) entfallen
+    if (start) o.start = start;
+    if (title) o.title = title;
+    out.push(o);
+  });
+  return out;
+}
+// Aus D1 gelesen: erneut prüfen (die Zeile könnte von Hand geändert sein), wirft nie – Ungültiges entfällt, höchstens
+// LIMITS.videosPerTask; eine ungültige Startzeit gilt als „von vorn“
+export function videosOut(raw) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set(), out = [];
+  for (const v of raw) {
+    if (out.length >= LIMITS.videosPerTask) break;
+    if (!isObj(v) || typeof v.id !== "string" || !VIDEO_ID_RE.test(v.id)) continue;
+    const start = Number.isInteger(v.start) && v.start > 0 && v.start < LIMITS.videoStart ? v.start : 0;
+    const key = v.id + "|" + start;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const o = { id: v.id };
+    if (start) o.start = start;
+    const title = typeof v.title === "string" ? videoTitleOf(v.title.slice(0, 4 * LIMITS.videoTitle + 100)) : "";
+    if (title) o.title = title;
+    out.push(o);
+  }
+  return out;
+}
 
 /* ---------- Bilder zu Aufgaben: nur die Kopfdaten lesen (kein Dekodieren im Worker – 10 ms CPU) ---------- */
 export const IMAGE_MODES = ["thumb", "inline", "card"];   // thumb = Miniatur rechts neben Aufgabe und Antwort, inline = größer unter der Aufgabenstellung, card = Bild einer Karte der Weltkarten-Zuordnung
