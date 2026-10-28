@@ -3025,6 +3025,12 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await p2.click("#fb-btn");
   await confirmDialog(p2, "KI-Feedback anfordern?");
   await expect(p2.locator("#fb-status")).toContainText("Die KI arbeitet");
+  // die Statuszeile steht direkt unter dem Button – nicht erst unter dem langen Datenschutzhinweis
+  expect(await p2.$eval("#fb-btn", (b) => b.nextElementSibling.id)).toBe("fb-status");
+  const [fbBox, stBox] = [await p2.locator("#fb-btn").boundingBox(), await p2.locator("#fb-status").boundingBox()];
+  expect(stBox.y).toBeGreaterThanOrEqual(fbBox.y + fbBox.height);
+  expect(stBox.y - (fbBox.y + fbBox.height)).toBeLessThan(24);
+  expect(await p2.$eval("#fb-status", (st) => !!(st.compareDocumentPosition(document.getElementById("privacy")) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await p2.click("#submit-btn");
   await expect(p2.locator("#dlg.open")).toBeVisible();
   await expect(p2.locator("#dlg-cancel")).toHaveText("Auf das KI-Feedback warten");

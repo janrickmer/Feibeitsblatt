@@ -856,11 +856,12 @@
         <h2 class="task-label" id="fin-h">Abschluss</h2>
         <p class="fin-text" id="fin-text">Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.</p>
         <button type="button" class="btn" id="fb-btn">KI um ein Feedback bitten</button>
-        <p class="privacy" id="privacy"></p>
-        <div id="privfull-ed"></div>
+        <!-- Stand der Anfrage direkt unter dem Button (nicht erst unter dem langen Datenschutzhinweis) -->
         <p class="status" id="fb-status" aria-live="polite"></p>
         <div class="fbwait hidden" id="fb-wait"><span id="fb-wait-num" aria-hidden="true"></span><button type="button" class="linkbtn" id="fb-wait-stop">Nicht länger warten</button></div>
         <div class="notebox hidden" id="fb-fallback" role="status"></div>
+        <p class="privacy" id="privacy"></p>
+        <div id="privfull-ed"></div>
         <div class="moodle-hint hidden" id="revise-hint" role="status" tabindex="-1"></div>
         <div class="submitrow">
           <button type="button" class="btn" id="submit-btn" aria-describedby="submit-hint">Abgeben</button>
