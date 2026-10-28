@@ -342,6 +342,63 @@ test("validateSheetInput: formatierte Aufgabenstellung (textFmt) wie Material �
   assert.throws(() => validateMaterial([[{ t: "x", h: "ftp://x.de" }]], 2), { message: "Aufgabe 2: Ein Link im Material ist ungültig (erlaubt sind nur Adressen mit http:// oder https://)." });
 });
 
+/* ---------- YouTube-Videos unter dem Material: nur {id, start?, title?}, nie eine URL ---------- */
+import { validateVideos, videosOut, VIDEO_ID_RE } from "../../worker/lib.js";
+const MAP_V = { type: "map", items: [{ id: "kaffee", label: "Kaffee", countries: [{ id: "076", name: "Brasilien" }] }] };
+test("validateVideos: Kennung mit Groß-/Kleinschreibung, Startzeit 1…86399, Titel einzeilig; Doppelte und unbekannte Felder entfallen", () => {
+  assert.deepEqual([LIMITS.videosPerTask, LIMITS.videoTitle, LIMITS.videoStart], [3, 120, 86400]);
+  for (const id of ["M7lc1UVf-VE", "aqz-KE-bpKQ", "dQw4w9WgXcQ", "Zz_9-aB3cD4", "___________", "-----------"]) assert.ok(VIDEO_ID_RE.test(id), id);
+  for (const id of ["M7lc1UVf-V", "M7lc1UVf-VEx", "M7lc1UVf VE", "M7lc1UVf+VE", "M7lc1UVf-VÉ", "M7lc1UVf-VE\n", " M7lc1UVf-VE", "../../x?a=b", ""]) assert.equal(VIDEO_ID_RE.test(id), false, id);
+  assert.deepEqual(validateVideos(undefined, 1), []); assert.deepEqual(validateVideos(null, 1), []); assert.deepEqual(validateVideos([], 1), []);
+  assert.deepEqual(validateVideos([
+    { id: "M7lc1UVf-VE", start: 90, title: "  Foto\nsynthese\u202e\u00a0 ", url: "https://youtu.be/M7lc1UVf-VE?si=TRACKING", html: "<iframe>", thumbnail: "https://i.ytimg.com/x.jpg" },
+    { id: "M7lc1UVf-VE", start: 90, title: "doppelt" },   // gleiche Kennung und Startzeit → still weg (das erste bleibt)
+    { id: "M7lc1UVf-VE", start: 0, title: "   " },        // andere Startzeit: ein eigenes Video; 0 und leerer Titel → kein Feld
+  ], 1), [{ id: "M7lc1UVf-VE", start: 90, title: "Foto synthese" }, { id: "M7lc1UVf-VE" }]);
+  assert.deepEqual(validateVideos([{ id: "Zz_9-aB3cD4", start: LIMITS.videoStart - 1, title: "x".repeat(120) }], 1), [{ id: "Zz_9-aB3cD4", start: 86399, title: "x".repeat(120) }]);
+  assert.deepEqual(validateVideos([{ id: "dQw4w9WgXcQ", title: "  " + "y".repeat(120) + "\u200b\t " }], 1), [{ id: "dQw4w9WgXcQ", title: "y".repeat(120) }]);   // erst bereinigt, dann gezählt
+  const msg = (list, message, n = 2) => assert.throws(() => validateVideos(list, n), (e) => e instanceof InputError && e.status === 400 && e.message === message);
+  for (const raw of ["https://youtu.be/M7lc1UVf-VE", 5, true, { id: "M7lc1UVf-VE" }]) msg(raw, "Aufgabe 2: Die Videos haben ein ungültiges Format.");
+  msg(Array.from({ length: 4 }, (_, k) => ({ id: "M7lc1UVf-V" + "ABCD"[k] })), "Aufgabe 2: Höchstens 3 YouTube-Videos je Aufgabe.");
+  for (const v of [{ id: "abc" }, { id: "M7lc1UVf-v" }, { id: "M7lc1UVf-VE1" }, { id: "dQw4w9WgXc\"" }, { id: "javascript:x" }, { id: "../../x?a=b" },
+    { id: "https://www.youtube.com/watch?v=M7lc1UVf-VE" }, { id: 12345678901 }, { id: null }, {}, "M7lc1UVf-VE", null, ["M7lc1UVf-VE"]])
+    msg([v], "Aufgabe 2: Video 1: Das ist kein gültiger YouTube-Link.");
+  msg([{ id: "M7lc1UVf-VE" }, { id: "nope" }], "Aufgabe 2: Video 2: Das ist kein gültiger YouTube-Link.");
+  for (const start of [-1, 1.5, "90", LIMITS.videoStart, NaN, Infinity, true, [90]]) msg([{ id: "M7lc1UVf-VE", start }], "Aufgabe 2: Video 1: Die Startzeit ist ungültig.");
+  msg([{ id: "M7lc1UVf-VE", title: "x".repeat(121) }], "Aufgabe 2: Video 1: Der Titel ist zu lang (höchstens 120 Zeichen).");
+  msg([{ id: "M7lc1UVf-VE", title: "x".repeat(1e6) }], "Aufgabe 2: Video 1: Der Titel ist zu lang (höchstens 120 Zeichen).");   // vor dem Bereinigen abgelehnt
+  msg([{ id: "M7lc1UVf-VE", title: 5 }], "Aufgabe 2: Video 1: Der Titel muss ein Text sein.");
+  assert.throws(() => validateVideos("x"), { message: "Die Videos haben ein ungültiges Format." });   // ohne Aufgabennummer
+});
+test("validateSheetInput nimmt Videos je Aufgabe mit (nur wenn vorhanden, auch bei Tabelle und Weltkarte); Fehler mit Aufgabennummer", async () => {
+  const v = [{ id: "aqz-KE-bpKQ", start: 30, title: "Kaffee" }];
+  const r = validateSheetInput({ tasks: [{ text: "A", solution: "k", videos: v }, { text: "B", videos: [] }, { text: "C" }, { text: "D", videos: null },
+    { text: "Ordne zu", answer: MAP_V, videos: v }, { text: "Tabelle", answer: { type: "table", columns: ["A"], rows: 2 }, videos: v }] });
+  assert.deepEqual(r.tasks[0], { text: "A", solution: "k", videos: v });
+  for (const k of [1, 2, 3]) assert.equal("videos" in r.tasks[k], false, "Aufgabe " + (k + 1));
+  assert.deepEqual([r.tasks[4].videos, r.tasks[5].videos], [v, v]);
+  const [t] = await withMapChecks([r.tasks[4]], "K7QM4X");   // die Prüfwerte lassen die Videos stehen
+  assert.deepEqual(t.videos, v);
+  assert.throws(() => validateSheetInput({ tasks: [{ text: "A" }, { text: "B" }, { text: "C", videos: [{ id: "abc" }] }] }), { message: "Aufgabe 3: Video 1: Das ist kein gültiger YouTube-Link." });
+  assert.throws(() => validateSheetInput({ tasks: [{ text: "A", videos: Array(4).fill({ id: "M7lc1UVf-VE" }) }] }), { message: "Aufgabe 1: Höchstens 3 YouTube-Videos je Aufgabe." });
+});
+test("videosOut: gespeicherte Videos erneut geprüft – wirft nie, Ungültiges entfällt, höchstens 3, ungültige Startzeit = von vorn", () => {
+  for (const raw of [undefined, null, "M7lc1UVf-VE", 5, {}, { id: "M7lc1UVf-VE" }, [], [null, 5, "M7lc1UVf-VE", [], { id: "javascript:x" }, { id: "M7lc1UVf-VEx" }]])
+    assert.deepEqual(videosOut(raw), [], JSON.stringify(raw));
+  assert.deepEqual(videosOut([
+    { id: "../../x?a=" }, { id: "m7lc1uvf-ve", start: 5 },   // gültig, aber ein anderes Video (Groß-/Kleinschreibung zählt)
+    { id: "M7lc1UVf-VE", start: "1;alert(1)", title: 7, url: "https://evil.example/" },
+    { id: "M7lc1UVf-VE", start: 0, title: "doppelt" },
+    { id: "aqz-KE-bpKQ", start: LIMITS.videoStart, title: " <img src=x onerror=alert(1)>\u202e " },
+    { id: "dQw4w9WgXcQ" },
+  ]), [{ id: "m7lc1uvf-ve", start: 5 }, { id: "M7lc1UVf-VE" }, { id: "aqz-KE-bpKQ", title: "<img src=x onerror=alert(1)>" }]);
+  assert.deepEqual(videosOut([{ id: "Zz_9-aB3cD4", start: 86399, title: "x".repeat(500) }]), [{ id: "Zz_9-aB3cD4", start: 86399, title: "x".repeat(120) }]);
+  assert.deepEqual(videosOut([{ id: "Zz_9-aB3cD4", title: "x".repeat(119) + "\u{1F600}" }]), [{ id: "Zz_9-aB3cD4", title: "x".repeat(119) }]);   // kein halbes Ersatzzeichen-Paar
+  // Was validateVideos speichert, liefert videosOut unverändert aus
+  const v = validateVideos([{ id: "M7lc1UVf-VE", start: 90, title: "Foto synthese" }, { id: "aqz-KE-bpKQ" }, { id: "Zz_9-aB3cD4", title: "x".repeat(120) }], 1);
+  assert.deepEqual(videosOut(JSON.parse(JSON.stringify(v))), v);
+});
+
 /* ---------- Antwortarten (Tabelle, Weltkarten-Zuordnung) ---------- */
 const MAP = { type: "map", map: "world", items: [
   { id: "kaffee", label: " Kaffee  ", hint: "Bohnen\naus Übersee", image: "0123456789ABCDEF", countries: [{ id: "076", name: "Brasilien" }, { id: "704", name: "Vietnam" }, { id: "076", name: "Brasilien" }], extra: 1 },

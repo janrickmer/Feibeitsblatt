@@ -2,7 +2,7 @@
 
 Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft; die Kurzfassung
 des Datenschutzhinweises nennt die Messung in einem Satz, Widerspruch per Schalter im eigenen Abschnitt des ausführlichen Hinweises): Lehrkraft legt Aufgaben +
-Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
+Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; bis zu 3 YouTube-Videos je Aufgabe unter dem Material, geladen erst nach Klick; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu einer
 Checkliste drucken; ein Blatt kann auch das Finale eines Escape-Rooms sein (Ankunft per Link oder Überblick-PDF, siehe
@@ -29,7 +29,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
     Worker; davon hängt auch `PAGES_HOST` ab, GitHub als Empfänger), sonst `window.FEIBEITSBLATT_WORKER` (`https://feibeitsblatt.feindt.
     workers.dev`). Die Seite liegt zusätzlich auf GitHub Pages unter `feibeitsblatt.janrickmer.de` (`CNAME`,
     `.nojekyll`, Quelle Branch `main` Ordner `/`): dort gelten keine `_headers`, deshalb steht die CSP auch als
-    `<meta http-equiv>` in `index.html` – Worker-Adresse dort (`connect-src`) und im Skript immer zusammen ändern.
+    `<meta http-equiv>` in `index.html` – Worker-Adresse dort (`connect-src`) und im Skript immer zusammen ändern;
+    `frame-src https://www.youtube-nocookie.com` (eingebettete Videos) in `_headers` und `<meta>` gleich, `img-src` ohne YouTube
+    (kein Vorschaubild; `test/unit/config.test.mjs` vergleicht beide Policies).
 - **API:** JSON, `{ok:true, …}` bzw. `{ok:false, error:"deutsche Meldung", code}`; CORS `*`, keine Cookies, Auth nur
   per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie `solution`**, d. h. die Aufträge an die KI),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
@@ -44,7 +46,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `{mime, w, h, data: Base64}` mit `Cache-Control: public, max-age=31536000, immutable`; `GET /api/sheet/:code` und
   `GET /api/teacher/sheets/:code` liefern je Aufgabe `images: [{id, mode, w, h, alt}]` (nie Bilddaten),
   `material` (Absätze aus Läufen, siehe unten), `textFmt` (formatierte Aufgabenstellung, siehe unten; `[]` = nur `text`)
-  und `files` (PDF-Dateien, siehe unten). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
+  und `files` (PDF-Dateien, siehe unten) und immer `videos: [{id, start?, title?}]` (`videosOut`, `[]` ohne Videos; nie eine URL – siehe
+  YouTube-Videos; `POST /api/teacher/sheets` nimmt je Aufgabe optional `videos` und antwortet zusätzlich mit `videoCount`). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
   Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
   `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
   `GET /api/sheet/:code`, `GET /api/teacher/sheets` (je Blatt) und `GET /api/teacher/sheets/:code` liefern `escape: {id, name} |
@@ -235,7 +238,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Subrequests je Aufruf → `db.batch()`. D1: 5 Mio. gelesene / 100 000 geschriebene Zeilen pro Tag (seit 1.9.2026
   hart) → Indizes, `COUNT` über Index. Lange KI-Anfragen sind ok (keine Wall-Time-Grenze bei verbundenem Client).
 - **KI:** Nie Personendaten an die KI – `/api/feedback` bekommt nur `{code, answers}`. Der Worker baut die Nachrichten
-  **selbst** aus D1 (Aufgaben, reiner Text des Materials, Aufträge an die KI) und den Antworten (`buildFeedbackMessages`; nie `messages` vom
+  **selbst** aus D1 (Aufgaben, reiner Text des Materials, Aufträge an die KI – nie Videos, Bilder oder Dateien) und den Antworten (`buildFeedbackMessages`; nie `messages` vom
   Browser annehmen, sonst offenes KI-Relay); Daten zwischen `<<<`/`>>>` über `safeData`. Nur Aufgaben mit
   Auftrag an die KI (bei `only` nur diese – gleiches Format, nur weniger Aufgaben), eine Anfrage je Blatt. **Reihenfolge im Prompt nicht ändern:** erst der je Blatt gleiche Teil
   („Aufgaben, Material und Aufträge der Lehrkraft (Nummern: …):“, je `### Aufgabe n` mit Aufgabenstellung, Material,
@@ -375,7 +378,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy` (nur
   `{retentionDays}`), `privacyShortText(p, list, withAi, group, typing)` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
   kostenloses Angebot.“, nennt den KI-Dienst; mit `typing` (`ttMeasured`) am Ende **genau der eine Satz `TT_SHORT`**, siehe unten), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
-  general, flat, summary, typing, ttSwitch, escape})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit bis zu 10 Abschnitten (`.privh`: Wer ist
+  general, flat, summary, typing, ttSwitch, escape, videos})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit bis zu 10 Abschnitten (`.privh`: Wer ist
   verantwortlich? – Betreiber mit Anschrift und E-Mail, „privates, nicht kommerzielles und kostenloses Angebot – kein Angebot
   einer Schule“, die Lehrkraft liest; Wozu (mit `TT_PURPOSE`: Tippzeiten machen den Schreibprozess sichtbar, die Lehrkraft sieht
   die Färbung **und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe)**, Ursachen für Rot samt
@@ -386,7 +389,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Einwilligung, keine Altersabfrage), **Tippzeiten** Buchst. f („sie stehen …“ per `ttWhere`; berechtigtes Interesse, den
   Schreibprozess sichtbar zu machen, damit die Lehrkraft bei Auffälligkeiten über die Arbeitsweise sprechen kann; `TT_USE`;
   Widerspruch mit dem Schalter – vom Betreiber so entschieden), LanguageTool
-  Einwilligung Buchst. a (Klick + Bestätigung im Altersdialog, Widerruf), Aufruf/Auslieferung/Missbrauchsschutz Buchst. f
+  Einwilligung Buchst. a (Klick + Bestätigung im Altersdialog, Widerruf), nur bei Blättern mit Videos (`videos`) direkt danach
+  `B.ytBasis` – YouTube: Einwilligung Buchst. a, für Cookies zusammen mit § 25 Abs. 1 TDDDG (bedingter Listenpunkt, sonst bleibt
+  die Liste gleich – `privBases` der E2E-Tests), Aufruf/Auslieferung/Missbrauchsschutz Buchst. f
   (Widerspruch), Speichern im Browser § 25 Abs. 2 Nr. 2 TDDDG für „dein Zwischenstand, die Häkchen einer Checkliste“ (mit
   `TT_KEEP_IN_DRAFT` „– außer den Tippzeiten darin –“; **nie stillschweigend auf die Tippzeiten ausdehnen** – nach Annahme des
   Betreibers bräuchte ihr Speichern im Zwischenstand eine Einwilligung nach § 25 Abs. 1 TDDDG) – Schreibweise „Buchst.“,
@@ -437,8 +442,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`: für ein Blatt mit
   KI-Feedback unter der Adresse der Lehrkraft, darunter `#pv-preview-note` – ist `!PAGES_HOST` und `PUBLIC_HOST` (aus
   `PUBLIC_URL`) eine andere Adresse (`CHECK_HOST`), nennt der Hinweis über GitHub Pages GitHub für die ganze Seite (Wortlaut
-  `GITHUB_ITEM` wie im Hinweis) statt nur für die Checklisten-Seite, und bei Blättern ohne
-  Auftrag an die KI entfallen die Angaben zum KI-Feedback). **Seite „Impressum & Datenschutz“** `#screen-legal` (Hash
+  `GITHUB_ITEM` wie im Hinweis) statt nur für die Checklisten-Seite, bei Blättern ohne
+  Auftrag an die KI entfallen die Angaben zum KI-Feedback, dazu `PV_ESC_NOTE` und `PV_VIDEO_NOTE` (Sätze zu YouTube; die Vorschau selbst
+  bleibt ohne Videos)). **Seite „Impressum & Datenschutz“** `#screen-legal` (Hash
   `#impressum` beim Laden; `hashchange` nur von Start, Arbeitsform, Angaben, Checkliste und ihr selbst; `openLegal` mit
   Lauf-Kennung `LEGAL.run`, `leaveLegal` → `leaveChecklist("")`, Backlinks `#legal-home`/`#legal-home2`, Fokus `#legal-h`):
   Impressum nach § 18 Abs. 1 MStV aus `OPERATOR` (`#legal-addr`, `#legal-mail` mailto, „nicht kommerzielles Angebot … unentgeltlich
@@ -446,7 +452,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   „Datenschutzerklärung“ (kein details) und Frist/Empfängern von `GET /api/privacy`; scheitert der Abruf, `general:true`
   (allgemeine Sätze: KI-Dienst wird vor dem Senden genannt, Frist nach dem Code) und Hinweis in `#legal-status`; `#legal-other`
   zu Blättern ohne KI und Gruppen, danach `section#legal-escape` „Feibeitsblatt als Finale eines Escape-Rooms“ (allgemeine Form,
-  siehe Escape-Room-Anbindung; `#legal-privfull` bleibt dafür unverändert). Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
+  siehe Escape-Room-Anbindung; `#legal-privfull` bleibt dafür unverändert) und `section#legal-video` „Feibeitsblätter mit Videos von
+  YouTube“ (allgemeine Form, siehe YouTube-Videos). Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
   `rel="noopener"`, sr-only „(öffnet in neuem Tab)“ (`.copyright a` klickbar trotz `pointer-events:none`; auf der Seite selbst
   ausgeblendet per `body.on-legal`). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
   Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
@@ -455,7 +462,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Eintrag als KI-Dienst, Verarbeitung auch außerhalb der EU); GitHub, Inc. nur bei `PAGES_HOST` (`API !== ""`, GitHub
   Pages); weitere KI-Dienste mit `transfer`; ohne Empfänger (keine KI eingerichtet) `NO_AI_SET` „Ein KI-Dienst ist … gerade
   nicht eingerichtet – deine Antworten gehen an keine KI.“ – auch in `recipientSentence`/`renderPrivacy`, nie ein
-  Rückfall „KI-Dienst deiner Lehrkraft“; LanguageTool (Learneo, DPF). Alle mit DPF/SCC; unbekannte Grundlage `TRANSFER_UNKNOWN`
+  Rückfall „KI-Dienst deiner Lehrkraft“; LanguageTool (Learneo, DPF); nur bei Blättern mit Videos Google Ireland Limited (YouTube,
+  `B.ytItem`, `DPF_SCC`). Alle mit DPF/SCC; unbekannte Grundlage `TRANSFER_UNKNOWN`
   „vom Betreiber dieser Seite beim Anbieter zu prüfen“. `#start-privacy`: ein Satz zur IP beim Laden und der Verweis auf
   „Impressum & Datenschutz“ ganz unten (`#chk-privacy` ebenso). Speicherdauer nennt Time Travel „bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)“; den
   Zwischenstand auf dem Gerät beschreibt `DRAFT_STAY` (gelöscht nur beim nächsten Aufruf der Seite, `cleanupDrafts`) –
@@ -561,12 +569,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `loadFile`; fehlt eines → Abbruch, nie eine unvollständige Sicherung) → `makeSheetPdf(rec, blobs, shows)`:
   mehrseitig A4 wie `makeSolutionsPdf` (Titel, blauer Hinweiskasten mit roter Warnung „enthält die Aufträge an die KI“, je
   Aufgabe Text, `materialPlain`, Bilder als DCTDecode-JPEG aus `pdfJpeg` (Canvas, weiß, ≤ 1400 px; thumb ≤ 220×190 pt,
-  inline ≤ Breite×330 pt), Dateinamen; Fußzeile „Seite n von N“). Hintergrund: Objekt 6 = Datensatz
+  inline ≤ Breite×330 pt), je YouTube-Video eine Zeile „Video: <Titel – >https://www.youtube.com/watch?v=…“ (`youtubeUrl`), Dateinamen;
+  Fußzeile „Seite n von N“). Hintergrund: Objekt 6 = Datensatz
   `feibeitsblatt.json` (`/FbSheet 1`, FlateDecode über `CompressionStream`, sonst roh) **vor** allen Anhängen; je Bild und
   PDF-Datei ein `/Type /EmbeddedFile`-Stream mit den Original-Bytes und `/FbBlob (<exportId>-<k>)`, alle im
   `/EmbeddedFiles`-Namensbaum (Schlüssel ASCII sortiert) und in `/AF`. Datensatz `{kind:"feibeitsblatt-sheet", v:1,
-  exportId, exportedAt, code, title, createdAt, tasks:[{text, textFmt? (nur wenn formatiert), solution, material, images:[{ref, mime, w, h, mode, alt,
-  bytes, sha256}], files:[{ref, name, bytes, sha256}]}]}` – **nie Abgaben**. Dateiname `sheetPdfName` =
+  exportId, exportedAt, code, title, createdAt, tasks:[{text, textFmt? (nur wenn formatiert), solution, material, videos? (nur wenn vorhanden: `[{id, start?, title?}]`,
+  kein Anhang, kein `/FbBlob`), images:[{ref, mime, w, h, mode, alt, bytes, sha256}], files:[{ref, name, bytes, sha256}]}]}` – **nie Abgaben**; `v` bleibt 1,
+  ältere Sicherungen ohne `videos` laden unverändert. Import: `cleanSheetRecord` → `cleanVideos`, was wegfällt (ungültig, über 3)
+  zählt `videosLost` → Hinweis in `#b-err` („Ein YouTube-Video aus der PDF-Datei ließ sich nicht übernehmen …“). Dateiname `sheetPdfName` =
   `Feibeitsblatt-<Code>-<Titel>.pdf`, Titel per `pdfAscii` nur ASCII (Chromium verwirft Download-Namen mit Umlauten/„–“
   auf manchen Systemen und nimmt „download“ – so in der E2E-Sandbox). `#t-import` „Feibeitsblatt aus PDF-Datei laden“ (Übersicht) → `#t-import-file` →
   `importSheetPdf` (≤ `SHEET_PDF_MAX_BYTES` 80 MB) → `readSheetPdf`: `pdfDoc` (`pdfLatin1`) + `pdfStreamAt(doc, i)` /
@@ -798,6 +809,104 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`cleanSheetRecord`: `capFmt(cleanMaterial(…), TASK_TEXT_MAX)`) tragen `textFmt` mit. E2E 7e: Fett per Strg+B, Link per
   Dialog, Einfügen aus HTML, Schüler:innen-Ansicht, Mock-Prompt ohne Link-Adresse, Lehrkraft-Ansichten, Vorlage,
   Sicherung → Import → neues Blatt.
+- **YouTube-Videos unter dem Material** (Entscheidungen der Lehrkraft: höchstens 3 je Aufgabe, Zustimmung je Video mit einem Klick,
+  nichts gespeichert, optionaler Titel, Einbettung über `youtube-nocookie.com`; nie Vorschaubilder, nie oEmbed, nie preconnect, keine
+  IFrame-API): `tasks[i].videos = [{id, start?, title?}]` – `id` 11 Zeichen `VIDEO_ID_RE` = `YT_ID_RE` `/^[A-Za-z0-9_-]{11}$/`
+  (**Groß-/Kleinschreibung bleibt, nie toLowerCase**), `start` Ganzzahl 1…`LIMITS.videoStart` − 1 (86 399; 0/fehlt = kein Feld),
+  `title` per `cleanLine` ≤ `LIMITS.videoTitle` 120; **nie eine URL speichern oder ausliefern** – alle Adressen baut der Browser aus der
+  geprüften Kennung auf festen Hosts. Worker (lib.js): `validateVideos(raw, n)` in `validateSheetInput` (null → `[]`; kein Array →
+  400 „Aufgabe n: Die Videos haben ein ungültiges Format.“, über `LIMITS.videosPerTask` 3 → „Aufgabe n: Höchstens 3 YouTube-Videos je
+  Aufgabe.“, je Eintrag „Aufgabe n: Video k: Das ist kein gültiger YouTube-Link.“ / „… Die Startzeit ist ungültig.“ / „… Der Titel muss
+  ein Text sein.“ / „… Der Titel ist zu lang (höchstens 120 Zeichen).“ – rohe Länge vorher grob begrenzt (CPU); dasselbe `id|start`
+  still nur einmal, unbekannte Felder entfallen) → `task.videos` **nur wenn nicht leer** (wie `material`; lib-Tests vergleichen
+  gespeicherte Aufgaben per deepEqual); `videosOut(raw)` (wirft nie, prüft erneut, ≤ 3, ungültige Startzeit = von vorn) in
+  `routePublicSheet` und `routeSheetGet` – je Aufgabe **immer** `videos` (kein Feld auf Blattebene, keine Spalte, keine zusätzliche
+  D1-Abfrage); `routeSheetCreate` antwortet mit `videoCount` (fehlt er bzw. ist er kleiner als gesendet → `#b-res-vid` „Die Videos
+  wurden vom Server nicht gespeichert – bitte die Seite neu laden.“). ai.js unverändert: Videos gehen nie an die KI (Prompt und
+  Checklisten-Prompt byte-gleich mit und ohne Videos – ai-/worker-/Smoke-Tests). **Browser-Block `/* VIDEO:BEGIN` … `/* VIDEO:END */`**
+  (reine Funktionen ohne Abhängigkeiten, nach `cleanFiles`, vor WORLDMAP; `test/unit/video.test.mjs`): `VIDEO_LIMITS {perTask 3, title
+  120, start 86400}` (= `LIMITS`), `YT_CONSENT` (**wörtlich und fest**, Vorgabe des Betreibers: „Erst nach diesem Klick wird das Video
+  von YouTube (Google) geladen. Dabei erhält Google unter anderem deine IP-Adresse und kann Cookies setzen; Daten können in die USA
+  gelangen.“ – im Schreibbereich auch bei Gruppen „du“), `YT_HOSTS` (genau youtube.com, www./m.youtube.com, youtu.be,
+  [www.]youtube-nocookie.com, exakt verglichen – nie `endsWith`), `parseYouTube(input)` → `{id, start}` | `{error}` (Links mit/ohne
+  Schema, `//…`, Einbettungscode nur per Regex auf `src` – nie DOM –, `&amp;` dekodiert; Pfade `/watch?v`, youtu.be/ID, `/shorts`,
+  `/embed`, `/live`, `/v`; Startzeit aus `t`, `start` oder `#t` (90, 90s, 1m30s, 1h2m3s, `videoStartOf`); `si=`/`pp=`/`list=`/`feature=`
+  fallen weg; Playlist → `YT_ERR_PLAYLIST`, sonst `YT_ERR_OTHER`/`YT_ERR_EMPTY`; Nutzer, Passwort, Port, Steuerzeichen, > 2000
+  Zeichen → abgelehnt), `cleanVideos` (fremde Daten wie `videosOut`), `videoTitle`, `youtubeUrl(v)` =
+  `https://www.youtube.com/watch?v=<id>[&t=<s>s]` (**eine** Funktion für Builder-Liste, Lehrkraft-Ansichten, „Video in neuem Tab
+  öffnen“, Sicherung, QR-Inhalt, gedruckten Link und URI), `youtubeEmbedUrl(v)` = `https://www.youtube-nocookie.com/embed/<id>?autoplay=1
+  [&start=<s>]`, `fmtVideoStart` (90 → „1:30“). **Builder:** unter dem Material-Editor `button.btn.ghost.small.bvid-add` „YouTube-Video im
+  Feibeitsblatt einbetten“ (aria-label „… – zu Aufgabe n“ in `renumber`; **nicht** in `.bmat-bar`, **keine** Klasse `fmtbtn` – E2E sucht
+  `.bmat .fmtbtn` mit hasText „U“/„F“) → `askVideo(others)` = Dialog `#ytdlg` nach dem Muster von `#linkdlg` (`#yd-url`, `#yd-title`
+  maxlength 120, `#yd-found` „Erkannt: …“, `#yd-err` role=alert, `#yd-ok` „Einbetten“, `#yd-cancel`; nur ein Modal gleichzeitig –
+  `dlgResolve || ldState || ydResolve` → `null`; Tab-Falle, Esc, Enter, Fokus zurück, Hintergrundklick erst nach 400 ms; dasselbe Video
+  mit derselben Startzeit → „Dieses Video ist bei dieser Aufgabe schon eingebettet.“; `logout` schließt `#ytdlg` und `#linkdlg`);
+  `tr._videos` (`addRow(…, textFmt, videos)` als 8. Parameter, `openBuilder` reicht `r.videos` durch), `renderVideos(tr)` →
+  `ul.bvids` > `li.bvid` (Titel, kanonischer Link per `newTabLink`, „ab m:ss“, `.iconbtn.x` „Video k zu Aufgabe n entfernen“ – nie in
+  `.acts`, `renumber` nutzt `.acts .x`), bei 3 `aria-disabled` + `.bvid-stat` „Höchstens 3 Videos je Aufgabe.“; `T.builderDirty` nur
+  beim Hinzufügen/Entfernen, nie beim Vorbefüllen (Vorlage, Import – `#b-back` ohne Rückfrage); die Zeilen-Löschfrage und die
+  Leerzeilen-Prüfung in `b-gen` zählen Videos mit; `b-gen` sendet `videos` (nur wenn vorhanden). **Schüler:innen:** `fetchSheet` →
+  `S.sheet.videos` (`cleanVideos` je Aufgabe); `buildTasks` setzt `div.task-videos` direkt nach `.task-material` (vor `.task-files`),
+  je Video `videoBlock(v, k, n)` = `figure.task-video#v-n-k` mit Platzhalter `div.yt-ph` (kein festes Seitenverhältnis – der Text wird nie
+  abgeschnitten): `p.yt-title` (Titel bzw. „Video k zu Aufgabe n“, ggf. „(ab m:ss)“), `p.yt-note#vn-n-k` = `YT_CONSENT`,
+  `button.btn.yt-load` `YT_LOAD_TEXT` „Video von YouTube laden“ (aria-describedby → Hinweis) und `a.yt-open` „Video in neuem Tab
+  öffnen“ (`youtubeUrl`, `_blank`, `rel="noopener noreferrer"`, sr-only „(öffnet in neuem Tab)“; bleibt nach dem Laden darunter stehen).
+  Klick → `div.yt-frame` (16:9) mit `iframe` (src erst jetzt, `youtubeEmbedUrl`; title „YouTube-Video: …“,
+  **`referrerpolicy="strict-origin-when-cross-origin"`** – die Seite sendet sonst keinen Referer (`Referrer-Policy: no-referrer`) und
+  YouTube verweigert eingebettete Player (Fehler 153); nur die Herkunft, nie Pfad, Hash oder Code; `allow="autoplay; encrypted-media;
+  picture-in-picture; fullscreen"`, `allowfullscreen`, `sandbox="allow-scripts allow-same-origin allow-presentation allow-popups
+  allow-popups-to-escape-sandbox"`), Fokus aufs iframe; alles per `h()`, nie innerHTML. **Die Zustimmung wird nirgends gespeichert**
+  (nicht im Zwischenstand, nicht in localStorage, nicht in PDF-Dateien): `show()` auf einen anderen Bildschirm → `stopVideos()` (iframe
+  weg, wieder Platzhalter, `fig._reset`); nach Neuladen/Weiterschreiben wieder Platzhalter. Daran hängen die Datenschutzsätze „diese
+  Seite speichert nicht, welche Videos du geladen hast“ und „verschwindet, wenn du die Seite neu lädst …“ – wer etwas speichert, muss
+  `YT_PRIV_*` (und ggf. den § 25-Abs.-2-Punkt) anpassen. **Lehrkraft-Ansichten:** `teacherVideos(metas)` → `div.tvideos` mit Sublabel
+  „Videos (YouTube)“ und je Video „Titel bzw. Video k (ab m:ss): <Link>“ (neuer Tab, noopener noreferrer) in den Blattdetails (nach dem
+  Material) und in den Abgaben-Details (nach der Aufgabenstellung) – keine iframes, keine Vorschaubilder, eigene Klassen (Tests zählen
+  `.task-label`/`.material`). „Als Vorlage verwenden“ übernimmt `videos`. **Sicherung:** siehe dort (Datensatz `videos` nur wenn
+  vorhanden, sichtbare Zeile „Video: …“, Hinweistext „Videos (als Links zu YouTube)“ nur mit Videos, kein Anhang). **Analoges
+  Arbeitsblatt:** je Video nach dem Material (nicht neben seiner grauen Linie) ein unteilbarer Block (`analogVideo`/`drawVideo`, `fits`,
+  sonst neue Seite; `firstBlock` kennt ihn): QR-Code `ANALOG_QR_PT` 90 per gemeinsamem `qrDraw(q, url, x, top, side)` (dasselbe
+  Op-Format wie der Checklisten-QR, Ruhezone 4 Module im linken Rand) mit Inhalt `youtubeUrl(v)` (nie die Eingabe der Lehrkraft;
+  Version ≤ 4), rechts fett „Video auf YouTube (Google)“, Titel, „ab m:ss“ und „Scanne den QR-Code oder gib die Adresse unter dem Code
+  ein.“, unter dem QR-Code die Adresse in **Courier** `/F5` (`ANALOG_URL_PT` 10, `pg.mono`) mit URI-Annotation auf genau diese Adresse;
+  nie `youtube-nocookie`, keine neuen Linien. **Datenschutz** (nur bei Blättern mit Videos, `sheetHasVideos(sh)`; Muster Escape: eigene
+  Knoten und Absätze, `privacyShortText` **nicht** ändern – typing.test prüft Signatur, Zahl der Vorkommen und Wortlaut): Bausteine
+  zwischen `FB2_SEND` und `PRIV_IHR` (außerhalb der per `new Function` ausgewerteten Ausschnitte von typing.test – dort keine neuen
+  Konstanten): `YT_GOOGLE` („Google Ireland Limited (Dublin, Irland), Anbieter von YouTube im EWR“), `ytShort(g)` (Kurzsatz: „Zu diesem
+  Feibeitsblatt gehören Videos von YouTube: Ein Video lädt diese Seite erst nach deinem Klick auf „Video von YouTube laden“ – dabei erhält
+  Google unter anderem deine IP-Adresse und kann Cookies setzen; Daten können in die USA gelangen.“; „ihr“-Form „Zu eurem Feibeitsblatt …
+  nach eurem Klick … eure IP-Adresse …“), `YT_PRIV_DU`/`YT_PRIV_IHR` (in `PRIV_DU`/`PRIV_IHR` gespreizt): `ytPurpose`, `ytData`
+  (IP-Adresse, technische Daten zu Browser und Gerät, die Adresse dieser Seite ohne den Code, welches Video und wie abgespielt;
+  Cookies und ähnliche Daten; Angaben und Antworten nie; diese Seite speichert nicht, welche Videos geladen wurden), `ytBasis`
+  („Videos von YouTube: deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO – für Cookies … zusammen mit § 25 Abs. 1 TDDDG …“, je Video mit
+  dem Klick, Widerruf = keine weiteren Videos laden), `ytItem` (Google Ireland Limited, auch Google LLC in den USA, `DPF_SCC`; „Video in
+  neuem Tab öffnen“ ruft YouTube direkt auf), `ytStay`, `ytChoice` (freiwillig – **kein „ohne Nachteil“**: eine Aufgabe kann das Video
+  voraussetzen, Art. 7 Abs. 4 offen), `ytRights` (Widerruf; Rechte auch direkt bei Google). `privacyNoticeDom` mit `videos` (`const yt`,
+  Einzelarbeit und Gruppe; **keine eigene Überschrift**): Wozu `para(B.ytPurpose)` nach dem Escape-Absatz, Rechtsgrundlage
+  `yt ? B.ytBasis : null` direkt nach LanguageTool (§ 25 Abs. 2 Nr. 2 nie auf YouTube ausdehnen), Welche Daten `para(B.ytData)` **nach**
+  `ESC_PRIV.data` (E2E-Selektoren `Welche Daten? + p + p` = `TT_ACCESS`, `+ p + p + p` = Escape), Empfänger `B.ytItem` nach LanguageTool
+  und vor `escMailItem` (kein „Escape-Room“ im Punkt – 7n filtert danach), Wie lange `para(B.ytStay)` nach `ESC_PRIV.stay`, Musst du
+  `+ B.ytChoice`, Deine Rechte `para(B.ytRights)` nach „Wende dich dafür an den Betreiber …“ (die beiden Absätze davor unverändert).
+  `renderPersonPrivacy`: `p.privacy#p-privacy-yt` (`ytShort(g)`) nach `#p-privacy-esc`, `videos: yt` **hinter** `escape: esc`
+  (typing.test sucht `typing: ttMeasured(…), ttSwitch: "live"` genau zweimal); `renderPrivacy`: `p.privacy.hidden#privacy-yt` (HTML nach
+  `#privacy-esc`, immer „du“) und `videos: yt` – beides **nach** `const full = $("privfull-ed")` (davor prüft typing.test auf
+  Tippzeit-Wörter), der Text von `#privacy` bleibt gleich. „Impressum & Datenschutz“: `section.legal-esc#legal-video` (`renderLegalVideo`,
+  h2 „Feibeitsblätter mit Videos von YouTube“, Einleitung, `PRIV_DU.ytPurpose`, `ytData`, `ytBasis`, `ytItem`, `ytStay`, `ytChoice`,
+  `ytRights` und der Satz zum QR-Code des analogen Arbeitsblattes, der direkt zu YouTube führt); `privacyNoticeDom` bekommt dort **kein**
+  `videos` (`GET /api/privacy` kennt kein Blatt), `#legal-privfull`/`#legal-other`/`#legal-escape` unverändert. Vorschau der Lehrkraft:
+  `PV_VIDEO_NOTE` in `#pv-preview-note` nach `PV_ESC_NOTE` (E2E 1b prüft den Text wörtlich). Keine Tippzeit-Wörter (`NO_TT`, ohne
+  Groß-/Kleinschreibung: auch nicht „Schalter“, „Haken“, „misst“) in Kurzsatz, Platzhalter, Knopf, iframe-title und Video-Titeln von
+  Testdaten; nie „Deine Schule“, „Datenschutzbeauftragte“, „frag deine Lehrkraft“. **Weiter vom Betreiber zu prüfen** (README,
+  „Videos von YouTube“; im Hinweis nichts behaupten): gemeinsame Verantwortlichkeit (Art. 26 DSGVO, EuGH C-40/17 „Fashion ID“),
+  Einwilligung unter 16 Jahren (Art. 8 DSGVO) und die Altersangaben in den YouTube-Nutzungsbedingungen (keine Altersabfrage ohne
+  Rückfrage beim Betreiber), Freiwilligkeit bei Aufgaben, die das Video brauchen, DPF-Stand der Google LLC. **Tests:** Unit
+  `video.test.mjs` (Block VIDEO, Hosts, Startzeit, Einbettungscode, `cleanVideos`, CSP, iframe-Attribute), `config.test.mjs` (CSP beider
+  Stellen), lib/worker (`validateVideos`/`videosOut`, Ausgabe öffentlich/Lehrkraft, gleiche Zahl D1-Abfragen), ai (Prompt ohne Videos),
+  Smoke (Schlüsselliste je Aufgabe mit `videos`, Blatt mit Video, ungültige → 400, Prompt ohne Video-Daten); E2E 7q (nach 7k, eigenes
+  Blatt, löscht alles; Attrappe für alle Google-/YouTube-Hosts per `context.route`: vor dem Klick keine Anfrage, danach genau eine an
+  `youtube-nocookie.com/embed/…` mit Referer = nur Herkunft, keine CSP-Verletzung, Zustimmung nicht gespeichert, Lehrkraft-Ansichten,
+  Vorlage, Sicherung/Import, analoges PDF mit QR → jsQR und Courier-Link, Datenschutzhinweis mit YouTube nur dort). Echtes Abspielen
+  testet keine Attrappe – nach dem Ausrollen einmal von Hand (Worker-Adresse und GitHub Pages).
 - **Geburtstag ohne Jahr (Datensparsamkeit):** Die Angaben-Seite fragt nur Tag und Monat ab (`fieldset.bday`, Legende
   „Geburtstag (Tag und Monat)“, zwei Textfelder `#p-gtag`/`#p-gmonat` mit `inputmode="numeric"`, `maxlength` 2,
   `autocomplete="bday-day"`/`"bday-month"` (WCAG 2.2, 1.3.5; die übrigen Angaben `off`), kein automatischer Feldwechsel;
@@ -891,7 +1000,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   leeren Entwurf dann nur „Noch nicht gespeichert.“); KI-Fehler per `ckAiFailText` (`ai_quota` mit der Meldung des Servers, ohne
   doppelten Grund), keine automatische Wiederholung. PDF `makeAnalogPdf` (`analogImages` lädt Bilder und Kartenbilder per `loadImage`
   → `pdfJpeg`, fehlt eines → Abbruch; PDF-Dateien nur als Namen): A4, Ränder 50/56/60, `/F1`–`/F4` = Helvetica, -Bold, -Oblique,
-  -BoldOblique, Inhalte FlateDecode (`deflateBytes`); `analogRuns`/`analogLines` setzen Läufe mit Formatierung, Links **nur als
+  -BoldOblique, `/F5` = Courier nur für die Adressen von YouTube-Videos (Objekt `monoObj` = 8 **nach** Info 7, nur wenn eine Seite sie
+  nutzt – `pdfStructure(buf, 7)` bleibt; siehe YouTube-Videos), Inhalte FlateDecode (`deflateBytes`); `analogRuns`/`analogLines` setzen Läufe mit Formatierung, Links **nur als
   Adresse** (nie der Linktext) mit URI-Annotation (gedruckt per `analogHrefText`: prozentkodierte Umlaute lesbar wie in der
   Adresszeile, nur WinAnsi-druckbare Zeichen ohne Leer-/Steuer-/Formatzeichen, sonst kodiert; die Annotation bleibt kodiert; Punycode
   bleibt), zwischen zwei aneinanderstoßenden Adressen bzw. Wort und Adresse ein Leerzeichen, nach einer Adresse vor jedem direkt
@@ -1167,8 +1277,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   2-%-Aufräumen sie gelegentlich vor der Prüfung).
   Lokal: `npx wrangler dev --local --ip 127.0.0.1 --port <p> --persist-to <dir> --show-interactive-dev-session=false`.
   KI im Test: Anbieter `custom`, baseUrl `http://127.0.0.1:<port>/v1` (Mock); LanguageTool per
-  `page.route("https://api.languagetool.org/**")`. In der Sandbox: echte KI-Anbieter und LanguageTool nicht
-  erreichbar, Browser unter `/opt/pw-browsers` – **nie `playwright install`**. Gestartete Server immer beenden.
+  `page.route("https://api.languagetool.org/**")`, YouTube/Google per Attrappe (siehe YouTube-Videos: nie echte Anfragen). In der
+  Sandbox: echte KI-Anbieter, LanguageTool und YouTube nicht erreichbar, Browser unter `/opt/pw-browsers` – **nie `playwright
+  install`**. Gestartete Server immer beenden.
 - **Deployment:** `.github/workflows/deploy.yml` (push auf `main` + `workflow_dispatch`): ohne Secret
   `CLOUDFLARE_API_TOKEN` nur Hinweis (CI bleibt grün). Sonst `npm ci` → `npm test` → `npm run build` →
   workers.dev-Subdomain sicherstellen → D1 `--jurisdiction eu` anlegen, falls nicht vorhanden (Ort nur beim

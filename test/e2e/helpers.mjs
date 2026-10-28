@@ -55,13 +55,39 @@ export async function installLanguageTool(context, log) {
   });
 }
 
+/* ---------- YouTube-/Google-Attrappe ---------- */
+// Alle Hosts von YouTube und Google (Player, Vorschaubilder, Videodaten, Skripte, Werbung): Die Tests erreichen nie das echte YouTube.
+// Der eingebettete Player (www.youtube-nocookie.com/embed/…) und „Video in neuem Tab öffnen“ (www.youtube.com/watch?v=…) bekommen eine
+// kleine HTML-Seite ohne Unterressourcen, alles andere wird abgebrochen. log = [{url, method, headers, isNav}] je Anfrage.
+export const YT_HOST_RE = /^(?:[a-z0-9-]+\.)*(?:youtube(?:-nocookie)?\.com|youtu\.be|ytimg\.com|ggpht\.com|googlevideo\.com|google(?:apis|usercontent|tagmanager|syndication|adservices)?\.com|google\.[a-z]{2,3}(?:\.[a-z]{2})?|gstatic\.com|doubleclick\.net)$/;
+const YT_ROUTE_RE = /^https?:\/\/(?:[a-z0-9-]+\.)*(?:youtube(?:-nocookie)?\.com|youtu\.be|ytimg\.com|ggpht\.com|googlevideo\.com|google(?:apis|usercontent|tagmanager|syndication|adservices)?\.com|google\.[a-z]{2,3}(?:\.[a-z]{2})?|gstatic\.com|doubleclick\.net)(?::\d+)?\//;
+export const YT_STUB = '<!doctype html><meta charset="utf-8"><title>Attrappe</title><p id="yt-stub">Video (Attrappe)</p>';
+export async function installYouTube(context, log) {
+  await context.route(YT_ROUTE_RE, async (route) => {
+    const req = route.request(), u = new URL(req.url());
+    log.push({ url: req.url(), method: req.method(), headers: await req.allHeaders(), isNav: req.isNavigationRequest() });
+    const stub = (u.hostname === "www.youtube-nocookie.com" && u.pathname.startsWith("/embed/")) || (u.hostname === "www.youtube.com" && u.pathname === "/watch");
+    if (stub) await route.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: YT_STUB });
+    else await route.abort("blockedbyclient");
+  });
+}
+// Anfragen, die YouTube bzw. Google erreichen sollen (zugelassen erst nach dem Klick der Schüler:innen, siehe closePage)
+export const isYouTubeUrl = (url) => { try { return YT_HOST_RE.test(new URL(url).hostname); } catch (e) { return false; } };
+
 /* ---------- Seiten mit Protokoll ---------- */
 // Jede Seite in eigenem Kontext (eigener localStorage); protokolliert API-Antworten, Seitenfehler und CSP-Verstöße.
+// yt = Anfragen an YouTube/Google (Attrappe), foreign = alle Anfragen an fremde Hosts (auch aus iframes und Popups)
 export async function openPage(browser, { clipboard = false } = {}) {
   const context = await browser.newContext();
   if (clipboard) await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  const lt = [];
+  const lt = [], yt = [], foreign = [];
   await installLanguageTool(context, lt);
+  await installYouTube(context, yt);
+  context.on("request", (r) => {
+    let host = "";
+    try { host = new URL(r.url()).hostname; } catch (e) { return; }
+    if (host && host !== "127.0.0.1" && host !== "localhost" && host !== "api.languagetool.org") foreign.push(r.url());
+  });
   await context.addInitScript(() => {
     window.__csp = [];
     document.addEventListener("securitypolicyviolation", (e) => window.__csp.push(e.violatedDirective + " " + e.blockedURI));
@@ -81,12 +107,17 @@ export async function openPage(browser, { clipboard = false } = {}) {
   await expect(page.locator("#screen-start")).toHaveClass(/active/);
   // API-Aufrufe dieser Seite (mit vollständig gelesenem Antworttext), optional gefiltert
   const calls = async (filter = () => true) => { await Promise.all(api.map((e) => e.ready)); return api.filter(filter); };
-  return { context, page, errors, api, calls, lt };
+  return { context, page, errors, api, calls, lt, yt, foreign };
 }
+// p.allowYouTube = true erlaubt Anfragen an den eingebetteten Player (www.youtube-nocookie.com/embed/…) und an
+// www.youtube.com/watch?v=… (Video in neuem Tab) – nur Tests, in denen Schüler:innen ein Video laden; sonst keine einzige
 export async function closePage(p) {
   const csp = await p.page.evaluate(() => window.__csp).catch(() => []);
   expect(p.errors, "keine JavaScript-Fehler auf der Seite").toEqual([]);
   expect(csp, "keine CSP-Verstöße").toEqual([]);
+  const google = p.foreign.filter(isYouTubeUrl);
+  const allowed = (u) => /^https:\/\/www\.youtube-nocookie\.com\/embed\/[A-Za-z0-9_-]{11}\?/.test(u) || /^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}(&t=\d+s)?$/.test(u);
+  expect(google, "keine Anfrage an YouTube/Google").toEqual(p.allowYouTube ? google.filter(allowed) : []);
   await p.context.close();
 }
 

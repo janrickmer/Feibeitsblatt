@@ -8,7 +8,9 @@ sie eine zweite KI-Rückmeldung zu ihrer abgegebenen Fassung. In der
 Lehrkräfte-Übersicht sehen Sie alle Abgaben – die erste Fassung und die überarbeitete Fassung nebeneinander (bei
 einer Abgabe ohne KI-Feedback nur die abgegebene Fassung). Jedes Feibeitsblatt lässt sich auch als analoges
 Arbeitsblatt zum Ausdrucken herunterladen – mit Schreiblinien und einem QR-Code zu einer Checkliste, auf der die
-Schüler:innen selbst abhaken, ob ihre Antworten die Erwartungen erfüllen. Ein Feibeitsblatt kann auch das Finale eines
+Schüler:innen selbst abhaken, ob ihre Antworten die Erwartungen erfüllen. Unter dem Material einer Aufgabe lassen sich
+YouTube-Videos einbetten: Die Schüler:innen laden ein Video erst mit einem eigenen Klick (vorher lädt die Seite nichts von YouTube),
+auf dem analogen Arbeitsblatt führt ein QR-Code zum Video. Ein Feibeitsblatt kann auch das Finale eines
 Escape-Rooms der Reihe sein: Dann kommen die Schüler:innen über den Link am Ende des Escape-Rooms (oder dessen
 Überblick-PDF) mit ihren Angaben und Ergebnissen aus dem Raum an (siehe [Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)).
 Wie im Feiditor misst Feibeitsblatt beim Schreiben die **Tippzeiten** (je Zeichen den Abstand zum vorangehenden Zeichen).
@@ -103,6 +105,16 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    PDF-Dateien zu einer Aufgabe hinterlegt, stehen sie als „Material zum Herunterladen“ unter der Aufgabenstellung:
    Ein Klick auf eine Datei lädt sie herunter (sie landet im Download-Ordner und wird nicht im Tab geöffnet); dabei
    wird nichts gesendet außer der Anfrage nach der Datei.
+   **YouTube-Videos:** Hat die Lehrkraft unter dem Material Videos von YouTube eingebettet, steht dort je Video zuerst nur
+   ein Platzhalter – kein Vorschaubild, sondern der Titel, der Hinweis „Erst nach diesem Klick wird das Video von YouTube
+   (Google) geladen. Dabei erhält Google unter anderem deine IP-Adresse und kann Cookies setzen; Daten können in die USA
+   gelangen.“ und der Knopf **„Video von YouTube laden“**. Bis zu diesem Klick lädt die Seite nichts von YouTube. Der Klick lädt nur
+   dieses eine Video (über `www.youtube-nocookie.com`) und startet es; „Video in neuem Tab öffnen“ daneben öffnet es
+   stattdessen direkt auf YouTube. Die Zustimmung gilt nur für dieses Video und nur, solange der Schreibbereich offen ist –
+   sie wird nirgends gespeichert: Nach dem Neuladen, nach „Weiterschreiben“ und nach der Abgabe steht wieder der Platzhalter
+   da (ein laufendes Video endet, sobald der Schreibbereich verlassen wird). Bei solchen Blättern nennt der
+   Datenschutzhinweis YouTube in einem eigenen Absatz unter der Kurzfassung und im ausführlichen Hinweis (Zweck,
+   Rechtsgrundlage, Daten, Empfänger, Speicherdauer, Rechte).
    **Tabelle:** Hat die Lehrkraft als Antwort eine Tabelle vorgesehen, stehen unter der Aufgabe die Spaltenüberschriften
    und leere Zellen. Mit der Tab-Taste geht es zur nächsten Zelle (Umschalt+Tab zurück), Enter springt in die Zelle
    darunter und legt am Ende eine neue Zeile an; „+ Zeile“ ergänzt ebenfalls eine (höchstens 30). Auf schmalen
@@ -241,7 +253,9 @@ Arbeitsblatt“ unten), führt der QR-Code am Ende zu einer Seite mit der Checkl
 `#checkliste=` und dem Code). Dort haken sie je Aufgabe ab, was ihre Antwort schon erfüllt („2 von 4 abgehakt“). Die
 Häkchen bleiben nur auf dem Gerät und werden nicht gesendet; „Alle Häkchen entfernen“ setzt die Liste zurück, und
 nach 7 Tagen ohne Änderung löscht die Seite sie beim nächsten Aufruf. Ändert die Lehrkraft die Punkte, beginnt die
-Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit eingetragenem Code.
+Liste leer. „Feibeitsblatt digital öffnen“ führt zur Startseite mit eingetragenem Code. Zu einem YouTube-Video steht auf
+dem Papier ein eigener QR-Code mit der ausgeschriebenen Adresse; er führt direkt zu YouTube – am Platzhalter mit dem
+Datenschutzhinweis vorbei, deshalb beschreibt die Seite „Impressum & Datenschutz“ das eigens.
 
 **Als Finale eines Escape-Rooms.** Ein Feibeitsblatt kann der Endgegner eines Escape-Rooms der Reihe sein (siehe
 [Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)). Die Schüler:innen kommen dann nicht über den Code, sondern über den
@@ -333,6 +347,20 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    bleibt erhalten (Zeichen wie `/`, `:` oder `?` werden durch `-` ersetzt). Wie Bilder sind die PDF-Dateien für
    alle abrufbar, die den Code kennen, nicht verschlüsselt und gehen nie an die KI – laden Sie keine Dateien mit
    personenbezogenen Daten hoch.
+   **YouTube-Videos:** Unter dem Material jeder Aufgabe öffnet **„YouTube-Video im Feibeitsblatt einbetten“** einen Dialog
+   für den Link des Videos (von youtube.com, youtu.be oder m.youtube.com, auch Shorts und Live, oder den Einbettungscode
+   von YouTube aus „Teilen“ → „Einbetten“) und auf Wunsch einen Titel (bis 120 Zeichen). Eine Startzeit im Link (`t=90`,
+   `t=1m30s`, `start=90`) wird übernommen; Playlists lassen sich nicht einbetten. Gespeichert werden nur die Kennung des
+   Videos, die Startzeit und Ihr Titel – nie der eingegebene Link (Zusätze wie `si=` oder `list=` fallen weg). Den Titel
+   holt die Seite nicht selbst bei YouTube ab (sonst ginge schon beim Anlegen eine Anfrage an Google); ohne Titel sehen die
+   Schüler:innen „Video 1 zu Aufgabe 2“. Bis zu drei Videos je Aufgabe; die Liste unter dem Material zeigt Titel und Link
+   (zum Prüfen in einem neuen Tab), ✕ entfernt ein Video. Das Video muss öffentlich oder „nicht gelistet“ sein und das
+   Einbetten erlauben – sonst zeigt der Player bei den Schüler:innen eine Fehlermeldung von YouTube („Video in neuem Tab
+   öffnen“ geht dann trotzdem). Die Schüler:innen sehen zuerst nur einen Platzhalter mit einem Satz zum Datenschutz und laden
+   ein Video mit einem eigenen Klick; dieser Klick ist ihre Einwilligung, und sie ist freiwillig. **Stellen Sie die Aufgabe
+   deshalb so, dass sie sich auch ohne das Video lösen lässt** (z. B. das Wichtigste zusätzlich im Material). Der
+   Datenschutzhinweis eines solchen Blattes nennt YouTube (Google) von selbst. Videos gehen nie an die KI – sie kennt also
+   weder den Link noch den Inhalt eines Videos. Auf dem analogen Arbeitsblatt steht je Video ein QR-Code (Schritt 7).
    **Antwortart:** Unter „Antwortart“ wählen Sie je Aufgabe, wie die Schüler:innen antworten: **Textfeld** (Vorgabe),
    **Tabelle** oder **Weltkarten-Zuordnung**. Bei der Tabelle tragen Sie die Spaltenüberschriften ein (eine je Zeile
    oder durch „;“ getrennt, höchstens 8 mit je 60 Zeichen) und die Zahl der vorgegebenen Zeilen (1 bis 30); eine
@@ -352,10 +380,12 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    gespeichert.“; größere PDF-Dateien gehen in Teilen zu je 512 KB an den Server); so lange bleibt „Zur Übersicht“
    gesperrt. Schlägt eines fehl, sagt die Seite welches, und „Fehlende Dateien erneut hochladen“ holt es nach (eine
    Wiederholung legt nie etwas doppelt an; eine unterbrochene PDF-Datei wird ab dem fehlenden Teil fortgesetzt und
-   erscheint erst vollständig bei den Schüler:innen). Geben Sie den Code an die Klasse weiter. Ein erstelltes
+   erscheint erst vollständig bei den Schüler:innen). YouTube-Videos speichert der Server gleich mit dem Blatt (es gibt
+   nichts hochzuladen); antwortet ein älterer Server ohne sie, sagt die Seite „Die Videos wurden vom Server nicht
+   gespeichert – bitte die Seite neu laden.“ Geben Sie den Code an die Klasse weiter. Ein erstelltes
    Feibeitsblatt lässt sich nicht mehr ändern; für eine geänderte Fassung wählen Sie es aus und klicken „Als
    Vorlage für ein neues Feibeitsblatt verwenden“ – das übernimmt Aufgaben (samt Formatierung), Material, Aufträge an die KI, Bilder,
-   PDF-Dateien und Antwortarten (samt Karten und Kartenbildern) und ergibt einen neuen Code.
+   PDF-Dateien, YouTube-Videos und Antwortarten (samt Karten und Kartenbildern) und ergibt einen neuen Code.
 5. **Abgaben ansehen.** Die Tabelle der Feibeitsblätter zeigt Titel, Code, Datum und die Zahl der Aufgaben und
    Abgaben (ein oranges „+1“ dahinter zählt Erstversuche ohne Überarbeitung). Ein Klick wählt ein Blatt aus. Die
    Abgaben erscheinen eingeklappt mit den Spalten „Kürzel Nachname“, „Kürzel Vorname“, „Geburtstag“ (Tag und Monat,
@@ -378,7 +408,8 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    „Überblick als PDF herunterladen“). Eine Tabelle
    erscheint dort als Tabelle, eine Weltkarten-Zuordnung als Liste („Kaffee → Brasilien“) mit „Zugeordnet: x von n“.
    In den aufgeklappten „Aufgaben und Aufträge an die KI“ eines Blattes steht je Aufgabe die Antwortart, bei der Weltkarte
-   mit allen Karten und ihren richtigen Ländern. Gibt die
+   mit allen Karten und ihren richtigen Ländern. Eingebettete YouTube-Videos stehen dort und in den Details der Abgaben
+   unter „Videos (YouTube)“ als Links (neuer Tab) – ohne Player und ohne Vorschaubild. Gibt die
    Person später ab, ersetzt die Abgabe ihren Erstversuch; gibt sie von einem anderen Gerät oder nach einem
    neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
    die Zahl; in den Details der Abgabe lässt er sich unter „… älterer Erstversuch dieser Person“ aufklappen). Bei einer
@@ -406,11 +437,12 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    Noten und nicht bei einem Täuschungsverdacht (siehe [Tippzeiten](#tippzeiten)).
 6. **Als PDF-Datei sichern und wiederverwenden.** Bei einem ausgewählten Feibeitsblatt lädt „Als PDF-Datei
    herunterladen“ eine PDF-Datei herunter (`Feibeitsblatt-<Code>-<Titel>.pdf`, Umlaute im Namen umschrieben). Sie zeigt Titel, Aufgabenstellungen,
-   Material (als Text, Links mit Adresse) und die Bilder; die Namen angehängter PDF-Dateien stehen darunter. Im
+   Material (als Text, Links mit Adresse), je YouTube-Video eine Zeile „Video: Titel – https://www.youtube.com/watch?v=…“
+   und die Bilder; die Namen angehängter PDF-Dateien stehen darunter. Im
    Hintergrund enthält sie **alles**, was zum Wiederherstellen nötig ist: Aufgaben (mit Formatierung und Links), **Aufträge an die KI**, Material mit
    Formatierung und Links, jedes Bild in Originalqualität mit Anzeigeart und Bildbeschreibung, jede PDF-Datei
-   unverändert und die Antwortarten (Tabellenspalten; Karten mit Bild und richtigen Ländern) – jeweils mit
-   Prüfsumme. Sichtbar steht die Antwortart unter jeder Aufgabe, bei der Weltkarte mit der Liste der Karten und Länder. Im PDF-Programm erscheinen diese Daten als Anhänge. Abgaben der Schüler:innen
+   unverändert, die YouTube-Videos (Kennung, Startzeit und Titel – ohne Anhang, ohne Vorschaubild) und die Antwortarten
+   (Tabellenspalten; Karten mit Bild und richtigen Ländern) – Bilder und Dateien jeweils mit Prüfsumme. Sichtbar steht die Antwortart unter jeder Aufgabe, bei der Weltkarte mit der Liste der Karten und Länder. Im PDF-Programm erscheinen diese Daten als Anhänge. Abgaben der Schüler:innen
    enthält die Datei nicht. Weil die Aufträge an die KI darin stecken, geben Sie die Datei bitte nicht an Schüler:innen
    weiter; auf der ersten Seite steht dazu ein Hinweis. Mit **„Feibeitsblatt aus PDF-Datei laden“** (oben neben
    „Neues Feibeitsblatt erstellen“) wählen Sie eine solche Datei aus. Der Editor öffnet sich mit allen Aufgaben,
@@ -420,7 +452,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    getrennt. Das funktioniert auch, nachdem Sie das ursprüngliche Blatt gelöscht haben. Auch eine Datei, die ein
    PDF-Programm neu gespeichert hat, lässt sich in der Regel laden. Ein Ausdruck oder Screenshot enthält die Daten
    aber nicht. Bilder oder Dateien, die in der Datei fehlen oder beschädigt sind (Prüfsumme falsch), lässt die Seite
-   mit einem Hinweis weg. Eine solche Sicherung und ein Zwischenstand von Schüler:innen lassen sich nicht als
+   mit einem Hinweis weg, ebenso ungültige Angaben zu einem Video. Eine solche Sicherung und ein Zwischenstand von Schüler:innen lassen sich nicht als
    PDF-Material an eine Aufgabe hängen – sonst bekämen Schüler:innen die Aufträge an die KI bzw. fremde Angaben. Sichtbar in
    der PDF sind nur Zeichen des Zeichensatzes Windows-1252; andere Zeichen, z. B. griechische Buchstaben oder Emoji,
    erscheinen dort als „?“. In den Hintergrunddaten bleiben sie erhalten.
@@ -434,12 +466,16 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    Aufgabenstellung (mit Fett, Kursiv, Unterstrichen), Bilder, Material (Links erscheinen als Adresse, nie als Linktext;
    Umlaute in Adressen stehen lesbar da, zwei direkt aneinanderstoßende Links trennt ein Leerzeichen, ebenso eine
    Adresse und direkt folgenden Text – aus „[Wikipedia]-Artikel“ wird „https://… -Artikel“, damit niemand „-Artikel“ für
-   einen Teil der Adresse hält; nur Satzzeichen wie „.“ oder „)“ folgen direkt), die Namen angehängter PDF-Dateien („nur
-   digital“) und Platz für die Antwort: **8 Schreiblinien** im Abstand von 24 pt (etwa 8,5 mm, passend für Handschrift
+   einen Teil der Adresse hält; nur Satzzeichen wie „.“ oder „)“ folgen direkt), je YouTube-Video einen QR-Code mit
+   „Video auf YouTube (Google)“, Titel und Startzeit daneben und der ausgeschriebenen Adresse darunter
+   (`https://www.youtube.com/watch?v=…`, in Schreibmaschinenschrift, damit sich „I“ und „l“ unterscheiden lassen; der
+   QR-Code führt direkt zu YouTube, ohne den Platzhalter mit dem Datenschutzhinweis), die Namen angehängter PDF-Dateien
+   („nur digital“) und Platz für die Antwort: **8 Schreiblinien** im Abstand von 24 pt (etwa 8,5 mm, passend für Handschrift
    in Schriftgröße 14), bei einer Tabelle ein Gitter mit **zwei Schreibzeilen je Tabellenzeile** (der Kopf wiederholt
    sich auf jeder neuen Seite; bei vielen Spalten wird seine Schrift kleiner, bis jedes Wort in seine Spalte passt), bei
    der Weltkarten-Zuordnung eine Umrisskarte ohne Ländernamen und darunter die Karten mit einer Linie für das Land. Am
-   Ende steht ein **QR-Code zur Checkliste**. Aufträge an die KI, richtige Länder und Abgaben stehen nie darin. Die
+   Ende steht ein **QR-Code zur Checkliste**. Aufträge an die KI, richtige Länder, Abgaben und Vorschaubilder von YouTube
+   stehen nie darin. Die
    Punkte der Checkliste schlägt beim ersten Öffnen einmal die KI vor: Sie bekommt dafür nur Aufgabenstellungen,
    Material (als reinen Text) und Ihre Aufträge an die KI – keine Abgaben und keine Daten der Schüler:innen – und macht
    daraus kurze, prüfbare Punkte in Du-Form („Du nennst …“) – nur so viele, wie Aufgabe und Auftrag hergeben –, die auch
@@ -952,6 +988,11 @@ Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
 - **Rechtschreibprüfung (LanguageTool):** Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO – erteilt mit dem Klick und der
   Bestätigung im Dialog (ohne Bestätigung wird nichts gesendet), für die Zukunft widerrufbar, indem man die Prüfung nicht
   mehr nutzt.
+- **Videos von YouTube** (nur bei Feibeitsblättern mit Videos – sonst bleibt die Liste im Hinweis, wie sie ist):
+  Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO und – für Cookies und ähnliche Daten, die YouTube im Browser speichert oder
+  ausliest – § 25 Abs. 1 TDDDG; erteilt für jedes Video mit dem Klick auf „Video von YouTube laden“ (ohne Klick lädt die
+  Seite nichts von YouTube), für die Zukunft widerrufbar, indem man keine weiteren Videos lädt. Die Seite speichert die
+  Einwilligung nicht; nach dem Neuladen steht wieder der Platzhalter da. Offene Fragen dazu: [Videos von YouTube](#videos-von-youtube).
 - **Aufruf und Auslieferung der Seite** (Cloudflare, ggf. GitHub Pages) und **Schutz vor Missbrauch und Überlastung**
   (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO (berechtigtes Interesse an einer sicheren
   und zuverlässigen Bereitstellung); dazu nennt der Hinweis das Widerspruchsrecht nach Art. 21 DSGVO.
@@ -966,13 +1007,15 @@ Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
 Für Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und den Widerruf nennt der Hinweis den Betreiber (E-Mail);
 weil nur die Lehrkraft die verschlüsselten Abgaben lesen und einzeln löschen kann, verweist er auch auf sie. Beschweren
 kann man sich bei der Aufsichtsbehörde aus `window.FEIBEITSBLATT_OPERATOR` (für diese Installation der Hessische
-Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden).
+Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden). Bei Blättern mit YouTube-Videos sagt der Hinweis
+außerdem, dass man die Rechte zu den Daten, die Google beim Laden eines Videos erhält, auch direkt bei Google geltend
+machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 
 ### Was gespeichert wird
 
 | Daten | Wo | Wie | Wie lange |
 |---|---|---|---|
-| Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI**, ggf. Name und Kennung eines Escape-Rooms | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback; Name und Kennung des Escape-Rooms sind öffentlich abrufbar) | bis Sie das Blatt löschen |
+| Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI**, ggf. YouTube-Videos (Kennung, Startzeit, Titel – nie ein Link) und Name und Kennung eines Escape-Rooms | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback; Videos, Name und Kennung des Escape-Rooms sind öffentlich abrufbar) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
 | Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten **mit ihren Tippzeiten** (nach einem Widerspruch nur der Vermerk `optOut`), KI-Feedback und – nachgereicht – die KI-Rückmeldung zur abgegebenen Fassung, Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“); bei einem Escape-Room-Finale außerdem die Ergebnisse aus dem Escape-Room (Name und Kennung des Raums, Codewort, Abschlusszeitpunkt, je Station Versuche und Fehler im ersten Versuch, genutzte Zwischenstand-Dateien des Escape-Rooms mit Stelle und Zeitpunkten, ob die Prüfsumme stimmt) – ohne vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe) und eine zufällige Kennung der Bearbeitung | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
@@ -988,6 +1031,7 @@ Beauftragte für Datenschutz und Informationsfreiheit, Wiesbaden).
 | Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe (und, wenn die KI-Rückmeldung zur abgegebenen Fassung noch nachgereicht wird, bis dahin) hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 | Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale samt Datensatz aus dem Escape-Room), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
+| Cookies und ähnliche Daten von YouTube – nur nach einem Klick auf „Video von YouTube laden“ | im Browser des benutzten Geräts, gesetzt und gelesen von Google (YouTube), nicht von Feibeitsblatt | nach den Bedingungen von Google; Feibeitsblatt speichert weder die Einwilligung noch, welche Videos geladen wurden | bis sie ablaufen oder im Browser gelöscht werden |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
 | Lösungs-PDF einer Abgabe aus Ihrer Übersicht („Lösungs-PDF herunterladen“; dieselben Inhalte wie „Meine Lösungen“: Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, beide Fassungen, KI-Rückmeldungen – kein Geburtstag, keine Tippzeiten; bei einem Escape-Room-Finale nur die Lösungsseiten, ohne den Überblick aus dem Raum), nur auf Klick | auf Ihrem Gerät, dort, wo Sie die Datei speichern (im Dateinamen Code, Klasse, Kürzel und Abgabedatum); im Browser erzeugt, der Server sieht sie nie | unverschlüsselt und lesbar | bis Sie die Datei löschen – die Löschfrist gilt dafür nicht |
 | Abschluss-PDF eines Escape-Room-Finales (statt „Meine Lösungen“; dazu der Überblick aus dem Escape-Room mit vollem Namen, Geburtsdatum, Klasse, Bestätigungscode, Ergebnissen und Lösungserläuterungen – keine Tippzeiten), nur auf Klick nach der Abgabe oder nach einer technisch gescheiterten Abgabe (dann mit dem Vermerk „Noch nicht abgegeben …“) | dort, wo die Schülerin bzw. der Schüler die Datei speichert; nur wenn sie bzw. er sie nach einer gescheiterten Abgabe per E-Mail schickt, auch im Postfach des Betreibers (`window.FEIBEITSBLATT_OPERATOR`) | unverschlüsselt, lesbar; per E-Mail unverschlüsselt über die beteiligten E-Mail-Anbieter | bis die Datei gelöscht wird; eine E-Mail laut Datenschutzhinweis, bis die Lehrkraft sie übernommen hat (siehe [Was wohin gesendet wird](#was-wohin-gesendet-wird)) |
@@ -1022,7 +1066,8 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   Empfänger mit der Grundlage der Übermittlung in die USA: Cloudflare und GitHub (EU-US Data Privacy Framework, ersatzweise
   Standardvertragsklauseln), den KI-Dienst (Workers AI wie Cloudflare, Groq: Standardvertragsklauseln laut Groq, andere:
   „vom Betreiber dieser Seite beim Anbieter zu prüfen“) und LanguageTool (Learneo ist nach dem Data Privacy Framework zertifiziert,
-  ersatzweise Standardvertragsklauseln).
+  ersatzweise Standardvertragsklauseln) – und nur bei Blättern mit Videos Google Ireland Limited (YouTube; Übermittlung in
+  die USA laut Google über das EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln).
 - **KI-Feedback (freiwillig):** Nur wenn die Schülerin bzw. der Schüler auf „KI um ein Feedback bitten“ klickt und
   den Dialog bestätigt, schickt der Browser den Blatt-Code, die Antworten und die Liste der Empfänger, über die
   informiert wurde, an den Server dieser Seite (Cloudflare). Wer ohne vorherige Anfrage ohne KI-Feedback abgibt, dessen
@@ -1063,6 +1108,20 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   `index.html`; eine Einstellung zum vollständigen Abschalten der Prüfung gibt es bisher nicht. Laut derselben
   Erklärung ist Learneo nach dem EU-US Data Privacy Framework (samt Swiss-US und UK Extension) zertifiziert; ersatzweise
   gelten Standardvertragsklauseln.
+- **YouTube-Videos (freiwillig, nur nach Klick):** Bei Blättern mit Videos steht unter dem Material je Video nur ein
+  Platzhalter ohne Vorschaubild; die Seite selbst fragt vorher nichts bei YouTube ab (kein Vorschaubild, keine Titel per
+  oEmbed, keine `preconnect`-Hinweise, keine IFrame-API). Erst der Klick auf „Video von YouTube laden“ setzt den Player von
+  `https://www.youtube-nocookie.com/embed/<Kennung>` ein – nur dieses eine Video. Dabei erhält Google Ireland Limited
+  (Anbieter von YouTube im EWR; Verarbeitung auch durch Google LLC in den USA) die IP-Adresse, technische Daten zu Browser
+  und Gerät, die Adresse der Seite (nur die Herkunft, z. B. `https://feibeitsblatt.janrickmer.de` – ohne Pfad und ohne den
+  Code; das iframe sendet sie mit `referrerpolicy="strict-origin-when-cross-origin"`, weil YouTube eingebettete Player ohne
+  Referer ablehnt), welches Video geladen und wie es abgespielt wird; YouTube kann Cookies und ähnliche Daten im Browser
+  speichern und auslesen – auch über `youtube-nocookie.com`. Angaben, Antworten und Tippzeiten bekommt Google nie.
+  „Video in neuem Tab öffnen“ und der QR-Code auf dem analogen Arbeitsblatt rufen YouTube direkt auf (ohne Referer bzw.
+  wie jede andere Adresse); dort gelten die Bedingungen von YouTube. Die Content-Security-Policy erlaubt Frames nur von
+  `https://www.youtube-nocookie.com` und Bilder nur von der eigenen Seite – so kann vor dem Klick auch versehentlich nichts
+  von YouTube geladen werden. Manche Browser bauen beim Überfahren eines Links von sich aus schon eine Verbindung zu dessen
+  Server auf („Seiten vorab laden“); das gilt für jeden Link, auch im Material, und liegt außerhalb der Seite.
 - **Checkliste zum analogen Arbeitsblatt (Lehrkraft):** Beim ersten Öffnen von „Analoges Arbeitsblatt als PDF
   herunterladen“ (und bei „Neu von der KI vorschlagen lassen“) schickt der Server **Aufgabenstellungen, den Text des
   Materials (ohne Link-Adressen), die Spalten von Tabellen und Ihre Aufträge an die KI** an den KI-Dienst (erster
@@ -1087,7 +1146,8 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   E-Mail-Anbieter an die Adresse aus `window.FEIBEITSBLATT_OPERATOR`; der Datenschutzhinweis nennt diesen Empfänger
   eigens. Wie lange der Betreiber solche E-Mails aufbewahrt, ist noch festzulegen (der Hinweis sagt bisher: „bis deine
   Lehrkraft sie übernommen hat“).
-- Die Seite lädt keine externen Schriften, Bibliotheken oder Tracker.
+- Die Seite lädt keine externen Schriften, Bibliotheken oder Tracker; nur ein YouTube-Video, das Schüler:innen mit einem
+  Klick laden, kommt samt Player (und gegebenenfalls Cookies) von YouTube (Google).
 
 ### Tippzeiten
 
@@ -1165,10 +1225,45 @@ tippen die Schüler:innen, sie werden normal gemessen.
   Art. 5 Abs. 3 der ePrivacy-Richtlinie (Rn. 38 und 53) wahrscheinlich. Der Hinweis nennt den Zugriff nur als Tatsache
   und ersetzt keine Einwilligung.
 
+### Videos von YouTube
+
+Bei einem Feibeitsblatt mit eingebetteten Videos (siehe [Lehrkraft, Schritt 3](#so-arbeiten-sie-als-lehrkraft)) sehen die
+Schüler:innen unter dem Material zuerst nur einen Platzhalter mit dem festen Satz „Erst nach diesem Klick wird das Video von
+YouTube (Google) geladen. Dabei erhält Google unter anderem deine IP-Adresse und kann Cookies setzen; Daten können in die USA
+gelangen.“ Erst der Klick auf „Video von YouTube laden“ lädt dieses eine Video – das ist die Einwilligung (Art. 6 Abs. 1
+Buchst. a DSGVO, für Cookies zusammen mit § 25 Abs. 1 TDDDG). Sie gilt je Video und je Aufruf und wird nirgends gespeichert
+(nicht im Zwischenstand, nicht im Browser, nicht in PDF-Dateien); deshalb kann der Hinweis sagen, dass diese Seite nicht
+speichert, welche Videos jemand geladen hat. Die Kurzfassungen des Datenschutzhinweises (Angaben-Bildschirm, unter den
+Aufgaben) bekommen bei solchen Blättern einen eigenen Absatz zu YouTube; der ausführliche Hinweis nennt Zweck,
+Rechtsgrundlage, Daten, Google Ireland Limited als Empfänger (Übermittlung in die USA laut Google über das EU-US Data
+Privacy Framework, ersatzweise Standardvertragsklauseln), Speicherdauer, Freiwilligkeit und den Widerruf. Bei Blättern
+ohne Videos ändert sich am Hinweis nichts. Die Seite „Impressum & Datenschutz“ beschreibt Videos in einem eigenen
+Abschnitt in allgemeiner Form (welches Blatt Videos hat, weiß sie ohne Code nicht) – samt dem QR-Code auf dem analogen
+Arbeitsblatt, der direkt zu YouTube führt. Nach dem Ausrollen bitte einmal mit einem echten Video prüfen (unter der
+Worker-Adresse und über GitHub Pages), ob es abspielt: Die Tests ersetzen YouTube durch eine Attrappe.
+
+**Weiter vom Betreiber zu prüfen** (der Hinweis behauptet dazu nichts):
+
+- **Gemeinsame Verantwortlichkeit:** Ob der Betreiber für das Einbetten zusammen mit Google verantwortlich ist (Art. 26
+  DSGVO; EuGH, Urteil vom 29.07.2019, C-40/17 „Fashion ID“, zum Einbinden fremder Inhalte, die Daten an den Anbieter
+  schicken) und ob es dafür eine Vereinbarung bräuchte bzw. welche Angaben dann im Hinweis fehlen.
+- **Einwilligung Minderjähriger:** Art. 8 DSGVO (in Deutschland 16 Jahre) gilt für Dienste der Informationsgesellschaft,
+  die einem Kind direkt angeboten werden; ob das auf das Laden eines eingebetteten Videos zutrifft und ob jüngere
+  Schüler:innen dann wirksam einwilligen können, ist offen. Ebenso die Altersanforderungen in den Nutzungsbedingungen von
+  YouTube (aus der Entwicklungsumgebung nicht abrufbar, deshalb nicht geprüft). Eine Altersabfrage wie bei der
+  Rechtschreibprüfung gibt es bewusst nicht – nur den einen Klick.
+- **Freiwilligkeit:** Eine Einwilligung muss freiwillig sein (Art. 7 Abs. 4 DSGVO). Setzt eine Aufgabe das Video voraus,
+  ist das fraglich; der Hinweis verspricht deshalb kein „ohne Nachteil“. Lehrkräften wird empfohlen, Aufgaben auch ohne das
+  Video lösbar zu stellen.
+- **Gruppenarbeit:** Bei Partner- oder Gruppenarbeit klickt eine Person für das gemeinsame Gerät; die Hinweise stehen auf
+  dem Angaben-Bildschirm in der „ihr“-Form.
+- **Stand der Übermittlungsgrundlage:** ob die Google LLC weiterhin nach dem EU-US Data Privacy Framework zertifiziert ist
+  und was Google zu `youtube-nocookie.com` (Cookies und ähnliche Daten trotz des Namens) und zur Speicherdauer sagt.
+
 ### Empfehlungen
 
-1. Prüfen Sie als Betreiber **vor** der Nutzung Cloudflare (Hosting und Datenbank), den gewählten KI-Anbieter und
-   LanguageTool. Setzen Sie Feibeitsblatt im Unterricht ein, klären Sie außerdem, ob Ihre Schule oder Ihr Land Vorgaben
+1. Prüfen Sie als Betreiber **vor** der Nutzung Cloudflare (Hosting und Datenbank), den gewählten KI-Anbieter,
+   LanguageTool und – wenn Lehrkräfte Videos einbetten – YouTube (Google; siehe [Videos von YouTube](#videos-von-youtube)). Setzen Sie Feibeitsblatt im Unterricht ein, klären Sie außerdem, ob Ihre Schule oder Ihr Land Vorgaben
    für digitale Werkzeuge macht.
 2. Ein **Auftragsverarbeitungsvertrag (AVV/DPA)** mit den Anbietern ist, soweit erforderlich, vom Betreiber als
    Verantwortlichem abzuschließen. Ob ein Anbieter für kostenlose Konten einen AVV anbietet, ist beim Anbieter zu
@@ -1177,7 +1272,8 @@ tippen die Schüler:innen, sie werden normal gemessen.
    Datenschutzhinweis nach Art. 13 DSGVO (Angaben-Bildschirm, unter dem Feedback-Button und auf der Seite „Impressum &
    Datenschutz“) nennt den Betreiber als Verantwortlichen, Zweck, Rechtsgrundlagen, Daten, alle Empfänger mit Sitz und
    Übermittlungsgrundlage, Speicherdauer, Freiwilligkeit, Rechte und Beschwerderecht – mit den Angaben aus
-   `window.FEIBEITSBLATT_OPERATOR` ([Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)).
+   `window.FEIBEITSBLATT_OPERATOR` ([Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)). Bei
+   Feibeitsblättern mit YouTube-Videos nennt er YouTube (Google) von selbst.
    Für Eltern eignet sich zusätzlich der [Textbaustein unten](#textbaustein-für-schülerinnen-und-eltern). Wechseln Sie den
    KI-Anbieter, tragen Sie eine Reserve ein oder verlängern Sie die Löschfrist, muss die Information erneuert werden (der
    Hinweis in der Seite passt sich selbst an). Die Konten bei Cloudflare und beim KI-Anbieter sollten dem Betreiber
@@ -1190,7 +1286,8 @@ tippen die Schüler:innen, sie werden normal gemessen.
    Abgaben dieses Feibeitsblattes löschen“); nicht mehr benötigte Feibeitsblätter löschen Sie selbst.
 6. **Rechte der Schüler:innen umsetzen.** Der Datenschutzhinweis nennt den Betreiber (E-Mail) als Ansprechpartner für
    Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und den Widerruf der Einwilligung zur
-   Rechtschreibprüfung – und, weil nur Sie die verschlüsselten Abgaben lesen und einzeln löschen können, auch Sie. Auskunft: die Einträge dieser Person in der Übersicht
+   Rechtschreibprüfung (die Einwilligung zum Laden von YouTube-Videos widerruft man, indem man keine weiteren Videos lädt;
+   was Google dabei erhalten hat, kann nur Google löschen – Feibeitsblatt speichert dazu nichts) – und, weil nur Sie die verschlüsselten Abgaben lesen und einzeln löschen können, auch Sie. Auskunft: die Einträge dieser Person in der Übersicht
    aufklappen – bei Partner- oder Gruppenarbeit die Zeile ihrer Gruppe (sie enthält die Antworten aller Mitglieder). Hat sie
    abgegeben, blendet die Liste ältere Erstversuche derselben Person (gleiche Klasse, Kürzel und
    Geburtstag, z. B. auf einem anderen Gerät begonnen) bzw. derselben Gruppe (gleiche Klasse und Kürzel) aus – der Zähler über der Liste nennt ihre Anzahl, und in den
@@ -1230,7 +1327,7 @@ Schüler:innen.
 > Lehrkraft bei Auffälligkeiten mit der Schülerin bzw. dem Schüler über die Arbeitsweise sprechen kann.
 > Rechtsgrundlagen sind die Nutzung des kostenlosen Angebots (Art. 6 Abs. 1 Buchst. b DSGVO)
 > für Bearbeiten, Abgeben und das freiwillige KI-Feedback, die Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO) für die
-> Rechtschreibprüfung und das berechtigte Interesse (Art. 6 Abs. 1 Buchst. f DSGVO) für die Tippzeiten sowie für den
+> Rechtschreibprüfung [und das Laden von YouTube-Videos] und das berechtigte Interesse (Art. 6 Abs. 1 Buchst. f DSGVO) für die Tippzeiten sowie für den
 > Aufruf der Seite und den Schutz vor Missbrauch (sichere Bereitstellung). Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte samt ihren Tippzeiten – bei Partner- oder
 > Gruppenarbeit die Namenskürzel aller Mitglieder und die Klasse, ohne Geburtstag; wer sie einträgt, trägt die Kürzel der
 > anderen mit ein –, verschlüsselt, nur für die Lehrkraft lesbar, auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
@@ -1245,7 +1342,12 @@ Schüler:innen.
 > Bestätigungscode bleiben auf dem Gerät (Zwischenstand und heruntergeladene PDF-Dateien); an die Lehrkraft gehen nur
 > die Ergebnisse, verschlüsselt, an einen KI-Dienst nie. Scheitert die Abgabe aus technischen Gründen, kann die
 > Abschluss-PDF (mit diesen Daten und den Antworten) auf eigenen Wunsch per E-Mail an [Betreiber, E-Mail] geschickt
-> werden – unverschlüsselt.]
+> werden – unverschlüsselt.] [Falls Feibeitsblätter YouTube-Videos enthalten: Ein Video lädt die Seite erst nach einem
+> Klick der Schülerin bzw. des Schülers auf „Video von YouTube laden“ (Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO und
+> § 25 Abs. 1 TDDDG); vorher sieht man nur einen Platzhalter. Dabei erhält Google Ireland Limited (Anbieter von YouTube im
+> EWR) unter anderem die IP-Adresse und kann Cookies setzen; Daten können in die USA gelangen (Google stützt sich auf das
+> EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln). Feibeitsblatt speichert nicht, wer welches
+> Video geladen hat. Ausgedruckte Arbeitsblätter verlinken ein Video per QR-Code direkt auf YouTube.]
 > Die Rückmeldung der KI ist freiwillig: Wer sie nicht möchte, gibt ohne KI-Feedback ab; dann gehen die Antworten an
 > keinen KI-Dienst, und daraus entsteht kein Nachteil. Für die Rückmeldungen (eine zum Überarbeiten, eine bei der Abgabe zu den danach geänderten Antworten) werden nur die Antworttexte (ohne
 > Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B.
@@ -1404,6 +1506,7 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Material je Aufgabe | 8000 Zeichen, 60 Links; nur fett, kursiv, unterstrichen und Links (http/https) |
 | Bilder je Aufgabe | 5; je Bild höchstens 500 KB nach dem Verkleinern (längste Seite 1600 Pixel); alle Bilder eines Blattes zusammen 12 MB |
 | PDF-Dateien je Aufgabe | 3; je Datei höchstens 6 MB; alle PDF-Dateien eines Blattes zusammen 20 MB; Dateiname bis 120 Zeichen |
+| YouTube-Videos je Aufgabe | 3; Titel bis 120 Zeichen; Startzeit unter 24 Stunden; belegen keinen Speicher für Dateien (nur Kennung, Startzeit und Titel) |
 | Tabelle (Antwortart) | 1–8 Spalten mit je 60 Zeichen Überschrift, 1–30 Zeilen; die ganze Tabelle als Text höchstens 8000 Zeichen |
 | Weltkarten-Zuordnung (Antwortart) | 1–40 Karten je Aufgabe (Bezeichnung 120, Hinweis 400 Zeichen, ein Bild – zählt nicht zu den 5 Bildern), je Karte 1–10 richtige Länder, je Blatt höchstens 400 richtige Länder zusammen |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
@@ -1451,6 +1554,8 @@ gespeichert.
 | „LanguageTool ist gerade nicht erreichbar (Netz, Schulfilter oder Dienst gestört).“ | Ein Schulfilter sperrt eventuell `api.languagetool.org` (die Schul-IT kann die Adresse freigeben) – oder, wenn es nur zeitweise auftritt, das Minutenlimit von LanguageTool für das Schulnetz: eine Minute warten, nicht alle gleichzeitig prüfen. |
 | „Das Bild kann der Browser nicht lesen (z. B. HEIC). Bitte als JPG oder PNG speichern.“ | Das Format kann der Browser nicht öffnen – meist HEIC-Fotos vom iPhone. Das Foto als JPG sichern (iOS: Einstellungen → Kamera → Formate → „Maximale Kompatibilität“, oder aus der Fotos-App als JPG teilen) oder ein anderes Bild wählen. |
 | „1 Bild konnte nicht gespeichert werden … Das Feibeitsblatt selbst ist angelegt.“ (ebenso für PDF-Dateien) | Das Hochladen ist unterbrochen worden (Netz) oder der Server hat die Datei abgelehnt (Meldung in Klammern). Bei Netzfehlern „Fehlende Dateien erneut hochladen“ klicken; bei einer Ablehnung (zu groß, zu viele, keine PDF) das Blatt löschen und mit weniger oder kleineren Dateien neu anlegen. |
+| Statt des YouTube-Videos zeigt der Player eine Fehlermeldung (z. B. „Video nicht verfügbar“ oder „Fehler 153“) | Das Video ist privat, gelöscht oder lässt sich nicht einbetten (Einstellung der Person, die es hochgeladen hat) – ein anderes Video wählen; „Video in neuem Tab öffnen“ geht meist trotzdem. „Fehler 153“ (Konfigurationsfehler des Players) heißt meist, dass YouTube keinen Referer bekam: Prüfen Sie, ob das iframe noch `referrerpolicy="strict-origin-when-cross-origin"` trägt und kein Browser-Zusatz den Referer entfernt. |
+| Der Platzhalter zeigt nach dem Klick nur eine leere Fläche | Die Content-Security-Policy lässt den Player nicht zu (fehlt `frame-src https://www.youtube-nocookie.com` in `_headers` oder in der `<meta>`-Zeile?) oder ein Schulfilter sperrt `www.youtube-nocookie.com` – die Schul-IT kann die Adresse freigeben. |
 | „konnte nicht geladen werden – erneut versuchen“ an einer PDF-Datei | Die Verbindung ist beim Herunterladen abgerissen. Noch einmal auf die Datei klicken. |
 | „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
 | „Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in …“ | Kein Fehler: Die Minutenlimits aller Modelle sind gerade ausgeschöpft; die Seite wiederholt von selbst (bis zu fünf Versuche in etwa vier Minuten). Weiterschreiben ist möglich; „Nicht länger warten“ bricht ab. Kommt das ständig vor, Feedback gestaffelt anfordern lassen oder eine Reserve-KI eintragen. |
@@ -1524,6 +1629,9 @@ Zu beachten:
   bei der Rechtschreibprüfung zu LanguageTool.
 - Die Bilder und PDF-Dateien zu Aufgaben kommen weiterhin vom Worker; die Seite bettet Bilder als `data:`-Adressen
   ein und baut PDF-Dateien im Browser zusammen (`blob:`), ein eigener Eintrag in der CSP ist dafür nicht nötig.
+- Eingebettete YouTube-Videos brauchen `frame-src https://www.youtube-nocookie.com` – in `_headers` **und** in der
+  `<meta>`-Zeile (sonst blockiert der Browser den Player). `Referrer-Policy: no-referrer` setzt nur der Worker; der Player
+  sendet in beiden Fällen nur die Herkunft der Seite (`referrerpolicy` am iframe).
 - Eine eigene Domain lässt sich alternativ direkt beim Worker einrichten („Workers & Pages“ → `feibeitsblatt` →
   „Settings“ → „Domains & Routes“ → „Add“ → „Custom domain“). Das setzt voraus, dass die Domain bei Cloudflare
   verwaltet wird, also ihre Nameserver auf Cloudflare zeigen (vorher alle vorhandenen DNS-Einträge wie E-Mail bei
@@ -1604,6 +1712,15 @@ Kennzeichen `/FbEscape 1` in der Überblick-PDF. Einzelheiten, Grenzen und Testv
 („Escape-Room-Anbindung“); Änderungen an der Schnittstelle nur gemeinsam mit den Escape-Rooms und mit einer neuen Version
 `v`. `test/escape-fixture.mjs` baut Hülle, Link und Überblick-PDF so wie ein Escape-Room (mit frei erfundenen Daten);
 `ESCAPE_PDF_OUT=<Ordner> npm run test:e2e` speichert die PDF-Dateien und Bildschirmfotos der Tests 7n/7o zum Ansehen.
+
+**YouTube-Videos:** Gespeichert wird je Aufgabe nur `videos: [{id, start?, title?}]` (nie eine URL); alle Adressen baut der
+Browser aus der geprüften Kennung (`youtubeUrl`, `youtubeEmbedUrl` im Block `VIDEO:BEGIN … VIDEO:END` von `index.html`,
+Unit-Test `test/unit/video.test.mjs`). Der Player kommt nur aus `https://www.youtube-nocookie.com` – diese Adresse steht als
+`frame-src` in `_headers` **und** in der `<meta>`-Zeile der Content-Security-Policy (`test/unit/config.test.mjs` prüft
+beide); `img-src` bleibt ohne YouTube, damit nie ein Vorschaubild geladen wird. Die Datenschutztexte zu YouTube stehen in
+`YT_PRIV_DU`/`YT_PRIV_IHR` und `ytShort`; sie erscheinen nur bei Blättern mit Videos (Einzelheiten in `CLAUDE.md`,
+„YouTube-Videos unter dem Material“). In den Tests ersetzt eine Attrappe YouTube; echtes Abspielen bitte nach dem
+Ausrollen einmal von Hand prüfen.
 
 **Aufbau:**
 

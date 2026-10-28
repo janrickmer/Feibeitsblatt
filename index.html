@@ -6,8 +6,10 @@
 <meta name="robots" content="noindex, nofollow">
 <!-- Content-Security-Policy auch dann, wenn die Seite nicht vom Worker kommt (GitHub Pages setzt keine Header).
      Bei Auslieferung durch den Worker gilt zusätzlich _headers. Die Worker-Adresse hier und im Skript darunter
-     müssen übereinstimmen. frame-ancestors lässt sich per <meta> nicht setzen. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.languagetool.org https://feibeitsblatt.feindt.workers.dev; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
+     müssen übereinstimmen. frame-ancestors lässt sich per <meta> nicht setzen. frame-src nur youtube-nocookie.com (eingebettete
+     Videos, geladen erst nach einem Klick der Schüler:innen) – hier und in _headers gleich halten; img-src bewusst ohne
+     Vorschaubilder von YouTube. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.languagetool.org https://feibeitsblatt.feindt.workers.dev; img-src 'self' data: blob:; frame-src https://www.youtube-nocookie.com; base-uri 'none'; form-action 'none'">
 <title>Feibeitsblatt</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236b4f2c'/%3E%3Ctext x='32' y='45' font-family='Georgia,serif' font-size='40' font-weight='bold' text-anchor='middle' fill='%23fffdf8'%3EF%3C/text%3E%3C/svg%3E">
 <script>
@@ -332,6 +334,29 @@
   .filebtn.failed .filebtn-meta{color:inherit}
   .filebtn .spinner{display:none; margin:0}
   .filebtn.loading .spinner{display:inline-block}
+  /* YouTube-Videos unter dem Material: zuerst nur ein Platzhalter (kein Vorschaubild, keine Anfrage an YouTube); erst der Klick lädt
+     das Video. Der Platzhalter wächst mit dem Text (kein festes Seitenverhältnis – der Hinweis wird nie abgeschnitten), nur der Player 16:9. */
+  .task-videos{margin:0 0 12px}
+  .task-video{margin:0 0 12px; max-width:640px}
+  .task-video:last-child{margin-bottom:0}
+  .yt-ph{display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:12px 16px 14px; background:var(--soft); border:1px solid var(--line);
+    border-left:3px solid var(--accent2); border-radius:8px; font-family:var(--sans); font-size:14px; line-height:1.5}
+  .yt-ph p{margin:0}
+  .yt-title{font-weight:700; overflow-wrap:anywhere}
+  .yt-title::before{content:"▶\00a0" / ""; color:var(--accent)}   /* nur sichtbar, nicht vorgelesen */
+  .yt-note{color:var(--ink); font-size:13.5px}
+  .yt-acts{display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px}
+  .yt-open{font-family:var(--sans); font-size:13.5px; color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
+  .yt-open:hover{color:var(--accent2)}
+  .yt-open::after{content:"\00a0↗" / ""; font-size:.75em; color:var(--muted)}
+  .yt-frame{position:relative; width:100%; max-width:100%; aspect-ratio:16 / 9; background:#000; border-radius:8px; overflow:hidden}
+  .yt-frame iframe{position:absolute; inset:0; width:100%; height:100%; border:0}
+  .yt-after{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 16px; margin:6px 0 0; font-family:var(--sans); font-size:13.5px; line-height:1.5}
+  .yt-after .yt-title{margin:0}
+  .tvideos{margin:6px 0 0; font-family:var(--sans); font-size:14px; line-height:1.5}
+  .tvideos > .sublabel{display:block; margin:0 0 2px}
+  .tvideos ul{margin:0; padding-left:20px}
+  .tvideos li{margin:2px 0; overflow-wrap:anywhere}
   .material p{margin:0 0 .55em; overflow-wrap:anywhere}
   .material a,.qtext a{color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
   .material a:hover,.qtext a:hover{color:var(--accent2)}
@@ -357,9 +382,23 @@
   .bq-edit.is-empty::before{left:10px; right:10px; top:8px}
   .fmt-edit a{color:var(--accent); text-decoration:underline}
   .bmat .fhint,.bq .fhint{margin:4px 0 0}
-  #linkdlg .field{margin:0 0 12px}
-  #linkdlg p.err{margin:0 0 10px; min-height:1.3em}
-  #linkdlg p.fhint{margin:5px 0 0; font-size:12.5px; line-height:1.45}
+  #linkdlg .field,#ytdlg .field{margin:0 0 12px}
+  #linkdlg p.err,#ytdlg p.err{margin:0 0 10px; min-height:1.3em}
+  #linkdlg p.fhint,#ytdlg p.fhint{margin:5px 0 0; font-size:12.5px; line-height:1.45}
+  #ytdlg p#yd-desc{margin:0 0 14px; white-space:normal}
+  #ytdlg p#yd-found:empty{display:none}
+  #ytdlg p#yd-found{color:var(--green); overflow-wrap:anywhere}
+  /* YouTube-Videos im Blatt-Editor (unter dem Material): Liste wie die PDF-Dateien, Knopf „YouTube-Video im Feibeitsblatt einbetten“ */
+  .bvids{list-style:none; display:flex; flex-direction:column; gap:6px; margin:8px 0 0; padding:0}
+  .bvids:empty{display:none}
+  .bvid{display:flex; align-items:center; gap:10px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--paper); font-family:var(--sans); font-size:13.5px}
+  .bvid .filebtn-icon{background:var(--accent)}
+  .bvid-name{min-width:0; flex:1 1 auto; overflow-wrap:anywhere}
+  .bvid-name b{font-weight:600}
+  .bvid-name a{color:var(--accent)}
+  .bvid .bimg-meta{flex:0 0 auto}
+  .bvid-row{margin:8px 0 0}
+  .bvid-row .bvid-stat{margin:0; font-size:12.5px}
   .fmtbtn[aria-pressed="true"]{background:var(--soft); border-color:var(--accent2)}
   .task + .task{margin-top:1.78em}
   .task-q{font-weight:700; padding:2px 0 0; margin:0 0 6px}
@@ -541,7 +580,7 @@
   .startpriv{font-size:12px; color:var(--muted); line-height:1.5; margin:18px 0 0}
   .pprivacy{margin:2px 0 16px}
   .pprivacy .privacy{margin:0}
-  .pprivacy .privacy + .privacy{margin-top:6px}   /* Escape-Room-Finale: eigener Absatz unter der Kurzfassung */
+  .pprivacy .privacy + .privacy{margin-top:6px}   /* Escape-Room-Finale, YouTube-Videos: eigene Absätze unter der Kurzfassung */
   details.privfull{margin:8px 0 0; font-size:12.5px; line-height:1.5; color:var(--muted); max-width:640px}
   details.privfull > summary{cursor:pointer; color:var(--ink); font-weight:600}
   details.privfull .privh{font-family:var(--sans); font-size:12.5px; font-weight:600; letter-spacing:0; line-height:1.4; margin:10px 0 2px; color:var(--ink)}
@@ -958,6 +997,7 @@
         <div class="notebox hidden" id="fb-fallback" role="status"></div>
         <p class="privacy" id="privacy"></p>
         <p class="privacy hidden" id="privacy-esc"></p>
+        <p class="privacy hidden" id="privacy-yt"></p>
         <div id="privfull-ed"></div>
         <div class="moodle-hint hidden" id="revise-hint" role="status" tabindex="-1"></div>
         <div class="submitrow">
@@ -1043,6 +1083,7 @@
       <div id="legal-privacy"></div>
       <p class="fhint legal-other" id="legal-other">Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. Bei Partner- oder Gruppenarbeit gilt alles ebenso für alle in der Gruppe; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.</p>
       <section class="legal-esc" id="legal-escape" aria-labelledby="legal-escape-h"></section>
+      <section class="legal-esc" id="legal-video" aria-labelledby="legal-video-h"></section>
       <button type="button" class="backlink" id="legal-home2">← zur Startseite</button>
     </div>
   </div>
@@ -1183,7 +1224,7 @@
     <div id="tv-builder" class="hidden">
       <button type="button" class="backlink" id="b-back">← zurück zur Übersicht</button>
       <h1>Neues Feibeitsblatt</h1>
-      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils einen Auftrag an die KI: worauf sie beim Feedback zu dieser Aufgabe achten soll (siehe Hinweis unten). Den Auftrag sehen die Schüler:innen nicht; sie bekommen von der KI Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten. Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter.</p>
+      <p class="sub">Tragen Sie links die Aufgabenstellungen ein und rechts jeweils einen Auftrag an die KI: worauf sie beim Feedback zu dieser Aufgabe achten soll (siehe Hinweis unten). Den Auftrag sehen die Schüler:innen nicht; sie bekommen von der KI Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten. Zu jeder Aufgabe können Sie bis zu fünf Bilder hochladen (JPG, PNG, WebP) und je Bild wählen: „Miniatur rechts“ (neben Aufgabenstellung und Antwortfeld, Klick vergrößert) oder „Groß zwischen Aufgabe und Antwortfeld“. Eine kurze Bildbeschreibung wird Schüler:innen vorgelesen, die das Bild nicht sehen können. Unter „Material“ können Sie zu jeder Aufgabe einen Text hinterlegen (fett, kursiv, unterstrichen) und Links einfügen; Schüler:innen öffnen Links immer in einem neuen Tab. Außerdem können Sie je Aufgabe bis zu drei PDF-Dateien (je höchstens 6 MB) als Material hochladen – Schüler:innen laden eine Datei mit einem Klick herunter. Unter dem Material können Sie je Aufgabe bis zu drei YouTube-Videos einbetten: Schüler:innen sehen zuerst nur einen Platzhalter und laden ein Video erst mit einem Klick (mit Hinweis zum Datenschutz); auf dem analogen Arbeitsblatt steht stattdessen ein QR-Code mit dem Link.</p>
       <div id="b-form">
         <p class="note hidden" id="b-import" style="margin:0 0 14px"></p>
         <div class="field" style="max-width:640px">
@@ -1206,7 +1247,7 @@
             <p class="fhint" id="b-esc-hint">Kennung genau wie im Quelltext des Escape-Rooms (ESCAPE_ROOM.id): 3 bis 60 Zeichen, nur a–z, 0–9 und Bindestrich. Schüler:innen öffnen dieses Feibeitsblatt dann nur über den Escape-Room – über den Link am Ende oder mit ihrer Überblick-PDF; die Eingabe des Codes auf der Startseite ist gesperrt, es gibt nur Einzelarbeit und kein analoges Arbeitsblatt. Den Code tragen Sie nach dem Anlegen im Quelltext des Escape-Rooms ein (FEIBEITSBLATT_CODE). Liegt der Quelltext öffentlich (z. B. GitHub Pages), kann jede:r mit dem Code das Feibeitsblatt öffnen und abgeben – schreiben Sie in die Aufgaben und Aufträge an die KI nichts Vertrauliches.</p>
           </div>
         </fieldset>
-        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Sachliche Fehler benennt die KI, die richtige Lösung – auch einzelne Begriffe oder Zahlen daraus – verrät sie aber nur, wenn Ihr Auftrag es ausdrücklich erlaubt; Noten vergibt sie nicht. Sie sieht nur Texte (Aufgabenstellung, Material, Ihren Auftrag und die Antwort), keine Bilder, PDF-Dateien oder Inhalte verlinkter Seiten. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
+        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Sachliche Fehler benennt die KI, die richtige Lösung – auch einzelne Begriffe oder Zahlen daraus – verrät sie aber nur, wenn Ihr Auftrag es ausdrücklich erlaubt; Noten vergibt sie nicht. Sie sieht nur Texte (Aufgabenstellung, Material, Ihren Auftrag und die Antwort), keine Bilder, Videos, PDF-Dateien oder Inhalte verlinkter Seiten. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
         <div class="tablewrap">
           <table class="batch builder">
             <thead><tr>
@@ -1233,6 +1274,7 @@
           <button type="button" class="btn ghost small" id="b-res-copy">Kopieren</button>
         </div>
         <p class="status" id="b-res-img" aria-live="polite"></p>
+        <p class="status bad hidden" id="b-res-vid" role="status"></p>
         <div class="row">
           <button type="button" class="btn" id="b-res-back">Zur Übersicht</button>
           <button type="button" class="btn ghost small hidden" id="b-res-retry">Fehlende Dateien erneut hochladen</button>
@@ -1469,6 +1511,29 @@
       <button type="button" class="linkbtn hidden" id="ld-remove">Link entfernen</button>
       <button type="button" class="btn ghost" id="ld-cancel">Abbrechen</button>
       <button type="button" class="btn" id="ld-ok">Einfügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- YouTube-Video unter dem Material einer Aufgabe einbetten (Blatt-Editor) -->
+<div class="modal" id="ytdlg" role="dialog" aria-modal="true" aria-labelledby="yd-h" aria-describedby="yd-desc">
+  <div class="box">
+    <h2 id="yd-h">YouTube-Video einbetten</h2>
+    <p class="fhint" id="yd-desc">Die Schüler:innen sehen zuerst nur einen Platzhalter; das Video wird erst nach ihrem Klick von YouTube geladen. Auf dem analogen Arbeitsblatt steht ein QR-Code mit dem Link.</p>
+    <div class="field">
+      <label for="yd-url">Link des YouTube-Videos</label>
+      <input type="url" id="yd-url" maxlength="2000" autocomplete="off" spellcheck="false" placeholder="https://www.youtube.com/watch?v=…" aria-describedby="yd-url-hint yd-found">
+      <p class="fhint" id="yd-url-hint">Links von youtube.com und youtu.be (auch Shorts) oder der Einbettungscode von YouTube. Eine Startzeit im Link (z. B. t=90 oder t=1m30s) wird übernommen. Das Video muss öffentlich oder „nicht gelistet“ sein und das Einbetten erlauben.</p>
+      <p class="fhint" id="yd-found"></p>
+    </div>
+    <div class="field">
+      <label for="yd-title">Titel (freiwillig)</label>
+      <input type="text" id="yd-title" maxlength="120" autocomplete="off" placeholder="z. B. Fotosynthese einfach erklärt">
+    </div>
+    <p class="err" id="yd-err" role="alert"></p>
+    <div class="row">
+      <button type="button" class="btn ghost" id="yd-cancel">Abbrechen</button>
+      <button type="button" class="btn" id="yd-ok">Einbetten</button>
     </div>
   </div>
 </div>
@@ -2448,6 +2513,7 @@ const Crypto = {
 /* ---------------------------- Bildschirme ---------------------------- */
 let screen = "screen-start";
 function show(id) {
+  if (id !== "screen-editor") stopVideos();   // eingebettete Videos beenden – ein verborgener Bildschirm spielt sonst weiter
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
   screen = id;
   document.body.classList.toggle("writing", id === "screen-editor");
@@ -2700,6 +2766,56 @@ function syncFmt(ed) {
 }
 document.addEventListener("selectionchange", () => { const a = document.activeElement; if (a && a.classList && a.classList.contains("fmt-edit")) syncFmt(a); });
 $("linkdlg").addEventListener("click", (e) => { if (e.target === $("linkdlg")) closeLinkDlg(); });
+/* Dialog „YouTube-Video einbetten“ (Blatt-Editor) → Promise<{id, start?, title?} | null>. Es gibt nur einen Dialog gleichzeitig:
+   Ist schon einer offen (Bestätigung, Link, Video), kommt sofort null. Gespeichert werden nur Kennung, Startzeit und Titel (nie der
+   eingegebene Link mit si= & Co.); others = die Videos derselben Aufgabe (dasselbe Video mit derselben Startzeit nur einmal). */
+let ydResolve = null, ydReturn = null, ydOpenedAt = 0, ydOthers = [];
+function askVideo(others) {
+  if (dlgResolve || ldState || ydResolve) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    ydResolve = resolve; ydReturn = document.activeElement; ydOpenedAt = Date.now(); ydOthers = others || [];
+    $("yd-url").value = ""; $("yd-title").value = ""; $("yd-err").textContent = ""; $("yd-found").textContent = "";
+    $("yd-url").classList.remove("invalid");
+    $("ytdlg").classList.add("open");
+    setTimeout(() => { if (ydResolve === resolve) $("yd-url").focus(); }, 20);
+  });
+}
+function closeVideoDlg(val) {
+  if (!ydResolve) return;
+  $("ytdlg").classList.remove("open");
+  const r = ydResolve, back = ydReturn; ydResolve = null; ydReturn = null; ydOthers = [];
+  if (back && back.isConnected) { try { back.focus(); } catch (e) { /* egal */ } }
+  r(val);
+}
+function applyVideo() {
+  if (!ydResolve) return;
+  const url = $("yd-url"), v = parseYouTube(url.value);
+  const bad = (msg) => { $("yd-err").textContent = msg; url.classList.add("invalid"); url.focus(); };
+  if (v.error) { bad(v.error); return; }
+  if (ydOthers.some((x) => x.id === v.id && (x.start || 0) === v.start)) { bad("Dieses Video ist bei dieser Aufgabe schon eingebettet."); return; }
+  const title = videoTitle($("yd-title").value);
+  closeVideoDlg(Object.assign({ id: v.id }, v.start ? { start: v.start } : null, title ? { title } : null));
+}
+$("yd-ok").addEventListener("click", applyVideo);
+$("yd-cancel").addEventListener("click", () => closeVideoDlg(null));
+// Erkannter Link als Rückmeldung unter dem Feld (still, nicht vorgelesen – zu gesprächig); eine alte Fehlermeldung verschwindet
+$("yd-url").addEventListener("input", () => {
+  const v = parseYouTube($("yd-url").value);
+  $("yd-err").textContent = ""; $("yd-url").classList.remove("invalid");
+  $("yd-found").textContent = v.error ? "" : "Erkannt: " + youtubeUrl(v) + (v.start ? ` (Start bei ${fmtVideoStart(v.start)})` : "");
+});
+$("ytdlg").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); closeVideoDlg(null); }
+  else if (e.key === "Enter" && (e.target.id === "yd-url" || e.target.id === "yd-title")) { e.preventDefault(); applyVideo(); }
+  else if (e.key === "Tab") {   // Fokus im Dialog halten
+    const f = Array.from($("ytdlg").querySelectorAll("input, button")).filter((x) => !x.classList.contains("hidden") && !x.disabled);
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+// Klick auf den Hintergrund schließt – aber nicht der zweite Klick eines Doppelklicks auf den Öffner direkt nach dem Öffnen
+$("ytdlg").addEventListener("click", (e) => { if (e.target === $("ytdlg") && Date.now() - ydOpenedAt > 400) closeVideoDlg(null); });
 /* Formatierbarer Text der Lehrkraft (fett/kursiv/unterstrichen, Links) als contenteditable – derselbe Editor für die
    Aufgabenstellung und das Material. Gespeichert wird nie HTML, sondern das Modell aus serializeMaterial.
    o = { cls, barCls, placeholder, barLabel, model (Absätze aus Läufen) oder text (reiner Text), onInput } → { ed, bar };
@@ -2813,6 +2929,93 @@ function cleanFiles(list) {   // Metadaten vom Server prüfen (fremde Daten nie 
   return (Array.isArray(list) ? list : []).filter((f) => f && typeof f.id === "string" && FILE_ID_RE.test(f.id)).slice(0, FILES_PER_TASK)
     .map((f) => ({ id: f.id, name: safeFileName(f.name), bytes: Number.isInteger(f.bytes) && f.bytes > 0 ? f.bytes : 0 }));
 }
+/* ---------- YouTube-Videos unter dem Material: videos = [{id, start?, title?}] je Aufgabe ----------
+ * Gespeichert werden nur die Kennung (11 Zeichen, Groß-/Kleinschreibung zählt), die Startsekunde und ein Titel der Lehrkraft – nie
+ * eine URL. Alle Adressen entstehen hier aus der geprüften Kennung auf festen Hosts: youtubeUrl (Builder-Liste, Lehrkraft-Ansichten,
+ * „Video in neuem Tab öffnen“, Sicherung, analoges Arbeitsblatt) und youtubeEmbedUrl (iframe, erst nach dem Klick der Schüler:innen).
+ * Kein Vorschaubild, kein oEmbed, kein preconnect: vor dem Klick geht nichts an YouTube (Google). */
+/* VIDEO:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/video.test.mjs liest diesen Block) */
+const YT_ID_RE = /^[A-Za-z0-9_-]{11}$/;   // nie kleinschreiben: YouTube unterscheidet Groß- und Kleinschreibung
+const VIDEO_LIMITS = { perTask: 3, title: 120, start: 86400 };   // wie LIMITS.videosPerTask/videoTitle/videoStart im Worker (Startsekunde < start)
+// Zustimmungstext unter jedem Platzhalter (wörtlich; im Schreibbereich auch bei Gruppenarbeit in der du-Form)
+const YT_CONSENT = "Erst nach diesem Klick wird das Video von YouTube (Google) geladen. Dabei erhält Google unter anderem deine IP-Adresse und kann Cookies setzen; Daten können in die USA gelangen.";
+const YT_HOSTS = ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "youtube-nocookie.com", "www.youtube-nocookie.com"];   // exakt verglichen
+const YT_ERR_EMPTY = "Bitte den Link des YouTube-Videos eingeben.";
+const YT_ERR_PLAYLIST = "Playlists lassen sich nicht einbetten – bitte den Link eines einzelnen Videos eingeben.";
+const YT_ERR_OTHER = "Das ist kein Link zu einem YouTube-Video. Erlaubt sind Links von youtube.com und youtu.be, z. B. https://www.youtube.com/watch?v=…";
+// Titel einzeilig wie cleanLine im Worker (ohne Steuer- und Formatzeichen wie Bidi-Steuerung), gekappt ohne halbes Ersatzzeichen-Paar
+function videoTitle(v) {
+  if (typeof v !== "string") return "";
+  return v.slice(0, 4 * VIDEO_LIMITS.title + 100).normalize("NFC").replace(/[\t\n\r\v\f\u0085\u2028\u2029]/g, " ").replace(/[\p{Cc}\p{Cf}]/gu, "")
+    .replace(/\s+/g, " ").trim().slice(0, VIDEO_LIMITS.title).replace(/[\uD800-\uDBFF]$/, "");
+}
+// Startzeit aus t= bzw. start=: „90“, „90s“, „1m30s“, „1h2m3s“ → Sekunden (1 … VIDEO_LIMITS.start − 1), sonst 0 (= von vorn)
+function videoStartOf(raw) {
+  const s = String(raw == null ? "" : raw).trim().toLowerCase();
+  const m = /^(?:(\d{1,3})h)?(?:(\d{1,4})m)?(?:(\d{1,6})s?)?$/.exec(s);
+  if (!s || !m) return 0;
+  const sec = (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
+  return sec >= 1 && sec < VIDEO_LIMITS.start ? sec : 0;
+}
+/* Eingabe der Lehrkraft (Link oder eingefügter Einbettungscode <iframe … src="…">) → {id, start} (start 0 = von vorn) oder {error: Meldung}.
+   Erlaubt: genau die Hosts aus YT_HOSTS mit /watch?v=ID, youtu.be/ID, /shorts/ID, /embed/ID, /live/ID, /v/ID; ohne Schema wird
+   https:// ergänzt. Übernommen werden nur Kennung und Startzeit – si=, pp=, list=, feature= usw. fallen weg. Der Einbettungscode wird
+   nur als Text gelesen (Regex), nie als HTML. */
+function parseYouTube(input) {
+  let s = String(input == null ? "" : input).trim();
+  if (!s) return { error: YT_ERR_EMPTY };
+  const tag = s.search(/<iframe\b/i);
+  if (tag >= 0) {
+    const m = /\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(s.slice(tag, tag + 4000));
+    if (!m) return { error: YT_ERR_OTHER };
+    s = (m[1] != null ? m[1] : m[2] != null ? m[2] : m[3]).replace(/&amp;/gi, "&").trim();
+  }
+  if (s.length > 2000 || /[\u0000- \u007f]/.test(s)) return { error: YT_ERR_OTHER };
+  if (/^\/\//.test(s)) s = "https:" + s;   // //www.youtube.com/embed/… (ältere Einbettungscodes)
+  else if (!/^https?:\/\//i.test(s)) s = "https://" + s;   // ohne Schema (auch javascript: & Co. scheitern so am Host)
+  let u;
+  try { u = new URL(s); } catch (e) { return { error: YT_ERR_OTHER }; }
+  if ((u.protocol !== "https:" && u.protocol !== "http:") || u.username || u.password || u.port || !YT_HOSTS.includes(u.hostname)) return { error: YT_ERR_OTHER };
+  const parts = u.pathname.split("/").filter(Boolean), q = u.searchParams;
+  let id = "";
+  if (u.hostname === "youtu.be") id = parts.length === 1 ? parts[0] : "";
+  else if (parts[0] === "watch" && parts.length === 1) { id = q.get("v") || ""; if (!id && q.get("list")) return { error: YT_ERR_PLAYLIST }; }
+  else if (parts[0] === "playlist" || (parts[0] === "embed" && parts[1] === "videoseries")) return { error: YT_ERR_PLAYLIST };
+  else if (["shorts", "embed", "live", "v"].includes(parts[0]) && parts.length === 2) id = parts[1];
+  if (!YT_ID_RE.test(id)) return { error: YT_ERR_OTHER };
+  const hash = /(?:^#|&)t=([^&]*)/.exec(u.hash);
+  return { id, start: videoStartOf(q.has("t") ? q.get("t") : q.has("start") ? q.get("start") : hash ? hash[1] : "") };
+}
+/* Videos aus fremden Daten (Server, Sicherung) prüfen wie videosOut im Worker: nur gültige Kennungen, Startsekunde als Ganzzahl
+   1 … VIDEO_LIMITS.start − 1 (sonst von vorn), Titel einzeilig und gekappt, dasselbe Video mit derselben Startzeit nur einmal, höchstens
+   VIDEO_LIMITS.perTask → [{id, start?, title?}] */
+function cleanVideos(list) {
+  const out = [], seen = new Set();
+  for (const v of Array.isArray(list) ? list : []) {
+    if (out.length >= VIDEO_LIMITS.perTask) break;
+    if (!v || typeof v !== "object" || typeof v.id !== "string" || !YT_ID_RE.test(v.id)) continue;
+    const start = Number.isInteger(v.start) && v.start > 0 && v.start < VIDEO_LIMITS.start ? v.start : 0;
+    if (seen.has(v.id + "|" + start)) continue;
+    seen.add(v.id + "|" + start);
+    const o = { id: v.id }, title = videoTitle(v.title);
+    if (start) o.start = start;
+    if (title) o.title = title;
+    out.push(o);
+  }
+  return out;
+}
+const videoStartSec = (v) => (v && Number.isInteger(v.start) && v.start > 0 && v.start < VIDEO_LIMITS.start ? v.start : 0);
+// Link zum Video auf youtube.com – überall derselbe (auch QR-Code und gedruckter Link des analogen Arbeitsblattes); v aus cleanVideos/parseYouTube
+const youtubeUrl = (v) => "https://www.youtube.com/watch?v=" + v.id + (videoStartSec(v) ? "&t=" + videoStartSec(v) + "s" : "");
+// Adresse des eingebetteten Players (nur im iframe nach dem Klick)
+const youtubeEmbedUrl = (v) => "https://www.youtube-nocookie.com/embed/" + v.id + "?autoplay=1" + (videoStartSec(v) ? "&start=" + videoStartSec(v) : "");
+// Startzeit lesbar: 90 → „1:30“, 3723 → „1:02:03“
+function fmtVideoStart(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0)), hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+  const p2 = (x) => String(x).padStart(2, "0");
+  return hh ? `${hh}:${p2(mm)}:${p2(ss)}` : `${mm}:${p2(ss)}`;
+}
+/* VIDEO:END */
 function b64ToBytes(b64) {
   const bin = atob(b64), u = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
@@ -2857,6 +3060,45 @@ function fileButton(code, f, n) {
   });
   return btn;
 }
+/* YouTube-Video unter dem Material (Schüler:innen): zuerst nur ein Platzhalter mit Titel, Hinweis (YT_CONSENT) und „Video von YouTube
+   laden“ – keine Anfrage an YouTube, kein Vorschaubild. Erst der Klick setzt das iframe (youtube-nocookie.com) ein; die Zustimmung gilt
+   nur für dieses Video und diese Ansicht und wird nirgends gespeichert (nach Neuladen, Weiterschreiben oder dem Verlassen des
+   Schreibbereichs wieder der Platzhalter: stopVideos). „Video in neuem Tab öffnen“ steht immer daneben bzw. darunter (eine Navigation
+   der Schüler:innen selbst, ohne Referer). Die Seite sendet sonst keinen Referer (Referrer-Policy) – ohne ihn verweigert YouTube
+   eingebettete Player; das iframe schickt deshalb nur die Herkunft (strict-origin-when-cross-origin), nie Pfad oder Hash. */
+const YT_LOAD_TEXT = "Video von YouTube laden";
+function videoBlock(v, k, n) {
+  const name = v.title || `Video ${k + 1} zu Aufgabe ${n}`, key = n + "-" + (k + 1), noteId = "vn-" + key;
+  const titleText = name + (v.start ? ` (ab ${fmtVideoStart(v.start)})` : "");
+  const open = h("a", { class: "yt-open", href: youtubeUrl(v), target: "_blank", rel: "noopener noreferrer" },
+    ["Video in neuem Tab öffnen", h("span", { class: "sr-only", text: " (öffnet in neuem Tab)" })]);
+  const load = h("button", { type: "button", class: "btn yt-load", "aria-describedby": noteId, "aria-label": YT_LOAD_TEXT + " – " + name, text: YT_LOAD_TEXT });
+  const acts = h("div", { class: "yt-acts" }, [load, open]);
+  const ph = h("div", { class: "yt-ph" }, [h("p", { class: "yt-title", text: titleText }), h("p", { class: "yt-note", id: noteId, text: YT_CONSENT }), acts]);
+  const fig = h("figure", { class: "task-video", id: "v-" + key }, [ph]);
+  let shown = null;   // {box, after} solange das Video eingebettet ist
+  load.addEventListener("click", () => {
+    if (shown || !fig.isConnected) return;
+    // src erst hier und aus der geprüften Kennung (cleanVideos) – das Laden beginnt mit dem Einhängen
+    const frame = h("iframe", { title: "YouTube-Video: " + name, referrerpolicy: "strict-origin-when-cross-origin",
+      allow: "autoplay; encrypted-media; picture-in-picture; fullscreen", allowfullscreen: true,
+      sandbox: "allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox", src: youtubeEmbedUrl(v) });
+    shown = { box: h("div", { class: "yt-frame" }, [frame]), after: h("div", { class: "yt-after" }, [h("p", { class: "yt-title", text: titleText }), open]) };
+    ph.replaceWith(shown.box, shown.after);
+    fig.classList.add("loaded");
+    try { frame.focus(); } catch (e) { open.focus(); }   // der Knopf ist weg – sonst landete der Fokus am Seitenanfang
+  });
+  // Video entfernen (stoppt die Wiedergabe) und wieder den Platzhalter zeigen – beim Verlassen des Schreibbereichs
+  fig._reset = () => {
+    if (!shown) return;
+    acts.appendChild(open);
+    shown.box.replaceWith(ph); shown.after.remove(); shown = null;
+    fig.classList.remove("loaded");
+  };
+  return fig;
+}
+// Alle eingebetteten Videos des Schreibbereichs beenden (verborgene Bildschirme spielen sonst mit Ton weiter, z. B. nach der Abgabe)
+function stopVideos() { document.querySelectorAll("#tasks .task-video.loaded").forEach((f) => { if (f._reset) f._reset(); }); }
 function cleanImages(list, cards) {   // Metadaten vom Server prüfen (fremde Daten nie ungeprüft ins DOM); cards = nur Kartenbilder (Weltkarte)
   return (Array.isArray(list) ? list : []).filter((m) => m && typeof m.id === "string" && IMAGE_ID_RE.test(m.id) && (m.mode === "card") === !!cards).slice(0, cards ? ANS_LIMITS.cards : 5)
     .map((m) => ({ id: m.id, mode: cards ? "card" : m.mode === "inline" ? "inline" : "thumb", w: Number.isInteger(m.w) && m.w > 0 ? m.w : 0, h: Number.isInteger(m.h) && m.h > 0 ? m.h : 0,
@@ -3056,6 +3298,7 @@ async function fetchSheet(code) {
     answers: sh.tasks.map((t) => cleanAnswer(t && t.answer)),   // je Aufgabe: Antwortart (Textfeld, Tabelle, Weltkarte)
     material: sh.tasks.map((t) => cleanMaterial(t && t.material)),   // je Aufgabe: formatierter Text der Lehrkraft mit Links
     files: sh.tasks.map((t) => cleanFiles(t && t.files)),   // je Aufgabe: PDF-Dateien der Lehrkraft zum Herunterladen
+    videos: sh.tasks.map((t) => cleanVideos(t && t.videos)),   // je Aufgabe: YouTube-Videos (Kennung, Start, Titel) – geladen erst nach einem Klick
     aiRecipients: recipientsOf(sh),   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
     aiFeedback: sh.aiFeedback !== false,   // false = keine Aufgabe mit Auftrag an die KI: kein KI-Feedback (ältere Worker: wie bisher)
     privacy: cleanPrivacy(sh.privacy),   // Löschfrist für den Datenschutzhinweis (null = keine gespeichert)
@@ -3184,6 +3427,55 @@ const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnes
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
 const FB2_SEND = " Hast du KI-Feedback bekommen, gehen bei der Abgabe die Antworten, die du danach geändert hast, auf demselben Weg noch einmal an die KI – " +
   "für eine zweite Rückmeldung zu diesen Aufgaben, die danach wie deine Abgabe verschlüsselt auch an deine Lehrkraft geht (hast du nichts geändert, wird nichts gesendet).";
+/* YouTube-Videos unter dem Material (nur bei Blättern mit Videos – sheetHasVideos): eigene Absätze bzw. Listenpunkte neben den übrigen,
+   nie in deren Sätze gemischt; privacyNoticeDom mit der Option videos, die Kurzfassungen bekommen einen eigenen Absatz (ytShort in
+   #p-privacy-yt bzw. #privacy-yt – die Kurzfassung selbst bleibt unverändert). Grundlage ist die Einwilligung je Video mit dem Klick auf
+   „Video von YouTube laden“ (YT_LOAD_TEXT, derselbe Text wie am Knopf; darunter steht YT_CONSENT): Art. 6 Abs. 1 Buchst. a DSGVO, für
+   Cookies zusammen mit § 25 Abs. 1 TDDDG (nie unter § 25 Abs. 2 Nr. 2 fassen). Die Sätze „diese Seite speichert nicht, welche Videos du
+   geladen hast“ und „verschwindet beim Neuladen“ stimmen nur, solange die Zustimmung nirgends gespeichert wird (videoBlock, stopVideos);
+   „die Adresse dieser Seite (ohne den Code …)“ nur, solange das iframe allein die Herkunft sendet (strict-origin-when-cross-origin).
+   Vor dem Klick geht nichts an Google (kein Vorschaubild, kein oEmbed; CSP frame-src nur youtube-nocookie.com). Offen und deshalb hier
+   nicht behauptet: gemeinsame Verantwortlichkeit beim Einbetten (Art. 26 DSGVO), Einwilligung unter 16 Jahren (Art. 8 DSGVO) – README
+   „Weiter vom Betreiber zu prüfen“. Keine Tippzeit-Wörter (Kurzfassungen), kein „Escape-Room“ im Empfänger-Punkt. */
+const sheetHasVideos = (sh) => !!(sh && Array.isArray(sh.videos) && sh.videos.some((v) => Array.isArray(v) && v.length));
+const YT_GOOGLE = "Google Ireland Limited (Dublin, Irland), Anbieter von YouTube im EWR";
+const ytShort = (g) => (g
+  ? `Zu eurem Feibeitsblatt gehören Videos von YouTube: Ein Video lädt diese Seite erst nach eurem Klick auf „${YT_LOAD_TEXT}“ – dabei erhält Google unter anderem eure IP-Adresse und kann Cookies setzen; Daten können in die USA gelangen.`
+  : `Zu diesem Feibeitsblatt gehören Videos von YouTube: Ein Video lädt diese Seite erst nach deinem Klick auf „${YT_LOAD_TEXT}“ – dabei erhält Google unter anderem deine IP-Adresse und kann Cookies setzen; Daten können in die USA gelangen.`);
+const YT_PRIV_DU = {
+  ytPurpose: `Hat deine Lehrkraft zu einer Aufgabe ein Video von YouTube eingebettet, kannst du es auf dieser Seite ansehen – geladen wird es erst nach deinem Klick auf „${YT_LOAD_TEXT}“.`,
+  ytData: "Lädst du ein Video, erhält Google die Internetadresse (IP-Adresse) deines Geräts, technische Daten zu deinem Browser und Gerät, die Adresse dieser Seite (ohne den Code deines Feibeitsblattes) " +
+    "und welches Video du lädst und wie du es abspielst; YouTube kann dabei Cookies und ähnliche Daten in deinem Browser speichern und auslesen. " +
+    "Deine Angaben und Antworten bekommt Google nicht, und diese Seite speichert nicht, welche Videos du geladen hast.",
+  ytBasis: "Videos von YouTube: deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO – für Cookies und ähnliche Daten in deinem Browser zusammen mit § 25 Abs. 1 TDDDG. " +
+    `Du gibst sie für jedes Video mit dem Klick auf „${YT_LOAD_TEXT}“ – ohne Klick wird nichts von YouTube geladen. ` +
+    "Du kannst sie jederzeit für die Zukunft widerrufen, indem du keine weiteren Videos lädst; ein geladenes Video verschwindet, wenn du die Seite neu lädst, schließt oder den Schreibbereich verlässt.",
+  ytItem: `Nur wenn du ein Video lädst (freiwillig, mit dem Klick auf „${YT_LOAD_TEXT}“): ${YT_GOOGLE}. Google bekommt dabei die Internetadresse deines Geräts und welches Video du lädst – ` +
+    `ohne deine Angaben und Antworten – und verarbeitet die Daten nach seinen eigenen Bedingungen, auch in den USA (Google LLC). Für Übermittlungen in die USA stützt sich Google ${DPF_SCC}. ` +
+    "Öffnest du ein Video mit „Video in neuem Tab öffnen“ (oder über einen Link im Video), rufst du YouTube direkt auf; dort gelten die Bedingungen von YouTube.",
+  ytStay: "Wie lange Google die Daten zu einem geladenen Video aufbewahrt, regeln die Bedingungen von Google. Cookies und ähnliche Daten von YouTube bleiben in deinem Browser, " +
+    "bis sie ablaufen oder du sie in den Einstellungen deines Browsers löschst.",
+  ytChoice: " Ob du ein Video von YouTube lädst, entscheidest du selbst – ohne deinen Klick lädt diese Seite nichts von YouTube.",
+  ytRights: "Deine Einwilligung zum Laden von Videos kannst du jederzeit für die Zukunft widerrufen – lade dann einfach keine weiteren Videos; Ladevorgänge, die schon stattgefunden haben, " +
+    "bleiben davon unberührt. Deine Rechte zu den Daten, die Google beim Laden eines Videos erhält, kannst du auch direkt bei Google geltend machen.",
+};
+const YT_PRIV_IHR = {
+  ytPurpose: `Hat eure Lehrkraft zu einer Aufgabe ein Video von YouTube eingebettet, könnt ihr es auf dieser Seite ansehen – geladen wird es erst nach eurem Klick auf „${YT_LOAD_TEXT}“.`,
+  ytData: "Ladet ihr ein Video, erhält Google die Internetadresse (IP-Adresse) eures Geräts, technische Daten zu eurem Browser und Gerät, die Adresse dieser Seite (ohne den Code eures Feibeitsblattes) " +
+    "und welches Video ihr ladet und wie ihr es abspielt; YouTube kann dabei Cookies und ähnliche Daten in eurem Browser speichern und auslesen. " +
+    "Eure Angaben und Antworten bekommt Google nicht, und diese Seite speichert nicht, welche Videos ihr geladen habt.",
+  ytBasis: "Videos von YouTube: eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO – für Cookies und ähnliche Daten in eurem Browser zusammen mit § 25 Abs. 1 TDDDG. " +
+    `Ihr gebt sie für jedes Video mit dem Klick auf „${YT_LOAD_TEXT}“ – ohne Klick wird nichts von YouTube geladen. ` +
+    "Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr keine weiteren Videos ladet; ein geladenes Video verschwindet, wenn ihr die Seite neu ladet, schließt oder den Schreibbereich verlasst.",
+  ytItem: `Nur wenn ihr ein Video ladet (freiwillig, mit dem Klick auf „${YT_LOAD_TEXT}“): ${YT_GOOGLE}. Google bekommt dabei die Internetadresse eures Geräts und welches Video ihr ladet – ` +
+    `ohne eure Angaben und Antworten – und verarbeitet die Daten nach seinen eigenen Bedingungen, auch in den USA (Google LLC). Für Übermittlungen in die USA stützt sich Google ${DPF_SCC}. ` +
+    "Öffnet ihr ein Video mit „Video in neuem Tab öffnen“ (oder über einen Link im Video), ruft ihr YouTube direkt auf; dort gelten die Bedingungen von YouTube.",
+  ytStay: "Wie lange Google die Daten zu einem geladenen Video aufbewahrt, regeln die Bedingungen von Google. Cookies und ähnliche Daten von YouTube bleiben in eurem Browser, " +
+    "bis sie ablaufen oder ihr sie in den Einstellungen eures Browsers löscht.",
+  ytChoice: " Ob ihr ein Video von YouTube ladet, entscheidet ihr selbst – ohne euren Klick lädt diese Seite nichts von YouTube.",
+  ytRights: "Eure Einwilligung zum Laden von Videos könnt ihr jederzeit für die Zukunft widerrufen – ladet dann einfach keine weiteren Videos; Ladevorgänge, die schon stattgefunden haben, " +
+    "bleiben davon unberührt. Die eigenen Rechte zu den Daten, die Google beim Laden eines Videos erhält, kann jede und jeder von euch auch direkt bei Google geltend machen.",
+};
 // Dieselben Bausteine in der „ihr“-Form – nur für den ausführlichen Hinweis auf dem Angaben-Bildschirm einer Gruppe (privacyNoticeDom
 // mit group); inhaltlich gleich, im Schreibbereich bleibt es beim „du“
 const PRIV_IHR = {
@@ -3201,8 +3493,9 @@ const PRIV_IHR = {
   fb2Send: " Habt ihr KI-Feedback bekommen, gehen bei der Abgabe die Antworten, die ihr danach geändert habt, auf demselben Weg noch einmal an die KI – " +
     "für eine zweite Rückmeldung zu diesen Aufgaben, die danach wie eure Abgabe verschlüsselt auch an eure Lehrkraft geht (habt ihr nichts geändert, wird nichts gesendet).",
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
+  ...YT_PRIV_IHR,
 };
-const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET };
+const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET, ...YT_PRIV_DU };
 /* Feibeitsblatt als Finale eines Escape-Rooms (nur Einzelarbeit, also nur die du-Form): eigene Absätze bzw. Listenpunkte neben den
    übrigen – nie in deren Sätze gemischt. Voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät (Zwischenstand,
    Zwischenstand-PDF, Abschluss-PDF); an die Lehrkraft gehen nur die Ergebnisse, verschlüsselt, nie an eine KI. Ausnahme auf Wunsch der
@@ -3320,11 +3613,14 @@ function ttSwitchDom(o, g, withAi) {
    allgemeine Sätze statt falscher Angaben), summary (Text der Zusammenfassung), flat (dort: kein aufklappbares details, sondern ein
    Abschnitt mit h2 summary – die Abschnittsüberschriften dann h3), typing (false: Blatt nur mit Weltkarten – nichts zur Tippzeit-Messung),
    ttSwitch ("live": Schalter für den Widerspruch gegen die Tippzeit-Messung, an S.ttOptOut gebunden; "preview": gesperrt, Vorschau der
-   Lehrkraft; sonst – Seite „Impressum & Datenschutz“ – ein Satz, wo der Schalter steht) */
+   Lehrkraft; sonst – Seite „Impressum & Datenschutz“ – ein Satz, wo der Schalter steht), escape (Name des Escape-Rooms: eigene Absätze
+   und Listenpunkte), videos (Blatt mit YouTube-Videos: eigene Absätze bzw. Listenpunkte zu YouTube aus PRIV_DU/PRIV_IHR, die Einwilligung
+   als bedingter Punkt der Rechtsgrundlagen direkt nach der Rechtschreibprüfung – sonst bleibt alles gleich) */
 function privacyNoticeDom(p, list, opts) {
   const o = opts || {}, H = o.h || "h3", withAi = o.withAi !== false, days = p ? p.retentionDays : null;
   const g = !!o.group, t = (du, ihr) => (g ? ihr : du), B = g ? PRIV_IHR : PRIV_DU, tt = o.typing !== false;
   const esc = o.escape && !g ? String(o.escape) : "";   // Finale eines Escape-Rooms (Name; nur Einzelarbeit): eigene Absätze und Listenpunkte
+  const yt = !!o.videos;   // YouTube-Videos (Einzelarbeit und Gruppe): eigene Absätze und Listenpunkte, keine eigene Überschrift
   const head = (x) => h(H, { class: "privh", text: x }), para = (x) => h("p", { text: x }), paraN = (...k) => h("p", null, k);
   const ai = withAi && !o.general ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
   const cfAt = ai.findIndex((x) => x.id === "cloudflare");
@@ -3367,6 +3663,7 @@ function privacyNoticeDom(p, list, opts) {
   "Nur wenn ihr die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis der Eltern): " +
     "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne eure Angaben, aber mit der Internetadresse eures Geräts. ") +
     "Learneo ist nach dem EU-US Data Privacy Framework zertifiziert; ersatzweise gelten Standardvertragsklauseln." }));
+  if (yt) items.push(h("li", { text: B.ytItem }));   // Google (YouTube) – nur nach dem Klick auf ein Video
   if (esc) items.push(escMailItem(withAi));
   const what = withAi ? t("Deine Abgabe – und ein Erstversuch, falls du nach dem KI-Feedback nicht abgibst –", "Eure Abgabe – und ein Erstversuch, falls ihr nach dem KI-Feedback nicht abgebt –")
     : t("Deine Abgabe", "Eure Abgabe");
@@ -3394,6 +3691,7 @@ function privacyNoticeDom(p, list, opts) {
       "Du kannst sie jederzeit für die Zukunft widerrufen, indem du die Prüfung nicht mehr nutzt.",
     "Rechtschreibprüfung (LanguageTool): eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Ihr gebt sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und eurer Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
       "Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr die Prüfung nicht mehr nutzt."),
+    yt ? B.ytBasis : null,   // YouTube-Videos: Einwilligung je Video (Buchst. a, für Cookies mit § 25 Abs. 1 TDDDG) – sonst bleibt die Liste gleich
     `Aufruf und Auslieferung dieser Seite (${deliver}) und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – ` +
       t("das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen kannst du Widerspruch einlegen (siehe „Deine Rechte“).",
         "das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen könnt ihr Widerspruch einlegen (siehe „Eure Rechte“)."),
@@ -3415,6 +3713,7 @@ function privacyNoticeDom(p, list, opts) {
       : t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten.", "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt. Eure Lehrkraft sieht eure Antworten.")) +
       (tt ? TT_PURPOSE(g) : "") + B.checkPurpose),
     esc ? para(ESC_PRIV.purpose(esc)) : null,
+    yt ? para(B.ytPurpose) : null,
     head("Rechtsgrundlage"),
     h("ul", null, bases.map((x) => h("li", { text: x }))),
     head("Welche Daten?"),
@@ -3431,6 +3730,7 @@ function privacyNoticeDom(p, list, opts) {
       "sondern nur unkenntlich gemacht in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang."),
     tt ? para(TT_ACCESS(g, TT_KEEP_IN_DRAFT, withAi)) : null,   // Zugriff auf das Gerät (§ 25 TDDDG) – sachlich, im Fließtext
     esc ? para(ESC_PRIV.data(esc)) : null,   // Daten aus dem Escape-Room samt Rechtsgrundlage (die Liste der Rechtsgrundlagen bleibt überall gleich)
+    yt ? para(B.ytData) : null,   // was Google beim Laden eines Videos bekommt (diese Seite speichert dazu nichts)
     head("Wer bekommt die Daten?"),
     h("ul", null, items),
     head("Wie lange werden die Daten gespeichert?"),
@@ -3450,12 +3750,14 @@ function privacyNoticeDom(p, list, opts) {
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
       (ai.some((x) => x.id !== "cloudflare") || o.general ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
     esc ? para(ESC_PRIV.stay) : null,
+    yt ? para(B.ytStay) : null,
     head(t("Musst du mitmachen?", "Müsst ihr mitmachen?")),
     para(t("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. ",
       "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
       (withAi ? "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig: " : "Die Rechtschreibprüfung ist freiwillig: ") +
       t("Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.", "Ihr könnt auch ohne sie abgeben, ohne dass euch daraus ein Nachteil entsteht.") +
-      (tt ? t(` Die Tippzeiten misst diese Seite, solange du nicht widersprichst (siehe „${TT_OBJ_HEAD}“).`, ` Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (siehe „${TT_OBJ_HEAD}“).`) : "")),
+      (tt ? t(` Die Tippzeiten misst diese Seite, solange du nicht widersprichst (siehe „${TT_OBJ_HEAD}“).`, ` Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (siehe „${TT_OBJ_HEAD}“).`) : "") +
+      (yt ? B.ytChoice : "")),   // kein „ohne Nachteil“ zusagen: eine Aufgabe kann das Video voraussetzen
     withAi ? head(t("Entscheidet die KI über dich?", "Entscheidet die KI über euch?")) : null,
     withAi ? para(t("Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.",
       "Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über eure Arbeit entscheidet eure Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüft sie selbst.")) : null,
@@ -3479,6 +3781,7 @@ function privacyNoticeDom(p, list, opts) {
         "Was nur auf deinem Gerät liegt (Zwischenstand, Häkchen), löschst du selbst.",
       " Eure Abgaben liegen auf dem Server verschlüsselt – lesen und einzeln löschen kann sie nur eure Lehrkraft; ihr könnt euch deshalb auch an sie wenden. " +
         "Was nur auf eurem Gerät liegt (Zwischenstand, Häkchen), löscht ihr selbst.")),
+    yt ? para(B.ytRights) : null,   // Widerruf der Einwilligung zum Laden von Videos; Rechte auch direkt bei Google
     paraN(t("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren", "Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren"),
       ...authorityTail()),
   ];
@@ -3495,9 +3798,11 @@ function renderPersonPrivacy() {
   const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
   const esc = !g && sh.escape ? sh.escape.name : "";   // Finale eines Escape-Rooms: ein eigener Absatz unter der Kurzfassung
+  const yt = sheetHasVideos(sh);   // YouTube-Videos (auch bei Gruppen, dann in der „ihr“-Form): ebenso ein eigener Absatz
   box.append(...[h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))]),
     esc ? h("p", { class: "privacy", id: "p-privacy-esc", text: escPrivacyShort(esc) }) : null,
-    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live", escape: esc })].filter(Boolean));
+    yt ? h("p", { class: "privacy", id: "p-privacy-yt", text: ytShort(g) }) : null,
+    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live", escape: esc, videos: yt })].filter(Boolean));
   $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
 }
 function renderPrivacy() {
@@ -3538,12 +3843,17 @@ function renderPrivacy() {
   full.textContent = "";
   // im Schreibbereich bleibt es beim „du“; eine Gruppe hat aber keinen Geburtstag angegeben (noBday, wie noPersonData)
   const esc = S.sheet.escape && !isGroup(S.person) ? S.sheet.escape.name : "";
+  const yt = sheetHasVideos(S.sheet);   // YouTube-Videos: eigene Absätze bzw. Listenpunkte (im Schreibbereich immer „du“)
   full.appendChild(privacyNoticeDom(S.sheet.privacy, S.sheet.aiRecipients || [], { h: "h3", withAi, pages: PAGES_HOST, id: "privfull-ed-d", noBday: isGroup(S.person),
-    typing: ttMeasured(S.sheet), ttSwitch: "live", escape: esc }));   // Schalter für den Widerspruch gegen die Tippzeit-Messung (an S.ttOptOut gebunden)
+    typing: ttMeasured(S.sheet), ttSwitch: "live", escape: esc, videos: yt }));   // Schalter für den Widerspruch gegen die Tippzeit-Messung (an S.ttOptOut gebunden)
   // Finale eines Escape-Rooms: ein eigener Absatz direkt unter dem Hinweis (#privacy)
   const pe = $("privacy-esc");
   pe.textContent = esc ? escPrivacyEditor(esc) : "";
   pe.classList.toggle("hidden", !esc);
+  // YouTube-Videos: ebenso ein eigener Absatz (der Text von #privacy bleibt gleich)
+  const py = $("privacy-yt");
+  py.textContent = yt ? ytShort(false) : "";
+  py.classList.toggle("hidden", !yt);
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -4110,6 +4420,7 @@ function buildTasks() {
     const fb = h("div", { class: "fbbox hidden" });
     // Bilder der Lehrkraft: Miniaturen rechts neben Aufgabe und Antwort, größere Bilder zwischen Aufgabenstellung und Antwortfeld
     const imgs = (S.sheet.images && S.sheet.images[i]) || [], mat = (S.sheet.material && S.sheet.material[i]) || [], files = (S.sheet.files && S.sheet.files[i]) || [];
+    const vids = (S.sheet.videos && S.sheet.videos[i]) || [];   // YouTube-Videos: direkt unter dem Material, je Video ein Platzhalter
     const mk = (m, k, cls) => imgButton(S.code, m, `Bild ${k + 1} zu Aufgabe ${n}`, cls);
     const thumbs = imgs.map((m, k) => (m.mode === "thumb" ? mk(m, k, "thumbbtn") : null)).filter(Boolean);
     const figs = imgs.map((m, k) => (m.mode === "inline" ? mk(m, k, "figbtn") : null)).filter(Boolean);
@@ -4121,6 +4432,7 @@ function buildTasks() {
       thumbs.length ? h("div", { class: "task-thumbs" }, thumbs) : null,
       h("div", { class: "task-body" }, [
         mat.length ? h("div", { class: "task-material" }, [h("span", { class: "sublabel", text: "Material" }), materialDom(mat, { links: true })]) : null,
+        vids.length ? h("div", { class: "task-videos" }, vids.map((v, k) => videoBlock(v, k, n))) : null,
         files.length ? h("div", { class: "task-files" }, [h("span", { class: "sublabel", text: "Material zum Herunterladen" }), h("div", { class: "filelist" }, files.map((f) => fileButton(S.code, f, n)))]) : null,
         figs.length ? h("div", { class: "task-figs" }, figs) : null,
         isText ? ta : ta.el, pe, cnt,
@@ -6564,6 +6876,14 @@ function teacherFiles(code, metas, n) {
   if (!list.length) return null;
   return h("div", { class: "tfiles" }, list.map((f) => fileButton(code, f, n)));
 }
+// YouTube-Videos einer Aufgabe in der Lehrkraft-Ansicht: nur Links (neuer Tab, ohne Referer) – kein Player, kein Vorschaubild. Eigene
+// Klassen (kein .task-label, kein .material): Blattdetails und Abgaben-Details zählen diese in Tests.
+function teacherVideos(metas) {
+  const list = cleanVideos(metas);
+  if (!list.length) return null;
+  return h("div", { class: "tvideos" }, [h("span", { class: "sublabel", text: "Videos (YouTube)" }),
+    h("ul", null, list.map((v, k) => h("li", null, [(v.title || `Video ${k + 1}`) + (v.start ? ` (ab ${fmtVideoStart(v.start)})` : "") + ": ", newTabLink(youtubeUrl(v), youtubeUrl(v))])))]);
+}
 const TA = (path, opts) => api(opts && opts.method || "GET", path, Object.assign({ auth: T.authKey }, opts || {}));
 
 /* ---------- Türcode ---------- */
@@ -6670,6 +6990,8 @@ async function logout(force, why) {
   $("t-sheets-body").textContent = ""; $("t-subs-body").textContent = ""; $("t-sel").classList.add("hidden");
   setStatus($("t-import-status"), "", ""); setStatus($("t-export-status"), "", "");
   $("code-input").value = "";
+  if (ydResolve) closeVideoDlg(null);   // offene Eingabedialoge des Blatt-Editors (Abmeldung nach Leerlauf oder 401) nicht über der Startseite stehen lassen
+  if (ldState) closeLinkDlg();
   show("screen-start");
   if (why) $("start-err").textContent = why;
 }
@@ -6798,6 +7120,7 @@ async function selectSheet(code) {
       taskTextDom("p", null, t.text, t.textFmt),
       cleanMaterial(t.material).length ? h("span", { class: "task-label", style: "margin-top:6px", text: "Material" }) : null,
       cleanMaterial(t.material).length ? materialDom(t.material, { links: true }) : null,
+      teacherVideos(t.videos),
       teacherImgs(code, t.images, i + 1),
       teacherFiles(code, t.files, i + 1),
       answerSpecDom(code, cleanAnswer(t.answer, true), cleanImages(t.images, true)),
@@ -7040,6 +7363,7 @@ function buildDetail(s, older) {
     box.appendChild(h("div", { class: "dtask" }, [
       h("span", { class: "task-label", text: "Aufgabe " + (i + 1) + (spec.type === "text" ? "" : " · " + ANSWER_TYPE_LABEL[spec.type]) }),
       taskTextDom("p", { class: "dtask-text" }, tasks[i] ? tasks[i].text : "", tasks[i] && tasks[i].textFmt),
+      tasks[i] ? teacherVideos(tasks[i].videos) : null,
       tasks[i] ? teacherImgs(T.sel, tasks[i].images, i + 1) : null,
       tasks[i] ? teacherFiles(T.sel, tasks[i].files, i + 1) : null,
       cmp,
@@ -7204,7 +7528,8 @@ $("t-template").addEventListener("click", async () => {
           files.push({ blob: r.blob, name: f.name, size: r.blob.size });
         } catch (e) { lostF++; }
       }
-      return { text: String(t.text || ""), textFmt: cleanMaterial(t.textFmt), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files, answer: builderAnswer(spec, cards) };
+      return { text: String(t.text || ""), textFmt: cleanMaterial(t.textFmt), solution: String(t.solution || ""), images, material: cleanMaterial(t.material), files, answer: builderAnswer(spec, cards),
+        videos: cleanVideos(t.videos) };   // YouTube-Videos: nur Kennung, Startzeit und Titel – nichts nachzuladen
     }));
     const esc = cleanEscapeSpec(T.selSheet.escape);
     openBuilder(T.selSheet.title, rows, esc);
@@ -7217,9 +7542,10 @@ $("t-template").addEventListener("click", async () => {
   } finally { busy(btn, false); }
 });
 /* ---------- Feibeitsblatt als PDF-Datei sichern und wieder laden (Lehrkraft) ----------
- * Sichtbar: Titel, Hinweis, je Aufgabe Aufgabenstellung, Material (als Text), Bilder (als JPEG) und die Namen der
- * PDF-Dateien. Im Hintergrund (eingebettete Dateien, im PDF-Programm unter „Anhänge“): der Datensatz feibeitsblatt.json
- * (Kennzeichen /FbSheet 1, FlateDecode) mit Titel, Aufgaben, Aufträgen an die KI (solution), Material und den Angaben zu Bildern und
+ * Sichtbar: Titel, Hinweis, je Aufgabe Aufgabenstellung, Material (als Text), YouTube-Videos (Titel und Link), Bilder (als JPEG)
+ * und die Namen der PDF-Dateien. Im Hintergrund (eingebettete Dateien, im PDF-Programm unter „Anhänge“): der Datensatz feibeitsblatt.json
+ * (Kennzeichen /FbSheet 1, FlateDecode) mit Titel, Aufgaben, Aufträgen an die KI (solution), Material, Videos (videos nur, wenn
+ * vorhanden: Kennung, Startzeit, Titel – kein Anhang, kein Vorschaubild) und den Angaben zu Bildern und
  * Dateien samt Größe und SHA-256, dazu jede Bilddatei und jede PDF-Datei unverändert als eigener Stream (Kennzeichen
  * /FbBlob (<exportId>-<k>)). Abgaben gehören nicht dazu. Beim Laden wird daraus der Blatt-Editor gefüllt; „Code
  * generieren“ legt ein neues Blatt mit neuem Code an (die Bilder und Dateien werden wie bei „Als Vorlage“ hochgeladen). */
@@ -7289,7 +7615,9 @@ async function sheetPdfData(code, sheet, onStep) {
     // Material und formatierte Aufgabenstellung in der Form des Servers ({t, f?, h?}) – genau wie gespeichert; textFmt nur, wenn vorhanden
     const serverForm = (m) => cleanMaterial(m).map((p) => p.map((r) => Object.assign({ t: r.t }, r.f ? { f: r.f } : null, r.h ? { h: r.h } : null)));
     const material = serverForm(t.material), textFmt = serverForm(t.textFmt);
-    const task = { text: String(t.text || ""), ...(textFmt.length ? { textFmt } : null), solution: String(t.solution || ""), material, images, files };
+    // YouTube-Videos nur als {id, start?, title?} und nur, wenn vorhanden (ältere Sicherungen bleiben gleich) – keine Anhänge, kein Vorschaubild
+    const videos = cleanVideos(t.videos);
+    const task = { text: String(t.text || ""), ...(textFmt.length ? { textFmt } : null), solution: String(t.solution || ""), material, ...(videos.length ? { videos } : null), images, files };
     if (spec.type === "table") task.answer = { type: "table", columns: spec.columns, rows: spec.rows };
     if (spec.type === "map") task.answer = { type: "map", map: "world", items: spec.items.map((it) => Object.assign({ id: it.id, label: it.label }, it.hint ? { hint: it.hint } : null,
       refOf.has(it.image) ? { image: refOf.get(it.image) } : null, { countries: it.countries })) };
@@ -7317,7 +7645,7 @@ async function makeSheetPdf(rec, blobs, shows) {
     }
   };
   const gap = (n) => { y += n; if (y > H - BOTTOM) newPage(); };
-  const tasks = rec.tasks, title = rec.title || "ohne Titel";
+  const tasks = rec.tasks, title = rec.title || "ohne Titel", hasVideos = tasks.some((t) => t.videos && t.videos.length);
   para("Feibeitsblatt: " + title, 17, true);
   gap(4);
   para(`Code ${fmtCode(rec.code)} · erstellt am ${fmtDT(rec.createdAt)} · ${tasks.length} ${tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · gesichert am ${fmtDT(rec.exportedAt)} Uhr`, 10.5, false, { color: "0.35 0.35 0.35" });
@@ -7327,7 +7655,7 @@ async function makeSheetPdf(rec, blobs, shows) {
   const pad = 14, bsz = 10.5, blh = 14.5, items = [];
   let dy = pad + 12;
   items.push({ dy, str: "Diese PDF-Datei enthält das ganze Feibeitsblatt", size: 12, bold: true, color: "0 0.29 0.6" }); dy += 18;
-  pdfWrap("Im Hintergrund stecken Aufgaben, Material, Aufträge an die KI, Bilder und PDF-Dateien. Laden Sie genau diese Datei in der Lehrkräfte-Übersicht mit „Feibeitsblatt aus PDF-Datei laden“ hoch: Das Feibeitsblatt erscheint wieder zum Prüfen und bekommt beim Speichern einen neuen Code – zum Beispiel für eine Parallelklasse. Abgaben enthält die Datei nicht.", bsz, false, TW - 2 * pad)
+  pdfWrap(`Im Hintergrund stecken Aufgaben, Material, ${hasVideos ? "Videos (als Links zu YouTube), " : ""}Aufträge an die KI, Bilder und PDF-Dateien. Laden Sie genau diese Datei in der Lehrkräfte-Übersicht mit „Feibeitsblatt aus PDF-Datei laden“ hoch: Das Feibeitsblatt erscheint wieder zum Prüfen und bekommt beim Speichern einen neuen Code – zum Beispiel für eine Parallelklasse. Abgaben enthält die Datei nicht.`, bsz, false, TW - 2 * pad)
     .forEach((l) => { items.push({ dy, str: l, size: bsz, color: "0.1 0.15 0.25" }); dy += blh; });
   dy += 4;
   pdfWrap("Nicht an Schüler:innen weitergeben – die Datei enthält die Aufträge an die KI.", bsz, true, TW - 2 * pad)
@@ -7348,6 +7676,10 @@ async function makeSheetPdf(rec, blobs, shows) {
       para("Material", 10.5, true, { color: "0.35 0.35 0.35" });
       mat.forEach((pp) => { if (pp.trim()) para(pp, 10.5, false, { color: "0.2 0.2 0.2" }); else gap(7); });
     }
+    // YouTube-Videos: je Video eine Zeile mit Titel und dem kanonischen Link (gebaut aus Kennung und Startzeit, nie die Eingabe der Lehrkraft)
+    const vids = cleanVideos(t.videos);
+    if (vids.length) gap(6);
+    vids.forEach((v) => para(`Video: ${v.title ? v.title + " – " : ""}${youtubeUrl(v)}`, 10.5, false, { color: "0.2 0.2 0.2" }));
     t.images.filter((im) => im.mode !== "card").forEach((im, j) => {
       const sh = shows.get(im.ref), cap = `Bild ${j + 1}${im.alt ? ": " + im.alt : ""}${im.mode === "inline" ? "" : " (bei den Schüler:innen als Miniatur rechts)"}`;
       gap(8);
@@ -7405,7 +7737,7 @@ async function makeSheetPdf(rec, blobs, shows) {
   obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
   obj(5, `<< /Title ${pdfUtf16("Feibeitsblatt – " + title)} /Subject ${pdfUtf16("Gesichertes Feibeitsblatt zum Wiederverwenden – enthält die Aufträge an die KI")} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
   obj(dataObj, [`<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbSheet 1 /Params << /Size ${json.length} >>${packed ? " /Filter /FlateDecode" : ""} /Length ${data.length} >>\nstream\n`, data, "\nendstream"]);
-  obj(dataSpec, `<< /Type /Filespec /F (feibeitsblatt.json) /UF (feibeitsblatt.json) /Desc ${pdfUtf16("Feibeitsblatt: Aufgaben, Aufträge an die KI, Material, Angaben zu Bildern und Dateien")} /AFRelationship /Data /EF << /F ${dataObj} 0 R /UF ${dataObj} 0 R >> >>`);
+  obj(dataSpec, `<< /Type /Filespec /F (feibeitsblatt.json) /UF (feibeitsblatt.json) /Desc ${pdfUtf16(`Feibeitsblatt: Aufgaben, Aufträge an die KI, Material, ${hasVideos ? "Videos, " : ""}Angaben zu Bildern und Dateien`)} /AFRelationship /Data /EF << /F ${dataObj} 0 R /UF ${dataObj} 0 R >> >>`);
   for (const b of bl) {
     obj(b.obj, [`<< /Type /EmbeddedFile /Subtype /${b.mime.replace("/", "#2F")} /FbBlob (${b.ref}) /Params << /Size ${b.bytes.length} >> /Length ${b.bytes.length} >>\nstream\n`, b.bytes, "\nendstream"]);
     obj(b.spec, `<< /Type /Filespec /F ${pdfStr(pdfAscii(b.name))} /UF ${pdfUtf16(b.name)} /AFRelationship /Source /EF << /F ${b.obj} 0 R /UF ${b.obj} 0 R >> >>`);
@@ -7460,15 +7792,28 @@ function cleanSheetRecord(o) {   // fremde Daten prüfen und kappen (wie die Ein
   const size = (v) => (Number.isInteger(v) && v >= 0 ? v : -1), sha = (v) => (typeof v === "string" && SHA256_RE.test(v) ? v : "");
   const imgs = (t, card) => (Array.isArray(t.images) ? t.images : []).filter((m) => m && typeof m.ref === "string" && SHEET_REF_RE.test(m.ref) && IMAGE_MIME_RE.test(String(m.mime)) && (m.mode === "card") === card)
     .slice(0, card ? ANS_LIMITS.cards : IMG_PER_TASK).map((m) => ({ ref: m.ref, mime: m.mime, mode: card ? "card" : m.mode === "inline" ? "inline" : "thumb", alt: str(m.alt, 200), bytes: size(m.bytes), sha256: sha(m.sha256), max: IMG_MAX_BYTES }));
+  // YouTube-Videos wie vom Server (cleanVideos); gezählt wird, was wegfällt – Einträge ohne gültige Kennung und solche über
+  // VIDEO_LIMITS.perTask (dasselbe Video mit derselben Startzeit doppelt fällt still weg, es bleibt ja da) → Hinweis beim Import
+  let videosLost = 0;
+  const vids = (t) => {
+    const raw = Array.isArray(t.videos) ? t.videos : t.videos == null ? [] : [t.videos], list = cleanVideos(raw), ok = new Set();
+    let bad = 0;
+    for (const v of raw) {
+      if (!v || typeof v !== "object" || typeof v.id !== "string" || !YT_ID_RE.test(v.id)) { bad++; continue; }
+      ok.add(v.id + "|" + (Number.isInteger(v.start) && v.start > 0 && v.start < VIDEO_LIMITS.start ? v.start : 0));
+    }
+    videosLost += bad + ok.size - list.length;
+    return list;
+  };
   const tasks = o.tasks.slice(0, 30).filter((t) => t && typeof t === "object").map((t) => ({
-    text: str(t.text, TASK_TEXT_MAX), textFmt: capFmt(cleanMaterial(t.textFmt), TASK_TEXT_MAX), solution: str(t.solution, 8000), material: cleanMaterial(t.material),
+    text: str(t.text, TASK_TEXT_MAX), textFmt: capFmt(cleanMaterial(t.textFmt), TASK_TEXT_MAX), solution: str(t.solution, 8000), material: cleanMaterial(t.material), videos: vids(t),
     images: imgs(t, false).concat(imgs(t, true)), answer: cleanAnswer(t.answer, true, SHEET_REF_RE),   // Kartenbilder (mode "card") zählen nicht zu den 5 Bildern
     files: (Array.isArray(t.files) ? t.files : []).filter((f) => f && typeof f.ref === "string" && SHEET_REF_RE.test(f.ref)).slice(0, FILES_PER_TASK)
       .map((f) => ({ ref: f.ref, name: safeFileName(f.name), bytes: size(f.bytes), sha256: sha(f.sha256), max: FILE_MAX_BYTES }))
   }));
   if (!tasks.length) return null;
   return { title: str(o.title, 200).replace(/\s+/g, " ").trim(), code: normCode(o.code).slice(0, 6), tasks,
-    createdAt: Number.isFinite(o.createdAt) ? o.createdAt : null, exportedAt: Number.isFinite(o.exportedAt) ? o.exportedAt : null, escape: cleanEscapeSpec(o.escape) };
+    createdAt: Number.isFinite(o.createdAt) ? o.createdAt : null, exportedAt: Number.isFinite(o.exportedAt) ? o.exportedAt : null, escape: cleanEscapeSpec(o.escape), videosLost };
 }
 async function sheetBlobOk(b, meta) {   // Größe und Prüfsumme wie im Datensatz
   if (!b || !b.length || b.length > meta.max) return false;
@@ -7571,7 +7916,7 @@ async function importSheetPdf(file) {
         if (await feibeitsblattPdfKind(b)) { unsafe++; continue; }   // eine angehängte Sicherung oder ein Zwischenstand gehört nicht zu den Schüler:innen
         files.push({ blob: new Blob([b], { type: "application/pdf" }), name: f.name, size: b.length });
       }
-      rows.push({ text: t.text, textFmt: t.textFmt, solution: t.solution, material: t.material, images, files, answer: builderAnswer(t.answer, cards) });
+      rows.push({ text: t.text, textFmt: t.textFmt, solution: t.solution, material: t.material, images, files, answer: builderAnswer(t.answer, cards), videos: t.videos });
       for (const im of cards.values()) if (!rows[rows.length - 1].answer.items || !rows[rows.length - 1].answer.items.some((it) => it.img === im)) URL.revokeObjectURL(im.url);   // ohne Karte: nicht gebraucht
     }
     if (!importStillWanted(run)) {
@@ -7587,6 +7932,7 @@ async function importSheetPdf(file) {
     const msgs = [], lost = lostImg + lostFile;
     if (lost) msgs.push(`${[lostImg ? (lostImg === 1 ? "ein Bild" : lostImg + " Bilder") : "", lostFile ? (lostFile === 1 ? "eine PDF-Datei" : lostFile + " PDF-Dateien") : ""].filter(Boolean).join(" und ")} aus der PDF-Datei ${lost === 1 ? "war" : "waren"} beschädigt oder nicht lesbar und ${lost === 1 ? "fehlt" : "fehlen"} hier.`);
     if (unsafe) msgs.push(`${unsafe === 1 ? "eine angehängte PDF-Datei war" : unsafe + " angehängte PDF-Dateien waren"} selbst eine Feibeitsblatt-Sicherung (mit den Aufträgen an die KI), ein Zwischenstand von Schüler:innen oder eine Überblick-PDF aus einem Escape-Room und ${unsafe === 1 ? "wurde" : "wurden"} weggelassen.`);
+    if (o.videosLost) msgs.push(`${o.videosLost === 1 ? "ein YouTube-Video aus der PDF-Datei ließ" : o.videosLost + " YouTube-Videos aus der PDF-Datei ließen"} sich nicht übernehmen (ungültige Angaben oder mehr als ${VIDEO_LIMITS.perTask} Videos je Aufgabe) und ${o.videosLost === 1 ? "fehlt" : "fehlen"} hier.`);
     if (msgs.length) $("b-err").textContent = msgs.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(" ");
   } catch (e) {
     if (importStillWanted(run)) setStatus(st, "Die PDF-Datei konnte nicht gelesen werden. " + SHEET_PDF_HINT, "bad");
@@ -7928,13 +8274,16 @@ $("ck-save").addEventListener("click", async () => {
  * 60 unten (Fußzeile); Helvetica in vier Schnitten (WinAnsi; die schrägen Schnitte haben die Breiten der geraden); Inhalts-Streams
  * mit FlateDecode. Kopf: Titel, Hinweiskasten (Code und Adresse der digitalen Fassung als Link; der Satz zur KI-Rückmeldung nur, wenn
  * das Blatt Aufträge an die KI hat und ein KI-Dienst nutzbar ist), Zeile für Name, Klasse und Datum. Je Aufgabe: Aufgabenstellung
- * (formatiert), Bilder, Material mit grauer Linie links (Links als Adresse – nie der Linktext), Namen der PDF-Dateien, dann der Platz
+ * (formatiert), Bilder, Material mit grauer Linie links (Links als Adresse – nie der Linktext), YouTube-Videos (je Video ein unteilbarer
+ * Block: QR-Code zu youtubeUrl(v), rechts daneben „Video auf YouTube (Google)“ und der Titel, darunter die Adresse in Courier als Link –
+ * nie ein Vorschaubild, nie youtube-nocookie), Namen der PDF-Dateien, dann der Platz
  * für die Antwort: Schreiblinien (ANALOG_LINES × ANALOG_LINE_PT), Tabelle (je Zeile zwei Schreibzeilen, Kopf auf jeder Seite) oder
  * Umrisskarte aus WORLD_MAP mit nummerierter Liste der Karten. Am Ende der QR-Code zur Checkliste (nur mit gespeicherten Punkten).
  * Keine Abgaben, keine Aufträge an die KI, keine Checkliste selbst. */
 const ANALOG_LINES = 8, ANALOG_LINE_PT = 24;   // Schreiblinien je Textaufgabe: Abstand 24 pt ≈ 8,5 mm (Handschrift etwa in Schriftgröße 14)
 const ANALOG_ROW_PT = 2 * ANALOG_LINE_PT;      // Tabellenzeile: Platz für zwei Zeilen Handschrift
-const ANALOG_QR_PT = 90;                       // Kantenlänge des QR-Codes samt Ruhezone (4 Module)
+const ANALOG_QR_PT = 90;                       // Kantenlänge des QR-Codes samt Ruhezone (4 Module) – Checkliste und Videos
+const ANALOG_URL_PT = 10;                      // Adresse eines Videos unter seinem QR-Code (Courier: 52 Zeichen ≈ 312 pt)
 const ANALOG_LINK_RGB = "0.05 0.25 0.6";
 let worldPdfCache = "";
 function worldPdfPath() {   // alle Gebiete der Weltkarte als PDF-Pfad in SVG-Koordinaten (M/L/Z → m/l/h), einmal je Seitenaufruf
@@ -8027,8 +8376,14 @@ async function makeAnalogPdf(o) {
   };
   newPage();
   const fits = (need) => y + need <= MAXY;
-  const font = (s) => (s.b ? (s.i ? "F4" : "F2") : s.i ? "F3" : "F1");
-  const text = (x, base, str, size, s, color) => pg.ops.push(`BT ${color || "0 0 0"} rg /${font(s || {})} ${size} Tf ${f2(x)} ${f2(H - base)} Td ${pdfStr(str)} Tj ET`);
+  // /F5 = Courier (s.m): nur für die Adressen der Videos – YouTube-Kennungen unterscheiden Groß- und Kleinschreibung, in Helvetica sehen
+  // „I“ und „l“ gleich aus; die Seite bekommt die Schrift nur, wenn sie sie nutzt (pg.mono)
+  const font = (s) => (s.m ? "F5" : s.b ? (s.i ? "F4" : "F2") : s.i ? "F3" : "F1");
+  const text = (x, base, str, size, s, color) => {
+    if (s && s.m) pg.mono = true;
+    pg.ops.push(`BT ${color || "0 0 0"} rg /${font(s || {})} ${size} Tf ${f2(x)} ${f2(H - base)} Td ${pdfStr(str)} Tj ET`);
+  };
+  const monoW = (str, size) => str.length * 0.6 * size;   // Courier: jedes Zeichen 600/1000 em (die Adressen sind reines ASCII)
   const link = (x0, base, x1, size, url) => pg.links.push({ r: [x0 - 1, H - base - size * 0.28, x1 + 1, H - base + size * 0.9], url });
   const drawLine = (line, x, base, size, color) => {
     let cx = x + line.ind;
@@ -8062,6 +8417,41 @@ async function makeAnalogPdf(o) {
   let imgNo = 0;
   const shown = (id) => { const sh = o.shows && o.shows.get(id); if (sh && !sh.n) sh.n = ++imgNo; return sh || null; };
   const sizeOf = (sh, maxW, maxH) => { const pw = sh.sw * 0.75, ph = sh.sh * 0.75, sc = Math.min(1, maxW / pw, maxH / ph); return [pw * sc, ph * sc]; };   // 96 dpi → pt
+  // QR-Code q (aus qrMatrix) bei x (linke Kante der Ruhezone), top, Kantenlänge side samt Ruhezone: Module als Rechtecke in
+  // Modul-Einheiten, Ruhezone 4 Module; dazu ein Link über die ganze Fläche – für die Checkliste und die Videos dasselbe Format
+  const qrDraw = (q, url, x, top, side) => {
+    const mod = side / (q.size + 8), rects = [];
+    for (let r = 0; r < q.size; r++) for (let c = 0; c < q.size; c++) {
+      if (!q.dark[r * q.size + c] || (c > 0 && q.dark[r * q.size + c - 1])) continue;
+      let len = 1; while (c + len < q.size && q.dark[r * q.size + c + len]) len++;
+      rects.push(`${c + 4} ${r + 4} ${len} 1 re`);
+    }
+    pg.ops.push(`q 0 g ${mod.toFixed(5)} 0 0 ${(-mod).toFixed(5)} ${f2(x)} ${f2(H - top)} cm\n${rects.join("\n")}\nf\nQ`);
+    pg.links.push({ r: [x, H - top - side, x + side, H - top], url });
+  };
+  // YouTube-Video (aus cleanVideos) → Block zum Zeichnen: QR-Code (ANALOG_QR_PT) zum kanonischen Link youtubeUrl(v) – nie die Eingabe der
+  // Lehrkraft, so bleibt es bei Version 4 –, die Ruhezone links im Seitenrand; rechts daneben fett „Video auf YouTube (Google)“, der Titel,
+  // die Startzeit und ein Satz; unter dem QR-Code (unterhalb der Ruhezone) die Adresse in Courier. need = Höhe des ganzen Blocks (unteilbar)
+  const run1 = (t, b) => [{ t, b: !!b, i: false, u: false, h: "" }];
+  const analogVideo = (v) => {
+    const url = youtubeUrl(v), q = qrMatrix(url), mod = ANALOG_QR_PT / (q.size + 8), qx = ML - 4 * mod, tx = qx + ANALOG_QR_PT + 10, tw = ML + TW - tx;
+    const lines = (str, size, lh, color, b) => analogLines(run1(str, b), size, tw).map((l) => ({ l, size, lh, color }));
+    const start = videoStartSec(v), right = [...lines("Video auf YouTube (Google)", 10.5, 14.5, "0.1 0.1 0.1", true),
+      ...(v.title ? lines(v.title, 10.5, 14.5, "0.1 0.1 0.1") : []), ...(start ? lines("ab " + fmtVideoStart(start), 10, 14, "0.35 0.35 0.35") : []),
+      ...lines("Scanne den QR-Code oder gib die Adresse unter dem Code ein.", 9.5, 13, "0.35 0.35 0.35")];
+    const rightTop = 4 * mod - 6.5, urlBase = ANALOG_QR_PT + 11;   // erste Grundlinie rechts ≈ Oberkante der dunklen Module
+    const urlPt = Math.min(ANALOG_URL_PT, TW / Math.max(1, monoW(url, 1)));   // passt immer (≤ 52 Zeichen); nur zur Sicherheit
+    return { url, q, qx, tx, right, rightTop, urlBase, urlPt, need: Math.max(urlBase + 4, rightTop + right.reduce((s, r) => s + r.lh, 0) + 4) };
+  };
+  const drawVideo = (vb) => {
+    const top = y;
+    qrDraw(vb.q, vb.url, vb.qx, top, ANALOG_QR_PT);
+    let yy = top + vb.rightTop;
+    vb.right.forEach((r) => { yy += r.lh; drawLine(r.l, vb.tx, yy, r.size, r.color); });
+    text(ML, top + vb.urlBase, vb.url, vb.urlPt, { m: true }, ANALOG_LINK_RGB);
+    link(ML, top + vb.urlBase, ML + monoW(vb.url, vb.urlPt), vb.urlPt, vb.url);
+    y = top + vb.need;
+  };
 
   // Kopf: Titel, Hinweiskasten, Name/Klasse/Datum
   plain(title, 18, { bold: true, lh: 23 });
@@ -8096,16 +8486,16 @@ async function makeAnalogPdf(o) {
     const paras = fmt.length ? fmt.map(analogRuns) : String(t.text || "").replace(/\r/g, "").split("\n").map((l) => [{ t: l, b: false, i: false, u: false, h: "" }]);
     const imgs = cleanImages(t.images), thumbs = imgs.filter((m) => m.mode !== "inline").map((m) => shown(m.id)).filter(Boolean);
     const figs = imgs.filter((m) => m.mode === "inline").map((m) => shown(m.id)).filter(Boolean);
-    const mat = cleanMaterial(t.material).map(analogRuns), files = cleanFiles(t.files);
+    const mat = cleanMaterial(t.material).map(analogRuns), files = cleanFiles(t.files), vids = cleanVideos(t.videos).map(analogVideo);
     const filesLine = `Material zum Herunterladen (nur digital): ${files.map((f) => f.name).join(", ")}`;
     // Überschrift und Aufgabenstellung bleiben mit dem ersten Block danach zusammen, der sich nicht teilen lässt (erste Bilderreihe, großes
-    // Bild, Anfang des Materials, Dateinamen oder Anfang des Antwortbereichs): passt das nicht mehr auf die Seite, wohl aber auf eine neue,
+    // Bild, Anfang des Materials, erstes Video, Dateinamen oder Anfang des Antwortbereichs): passt das nicht mehr auf die Seite, wohl aber auf eine neue,
     // beginnt die Aufgabe auf einer neuen Seite – sonst stünde z. B. die Überschrift allein über einer Lücke, weil die Karte nicht mehr passt
     const parasH = (ps, size, lh, maxW) => ps.reduce((sum, runs) => sum + (runs.some((r) => r.t.trim()) ? analogLines(runs, size, maxW).length * lh : lh), 0);
     let firstRow = 0;
     for (const [k, sh] of thumbs.entries()) { const [dw, dh] = sizeOf(sh, Math.min(TW, 220), 190); if (k && thumbs.slice(0, k).reduce((x, s2) => x + sizeOf(s2, Math.min(TW, 220), 190)[0] + 10, 0) + dw > TW) break; firstRow = Math.max(firstRow, dh); }
     const firstBlock = thumbs.length ? 10 + firstRow : figs.length ? 10 + sizeOf(figs[0], TW, 330)[1] : mat.length ? 12 + 13 + 14.5
-      : files.length ? 10 + 13.5 : spec.type === "table" ? 10 + tableHead(spec).hh + ANALOG_ROW_PT : spec.type === "map" ? 10 + TW * WORLD_MAP.h / WORLD_MAP.w : 6 + 3 * ANALOG_LINE_PT + 4;
+      : vids.length ? 12 + vids[0].need : files.length ? 10 + 13.5 : spec.type === "table" ? 10 + tableHead(spec).hh + ANALOG_ROW_PT : spec.type === "map" ? 10 + TW * WORLD_MAP.h / WORLD_MAP.w : 6 + 3 * ANALOG_LINE_PT + 4;
     const est = 20 + parasH(paras, 11, 15.2, TW) + firstBlock;
     y += 18;
     if (y + est > MAXY && TOP + est <= MAXY) newPage();
@@ -8141,6 +8531,12 @@ async function makeAnalogPdf(o) {
       flow([[{ t: "Material", b: true, i: false, u: false, h: "" }]], 10, { lh: 13, indent: 12, color: "0.35 0.35 0.35" });
       flow(mat, 10.5, { lh: 14.5, indent: 12, color: "0.15 0.15 0.15", emptyGap: 7 });
       barDraw(y + 4); bar = null;
+    }
+    // YouTube-Videos: nach dem Material, aber nicht mehr neben seiner grauen Linie (sie schnitte durch die Ruhezone im Rand); je Video unteilbar
+    for (const vb of vids) {
+      y += 12;
+      if (!fits(vb.need)) newPage();
+      drawVideo(vb);
     }
     if (files.length) {
       y += 10;
@@ -8265,14 +8661,8 @@ async function makeAnalogPdf(o) {
     if (!fits(need)) newPage();
     plain("Checkliste", 13, { bold: true, lh: 18 });
     y += 6;
-    const top = y, rects = [];
-    for (let r = 0; r < q.size; r++) for (let c = 0; c < q.size; c++) {
-      if (!q.dark[r * q.size + c] || (c > 0 && q.dark[r * q.size + c - 1])) continue;
-      let len = 1; while (c + len < q.size && q.dark[r * q.size + c + len]) len++;
-      rects.push(`${c + 4} ${r + 4} ${len} 1 re`);
-    }
-    pg.ops.push(`q 0 g ${mod.toFixed(5)} 0 0 ${(-mod).toFixed(5)} ${f2(qx)} ${f2(H - top)} cm\n${rects.join("\n")}\nf\nQ`);
-    pg.links.push({ r: [qx, H - top - ANALOG_QR_PT, qx + ANALOG_QR_PT, H - top], url: o.checkUrl });
+    const top = y;
+    qrDraw(q, o.checkUrl, qx, top, ANALOG_QR_PT);
     let yy = top + 4;
     expl.forEach((l) => { yy += 14.5; drawLine(l, tx, yy, 10.5, "0.1 0.1 0.1"); });
     yy += 6;
@@ -8291,9 +8681,11 @@ async function makeAnalogPdf(o) {
     p.ops.push(`BT 0.45 0.45 0.45 rg /F1 ${fs} Tf ${f2(ML)} 34 Td ${pdfStr(left(short))} Tj ET`);
     p.ops.push(`BT 0.45 0.45 0.45 rg /F1 ${fs} Tf ${f2(W - ML - pdfWidth(right, fs, false))} 34 Td ${pdfStr(right)} Tj ET`);
   });
-  // Objekte: 1 Katalog, 2 Seitenbaum, 3–6 Schriften, 7 Info, dann die Bilder, je Seite Seite + Inhalt + Links
+  // Objekte: 1 Katalog, 2 Seitenbaum, 3–6 Schriften, 7 Info, dann Courier (nur mit Videos – nach Info, die Nummern davor bleiben),
+  // die Bilder, je Seite Seite + Inhalt + Links
   const ims = [...new Set(pages.flatMap((p) => [...p.ims]))];
   let next = 8;
+  const monoObj = pages.some((p) => p.mono) ? next++ : 0;
   const imObj = new Map(ims.map((sh) => [sh, next++])), wmObj = pages.some((p) => p.wm) ? next++ : 0;
   const pgs = pages.map((p) => ({ ...p, obj: next++, content: next++, annots: p.links.map(() => next++) }));
   const count = next, parts = [], offsets = [];
@@ -8306,6 +8698,7 @@ async function makeAnalogPdf(o) {
   obj(2, `<< /Type /Pages /Kids [${pgs.map((p) => p.obj + " 0 R").join(" ")}] /Count ${pgs.length} >>`);
   ["Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique"].forEach((f, k) => obj(3 + k, `<< /Type /Font /Subtype /Type1 /BaseFont /${f} /Encoding /WinAnsiEncoding >>`));
   obj(7, `<< /Title ${pdfUtf16(title + " – Arbeitsblatt")} /Subject ${pdfUtf16("Feibeitsblatt " + fmtCode(code) + " zum Ausdrucken")} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  if (monoObj) obj(monoObj, "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>");
   for (const sh of ims) obj(imObj.get(sh), [`<< /Type /XObject /Subtype /Image /Width ${sh.w} /Height ${sh.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${sh.data.length} >>\nstream\n`, sh.data, "\nendstream"]);
   if (wmObj) {   // Weltkarte: y gespiegelt (SVG zählt nach unten), Gebiete weiß gefüllt, Grenzen 0,3 pt grau (bei der Breite TW)
     const raw = latin1(`1 0 0 -1 0 ${WORLD_MAP.h} cm 1 g 0.5 G ${(0.3 * WORLD_MAP.w / TW).toFixed(3)} w 1 j\n${worldPdfPath()}B`), packed = await deflateBytes(raw), data = packed || raw;
@@ -8313,7 +8706,7 @@ async function makeAnalogPdf(o) {
   }
   for (const p of pgs) {
     const xs = [...p.ims].map((sh) => `/Im${sh.n} ${imObj.get(sh)} 0 R`).concat(p.wm ? [`/Wm ${wmObj} 0 R`] : []).join(" ");
-    obj(p.obj, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >>${xs ? ` /XObject << ${xs} >>` : ""} >> /Contents ${p.content} 0 R` +
+    obj(p.obj, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R${p.mono ? ` /F5 ${monoObj} 0 R` : ""} >>${xs ? ` /XObject << ${xs} >>` : ""} >> /Contents ${p.content} 0 R` +
       (p.annots.length ? ` /Annots [${p.annots.map((a) => a + " 0 R").join(" ")}]` : "") + " >>");
     const raw = latin1(p.ops.join("\n")), packed = await deflateBytes(raw), data = packed || raw;
     obj(p.content, [`<<${packed ? " /Filter /FlateDecode" : ""} /Length ${data.length} >>\nstream\n`, data, "\nendstream"]);
@@ -8347,7 +8740,7 @@ function openBuilder(title, rows, escape) {
   });
   $("b-rows").textContent = "";
   const init = rows && rows.length ? rows : [{}, {}, {}];
-  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material, r.files, r.answer, r.textFmt));
+  init.forEach((r) => addRow(r.text, r.solution, r.images, r.material, r.files, r.answer, r.textFmt, r.videos));
   T.builderDirty = false;
   growAll();
   focusSoon("b-title", 30);
@@ -8473,6 +8866,26 @@ async function addPdfFiles(tr, files) {
       } catch (e) { setStatus(stat, `„${f.name}“: ${(e && e.message) || "Die Datei konnte nicht gelesen werden."}`, "bad"); }
     }
   } finally { busy(tr._fileAdd, false); renderFiles(tr); }
+}
+/* YouTube-Videos einer Zeile: Titel (falls vorhanden) und der Link, unter dem Schüler:innen das Video auch öffnen können (neuer Tab) –
+   kein Vorschaubild, keine Anfrage an YouTube. Bei VIDEO_LIMITS.perTask Videos bleibt der Knopf per Tab erreichbar (aria-disabled), der
+   Hinweis daneben nennt den Grund. Setzt T.builderDirty nicht (openBuilder füllt vor). */
+function renderVideos(tr) {
+  const list = tr._vidList, n = renumberOf(tr);
+  list.textContent = "";
+  tr._videos.forEach((v, k) => {
+    const del = h("button", { type: "button", class: "iconbtn x", text: "✕", title: "Video entfernen", "aria-label": `Video ${k + 1} zu Aufgabe ${n} entfernen` });
+    del.addEventListener("click", () => { tr._videos.splice(k, 1); renderVideos(tr); T.builderDirty = true; tr._vidAdd.focus(); });
+    list.appendChild(h("li", { class: "bvid" }, [
+      h("span", { class: "filebtn-icon", "aria-hidden": "true", text: "▶" }),
+      h("span", { class: "bvid-name" }, [v.title ? h("b", { text: v.title }) : null, v.title ? " · " : null, newTabLink(youtubeUrl(v), youtubeUrl(v))]),
+      v.start ? h("span", { class: "bimg-meta", text: "ab " + fmtVideoStart(v.start) }) : null,
+      del
+    ]));
+  });
+  const full = tr._videos.length >= VIDEO_LIMITS.perTask, t = full ? `Höchstens ${VIDEO_LIMITS.perTask} Videos je Aufgabe.` : "";
+  tr._vidAdd.setAttribute("aria-disabled", String(full));
+  if (tr._vidStat.textContent !== t) tr._vidStat.textContent = t;
 }
 function renderFiles(tr) {
   const list = tr._fileList; list.textContent = "";
@@ -8625,7 +9038,7 @@ function answerEditor(tr, init) {
   return box;
 }
 const renumberOf = (tr) => Array.prototype.indexOf.call($("b-rows").children, tr) + 1 || $("b-rows").children.length + 1;
-function addRow(text, solution, images, material, files, answer, textFmt) {
+function addRow(text, solution, images, material, files, answer, textFmt, videos) {
   const tb = $("b-rows");
   const dirty = () => { T.builderDirty = true; };
   // Aufgabenstellung: formatierbar wie das Material (fett/kursiv/unterstrichen, Links); gesendet wird der reine Text und – nur
@@ -8654,10 +9067,15 @@ function addRow(text, solution, images, material, files, answer, textFmt) {
     barLabel: "Formatierung des Materials", model: material, onInput: dirty });
   const matEd = mat.ed, matBar = mat.bar;
   const matLbl = h("span", { class: "rowlbl", style: "margin-top:10px" });
+  // YouTube-Videos unter dem Material (bis zu 3): nur Kennung, Startzeit und Titel – eigener Knopf außerhalb der Werkzeugleiste
+  const vidList = h("ul", { class: "bvids" });
+  const vidAdd = h("button", { type: "button", class: "btn ghost small bvid-add", text: "YouTube-Video im Feibeitsblatt einbetten" });
+  const vidStat = h("span", { class: "fhint bvid-stat", role: "status" });
   const noSol = h("p", { class: "fhint nosol hidden", text: "Für die Weltkarten-Zuordnung gibt es keinen Auftrag an die KI: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI." });
   const tr = h("tr", null, [
     h("td", { class: "c1" }, [h("div", { class: "bq" }, [l1, q.bar, qEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab. Die KI bekommt nur den reinen Text." })]),
-      h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." })]),
+      h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." }),
+        vidList, h("div", { class: "bimg-row bvid-row" }, [vidAdd, vidStat])]),
       h("div", { class: "bimgs" }, [imgList, h("div", { class: "bimg-row" }, [imgAdd, file, imgStat])]),
       h("div", { class: "bimgs bfiles" }, [fileList, h("div", { class: "bimg-row" }, [pdfAdd, pdfIn, pdfStat])])]),
     h("td", { class: "c2" }, [l2, ta2, noSol]),
@@ -8668,25 +9086,33 @@ function addRow(text, solution, images, material, files, answer, textFmt) {
   tr.querySelector("td.c1").appendChild(answerEditor(tr, answer));
   tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl; tr._qEd = qEd;
   tr._files = []; tr._fileList = fileList; tr._fileAdd = pdfAdd; tr._fileStat = pdfStat;
+  tr._videos = cleanVideos(videos); tr._vidList = vidList; tr._vidAdd = vidAdd; tr._vidStat = vidStat;   // vorbefüllt (Vorlage, Import): nicht „geändert“
   imgAdd.addEventListener("click", () => { file.value = ""; file.click(); });
   file.addEventListener("change", () => addImages(tr, Array.from(file.files || [])));
   pdfAdd.addEventListener("click", () => { pdfIn.value = ""; pdfIn.click(); });
   pdfIn.addEventListener("change", () => addPdfFiles(tr, Array.from(pdfIn.files || [])));
+  vidAdd.addEventListener("click", async () => {
+    if (tr._videos.length >= VIDEO_LIMITS.perTask) return;   // aria-disabled: der Hinweis daneben nennt den Grund
+    const v = await askVideo(tr._videos);
+    if (!v || !tr.isConnected || !T.authKey || tr._videos.length >= VIDEO_LIMITS.perTask) return;   // abgebrochen, Zeile entfernt oder abgemeldet
+    tr._videos.push(v); renderVideos(tr); T.builderDirty = true;
+  });
   (images || []).forEach((im) => { if (tr._images.length < IMG_PER_TASK) tr._images.push(im); });
   renderImages(tr);
   (files || []).forEach((f) => { if (tr._files.length < FILES_PER_TASK) tr._files.push(f); });
   renderFiles(tr);
+  renderVideos(tr);
   ta2.addEventListener("input", () => { autoGrow(ta2); ta2.classList.remove("invalid"); T.builderDirty = true; });
   up.addEventListener("click", () => { const p = tr.previousElementSibling; if (p) { tb.insertBefore(tr, p); renumber(); up.focus(); T.builderDirty = true; } });
   down.addEventListener("click", () => { const n = tr.nextElementSibling; if (n) { tb.insertBefore(n, tr); renumber(); down.focus(); T.builderDirty = true; } });
   del.addEventListener("click", async () => {
-    const hasMat = !!matEd.textContent.trim(), hasFiles = tr._images.length || tr._files.length, hasAns = tr._ans.type !== "text";
+    const hasMat = !!matEd.textContent.trim(), hasFiles = tr._images.length || tr._files.length || tr._videos.length, hasAns = tr._ans.type !== "text";
     if (tb.children.length <= 1 && !hasFiles && !hasMat && !hasAns) { qEd._clear(); ta2.value = ""; growAll(); return; }
-    if ((qEd.textContent.trim() || ta2.value.trim() || hasFiles || hasMat || hasAns) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Auftrag an die KI, Material, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
+    if ((qEd.textContent.trim() || ta2.value.trim() || hasFiles || hasMat || hasAns) && !(await askConfirm({ title: "Zeile entfernen?", text: "Aufgabenstellung, Auftrag an die KI, Material, Videos, Bilder, PDF-Dateien und Antwortart dieser Zeile werden entfernt.", ok: "Entfernen", cancel: "Abbrechen", danger: true }))) return;
     tr._images.forEach((im) => URL.revokeObjectURL(im.url));
     tr._ans.items.forEach((it) => { if (it.img) URL.revokeObjectURL(it.img.url); });
     if (tb.children.length <= 1) {
-      qEd._clear(); ta2.value = ""; matEd._clear(); tr._images = []; renderImages(tr); tr._files = []; renderFiles(tr);
+      qEd._clear(); ta2.value = ""; matEd._clear(); tr._images = []; renderImages(tr); tr._files = []; renderFiles(tr); tr._videos = []; renderVideos(tr);
       Object.assign(tr._ans, { type: "text", columns: [], rows: 3, items: [] }); tr._ansSel.value = "text"; tr._colsIn.value = ""; tr._rowsIn.value = "3"; tr._ansSync();
       growAll(); T.builderDirty = true; return;
     }
@@ -8716,6 +9142,11 @@ function renumber() {
     tr.querySelector(".acts .x").setAttribute("aria-label", `Aufgabe ${n} entfernen`);
     tr.querySelector(".bimg-add").setAttribute("aria-label", `Bild zu Aufgabe ${n} hinzufügen`);
     tr.querySelector(".bfile-add").setAttribute("aria-label", `PDF-Datei zu Aufgabe ${n} hinzufügen`);
+    // Name beginnt mit dem sichtbaren Text (WCAG 2.5.3); der Hinweis „Höchstens 3 …“ beschreibt den Knopf
+    tr._vidAdd.setAttribute("aria-label", `YouTube-Video im Feibeitsblatt einbetten – zu Aufgabe ${n}`);
+    tr._vidStat.id = "bvs-" + n; tr._vidAdd.setAttribute("aria-describedby", tr._vidStat.id);
+    tr._vidList.setAttribute("aria-label", `Videos zu Aufgabe ${n}`);
+    tr._vidList.querySelectorAll(".bvid .iconbtn.x").forEach((b, k) => b.setAttribute("aria-label", `Video ${k + 1} zu Aufgabe ${n} entfernen`));
     tr._matLbl.textContent = `Material ${n} (optional)`;
     tr._matEd.setAttribute("aria-label", `Material zu Aufgabe ${n}`);
     tr.querySelector(".bq-bar").setAttribute("aria-label", `Formatierung der Aufgabenstellung ${n}`);
@@ -8747,8 +9178,9 @@ $("b-gen").addEventListener("click", async () => {
   Array.from($("b-rows").children).forEach((tr, i) => {
     const q = tr._qEd, s = tr.querySelector("textarea.s:not(.measure)"), ans = tr._ans;
     const qModel = serializeMaterial(q, { keepIndent: true }), text = fmtPlain(qModel), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
+    const vids = cleanVideos(tr._videos);   // YouTube-Videos: nur Kennung, Startzeit und Titel
     const solution = ans.type === "map" ? "" : s.value.trim();   // Auftrag an die KI (Weltkarte: keiner)
-    if (!text && !solution && !imgs.length && !pdfs.length && !material.length && ans.type === "text") return;     // leere Zeilen weglassen
+    if (!text && !solution && !imgs.length && !pdfs.length && !vids.length && !material.length && ans.type === "text") return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
     // Antwortart prüfen (dieselben Grenzen wie der Server)
     let answer = null;
@@ -8784,9 +9216,11 @@ $("b-gen").addEventListener("click", async () => {
     if (qErr && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: ${qErr}`; q.classList.add("invalid"); }
     const mErr = fmtLimitError(material, MAT_LIMITS.chars, "Das Material", "im Material");
     if (mErr && !bad) { bad = tr._matEd; err.textContent = `Zeile ${i + 1}: ${mErr}`; }
+    if ((tr._videos || []).length > VIDEO_LIMITS.perTask) fail(tr._vidAdd, `Höchstens ${VIDEO_LIMITS.perTask} YouTube-Videos je Aufgabe.`);
     const task = { text, solution };
     if (textFmt) task.textFmt = textFmt;
     if (material.length) task.material = material;
+    if (vids.length) task.videos = vids;   // wie das Material nur, wenn vorhanden
     if (answer) task.answer = answer;
     tasks.push(task);
     imgs.forEach((im, k) => uploads.push({ kind: "image", task: tasks.length, im, id: hexOf(crypto.getRandomValues(new Uint8Array(8))), label: `Aufgabe ${tasks.length}, Bild ${k + 1}` }));
@@ -8811,6 +9245,7 @@ $("b-gen").addEventListener("click", async () => {
     escape = { id, name };
   }
   const title = $("b-title").value.trim().slice(0, 200);
+  const videoCount = tasks.reduce((k, t) => k + (t.videos ? t.videos.length : 0), 0);
   busy(btn, true, "Code wird erzeugt …");
   try {
     const r = await TA("/api/teacher/sheets", { method: "POST", body: escape ? { title, tasks, escape } : { title, tasks } });
@@ -8821,6 +9256,11 @@ $("b-gen").addEventListener("click", async () => {
     $("b-res-normal").classList.toggle("hidden", !!resEsc); $("b-res-esc").classList.toggle("hidden", !resEsc);
     $("b-res-esc").textContent = resEsc ? `Tragen Sie diesen Code im Quelltext des Escape-Rooms „${resEsc.name}“ ein (FEIBEITSBLATT_CODE). Schüler:innen öffnen das Feibeitsblatt über den Arena-Tunnel am Ende des Escape-Rooms oder mit ihrer Überblick-PDF.` : "";
     $("b-form").classList.add("hidden"); $("b-result").classList.remove("hidden");
+    // Ein älterer Server verwirft unbekannte Felder still: fehlen gesendete Videos in seiner Antwort, sagt der Hinweis es (statt sie
+    // unbemerkt zu verlieren)
+    const vidNote = $("b-res-vid"), vidLost = videoCount > 0 && !(Number.isInteger(r.videoCount) && r.videoCount >= videoCount);
+    vidNote.textContent = vidLost ? "Die Videos wurden vom Server nicht gespeichert – bitte die Seite neu laden." : "";
+    vidNote.classList.toggle("hidden", !vidLost);
     T.sel = r.code;
     T.pendingUploads = uploads.map((u) => Object.assign({ code: r.code }, u)); T.doneUploads = 0;
     T.uploadKinds = { images: uploads.filter((u) => u.kind === "image").length, files: uploads.filter((u) => u.kind === "file").length };
@@ -9280,6 +9720,8 @@ function renderPvEffect() {
    wie der Hinweis unter dieser Adresse erscheint. Darunter, was bei anderen Blättern bzw. über die andere Adresse abweicht. */
 const PV_ESC_NOTE = "Bei Feibeitsblättern für einen Escape-Room kommen Sätze zu den Daten aus dem Escape-Room hinzu (voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät " +
   "der Schüler:innen – außer sie schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie).";
+const PV_VIDEO_NOTE = "Bei Feibeitsblättern mit Videos von YouTube kommen Sätze zu YouTube hinzu: Ein Video wird erst nach einem Klick der Schüler:innen geladen (Einwilligung, " +
+  "Art. 6 Abs. 1 Buchst. a DSGVO und § 25 Abs. 1 TDDDG); dann erhält Google Ireland Limited unter anderem die IP-Adresse und kann Cookies setzen, Daten können in die USA gelangen.";
 function renderPvPreview() {
   const f = pvForm(), p = cleanPrivacy(f), list = cleanRecipients(T.privacy && T.privacy.aiRecipients), box = $("pv-preview");
   box.textContent = "";
@@ -9288,7 +9730,7 @@ function renderPvPreview() {
     privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull", ttSwitch: "preview" }),
     h("p", { class: "fhint", id: "pv-preview-note", text: (CHECK_HOST ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${CHECK_HOST}, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „${GITHUB_ITEM}“ ` : "") +
       "Bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen der Satz zur Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „" + TT_OBJ_HEAD + "“ – dort wird nichts gemessen. " +
-      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " + PV_ESC_NOTE + " Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
+      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " + PV_ESC_NOTE + " " + PV_VIDEO_NOTE + " Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
 }
 function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der Auswahl steht, als eigene Möglichkeit zeigen
   const sel = $("pv-days");
@@ -9578,6 +10020,16 @@ const legalHash = () => /^#impressum$/i.test(location.hash || "");
     h("p", { text: "Manche Feibeitsblätter sind das Finale eines Escape-Rooms: Du öffnest sie über den Link am Ende des Escape-Rooms oder mit deiner Überblick-PDF " +
       "(auf der Startseite „Zwischenstand-PDF hochladen“); es gibt dann nur Einzelarbeit. Zusätzlich zu den Angaben oben gilt:" }),
     h("p", { text: ESC_PRIV.purpose("") }), h("p", { text: ESC_PRIV.data("") }), h("p", { text: ESC_PRIV.teacher }), escMailItem(true, "p"), h("p", { text: ESC_PRIV.stay }));
+})();
+// Feibeitsblätter mit YouTube-Videos: eigener Abschnitt in allgemeiner Form (welches Blatt Videos hat, weiß diese Seite ohne Code nicht;
+// der Hinweis darüber bleibt, wie er ist) – dazu der QR-Code des analogen Arbeitsblattes, der an diesem Hinweis vorbei direkt zu YouTube führt
+(function renderLegalVideo() {
+  $("legal-video").append(h("h2", { class: "legal-h2", id: "legal-video-h", text: "Feibeitsblätter mit Videos von YouTube" }),
+    h("p", { text: "Manche Feibeitsblätter enthalten Videos von YouTube, die deine Lehrkraft unter dem Material einer Aufgabe eingebettet hat; zuerst siehst du dort nur einen " +
+      "Platzhalter ohne Vorschaubild. Zusätzlich zu den Angaben oben gilt dann:" }),
+    ...[PRIV_DU.ytPurpose, PRIV_DU.ytData, PRIV_DU.ytBasis, PRIV_DU.ytItem, PRIV_DU.ytStay, PRIV_DU.ytChoice.trim(), PRIV_DU.ytRights].map((x) => h("p", { text: x })),
+    h("p", { text: "Auf einem ausgedruckten Feibeitsblatt führt zu jedem Video ein QR-Code mit der ausgeschriebenen Adresse direkt zu YouTube: Scannst du ihn oder gibst du die " +
+      "Adresse ein, rufst du YouTube direkt auf; dort gelten die Bedingungen von YouTube." }));
 })();
 async function openLegal() {
   escDrop();   // angekommene Daten aus einem Escape-Room gelten nicht mehr

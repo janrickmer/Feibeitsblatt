@@ -163,6 +163,10 @@ async function main() {
     assert.equal(html, await readFile(join(ROOT, "dist", "index.html"), "utf8"));
     assert.match(r.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
     assert.equal(r.headers.get("x-frame-options"), "DENY");
+    // eingebettete YouTube-Videos: frame-src nur youtube-nocookie.com – im Header UND im Meta-Tag (am Worker gelten beide)
+    assert.match(r.headers.get("content-security-policy") || "", /(^|; )frame-src https:\/\/www\.youtube-nocookie\.com(;|$)/);
+    assert.match(html, /<meta http-equiv="Content-Security-Policy" content="[^"]*; frame-src https:\/\/www\.youtube-nocookie\.com;/);
+    assert.equal(r.headers.get("referrer-policy"), "no-referrer");
     assert.equal((await fetch(BASE + "/_headers")).status, 404, "_headers darf nicht ausgeliefert werden");
     ok("GET / liefert dist/index.html mit Sicherheits-Headern aus _headers (die selbst nicht abrufbar ist)");
     expectErr(await api("POST", "/api/teacher/door", undefined, { rawBody: "{kaputt" }), 400, "bad_json");
@@ -276,7 +280,7 @@ async function main() {
     assert.equal(r.json.sheets.find((s) => s.code === code).taskCount, 3);
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 0);
     r = await api("GET", "/api/teacher/sheets/" + code.toLowerCase(), undefined, { auth });
-    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })));
+    assert.deepEqual(r.json.sheet.tasks, tasks.map((t) => ({ ...t, textFmt: [], material: [], videos: [], images: [], files: [], answer: { type: "text" } })));
     ok("Blatt anlegen (Prüfungen, Titel-Vorgabe, Code-Format), Liste und Einzelansicht mit Aufträgen an die KI");
 
     step = "Bilder zu Aufgaben";
@@ -360,7 +364,7 @@ async function main() {
     r = await api("GET", "/api/sheet/" + encodeURIComponent(" " + display.toLowerCase() + " "));
     assert.equal(r.status, 200, r.text);
     assert.deepEqual(r.json.sheet.tasks.map((t) => t.text), tasks.map((t) => t.text));
-    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), ["answer,files,images,material,text,textFmt", "answer,files,images,material,text,textFmt", "answer,files,images,material,text,textFmt"]);
+    assert.deepEqual(r.json.sheet.tasks.map((t) => Object.keys(t).sort().join()), Array(3).fill("answer,files,images,material,text,textFmt,videos"));
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]); assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], [{ id: fileId, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length }], []]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.equal(r.json.sheet.aiFeedback, true);   // mindestens eine Aufgabe mit Auftrag an die KI
@@ -410,6 +414,36 @@ async function main() {
       r = await api("DELETE", "/api/teacher/sheets/" + wc, undefined, { auth }); assert.equal(r.status, 200, r.text);
     }
     ok("Antwortarten: Tabelle und Weltkarte gespeichert, öffentlich nur Prüfwerte (keine Länder), Kartenbilder getrennt gezählt, Tabellen-Hinweis im Prompt");
+
+    step = "YouTube-Videos";
+    {
+      const bad = (videos) => api("POST", "/api/teacher/sheets", { title: "x", tasks: [{ text: "a" }, { text: "b", videos }] }, { auth });
+      expectErr(await bad([{ id: "M7lc1UVf-V" }]), 400, "bad_request", "Aufgabe 2: Video 1: Das ist kein gültiger YouTube-Link.");
+      expectErr(await bad([{ id: "M7lc1UVf-VE" }, { id: "https://www.youtube.com/watch?v=aqz-KE-bpKQ" }]), 400, "bad_request", "Aufgabe 2: Video 2: Das ist kein gültiger YouTube-Link.");
+      expectErr(await bad([{ id: "M7lc1UVf-VE", start: -5 }]), 400, "bad_request", "Aufgabe 2: Video 1: Die Startzeit ist ungültig.");
+      expectErr(await bad([{ id: "M7lc1UVf-VE", title: "t".repeat(121) }]), 400, "bad_request", "Aufgabe 2: Video 1: Der Titel ist zu lang (höchstens 120 Zeichen).");
+      expectErr(await bad(["M7lc1UVf-VE", "aqz-KE-bpKQ", "dQw4w9WgXcQ", "Zz_9-aB3cD4"].map((id) => ({ id }))), 400, "bad_request", "Aufgabe 2: Höchstens 3 YouTube-Videos je Aufgabe.");
+      expectErr(await bad("https://youtu.be/M7lc1UVf-VE"), 400, "bad_request", "Aufgabe 2: Die Videos haben ein ungültiges Format.");
+      const videos = [{ id: "M7lc1UVf-VE", start: 90, title: "  Wie Pflanzen\nwachsen ", url: "https://youtu.be/M7lc1UVf-VE?si=TRACKING&t=90" }, { id: "aqz-KE-bpKQ", start: 0 }];
+      const V = [{ id: "M7lc1UVf-VE", start: 90, title: "Wie Pflanzen wachsen" }, { id: "aqz-KE-bpKQ" }];
+      r = await api("POST", "/api/teacher/sheets", { title: "Smoke: Videos", tasks: [{ text: "Erkläre die Photosynthese.", solution: "- Licht wird gebraucht", videos }, { text: "Ohne Video" }] }, { auth });
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.videoCount, 2);
+      const vc = r.json.code;
+      r = await api("GET", "/api/sheet/" + vc);
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual(r.json.sheet.tasks.map((t) => t.videos), [V, []]);   // nur Kennung, Startzeit, Titel – immer eine Liste
+      assert.equal(/si=|TRACKING|youtu|"url"|solution|Licht wird gebraucht/.test(r.text), false, r.text);
+      r = await api("GET", "/api/teacher/sheets/" + vc, undefined, { auth });
+      assert.deepEqual(r.json.sheet.tasks.map((t) => t.videos), [V, []]);
+      mock.reset();
+      r = await api("POST", "/api/feedback", { code: vc, answers: ["Pflanzen brauchen Licht.", "egal"] }); feedbackCount++;
+      assert.equal(r.status, 200, r.text);
+      const msg = mock.state.requests.map((q) => q.messages.map((m) => m.content).join("\n")).join("\n");
+      assert.ok(msg.includes("Erkläre die Photosynthese."), msg);
+      assert.equal(/M7lc1UVf-VE|aqz-KE-bpKQ|youtu|Wie Pflanzen wachsen/i.test(msg), false, "Videos im Prompt");
+      r = await api("DELETE", "/api/teacher/sheets/" + vc, undefined, { auth }); assert.equal(r.status, 200, r.text);
+    }
+    ok("YouTube-Videos: nur Kennung, Startzeit und Titel gespeichert und ausgeliefert (nie eine URL), ungültige → 400, nie im Prompt");
 
     step = "KI-Feedback";
     const answers = ["Die Photosynthese braucht LICHT. Zebrafink-Marker", "Die Pause.", ""];
