@@ -2814,8 +2814,11 @@ $("ytdlg").addEventListener("keydown", (e) => {
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 });
-// Klick auf den Hintergrund schließt – aber nicht der zweite Klick eines Doppelklicks auf den Öffner direkt nach dem Öffnen
-$("ytdlg").addEventListener("click", (e) => { if (e.target === $("ytdlg") && Date.now() - ydOpenedAt > 400) closeVideoDlg(null); });
+// Klick auf den Hintergrund schließt – aber nicht der zweite Klick eines Doppelklicks auf den Öffner direkt nach dem Öffnen und nicht
+// das Ende einer Markierung, die in einem Feld begann (der Klick landet dann ebenfalls am Hintergrund; Link und Titel gingen verloren)
+let ydDownBack = false;
+$("ytdlg").addEventListener("pointerdown", (e) => { ydDownBack = e.target === $("ytdlg"); });
+$("ytdlg").addEventListener("click", (e) => { if (e.target === $("ytdlg") && ydDownBack && Date.now() - ydOpenedAt > 400) closeVideoDlg(null); });
 /* Formatierbarer Text der Lehrkraft (fett/kursiv/unterstrichen, Links) als contenteditable – derselbe Editor für die
    Aufgabenstellung und das Material. Gespeichert wird nie HTML, sondern das Modell aus serializeMaterial.
    o = { cls, barCls, placeholder, barLabel, model (Absätze aus Läufen) oder text (reiner Text), onInput } → { ed, bar };
@@ -3070,7 +3073,8 @@ const YT_LOAD_TEXT = "Video von YouTube laden";
 function videoBlock(v, k, n) {
   const name = v.title || `Video ${k + 1} zu Aufgabe ${n}`, key = n + "-" + (k + 1), noteId = "vn-" + key;
   const titleText = name + (v.start ? ` (ab ${fmtVideoStart(v.start)})` : "");
-  const open = h("a", { class: "yt-open", href: youtubeUrl(v), target: "_blank", rel: "noopener noreferrer" },
+  // Name mit dem Video (sonst stünden bei mehreren Videos gleichlautende Links in der Linkliste von Screenreadern; WCAG 2.4.4)
+  const open = h("a", { class: "yt-open", href: youtubeUrl(v), target: "_blank", rel: "noopener noreferrer", "aria-label": "Video in neuem Tab öffnen – " + name },
     ["Video in neuem Tab öffnen", h("span", { class: "sr-only", text: " (öffnet in neuem Tab)" })]);
   const load = h("button", { type: "button", class: "btn yt-load", "aria-describedby": noteId, "aria-label": YT_LOAD_TEXT + " – " + name, text: YT_LOAD_TEXT });
   const acts = h("div", { class: "yt-acts" }, [load, open]);
@@ -8222,7 +8226,7 @@ async function ckSave() {
     return;
   }
   const any = parsed.tasks.some((t) => t.points.length);
-  if (!any && !(await askConfirm({ title: "Ohne QR-Code herunterladen?", text: "Ohne Checklistenpunkte enthält das PDF keinen QR-Code. Trotzdem herunterladen?", ok: "Trotzdem herunterladen", cancel: "Abbrechen" }))) return;
+  if (!any && !(await askConfirm({ title: "Ohne Checkliste herunterladen?", text: "Ohne Checklistenpunkte enthält das PDF keinen QR-Code zur Checkliste. Trotzdem herunterladen?", ok: "Trotzdem herunterladen", cancel: "Abbrechen" }))) return;
   if (!analogStillWanted(run)) return;
   setStatus(st, "Die Checkliste wird gespeichert …", "busy");
   let r;
@@ -8253,7 +8257,7 @@ async function ckSave() {
     while (ck.leaving) await ck.leaving;   // Rückfrage „Zurück zur Übersicht?“ offen: erst ihre Antwort abwarten
     if (!analogStillWanted(run)) return;   // inzwischen verlassen oder abgemeldet: nichts mehr herunterladen
     downloadBlob(new Blob([pdf], { type: "application/pdf" }), analogPdfName(code, sheet.title));
-    setStatus(st, `Gespeichert. Das PDF (${fmtKB(pdf.length)}) wird heruntergeladen.` + (hasPoints ? "" : " Ohne Checklistenpunkte enthält es keinen QR-Code."), "ok");
+    setStatus(st, `Gespeichert. Das PDF (${fmtKB(pdf.length)}) wird heruntergeladen.` + (hasPoints ? "" : " Ohne Checklistenpunkte enthält es keinen QR-Code zur Checkliste."), "ok");
   } catch (e) {
     if (!analogStillWanted(run)) return;
     setStatus(st, `Die Checkliste ist gespeichert, aber das PDF konnte nicht erstellt werden${e && e.message && !(e instanceof ApiError) ? " (" + e.message + ")" : ""}. Bitte versuchen Sie es erneut.`, "bad");
@@ -8439,9 +8443,11 @@ async function makeAnalogPdf(o) {
     const start = videoStartSec(v), right = [...lines("Video auf YouTube (Google)", 10.5, 14.5, "0.1 0.1 0.1", true),
       ...(v.title ? lines(v.title, 10.5, 14.5, "0.1 0.1 0.1") : []), ...(start ? lines("ab " + fmtVideoStart(start), 10, 14, "0.35 0.35 0.35") : []),
       ...lines("Scanne den QR-Code oder gib die Adresse unter dem Code ein.", 9.5, 13, "0.35 0.35 0.35")];
-    const rightTop = 4 * mod - 6.5, urlBase = ANALOG_QR_PT + 11;   // erste Grundlinie rechts ≈ Oberkante der dunklen Module
+    const rightTop = 4 * mod - 6.5, rightEnd = rightTop + right.reduce((s, r) => s + r.lh, 0);   // erste Grundlinie rechts ≈ Oberkante der dunklen Module
+    // Adresse unter dem QR-Code; reicht die rechte Spalte tiefer (sehr breiter Titel), rückt sie darunter – nie über den Text rechts
+    const urlBase = Math.max(ANALOG_QR_PT + 11, rightEnd + 13);
     const urlPt = Math.min(ANALOG_URL_PT, TW / Math.max(1, monoW(url, 1)));   // passt immer (≤ 52 Zeichen); nur zur Sicherheit
-    return { url, q, qx, tx, right, rightTop, urlBase, urlPt, need: Math.max(urlBase + 4, rightTop + right.reduce((s, r) => s + r.lh, 0) + 4) };
+    return { url, q, qx, tx, right, rightTop, urlBase, urlPt, need: urlBase + 4 };
   };
   const drawVideo = (vb) => {
     const top = y;
@@ -9259,8 +9265,9 @@ $("b-gen").addEventListener("click", async () => {
     // Ein älterer Server verwirft unbekannte Felder still: fehlen gesendete Videos in seiner Antwort, sagt der Hinweis es (statt sie
     // unbemerkt zu verlieren)
     const vidNote = $("b-res-vid"), vidLost = videoCount > 0 && !(Number.isInteger(r.videoCount) && r.videoCount >= videoCount);
-    vidNote.textContent = vidLost ? "Die Videos wurden vom Server nicht gespeichert – bitte die Seite neu laden." : "";
-    vidNote.classList.toggle("hidden", !vidLost);
+    // erst leer einblenden, dann füllen (liveFill) – sonst sagen Screenreader die Warnung nicht an
+    if (vidLost) liveFill(vidNote, vidNote, "Die Videos wurden vom Server nicht gespeichert – bitte die Seite neu laden.", () => !$("b-result").classList.contains("hidden"));
+    else { vidNote.textContent = ""; vidNote.classList.add("hidden"); }
     T.sel = r.code;
     T.pendingUploads = uploads.map((u) => Object.assign({ code: r.code }, u)); T.doneUploads = 0;
     T.uploadKinds = { images: uploads.filter((u) => u.kind === "image").length, files: uploads.filter((u) => u.kind === "file").length };

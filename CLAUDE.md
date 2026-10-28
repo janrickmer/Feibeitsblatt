@@ -821,7 +821,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   still nur einmal, unbekannte Felder entfallen) → `task.videos` **nur wenn nicht leer** (wie `material`; lib-Tests vergleichen
   gespeicherte Aufgaben per deepEqual); `videosOut(raw)` (wirft nie, prüft erneut, ≤ 3, ungültige Startzeit = von vorn) in
   `routePublicSheet` und `routeSheetGet` – je Aufgabe **immer** `videos` (kein Feld auf Blattebene, keine Spalte, keine zusätzliche
-  D1-Abfrage); `routeSheetCreate` antwortet mit `videoCount` (fehlt er bzw. ist er kleiner als gesendet → `#b-res-vid` „Die Videos
+  D1-Abfrage); `routeSheetCreate` antwortet mit `videoCount` (fehlt er bzw. ist er kleiner als gesendet → `#b-res-vid` per `liveFill` „Die Videos
   wurden vom Server nicht gespeichert – bitte die Seite neu laden.“). ai.js unverändert: Videos gehen nie an die KI (Prompt und
   Checklisten-Prompt byte-gleich mit und ohne Videos – ai-/worker-/Smoke-Tests). **Browser-Block `/* VIDEO:BEGIN` … `/* VIDEO:END */`**
   (reine Funktionen ohne Abhängigkeiten, nach `cleanFiles`, vor WORLDMAP; `test/unit/video.test.mjs`): `VIDEO_LIMITS {perTask 3, title
@@ -839,7 +839,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Feibeitsblatt einbetten“ (aria-label „… – zu Aufgabe n“ in `renumber`; **nicht** in `.bmat-bar`, **keine** Klasse `fmtbtn` – E2E sucht
   `.bmat .fmtbtn` mit hasText „U“/„F“) → `askVideo(others)` = Dialog `#ytdlg` nach dem Muster von `#linkdlg` (`#yd-url`, `#yd-title`
   maxlength 120, `#yd-found` „Erkannt: …“, `#yd-err` role=alert, `#yd-ok` „Einbetten“, `#yd-cancel`; nur ein Modal gleichzeitig –
-  `dlgResolve || ldState || ydResolve` → `null`; Tab-Falle, Esc, Enter, Fokus zurück, Hintergrundklick erst nach 400 ms; dasselbe Video
+  `dlgResolve || ldState || ydResolve` → `null`; Tab-Falle, Esc, Enter, Fokus zurück, Hintergrundklick nur, wenn er dort auch begann (`pointerdown` –
+  sonst schlösse das Ende einer Markierung im Feld den Dialog), und erst nach 400 ms; dasselbe Video
   mit derselben Startzeit → „Dieses Video ist bei dieser Aufgabe schon eingebettet.“; `logout` schließt `#ytdlg` und `#linkdlg`);
   `tr._videos` (`addRow(…, textFmt, videos)` als 8. Parameter, `openBuilder` reicht `r.videos` durch), `renderVideos(tr)` →
   `ul.bvids` > `li.bvid` (Titel, kanonischer Link per `newTabLink`, „ab m:ss“, `.iconbtn.x` „Video k zu Aufgabe n entfernen“ – nie in
@@ -850,7 +851,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   je Video `videoBlock(v, k, n)` = `figure.task-video#v-n-k` mit Platzhalter `div.yt-ph` (kein festes Seitenverhältnis – der Text wird nie
   abgeschnitten): `p.yt-title` (Titel bzw. „Video k zu Aufgabe n“, ggf. „(ab m:ss)“), `p.yt-note#vn-n-k` = `YT_CONSENT`,
   `button.btn.yt-load` `YT_LOAD_TEXT` „Video von YouTube laden“ (aria-describedby → Hinweis) und `a.yt-open` „Video in neuem Tab
-  öffnen“ (`youtubeUrl`, `_blank`, `rel="noopener noreferrer"`, sr-only „(öffnet in neuem Tab)“; bleibt nach dem Laden darunter stehen).
+  öffnen“ (`youtubeUrl`, `_blank`, `rel="noopener noreferrer"`, sr-only „(öffnet in neuem Tab)“, aria-label „Video in neuem Tab öffnen –
+  <Titel bzw. Video k zu Aufgabe n>“ – sonst gleichlautende Links; bleibt nach dem Laden darunter stehen).
   Klick → `div.yt-frame` (16:9) mit `iframe` (src erst jetzt, `youtubeEmbedUrl`; title „YouTube-Video: …“,
   **`referrerpolicy="strict-origin-when-cross-origin"`** – die Seite sendet sonst keinen Referer (`Referrer-Policy: no-referrer`) und
   YouTube verweigert eingebettete Player (Fehler 153); nur die Herkunft, nie Pfad, Hash oder Code; `allow="autoplay; encrypted-media;
@@ -868,7 +870,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   sonst neue Seite; `firstBlock` kennt ihn): QR-Code `ANALOG_QR_PT` 90 per gemeinsamem `qrDraw(q, url, x, top, side)` (dasselbe
   Op-Format wie der Checklisten-QR, Ruhezone 4 Module im linken Rand) mit Inhalt `youtubeUrl(v)` (nie die Eingabe der Lehrkraft;
   Version ≤ 4), rechts fett „Video auf YouTube (Google)“, Titel, „ab m:ss“ und „Scanne den QR-Code oder gib die Adresse unter dem Code
-  ein.“, unter dem QR-Code die Adresse in **Courier** `/F5` (`ANALOG_URL_PT` 10, `pg.mono`) mit URI-Annotation auf genau diese Adresse;
+  ein.“, unter dem QR-Code die Adresse in **Courier** `/F5` (`ANALOG_URL_PT` 10, `pg.mono`) mit URI-Annotation auf genau diese Adresse
+  (`urlBase`: reicht die rechte Spalte tiefer, z. B. bei einem sehr breiten Titel, rückt sie darunter – nie über den Text rechts);
   nie `youtube-nocookie`, keine neuen Linien. **Datenschutz** (nur bei Blättern mit Videos, `sheetHasVideos(sh)`; Muster Escape: eigene
   Knoten und Absätze, `privacyShortText` **nicht** ändern – typing.test prüft Signatur, Zahl der Vorkommen und Wortlaut): Bausteine
   zwischen `FB2_SEND` und `PRIV_IHR` (außerhalb der per `new Function` ausgewerteten Ausschnitte von typing.test – dort keine neuen
@@ -905,7 +908,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Smoke (Schlüsselliste je Aufgabe mit `videos`, Blatt mit Video, ungültige → 400, Prompt ohne Video-Daten); E2E 7q (nach 7k, eigenes
   Blatt, löscht alles; Attrappe für alle Google-/YouTube-Hosts per `context.route`: vor dem Klick keine Anfrage, danach genau eine an
   `youtube-nocookie.com/embed/…` mit Referer = nur Herkunft, keine CSP-Verletzung, Zustimmung nicht gespeichert, Lehrkraft-Ansichten,
-  Vorlage, Sicherung/Import, analoges PDF mit QR → jsQR und Courier-Link, Datenschutzhinweis mit YouTube nur dort). Echtes Abspielen
+  Vorlage, Sicherung/Import, analoges PDF mit QR → jsQR und Courier-Link, Datenschutzhinweis mit YouTube nur dort; `VIDEO_SHOTS_OUT=<Ordner>` speichert
+  Bildschirmfotos (Blatt-Editor, Platzhalter, geladenes Video, Lehrkraft-Ansicht), mit `ANALOG_PDF_OUT` zusätzlich `7q-analog-videos.pdf`).
+  `helpers.mjs`: `openPage` zeichnet alle Anfragen an fremde Hosts auf (auch aus iframes und Pop-ups), YouTube-/Google-Hosts gehen an
+  eine Attrappe (`installYouTube`) bzw. werden blockiert, und `closePage` lässt **jeden** Test scheitern, der eine solche Anfrage
+  stellt – nur 7q darf (`p.allowYouTube`) nach dem Klick die Player- und die watch-Adresse aufrufen. Echtes Abspielen
   testet keine Attrappe – nach dem Ausrollen einmal von Hand (Worker-Adresse und GitHub Pages).
 - **Geburtstag ohne Jahr (Datensparsamkeit):** Die Angaben-Seite fragt nur Tag und Monat ab (`fieldset.bday`, Legende
   „Geburtstag (Tag und Monat)“, zwei Textfelder `#p-gtag`/`#p-gmonat` mit `inputmode="numeric"`, `maxlength` 2,
@@ -992,7 +999,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   der Checkliste zu Aufgabe n – …“, eine Zeile = ein Punkt, `ckParse` mit den Regeln des Servers, `aria-invalid`), `#ck-save` (PUT –
   währenddessen Felder readOnly (`ckFields`), danach baut sich der Editor aus dem Gespeicherten neu, gesperrt bis das PDF fertig ist
   (frei im `finally` desselben `CK.run`) –, dann PDF; ohne Punkte Rückfrage
-  „Ohne QR-Code herunterladen?“; das `finally` des Klicks setzt die Knöpfe nur bei unverändertem `CK.run` zurück, `openAnalog` setzt
+  „Ohne Checkliste herunterladen?“; das `finally` des Klicks setzt die Knöpfe nur bei unverändertem `CK.run` zurück, `openAnalog` setzt
   `#ck-save` selbst zurück), `#ck-regen` (Rückfrage, `force`; ein Fehlschlag lässt den Editor stehen; `ckSuggest` gibt den Fokus
   danach an `#ck-regen`/`#ck-save` zurück, wenn er durchs Sperren auf `body` fiel; verborgen ohne Auftrag oder ohne nutzbaren
   KI-Dienst), `#ck-open` (nur mit final; `href` = `checkUrlOf(code)`, genau das Ziel des QR-Codes), `#ck-status`, `#ck-aiwarn`

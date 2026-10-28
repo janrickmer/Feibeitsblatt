@@ -489,8 +489,8 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    sollen. „Checkliste ansehen“ öffnet genau die Adresse des QR-Codes und zeigt die Checkliste so, wie die Schüler:innen
    sie sehen. Gehen Sie zurück, während noch gespeichert wird, läuft das Speichern weiter – nur das PDF wird dann nicht
    heruntergeladen (die Seite sagt das vorher; scheitert das Speichern, während die Frage offen ist, fragt sie neu, ob Sie
-   die Änderungen verwerfen wollen). Während das PDF entsteht, lassen sich die Punkte nicht ändern. Ohne Checklistenpunkte enthält das PDF keinen QR-Code (die Seite fragt
-   vorher nach). Die Sicherung („Als PDF-Datei herunterladen“) und „Als Vorlage verwenden“ tragen die Checkliste nicht
+   die Änderungen verwerfen wollen). Während das PDF entsteht, lassen sich die Punkte nicht ändern. Ohne Checklistenpunkte enthält das PDF keinen QR-Code zur Checkliste (die
+   Seite fragt vorher nach; QR-Codes zu YouTube-Videos stehen trotzdem darin). Die Sicherung („Als PDF-Datei herunterladen“) und „Als Vorlage verwenden“ tragen die Checkliste nicht
    mit: Ein neues Blatt bekommt beim ersten Öffnen einen neuen Vorschlag.
 8. **Feibeitsblatt für einen Escape-Room (Finale).** Ein Feibeitsblatt kann der Endgegner eines Escape-Rooms der Reihe
    sein (z. B. „FastFashion“: Der Arena-Tunnel am Ende öffnet das „Feiditor-Feibeitsblatt“). Beim Erstellen setzen Sie
@@ -1584,8 +1584,8 @@ dass sie nicht vom Worker kommt, und ruft den Worker unter der Adresse auf, die 
 Datenbank; Schüler:innen und Lehrkraft können jede davon verwenden.
 
 **Die Adresse auf Papier und in PDF-Dateien** steht ebenfalls ganz oben in `index.html`: `window.FEIBEITSBLATT_PUBLIC`
-(derzeit `https://feibeitsblatt.janrickmer.de/`). Der Hinweis und der **QR-Code des analogen Arbeitsblattes** (Schritt 7)
-führen immer dorthin, ebenso der Link in der Zwischenstand-PDF der Schüler:innen – Schüler:innen, die die Checkliste über
+(derzeit `https://feibeitsblatt.janrickmer.de/`). Der Hinweis und der **QR-Code zur Checkliste** auf dem analogen Arbeitsblatt
+(Schritt 7) führen immer dorthin, ebenso der Link in der Zwischenstand-PDF der Schüler:innen – Schüler:innen, die die Checkliste über
 den QR-Code öffnen, laden die Seite also über GitHub Pages (GitHub verarbeitet dabei die IP-Adresse; der Hinweis auf der
 Checklisten-Seite nennt das, und der vollständige Datenschutzhinweis nennt GitHub auch unter der Worker-Adresse – dort nur
 für die Checklisten-Seite). Nutzen Sie GitHub Pages nicht (oder unter einer anderen Adresse), tragen Sie dort Ihre
@@ -1625,8 +1625,9 @@ Zu beachten:
   gegen das Einbetten in fremde Seiten (`frame-ancestors`) fehlt dort.
 - Die Seite selbst kommt dann von GitHub (USA): Beim Laden verarbeitet GitHub die IP-Adresse. Die Seite erkennt das
   (`window.FEIBEITSBLATT_API` ≠ "") und nennt GitHub dann im Datenschutzhinweis und auf der Startseite als weiteren
-  Empfänger. Alle übrigen Daten fließen weiterhin nur zum Worker (Cloudflare, Datenbank in der EU), zum KI-Anbieter und
-  bei der Rechtschreibprüfung zu LanguageTool.
+  Empfänger. Alle übrigen Daten fließen weiterhin nur zum Worker (Cloudflare, Datenbank in der EU), zum KI-Anbieter,
+  bei der Rechtschreibprüfung zu LanguageTool und – nur bei Blättern mit YouTube-Videos, nach dem Klick der
+  Schüler:innen – an YouTube (Google; siehe [Videos von YouTube](#videos-von-youtube)).
 - Die Bilder und PDF-Dateien zu Aufgaben kommen weiterhin vom Worker; die Seite bettet Bilder als `data:`-Adressen
   ein und baut PDF-Dateien im Browser zusammen (`blob:`), ein eigener Eintrag in der CSP ist dafür nicht nötig.
 - Eingebettete YouTube-Videos brauchen `frame-src https://www.youtube-nocookie.com` – in `_headers` **und** in der

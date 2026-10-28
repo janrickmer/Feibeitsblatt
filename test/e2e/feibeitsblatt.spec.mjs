@@ -4939,10 +4939,10 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   // Ohne Punkte: Rückfrage, gespeichert wird eine leere Checkliste, das PDF hat keinen QR-Code
   for (let n = 1; n <= 4; n++) await tp.fill("#ck-" + n, "");
   await tp.click("#ck-save");
-  const noQrText = await confirmDialog(tp, "Ohne QR-Code herunterladen?", false);
-  expect(noQrText).toBe("Ohne Checklistenpunkte enthält das PDF keinen QR-Code. Trotzdem herunterladen?");
-  const [dl2] = await Promise.all([tp.waitForEvent("download"), (async () => { await tp.click("#ck-save"); await confirmDialog(tp, "Ohne QR-Code herunterladen?"); })()]);
-  await expect(tp.locator("#ck-status")).toHaveText(/^Gespeichert\. Das PDF \(\d+ KB\) wird heruntergeladen\. Ohne Checklistenpunkte enthält es keinen QR-Code\.$/, { timeout: 30_000 });
+  const noQrText = await confirmDialog(tp, "Ohne Checkliste herunterladen?", false);
+  expect(noQrText).toBe("Ohne Checklistenpunkte enthält das PDF keinen QR-Code zur Checkliste. Trotzdem herunterladen?");
+  const [dl2] = await Promise.all([tp.waitForEvent("download"), (async () => { await tp.click("#ck-save"); await confirmDialog(tp, "Ohne Checkliste herunterladen?"); })()]);
+  await expect(tp.locator("#ck-status")).toHaveText(/^Gespeichert\. Das PDF \(\d+ KB\) wird heruntergeladen\. Ohne Checklistenpunkte enthält es keinen QR-Code zur Checkliste\.$/, { timeout: 30_000 });
   const B = analogPdfOf(await readFile(await dl2.path()));
   expect(pdfQr(B.all)).toBeNull();
   expect(B.lines.flat()).not.toContain("Checkliste");
@@ -5126,6 +5126,22 @@ test("7q YouTube-Videos: Lehrkraft bettet unter dem Material Videos ein (Link, S
   await tp.keyboard.press("Escape");
   await expect(dlg).not.toHaveClass(/open/);
   await expect(add0).toBeFocused();
+  // Eine Markierung, die im Feld beginnt und neben dem Kasten endet, schließt den Dialog nicht (Eingaben bleiben); ein Klick auf den
+  // Hintergrund schon
+  await add0.click();
+  await tp.fill("#yd-url", "https://youtu.be/" + YT_ID1);
+  await tp.waitForTimeout(450);   // Schutz gegen den Doppelklick auf den Öffner (400 ms) ist vorbei
+  const fb = await tp.locator("#yd-url").boundingBox(), bb = await dlg.locator(".box").boundingBox();
+  await tp.mouse.move(fb.x + fb.width - 10, fb.y + fb.height / 2);
+  await tp.mouse.down();
+  await tp.mouse.move(bb.x - 20, fb.y + fb.height / 2, { steps: 5 });
+  await tp.mouse.up();
+  await expect(dlg).toHaveClass(/open/);
+  await expect(tp.locator("#yd-url")).toHaveValue("https://youtu.be/" + YT_ID1);
+  await tp.mouse.click(Math.max(2, bb.x - 20), Math.max(2, bb.y - 20));
+  await expect(dlg).not.toHaveClass(/open/);
+  await expect(add0).toBeFocused();
+  await expect(r0.locator("li.bvid")).toHaveCount(0);
   // abgelehnt (die Meldung nennt den Grund, nichts wird übernommen): leer, fremder Host (auch mit „youtube.com“ vorn), javascript:,
   // Playlist, Kennung mit 10 bzw. 12 Zeichen
   await add0.click();
@@ -5270,6 +5286,8 @@ test("7q YouTube-Videos: Lehrkraft bettet unter dem Material Videos ein (Link, S
   const opens = page.locator("#tasks a.yt-open");
   await expect(opens).toHaveText([YT_TAB + TAB, YT_TAB + TAB, YT_TAB + TAB]);
   await expect(opens.nth(0).locator(".sr-only")).toHaveText("(öffnet in neuem Tab)");
+  await expect(opens.nth(0)).toHaveAccessibleName(YT_TAB + " – " + YT_TITLE);
+  await expect(opens.nth(1)).toHaveAccessibleName(YT_TAB + " – Video 2 zu Aufgabe 1");
   expect(await opens.evaluateAll((l) => l.map((a) => [a.getAttribute("href"), a.target, a.rel]))).toEqual(LINKS.map((u) => [u, "_blank", "noopener noreferrer"]));
   // vor dem Klick lädt nichts: kein iframe, kein Vorschaubild (auch nicht als Hintergrund), keine Anfrage an YouTube/Google
   const noPreload = () => page.evaluate(() => [document.querySelectorAll("iframe").length,
