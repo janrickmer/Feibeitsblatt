@@ -196,7 +196,11 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Abgabe (ein zusätzlicher Aufruf; hat sich nichts geändert, wird nichts gesendet) – nur bis 15 Minuten nach der Abgabe,
    und der Eingangszeitpunkt bleibt der der Abgabe. Haben Sie die Abgabe inzwischen gelöscht oder wurde mit derselben
    Bearbeitung neu abgegeben, ändert der Server nichts. Klappt das Nachreichen nicht (Seite vorher geschlossen,
-   keine Verbindung), bleibt die Abgabe ohne sie. Nachgereicht wird genau die Abgabe, die beim Server angekommen ist, um
+   keine Verbindung), bleibt die Abgabe ohne sie. Erreicht die Rückmeldung Sie nicht (Frist vorbei, Abgabe gelöscht oder
+   neu abgegeben, Fehler beim Senden), sagt die Bestätigungsseite das den Schüler:innen ruhig unter der Rückmeldung (z. B.
+   „Diese Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe
+   übermitteln. Deine Abgabe ist davon nicht betroffen.“); sind beim erneuten Anfordern schon mehr als 15 Minuten
+   vergangen, steht das vorher unter dem Knopf. Nachgereicht wird genau die Abgabe, die beim Server angekommen ist, um
    die zweite Rückmeldung ergänzt – mit den Tippzeiten (bzw. dem Vermerk eines Widerspruchs) und bei einem Escape-Room-Finale
    den Daten aus dem Raum, so wie sie angekommen sind. Wäre der Umschlag mit der zweiten Rückmeldung zu groß, geht er wie
    bei der Abgabe erst ohne die Tippzeit-Werte, dann ohne die Fehler-Einzelheiten aus dem Escape-Room (Sie sehen dann

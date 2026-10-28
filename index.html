@@ -189,6 +189,8 @@
   .donefb-wait{font-size:13px; color:var(--muted); margin:0 0 4px}
   .donefb .fbbox{margin:8px 0 0}
   .donefb .btn{margin-top:10px}
+  .donefb-note{font-size:13px; line-height:1.45; color:var(--muted); margin:10px 0 0}   /* zweite Rückmeldung erreicht die Lehrkraft nicht: neutral, ohne Erfolgs- oder Alarmfarbe */
+  .donefb .btn + .donefb-note{margin-top:6px}
   .fb-sum{font-size:13.5px; margin:0 0 2px}
   .provinfo2{margin-top:8px}
   .checkrow{display:flex; gap:8px; align-items:flex-start; font-family:var(--sans); font-size:13.5px}
@@ -991,7 +993,9 @@
         <p class="status" id="done-fb-status" aria-live="polite"></p>
         <p class="donefb-wait hidden" id="done-fb-wait" aria-hidden="true"></p>
         <div id="done-fb-list"></div>
-        <button type="button" class="btn ghost small hidden" id="done-fb-retry">Rückmeldung erneut anfordern</button>
+        <p class="donefb-note hidden" id="done-fb-teacher" role="status"></p>
+        <button type="button" class="btn ghost small hidden" id="done-fb-retry" aria-describedby="done-fb-retry-note">Rückmeldung erneut anfordern</button>
+        <p class="donefb-note hidden" id="done-fb-retry-note" role="status"></p>
       </div>
       <button type="button" class="btn ghost block" id="done-btn">Neues Feibeitsblatt öffnen</button>
     </div>
@@ -5986,6 +5990,7 @@ function resetFinalFeedback() {
   $("done-fb").classList.add("hidden"); $("done-fb-list").textContent = "";
   setStatus($("done-fb-status"), "", ""); $("done-fb-retry").classList.add("hidden");
   $("done-fb-wait").classList.add("hidden"); $("done-fb-wait").textContent = "";
+  for (const id of ["done-fb-teacher", "done-fb-retry-note"]) { $(id).classList.add("hidden"); $(id).textContent = ""; }
 }
 // Warten vor dem nächsten automatischen Versuch (absoluter Zeitpunkt; Sekundenzähler außerhalb der Live-Region) → true = weiter
 function waitFinalFeedback(run, ms, nextTry) {
@@ -6026,23 +6031,44 @@ function renderFinalFeedback() {
  * dieselbe Abgabe mit `feedback2` (nur die neu beurteilten Aufgaben, die übrigen null) als stage „feedback2“ mit Kennung und dem
  * Eingang, den der Server bei der Abgabe gemeldet hat. Der Server ersetzt nur genau diese Abgabe und nur bis 15 Minuten nach dem
  * Eingang – gelöscht, inzwischen neu abgegeben oder später: nichts (gone). Ohne Änderung wird nichts gesendet (die Lehrkraft leitet
- * „unverändert“ selbst ab). Scheitert es, bleibt die Abgabe ohne sie; die Schüler:innen merken davon nichts.
+ * „unverändert“ selbst ab). Scheitert es, bleibt die Abgabe ohne sie; die Bestätigungsseite sagt das ruhig unter der Rückmeldung
+ * (#done-fb-teacher, fb2TeacherText) – der Abgabe-Dialog hatte angekündigt, dass sie auch an die Lehrkraft geht.
  * „Dieselbe Abgabe“ heißt: genau die Nutzlast, die der Server bei der Abgabe angenommen hat (S.fb2Base, nach den Rückfällen von
  * sealPayload/sendSealed) – Tippzeiten (auch {optOut}/{omitted}) und Daten aus dem Escape-Room bleiben so beim Ersetzen erhalten, nichts
  * wird neu gelesen. Wird der Umschlag erst mit feedback2 zu groß, gelten dieselben Rückfälle wie bei der Abgabe (erst ohne Tippzeit-Werte,
  * dann ohne Fehler-Einzelheiten aus dem Raum – die zweite Rückmeldung scheitert nie an ihnen); Antworten, Feedback, Angaben und Vermerke
  * bleiben immer, und kommt nichts an, bleibt die Abgabe beim Server, wie sie ist (der Server ersetzt atomar, nie halb). */
 const FB2_HOLD_MS = 15 * 60e3;   // = REPLACE_WINDOW_MS (worker/lib.js) – danach nähme der Server nichts mehr an; der Unit-Test vergleicht
+/* Erreicht die zweite Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig und sachlich (keine Erfolgs-, keine
+   Alarmfarbe; nie etwas zu Tippzeiten). fb2TeacherText: Ergebnis von sendFeedback2 → Hinweis unter der Rückmeldung (#done-fb-teacher);
+   fb2RetryText: fb2Reach vor „Rückmeldung erneut anfordern“ → Hinweis unter dem Knopf (#done-fb-retry-note). "" = nichts zu sagen. */
+const FB2_MIN = Math.round(FB2_HOLD_MS / 60e3);
+const FB2_UNAFFECTED = " Deine Abgabe ist davon nicht betroffen.";
+function fb2TeacherText(res) {
+  if (res === "expired") return `Diese Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten ${FB2_MIN} Minuten nach der Abgabe übermitteln.` + FB2_UNAFFECTED;
+  // gelöscht oder inzwischen mit derselben Bearbeitung neu abgegeben: dann hat die Lehrkraft diese Abgabe womöglich nicht mehr – nichts darüber behaupten
+  if (res === "gone") return "Diese Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + FB2_UNAFFECTED;
+  if (res === "failed" || res === "skipped") return "Diese Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln – sie hat deine Abgabe mit dem ersten Feedback." + FB2_UNAFFECTED;
+  return "";   // "sent", "same" (nichts nachzureichen)
+}
+function fb2RetryText(reach) {
+  if (reach === "expired") return `Seit deiner Abgabe sind mehr als ${FB2_MIN} Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht mehr übermitteln.`;
+  if (reach === "skipped") return "Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht übermitteln.";
+  return "";   // "ok"
+}
 /* Die angenommene Nutzlast enthält die Tippzeiten: Sie bleibt getrennt von S.lastSubmission (daraus entstehen die PDF-Dateien der
    Schüler:innen – nie Tippzeiten) und nur so lange im Arbeitsspeicher, wie noch nachgereicht werden kann (TT_ACCESS: „bis zur Abgabe
    (und, wenn … nachgereicht wird, bis dahin)“): freigegeben nach dem Nachreichen (geklappt oder endgültig gescheitert), ohne Änderung
    (same), ohne mögliche zweite Rückmeldung (finalFeedbackGone), bei „Neues Feibeitsblatt öffnen“ (resetStudent) und spätestens nach
    FB2_HOLD_MS; die Werte selbst schon, sobald ein Widerspruch aus einem anderen Tab ankommt (fb2FollowOptOut). key = Schlüssel des
    Zwischenstands der Abgabe (dort sieht fb2FollowOptOut nach). */
-function fb2Hold(sub, payload, r) {
+function fb2Hold(sub, payload, r, sentAt) {
   if (!sub || !payload || !S.pub || !ATTEMPT_RE.test(S.attempt) || !Number.isSafeInteger(r && r.receivedAt) || r.receivedAt <= 0) return;
   const base = { sub, payload, pub: S.pub, attempt: S.attempt, submitAt: r.receivedAt, key: S.draftKey, timer: 0 };
-  base.timer = setTimeout(() => { if (S.fb2Base === base) S.fb2Base = null; }, FB2_HOLD_MS);
+  // Die Frist des Servers läuft ab dem Eingang (receivedAt, Uhr des Servers); hier gezählt ab dem Absenden der Abgabe (Uhr des Geräts):
+  // nie länger als beim Server – „abgelaufen“ hier heißt also auch dort abgelaufen. sub.fb2Until ist nur ein Zeitpunkt, keine Daten.
+  sub.fb2Until = (Number.isFinite(sentAt) && sentAt > 0 ? sentAt : Date.now()) + FB2_HOLD_MS;
+  base.timer = setTimeout(() => { if (S.fb2Base === base) S.fb2Base = null; fb2RetryNote(); }, Math.max(0, sub.fb2Until - Date.now()));
   S.fb2Base = base;
 }
 function fb2Release(sub) {
@@ -6050,6 +6076,27 @@ function fb2Release(sub) {
   if (!base || (sub && base.sub !== sub)) return;
   clearTimeout(base.timer);
   S.fb2Base = null;
+}
+// Frist für das Nachreichen vorbei? Nachgerechnet, denn im Hintergrund drosselt der Browser den Zeitgeber von fb2Hold
+const fb2Expired = (sub) => !!sub && sub.fb2Until > 0 && Date.now() >= sub.fb2Until;
+// Erreicht eine (neue) zweite Rückmeldung die Lehrkraft noch? "ok" | "expired" (Frist vorbei) | "skipped" (nie gehalten oder freigegeben)
+function fb2Reach(sub) {
+  if (fb2Expired(sub)) return "expired";
+  return sub && S.fb2Base && S.fb2Base.sub === sub ? "ok" : "skipped";
+}
+/* Unter „Rückmeldung erneut anfordern“ (kein Dialog): Ist die Frist vorbei, sagt der Text schon vor dem Klick, dass eine neue Rückmeldung
+   nur noch die Schülerin bzw. der Schüler sieht. Aufgerufen, wenn der Knopf erscheint oder verschwindet und wenn die Frist abläuft (fb2Hold). */
+function fb2RetryNote() {
+  const sub = S.lastSubmission, retry = $("done-fb-retry"), note = $("done-fb-retry-note");
+  const text = sub && !retry.classList.contains("hidden") ? fb2RetryText(fb2Reach(sub)) : "";
+  if (!text) { note.classList.add("hidden"); note.textContent = ""; return; }
+  if (note.classList.contains("hidden") || note.textContent !== text) liveFill(note, note, text, () => S.lastSubmission === sub && !retry.classList.contains("hidden"));
+}
+// Unter der Rückmeldung, wenn sie die Lehrkraft nicht erreicht hat – nur, solange dieselbe Abgabe angezeigt wird (erst einblenden, dann füllen)
+function fb2TeacherShow(sub, res) {
+  const el = $("done-fb-teacher"), text = fb2TeacherText(res);
+  if (!text || S.lastSubmission !== sub) return;
+  liveFill(el, el, text, () => S.lastSubmission === sub);
 }
 const fb2OptedOut = (base) => !!(base && base.payload.typing && base.payload.typing.optOut === true);
 /* Widerspruch gegen die Tippzeit-Messung, nachdem dieser Tab abgegeben hat: Ein zweiter Tab mit demselben Stand weiß nichts von der
@@ -6073,30 +6120,45 @@ function fb2FollowOptOut(raw) {
   base.payload.typing = ttOptOutPayload();   // die Werte sind damit nicht mehr erreichbar
   return true;
 }
+/* → "sent" (bei der Lehrkraft angekommen) | "expired" (Frist vorbei, nichts gesendet bzw. nichts ersetzt) | "gone" (der Server hat nichts
+   ersetzt: Abgabe gelöscht oder inzwischen mit derselben Bearbeitung neu abgegeben) | "failed" (endgültig gescheitert bzw. dreimal
+   vorübergehend) | "skipped" (nie gehalten, oder „Neues Feibeitsblatt öffnen“) | "same" (nichts nachzureichen). Nur "sent" zählt als gesendet. */
 async function sendFeedback2(sub) {
+  if (S.lastSubmission !== sub) return "skipped";
+  if (sub.fb2Sent) return "sent";
+  if (!sub.feedback2 || sub.feedback2.same) { fb2Release(sub); return "same"; }
   const base = S.fb2Base;
-  if (!base || base.sub !== sub || S.lastSubmission !== sub || sub.fb2Sent) return;
-  if (!sub.feedback2 || sub.feedback2.same) { fb2Release(sub); return; }
+  const lost = () => { fb2Release(sub); return fb2Expired(sub) ? "expired" : "skipped"; };   // nicht (mehr) gehalten
+  if (!base || base.sub !== sub || fb2Expired(sub)) return lost();
   const fb2 = sub.feedback2;
   const payload = { ...base.payload, feedback2: { at: fb2.at, results: fb2.results.map((f, i) => (fb2.kept[i] ? null : fbOut(normFb(f)))) } };
+  // einmal angekommen, bleibt es angekommen – auch wenn das erneute Senden ohne Tippzeit-Werte (Widerspruch unterwegs) danach scheitert
+  let arrived = false;
+  const end = (res) => { if (!arrived) return res; sub.fb2Sent = true; return "sent"; };
   try {
     for (let tries = 1; tries <= 3; tries++) {
-      if (S.lastSubmission !== sub || S.fb2Base !== base) return;   // „Neues Feibeitsblatt öffnen“ oder Frist vorbei: nichts mehr nachreichen
+      if (S.lastSubmission !== sub) return end("skipped");   // „Neues Feibeitsblatt öffnen“: nichts mehr nachreichen
+      if (S.fb2Base !== base || fb2Expired(sub)) return end(lost());   // Frist vorbei: der Server nähme nichts mehr an
       fb2FollowOptOut();   // Widerspruch aus einem anderen Tab (auch wenn dieser Tab das storage-Ereignis verpasst hat)
       if (fb2OptedOut(base)) payload.typing = base.payload.typing;
       const withValues = ttHasData(payload.typing);
+      let r;
       try {
-        await sendSealed(payload, (envelope) => ({ code: sub.code, envelope, stage: "feedback2", attempt: base.attempt, receivedAt: base.submitAt }), base.pub);
+        r = await sendSealed(payload, (envelope) => ({ code: sub.code, envelope, stage: "feedback2", attempt: base.attempt, receivedAt: base.submitAt }), base.pub);
       } catch (e) {
-        if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) return;   // endgültig (auch 413 trotz Rückfällen)
+        if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) return end("failed");   // endgültig (auch 413 trotz Rückfällen)
         if (tries < 3) await sleep(2000 * tries);
         continue;
       }
+      // {ok:true, gone:true}: nichts ersetzt (gelöscht, inzwischen neu abgegeben oder beim Server zu spät) – zählt nicht als gesendet
+      if (r && r.gone === true) return end(fb2Expired(sub) ? "expired" : "gone");
+      arrived = true;
       // kam der Widerspruch, während die Werte unterwegs waren: gleich noch einmal ohne sie (wie beim Ersetzen des Erstversuchs)
       if (withValues && fb2OptedOut(base) && S.fb2Base === base) { tries = 0; continue; }
       sub.fb2Sent = true;
-      return;
+      return "sent";
     }
+    return end("failed");   // dreimal vorübergehend gescheitert
   } finally { fb2Release(sub); }   // geklappt oder endgültig gescheitert: die Nutzlast samt Tippzeiten wird nicht mehr gebraucht
 }
 // Keine zweite Rückmeldung mehr möglich: eine schon geladene PDF-Datei enthält dann alles, was es gibt
@@ -6121,13 +6183,14 @@ function finalFeedbackFailed(e) {
   const canRetry = transient && (sub.fb2Manual || 0) < FB2_MANUAL;
   setStatus($("done-fb-status"), msg + " Deine Abgabe ist davon nicht betroffen" + (canRetry ? " – du kannst die Rückmeldung noch einmal anfordern." : "."), "bad");
   $("done-fb-retry").classList.toggle("hidden", !canRetry);
+  fb2RetryNote();   // ist die Frist schon vorbei, sagt der Text unter dem Knopf das vorher
   if (!canRetry) finalFeedbackGone(sub);
 }
 async function requestFinalFeedback() {
   const sub = S.lastSubmission;
   if (!sub || !Array.isArray(sub.feedback)) { fb2Release(sub); return; }   // ohne erstes Feedback (KI nicht eingerichtet oder ausgefallen) keine zweite Rückmeldung
   const st = $("done-fb-status"), retry = $("done-fb-retry");
-  $("done-fb").classList.remove("hidden"); retry.classList.add("hidden");
+  $("done-fb").classList.remove("hidden"); retry.classList.add("hidden"); fb2RetryNote();
   const answers = sub.answers.map((a) => a.final), changed = fb2Changes(sub.answers.map((a) => a.first), answers, sub.feedback);
   if (!changed.some(Boolean)) {   // nichts, was die KI neu beurteilen würde: die erste Rückmeldung gilt weiter, nichts wird gesendet
     sub.feedback2 = { results: sub.feedback.map(normFb), same: true, kept: changed.map(() => true), at: new Date().toISOString() };
@@ -6176,7 +6239,8 @@ async function requestFinalFeedback() {
     sub.fb2State = "done";
     setStatus(st, "So sieht die KI deine abgegebene Fassung:", "");
     renderFinalFeedback();
-    sendFeedback2(sub);   // verschlüsselt auch an die Lehrkraft (ersetzt die Abgabe, legt nie eine neue an)
+    // verschlüsselt auch an die Lehrkraft (ersetzt die Abgabe, legt nie eine neue an); erreicht sie die Lehrkraft nicht, ein ruhiger Hinweis
+    sendFeedback2(sub).catch(() => "failed").then((res) => fb2TeacherShow(sub, res));
     if (sub.pdfBeforeFb2) setStatus($("done-status"), "Die KI-Rückmeldung zu deiner abgegebenen Fassung ist jetzt da. Lade die PDF-Datei noch einmal herunter, damit sie darin steht.", "");
     return;
   }
@@ -6306,6 +6370,7 @@ async function submitAll() {
     } catch (e) { payload.typing = { v: 1, omitted: "error" }; }
     if (S.escape) payload.escape = escPayload(S.escape.rec, escCheck(S.escape.hull));   // Ergebnisse aus dem Escape-Room (ohne Personendaten)
     saveDraft();
+    const sentAt = Date.now();   // ab hier zählt die Frist für das Nachreichen der zweiten Rückmeldung (fb2Hold)
     const r = await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }));
     S.submitted = true;
     delDraft(S.draftKey); store.del(LAST_KEY);
@@ -6319,7 +6384,7 @@ async function submitAll() {
     // Für den Download-Button (#done-pdf) auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
     S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
       feedback: payload.feedback, feedbackError: payload.feedbackError || "", noAi: payload.noAi || "", receivedAt: d.getTime(),
-      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, pdfBeforeFb2: false,
+      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, fb2Until: 0, pdfBeforeFb2: false,
       escape: S.escape && S.sheet.escape ? { rec: S.escape.rec, name: S.sheet.escape.name } : null };   // Escape-Room-Finale: Überblick für die Abschluss-PDF
     $("done-pdf").textContent = S.lastSubmission.escape ? DONE_PDF_ESC : DONE_PDF;
     $("submit-esc").classList.add("hidden");
@@ -6327,7 +6392,7 @@ async function submitAll() {
     // nur mit erstem Feedback kann eine zweite Rückmeldung nachgereicht werden: dafür genau die angenommene Nutzlast (sendSealed hat sie
     // um die Rückfälle gekürzt, mit denen sie ankam) – getrennt von S.lastSubmission und nur, bis nichts mehr nachgereicht wird
     fb2Release();
-    if (withFb) fb2Hold(S.lastSubmission, payload, r);
+    if (withFb) fb2Hold(S.lastSubmission, payload, r, sentAt);
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
     closeDlg(null);   // ein während des Sendens geöffneter Dialog (z. B. Rechtschreibprüfung) bleibt nicht über der Bestätigung stehen – ohne Antwort (null, nicht „Trifft nicht zu“)

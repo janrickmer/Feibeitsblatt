@@ -155,7 +155,12 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Überarbeiten“, nach der Abgabe „Tipps zum Weiterlernen“). PDF ohne zweite Rückmeldung
   heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
   erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
-  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2). Ist sie da (und nicht `same`), reicht `sendFeedback2(sub)` sie verschlüsselt an die Lehrkraft nach: **genau die Nutzlast, die
+  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2), nachgereicht mit `replaced:"final"` und ohne Hinweis darunter. E2E-Test 7p
+  (eigenes Blatt, wird gelöscht; Hinweis wörtlich, neutrale Farbe): `{gone:true}` per `page.route` → ein Versuch, „gone“-Hinweis, PDF mit
+  der Rückmeldung; Uhr der Seite per `page.clock` – `install` + `reload`, während die KI-Anfrage angehalten ist `setSystemTime` +16 min
+  (Zeitgeber gedrosselt) → „expired“, nichts nachgereicht; erste Anfrage 502 → Knopf ohne Hinweis, `fastForward("16:00")` → Hinweis unter
+  dem Knopf, Klick ohne Dialog → „expired“, nichts nachgereicht. Unit (`typing.test.mjs`): Texte je Ergebnis und `sendFeedback2` mit
+  gestubbtem `sendSealed` (gone/expired/failed/skipped/same, Widerspruch unterwegs). Ist sie da (und nicht `same`), reicht `sendFeedback2(sub)` sie verschlüsselt an die Lehrkraft nach: **genau die Nutzlast, die
   der Server bei der Abgabe angenommen hat** (nach den Rückfällen von `sealPayload`/`sendSealed`, die `payload` dabei selbst kürzen –
   also auch `typing` `{optOut}`/`{omitted}` und ein per `escTrim` gekürztes `escape`; nichts neu gelesen) + `feedback2: {at, results}` (nur neu
   beurteilte Aufgaben, die übrigen `null`) – so bleiben Tippzeiten und Daten aus dem Escape-Room beim Ersetzen erhalten. Gemerkt in
@@ -177,7 +182,26 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   neuere Abgabe derselben Bearbeitung bleibt) und höchstens `REPLACE_WINDOW_MS` (15 min) nach dem Eingang (der Eingang bleibt
   stehen – ohne Frist ließe sich eine Abgabe Tage später austauschen); `UPDATE … SET envelope … AND received_at=?` atomar, sonst
   `{gone:true}` ohne Zählung und ohne Einfügen (eine gelöschte Abgabe kommt nie zurück); bis zu 3 Versuche, 4xx außer 408/429
-  endgültig, die Schüler:innen sehen davon nichts; bei Escape-Blättern genauso. **Lehrkraft:** `loadSubs` kappt `feedback2` (eigenes
+  endgültig; bei Escape-Blättern genauso. `sendFeedback2` liefert ein Ergebnis: `"sent"` (nur das setzt `sub.fb2Sent`; einmal angekommen
+  bleibt angekommen, auch wenn das erneute Senden ohne Tippzeit-Werte danach scheitert), `"gone"` (Antwort `{gone:true}` – zählt **nie**
+  als gesendet), `"expired"` (Frist vorbei: nichts gesendet bzw. `gone` nach Ablauf), `"failed"` (endgültig oder dreimal vorübergehend),
+  `"skipped"` (nie gehalten bzw. „Neues Feibeitsblatt öffnen“), `"same"`. Die Frist zählt auf dem Gerät ab dem Absenden der Abgabe
+  (`sentAt` in `submitAll` → `fb2Hold` → `sub.fb2Until`, nur ein Zeitpunkt in `S.lastSubmission`) – nie länger als beim Server – und wird
+  nachgerechnet (`fb2Expired`, `fb2Reach` → `"ok"`/`"expired"`/`"skipped"`), denn im Hintergrund drosselt der Browser den Zeitgeber.
+  **Entscheidung des Betreibers:** Erreicht die Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig und sachlich (der
+  Abgabe-Dialog hatte es angekündigt): `requestFinalFeedback` → `sendFeedback2(sub).then(…fb2TeacherShow)` nur bei derselben
+  `S.lastSubmission`, außer bei `"sent"`/`"same"` in `p#done-fb-teacher` (`role="status"`, unter `#done-fb-list`, per `liveFill` erst
+  eingeblendet, dann gefüllt; `.donefb-note` in `--muted` wie `.donenote`, keine Erfolgs- oder Alarmfarbe), Texte aus `fb2TeacherText`:
+  `"expired"` „Diese Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe
+  übermitteln. Deine Abgabe ist davon nicht betroffen.“, `"gone"` „Diese Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln.
+  …“ (ohne „sie hat deine Abgabe …“ – gelöscht oder neu abgegeben, dann stimmte das womöglich nicht), `"failed"`/`"skipped"` „Diese
+  Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln – sie hat deine Abgabe mit dem ersten Feedback. …“. Vorher, ohne Dialog:
+  steht „Rückmeldung erneut anfordern“ da und ist die Frist vorbei (bzw. nie gehalten), sagt `p#done-fb-retry-note` (`role="status"`, per
+  `aria-describedby` am Knopf; `fb2RetryNote` aus `finalFeedbackFailed`, beim Ausblenden des Knopfes und im Zeitgeber von `fb2Hold`)
+  `fb2RetryText`: „Seit deiner Abgabe sind mehr als 15 Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt
+  sie sich nicht mehr übermitteln.“ Die Hinweise nennen nie Tippzeiten; Kurzfassungen, Datenschutztexte und die PDF-Logik bleiben
+  unverändert (eine schon geladene PDF enthält die Rückmeldung trotzdem; die Lehrkraft-Seite sagt per `fb2Missing` „… wurde nicht an die
+  Lehrkraft übermittelt.“). **Lehrkraft:** `loadSubs` kappt `feedback2` (eigenes
   try/catch, wie `ttCleanPayload` und `escCleanPayload`), `fb2Of(p)`
   leitet wie der Browser ab (keine Änderung → `same`, die erste Rückmeldung gilt; sonst nur mit nachgereichtem `feedback2`,
   sonst `null`), `buildDetail` zeigt je geänderter Aufgabe `.dfb.dfb2` „KI-Rückmeldung zur abgegebenen Fassung“ („Tipps zum
@@ -1112,8 +1136,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   entschlüsselt – `openPrivateKey`/`openEnvelope` aus smoke.mjs –, Ablauf-Kasten, 413 → einmal ohne, Lehrkraft-Färbung, „Färbung
   aus“, lange Antworten, nur Weltkarten – auch bei den Schüler:innen ohne `TT_SHORT` und ohne Abschnitt; die nachgereichte zweite
   Rückmeldung = angenommene Abgabe + `feedback2` samt Tippzeiten in D1; Schüler:in 4: mit `feedback2` 413 → einmal
-  ohne Tippzeit-Werte, angekommen; Schüler:in 5: Nachreichen scheitert dreimal → D1 unverändert, danach kein weiterer Versuch; dass
-  `S.fb2Base` freigegeben wird, prüft nur `typing.test.mjs` über den Quelltext) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
+  ohne Tippzeit-Werte, angekommen, kein Hinweis; Schüler:in 5: Nachreichen scheitert dreimal → D1 unverändert, danach kein weiterer
+  Versuch, Hinweis `#done-fb-teacher` wörtlich; dass `S.fb2Base` freigegeben wird, prüft nur `typing.test.mjs` über den Quelltext) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
   Erstversuchs scheitert erst und wird beim nächsten Öffnen nachgeholt, PDF auf einem anderen Gerät, Zurücknehmen, Ablehnung
   während des Sendens (angehaltenes bzw. scheiterndes `/api/submit`, Farbe), Abgabe `optOut`; Haken auf „Deine Angaben“ bei
   getipptem Stand mit Erstversuch → sofort gespeichert und ersetzt; anderes Gerät ohne Widerspruch; zweiter Tab übernimmt ihn
