@@ -3005,6 +3005,13 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   expect(await read(2)).toEqual({ covered: exp2[1].covered, missing: exp2[1].missing });
   await expect(page.locator("#done-fb-2 .fb-sum")).toHaveCount(0);
   await expect(page.locator("#done-fb-2 .fb-sub.fb-ok")).toHaveText("Das gelingt dir schon");
+  // die neue Rückmeldung geht verschlüsselt auch an die Lehrkraft und kommt an (ersetzt die Abgabe) – dann kein Hinweis darunter
+  const fb2Sub = async () => (await s.calls((r) => r.path === "/api/submit")).filter((r) => JSON.parse(r.reqBody).stage === "feedback2");
+  await expect.poll(async () => (await fb2Sub()).length, { timeout: 30_000 }).toBe(1);
+  expect((await fb2Sub()).map((r) => [r.status, JSON.parse(r.body).replaced])).toEqual([[200, "final"]]);
+  await page.waitForTimeout(300);
+  await expect(page.locator("#done-fb-teacher")).toBeHidden();
+  await expect(page.locator("#done-fb-retry-note")).toBeHidden();
   // genau eine weitere Anfrage an die KI – nur mit Aufgabe 2 (Antwort und Nummer); Aufgabe 1 geht leer mit und nicht an die KI
   const fbCalls = await s.calls((r) => r.path === "/api/feedback");
   expect(fbCalls.map((r) => r.status)).toEqual([200, 200]);
@@ -3029,6 +3036,147 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   // aufräumen: das Blatt samt Abgabe löschen (die Tests 8 und 9 legen ihre eigenen Blätter an)
   await t.page.click("#b-res-back");
   await expect(t.page.locator("#t-sel-code")).toHaveText(shownF);
+  await t.page.click("#t-del-sheet");
+  await confirmDialog(t.page, "Feibeitsblatt löschen?");
+  await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7p Zweite Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nichts („gone“), Frist von 15 Minuten abgelaufen während der KI-Anfrage bzw. vor „Rückmeldung erneut anfordern“ (Hinweis vorher unter dem Knopf – auch nach dem Ruhezustand des Geräts, beim Zurückkehren bzw. durch die regelmäßige Prüfung) → ruhiger Hinweis unter der Rückmeldung, nichts als gesendet gezählt, die PDF-Datei enthält die Rückmeldung trotzdem", async ({ browser }) => {
+  // eigenes Blatt mit einer Aufgabe mit Auftrag an die KI; am Ende wieder löschen
+  const t = await openPage(browser);
+  await teacherLogin(t.page, PW);
+  await t.page.click("#t-new");
+  await t.page.fill("#b-title", "Nachreichen");
+  await t.page.fill("#bq-1", TASKS[0].text);
+  await t.page.fill("#bs-1", TASKS[0].solution);
+  await t.page.click("#b-gen");
+  await expect(t.page.locator("#b-result")).toBeVisible();
+  const shownP = (await t.page.locator("#b-res-code").textContent()).trim();
+  const EXPIRED = "Die neue Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln. Deine Abgabe ist davon nicht betroffen.";
+  const GONE = "Die neue Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.";
+  const RETRY_LATE = "Seit deiner Abgabe sind mehr als 15 Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht mehr übermitteln.";
+  // Schüler:in bis zur Bestätigungsseite: Feedback holen, überarbeiten, abgeben. clock: Uhr der Seite per page.clock steuerbar (läuft sonst
+  // normal weiter); routes(xp, posted): eigene Routen vor der Abgabe; posted sammelt die nachgereichten Rückmeldungen (stage „feedback2“)
+  const toDone = async (who, { clock = false, routes } = {}) => {
+    const x = await openPage(browser), xp = x.page, posted = [];
+    if (clock) { await xp.clock.install(); await xp.reload(); await expect(xp.locator("#screen-start")).toHaveClass(/active/); }
+    await enterCode(xp, shownP);
+    await fillPerson(xp, who);
+    await typeAt(xp, "#a-1", "Das Gewissen ist eine innere Instanz.");
+    await requestFeedback(xp);
+    await typeAt(xp, "#a-1", " Es meldet sich, wenn ich lüge.");
+    if (routes) await routes(xp, posted);
+    await xp.route("**/api/submit", (route) => {
+      const b = JSON.parse(route.request().postData());
+      if (b.stage === "feedback2") posted.push(b);
+      return route.fallback();
+    });
+    await submit(xp);
+    return { ...x, posted };
+  };
+  const neutral = async (xp, sel) => expect(await xp.locator(sel).evaluate((e) => getComputedStyle(e).color))
+    .toBe(await xp.locator("#done-pdf-note").evaluate((e) => getComputedStyle(e).color));   // keine Erfolgs-, keine Alarmfarbe
+
+  /* P1: der Server ersetzt nichts ({ok:true, gone:true} – z. B. Abgabe gelöscht oder inzwischen neu abgegeben) → nicht gesendet, kein
+     weiterer Versuch, Hinweis; die PDF-Datei enthält die Rückmeldung trotzdem */
+  const p1 = await toDone({ vorname: "pia", nachname: "pe", geb: "--01-02", klasse: "9a" }, {
+    routes: (xp) => xp.route("**/api/submit", (route) => (JSON.parse(route.request().postData()).stage === "feedback2"
+      ? route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, gone: true }) }) : route.fallback())),
+  });
+  await expect(p1.page.locator("#done-fb-list .fbbox")).toHaveCount(1, { timeout: 60_000 });
+  await expect(p1.page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");
+  await expect(p1.page.locator("#done-fb-teacher")).toHaveText(GONE);
+  await expect(p1.page.locator("#done-fb-teacher")).toHaveAttribute("role", "status");
+  await p1.page.waitForTimeout(2500);
+  expect(p1.posted.length).toBe(1);   // „gone“ ist endgültig
+  await expect(p1.page.locator("#done-fb-retry")).toBeHidden();
+  await expect(p1.page.locator("#done-fb-retry-note")).toBeHidden();
+  await neutral(p1.page, "#done-fb-teacher");
+  expect(await p1.page.locator("#done-fb-teacher").textContent()).not.toMatch(NO_TT);
+  // der Hinweis steht unter der Rückmeldung
+  expect(await p1.page.evaluate(() => !!(document.getElementById("done-fb-list").compareDocumentPosition(document.getElementById("done-fb-teacher")) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  const [dl1] = await Promise.all([p1.page.waitForEvent("download"), p1.page.click("#done-pdf")]);
+  expect((await readFile(await dl1.path())).toString("latin1")).toContain("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj");
+  await closePage(p1);
+
+  /* P2: die KI braucht länger, als die Frist reicht (z. B. Tab im Hintergrund, Zeitgeber gedrosselt): Während die Anfrage angehalten ist,
+     springt die Uhr der Seite 16 Minuten weiter, ohne Zeitgeber auszulösen (setSystemTime) → nichts nachgereicht, Hinweis auf die Frist */
+  let releaseAi, aiHeld = 0;
+  const aiGate = new Promise((r) => { releaseAi = r; });
+  const p2 = await toDone({ vorname: "pit", nachname: "po", geb: "--03-04", klasse: "9a" }, {
+    clock: true,
+    routes: (xp) => xp.route("**/api/feedback", async (route) => { aiHeld++; await aiGate; return route.continue(); }),
+  });
+  await expect.poll(() => aiHeld, { timeout: 30_000 }).toBe(1);
+  await expect(p2.page.locator("#done-fb-status")).toContainText("Die KI sieht sich deine geänderte Antwort an (Aufgabe 1)");
+  await p2.page.clock.setSystemTime((await p2.page.evaluate(() => Date.now())) + 16 * 60e3);
+  releaseAi();
+  await expect(p2.page.locator("#done-fb-list .fbbox")).toHaveCount(1, { timeout: 60_000 });
+  await expect(p2.page.locator("#done-fb-teacher")).toHaveText(EXPIRED);
+  await p2.page.waitForTimeout(1000);
+  expect(p2.posted).toEqual([]);   // nichts gesendet – der Server nähme es nicht mehr an
+  await expect(p2.page.locator("#done-fb-retry-note")).toBeHidden();
+  await neutral(p2.page, "#done-fb-teacher");
+  await closePage(p2);
+
+  /* P3/P4: die zweite Rückmeldung scheitert zuerst (502) → „Rückmeldung erneut anfordern“, innerhalb der Frist ohne Hinweis am Knopf. Dann
+     der Ruhezustand des Geräts: Die Wanduhr springt 16 Minuten weiter, ohne dass ein Zeitgeber abläuft (Uhr angehalten, setSystemTime) –
+     ein Zeitgeber allein käme erst viel später. toRetry führt bis dahin; ai() zählt die KI-Anfragen. */
+  const toRetry = async (who) => {
+    let ai = 0;
+    const x = await toDone(who, {
+      clock: true,
+      routes: (xp) => xp.route("**/api/feedback", (route) => (++ai === 1
+        ? route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI hat gerade nicht geantwortet.", code: "ai_error" }) })
+        : route.continue())),
+    });
+    const retry = x.page.locator("#done-fb-retry"), note = x.page.locator("#done-fb-retry-note");
+    await expect(retry).toBeVisible({ timeout: 30_000 });
+    await expect(x.page.locator("#done-fb-status")).toContainText("Deine Abgabe ist davon nicht betroffen – du kannst die Rückmeldung noch einmal anfordern.");
+    await expect(retry).toHaveAttribute("aria-describedby", "done-fb-retry-note");
+    await x.page.waitForTimeout(300);
+    await expect(note).toBeHidden();   // noch innerhalb der Frist
+    const now = await x.page.evaluate(() => Date.now());
+    await x.page.clock.pauseAt(now + 5000);
+    await x.page.clock.setSystemTime(now + 16 * 60e3);
+    return { ...x, retry, note, ai: () => ai };
+  };
+  /* P3: beim Zurückkehren (visibilitychange) rechnet die Seite die Frist nach und sagt unter dem Knopf vorher, dass eine neue Rückmeldung nur
+     noch für dich ist – kein Dialog; danach kommt die Rückmeldung, nichts wird nachgereicht, Hinweis unter der Rückmeldung */
+  const p3 = await toRetry({ vorname: "pam", nachname: "pu", geb: "--05-06", klasse: "9a" });
+  const { retry, note } = p3;
+  await p3.page.waitForTimeout(300);
+  await expect(note).toBeHidden();   // ohne Ereignis und ohne Zeitgeber (angehaltene Uhr) noch nichts
+  await p3.page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await p3.page.clock.runFor(200);   // liveFill: erst einblenden, nach 80 ms füllen
+  await expect(note).toHaveText(RETRY_LATE);
+  await p3.page.clock.resume();
+  await expect(note).toHaveAttribute("role", "status");
+  await neutral(p3.page, "#done-fb-retry-note");
+  expect(await note.textContent()).not.toMatch(NO_TT);
+  await retry.click();
+  await expect(p3.page.locator("#dlg.open")).toHaveCount(0);   // kein Dialog
+  await expect(note).toBeHidden();
+  await expect(p3.page.locator("#done-fb-list .fbbox")).toHaveCount(1, { timeout: 60_000 });
+  await expect(p3.page.locator("#done-fb-teacher")).toHaveText(EXPIRED);
+  await p3.page.waitForTimeout(1000);
+  expect(p3.posted).toEqual([]);
+  expect(p3.ai()).toBe(2);
+  await closePage(p3);
+
+  /* P4: ohne Ereignis (das Fenster blieb sichtbar und im Fokus) findet die regelmäßige Prüfung (höchstens alle 15 s) die abgelaufene Frist */
+  const p4 = await toRetry({ vorname: "pol", nachname: "pa", geb: "--07-08", klasse: "9a" });
+  await p4.page.clock.runFor(16_000);
+  await expect(p4.note).toHaveText(RETRY_LATE);
+  await expect(p4.retry).toBeVisible();
+  await expect(p4.page.locator("#dlg.open")).toHaveCount(0);
+  expect(p4.posted).toEqual([]);
+  await closePage(p4);
+
+  // aufräumen: das Blatt samt Abgaben löschen
+  await t.page.click("#b-res-back");
+  await expect(t.page.locator("#t-sel-code")).toHaveText(shownP);
   await t.page.click("#t-del-sheet");
   await confirmDialog(t.page, "Feibeitsblatt löschen?");
   await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
@@ -5250,8 +5398,8 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
 
   /* ---------- Schüler:in 4 und 5: die zweite Rückmeldung nachreichen – mit feedback2 zu groß bzw. es kommt nichts an ---------- */
   // fb2: Antwort des Servers je Nachreichen (n = 1, 2, …): eine Antwort per route.fulfill oder null = weiter zum Server;
-  // posts: so viele Versuche, dann ist die Seite fertig (geklappt bzw. aufgegeben)
-  const fb2Case = async (who, fb2, posts) => {
+  // posts: so viele Versuche, dann ist die Seite fertig (geklappt bzw. aufgegeben); hint: Hinweis unter der Rückmeldung (null = keiner)
+  const fb2Case = async (who, fb2, posts, hint) => {
     const x = await openPage(browser), xp = x.page, posted = [];
     await enterCode(xp, shown);
     await fillPerson(xp, who);
@@ -5272,6 +5420,11 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
     await expect.poll(() => posted.length, { timeout: 30_000 }).toBe(posts);
     await xp.waitForTimeout(2500);   // danach kein weiterer Versuch mehr (der nächste käme nach höchstens 2 s Pause)
     expect(posted.length).toBe(posts);
+    // erreicht die Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig unter der Rückmeldung (ohne Tippzeiten)
+    if (hint) {
+      await expect(xp.locator("#done-fb-teacher")).toHaveText(hint);
+      await expect(xp.locator("#done-fb-teacher")).toHaveAttribute("role", "status");
+    } else await expect(xp.locator("#done-fb-teacher")).toBeHidden();
     const fin = await openEnvelope(priv, JSON.parse((await x.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => e.reqBody).find((b) => JSON.parse(b).stage === "final")).envelope);
     const sent = await Promise.all(posted.map((b) => openEnvelope(priv, b.envelope)));
     const row = (await rowsOf()).filter((x) => x.attempt === posted[0].attempt);
@@ -5283,7 +5436,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   const ttHasValues = (t) => !!t && Array.isArray(t.answers) && t.answers.some((a) => [a.first, a.final].some((b) => typeof b === "string" && b.length > 1));
   // 4: der Umschlag mit feedback2 ist zu groß (413) → dieselbe Nutzlast ohne Tippzeit-Werte; Antworten, Feedback und Angaben bleiben
   const TOO_LARGE = { status: 413, body: { ok: false, error: "Die Abgabe ist zu groß.", code: "too_large" } };
-  const c4 = await fb2Case({ vorname: "via", nachname: "vi", geb: "--04-04", klasse: "7a" }, (n) => (n === 1 ? TOO_LARGE : null), 2);
+  const c4 = await fb2Case({ vorname: "via", nachname: "vi", geb: "--04-04", klasse: "7a" }, (n) => (n === 1 ? TOO_LARGE : null), 2, null);
   expect(c4.sent.length).toBe(2);
   expect(ttHasValues(c4.fin.typing)).toBe(true);
   expect(c4.sent[0].typing).toEqual(c4.fin.typing);   // erst die angenommene Nutzlast unverändert + feedback2
@@ -5292,9 +5445,11 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   expect(noTyping(c4.sent[1])).toEqual(noTyping(c4.sent[0]));
   expect(c4.sent[1].feedback2.results[0]).toBeTruthy();
   expect(c4.got).toEqual(c4.sent[1]);   // angekommen: mit der zweiten Rückmeldung, die Tippzeiten als „nicht übermittelt“
-  // 5: das Nachreichen scheitert jedes Mal (503) → nach drei Versuchen aufgegeben; die Abgabe beim Server bleibt genau, wie sie war
+  // 5: das Nachreichen scheitert jedes Mal (503) → nach drei Versuchen aufgegeben; die Abgabe beim Server bleibt genau, wie sie war,
+  // und die Bestätigungsseite sagt, dass die Rückmeldung die Lehrkraft nicht erreicht hat
   const DOWN = { status: 503, body: { ok: false, error: "Der Server ist gerade nicht erreichbar.", code: "server_error" } };
-  const c5 = await fb2Case({ vorname: "wim", nachname: "wi", geb: "--05-05", klasse: "7a" }, () => DOWN, 3);
+  const c5 = await fb2Case({ vorname: "wim", nachname: "wi", geb: "--05-05", klasse: "7a" }, () => DOWN, 3,
+    "Die neue Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.");
   expect(c5.sent.length).toBe(3);
   for (const x of c5.sent) expect(noFb2(x)).toEqual(c5.fin);
   expect(c5.got).toEqual(c5.fin);

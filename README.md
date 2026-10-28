@@ -196,10 +196,15 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Abgabe (ein zusätzlicher Aufruf; hat sich nichts geändert, wird nichts gesendet) – nur bis 15 Minuten nach der Abgabe,
    und der Eingangszeitpunkt bleibt der der Abgabe. Haben Sie die Abgabe inzwischen gelöscht oder wurde mit derselben
    Bearbeitung neu abgegeben, ändert der Server nichts. Klappt das Nachreichen nicht (Seite vorher geschlossen,
-   keine Verbindung), bleibt die Abgabe ohne sie. Nachgereicht wird genau die Abgabe, die beim Server angekommen ist, um
-   die zweite Rückmeldung ergänzt – mit den Tippzeiten (bzw. dem Vermerk eines Widerspruchs) und bei einem Escape-Room-Finale
-   den Daten aus dem Raum, so wie sie angekommen sind. Wäre der Umschlag mit der zweiten Rückmeldung zu groß, geht er wie
-   bei der Abgabe erst ohne die Tippzeit-Werte, dann ohne die Fehler-Einzelheiten aus dem Escape-Room (Sie sehen dann
+   keine Verbindung), bleibt die Abgabe ohne sie. Erreicht die Rückmeldung Sie nicht (Frist vorbei, Abgabe oder Blatt
+   gelöscht, neu abgegeben, Fehler beim Senden), sagt die Bestätigungsseite das den Schüler:innen ruhig unter der Rückmeldung
+   (z. B. „Die neue Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der
+   Abgabe übermitteln. Deine Abgabe ist davon nicht betroffen.“); sind beim erneuten Anfordern schon mehr als 15 Minuten
+   vergangen (auch nach dem Ruhezustand des Geräts), steht das vorher unter dem Knopf. Nachgereicht wird genau die Abgabe,
+   die beim Server angekommen ist, um die zweite Rückmeldung ergänzt – mit den Tippzeiten (bzw. dem Vermerk eines
+   Widerspruchs) und bei einem Escape-Room-Finale den Daten aus dem Raum, so wie sie angekommen sind. Wäre der Umschlag
+   mit der zweiten Rückmeldung zu groß, geht er wie bei der Abgabe erst ohne die Tippzeit-Werte, dann ohne die
+   Fehler-Einzelheiten aus dem Escape-Room (Sie sehen dann
    „nicht übermittelt – die Abgabe wäre sonst zu groß gewesen“); Antworten, KI-Feedback und Angaben bleiben immer, und
    kommt nichts an, bleibt die Abgabe, wie sie ist. Dafür hält die Seite die angekommene Abgabe getrennt von den Lösungen
    im Arbeitsspeicher, bis die Rückmeldung nachgereicht ist oder feststeht, dass keine mehr kommt – höchstens 15 Minuten.
