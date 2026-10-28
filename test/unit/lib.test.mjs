@@ -8,6 +8,7 @@ import {
   bucketOf, ipKey, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
   validateAnswerSpec, withMapChecks, publicAnswer, teacherAnswer, mapCheck,
   validatePrivacyInput, privacyOut, cleanLine, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
+  validateEscapeSpec, escapeOut, ESCAPE_ID_RE,
 } from "../../worker/lib.js";
 import { DatabaseSync } from "node:sqlite";
 import { PROVIDERS } from "../../worker/ai.js";
@@ -99,7 +100,7 @@ test("validateEnvelope: shape, base64, size cap, unknown fields dropped", () => 
 test("validateSheetInput: trimming, defaults, limits", () => {
   const now = Date.UTC(2026, 9, 14, 23, 30);   // 15.10. in Berlin
   const r = validateSheetInput({ title: "  Mein\n Blatt ", tasks: [{ text: "  Aufgabe\r\n eins  ", solution: " Lösung " }, { text: "Zwei" }] }, now);
-  assert.deepEqual(r, { title: "Mein Blatt", tasks: [{ text: "Aufgabe\n eins", solution: "Lösung" }, { text: "Zwei", solution: "" }] });
+  assert.deepEqual(r, { title: "Mein Blatt", tasks: [{ text: "Aufgabe\n eins", solution: "Lösung" }, { text: "Zwei", solution: "" }], escape: null });
   assert.equal(validateSheetInput({ tasks: [{ text: "x" }] }, now).title, "Feibeitsblatt vom 15.10.2026");
   assert.equal(defaultTitle(Date.UTC(2026, 0, 2, 12)), "Feibeitsblatt vom 02.01.2026");
   rejectsWith(() => validateSheetInput({ title: "x", tasks: [] }), "bad_request");
@@ -494,4 +495,37 @@ test("checklistOut: gespeichertes JSON erneut geprüft → {v:1, ai, tasks} mit 
   assert.deepEqual(checklistOut(JSON.stringify({ v: 1, ai: true, tasks: [{ n: 2, points: ["A", "a"] }] }), 2),
     { v: 1, ai: true, tasks: [{ n: 1, points: [] }, { n: 2, points: ["A"] }] });
   for (const t of [null, undefined, "", "kaputt{", "[]", JSON.stringify({ tasks: [{ n: 3 }] })]) assert.equal(checklistOut(t, 2), null, String(t));
+});
+
+test("validateEscapeSpec: Kennung klein und getrimmt (3–60 Zeichen a–z, 0–9, -), Name einzeilig 1–80 Zeichen; fehlt = normales Blatt", () => {
+  assert.equal(validateEscapeSpec(undefined), null);
+  assert.equal(validateEscapeSpec(null), null);
+  assert.deepEqual(validateEscapeSpec({ id: "  Powi-JG10-FastFashion ", name: "  Fast\nFashion\u202e  ", url: "https://x.example/", extra: 1 }), { id: "powi-jg10-fastfashion", name: "Fast Fashion" });
+  assert.deepEqual(validateEscapeSpec({ id: "abc", name: "x".repeat(80) }), { id: "abc", name: "x".repeat(80) });
+  assert.deepEqual(validateEscapeSpec({ id: "a".repeat(60), name: "N" }).id, "a".repeat(60));
+  const bad = (raw, re) => assert.throws(() => validateEscapeSpec(raw), (e) => e instanceof InputError && e.status === 400 && re.test(e.message));
+  bad({ id: "ab", name: "N" }, /^Escape-Room: Die Kennung braucht 3 bis 60 Zeichen \(nur a–z, 0–9 und Bindestrich\)\.$/);
+  bad({ id: "a".repeat(61), name: "N" }, /Kennung/);
+  for (const id of ["powi_jg10", "powi jg10", "pöwi-jg10", "powi/jg10", 123, null]) bad({ id, name: "N" }, /Kennung/);
+  bad({ id: "abc", name: "" }, /^Escape-Room: Bitte den Namen des Escape-Rooms eintragen\.$/);
+  bad({ id: "abc", name: "\u200b\u0007 " }, /Bitte den Namen/);   // nur Format-/Steuerzeichen und Leerraum
+  bad({ id: "abc", name: 7 }, /Bitte den Namen/);
+  bad({ id: "abc", name: "x".repeat(81) }, /^Escape-Room: Der Name ist zu lang \(höchstens 80 Zeichen\)\.$/);
+  for (const raw of ["FastFashion", ["abc", "N"], 1, true]) bad(raw, /^Escape-Room: Die Angaben haben ein ungültiges Format\.$/);
+  assert.equal(LIMITS.escapeName, 80);
+  assert.ok(ESCAPE_ID_RE.test("powi-jg10-fastfashion"));
+});
+
+test("escapeOut prüft die gespeicherten Spalten erneut; validateSheetInput liefert escape mit", () => {
+  assert.deepEqual(escapeOut("powi-jg10", "FastFashion"), { id: "powi-jg10", name: "FastFashion" });
+  assert.equal(escapeOut(null, null), null);
+  assert.equal(escapeOut("POWI", "X"), null);
+  assert.equal(escapeOut("powi-jg10", ""), null);
+  assert.equal(escapeOut("powi-jg10", " \u200b "), null);
+  assert.equal(escapeOut("powi-jg10", 5), null);
+  assert.equal(escapeOut("powi-jg10", "x".repeat(90)).name.length, 80);
+  const tasks = [{ text: "A", solution: "s" }];
+  assert.equal(validateSheetInput({ title: "t", tasks }).escape, null);
+  assert.deepEqual(validateSheetInput({ title: "t", tasks, escape: { id: "Raum-1", name: "Raum" } }).escape, { id: "raum-1", name: "Raum" });
+  assert.throws(() => validateSheetInput({ title: "t", tasks, escape: { id: "r", name: "Raum" } }), InputError);
 });

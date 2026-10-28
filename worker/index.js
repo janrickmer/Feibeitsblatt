@@ -8,7 +8,7 @@ import {
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer,
   validatePrivacyInput, privacyOut, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
-  validateChecklist, checklistOut, REPLACE_WINDOW_MS,
+  validateChecklist, checklistOut, escapeOut, REPLACE_WINDOW_MS,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -51,6 +51,7 @@ const MSG = {
   noChecklist: "Zu diesem Feibeitsblatt gibt es noch keine Checkliste.",
   ckNoAi: "Es ist kein KI-Dienst eingerichtet, der gerade genutzt werden kann. Bitte prüfen Sie die KI-Einstellungen – die Punkte der Checkliste können Sie auch selbst eintragen.",
   ckQuota: "Das kostenlose Tageskontingent von Cloudflare Workers AI ist aufgebraucht (es gilt für das ganze Cloudflare-Konto). Ab 0:00 Uhr UTC (1:00 Uhr MEZ bzw. 2:00 Uhr MESZ) geht es wieder.",
+  ckEscape: "Zu einem Feibeitsblatt für einen Escape-Room gibt es kein analoges Arbeitsblatt.",
 };
 
 /* ---------- Antworten ---------- */
@@ -109,20 +110,29 @@ let schemaReady = false;   // kein geteiltes Promise: workerd erlaubt kein I/O �
 async function ensureSchema(db) {
   if (schemaReady) return;
   await db.batch(SCHEMA.map((s) => db.prepare(s)));
-  await ensureSubmissionColumns(db);
+  await ensureColumns(db);
   schemaReady = true;
 }
-// Nachträgliche Spalten für Erstversuche (stage, attempt): ALTER TABLE ist nicht idempotent, deshalb vorher nachsehen.
-// Kommt ein paralleler Isolate zuvor, schlägt das ALTER fehl – dann genügt es, dass die Spalten jetzt da sind.
-export async function ensureSubmissionColumns(db) {
-  const have = async () => new Set((((await db.prepare("PRAGMA table_info(submissions)").all()) || {}).results || []).map((r) => String(r.name)));
-  let cols = await have();
-  const stmts = [];
-  if (!cols.has("stage")) stmts.push(db.prepare("ALTER TABLE submissions ADD COLUMN stage TEXT NOT NULL DEFAULT 'final'"));
-  if (!cols.has("attempt")) stmts.push(db.prepare("ALTER TABLE submissions ADD COLUMN attempt TEXT"));
-  if (stmts.length) {
-    try { await db.batch(stmts); }
-    catch (e) { cols = await have(); if (!cols.has("stage") || !cols.has("attempt")) throw e; }
+// Nachträgliche Spalten: Erstversuche (submissions.stage, .attempt) und Escape-Room-Blätter (sheets.escape_id, .escape_name; NULL =
+// normales Blatt). ALTER TABLE ist nicht idempotent, deshalb vorher nachsehen (beide Tabellen in einem Batch). Kommt ein paralleler
+// Isolate zuvor, schlägt das ALTER fehl – dann genügt es, dass die Spalten jetzt da sind.
+const LATER_COLUMNS = [
+  ["submissions", "stage", "ALTER TABLE submissions ADD COLUMN stage TEXT NOT NULL DEFAULT 'final'"],
+  ["submissions", "attempt", "ALTER TABLE submissions ADD COLUMN attempt TEXT"],
+  ["sheets", "escape_id", "ALTER TABLE sheets ADD COLUMN escape_id TEXT"],
+  ["sheets", "escape_name", "ALTER TABLE sheets ADD COLUMN escape_name TEXT"],
+];
+export async function ensureColumns(db) {
+  const have = async () => {
+    const [sub, sh] = await db.batch([db.prepare("PRAGMA table_info(submissions)"), db.prepare("PRAGMA table_info(sheets)")]);
+    const names = (r) => new Set(((r || {}).results || []).map((x) => String(x.name)));
+    return { submissions: names(sub), sheets: names(sh) };
+  };
+  const missing = (cols) => LATER_COLUMNS.filter(([t, c]) => !cols[t].has(c));
+  let todo = missing(await have());
+  if (todo.length) {
+    try { await db.batch(todo.map(([, , sql]) => db.prepare(sql))); }
+    catch (e) { todo = missing(await have()); if (todo.length) throw e; }
   }
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON submissions(sheet_code, attempt)").run();
 }
@@ -357,27 +367,27 @@ async function routeSheetsList(c) {
   await c.db.batch(cleanupStatements(c.db, c.now)).catch(() => {});
   const [list, st] = await c.db.batch([
     c.db.prepare(
-      "SELECT s.code, s.title, s.created_at, json_array_length(s.tasks) AS task_count, " +
+      "SELECT s.code, s.title, s.created_at, s.escape_id, s.escape_name, json_array_length(s.tasks) AS task_count, " +
       "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code AND stage='final') AS submission_count, " +
       "(SELECT COUNT(*) FROM submissions WHERE sheet_code=s.code AND stage='first') AS first_count " +
       "FROM sheets s ORDER BY s.created_at DESC, s.code LIMIT 1000"),
     c.db.prepare("SELECT " + STORAGE_SQL + " AS used"),
   ]);
   return json({ ok: true, sheets: (list.results || []).map((r) => ({ code: r.code, title: r.title, createdAt: r.created_at,
-    taskCount: r.task_count || 0, submissionCount: r.submission_count || 0, firstCount: r.first_count || 0 })),
+    taskCount: r.task_count || 0, submissionCount: r.submission_count || 0, firstCount: r.first_count || 0, escape: escapeOut(r.escape_id, r.escape_name) })),
     storage: { used: Number((firstRow(st) || {}).used) || 0, limit: LIMITS.storageBytes } });
 }
 
 async function routeSheetCreate(c) {
   await requireTeacher(c);
-  const { title, tasks } = validateSheetInput(await readJson(c.request), c.now);
+  const { title, tasks, escape } = validateSheetInput(await readJson(c.request), c.now);
   const hasMap = tasks.some((t) => t.answer && t.answer.type === "map");
   for (let i = 0; i < 8; i++) {   // bei Kollision neu würfeln
     const code = generateCode();
     const tasksJson = JSON.stringify(hasMap ? await withMapChecks(tasks, code) : tasks);   // Prüfwerte hängen vom Code ab
-    const r = await c.db.prepare("INSERT INTO sheets(code,title,tasks,created_at) VALUES(?1,?2,?3,?4) ON CONFLICT(code) DO NOTHING")
-      .bind(code, title, tasksJson, c.now).run();
-    if (r.meta && r.meta.changes) return json({ ok: true, code, title, createdAt: c.now, taskCount: tasks.length });
+    const r = await c.db.prepare("INSERT INTO sheets(code,title,tasks,created_at,escape_id,escape_name) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(code) DO NOTHING")
+      .bind(code, title, tasksJson, c.now, escape ? escape.id : null, escape ? escape.name : null).run();
+    if (r.meta && r.meta.changes) return json({ ok: true, code, title, createdAt: c.now, taskCount: tasks.length, escape });
   }
   throw new Error("Kein freier Code gefunden");
 }
@@ -387,7 +397,7 @@ async function routeSheetGet(c, codeRaw) {
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
   const [sh, cnt, im, fi] = await c.db.batch([
-    c.db.prepare("SELECT code, title, tasks, created_at FROM sheets WHERE code=?1").bind(code),
+    c.db.prepare("SELECT code, title, tasks, created_at, escape_id, escape_name FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT COUNT(*) AS n FROM submissions WHERE sheet_code=?1").bind(code),
     imagesStmt(c.db, code),
     filesStmt(c.db, code),
@@ -395,7 +405,7 @@ async function routeSheetGet(c, codeRaw) {
   const s = firstRow(sh);
   if (!s) throw sheetGone();
   const tasks = parseTasks(s.tasks).map((t, i) => ({ text: String(t.text || ""), textFmt: Array.isArray(t.textFmt) ? t.textFmt : [], solution: String(t.solution || ""), material: Array.isArray(t.material) ? t.material : [], images: imagesForTask(im.results, i + 1), files: filesForTask(fi.results, i + 1), answer: teacherAnswer(t.answer) }));
-  return json({ ok: true, sheet: { code: s.code, title: s.title, createdAt: s.created_at, tasks, submissionCount: (firstRow(cnt) || {}).n || 0 } });
+  return json({ ok: true, sheet: { code: s.code, title: s.title, createdAt: s.created_at, tasks, submissionCount: (firstRow(cnt) || {}).n || 0, escape: escapeOut(s.escape_id, s.escape_name) } });
 }
 
 async function routeSheetDelete(c, codeRaw) {
@@ -813,7 +823,7 @@ async function routePublicSheet(c, codeRaw) {
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
   const [sh, st, im, fi] = await c.db.batch([
-    c.db.prepare("SELECT code, title, tasks FROM sheets WHERE code=?1").bind(code),
+    c.db.prepare("SELECT code, title, tasks, escape_id, escape_name FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT key, value FROM settings WHERE key IN ('teacher','ai','privacy')"),   // eine Abfrage für alle drei
     imagesStmt(c.db, code),
     filesStmt(c.db, code),
@@ -841,7 +851,9 @@ async function routePublicSheet(c, codeRaw) {
       answer: await publicAnswer(t.answer, code, new Set(images.filter((m) => m.mode === "card").map((m) => m.id))) };
   }));
   return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}),
-    privacy: pv ? { retentionDays: pv.retentionDays } : null } });
+    privacy: pv ? { retentionDays: pv.retentionDays } : null,
+    // Finale eines Escape-Rooms: nur Kennung und Name des Raums (die Seite sperrt dann die Code-Eingabe), sonst null
+    escape: escapeOut(s.escape_id, s.escape_name) } });
 }
 
 const AI_SOURCE_TYPE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
@@ -1030,9 +1042,10 @@ async function routeChecklistPost(c, codeRaw) {
   if (!isValidCode(code)) throw sheetGone();
   const body = (await readJson(c.request, true)) || {};
   if (body.force != null && typeof body.force !== "boolean") throw new InputError("Ungültige Anfrage.");
-  const [sh, ck, st] = await c.db.batch([c.db.prepare("SELECT tasks FROM sheets WHERE code=?1").bind(code), checklistStmt(c.db, code), settingStmt(c.db, "ai")]);
+  const [sh, ck, st] = await c.db.batch([c.db.prepare("SELECT tasks, escape_id, escape_name FROM sheets WHERE code=?1").bind(code), checklistStmt(c.db, code), settingStmt(c.db, "ai")]);
   const s = firstRow(sh);
   if (!s) throw sheetGone();
+  if (escapeOut(s.escape_id, s.escape_name)) throw new HttpError(400, "escape_sheet", MSG.ckEscape);   // kein analoges Arbeitsblatt
   const tasks = parseTasks(s.tasks), row = firstRow(ck) || {};
   const draft = checklistOut(row.draft, tasks.length), final = checklistOut(row.final, tasks.length);
   if (!body.force && (draft || final)) return json({ ok: true, draft, final, generated: false, ...(tasks.some(wantsFeedback) ? {} : { noAi: true }) });
@@ -1064,8 +1077,9 @@ async function routeChecklistPut(c, codeRaw) {
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
   const body = await readJson(c.request);
-  const sh = await c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code).first();
+  const sh = await c.db.prepare("SELECT json_array_length(tasks) AS n, escape_id, escape_name FROM sheets WHERE code=?1").bind(code).first();
   if (!sh) throw sheetGone();
+  if (escapeOut(sh.escape_id, sh.escape_name)) throw new HttpError(400, "escape_sheet", MSG.ckEscape);
   const { ai, tasks } = validateChecklist(body, Number(sh.n) || 0), final = { v: 1, ai, tasks };
   const r = await saveFinalStmt(c.db, code, final, c.now).run();
   if (!r.meta || !r.meta.changes) throw sheetGone();

@@ -1,10 +1,12 @@
 # Feibeitsblatt – Hinweise für die Entwicklung
 
-Schreibeditor mit Aufgabencodes (Design wie der Feiditor, aber **ohne** Tippzeit-Messung): Lehrkraft legt Aufgaben +
+Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft; die Kurzfassung
+des Datenschutzhinweises nennt die Messung in einem Satz, Widerspruch per Schalter im eigenen Abschnitt des ausführlichen Hinweises): Lehrkraft legt Aufgaben +
 Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach zweite KI-Rückmeldung zur abgegebenen Fassung) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu einer
-Checkliste drucken. Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
+Checkliste drucken; ein Blatt kann auch das Finale eines Escape-Rooms sein (Ankunft per Link oder Überblick-PDF, siehe
+Escape-Room-Anbindung). Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
 Schule; Seite „Impressum & Datenschutz“ (`#impressum`). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
 
@@ -45,6 +47,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   und `files` (PDF-Dateien, siehe unten). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
   Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
   `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
+  `GET /api/sheet/:code`, `GET /api/teacher/sheets` (je Blatt) und `GET /api/teacher/sheets/:code` liefern `escape: {id, name} |
+  null` (Finale eines Escape-Rooms; öffentlich nie mehr als Kennung und Name), `POST /api/teacher/sheets` nimmt optional `escape`
+  (siehe Escape-Room-Anbindung).
   `POST /api/feedback` nimmt optional `only: [n…]` (1-basierte Aufgabennummern, `validateOnly`: Ganzzahlen 1…Aufgabenzahl,
   ohne Doppelte, nicht leer, sonst 400 `bad_answers` – nie stillschweigend „alle“; fehlt/`null` = alle) für die zweite
   Rückmeldung: dann gehen nur diese Aufgaben (mit Auftrag) an die KI, `results` hat für die übrigen `null`; es antwortet
@@ -68,16 +73,19 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `ai_skip`, `ai_usage(day 'YYYY-MM-DD' UTC, provider, requests, neurons, PK(day, provider))`,
   `sheet_checklists(sheet_code PK, draft, final, updated_at)`. Angelegt per
   `CREATE TABLE IF NOT EXISTS` beim ersten Request je Isolate (ein `batch`), keine Migrationen → Schemaänderungen
-  nur additiv und idempotent im `SCHEMA`-Array; nachträgliche Spalten wie `stage`/`attempt` per
-  `ensureSubmissionColumns` (`PRAGMA table_info` → `ALTER TABLE … ADD COLUMN`, Fehler bei Wettlauf zweier Isolates
-  werden durch erneutes Nachsehen abgefangen).
+  nur additiv und idempotent im `SCHEMA`-Array; nachträgliche Spalten wie `stage`/`attempt` und `sheets.escape_id`/`escape_name`
+  (Escape-Room-Blatt, NULL = normales Blatt) per `ensureColumns` (`LATER_COLUMNS`; beide `PRAGMA table_info` in einem Batch →
+  fehlende `ALTER TABLE … ADD COLUMN` in einem Batch, Fehler bei Wettlauf zweier Isolates werden durch erneutes Nachsehen abgefangen).
 - **Erstversuch ↔ Abgabe:** `POST /api/submit` nimmt `{code, envelope, stage?: "first"|"final"|"feedback2", attempt?: 16 Hex, receivedAt?}`
   (`validateSubmitMeta`; `first` braucht `attempt`). Der Browser erzeugt je Bearbeitung eine Kennung (`S.attempt`,
   `hexOf(8 Zufallsbytes)`, im Zwischenstand gespeichert) und schickt nach erhaltenem KI-Feedback die erste Fassung +
   Feedback als Erstversuch (`sendFirstAttempt`, payload `stage:"first"`, `answers[].final = null`, `submittedAt:null`;
   scheitert das Senden, wird es beim nächsten Öffnen nachgeholt – `S.firstSent`). Gleiche `attempt` → `UPDATE`
   derselben Zeile (`replaced`), ein Erstversuch überschreibt nie eine Abgabe (`kept:true`); ohne `attempt` wird
-  eingefügt. `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
+  eingefügt. Widerspricht jemand nach dem Senden der Tippzeit-Messung, ersetzt der Browser den Erstversuch mit derselben
+  `attempt` ohne Tippzeiten (`S.ttResend`, siehe Tippzeit-Messung). `stage: "feedback2"` (mit `attempt` und `receivedAt` der Abgabe-Antwort,
+  `validateSubmitMeta` → `replace`) ersetzt nur genau die eigene Abgabe, legt nie eine an und zählt ohne passende Abgabe nicht (siehe Zweite
+  KI-Rückmeldung). `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
   `#p-klasse-hint` sagt es den Schüler:innen so: Angaben gehen mit dem KI-Feedback (Erstversuch), ohne KI-Feedback erst
   bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
   Lehrkraft-Ansicht: Kürzel `.st-final` (grün) / `.st-first` (orange, `#b85c00`), Legende `#t-subs-legend`,
@@ -95,17 +103,19 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `pdfStr` oktal-maskiert, Breiten aus `PDF_W_REG/BOLD` für den Umbruch) mit orangem Kasten, URI-Link-Annotation
   auf `PUBLIC_URL` (`window.FEIBEITSBLATT_PUBLIC`) und dem Datensatz (`draftRecord()` + `kind:"feibeitsblatt-draft"`,
   `code`, `sheetTitle`, `person`) als UTF-8-JSON in einem `/Type /EmbeddedFile`-Stream mit Kennzeichen `/FbDraft 1`
-  (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readDraftPdf` sucht die Kennzeichen
+  (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readStartPdf` (Block `PDFREAD`; liefert den Zwischenstand oder – Kennzeichen `/FbEscape 1` – die Hülle aus der Überblick-PDF eines Escape-Rooms) sucht die Kennzeichen
   im Latin-1-String, liest `/Length` (direkt oder Verweis, sonst bis `endstream`) und entpackt `FlateDecode` per
   `DecompressionStream` – neu gespeicherte PDFs bleiben lesbar; `cleanDraft` prüft wie die Eingabefelder (Code,
-  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`). Startseite: `#start-pdf` →
+  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`,
+  Tippzeiten `typing` per `ttCleanDraft` nur passend, Widerspruch `ttOptOut`/`ttResend` per `ttDraftFlags` – dann `typing: null`). Startseite: `#start-pdf` →
   `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB, Blatt laden, Aufgabenzahl prüfen, bei neuerem
-  lokalen Stand nachfragen) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal). Dateiname nur
+  lokalen Stand nachfragen; ein Widerspruch gegen die Tippzeit-Messung im lokalen Stand bleibt – `ttKeepOptOut`) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
   **Bestätigung nach der Abgabe** (`#screen-done`, nur nach HTTP 200 von `/api/submit`): großer grüner Haken
   (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, `#done-del` (nur mit Frist: Löschdatum =
   `receivedAt` + `retentionDays` aus der Antwort von `/api/submit`, „oder kurz danach“), dann **ganz oben über der zweiten KI-Rückmeldung**
-  Button `#done-pdf` „Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“ und
+  Button `#done-pdf` „Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“ (bei
+  Escape-Blättern `DONE_PDF_ESC` „Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter …“) und
   direkt darunter klein und blass `#done-pdf-note` (`.donenote`, `aria-describedby`) „Es ist möglich, dass du mit diesen
   Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.“, danach `#done-status` (Meldungen zum Download). `S.lastSubmission` (Code, Titel, Aufgabentexte, person, answers
   first/final, feedback, receivedAt) bleibt nur im Arbeitsspeicher bis „Neues Feibeitsblatt öffnen“ (`resetStudent`);
@@ -145,20 +155,69 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Überarbeiten“, nach der Abgabe „Tipps zum Weiterlernen“). PDF ohne zweite Rückmeldung
   heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
   erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
-  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2). Ist sie da (und nicht `same`), reicht `sendFeedback2(sub)` sie verschlüsselt an die Lehrkraft nach: derselbe `payload` (in
-  `S.lastSubmission` mit `pub`, `attempt`, `submitAt` = `receivedAt` der Abgabe-Antwort) + `feedback2: {at, results}` (nur neu
-  beurteilte Aufgaben, die übrigen `null`) per `POST /api/submit` mit `stage: "feedback2"` (ein eigener Wert, den ein älterer
+  7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2), nachgereicht mit `replaced:"final"` und ohne Hinweis darunter. E2E-Test 7p
+  (eigenes Blatt, wird gelöscht; Hinweis wörtlich, neutrale Farbe): `{gone:true}` per `page.route` → ein Versuch, „gone“-Hinweis, PDF mit
+  der Rückmeldung; Uhr der Seite per `page.clock` – `install` + `reload`, während die KI-Anfrage angehalten ist `setSystemTime` +16 min
+  (Zeitgeber gedrosselt) → „expired“, nichts nachgereicht; erste Anfrage 502 → Knopf ohne Hinweis, dann Ruhezustand (`pauseAt` +
+  `setSystemTime` +16 min, kein Zeitgeber läuft ab): P3 `visibilitychange` → Hinweis unter dem Knopf, Klick ohne Dialog → „expired“, nichts
+  nachgereicht; P4 ohne Ereignis, `runFor(16 s)` → die regelmäßige Prüfung zeigt den Hinweis. Unit (`typing.test.mjs`): Texte je Ergebnis,
+  `sendFeedback2` mit gestubbtem `sendSealed` (gone/404/expired/failed/skipped/same, Widerspruch unterwegs) und `fb2Check` mit getrennt
+  gesteuerter Wand- und Zeitgeber-Uhr. Ist sie da (und nicht `same`), reicht `sendFeedback2(sub)` sie verschlüsselt an die Lehrkraft nach: **genau die Nutzlast, die
+  der Server bei der Abgabe angenommen hat** (nach den Rückfällen von `sealPayload`/`sendSealed`, die `payload` dabei selbst kürzen –
+  also auch `typing` `{optOut}`/`{omitted}` und ein per `escTrim` gekürztes `escape`; nichts neu gelesen) + `feedback2: {at, results}` (nur neu
+  beurteilte Aufgaben, die übrigen `null`) – so bleiben Tippzeiten und Daten aus dem Escape-Room beim Ersetzen erhalten. Gemerkt in
+  **`S.fb2Base`** = `{sub, payload, pub, attempt, submitAt = receivedAt der Abgabe-Antwort, key = S.draftKey, timer, until}` (`fb2Hold`, nur mit erstem
+  Feedback), **getrennt von `S.lastSubmission`** (daraus entstehen die PDF-Dateien der Schüler:innen – nie Tippzeiten) und nur, solange
+  noch nachgereicht werden kann: `fb2Release` nach dem Nachreichen (geklappt, `gone` oder endgültig gescheitert – `finally` in
+  `sendFeedback2`), bei `same`, ohne erstes Feedback, in `finalFeedbackGone`, in `resetStudent` und spätestens nach `FB2_HOLD_MS`
+  (= `REPLACE_WINDOW_MS`, Unit-Test vergleicht; `fb2Check`, siehe unten), die Tippzeit-Werte darin schon bei einem Widerspruch aus einem anderen Tab
+  (`fb2FollowOptOut`, siehe Tippzeit-Messung, „Zweiter Tab“); `submitAll` setzt außerdem `S.firstTyping` nach der Abgabe auf `null` (`TT_ACCESS` sagt
+  „bis zur Abgabe (und, wenn … nachgereicht wird, bis dahin)“). Wird der Umschlag erst mit `feedback2` zu groß (`ttEnvelopeFits` bzw. 413/409),
+  gilt dieselbe Reihenfolge wie bei der Abgabe (`sendSealed(payload, bodyOf, base.pub)`): erst ohne Tippzeit-Werte (`omitted:"too_large"`),
+  dann `escTrim` – **Entscheidung:** die zweite Rückmeldung scheitert wie die Abgabe nie an den Tippzeiten oder den Daten aus dem Raum,
+  dafür können in diesem seltenen Fall deren Werte bzw. Fehler-Einzelheiten aus der gespeicherten Abgabe verschwinden (die Lehrkraft sieht
+  „nicht übermittelt …“); „nie schlechter“ gilt für alles andere – Antworten, Feedback, Angaben, Vermerke, Kern der Escape-Daten bleiben
+  genau wie angenommen, und kommt nichts an (Netz, 5xx, 413 trotz Rückfällen, Frist vorbei), bleibt die Abgabe beim Server, wie sie ist
+  (der Server ersetzt atomar). Gesendet per `POST /api/submit` mit `stage: "feedback2"` (ein eigener Wert, den ein älterer
   Server mit 400 ablehnt, statt daraus eine Abgabe zu machen), `attempt` und `receivedAt` (`validateSubmitMeta` → `replace`) –
   der Server ersetzt nur genau diese Abgabe: `stage` final, dieselbe Kennung, `received_at` gleich `receivedAt` (eine inzwischen
   neuere Abgabe derselben Bearbeitung bleibt) und höchstens `REPLACE_WINDOW_MS` (15 min) nach dem Eingang (der Eingang bleibt
   stehen – ohne Frist ließe sich eine Abgabe Tage später austauschen); `UPDATE … SET envelope … AND received_at=?` atomar, sonst
   `{gone:true}` ohne Zählung und ohne Einfügen (eine gelöschte Abgabe kommt nie zurück); bis zu 3 Versuche, 4xx außer 408/429
-  endgültig, die Schüler:innen sehen davon nichts. **Lehrkraft:** `loadSubs` kappt `feedback2`, `fb2Of(p)`
+  endgültig; bei Escape-Blättern genauso. `sendFeedback2` liefert ein Ergebnis: `"sent"` (nur das setzt `sub.fb2Sent`; einmal angekommen
+  bleibt angekommen, auch wenn das erneute Senden ohne Tippzeit-Werte danach scheitert), `"gone"` (Antwort `{gone:true}` – zählt **nie**
+  als gesendet; ebenso 404 `not_found`, wenn das Blatt samt Abgaben inzwischen gelöscht ist), `"expired"` (Frist vorbei: nichts gesendet
+  bzw. `gone` nach Ablauf), `"failed"` (endgültig oder dreimal vorübergehend), `"skipped"` (nie gehalten bzw. „Neues Feibeitsblatt
+  öffnen“), `"same"`. Die Frist zählt auf dem Gerät ab dem Absenden der Abgabe (`sentAt` in `submitAll` → `fb2Hold` → `sub.fb2Until`, nur
+  ein Zeitpunkt in `S.lastSubmission`) – nie länger als beim Server – und wird nachgerechnet (`fb2Expired`, `fb2Reach` →
+  `"ok"`/`"expired"`/`"skipped"`): Ein einzelner Zeitgeber käme im Hintergrund oder nach dem Ruhezustand des Geräts zu spät (er zählt die
+  Schlafzeit nicht). Deshalb prüft `fb2Check`, solange `S.fb2Base` gehalten wird, alle `FB2_TICK_MS` (15 s), beim Zurückkehren
+  (`visibilitychange` sichtbar, `pageshow`, `focus` des Fensters) und wenn „Rückmeldung erneut anfordern“ Fokus oder Mauszeiger bekommt:
+  abgelaufen auf der Wanduhr oder seit dem Halten (`base.until` per `performance.now` – falls die Wanduhr zurückgestellt wird) → freigegeben
+  und `fb2RetryNote`.
+  **Entscheidung des Betreibers:** Erreicht die Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig und sachlich (der
+  Abgabe-Dialog hatte es angekündigt): `requestFinalFeedback` → `sendFeedback2(sub).then(…fb2TeacherShow)` nur bei derselben
+  `S.lastSubmission`, außer bei `"sent"`/`"same"` in `p#done-fb-teacher` (`role="status"`, unter `#done-fb-list`, per `liveFill` erst
+  eingeblendet, dann gefüllt; `.donefb-note` in `--muted` wie `.donenote`, keine Erfolgs- oder Alarmfarbe), Texte aus `fb2TeacherText`:
+  `"expired"` „Die neue Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe
+  übermitteln. Deine Abgabe ist davon nicht betroffen.“, `"gone"` „Die neue Rückmeldung ließ sich nicht mehr an deine Lehrkraft
+  übermitteln. …“, `"failed"`/`"skipped"` „Die neue Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. …“ – „Die neue
+  Rückmeldung“ wie die Ankündigung im Abgabe-Dialog (für unverändert abgegebene Aufgaben gilt das erste Feedback, das mit der Abgabe ging),
+  und nie eine Aussage darüber, was die Lehrkraft jetzt hat (Abgabe bzw. Blatt womöglich gelöscht oder neu abgegeben). Vorher, ohne Dialog:
+  steht „Rückmeldung erneut anfordern“ da und ist die Frist vorbei (bzw. nie gehalten), sagt `p#done-fb-retry-note` (`role="status"`, per
+  `aria-describedby` am Knopf; `fb2RetryNote` aus `finalFeedbackFailed`, beim Ausblenden des Knopfes und aus `fb2Check`)
+  `fb2RetryText`: „Seit deiner Abgabe sind mehr als 15 Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt
+  sie sich nicht mehr übermitteln.“ Die Hinweise nennen nie Tippzeiten; Kurzfassungen, Datenschutztexte und die PDF-Logik bleiben
+  unverändert (eine schon geladene PDF enthält die Rückmeldung trotzdem; die Lehrkraft-Seite sagt per `fb2Missing` „… wurde nicht an die
+  Lehrkraft übermittelt.“). **Lehrkraft:** `loadSubs` kappt `feedback2` (eigenes
+  try/catch, wie `ttCleanPayload` und `escCleanPayload`), `fb2Of(p)`
   leitet wie der Browser ab (keine Änderung → `same`, die erste Rückmeldung gilt; sonst nur mit nachgereichtem `feedback2`,
   sonst `null`), `buildDetail` zeigt je geänderter Aufgabe `.dfb.dfb2` „KI-Rückmeldung zur abgegebenen Fassung“ („Tipps zum
   Weiterlernen“, `markAi` `feedback-final`) und für Abgaben (nicht Erstversuche) `.dpdf` „Lösungs-PDF herunterladen“ →
-  `makeSolutionsPdf(teacherSolutionsSub(s))` (dieselbe Datei wie bei den Schüler:innen; fehlt die zweite Rückmeldung:
-  `fb2Missing` → „… wurde nicht an die Lehrkraft übermittelt.“), Dateiname `teacherSolutionsName`
+  `makeSolutionsPdf(teacherSolutionsSub(s))` (dieselbe Datei wie bei den Schüler:innen über `pdfPager`/`pdfAssemble`, samt XMP-/KI-Kennzeichnung;
+  fehlt die zweite Rückmeldung: `fb2Missing` → „… wurde nicht an die Lehrkraft übermittelt.“; bei Escape-Blättern nur die
+  Lösungsseiten – `teacherSolutionsSub` setzt kein `escape`, den Überblick gibt es über „Überblick als PDF herunterladen“ –, nie
+  Tippzeiten, nie ein voller Name), daneben in den Details weiter `p.dtt`/`p.dtt-sum` und `escDetailDom`, Dateiname `teacherSolutionsName`
   `Feibeitsblatt-Loesungen-<Code>-<Klasse>-<Kürzel bzw. Gruppe-…>-<Abgabedatum>.pdf` (ASCII, nie Geburtstag). Abgabe-Dialog
   nennt die Empfänger (`recipientSentence`) bzw. „nichts geändert – nichts wird noch einmal gesendet“ und „Die neue Rückmeldung
   geht danach verschlüsselt auch an deine Lehrkraft.“; Datenschutzhinweis und Feedback-Dialog nennen das zweite Senden und dass
@@ -211,7 +270,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   mit Reserve ≤ 42; jeder Aufruf ≤ 50). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
   `FB_MAX_MS` 4 min, Wartezeit = retryAfter × (1 + 0–30 %) + 0–3 s, ein `setTimeout` auf einen absoluten Zeitpunkt +
   `visibilitychange`, Sekundenzähler in `#fb-wait` (aria-hidden) außerhalb der Live-Region `#fb-status` (beide und `#fb-fallback` direkt unter `#fb-btn`, vor dem
-  Datenschutzhinweis `#privacy`/`#privfull-ed` – E2E 7f prüft die Lage), Felder nur
+  Datenschutzhinweis `#privacy`/`#privacy-esc`/`#privfull-ed` – E2E 7f prüft die Lage), Felder nur
   während einer laufenden Anfrage readOnly, vor jedem Versuch `answers` neu lesen (`S.first` = gesendete Fassung),
   `#fb-wait-stop` = Abbruch (1 Fehlversuch), erschöpfter Zyklus = 2 Fehlversuche, `S.fbFails` im Zwischenstand;
   Lauf-Kennung `S.fbRun` + `stopFeedbackRun()` (resetStudent/openEditor) gegen späte Antworten, `api()` nimmt
@@ -314,17 +373,66 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   teacher-INSERT `privacy` {30, auto} an – nur wenn dieser Aufruf die Lehrkraft angelegt hat, noch keine Zeile da ist und
   es keine Blätter gibt (bestehende Installationen löschen erst nach dem ersten Speichern; „Passwort vergessen“ behält
   die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy` (nur
-  `{retentionDays}`), `privacyShortText` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
-  kostenloses Angebot.“, nennt den KI-Dienst), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
-  general, flat, summary})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit 9 Abschnitten (`.privh`: Wer ist
+  `{retentionDays}`), `privacyShortText(p, list, withAi, group, typing)` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
+  kostenloses Angebot.“, nennt den KI-Dienst; mit `typing` (`ttMeasured`) am Ende **genau der eine Satz `TT_SHORT`**, siehe unten), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
+  general, flat, summary, typing, ttSwitch, escape})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit bis zu 10 Abschnitten (`.privh`: Wer ist
   verantwortlich? – Betreiber mit Anschrift und E-Mail, „privates, nicht kommerzielles und kostenloses Angebot – kein Angebot
-  einer Schule“, die Lehrkraft liest; Wozu; Rechtsgrundlage als Liste: Bearbeiten/Abgeben/Zwischenstand/Erstversuch/Gruppe
-  **und das KI-Feedback** Art. 6 Abs. 1 Buchst. b DSGVO (bewusst keine Einwilligung, keine Altersabfrage), LanguageTool
+  einer Schule“, die Lehrkraft liest; Wozu (mit `TT_PURPOSE`: Tippzeiten machen den Schreibprozess sichtbar, die Lehrkraft sieht
+  die Färbung **und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe)**, Ursachen für Rot samt
+  „übernommener Korrekturvorschlag des Browsers“, Zweck `TT_USE`, kein Beweis, keine automatische Entscheidung, beim Schreiben
+  nicht angezeigt); Rechtsgrundlage als Liste: Bearbeiten/Abgeben/Zwischenstand/Erstversuch/Gruppe
+  **und das KI-Feedback** Art. 6 Abs. 1 Buchst. b DSGVO (`ttOut`: „(bei Erstversuch und Abgabe außer den Tippzeiten darin, siehe
+  nächster Punkt)“, ohne KI „(bei der Abgabe …)“, mit `TT_KEEP_IN_DRAFT` „(außer den Tippzeiten darin, …)“; bewusst keine
+  Einwilligung, keine Altersabfrage), **Tippzeiten** Buchst. f („sie stehen …“ per `ttWhere`; berechtigtes Interesse, den
+  Schreibprozess sichtbar zu machen, damit die Lehrkraft bei Auffälligkeiten über die Arbeitsweise sprechen kann; `TT_USE`;
+  Widerspruch mit dem Schalter – vom Betreiber so entschieden), LanguageTool
   Einwilligung Buchst. a (Klick + Bestätigung im Altersdialog, Widerruf), Aufruf/Auslieferung/Missbrauchsschutz Buchst. f
-  (Widerspruch), Speichern im Browser § 25 Abs. 2 Nr. 2 TDDDG – Schreibweise „Buchst.“, nie „lit.“; Welche Daten; Wer bekommt;
-  Wie lange; Musst du; Entscheidet die KI (nur mit KI); Deine Rechte in drei Absätzen: Rechte samt Art. 21 und Widerruf,
-  Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die verschlüsselten Abgaben), Beschwerde bei der Aufsichtsbehörde
-  mit Anschrift und Link; Angaben `h2`
+  (Widerspruch), Speichern im Browser § 25 Abs. 2 Nr. 2 TDDDG für „dein Zwischenstand, die Häkchen einer Checkliste“ (mit
+  `TT_KEEP_IN_DRAFT` „– außer den Tippzeiten darin –“; **nie stillschweigend auf die Tippzeiten ausdehnen** – nach Annahme des
+  Betreibers bräuchte ihr Speichern im Zwischenstand eine Einwilligung nach § 25 Abs. 1 TDDDG) – Schreibweise „Buchst.“,
+  nie „lit.“; Welche Daten („Außerdem deine Antworten mit ihren Tippzeiten (je eingegebenem Zeichen … keine Uhrzeiten; nach einem
+  Widerspruch keine)“, darunter als eigener Absatz im Fließtext `TT_ACCESS(g, keep)`: „Für die Tippzeiten liest diese Seite beim
+  Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe (und, wenn die KI-Rückmeldung zu deiner
+  abgegebenen Fassung noch nachgereicht wird, bis dahin) im Arbeitsspeicher (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf
+  dein Gerät im Sinne von § 25 TDDDG.“ – die Klammer `TT_HELD(g, ai)` nur bei Blättern mit KI-Feedback (`TT_ACCESS(g, keep, ai)`, Aufruf mit
+  `withAi`; sonst wie bisher), denn bis dahin hält `S.fb2Base` die angenommene Nutzlast; mit `TT_KEEP_IN_DRAFT` „…, hält sie … und speichert die
+  Tippzeiten bis zur Abgabe (ohne KI-Feedback: bis dahin) auch in deinem Zwischenstand …“; **nur die Tatsache – nie eine Ausnahme („unbedingt erforderlich“) oder eine
+  Einwilligung behaupten** (Entscheidung des Betreibers nach Rechtsprüfung; offen – README „Weiter vom Betreiber zu prüfen“ –, ob schon
+  das Erfassen samt Senden eine Einwilligung nach § 25 Abs. 1 TDDDG braucht); damit der Satz stimmt, merkt der Capture-Listener `input`
+  nach einem Widerspruch keinen Zeitpunkt (`performance.now()` nur ohne `S.ttOptOut`)); Wer bekommt (Lehrkraft „Sie sieht auch die Tippzeiten – als Färbung …; an einen KI-Dienst oder an die
+  Rechtschreibprüfung gehen die Tippzeiten nie.“, Cloudflare „(samt Tippzeiten)“);
+  Wie lange („Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; bis zur Abgabe (und, wenn die
+  KI-Rückmeldung zu deiner abgegebenen Fassung noch nachgereicht wird, bis dahin) hält diese Seite sie nur im Arbeitsspeicher – …“, ohne
+  KI-Feedback wie bisher „… und werden mit ihr gelöscht; bis dahin hält …“, mit `TT_KEEP_IN_DRAFT` stattdessen „bis zur Abgabe stehen sie
+  auch in deinem Zwischenstand – …“);
+  Musst du („… solange du nicht widersprichst (siehe „Widerspruch gegen die Tippzeit-Messung“)“); Entscheidet die KI (nur mit KI);
+  **Widerspruch gegen die Tippzeit-Messung** (`TT_OBJ_HEAD`, eigener Abschnitt nur mit Messung, gleiche Ebene wie die übrigen, vor
+  „Deine Rechte“): der Schalter (`ttSwitchDom`, siehe Tippzeit-Messung; auf „Impressum & Datenschutz“ nur ein Absatz, wo er steht –
+  „… steht im Abschnitt „Widerspruch gegen die Tippzeit-Messung“ der Schalter …“ –, mit `TT_SWITCH_EFFECT` und `TT_SWITCH_SCOPE`);
+  Deine Rechte: Rechte samt Art. 21, ein kurzer Verweis („Der Tippzeit-Messung kannst du direkt mit einem Schalter widersprechen –
+  siehe „Widerspruch gegen die Tippzeit-Messung“.“) und Widerruf, Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die
+  verschlüsselten Abgaben), Beschwerde bei der Aufsichtsbehörde mit Anschrift und Link. Die Rechtsgrundlage der Tippzeiten verweist
+  ebenfalls auf den Abschnitt („(siehe „Widerspruch gegen die Tippzeit-Messung“)“). **Was zum Zwischenstand und zur Zwischenstand-PDF gesagt wird, hängt an `TT_KEEP_IN_DRAFT`** (`ttInDraft`
+  in `privacyNoticeDom`, Parameter `keep` von `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE`; ohne – eingecheckt –: „bis zur Abgabe (und, wenn …,
+  bis dahin) hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.“, kein „außer den
+  Tippzeiten darin“ beim § 25) – nie fest verdrahten. Alle Tippzeit-Sätze entfallen bei Blättern nur mit Weltkarten (`typing:
+  ttMeasured(sh)` – dort wird nichts gemessen; dann auch kein `TT_SHORT` und kein Abschnitt zum Widerspruch). **Kurzfassungen:
+  genau ein neutraler Satz** – Entscheidung des Betreibers vom 27.10.2026, zweite Fassung nach Rechtsprüfung (die erste Fassung „gar
+  nicht in der Kurzfassung“ ist überholt): `TT_SHORT(g)` „Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen
+  kannst du unter „Alle Informationen zum Datenschutz“.“ (Angaben-Bildschirm einer Gruppe: „… widersprechen könnt ihr unter …“),
+  ohne Hervorhebung, ohne Aufforderung, nur bei `ttMeasured` – am Ende von `privacyShortText` (Angaben-Bildschirm, Vorschau der
+  Lehrkraft) und in `renderPrivacy` (Schreibbereich, immer „du“) vor dem Satz zum Zwischenstand. **Keine weiteren Tippzeit-Sätze in
+  den Kurzfassungen oder an anderen sichtbaren Stellen** (Dialoge, Bestätigung) – Schalter, Wirkung und Geltungsbereich stehen nur im
+  eigenen Abschnitt des ausführlichen Hinweises (`#p-privfull`, `#privfull-ed`) und beschreibend auf „Impressum & Datenschutz“; nicht
+  ohne Rückfrage ändern (Unit-Test: `privacyShortText` ausgewertet, `renderPrivacy` im Quelltext, `TT_ACCESS`, Reihenfolge der
+  Abschnitte; E2E 1b/2/2b: Kurzfassungen per `expectTtShort` – genau einmal der Satz, sonst nichts per `NO_TT`; E2E 2/2b außerdem
+  `expectOnlyTtShort(page, where, n)` – alles Sichtbare samt aria-label/title/placeholder/alt und den Texten hinter
+  aria-labelledby/-describedby bei geschlossenem `details.privfull` enthält zur Messung nur `n`-mal den Satz: Angaben einzeln und als
+  Gruppe, Schreibbereich vor und nach dem KI-Feedback, Dialoge zur Rechtschreibprüfung, zum KI-Feedback und zur Abgabe (je 1),
+  Bestätigung (0); dazu `#privfull-ed` beim Öffnen zu, Schalter nicht fokussierbar; 7l: Blatt nur mit Weltkarten ohne Satz und
+  Abschnitt). Kurzfassungen und ausführlicher Hinweis dürfen sich nicht widersprechen. Der Abschnitt „Widerspruch gegen die
+  Tippzeit-Messung“ bleibt getrennt von „Deine Rechte“ (Art. 21 Abs. 4 DSGVO); „ohne Messung (widersprochen)“ bleibt für die
+  Lehrkraft sichtbar. Angaben `h2`
   `#p-privfull` mit `#p-privacy-short` in `renderPersonPrivacy`, Editor `h3` in `#privfull-ed` aus `renderPrivacy` –
   beim Weiterschreiben gibt es keinen Angaben-Bildschirm –, Vorschau der Lehrkraft `h3` `#pv-preview`: für ein Blatt mit
   KI-Feedback unter der Adresse der Lehrkraft, darunter `#pv-preview-note` – ist `!PAGES_HOST` und `PUBLIC_HOST` (aus
@@ -337,7 +445,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bereitgestellt“), darunter `privacyNoticeDom(…, {h:"h3", site:true, flat:true})` = `section.privflat#legal-privfull` mit h2
   „Datenschutzerklärung“ (kein details) und Frist/Empfängern von `GET /api/privacy`; scheitert der Abruf, `general:true`
   (allgemeine Sätze: KI-Dienst wird vor dem Senden genannt, Frist nach dem Code) und Hinweis in `#legal-status`; `#legal-other`
-  zu Blättern ohne KI und Gruppen. Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
+  zu Blättern ohne KI und Gruppen, danach `section#legal-escape` „Feibeitsblatt als Finale eines Escape-Rooms“ (allgemeine Form,
+  siehe Escape-Room-Anbindung; `#legal-privfull` bleibt dafür unverändert). Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
   `rel="noopener"`, sr-only „(öffnet in neuem Tab)“ (`.copyright a` klickbar trotz `pointer-events:none`; auf der Seite selbst
   ausgeblendet per `body.on-legal`). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
   Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
@@ -461,7 +570,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `Feibeitsblatt-<Code>-<Titel>.pdf`, Titel per `pdfAscii` nur ASCII (Chromium verwirft Download-Namen mit Umlauten/„–“
   auf manchen Systemen und nimmt „download“ – so in der E2E-Sandbox). `#t-import` „Feibeitsblatt aus PDF-Datei laden“ (Übersicht) → `#t-import-file` →
   `importSheetPdf` (≤ `SHEET_PDF_MAX_BYTES` 80 MB) → `readSheetPdf`: `pdfDoc` (`pdfLatin1`) + `pdfStreamAt(doc, i)` /
-  `pdfStreamData(u, x, max)` (gemeinsam mit `readDraftPdf`: Länge direkt oder als Verweis – Verweise einmal je Datei
+  `pdfStreamData(u, x, max)` (gemeinsam mit `readStartPdf`: Länge direkt oder als Verweis – Verweise einmal je Datei
   über `pdfIndirectInts` (alle Werte je Nummer, Regex mit `(?<!\d)` gegen quadratischen Rücklauf); eine Länge gilt nur,
   wenn direkt dahinter `endstream` steht (`fits`), sonst bis zum nächsten `endstream`; FlateDecode per `DecompressionStream`, **abgebrochen über `max`**:
   Datensatz 8 MB, Bild/Datei die erwartete Größe, Zwischenstand 4 MB). Kennzeichen werden tolerant und in **einem**
@@ -474,15 +583,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (Sicherung als Material angehängt), gilt der äußere. Bilder/Dateien nur mit passender Größe und SHA-256
   (`sheetBlobOk`), Bilder zusätzlich per `decodeImage` lesbar und ≤ 4096 px, Dateien mit `%PDF-`; Fehlendes →
   Hinweis in `#b-err` (Satzanfang groß). Angehängte Dateien, die selbst eine Sicherung oder ein Zwischenstand sind
-  (`await feibeitsblattPdfKind(u8)`: Kennzeichen `/FbSheet 1`/`/FbDraft 1` oder – ohne Kennzeichen – `kind` einer
-  eingebetteten JSON-Datei), lehnt `addPdfFiles` ab; Import und „Als Vorlage verwenden“ lassen sie mit Hinweis weg.
+  oder eine Überblick-PDF eines Escape-Rooms (`await feibeitsblattPdfKind(u8)` → `"sheet"`/`"draft"`/`"escape"`: Kennzeichen
+  `/FbSheet 1`/`/FbDraft 1`/`/FbEscape 1` oder – ohne Kennzeichen – `kind` einer eingebetteten JSON-Datei), lehnt `addPdfFiles` ab; Import und „Als Vorlage verwenden“ lassen sie mit Hinweis weg.
   Abbruch über Zähler: `T.importRun` steigt beim Verlassen der Übersicht (`teacherView`) und beim Abmelden,
   `T.exportRun` beim Abmelden (`importStillWanted`/`exportStillWanted`) – ein Import/Export aus einer früheren Sitzung
   kommt nie in der nächsten an, nach dem Abmelden wird nichts gespeichert. `makeSheetPdf` entfernt eine leere
   letzte Seite und kürzt den Titel in der Fußzeile nach Breite; `pdfWidth` kennt die Breiten der WinAnsi-Sonderzeichen
   (`PDF_W_EXTRA`, im Zweifel breiter) und misst Zeichen außerhalb von WinAnsi wie das gedruckte „?“. Dann `openBuilder(title, rows)` wie „Als Vorlage verwenden“ + Hinweis `#b-import` (bisheriger
   Code, „bekommt einen neuen Code“); „Code generieren“ legt ein neues Blatt an. Meldungen in `#t-import-status`: fremde
-  PDF „In dieser PDF-Datei steckt kein Feibeitsblatt.“, Zwischenstand (`/FbDraft 1`) eigene Meldung. `pdfWrap` trennt
+  PDF „In dieser PDF-Datei steckt kein Feibeitsblatt.“, Zwischenstand (`/FbDraft 1`) und Überblick-PDF eines Escape-Rooms
+  (`/FbEscape 1` ohne Blatt-Datensatz) je eine eigene Meldung. `pdfWrap` trennt
   überlange Wörter hart. E2E-Test 4b prüft Export (Datensatz, Anhänge byte-genau, keine Abgaben), Import einer „neu
   gespeicherten“ Variante (`resavePdf`), neues Blatt byte-genau und löscht es wieder.
 - **Antwortarten je Aufgabe** (`answer` im `tasks`-JSON; fehlt = Textfeld): `{type:"table", columns:[1–8 × ≤ 60], rows:1–30}` bzw.
@@ -523,7 +633,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (gemeinsame `datalist#world-dl` mit Namen und `aliases`), Enter prüft, ein falscher Name wird markiert. Esc hebt die Wahl
   auf; „Alle Zuordnungen löschen“ mit Bestätigung. Wiederherstellen ist asynchron (jede Zeile erneut gegen `checks`), bis dahin
   liefert `value` den gespeicherten Text und Klicks bleiben wirkungslos. Weltkarte ohne KI-Feedback-Box, auch nicht auf dem
-  Abschlussbildschirm und in der Lösungs-PDF (`S.lastSubmission.kinds`); „→“ druckt die PDF als „->“ (`pdfPlain`). **Lehrkraft:** `answerEditor` je Zeile (`tr._ans`,
+  Abschlussbildschirm und in der Lösungs-PDF (`S.lastSubmission.kinds`); „→“ druckt die PDF als „->“ (`pdfPlain`; ebenso „−“ → „-“, „≈“ → „~“, „‑“/„‐“ → „-“, schmale Leerzeichen → Leerzeichen –
+  sonst stünde „?23,8 %“ da; Buchstaben außerhalb von WinAnsi per `pdfLatin` als Grundbuchstabe mit den Akzenten, die WinAnsi kennt –
+  „Yılmaz“ → „Yilmaz“, „ễ“ → „ê“, „Ł“ → „L“ –, andere Schriften bleiben „?“; Block `PDFPLAIN`, Unit-Test in `escape.test.mjs`). **Lehrkraft:** `answerEditor` je Zeile (`tr._ans`,
   Auswahl `#bt-n`, Spalten `#bc-n` je Zeile oder „;“, Zeilen `#br-n`, Vorschau; Karten-Editor mit Bezeichnung, Hinweis, einem
   Bild, Länder-Chips über die deutschen Namen, ↑/↓/✕; Auftrag an die KI ausgeblendet), Karten-id beim Anlegen aus der Bezeichnung
   (`itemIds`/`slugId`), `b-gen` verlangt je Karte ein anklickbares Land und verschiedene Bezeichnungen, wartet auf das
@@ -542,6 +654,114 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   erfunden): E2E 7d liest ihren Datensatz selbst und vergleicht – eine andere Sicherung derselben Form lässt sich einsetzen.
   E2E 7c: Weltkarte + Tabelle anlegen, zuordnen (falsch 3 s rot, richtig gleiche Farbe/Pfeil), Zoom, Tastatur, Tabelle,
   Neuladen, Feedback-Prompt, Abgabe, Lehrkraft-Ansicht, Sicherung/Import.
+- **Tippzeit-Messung (nur im Browser; Server, KI und Lösungs-PDF unverändert):** je `textarea.answer`/`textarea.tcell` (nie
+  Weltkarte) `el._tt = {text, recs:[{t, g?}], undo, lastDel, ver}` (`ttNew`); Zeitpunkt `performance.now()` im Capture-Listener
+  `input` (`_evTs`/`_evType`, vor jedem frühen `return`; nie `Date.now` – E2E 3e hält ihn fest), Abgleich `ttSync` (über
+  `ttSyncSafe` als erste Zeile von `answerChanged`, Netz im `compositionend`) → `ttApply`: Präfix/Suffix wie `inserted` (`ttDiff`,
+  nie ein Ersatzzeichen-Paar teilen; `selectionEnd` wählt bei gleichen Nachbarn – „aa“ → „aaa“ – die getippte Stelle),
+  `deleteCompositionText` übersprungen; alle Einheiten eines Ereignisses gleicher Zeitpunkt → erstes gemessen, weitere 0 ms =
+  rot (wie im Feiditor; so beschlossen); `historyUndo`/`Redo` holen die Zeiten gelöschter Abschnitte zurück (Puffer
+  `TT_UNDO_MAX` 20, `TT_UNDO_CHARS` 2 × 8100, der neueste bleibt immer). In `input` nichts Schweres: kodiert wird beim
+  Speichern/Senden (`ttB64Of`, gemerkt je Stand; Tabellen `_ttTable`/`_ttKey`/`_ttRestore` je Zelle). **Format v1:** je
+  UTF-16-Einheit der Textform ein Byte – 0–70 = ms (`Math.ceil`), 71 `TT_SLOW` = mehr/erstes Zeichen/unbekannter
+  Vorgänger/negativer Abstand, 255 `TT_NONE` = ohne Messung (Leerraum, Tabellenkopf/„ | “/Zeilenumbruch, wiederhergestellter Text
+  ohne Daten); jeder andere Wert oder eine andere Länge → ganze Antwort ohne Messung (`ttDecode`); Base64 (`ttEncode`,
+  ≤ `TT_B64_MAX` 10 800). Längere Pausen nur als 71, nie Uhrzeiten (Datensparsamkeit). Klassen `ttClass` ≤ 15 rot (`TT_RED_MS`),
+  ≤ 70 gelb, sonst grün; Rot-Anteil `ttShare` je Graphem (`ttGraphemes`: `Intl.Segmenter` erst bei Bedarf und mit
+  `typeof`-Prüfung, sonst Rückfall) mit dem Wert der ersten Einheit, ohne Leerraum/255, `Math.round`, ab `TT_HIGH_PCT` 50 %
+  (`>=`, `ttHigh`) „– hoch“. **Zwischenstand** (nur mit `TT_KEEP_IN_DRAFT`, eingecheckt aus; localStorage, `heldDrafts`, Zwischenstand-PDF unkomprimiert): `typing:{v:1,
+  answers:[B|null], first:[B|null]|null}` im selben Datensatz wie der Text (`draftRecord` über `answersNow` + `ttDraftOut`; Speicher
+  voll → einmal ohne `typing`, erst dann `heldDrafts`), gelesen per `cleanDraft`/`openEditor` → `ttCleanDraft` (nur Base64, die
+  genau zum gekappten Text passt) → `ttRestore` (eingefrorenes `g`, sonst 255 – nie rot; erst nach allen Texten und `S.first`,
+  je Aufgabe in try; kein zusätzliches Speichern), `S.firstTyping` aus demselben `snapshot()` wie `S.first`.
+  `TT_KEEP_IN_DRAFT` (eingecheckt `false` – Entscheidung des Betreibers vom 27.10.2026, Annahme: Speichern der Tippzeiten im
+  Zwischenstand bräuchte eine Einwilligung nach § 25 TDDDG; die Seite fragt keine ab): `false` = nur im
+  Arbeitsspeicher (nach Neuladen oder Import einer Zwischenstand-PDF gilt der Text als „ohne Messung“), `ttDraftStrip` entfernt sie
+  beim Laden (`cleanupDrafts`); `true` = auch im Zwischenstand und in der Zwischenstand-PDF; die Datenschutztexte im Browser und
+  `#t-tt-none` folgen dem Schalter (siehe Datenschutz-Angaben), **beim Umlegen README (Tabelle, Rechtsgrundlagen, Abschnitt
+  Tippzeiten, Elternbrief, Entwicklung) und diese Datei von Hand anpassen**. **Nutzlast** (Erstversuch/Abgabe, nur verschlüsselt, `payload.v` bleibt 1): `typing:{v:1,
+  answers:[{first: B|"="|null, final: B|null}]}` (`"="` = gleicher Text und gleiche Werte wie final, ohne KI-Feedback immer;
+  Erstversuch `final:null`), nach Widerspruch `ttOptOutPayload()` = `{v:1, optOut:true}`, zu groß `{v:1, omitted:"too_large"}`
+  (`sealPayload`: `ttEnvelopeFits` = `validateEnvelope`; `sendSealed`: 413 bzw. 409 → einmal genau dieselbe Nutzlast ohne Werte,
+  nichts neu lesen), Rechenfehler `{v:1, omitted:"error"}` – **eine Abgabe scheitert nie an den Tippzeiten**; **nie** in
+  `/api/feedback`, `S.lastSubmission`, Lösungs-PDF, keine Anzeige für Schüler:innen. Nach der Abgabe nur noch in der angenommenen
+  Nutzlast `S.fb2Base` für das Nachreichen der zweiten Rückmeldung (siehe dort; dieselben Rückfälle, freigegeben, sobald nichts mehr
+  nachgereicht wird, spätestens nach 15 Minuten), `S.firstTyping` wird nach der Abgabe `null`. **Lehrkraft:** `loadSubs` → `ttCleanPayload`
+  (eigenes try/catch; → `null` | `{optOut}` | `{omitted}` | `{list}`, nur Base64-Form, `"="` nur bei gleichem Text), dekodiert
+  erst beim Aufklappen: `buildDetail` → `ttDetail(p, types, n, isFirst, noFb)` (`{sum, per:[{first, fin, line}]}`, Zeilen als
+  Stücke aus `ttSummary`/`ttPctText`/`ttShareParts` – bei Tabellen nur die Zellen), `ttDom`/`answerDom(…, codes, info)` (Spans
+  `tt-r|tt-y|tt-g` ohne title/aria; `textContent` der Zelle = Antworttext – Tests lesen ihn; `ttSegmentsCut`: mehr als `TT_SEG_MAX`
+  2000 Abschnitte → Gelb+Grün zusammen, dann nur Rot, dann keine Färbung, `ttCutNote` sagt es), `p.dtt` je Aufgabe
+  („Tippzeiten – Rot-Anteil: erste Eingabe 41 % (von 29 Zeichen) · nach dem KI-Feedback 36 % (von 33 Zeichen)“; ohne KI-Feedback
+  ohne Bezeichnung, Erstversuch nur die erste; teilweise „(von 150 Zeichen; 320 ohne Messung)“; hoch als `span.tt-high`; bei
+  ≥ 90 % 0-ms-Rot `TT_ZERO_NOTE` „… (z. B. Wortvorschlag, Wischen, Autokorrektur, Diktat oder ein übernommener Korrekturvorschlag des
+  Browsers).“ – ein per Rechtsklick übernommener Vorschlag der eingebauten Rechtschreibkorrektur (`spellcheck="true"`) kommt als ein
+  `insertReplacementText`, also rot; so nennen ihn auch Legende, `#t-tt-hint`, `TT_PURPOSE` und README), `p.dtt-sum` je Eintrag nach `.dmeta`/`.dgroup` („Tippzeiten – Rot-Anteil über alle Aufgaben:
+  erste Fassung … · abgegebene Fassung …“, „Tippzeiten: ohne Messung (älterer Stand).“, `TT_OPTOUT_NOTE` „Tippzeiten: ohne Messung
+  (widersprochen).“, „Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.“, „Tippzeiten: nicht übermittelt
+  (technischer Fehler beim Senden).“; Blatt nur mit Weltkarten: keine Zeile); der Rot-Anteil steht **nie in der Liste** (keine
+  Verdachtsrangliste, 5 `th` bleiben). `#t-tt` nach `#t-subs-legend` (sichtbar mit lesbaren Einträgen und einer gemessenen
+  Aufgabe): `#t-tt-legend` („… ohne Färbung = Text ohne Messung (z. B. ältere Stände oder nach einem Widerspruch) …“; ohne
+  `TT_KEEP_IN_DRAFT` setzt das Skript `#t-tt-none` auf „… oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert
+  keine Tippzeiten“),
+  `#t-tt-hint` („Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. … Nutzen Sie die
+  Färbung `TT_USE`. Schüler:innen können der Messung widersprechen: Die Kurzfassung des Datenschutzhinweises nennt die Messung in
+  einem Satz, im ausführlichen Hinweis („Alle Informationen zum Datenschutz“) steht im Abschnitt „Widerspruch gegen die
+  Tippzeit-Messung“ der Schalter „…“. Nach einem Widerspruch steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht
+  und kein Anlass für einen Verdacht.“; Ursachen auch „durch einen per Rechtsklick
+  übernommenen Korrekturvorschlag des Browsers“), `#t-tt-off` „Färbung aus“ (`aria-pressed` =
+  aus, `T.ttOff` je Sitzung, `applyTtOff` → Klasse `tt-off` an `#t-subs`, gilt auch für neu gebaute Details; `logout` setzt
+  zurück). Farben `--tt-r/-y/-g` hinter schwarzer Schrift, Rot zusätzlich unterstrichen. **Zweck überall derselbe Wortlaut**
+  (`TT_USE` im Block, Hinweis, README): „nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem
+  Täuschungsverdacht“ – kein Text darf einem anderen widersprechen; LanguageTool schreibt nie ins Feld – nie als Ursache für Rot
+  nennen. **Widerspruch (Art. 21 DSGVO):** Schalter = Checkbox mit Label `TT_SWITCH_DU` „Tippzeiten für dieses Feibeitsblatt nicht
+  messen“ (Wortlaut vom Betreiber vorgegeben; Angaben-Bildschirm einer Gruppe: `TT_SWITCH_IHR` „Tippzeiten für euer Feibeitsblatt
+  nicht messen“, Einleitung „… es genügt, wenn eine oder einer von euch das möchte:“), per `aria-describedby` zwei Absätze:
+  Wirkung `TT_SWITCH_EFFECT(g, withAi, keep)` (verwerfen „– auch in deinem Zwischenstand“ nur mit `TT_KEEP_IN_DRAFT`; Erstversuch
+  ersetzt, „die alte Fassung bleibt verschlüsselt noch `BACKUP_DAYS` in der Datensicherung der Datenbank“; „ohne Messung
+  (widersprochen)“ – „das ist dein Recht und für deine Lehrkraft kein Anlass für einen Verdacht“; zurücknehmen = ab dann) und
+  Geltungsbereich `TT_SWITCH_SCOPE(g, withAi, keep)` („Der Haken gilt für deine Bearbeitung auf diesem Gerät und für
+  Zwischenstand-PDF-Dateien, die du danach sicherst.“, anderes Gerät bzw. nach „Abbrechen und Zwischenstand löschen“ erneut
+  setzen, ältere PDF behält die Werte (nur mit keep), ein Erstversuch von einem anderen Gerät → Lehrkraft, „Nach der Abgabe lassen
+  sich die Tippzeiten nur zusammen mit deiner ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft
+  oder an den Betreiber.“) – der Server kennt die Person nicht, der Widerspruch steht nur im Zwischenstand. Rückmeldung
+  `p.ttopt-st` `role="status"` direkt unter dem Schalter (`TT_OPT_ON` „Widerspruch eingetragen: Auf diesem Gerät misst diese Seite
+  bei diesem Feibeitsblatt keine Tippzeiten mehr.“/`TT_OPT_ON_G`/`TT_OPT_OFF`/`TT_OPT_TAB`), ganze Zeile `label.ttopt` klickbar
+  (≥ 44 px) – `ttSwitchDom` im eigenen Abschnitt `TT_OBJ_HEAD` von `privacyNoticeDom` mit `ttSwitch:"live"` (`#p-privfull`,
+  `#privfull-ed`; ids `<id>-ttoff`, `-ttoff-d`, `-ttoff-s`) bzw. `"preview"` (gesperrt, `#pv-preview`); sonst nennt die Oberfläche der
+  Schüler:innen die Messung nur im Satz `TT_SHORT` der Kurzfassungen. Ein `change`-Listener am `document` → `S.ttOptOut`: **an** = `ttResetAll(false)` (alle `_tt` und `S.firstTyping`
+  verworfen, `S.ttGen++`; `ttSync` misst nicht, `answersNow` liefert `null`), im Schreibbereich sofort `saveDraft` (ohne `typing`,
+  mit `ttOptOut:true`); ist ein Erstversuch gesendet → `S.ttResend` → `sendFirstAttempt` ersetzt ihn mit derselben `attempt`
+  (UPDATE derselben Zeile) durch einen ohne Tippzeiten (Lauf-Kennung `S.firstSending`, nie zwei gleichzeitig; war einer mit Werten
+  unterwegs, gleich danach noch einmal; `S.attempt` gewechselt → nichts anfassen; Fehler nur `console.warn` ohne Inhalte,
+  `ttResend` im Zwischenstand → beim nächsten Öffnen wie ein nicht gesendeter Erstversuch); **aus** = `ttResetAll(true)` (nur ab
+  jetzt gemessen, vorhandener Text 255; ein fälliges Ersetzen bleibt fällig). **Laufende KI-Anfrage:** `snapshot()` merkt
+  `ttGen`; hat sich `S.ttGen` bis zur Antwort geändert (an und wieder aus), wird `S.firstTyping` `null` – vorher gelesene Werte
+  kommen nie zurück. Während `S.submitting` abgelehnt: Haken springt zurück, `.ttopt-st.late` (Farbe `--orange-ink`, keine
+  Erfolgsfarbe) mit `TT_OPT_LATE` („… Scheitert das Senden, kannst du den Haken danach setzen. Nach der Abgabe …“) bzw. beim
+  Entfernen `TT_OPT_LATE_OFF`; scheitert das Senden, leert `ttClearLate` im `finally` von `submitAll` die Meldung. Auf dem
+  Angaben-Bildschirm gesetzt, gilt er beim Öffnen (`openEditor(true)` aus `personGo`/`groupGo`: `ttChanged = askedOut &&
+  !fl.optOut` → **immer sofort speichern**, auch ohne bisherigen Stand – sonst ginge er bei einem Neuladen vor der ersten Eingabe
+  verloren; Tippzeiten des Stands verwerfen, gesendeten Erstversuch ersetzen); „Weiterschreiben“ und Zwischenstand-PDF nehmen den
+  gemerkten (`ttDraftFlags`: `ttOptOut`, `ttResend` nur mit `firstSent`). **Zwischenstand-PDF hochgeladen:** `importDraftPdf` →
+  `ttKeepOptOut(d, local)` (Block TYPING) – ein auf diesem Gerät gespeicherter Widerspruch bleibt (Werte aus der Datei weg; ein
+  gesendeter Erstversuch aus der Datei wird ersetzt, ein lokal fälliges Ersetzen derselben `attempt` gilt weiter); ein Import
+  nimmt ihn nie zurück. **Zweiter Tab** (gleicher Speicher, gleicher `S.draftKey`): `ttFollowStored(raw)` übernimmt einen
+  gespeicherten Widerspruch (`ttStoredFlags` – parst nur, wenn `"ttOptOut":true` im Text steht) beim `storage`-Ereignis und – für
+  eingefrorene Tabs – zu Beginn von `saveDraft`, `sendFirstAttempt` und vor dem Bau der Abgabe in `submitAll` (Status `TT_OPT_TAB`,
+  bei gesendetem Erstversuch `S.ttResend`); was der Tab selbst zuletzt geschrieben bzw. beim Öffnen gelesen hat (`S.ttLastRaw`,
+  gesetzt in `saveDraft`/`openEditor`), zählt nicht – sonst ließe er sich nie zurücknehmen. **Der Widerspruch gewinnt:**
+  Zurücknehmen gilt nur in dem Tab, in dem es geschieht (speichert ein anderer Tab danach mit Widerspruch, gilt er wieder).
+  **Nach der Abgabe** (Bestätigungsseite, `S.fb2Base` gehalten; `ttFollowStored` endet bei `S.submitted`): Ein zweiter Tab weiß nichts
+  von der Abgabe und trägt den Widerspruch unter demselben Schlüssel ein (`S.fb2Base.key`; der abgebende Tab hat ihn bei der Abgabe
+  gelöscht, `S.ttLastRaw` zählt nicht) bzw. er kam schon während des Sendens (`S.ttOptOut`) → `fb2FollowOptOut` (beim `storage`-Ereignis
+  und vor jedem Versuch in `sendFeedback2`) ersetzt `typing` der gehaltenen Nutzlast durch `{optOut}` – nachgereicht wird ohne Werte, die
+  Lehrkraft sieht „ohne Messung (widersprochen)“; war das Nachreichen mit Werten schon unterwegs, gleich danach noch einmal ohne sie. So
+  stimmt „(nach einem Widerspruch nicht mehr)“ in `TT_ACCESS`; kommt keine zweite Rückmeldung (`same`, gescheitert), bleibt die Abgabe beim
+  Server, wie sie ist (`TT_SWITCH_SCOPE`).
+  `startGo` und `resetStudent` setzen zurück, `syncTtBoxes` gleicht alle Schalter an. Reine Helfer zwischen `/* TYPING:BEGIN` und
+  `/* TYPING:END */` (dort auch `cellText`/`tableText`/`tableRows` und ihre Spiegel `ttCellText`/`ttTableText`/`ttTableCells`/
+  `ttTableLines`; nur `btoa`/`atob`/`Intl`, kein `$`/`S`/`h`/`document`), `test/unit/typing.test.mjs`, E2E 7l und 7m.
 - **Material zu Aufgaben:** formatierter Lehrkraft-Text je Aufgabe, gespeichert im `tasks`-JSON als `material` =
   Absätze aus Läufen `{t, f?, h?}` (`f` ⊆ `"biu"` in dieser Reihenfolge, `h` = http(s)-Link). **Nie HTML**
   speichern oder rendern: `validateMaterial` (lib.js) normalisiert und prüft (`LIMITS.material` 8000 Zeichen,
@@ -626,7 +846,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   per `cleanGroup` (2–10, Kürzelform, Klasse), „Weiterschreiben?“ „… der Gruppe … Seid ihr das?“, Topbar `#who-lbl` „Gruppe“,
   Zwischenstand-PDF „Gruppe:“, Lösungs-PDF „Gruppe: …“ im Kopf und „Gruppe …“ in der Fußzeile (nach Breite: erst Titel kürzen,
   notfalls „Gruppe (n)“), Dateinamen ohne Kürzel. „ihr“ nur, wo es um alle geht: Angaben-Bildschirm der Gruppe,
-  `privacyShortText(p, list, withAi, group)`, `privacyNoticeDom(…, {group: true})` nur in `#p-privfull` der Gruppe (Bausteine
+  `privacyShortText(p, list, withAi, group, typing)` (samt `TT_SHORT(true)` „… widersprechen könnt ihr …“), `privacyNoticeDom(…, {group: true})` nur in `#p-privfull` der Gruppe (Bausteine
   `PRIV_IHR` statt `PRIV_DU`, derselbe Inhalt; „Eure Rechte“: „Jede und jeder von euch kann …“), `ltConsent` (OK „Trifft auf alle in
   eurer Gruppe zu – prüfen“, Abbrechen „Trifft nicht auf alle zu“, sonst gleiches Verhalten), „Weiterschreiben?“; im Schreibbereich
   bleibt es beim „du“ (auch `#privfull-ed`), nur ohne Geburtstag: `renderPrivacy` „zusammen mit den Namenskürzeln der Gruppe und
@@ -709,6 +929,119 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   ohne Punkte kein QR; zurück während eines angehaltenen PUT (Rückfrage, gespeichert, kein PDF); per `page.route` ein Blatt ohne
   Auftrag (`#ck-aiwarn`) mit 8 langen Tabellenspalten (Kopf 7 pt, Trennung mit „-“)); `ANALOG_PDF_OUT=<Ordner> npm run test:e2e`
   speichert das PDF lokal zum Ansehen (`pdftoppm -r 60 -png`).
+- **Escape-Room-Anbindung (Schnittstelle v1):** Ein Blatt kann das Finale eines Escape-Rooms sein: `escape: {id, name}` (id
+  `[a-z0-9-]{3,60}`, name einzeilig 1–80; `validateEscapeSpec`/`escapeOut` in lib.js, nur beim Anlegen – Blätter bleiben
+  unveränderlich; D1 `sheets.escape_id`/`escape_name` per `ensureColumns`, NULL = normales Blatt; die vorhandenen `SELECT`s lesen nur
+  zwei Spalten mehr – keine zusätzliche D1-Abfrage, Unit-Test zählt). **Lehrkraft:** Builder `#b-esc` „Feibeitsblatt für einen
+  Escape-Room (Finale)“ (`aria-controls`; kein Fokussprung beim Haken – WCAG 3.2.2, die Felder folgen per Tab) mit `#b-esc-name`/`#b-esc-id` und `#b-esc-hint`; `b-gen`
+  prüft wie der Server (Fehler „Escape-Room: …“ in `#b-err`, Feld `.invalid` + Fokus), Ergebnis `#b-res-esc` statt `#b-res-normal`
+  nur, wenn die Antwort `escape` trägt. „Als Vorlage“, Sicherung (Datensatz `escape` nur, wenn gesetzt; sichtbare Zeile „Escape-Room:
+  „…“ (Kennung …) – …“) und Import (`cleanSheetRecord` → `cleanEscapeSpec`; `#b-import` nennt den Raum) tragen es mit – den Satz zum Raum
+  (`builderNote`/`syncBuilderNote`, `span#b-import-esc`) zeigt `#b-import` nur, solange Haken, Name und Kennung zum bisherigen Blatt passen. Liste:
+  `td.code.esc` mit `span.escbadge` „Escape-Room“ + Name statt des Codes; Blattdetails per `selEscapeUi` (schon aus dem Listeneintrag):
+  `#t-sel-code-lbl` „Code für den Quelltext des Escape-Rooms“, `#t-sel-meta` mit Raum und Kennung, Hinweis `#t-sel-esc`,
+  `#t-analog`/`#t-analog-hint` verborgen (`openAnalog` kehrt zurück; Worker: Checkliste POST/PUT → 400 `escape_sheet`,
+  `MSG.ckEscape`); der Lösch-Dialog warnt, dass der Arena-Tunnel dann ins Leere führt. **Der Code steht im öffentlichen Quelltext
+  des Raums** (`FEIBEITSBLATT_CODE`): Die Sperre der Startseite ist nur Oberfläche – jede:r kann mit dem Code `GET /api/sheet/:code`,
+  `POST /api/feedback` und `POST /api/submit` aufrufen und die Grenzen je Blatt (400 Abgaben/40 MB, `sheet_feedback` 600/Tag)
+  ausschöpfen; Gegenmittel: Einträge löschen bzw. neues Blatt und neuen Code im Raum eintragen (README, `#b-esc-hint`).
+  **Hülle** (vom Raum, im Link und in der Überblick-PDF gleich): `{kind:"feibeitsblatt-escape", v:1, d, s}`, `d` = JSON-Text der Daten
+  (`code` (6 Zeichen oder "" = noch nicht freigeschaltet), `room {id, name, url}`, `person {vorname, nachname, geburtsdatum, klasse}`,
+  `confirm`, `word`, `completedAt`, `stations [{label, attempts, errors [{item, wrong?, right?, note?}]}]`, `notes [{label, text}]`,
+  `resumes [{place, savedAt, loadedAt}]`), `s = fbEscapeHash("FbEscape|v1|" + d)` (cyrb53-Variante über UTF-16-Einheiten, 16 Hex;
+  Testvektoren `"FbEscape|v1|{}"` → `0bdda452e8d9ff95`, `'FbEscape|v1|{"a":"Größe – „x“"}'` → `6721119dc06e029b`) – öffentlich
+  nachrechenbar, **nur ein Indiz** gegen versehentliche oder plumpe Änderungen. Link: `#escape=<base64url(UTF-8), ohne „=“>` – schon
+  ein **kleines ES5-Skript im Kopf** (vor dem Aufbau der Seite, unabhängig vom großen Skript – auch wenn dieses scheitert) legt ihn in
+  `window.FEIBEITSBLATT_ESCAPE_LINK` ab und entfernt ihn per `history.replaceState(null, "", pathname + search)`; die erste Anweisung des
+  großen Skripts übernimmt ihn (`escLinkRaw`, Rückfall: Hash selbst lesen) und löscht die Variable; verarbeitet wird er nach
+  `cleanupDrafts` statt `showResume` (`escArriveLink`). Im **Verlauf des Browsers** bleibt der Link trotzdem (mit Verlaufs-Synchronisierung
+  auch beim Anbieter des Browsers) – `ESC_PRIV.stay`, `ESC_BACK("link")` und README sagen das, nie „nicht gespeichert“ ohne diesen Zusatz; `hashchange` mit `#escape=` entfernt ihn immer sofort
+  und übernimmt ihn nur auf freien Bildschirmen (`CHECK_SCREENS` und Impressum), sonst verworfen (Schreibbereich bleibt). Überblick-PDF:
+  unkomprimierter `/Type /EmbeddedFile`-Stream mit `/FbEscape 1` (`/EmbeddedFiles` `feibeitsblatt-escape.json`, `/AF`) →
+  „Zwischenstand-PDF hochladen“ → `readStartPdf` (ersetzt `readDraftPdf`; Kennzeichen und eingebettete Dateien in einem Durchlauf,
+  ≤ 60 Objekte; ein Zwischenstand gewinnt immer, auch weiter hinten, sonst die erste Hülle; tolerant wie `/FbDraft 1`: FlateDecode,
+  `/Length n 0 R`, ohne Kennzeichen, kompakt geschrieben; `/FbEscape 1` ohne brauchbare Hülle → `escape-bad`).
+  **Block `ESCAPE:BEGIN`…`ESCAPE:END`** (reine Funktionen nach dem Block GROUP; `test/unit/escape.test.mjs`): `escB64urlBytes` (feste
+  Reihenfolge: Länge zuerst, `%`-Kodierung, Form per beidseitig verankertem `^[A-Za-z0-9_-]+={0,2}$` und erst dann höchstens zwei „=“
+  abschneiden – nie `/=+$/`, das läuft bei vielen „=“ in manchen Browsern quadratisch zurück –, `atob` in try), `escHull` (Objekt, Text oder Bytes; UTF-8 `fatal`;
+  Größe immer als kompakte Hülle ≤ `ESC_MAX_BYTES` 96 KB gemessen – auch aus dem Zwischenstand; neues Objekt mit genau vier Feldern),
+  `escCheck` (`"ok"`/`"mismatch"`), `cleanEscape` (fremde Daten: Objekte aus einzeln gelesenen, typgeprüften Feldern neu gebaut – nie
+  Spread/`Object.assign` fremder Objekte, `__proto__` aus `JSON.parse`; Arrays erst kappen, dann verarbeiten; `code` muss "" oder ein
+  gültiger Code sein, `room.id` passen, sonst `null`; `room.url` entfällt; Strings einzeilig ≤ 2000 (`escLine`), `notes[].text` ≤ 4000
+  mit Zeilenumbrüchen (`escText`), ≤ 20 Stationen, Notizen und `resumes`, ≤ 30 Fehler je Station, Fehler ohne `item` entfallen; Namen
+  ≤ 60; Klasse wie `KLASSE_RE`, sonst leer – dann fragt die Seite sie ab; Geburtsdatum nur als echtes Datum TT.MM.JJJJ, sonst leer).
+  `confirm`: nur Ziffern (≤ 20) – wird nur angezeigt, nie geprüft. Weiter `escKuerzel`/`escPerson` (Vorbelegung: erste 3 bzw. 2
+  Buchstaben per `nameCase`, Geburtstag ohne Jahr über `parseBdayInput`, `complete`, `okV/okN/okBday/okK`), `escPayload` (an die
+  Lehrkraft genau `{room:{id, name}, word, completedAt, stations, resumes, check}`), `escTrim` (Notfall: `errors: []`,
+  `omitted:"too_large"`), `escHasDetails`, `escCleanPayload`/`escSummary` (Lehrkraft; fehlerfrei = genau ein Versuch ohne Fehler, wie
+  die Überblick-PDF des Raums; bei `omitted` Fehlerzahl `null`), `cleanEscapeSpec` (Blatt-Feld, `null` statt Fehler).
+  **Ankunft** `escArrive(hull, src)` (`ESC.run` gegen späte Antworten; `escDrop()` in `startGo`, `importDraftPdf`, „Weiterschreiben“
+  (`#resume-btn`), `openChecklist` und `openLegal` verwirft eine liegen gebliebene Ankunft samt Vorbelegung). `ESC.run` ist die
+  Lauf-Kennung der Startseite: `startGo`, `importDraftPdf`, „Weiterschreiben“ und `escLoad` laden per `fetchSheet` (ändert `S` nicht) und
+  übernehmen erst per `useSheet`, wenn ihr Lauf noch gilt – eine späte Antwort ändert nie das gerade geöffnete Blatt (sonst ging z. B.
+  eine Abgabe an das Escape-Blatt, während der Schreibbereich ein normales zeigte). Hülle ungültig → `ESC_LINK_BAD`/`ESC_PDF_BAD`,
+  `code: ""` → `ESC_NOT_OPEN`, Blatt fehlt → `ESC_NO_SHEET`, Netz/5xx → Meldung + `#start-esc-retry` „Erneut versuchen“ (die Daten bleiben
+  im Arbeitsspeicher; hatte der Knopf den Fokus, bekommt er ihn nach einem erneuten Fehlschlag zurück, nach einem endgültigen Abbruch
+  das Code-Feld), anderer Raum → `ESC_WRONG`; nach jedem endgültigen Abbruch (nicht bei Netzfehlern mit „Erneut versuchen“)
+  `showResume()`. Dann nur Einzelarbeit (kein `#screen-mode`): liegt
+  auf dem Gerät ein Zwischenstand derselben Person mit Text → direkt `openEditor()`, sonst `openPerson(false, pre)` mit `#p-escape`
+  (`p.note`, `role="status"`; Lücken „Bitte trage noch … ein.“, Fokus aufs erste leere Feld, sonst `#p-btn` – dieses Element bekommt
+  `aria-describedby="p-escape"` per `describedBy`, denn die vor dem Einblenden gefüllte Statusmeldung würde nicht angesagt), `sheetLine`
+  „Escape-Room „…“ · n Aufgaben“, `#p-back` „← zur Startseite“ (verwirft, `#start-status` `ESC_BACK(src)` – „Diese Seite hat … nicht
+  gespeichert.“, per Link zusätzlich der Satz zum Verlauf des Browsers; `S.escPending.src`). Bis zum Schreibbereich bleiben die Daten nur
+  im Arbeitsspeicher (`S.escPending`; `escPendingFor`: Code und Raum müssen zum Blatt passen). `openEditor` klärt die Hülle vor allem
+  anderen (`escFromHull`; eine neue Ankunft gewinnt gegen die Hülle im Zwischenstand – ersetzt sie eine andere, meldet das
+  `p#esc-updated` (`role="status"`, per `liveFill` erst eingeblendet, dann gefüllt, mit dem Abschlusszeitpunkt), dieselbe Hülle bleibt still; die Prüfsumme wird immer neu gerechnet, nie
+  gespeichert übernommen; Escape-Blatt ohne passende Hülle oder als Gruppe → `ESC_NEED`) und speichert sofort (`arrived`); `S.escape =
+  {hull, rec, check}`. Alle Texte und Dateinamen nennen den Raum mit `S.sheet.escape.name` (vom Server), nie mit Daten aus dem Link.
+  Startseite: der Code eines Escape-Blattes → `ESC_START`, kein Weiter; der Hinweis unter „Zwischenstand-PDF hochladen“ nennt die
+  Überblick-PDF. **Zwischenstand** und Zwischenstand-PDF tragen die Hülle unverändert (`draftRecord` → `escape`, `cleanDraft` per
+  `escHull`; Zwischenstand-PDF mit Zeile „Escape-Room: …“ und Punkt unter „Bitte beachte“, ohne `/FbEscape 1`, als
+  `application/octet-stream` wie die übrigen Escape-PDFs – nur speichern, nie als Vorschau im Tab); `#sheet-meta` nennt das
+  Finale, der Dialog „Abbrechen und Zwischenstand löschen“ auch die Daten aus dem Raum. Erstversuch und Abgabe: `payload.escape =
+  escPayload(rec, escCheck(hull))` – nur verschlüsselt, ohne vollen Namen, ohne volles Datum, ohne Bestätigungscode, ohne `notes`; nie in
+  `/api/feedback`; passt der Umschlag nicht, erst ohne Tippzeiten, dann `escTrim` (`sealPayload`, `sendSealed` bei 413/409) – eine
+  Abgabe scheitert nie an den Daten aus dem Raum. Die nachgereichte zweite Rückmeldung (`sendFeedback2`, stage „feedback2“) trägt
+  `escape` genau so, wie es mit der Abgabe angekommen ist (`S.fb2Base`); die Lösungs-PDF der Lehrkraft („Lösungs-PDF herunterladen“)
+  enthält bei Escape-Blättern nur die Lösungsseiten (ohne `escPdfPages`). Ablauf-Kasten: letzter Punkt „Lösungen, letztes Feedback und Escape-Room-Überblick
+  herunterladen“ (ohne KI „Lösungen und Escape-Room-Überblick herunterladen“) + `STEP_LATE`. `#screen-done`: Gesamt-PDF =
+  `makeSolutionsPdf` (Lösungsseiten) + `escPdfPages(pg, esc, {mode:"student"})` (Name, Geburtsdatum, Klasse, Bestätigungscode, Codewort,
+  je Station Versuche und Fehler im ersten Versuch, neue Seite „Lösungserläuterungen“ mit „Genaue Daten: …“ 9 pt grau, „Verwendung von
+  Zwischenstand-Dateien des Escape-Rooms“) über `pdfPager`/`pdfAssemble` (gemeinsam mit der Lösungs-PDF, Objektnummern unverändert),
+  `application/octet-stream` (nur speichern, nie im Tab), `Escape-Room-<Raum>-Abschluss-<JJJJ-MM-TT>.pdf` (`escFileRoom`), nie
+  Tippzeiten. Technisch gescheiterte Abgabe (`escFailKind`/`escMailNow`: sofort bei
+  jedem Fehler außer `ESC_NOT_TECHNICAL` – Prüffehler des Servers –, 413 und den „weichen“: 429 `rate_limited` erst, wenn ein neuer Versuch
+  nach `retryAfter` wieder scheitert, 409 `too_many_submissions` erst beim nächsten Fehlschlag (`S.escSoft`; jeder andere Fehler beginnt
+  neu) – der Code steht öffentlich im Raum, ein gefülltes Blatt soll nicht gleich alle auf den unverschlüsselten E-Mail-Weg schicken; bei
+  429 ohne „versuche es gleich noch einmal“): `#submit-esc` (erst eingeblendet, dann `#submit-esc-text` gefüllt – sonst nicht angesagt) mit
+  `mailLink()` und `#submit-esc-pdf` „Abschluss-PDF für die E-Mail herunterladen“ (bewusst ein Knopf statt eines automatischen Downloads;
+  `#submit-esc-note` nennt vollen Namen, Geburtsdatum, Bestätigungscode und Antworten; Vermerk `ESC_FAILED_PDF_NOTE` rot ganz oben,
+  „Stand: … – noch nicht abgegeben“, `…-nicht-abgegeben.pdf`, ohne Tippzeiten; verborgen bei jedem neuen Versuch und nach Erfolg). **Lehrkraft-Ansicht:** `loadSubs` →
+  `escCleanPayload` (eigenes try/catch); `escDetailDom` nur bei Escape-Blättern (sonst wird `escape` ignoriert): `.desc-h` mit dem
+  Namen des Blattes, `.desc-sum` „Abgeschlossen am … · im ersten Versuch fehlerfrei: x von n Stationen · Fehler im ersten Versuch
+  insgesamt: f · Zwischenstand-Dateien des Escape-Rooms: k|keine“ (bei `omitted` „nicht übermittelt …“; ohne Daten „Ohne Daten aus dem
+  Escape-Room.“), fremde Kennung `.desc-warn`, `.desc-check` (`ESC_CHECK_TEXT`: „stimmt – ein Indiz, kein Beweis.“ bzw. `.bad` „stimmt
+  nicht – der Datensatz wurde verändert oder ist beschädigt.“), `details.desc-more` „Überblick ansehen“ (erst beim Aufklappen,
+  `escOverviewDom`), `button.desc-pdf` „Überblick als PDF herunterladen“ (`escPdfPages` mode `teacher`: Kürzel, Geburtstag ohne Jahr,
+  Klasse, Prüfsummen-Satz, ohne Bestätigungscode und ohne Lösungserläuterungen; `Escape-Room-<Raum>-Ueberblick-<Code>-Eintrag-<id>.pdf`).
+  Nur `textContent`/DOM-APIs. **Datenschutz:** `privacyShortText` bleibt unverändert (typing.test prüft ihn wörtlich); die Sätze zum
+  Escape-Room sind eigene Knoten ohne Tippzeit-Wörter: `p.privacy#p-privacy-esc` (`escPrivacyShort`) unter `#p-privacy-short`,
+  `p#privacy-esc` (`escPrivacyEditor`) unter `#privacy`, `privacyNoticeDom(…, {escape: name})` (Option hinter `ttSwitch`) mit Absätzen
+  bzw. Listenpunkten aus `ESC_PRIV` (Wozu; Welche Daten – nach dem `TT_ACCESS`-Absatz, mit der Rechtsgrundlage Buchst. b bzw. § 25
+  Abs. 2 Nr. 2 TDDDG, die Liste „Rechtsgrundlage“ bleibt gleich; Lehrkraft samt „verschlüsselt bei Cloudflare gespeichert“ – der
+  Cloudflare-Punkt selbst bleibt unverändert; E-Mail-Weg `escMailItem` – sonst stimmte „nicht deinen vollen Namen …“ nicht; Wie lange
+  samt Browser-Verlauf des Links und Verlaufs-Synchronisierung und Aufbewahrung der E-Mail „bis deine Lehrkraft sie übernommen hat“ –
+  Entscheidung des Betreibers offen). „Impressum & Datenschutz“: `#legal-escape` in allgemeiner Form, `#legal-privfull`
+  unverändert; Vorschau der Lehrkraft: `PV_ESC_NOTE` in `#pv-preview-note`. **Tests:** `escape.test.mjs` (Testvektoren, 200 Zufallstexte
+  gegen die Kopie in `test/escape-fixture.mjs`; dort auch `escHull`, `b64url` und `overviewPdf(hull, {flate, marker, compact, lenRef})`
+  im Objektaufbau der Überblick-PDF des Raums), lib-/worker-Tests, Smoke-Schritt „Escape-Room-Blatt“ (auch: KI-Prompt ohne mitgeschickte
+  Raum-Daten, D1 ohne Klartext), E2E 7n/7o (eigene Fixtures: unkomprimiert, FlateDecode ohne Kennzeichen, manipulierte Prüfsumme;
+  Wettlauf langsames Escape-Blatt gegen hochgeladenen Zwischenstand eines normalen Blattes – Abgabe an dessen Code; Hash weg auch bei
+  einem Syntaxfehler im großen Skript; Fokus nach erneut gescheitertem „Erneut versuchen“; `#esc-updated`; E-Mail-Weg bei 404 sofort,
+  bei 409/429 erst später; zweimal 413 → ohne Tippzeiten, dann ohne Fehler-Einzelheiten samt Lehrkraft-Kurzfassung; die nachgereichte
+  zweite Rückmeldung in D1 entschlüsselt samt `escape` und `typing`, Lösungs-PDF der Lehrkraft nur mit den Lösungsseiten; `#b-import` folgt
+  dem Haken; `ESCAPE_PDF_OUT=<Ordner>` speichert die PDF-Dateien und Bildschirmfotos). Testdaten frei erfunden, `confirm` in Tests eine beliebige
+  Ziffernfolge; keine Datei aus einem echten Escape-Room als Fixture.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
@@ -721,7 +1054,17 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   speichern lässt (Speicher voll/gesperrt), hält `heldDrafts` im Arbeitsspeicher (neuer als der gespeicherte Stand; `draftStored`
   liest, `delDraft` löscht beides, `saveDraft` liefert `ok`; `openEditor` speichert so einen Stand sofort erneut und zeigt sonst
   `SAVE_FAILED`). Lehrkraft: Abmeldung nach 20 min ohne Eingabe; Abgaben-Listen seitenweise laden; fremde Payloads vor
-  dem Rendern kappen (≤ 30 Antworten).
+  dem Rendern kappen (≤ 30 Antworten). **Ablauf-Kasten** `#ed-steps` (orange, Tokens `--orange`/`--orange-bg`/`--orange-cur`/
+  `--orange-ink`; `h2#ed-steps-h` „So gehst du vor“, `ol#ed-steps-list` mit nativer Nummerierung zwischen `header.sheet-head` und
+  `#tasks` – außerhalb von `#tasks`, `h1#sheet-title` bleibt die erste Überschrift –, scrollt mit `.paperwrap`, weder sticky noch
+  Live-Region): `renderSteps` aus `renderFeedbackState`, bei `busyFeedback`, `unlock`, `submitting` und `stopFeedbackRun` (baut die
+  Liste nur bei geänderten Einträgen neu, `ol._key`; sonst nur `li.cur` + `aria-current="step"`). Mit KI: „Aufgaben bearbeiten“,
+  „KI-Feedback anfordern (freiwillig, empfohlen)“ (ohne Empfänger oder mit gemeldetem Grund `fbBlockedNow`: „(freiwillig, empfohlen
+  – gerade nicht möglich)“), „Lösungen mithilfe des KI-Feedbacks überarbeiten“, „Abgeben“, „Lösungen und letztes Feedback
+  herunterladen“ + `STEP_LATE` („– nur direkt nach der Abgabe auf der Bestätigungsseite (nicht nach Neuladen oder „Neues
+  Feibeitsblatt öffnen“)“); ohne KI „Aufgaben bearbeiten“, „Abgeben“, „Lösungen herunterladen“ + `STEP_LATE`. Aktuell: 1, bei
+  laufender Anfrage 2, nach dem Feedback 3, beim Senden 4 (ohne KI 1/2); der letzte Schritt nie (`clearEditor` leert den Kasten,
+  nicht auf `#screen-done`). Beim Öffnen kein Wegscrollen (`scrollTop = 0`, Fokus mit `preventScroll`).
 - **Das KI-Feedback ist freiwillig** (Handreichung KI des HKM, Juli 2023: S. 10 allgemein „derzeit nur auf
   freiwilliger Basis“; S. 17 kein Nachteil ohne KI – dort für volljährige Schüler:innen, sinngemäß übertragen).
   „Abgeben“ ist nie wegen fehlenden Feedbacks gesperrt (nur ein ganz leeres Blatt: Meldung wie beim Feedback; leere
@@ -789,7 +1132,36 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `/api/privacy`, GitHub Pages per `addInitScript` → `FEIBEITSBLATT_API`, Betreiberkasten, Löschfrist, Vorschau, alte
   Schulangaben per `d1Query` → beim Laden der Übersicht entfernt; `PRIVAT_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos), 2/3/3b/4/5
   (Hinweis mit Betreiber und Löschfrist, keine Schulangaben in D1/API, `#privfull-ed` nach Weiterschreiben, KI-Kennzeichnung, `#done-del`, Lösungs-PDF mit/ohne XMP
-  samt Aufbauprüfung `pdfStructure`), 7i (Kürzen mit Nachfrage, Verlängern, Cron lokal); Unit: `scheduled` auf der
+  samt Aufbauprüfung `pdfStructure`), 7i (Kürzen mit Nachfrage, Verlängern, Cron lokal); Tippzeiten: Unit `typing.test.mjs`
+  (Block TYPING per `new Function`, `TT_ENV_MAX` = `LIMITS.envelopeBytes`, Eigenschaftstests gegen `tableText`/`tableRows`,
+  Rückfall ohne `Intl.Segmenter`, Schalter `TT_KEEP_IN_DRAFT` beider Stellungen, Widerspruch `ttOptOutPayload`/`ttDraftFlags`/
+  `ttCleanPayload`/`ttDetail`, `ttStoredFlags`/`ttKeepOptOut`, `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE` in beiden Stellungen von
+  `TT_KEEP_IN_DRAFT`, `TT_USE` im Hinweis, Kurzfassungen mit genau dem Satz `TT_SHORT`, `TT_ACCESS` ohne behauptete Ausnahme oder
+  Einwilligung und mit/ohne `TT_HELD`, eigener Abschnitt vor „Deine Rechte“; `S.fb2Base` getrennt von `S.lastSubmission`, freigegeben,
+  `FB2_HOLD_MS` = `REPLACE_WINDOW_MS`), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
+  eingecheckt (`TT_KEEP_IN_DRAFT` aus): kein `typing` im Zwischenstand, ein alter Stand mit Tippzeiten wird beim Laden bereinigt
+  (`ttDraftStrip`), Text von vor dem Neuladen geht als 255 („ohne Messung“) in die Abgabe; nur mit umgelegtem Schalter Werte je
+  Zeichen im Zwischenstand vor und nach dem Feedback samt Neuladen; nie an die KI, Erstversuch/Abgabe aus D1
+  entschlüsselt – `openPrivateKey`/`openEnvelope` aus smoke.mjs –, Ablauf-Kasten, 413 → einmal ohne, Lehrkraft-Färbung, „Färbung
+  aus“, lange Antworten, nur Weltkarten – auch bei den Schüler:innen ohne `TT_SHORT` und ohne Abschnitt; die nachgereichte zweite
+  Rückmeldung = angenommene Abgabe + `feedback2` samt Tippzeiten in D1; Schüler:in 4: mit `feedback2` 413 → einmal
+  ohne Tippzeit-Werte, angekommen, kein Hinweis; Schüler:in 5: Nachreichen scheitert dreimal → D1 unverändert, danach kein weiterer
+  Versuch, Hinweis `#done-fb-teacher` wörtlich; dass `S.fb2Base` freigegeben wird, prüft nur `typing.test.mjs` über den Quelltext) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
+  Erstversuchs scheitert erst und wird beim nächsten Öffnen nachgeholt, PDF auf einem anderen Gerät, Zurücknehmen, Ablehnung
+  während des Sendens (angehaltenes bzw. scheiterndes `/api/submit`, Farbe), Abgabe `optOut`; Haken auf „Deine Angaben“ bei
+  getipptem Stand mit Erstversuch → sofort gespeichert und ersetzt; anderes Gerät ohne Widerspruch; zweiter Tab übernimmt ihn
+  sofort; an und aus während einer angehaltenen KI-Anfrage → erste Fassung ohne Werte; ältere Zwischenstand-PDF auf demselben
+  Gerät → Widerspruch bleibt; Gruppe in der „ihr“-Form, Neuladen ohne Eingabe, `_tt` aller Felder; Lehrkraft „ohne Messung
+  (widersprochen)“ bei Abgaben, Erstversuch und ausgeblendetem älterem Erstversuch; nach dem Nachreichen der zweiten Rückmeldung
+  bleibt `{optOut:true}` in D1; zweiter Tab widerspricht, nachdem der erste abgegeben hat und die zweite Rückmeldung noch aussteht – der
+  erste eingefroren (storage-Ereignis per `stopImmediatePropagation` verpasst, KI-Anfrage angehalten) bzw. mit angehaltenem Nachreichen
+  unterwegs → in D1 `{optOut:true}`, nachgereicht einmal ohne bzw. erst mit, dann ohne Werte); die wörtlichen Hinweise prüfen 1b
+  (`TT_PURPOSE`, `TT_EFFECT`/`TT_SCOPE`, `TT_STAY`, `TT_ACCESS`, Kurzfassung und Vorschau mit genau `TT_SHORT`, Abschnitt
+  `TT_OBJ_HEAD` vor „Deine Rechte“, auf „Impressum & Datenschutz“ nur als Absatz, Vorschau gesperrt), 2 (`renderPrivacy` mit
+  `TT_SHORT`, `#privfull-ed` mit Abschnitt), 2b (Kurzfassung der Gruppe mit `TT_SHORT_G`, `TT_ACCESS_G`) und `privBases` – die Erwartungen folgen `TT_KEEP` (aus index.html gelesen); beim Umlegen von
+  `TT_KEEP_IN_DRAFT` 1, 1b, 2, 2b, 7l, 7m einmal in der anderen Stellung laufen lassen. Beide Tests laufen vor Test 8
+  (Passwortwechsel), ebenso E2E 7n/7o (Escape-Room-Finale, eigenes Blatt, 7o löscht es; nur mit Test 1 davor lauffähig, einzeln
+  `npx playwright test -g "spec\.mjs (1|7n|7o) "`; siehe Escape-Room-Anbindung). Unit: `scheduled` auf der
   gemeinsamen D1 (und einmal frisch importiert `?scheduled`), `d1.failIf` für ein scheiterndes PURGE, `Math.random`
   gestubbt beim Zählen der D1-Abfragen und in Tests mit zurückdatierten Einträgen (`noRandomCleanup`: sonst löscht das
   2-%-Aufräumen sie gelegentlich vor der Prüfung).
