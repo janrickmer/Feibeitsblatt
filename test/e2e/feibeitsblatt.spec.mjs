@@ -3376,6 +3376,12 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await p2.click("#fb-btn");
   await confirmDialog(p2, "KI-Feedback anfordern?");
   await expect(p2.locator("#fb-status")).toContainText("Die KI arbeitet");
+  // die Statuszeile steht direkt unter dem Button – nicht erst unter dem langen Datenschutzhinweis
+  expect(await p2.$eval("#fb-btn", (b) => b.nextElementSibling.id)).toBe("fb-status");
+  const [fbBox, stBox] = [await p2.locator("#fb-btn").boundingBox(), await p2.locator("#fb-status").boundingBox()];
+  expect(stBox.y).toBeGreaterThanOrEqual(fbBox.y + fbBox.height);
+  expect(stBox.y - (fbBox.y + fbBox.height)).toBeLessThan(24);
+  expect(await p2.$eval("#fb-status", (st) => !!(st.compareDocumentPosition(document.getElementById("privacy")) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await p2.click("#submit-btn");
   await expect(p2.locator("#dlg.open")).toBeVisible();
   await expect(p2.locator("#dlg-cancel")).toHaveText("Auf das KI-Feedback warten");
@@ -6720,7 +6726,7 @@ test("9 Sperre nach Fehlversuchen trifft nur falsche Eingaben: richtiges Passwor
   await enterCode(page, "1104");
   await page.fill("#tl-pw", "falsches Passwort 123");
   await page.click("#tl-btn");
-  await expect(page.locator("#tl-err")).toHaveText(/^Zu viele falsche Passwörter\. Mit dem richtigen Passwort können Sie sich weiterhin anmelden; weitere Versuche sind in etwa 1[0-5] Minuten möglich\.$/, { timeout: 30_000 });
+  await expect(page.locator("#tl-err")).toHaveText(/^Zu viele falsche Passwörter\. Mit dem richtigen Passwort können Sie sich weiterhin anmelden; weitere Versuche sind in etwa (?:[1-9]|1[0-5]) Minuten möglich\.$/, { timeout: 30_000 });   // festes 15-min-Fenster ab dem ersten Fehlversuch des Laufs (auch aus früheren Tests)
   await page.fill("#tl-pw", NEW_PW);   // das richtige Passwort geht trotz Sperre
   await page.click("#tl-btn");
   await expect(page.locator("#screen-teacher")).toHaveClass(/active/, { timeout: 30_000 });
@@ -6736,7 +6742,7 @@ test("9 Sperre nach Fehlversuchen trifft nur falsche Eingaben: richtiges Passwor
   const r = await request.post("/api/teacher/door", { data: { doorCode: "1104" } });
   expect(r.status()).toBe(200);
   await enterCode(page, "2011");
-  await expect(page.locator("#start-err")).toHaveText(/^Zu viele Fehlversuche\. Ein neuer Versuch ist in etwa 1[0-5] Minuten möglich\.$/);
+  await expect(page.locator("#start-err")).toHaveText(/^Zu viele Fehlversuche\. Ein neuer Versuch ist in etwa (?:[1-9]|1[0-5]) Minuten möglich\.$/);
   await enterCode(page, "1104");
   await expect(page.locator("#screen-tlogin")).toHaveClass(/active/);
   await closePage(p);

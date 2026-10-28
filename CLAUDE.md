@@ -269,7 +269,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Verbrauch, Erstattung → höchstens 32 ohne, 42 mit Reserve (Unit-Tests: Erfolg über Workers AI ≤ 18, volle Warteschlangen
   mit Reserve ≤ 42; jeder Aufruf ≤ 50). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
   `FB_MAX_MS` 4 min, Wartezeit = retryAfter × (1 + 0–30 %) + 0–3 s, ein `setTimeout` auf einen absoluten Zeitpunkt +
-  `visibilitychange`, Sekundenzähler in `#fb-wait` (aria-hidden) außerhalb der Live-Region `#fb-status`, Felder nur
+  `visibilitychange`, Sekundenzähler in `#fb-wait` (aria-hidden) außerhalb der Live-Region `#fb-status` (beide und `#fb-fallback` direkt unter `#fb-btn`, vor dem
+  Datenschutzhinweis `#privacy`/`#privacy-esc`/`#privfull-ed` – E2E 7f prüft die Lage), Felder nur
   während einer laufenden Anfrage readOnly, vor jedem Versuch `answers` neu lesen (`S.first` = gesendete Fassung),
   `#fb-wait-stop` = Abbruch (1 Fehlversuch), erschöpfter Zyklus = 2 Fehlversuche, `S.fbFails` im Zwischenstand;
   Lauf-Kennung `S.fbRun` + `stopFeedbackRun()` (resetStudent/openEditor) gegen späte Antworten, `api()` nimmt
