@@ -158,17 +158,19 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2), nachgereicht mit `replaced:"final"` und ohne Hinweis darunter. E2E-Test 7p
   (eigenes Blatt, wird gelöscht; Hinweis wörtlich, neutrale Farbe): `{gone:true}` per `page.route` → ein Versuch, „gone“-Hinweis, PDF mit
   der Rückmeldung; Uhr der Seite per `page.clock` – `install` + `reload`, während die KI-Anfrage angehalten ist `setSystemTime` +16 min
-  (Zeitgeber gedrosselt) → „expired“, nichts nachgereicht; erste Anfrage 502 → Knopf ohne Hinweis, `fastForward("16:00")` → Hinweis unter
-  dem Knopf, Klick ohne Dialog → „expired“, nichts nachgereicht. Unit (`typing.test.mjs`): Texte je Ergebnis und `sendFeedback2` mit
-  gestubbtem `sendSealed` (gone/expired/failed/skipped/same, Widerspruch unterwegs). Ist sie da (und nicht `same`), reicht `sendFeedback2(sub)` sie verschlüsselt an die Lehrkraft nach: **genau die Nutzlast, die
+  (Zeitgeber gedrosselt) → „expired“, nichts nachgereicht; erste Anfrage 502 → Knopf ohne Hinweis, dann Ruhezustand (`pauseAt` +
+  `setSystemTime` +16 min, kein Zeitgeber läuft ab): P3 `visibilitychange` → Hinweis unter dem Knopf, Klick ohne Dialog → „expired“, nichts
+  nachgereicht; P4 ohne Ereignis, `runFor(16 s)` → die regelmäßige Prüfung zeigt den Hinweis. Unit (`typing.test.mjs`): Texte je Ergebnis,
+  `sendFeedback2` mit gestubbtem `sendSealed` (gone/404/expired/failed/skipped/same, Widerspruch unterwegs) und `fb2Check` mit getrennt
+  gesteuerter Wand- und Zeitgeber-Uhr. Ist sie da (und nicht `same`), reicht `sendFeedback2(sub)` sie verschlüsselt an die Lehrkraft nach: **genau die Nutzlast, die
   der Server bei der Abgabe angenommen hat** (nach den Rückfällen von `sealPayload`/`sendSealed`, die `payload` dabei selbst kürzen –
   also auch `typing` `{optOut}`/`{omitted}` und ein per `escTrim` gekürztes `escape`; nichts neu gelesen) + `feedback2: {at, results}` (nur neu
   beurteilte Aufgaben, die übrigen `null`) – so bleiben Tippzeiten und Daten aus dem Escape-Room beim Ersetzen erhalten. Gemerkt in
-  **`S.fb2Base`** = `{sub, payload, pub, attempt, submitAt = receivedAt der Abgabe-Antwort, key = S.draftKey, timer}` (`fb2Hold`, nur mit erstem
+  **`S.fb2Base`** = `{sub, payload, pub, attempt, submitAt = receivedAt der Abgabe-Antwort, key = S.draftKey, timer, until}` (`fb2Hold`, nur mit erstem
   Feedback), **getrennt von `S.lastSubmission`** (daraus entstehen die PDF-Dateien der Schüler:innen – nie Tippzeiten) und nur, solange
   noch nachgereicht werden kann: `fb2Release` nach dem Nachreichen (geklappt, `gone` oder endgültig gescheitert – `finally` in
   `sendFeedback2`), bei `same`, ohne erstes Feedback, in `finalFeedbackGone`, in `resetStudent` und spätestens nach `FB2_HOLD_MS`
-  (= `REPLACE_WINDOW_MS`, Unit-Test vergleicht), die Tippzeit-Werte darin schon bei einem Widerspruch aus einem anderen Tab
+  (= `REPLACE_WINDOW_MS`, Unit-Test vergleicht; `fb2Check`, siehe unten), die Tippzeit-Werte darin schon bei einem Widerspruch aus einem anderen Tab
   (`fb2FollowOptOut`, siehe Tippzeit-Messung, „Zweiter Tab“); `submitAll` setzt außerdem `S.firstTyping` nach der Abgabe auf `null` (`TT_ACCESS` sagt
   „bis zur Abgabe (und, wenn … nachgereicht wird, bis dahin)“). Wird der Umschlag erst mit `feedback2` zu groß (`ttEnvelopeFits` bzw. 413/409),
   gilt dieselbe Reihenfolge wie bei der Abgabe (`sendSealed(payload, bodyOf, base.pub)`): erst ohne Tippzeit-Werte (`omitted:"too_large"`),
@@ -184,20 +186,26 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `{gone:true}` ohne Zählung und ohne Einfügen (eine gelöschte Abgabe kommt nie zurück); bis zu 3 Versuche, 4xx außer 408/429
   endgültig; bei Escape-Blättern genauso. `sendFeedback2` liefert ein Ergebnis: `"sent"` (nur das setzt `sub.fb2Sent`; einmal angekommen
   bleibt angekommen, auch wenn das erneute Senden ohne Tippzeit-Werte danach scheitert), `"gone"` (Antwort `{gone:true}` – zählt **nie**
-  als gesendet), `"expired"` (Frist vorbei: nichts gesendet bzw. `gone` nach Ablauf), `"failed"` (endgültig oder dreimal vorübergehend),
-  `"skipped"` (nie gehalten bzw. „Neues Feibeitsblatt öffnen“), `"same"`. Die Frist zählt auf dem Gerät ab dem Absenden der Abgabe
-  (`sentAt` in `submitAll` → `fb2Hold` → `sub.fb2Until`, nur ein Zeitpunkt in `S.lastSubmission`) – nie länger als beim Server – und wird
-  nachgerechnet (`fb2Expired`, `fb2Reach` → `"ok"`/`"expired"`/`"skipped"`), denn im Hintergrund drosselt der Browser den Zeitgeber.
+  als gesendet; ebenso 404 `not_found`, wenn das Blatt samt Abgaben inzwischen gelöscht ist), `"expired"` (Frist vorbei: nichts gesendet
+  bzw. `gone` nach Ablauf), `"failed"` (endgültig oder dreimal vorübergehend), `"skipped"` (nie gehalten bzw. „Neues Feibeitsblatt
+  öffnen“), `"same"`. Die Frist zählt auf dem Gerät ab dem Absenden der Abgabe (`sentAt` in `submitAll` → `fb2Hold` → `sub.fb2Until`, nur
+  ein Zeitpunkt in `S.lastSubmission`) – nie länger als beim Server – und wird nachgerechnet (`fb2Expired`, `fb2Reach` →
+  `"ok"`/`"expired"`/`"skipped"`): Ein einzelner Zeitgeber käme im Hintergrund oder nach dem Ruhezustand des Geräts zu spät (er zählt die
+  Schlafzeit nicht). Deshalb prüft `fb2Check`, solange `S.fb2Base` gehalten wird, alle `FB2_TICK_MS` (15 s), beim Zurückkehren
+  (`visibilitychange` sichtbar, `pageshow`, `focus` des Fensters) und wenn „Rückmeldung erneut anfordern“ Fokus oder Mauszeiger bekommt:
+  abgelaufen auf der Wanduhr oder seit dem Halten (`base.until` per `performance.now` – falls die Wanduhr zurückgestellt wird) → freigegeben
+  und `fb2RetryNote`.
   **Entscheidung des Betreibers:** Erreicht die Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig und sachlich (der
   Abgabe-Dialog hatte es angekündigt): `requestFinalFeedback` → `sendFeedback2(sub).then(…fb2TeacherShow)` nur bei derselben
   `S.lastSubmission`, außer bei `"sent"`/`"same"` in `p#done-fb-teacher` (`role="status"`, unter `#done-fb-list`, per `liveFill` erst
   eingeblendet, dann gefüllt; `.donefb-note` in `--muted` wie `.donenote`, keine Erfolgs- oder Alarmfarbe), Texte aus `fb2TeacherText`:
-  `"expired"` „Diese Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe
-  übermitteln. Deine Abgabe ist davon nicht betroffen.“, `"gone"` „Diese Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln.
-  …“ (ohne „sie hat deine Abgabe …“ – gelöscht oder neu abgegeben, dann stimmte das womöglich nicht), `"failed"`/`"skipped"` „Diese
-  Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln – sie hat deine Abgabe mit dem ersten Feedback. …“. Vorher, ohne Dialog:
+  `"expired"` „Die neue Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe
+  übermitteln. Deine Abgabe ist davon nicht betroffen.“, `"gone"` „Die neue Rückmeldung ließ sich nicht mehr an deine Lehrkraft
+  übermitteln. …“, `"failed"`/`"skipped"` „Die neue Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. …“ – „Die neue
+  Rückmeldung“ wie die Ankündigung im Abgabe-Dialog (für unverändert abgegebene Aufgaben gilt das erste Feedback, das mit der Abgabe ging),
+  und nie eine Aussage darüber, was die Lehrkraft jetzt hat (Abgabe bzw. Blatt womöglich gelöscht oder neu abgegeben). Vorher, ohne Dialog:
   steht „Rückmeldung erneut anfordern“ da und ist die Frist vorbei (bzw. nie gehalten), sagt `p#done-fb-retry-note` (`role="status"`, per
-  `aria-describedby` am Knopf; `fb2RetryNote` aus `finalFeedbackFailed`, beim Ausblenden des Knopfes und im Zeitgeber von `fb2Hold`)
+  `aria-describedby` am Knopf; `fb2RetryNote` aus `finalFeedbackFailed`, beim Ausblenden des Knopfes und aus `fb2Check`)
   `fb2RetryText`: „Seit deiner Abgabe sind mehr als 15 Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt
   sie sich nicht mehr übermitteln.“ Die Hinweise nennen nie Tippzeiten; Kurzfassungen, Datenschutztexte und die PDF-Logik bleiben
   unverändert (eine schon geladene PDF enthält die Rückmeldung trotzdem; die Lehrkraft-Seite sagt per `fb2Missing` „… wurde nicht an die

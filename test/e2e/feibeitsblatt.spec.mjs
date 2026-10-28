@@ -3042,7 +3042,7 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await closePage(t);
 });
 
-test("7p Zweite Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nichts („gone“), Frist von 15 Minuten abgelaufen während der KI-Anfrage bzw. vor „Rückmeldung erneut anfordern“ (Hinweis vorher unter dem Knopf) → ruhiger Hinweis unter der Rückmeldung, nichts als gesendet gezählt, die PDF-Datei enthält die Rückmeldung trotzdem", async ({ browser }) => {
+test("7p Zweite Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nichts („gone“), Frist von 15 Minuten abgelaufen während der KI-Anfrage bzw. vor „Rückmeldung erneut anfordern“ (Hinweis vorher unter dem Knopf – auch nach dem Ruhezustand des Geräts, beim Zurückkehren bzw. durch die regelmäßige Prüfung) → ruhiger Hinweis unter der Rückmeldung, nichts als gesendet gezählt, die PDF-Datei enthält die Rückmeldung trotzdem", async ({ browser }) => {
   // eigenes Blatt mit einer Aufgabe mit Auftrag an die KI; am Ende wieder löschen
   const t = await openPage(browser);
   await teacherLogin(t.page, PW);
@@ -3053,8 +3053,8 @@ test("7p Zweite Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nichts
   await t.page.click("#b-gen");
   await expect(t.page.locator("#b-result")).toBeVisible();
   const shownP = (await t.page.locator("#b-res-code").textContent()).trim();
-  const EXPIRED = "Diese Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln. Deine Abgabe ist davon nicht betroffen.";
-  const GONE = "Diese Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.";
+  const EXPIRED = "Die neue Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln. Deine Abgabe ist davon nicht betroffen.";
+  const GONE = "Die neue Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.";
   const RETRY_LATE = "Seit deiner Abgabe sind mehr als 15 Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht mehr übermitteln.";
   // Schüler:in bis zur Bestätigungsseite: Feedback holen, überarbeiten, abgeben. clock: Uhr der Seite per page.clock steuerbar (läuft sonst
   // normal weiter); routes(xp, posted): eigene Routen vor der Abgabe; posted sammelt die nachgereichten Rückmeldungen (stage „feedback2“)
@@ -3120,24 +3120,38 @@ test("7p Zweite Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nichts
   await neutral(p2.page, "#done-fb-teacher");
   await closePage(p2);
 
-  /* P3: die zweite Rückmeldung scheitert zuerst (502) → „Rückmeldung erneut anfordern“, innerhalb der Frist ohne Hinweis am Knopf; nach
-     16 Minuten (fastForward: der Zeitgeber der Frist läuft ab) sagt der Text unter dem Knopf vorher, dass eine neue Rückmeldung nur noch
-     für dich ist – kein Dialog; danach kommt die Rückmeldung, nichts wird nachgereicht, Hinweis unter der Rückmeldung */
-  let ai3 = 0;
-  const p3 = await toDone({ vorname: "pam", nachname: "pu", geb: "--05-06", klasse: "9a" }, {
-    clock: true,
-    routes: (xp) => xp.route("**/api/feedback", (route) => (++ai3 === 1
-      ? route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI hat gerade nicht geantwortet.", code: "ai_error" }) })
-      : route.continue())),
-  });
-  const retry = p3.page.locator("#done-fb-retry"), note = p3.page.locator("#done-fb-retry-note");
-  await expect(retry).toBeVisible({ timeout: 30_000 });
-  await expect(p3.page.locator("#done-fb-status")).toContainText("Deine Abgabe ist davon nicht betroffen – du kannst die Rückmeldung noch einmal anfordern.");
-  await expect(retry).toHaveAttribute("aria-describedby", "done-fb-retry-note");
+  /* P3/P4: die zweite Rückmeldung scheitert zuerst (502) → „Rückmeldung erneut anfordern“, innerhalb der Frist ohne Hinweis am Knopf. Dann
+     der Ruhezustand des Geräts: Die Wanduhr springt 16 Minuten weiter, ohne dass ein Zeitgeber abläuft (Uhr angehalten, setSystemTime) –
+     ein Zeitgeber allein käme erst viel später. toRetry führt bis dahin; ai() zählt die KI-Anfragen. */
+  const toRetry = async (who) => {
+    let ai = 0;
+    const x = await toDone(who, {
+      clock: true,
+      routes: (xp) => xp.route("**/api/feedback", (route) => (++ai === 1
+        ? route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die KI hat gerade nicht geantwortet.", code: "ai_error" }) })
+        : route.continue())),
+    });
+    const retry = x.page.locator("#done-fb-retry"), note = x.page.locator("#done-fb-retry-note");
+    await expect(retry).toBeVisible({ timeout: 30_000 });
+    await expect(x.page.locator("#done-fb-status")).toContainText("Deine Abgabe ist davon nicht betroffen – du kannst die Rückmeldung noch einmal anfordern.");
+    await expect(retry).toHaveAttribute("aria-describedby", "done-fb-retry-note");
+    await x.page.waitForTimeout(300);
+    await expect(note).toBeHidden();   // noch innerhalb der Frist
+    const now = await x.page.evaluate(() => Date.now());
+    await x.page.clock.pauseAt(now + 5000);
+    await x.page.clock.setSystemTime(now + 16 * 60e3);
+    return { ...x, retry, note, ai: () => ai };
+  };
+  /* P3: beim Zurückkehren (visibilitychange) rechnet die Seite die Frist nach und sagt unter dem Knopf vorher, dass eine neue Rückmeldung nur
+     noch für dich ist – kein Dialog; danach kommt die Rückmeldung, nichts wird nachgereicht, Hinweis unter der Rückmeldung */
+  const p3 = await toRetry({ vorname: "pam", nachname: "pu", geb: "--05-06", klasse: "9a" });
+  const { retry, note } = p3;
   await p3.page.waitForTimeout(300);
-  await expect(note).toBeHidden();   // noch innerhalb der Frist
-  await p3.page.clock.fastForward("16:00");
+  await expect(note).toBeHidden();   // ohne Ereignis und ohne Zeitgeber (angehaltene Uhr) noch nichts
+  await p3.page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await p3.page.clock.runFor(200);   // liveFill: erst einblenden, nach 80 ms füllen
   await expect(note).toHaveText(RETRY_LATE);
+  await p3.page.clock.resume();
   await expect(note).toHaveAttribute("role", "status");
   await neutral(p3.page, "#done-fb-retry-note");
   expect(await note.textContent()).not.toMatch(NO_TT);
@@ -3148,8 +3162,17 @@ test("7p Zweite Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nichts
   await expect(p3.page.locator("#done-fb-teacher")).toHaveText(EXPIRED);
   await p3.page.waitForTimeout(1000);
   expect(p3.posted).toEqual([]);
-  expect(ai3).toBe(2);
+  expect(p3.ai()).toBe(2);
   await closePage(p3);
+
+  /* P4: ohne Ereignis (das Fenster blieb sichtbar und im Fokus) findet die regelmäßige Prüfung (höchstens alle 15 s) die abgelaufene Frist */
+  const p4 = await toRetry({ vorname: "pol", nachname: "pa", geb: "--07-08", klasse: "9a" });
+  await p4.page.clock.runFor(16_000);
+  await expect(p4.note).toHaveText(RETRY_LATE);
+  await expect(p4.retry).toBeVisible();
+  await expect(p4.page.locator("#dlg.open")).toHaveCount(0);
+  expect(p4.posted).toEqual([]);
+  await closePage(p4);
 
   // aufräumen: das Blatt samt Abgaben löschen
   await t.page.click("#b-res-back");
@@ -5426,7 +5449,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   // und die Bestätigungsseite sagt, dass die Rückmeldung die Lehrkraft nicht erreicht hat
   const DOWN = { status: 503, body: { ok: false, error: "Der Server ist gerade nicht erreichbar.", code: "server_error" } };
   const c5 = await fb2Case({ vorname: "wim", nachname: "wi", geb: "--05-05", klasse: "7a" }, () => DOWN, 3,
-    "Diese Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln – sie hat deine Abgabe mit dem ersten Feedback. Deine Abgabe ist davon nicht betroffen.");
+    "Die neue Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.");
   expect(c5.sent.length).toBe(3);
   for (const x of c5.sent) expect(noFb2(x)).toEqual(c5.fin);
   expect(c5.got).toEqual(c5.fin);

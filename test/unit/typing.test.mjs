@@ -874,7 +874,8 @@ test("typing: nach der Abgabe – die angenommene Nutzlast (mit Tippzeiten) nur 
   assert.ok(body("function resetStudent()", "\n}\n").includes("fb2Release();"));
   const hold = body("function fb2Hold(", "\n}\n");
   assert.ok(hold.includes("sub.fb2Until = (Number.isFinite(sentAt) && sentAt > 0 ? sentAt : Date.now()) + FB2_HOLD_MS;"));
-  assert.ok(hold.includes("setTimeout(() => { if (S.fb2Base === base) S.fb2Base = null; fb2RetryNote(); }, Math.max(0, sub.fb2Until - Date.now()));"));
+  assert.ok(hold.includes("base.until = performance.now() + Math.max(0, sub.fb2Until - Date.now());"));
+  assert.ok(hold.indexOf("fb2Check();") > hold.indexOf("S.fb2Base = base;"));   // freigegeben spätestens nach FB2_HOLD_MS (fb2Check, eigener Test)
 });
 
 test("typing: Widerspruch aus einem anderen Tab nach der Abgabe – die gehaltene Nutzlast verliert die Tippzeit-Werte, nachgereicht wird ohne sie", () => {
@@ -928,9 +929,12 @@ test("zweite Rückmeldung: Hinweise, wenn sie die Lehrkraft nicht erreicht – E
   const X = new Function(body("const FB2_HOLD_MS = ", "/* Die angenommene Nutzlast") + "\nreturn { FB2_MIN, fb2TeacherText, fb2RetryText };")();
   assert.equal(X.FB2_MIN, REPLACE_WINDOW_MS / 60e3);
   const ok = " Deine Abgabe ist davon nicht betroffen.";
-  assert.equal(X.fb2TeacherText("expired"), "Diese Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln." + ok);
-  assert.equal(X.fb2TeacherText("gone"), "Diese Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + ok);
-  for (const r of ["failed", "skipped"]) assert.equal(X.fb2TeacherText(r), "Diese Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln – sie hat deine Abgabe mit dem ersten Feedback." + ok);
+  // „Die neue Rückmeldung“ wie im Abgabe-Dialog; nie behaupten, was die Lehrkraft jetzt hat (Abgabe bzw. Blatt womöglich gelöscht)
+  assert.equal(X.fb2TeacherText("expired"), "Die neue Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln." + ok);
+  assert.equal(X.fb2TeacherText("gone"), "Die neue Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + ok);
+  for (const r of ["failed", "skipped"]) assert.equal(X.fb2TeacherText(r), "Die neue Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln." + ok);
+  assert.match(html, /„Die neue Rückmeldung geht danach verschlüsselt auch an deine Lehrkraft\.“/);   // so kündigt es der Abgabe-Dialog an
+  for (const r of ["expired", "gone", "failed", "skipped"]) assert.doesNotMatch(X.fb2TeacherText(r), /sie hat|hat deine Abgabe|bekommt deine Abgabe/);
   for (const r of ["sent", "same", "", undefined]) assert.equal(X.fb2TeacherText(r), "");
   assert.equal(X.fb2RetryText("expired"), "Seit deiner Abgabe sind mehr als 15 Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht mehr übermitteln.");
   assert.equal(X.fb2RetryText("skipped"), "Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht übermitteln.");
@@ -997,6 +1001,11 @@ test("zweite Rückmeldung: sendFeedback2 liefert ein Ergebnis – nur „sent“
   // endgültig gescheitert (4xx außer 408/429) nach einem Versuch; dreimal vorübergehend → „failed“; vorübergehend, dann angekommen → „sent“
   r = await run({ replies: [err("bad_request", 400)] });
   assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length], ["failed", false, 1]);
+  // das Blatt ist inzwischen gelöscht (404 not_found – mit ihm alle Abgaben): wie „gone“, nach Fristablauf „expired“; kein weiterer Versuch
+  r = await run({ replies: [err("not_found", 404)] });
+  assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length, r.S.fb2Base], ["gone", false, 1, null]);
+  r = await run({ replies: [err("not_found", 404)], before: (n, S, sub) => { sub.fb2Until = Date.now() - 1; } });
+  assert.deepEqual([r.res, r.calls.length], ["expired", 1]);
   r = await run({ replies: [err("server_error", 503), err("network", 0), err("rate_limited", 429)] });
   assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length, r.S.fb2Base], ["failed", false, 3, null]);
   r = await run({ replies: [err("server_error", 503)] });
@@ -1014,4 +1023,51 @@ test("zweite Rückmeldung: sendFeedback2 liefert ein Ergebnis – nur „sent“
   // „Neues Feibeitsblatt öffnen“ zwischen zwei Versuchen → „skipped“ (dann zeigt die Seite ohnehin nichts mehr dazu)
   r = await run({ replies: [err("server_error", 503)], before: (n, S) => { S.lastSubmission = null; } });
   assert.deepEqual([r.res, r.calls.length, r.sub.fb2Sent], ["skipped", 1, false]);
+});
+
+test("zweite Rückmeldung: fb2Check rechnet die Frist nach – auch wenn die Wanduhr springt (Ruhezustand) oder zurückgestellt wird; freigegeben spätestens nach FB2_HOLD_MS", () => {
+  const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
+  const src = body("const FB2_TICK_MS = ", "\n}\n") + "\n}\n";
+  // nachgebaut: Wanduhr (Date.now) und Zeitgeber-Uhr (performance.now) getrennt steuerbar, Zeitgeber werden nur aufgezeichnet
+  const run = ({ wallLeft, monoLeft }) => {
+    let wall = 1_800_000_000_000, mono = 5_000, notes = 0;
+    const timers = [], cleared = [];
+    const sub = { fb2Until: wall + wallLeft };
+    const base = { sub, timer: 0, until: mono + monoLeft };
+    const S = { fb2Base: base };
+    const env = { S, Date: { now: () => wall }, performance: { now: () => mono }, fb2RetryNote: () => { notes++; },
+      setTimeout: (f, ms) => { timers.push(ms); return timers.length; }, clearTimeout: (id) => cleared.push(id) };
+    const X = new Function(...Object.keys(env), src + "\nreturn { FB2_TICK_MS, fb2Check };")(...Object.values(env));
+    X.fb2Check();
+    return { X, S, base, timers, cleared, notes: () => notes, jump: (dWall, dMono) => { wall += dWall; mono += dMono; } };
+  };
+  // noch 10 Minuten: gehalten, nächste Prüfung nach FB2_TICK_MS (nicht erst nach 10 Minuten – ein Zeitgeber zählt die Schlafzeit nicht)
+  let r = run({ wallLeft: 10 * 60e3, monoLeft: 10 * 60e3 });
+  assert.equal(r.X.FB2_TICK_MS, 15e3);
+  assert.equal(r.S.fb2Base, r.base);
+  assert.deepEqual(r.timers, [15e3]);
+  assert.equal(r.notes(), 1);   // der Hinweis unter dem Knopf wird jedes Mal nachgeführt
+  // Ruhezustand: die Wanduhr springt 16 Minuten, die Zeitgeber-Uhr kaum → bei der nächsten Prüfung freigegeben, kein weiterer Zeitgeber
+  r.jump(16 * 60e3, 15e3);
+  r.X.fb2Check();
+  assert.equal(r.S.fb2Base, null);
+  assert.deepEqual(r.timers, [15e3]);
+  assert.equal(r.notes(), 2);
+  // kurz vor Ablauf: der letzte Zeitgeber trifft genau die Frist
+  r = run({ wallLeft: 4e3, monoLeft: 4e3 });
+  assert.deepEqual(r.timers, [4e3]);
+  // Wanduhr zurückgestellt (wallLeft groß), seit dem Halten aber 15 Minuten vergangen (monoLeft ≤ 0) → trotzdem freigegeben
+  r = run({ wallLeft: 60 * 60e3, monoLeft: 0 });
+  assert.equal(r.S.fb2Base, null);
+  assert.deepEqual(r.timers, []);
+  // nichts gehalten: nur der Hinweis wird nachgeführt
+  const none = run({ wallLeft: 1, monoLeft: 1 });
+  none.S.fb2Base = null;
+  none.X.fb2Check();
+  assert.equal(none.notes(), 2);
+  // aufgerufen beim Zurückkehren, vor dem Klick (Fokus, Mauszeiger auf dem Knopf) und aus fb2Hold
+  assert.ok(html.includes('document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fb2Check(); });'));
+  assert.ok(html.includes('window.addEventListener("pageshow", () => fb2Check());') && html.includes('window.addEventListener("focus", () => fb2Check());'));
+  assert.ok(html.includes('for (const ev of ["focus", "pointerenter"]) $("done-fb-retry").addEventListener(ev, () => fb2Check());'));
+  assert.ok(!body("function fb2Hold(", "\n}\n").includes("setTimeout"));   // kein einzelner langer Zeitgeber mehr – fb2Check übernimmt
 });
