@@ -3,13 +3,15 @@
 // die Oberfläche). Die Tests bauen aufeinander auf (eine Datenbank, eine Lehrkraft) → seriell, ein Worker.
 import { test, expect } from "@playwright/test";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { inflateSync, deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { expectedResults, expectedChecklist } from "../mock-ai.mjs";
 import jsQR from "jsqr";
-import { deriveTeacherKeys, makeEnvelope } from "../smoke.mjs";
+import { deriveTeacherKeys, makeEnvelope, openPrivateKey, openEnvelope } from "../smoke.mjs";
 import { makePng } from "../png.mjs";
+import { escHull, b64url, overviewPdf } from "../escape-fixture.mjs";
 import { MOCK_URL, BASE_URL } from "./env.mjs";
 import {
   PASTE_MSG, UNKNOWN_CODE_MSG, NO_SOLUTION_NOTE, GREEN, RED, openPage, closePage, confirmDialog, teacherLogin,
@@ -34,6 +36,22 @@ const TASKS = [
 ];
 const SOLUTION_LINES = TASKS.flatMap((t) => t.solution.split("\n").map((l) => l.replace(/^- /, "")).filter(Boolean));
 const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}$/;
+// Schalter in index.html: Tippzeiten im Zwischenstand speichern (true) oder nur im Arbeitsspeicher halten (false)
+const TT_KEEP = /\bconst TT_KEEP_IN_DRAFT = true;/.test(readFileSync(new URL("../../index.html", import.meta.url), "utf8"));
+/* Ablauf-Kasten „So gehst du vor“ (oben auf dem Blatt) */
+const STEP_LATE = "– nur direkt nach der Abgabe auf der Bestätigungsseite (nicht nach Neuladen oder „Neues Feibeitsblatt öffnen“)";
+const STEPS_AI = ["Aufgaben bearbeiten", "KI-Feedback anfordern (freiwillig, empfohlen)", "Lösungen mithilfe des KI-Feedbacks überarbeiten", "Abgeben",
+  "Lösungen und letztes Feedback herunterladen " + STEP_LATE];
+const STEPS_NO_AI = ["Aufgaben bearbeiten", "Abgeben", "Lösungen herunterladen " + STEP_LATE];
+const STEP_FB_BLOCKED = "KI-Feedback anfordern (freiwillig, empfohlen – gerade nicht möglich)";   // kein KI-Dienst eingerichtet bzw. Grund gemeldet
+/* Tippzeiten im Zwischenstand: je Antwort (bzw. erster Fassung) genau so viele Werte wie Zeichen – oder gar keine (Schalter aus) */
+function expectDraftTyping(d, answers, first) {
+  if (!TT_KEEP) { expect(d.typing).toBeUndefined(); return; }
+  expect(d.typing.v).toBe(1);
+  expect(d.typing.answers.map((b) => Buffer.from(b, "base64").length)).toEqual(answers.map((a) => a.length));
+  if (first) expect(d.typing.first.map((b) => Buffer.from(b, "base64").length)).toEqual(first.map((a) => a.length));
+  else expect(d.typing.first).toBeNull();
+}
 
 // Schüler:in A: tippt Kürzel klein/groß gemischt, überarbeitet nach dem Feedback
 const A = {
@@ -108,22 +126,126 @@ const OP_RESP = OP.name + ", " + OP.addr + ", E-Mail: " + OP.email + ". Feibeits
 const OP_SHORT = "Verantwortlich ist " + OP.name + " – Feibeitsblatt ist ein privates, kostenloses Angebot.";
 const OP_COMPLAIN = "Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren – für den Betreiber zuständig ist: " + OP_AUTH + ", datenschutz.hessen.de (öffnet in neuem Tab).";
 const OP_INFO = "Verantwortlich für den Datenschutz: " + OP.name + " (Betreiber dieser Seite, privates Angebot). ";
-// Rechtsgrundlagen (du-Form): Bearbeiten/Abgeben/KI-Feedback (b), LanguageTool (a), Aufruf/Missbrauchsschutz (f), Speicher im Browser (§ 25 TDDDG)
+// Rechtsgrundlagen (du-Form): Bearbeiten/Abgeben/KI-Feedback (b), Tippzeiten (f, Widerspruch per Schalter), LanguageTool (a),
+// Aufruf/Missbrauchsschutz (f), Speicher im Browser (§ 25 TDDDG – nur Angaben und Antworten im Zwischenstand, nicht die Tippzeiten)
+const TT_USE = "nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht";
+const TT_SWITCH = "Tippzeiten für dieses Feibeitsblatt nicht messen", TT_SWITCH_G = "Tippzeiten für euer Feibeitsblatt nicht messen";
+// Tippzeiten im ausführlichen Hinweis (du-Form, Blatt mit KI-Feedback): Zweck, Wirkung und Geltungsbereich des Schalters für den
+// Widerspruch – was zum Zwischenstand gesagt wird, folgt dem Schalter TT_KEEP_IN_DRAFT (beide Stellungen)
+const TT_PURPOSE = "Beim Schreiben misst diese Seite außerdem die Tippzeiten – wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht –, um den Schreibprozess sichtbar zu machen: " +
+  "Deine Lehrkraft sieht deine Antworten farbig markiert und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe); rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
+  "durch Wortvorschläge, Autokorrektur, Diktat oder einen übernommenen Korrekturvorschlag des Browsers. So kann sie bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen. " +
+  "Die Färbung dient " + TT_USE + "; sie ist kein Beweis, und es gibt keine automatische Entscheidung. Beim Schreiben zeigt dir die Seite die Messung nicht an.";
+// erste Ebene (Kurzfassung auf dem Angaben-Bildschirm und in der Vorschau der Lehrkraft, Hinweis im Schreibbereich): zur Tippzeit-Messung
+// genau dieser eine neutrale Satz (Gruppe auf dem Angaben-Bildschirm: „ihr“-Form) – Schalter, Wirkung und Geltungsbereich stehen im
+// eigenen Abschnitt „Widerspruch gegen die Tippzeit-Messung“ des ausführlichen Hinweises (Entscheidung des Betreibers, zweite Fassung)
+const TT_SHORT = "Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen kannst du unter „Alle Informationen zum Datenschutz“.";
+const TT_SHORT_G = "Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen könnt ihr unter „Alle Informationen zum Datenschutz“.";
+const TT_OBJ_HEAD = "Widerspruch gegen die Tippzeit-Messung";
+const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const NO_TT = /Tippzeit|misst|Messung|gemessen|Zeitmess|Schreibprozess|widersprech|Widerspruch|Schalter|Haken/i;
+// Feibeitsblatt als Finale eines Escape-Rooms: Sätze im Datenschutzhinweis (ein Blatt mit Namen, „Impressum & Datenschutz“ allgemein)
+const ESC_PURPOSE = (name) => `Dieses Feibeitsblatt ist das Finale des Escape-Rooms „${name}“: Damit du nichts noch einmal eintragen musst, übernimmt diese Seite deine Angaben und Ergebnisse aus dem Escape-Room, und deine Lehrkraft sieht, wie du die Stationen gelöst hast.`;
+const ESC_PURPOSE_GENERAL = "Ist ein Feibeitsblatt das Finale eines Escape-Rooms, übernimmt diese Seite deine Angaben und Ergebnisse aus dem Escape-Room, damit du nichts noch einmal eintragen musst, und deine Lehrkraft sieht, wie du die Stationen gelöst hast.";
+const ESC_DATA = (name) => `Bei einem Escape-Room-Finale übernimmt diese Seite aus dem Escape-Room${name ? ` „${name}“` : ""} deinen vollen Namen, dein Geburtsdatum, deine Klasse, deinen Bestätigungscode und deine Ergebnisse ` +
+  "(je Station die Zahl der Versuche und die Fehler im ersten Versuch mit deinen Antworten, die Lösungserläuterungen, wann du fertig warst und wann du Zwischenstand-Dateien des Escape-Rooms genutzt hast). " +
+  "Daraus bildet sie deine Kürzel und deinen Geburtstag ohne Jahr. Sie gehören zum Bearbeiten und Abgeben (Art. 6 Abs. 1 Buchst. b DSGVO; im Zwischenstand auf diesem Gerät § 25 Abs. 2 Nr. 2 TDDDG).";
+const ESC_TEACHER = "Bei einem Escape-Room-Finale bekommt deine Lehrkraft verschlüsselt auch deine Ergebnisse aus dem Escape-Room und ob die Prüfsumme des Datensatzes stimmt – nicht deinen vollen Namen, " +
+  "dein Geburtsdatum, deinen Bestätigungscode oder die Lösungserläuterungen. Gespeichert werden diese Ergebnisse wie deine Antworten nur verschlüsselt bei Cloudflare (Server und Datenbank dieser Seite). " +
+  "An einen KI-Dienst gehen die Daten aus dem Escape-Room nie.";
+const ESC_MAIL = "Nur wenn deine Abgabe bei einem Escape-Room-Finale wegen eines technischen Fehlers scheitert und du deine Abschluss-PDF per E-Mail schickst: der Betreiber (" + OP.name + ", E-Mail " + OP.email + "). " +
+  "Die Datei enthält deinen vollen Namen, dein Geburtsdatum, deinen Bestätigungscode, deine Antworten, das KI-Feedback und deine Ergebnisse aus dem Escape-Room; sie geht unverschlüsselt über deinen E-Mail-Anbieter und den des Betreibers.";
+const ESC_STAY = "Bei einem Escape-Room-Finale stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode bis zur Abgabe auch in deinem Zwischenstand und in jeder Zwischenstand-PDF-Datei, " +
+  "die du sicherst, und – wenn du sie herunterlädst – in deiner Abschluss-PDF; diese Dateien löschst du selbst. Der Link aus dem Escape-Room enthält dieselben Daten: Diese Seite entfernt ihn " +
+  "sofort aus der Adresszeile, im Verlauf deines Browsers bleibt er aber in der Regel stehen – lösche ihn dort auf einem geteilten Gerät. " +
+  "Ist die Synchronisierung des Verlaufs eingeschaltet (z. B. über ein Google- oder Firefox-Konto), gelangt er auch dorthin. " +
+  "Schickst du deine Abschluss-PDF nach einer gescheiterten Abgabe per E-Mail an den Betreiber, bewahrt der Betreiber sie auf, bis deine Lehrkraft sie übernommen hat.";
+// Kurzfassung (Locator): genau einmal der Satz, sonst kein Wort zur Messung
+async function expectTtShort(loc, sentence = TT_SHORT) {
+  const txt = await loc.textContent();
+  expect(txt.split(sentence).length - 1, txt).toBe(1);
+  expect(txt.split(sentence).join(" ")).not.toMatch(NO_TT);
+}
+// … und sonst nirgends, solange „Alle Informationen zum Datenschutz“ zu ist: alles Sichtbare (innerText lässt den Inhalt eines
+// geschlossenen details weg), dazu Namen und Beschreibungen sichtbarer Elemente (aria-label, title, placeholder, alt und die Texte
+// hinter aria-labelledby/-describedby), auch in einem offenen Dialog; n = wie oft der Satz sichtbar ist (eine Kurzfassung je Bildschirm)
+async function expectOnlyTtShort(page, where, n = 1) {
+  const r = await page.evaluate(([src, shorts]) => {
+    const re = new RegExp(src, "i"), out = [], strip = (x) => shorts.reduce((y, k) => y.split(k).join(" "), x);
+    const text = document.body.innerText;
+    let count = 0; for (const k of shorts) count += text.split(k).length - 1;
+    for (const d of document.querySelectorAll("details.privfull")) if (d.open && d.checkVisibility()) out.push("offen: " + (d.parentElement.id || d.id));
+    for (const line of strip(text).split("\n")) if (re.test(line)) out.push(line.trim());
+    for (const el of document.querySelectorAll("[aria-label], [title], [placeholder], [alt], [aria-labelledby], [aria-describedby]")) {
+      if (!el.checkVisibility()) continue;
+      for (const a of ["aria-label", "title", "placeholder", "alt"]) { const v = el.getAttribute(a); if (v && re.test(strip(v))) out.push(a + ": " + v); }
+      for (const a of ["aria-labelledby", "aria-describedby"]) {
+        for (const id of (el.getAttribute(a) || "").split(/\s+/).filter(Boolean)) {
+          const t = document.getElementById(id);
+          if (t && re.test(strip(t.textContent))) out.push(a + " #" + id + ": " + t.textContent.trim());
+        }
+      }
+    }
+    return { out, count };
+  }, [NO_TT.source, [TT_SHORT, TT_SHORT_G]]);
+  expect(r.out, where).toEqual([]);
+  expect(r.count, where).toBe(n);
+}
+const BACKUP = "bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)";
+const TT_EFFECT = "Setzt du den Haken, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen" + (TT_KEEP ? " – auch in deinem Zwischenstand" : "") + ". " +
+  "Einen schon an deine Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten; die alte Fassung bleibt verschlüsselt noch " + BACKUP + " in der Datensicherung der Datenbank. " +
+  "Bei deiner Abgabe sieht deine Lehrkraft dann „ohne Messung (widersprochen)“ – das ist dein Recht und für deine Lehrkraft kein Anlass für einen Verdacht. " +
+  "Nimmst du den Haken wieder weg, misst die Seite erst ab dann wieder.";
+const TT_SCOPE = "Der Haken gilt für deine Bearbeitung auf diesem Gerät und für Zwischenstand-PDF-Dateien, die du danach sicherst. " +
+  "Fängst du auf einem anderen Gerät oder nach „Abbrechen und Zwischenstand löschen“ neu an, setze ihn erneut. " +
+  (TT_KEEP ? "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – lösche sie und sichere den Zwischenstand bei Bedarf neu. " : "") +
+  "Einen Erstversuch, den du auf einem anderen Gerät gesendet hast, kann diese Seite nicht ersetzen – wende dich dafür an deine Lehrkraft (sie kann ihn löschen). " +
+  "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.";
+const TT_EFFECT_G = "Setzt ihr den Haken, misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen" + (TT_KEEP ? " – auch in eurem Zwischenstand" : "") + ". " +
+  "Einen schon an eure Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten; die alte Fassung bleibt verschlüsselt noch " + BACKUP + " in der Datensicherung der Datenbank. " +
+  "Bei eurer Abgabe sieht eure Lehrkraft dann „ohne Messung (widersprochen)“ – das ist euer Recht und für eure Lehrkraft kein Anlass für einen Verdacht. " +
+  "Nehmt ihr den Haken wieder weg, misst die Seite erst ab dann wieder.";
+const TT_SCOPE_G = "Der Haken gilt für eure Bearbeitung auf diesem Gerät und für Zwischenstand-PDF-Dateien, die ihr danach sichert. " +
+  "Fangt ihr auf einem anderen Gerät oder nach „Abbrechen und Zwischenstand löschen“ neu an, setzt ihn erneut. " +
+  (TT_KEEP ? "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – löscht sie und sichert den Zwischenstand bei Bedarf neu. " : "") +
+  "Einen Erstversuch, den ihr auf einem anderen Gerät gesendet habt, kann diese Seite nicht ersetzen – wendet euch dafür an eure Lehrkraft (sie kann ihn löschen). " +
+  "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit eurer ganzen Abgabe löschen – wendet euch für einen Widerspruch dann an eure Lehrkraft oder an den Betreiber.";
+// „Welche Daten?“: Zugriff auf das Gerät im Sinne von § 25 TDDDG – nur die Tatsache (Zwischenstand nur mit TT_KEEP_IN_DRAFT); bei Blättern
+// mit KI-Feedback (alle Prüfungen hier) hält die Seite sie nach der Abgabe, bis die zweite Rückmeldung nachgereicht ist (TT_HELD)
+const TT_HELD = " (und, wenn die KI-Rückmeldung zu deiner abgegebenen Fassung noch nachgereicht wird, bis dahin)";
+const TT_HELD_G = " (und, wenn die KI-Rückmeldung zu eurer abgegebenen Fassung noch nachgereicht wird, bis dahin)";
+const TT_ACCESS = "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus" +
+  (TT_KEEP ? ", hält sie bis zur Abgabe" + TT_HELD + " im Arbeitsspeicher und speichert die Tippzeiten bis zur Abgabe auch in deinem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe" + TT_HELD + " im Arbeitsspeicher") +
+  " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.";
+const TT_ACCESS_G = "Für die Tippzeiten liest diese Seite beim Schreiben in eurem Browser die Zeitpunkte eurer Eingaben aus" +
+  (TT_KEEP ? ", hält sie bis zur Abgabe" + TT_HELD_G + " im Arbeitsspeicher und speichert die Tippzeiten bis zur Abgabe auch in eurem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe" + TT_HELD_G + " im Arbeitsspeicher") +
+  " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf euer Gerät im Sinne von § 25 TDDDG.";
+// „Wie lange …?“: Tippzeiten im Zwischenstand und in einer Zwischenstand-PDF (die bleibt, bis sie gelöscht wird) – nur mit TT_KEEP_IN_DRAFT
+const TT_STAY = "Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; " + (TT_KEEP
+  ? "bis zur Abgabe stehen sie auch in deinem Zwischenstand – und in jeder Zwischenstand-PDF-Datei, die du sicherst, bis du sie löschst."
+  : "bis zur Abgabe" + TT_HELD + " hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.");
+// Rechtsgrundlagen: Tippzeiten eigene Grundlage (Buchst. f); Buchst. b und § 25 TDDDG nehmen sie ausdrücklich aus
+const ttWhere = (your, withAi) => [TT_KEEP && "in " + your + " Zwischenstand", withAi && "im Erstversuch", "in der Abgabe"].filter(Boolean).join(", ").replace(/, (?=[^,]*$)/, " und ");
+// Buchst. b nimmt die Tippzeiten aus – ohne TT_KEEP nur bei Erstversuch und Abgabe (im Zwischenstand stehen dann keine)
+const ttOutB = (withAi) => " (" + (TT_KEEP ? "" : withAi ? "bei Erstversuch und Abgabe " : "bei der Abgabe ") + "außer den Tippzeiten darin, siehe nächster Punkt)";
 const privBases = (withAi, deliver) => [
-  "Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand" + (withAi ? ", der Erstversuch" : "") + " und die Abgabe" +
+  "Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand" + (withAi ? ", der Erstversuch" : "") + " und die Abgabe" + ttOutB(withAi) +
     (withAi ? " – und das KI-Feedback, wenn du es anforderst: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " + (withAi ? "diese Funktionen" : "es") + " selbst an.",
+  "Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen " + ttWhere("deinem", withAi) + "): " +
+    "Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit deine Lehrkraft bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen kann; " +
+    "die Tippzeiten dienen " + TT_USE + ". Der Messung kannst du widersprechen – mit dem Schalter „" + TT_SWITCH + "“ (siehe „" + TT_OBJ_HEAD + "“).",
   "Rechtschreibprüfung (LanguageTool): deine Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Du gibst sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und deiner Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. " +
     "Du kannst sie jederzeit für die Zukunft widerrufen, indem du die Prüfung nicht mehr nutzt.",
   "Aufruf und Auslieferung dieser Seite (" + deliver + ") und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – " +
     "das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen kannst du Widerspruch einlegen (siehe „Deine Rechte“).",
-  "Speichern im Browser deines Geräts (dein Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von dir gewünschte Funktion unbedingt erforderlich.",
+  "Speichern im Browser deines Geräts (dein Zwischenstand" + (TT_KEEP ? " – außer den Tippzeiten darin –" : "") + ", die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von dir gewünschte Funktion unbedingt erforderlich.",
 ];
 const DELIVER_WORKER = "über Cloudflare; die Checklisten-Seite über GitHub Pages";   // Tests: die Seite kommt vom Worker, der QR-Code führt auf GitHub Pages
 const PRIV_HEADS = ["Wer ist verantwortlich?", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
-  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Musst du mitmachen?", "Entscheidet die KI über dich?", "Deine Rechte"];
+  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Musst du mitmachen?", "Entscheidet die KI über dich?", TT_OBJ_HEAD, "Deine Rechte"];
 // Angaben-Bildschirm einer Partner- / Gruppenarbeit: derselbe Hinweis in der „ihr“-Form
 const PRIV_HEADS_GROUP = ["Wer ist verantwortlich?", "Wozu werden eure Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
-  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Müsst ihr mitmachen?", "Entscheidet die KI über euch?", "Eure Rechte"];
+  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Müsst ihr mitmachen?", "Entscheidet die KI über euch?", TT_OBJ_HEAD, "Eure Rechte"];
 const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
 const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
 // Partner- / Gruppenarbeit: Texte in der „ihr“-Form dort, wo es um alle geht (Angaben, Datenschutz-Kurzfassung, Rechtschreibprüfung)
@@ -215,14 +337,15 @@ async function fillPerson(page, input) {
   await page.click("#p-btn");
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
 }
-async function typeAt(page, sel, text) {
+async function typeAt(page, sel, text, opts) {   // opts z. B. { delay: 120 } (Tippzeiten: jede Taste mit Pause)
   await page.click(sel);
   await page.keyboard.press("Control+End");
-  await page.keyboard.type(text);
+  await page.keyboard.type(text, opts);
 }
-async function requestFeedback(page) {
+async function requestFeedback(page, inDialog) {
   await expect(page.locator("#submit-btn")).toBeEnabled();   // das KI-Feedback ist freiwillig: Abgeben geht immer
   await page.click("#fb-btn");
+  if (inDialog) { await expect(page.locator("#dlg.open")).toBeVisible(); await inDialog(); }
   await confirmDialog(page, "KI-Feedback anfordern?");
   await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
 }
@@ -775,6 +898,15 @@ async function checkLegal(lp, { days = 30, deliver = DELIVER_WORKER, github = CH
   await expect(lpriv).toContainText("Wende dich dafür an den Betreiber (E-Mail: " + OP.email + ").");
   await expect(lpriv).toContainText("Einer Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO).");
   await expect(lpriv).toContainText(OP_COMPLAIN);
+  // Widerspruch gegen die Tippzeit-Messung: ohne geöffnetes Blatt kein Schalter, aber wo er steht und was er bewirkt
+  await expect(lpriv.locator("input")).toHaveCount(0);
+  // (eigener Abschnitt, gleiche Ebene wie die übrigen, vor „Deine Rechte“ – dort nur ein Verweis)
+  await expect(lpriv.locator(`h3.privh:text-is("${TT_OBJ_HEAD}") + p`)).toHaveText("Der Messung der Tippzeiten kannst du direkt widersprechen, sobald du ein Feibeitsblatt geöffnet hast: Unter „Alle Informationen zum Datenschutz“ – " +
+    "auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben – steht im Abschnitt „" + TT_OBJ_HEAD + "“ der Schalter „" + TT_SWITCH + "“. " + TT_EFFECT + " " + TT_SCOPE);
+  await expect(lpriv.locator(`h3.privh:text-is("${TT_OBJ_HEAD}") + p + h3`)).toHaveText("Deine Rechte");
+  await expect(lpriv).toContainText("Der Tippzeit-Messung kannst du direkt mit einem Schalter widersprechen – siehe „" + TT_OBJ_HEAD + "“.");
+  await expect(lpriv).toContainText(TT_PURPOSE);
+  await expect(lpriv.locator('h3.privh:text-is("Welche Daten?") + p + p')).toHaveText(TT_ACCESS);   // § 25 TDDDG: nur die Tatsache
   await expect(recipients(lpriv, "h3").filter({ hasText: "GitHub" })).toHaveText([github]);
   const auth = lpriv.locator(`a[href="${OP_AUTH_URL}"]`);
   await expect(auth).toHaveAttribute("target", "_blank");
@@ -782,6 +914,13 @@ async function checkLegal(lp, { days = 30, deliver = DELIVER_WORKER, github = CH
   await expect(lp.locator("#legal-other")).toHaveText("Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. " +
     "Bei Partner- oder Gruppenarbeit gilt alles ebenso für alle in der Gruppe; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. " +
     "Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.");
+  // Feibeitsblatt als Finale eines Escape-Rooms: eigener Abschnitt in allgemeiner Form (der Hinweis darüber bleibt unverändert)
+  const lesc = lp.locator("#legal-escape");
+  await expect(lesc.locator("h2")).toHaveText("Feibeitsblatt als Finale eines Escape-Rooms");
+  await expect(lesc.locator("p")).toHaveText([
+    "Manche Feibeitsblätter sind das Finale eines Escape-Rooms: Du öffnest sie über den Link am Ende des Escape-Rooms oder mit deiner Überblick-PDF (auf der Startseite „Zwischenstand-PDF hochladen“); es gibt dann nur Einzelarbeit. Zusätzlich zu den Angaben oben gilt:",
+    ESC_PURPOSE_GENERAL, ESC_DATA(""), ESC_TEACHER, ESC_MAIL, ESC_STAY]);
+  await expect(lesc.locator(`a[href="mailto:${OP.email}"]`)).toHaveCount(1);
   for (const w of ["Deine Schule", "Datenschutzbeauftragte", "Schulgesetz", "HSchG", "frag deine Lehrkraft"]) await expect(lp.locator("#screen-legal")).not.toContainText(w);
   await expect(lp.locator("#foot-legal")).toBeHidden();   // auf der Seite selbst kein Link auf sich
   await expect(lp.locator("#pagefoot")).toContainText("Copyright Jan-Rickmer Feindt");
@@ -844,7 +983,9 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await expect(sp.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);   // die Angaben gehen schon mit dem KI-Feedback (Erstversuch) an die Lehrkraft
   const short = sp.locator("#p-privacy-short");
   await expect(short).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft\\. Nach 30 Tagen werden sie automatisch gelöscht\\. " +
-    "Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, bei der Abgabe dann noch einmal die danach geänderten Antworten\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
+    "Das KI-Feedback ist freiwillig: Nur wenn du es anforderst, gehen deine Antworten – ohne deine Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, bei der Abgabe dann noch einmal die danach geänderten Antworten\\. Auch die Rechtschreibprüfung ist freiwillig\\. " +
+    reEsc(TT_SHORT) + "$"));
+  await expectTtShort(short);   // zur Tippzeit-Messung nur dieser eine Satz – Schalter, Wirkung und Geltungsbereich im ausführlichen Hinweis darunter
   await shots(sp, "angaben", [375, 1280], PRIVAT_SHOTS);
   const full = sp.locator("#p-privfull");
   expect(await full.evaluate((e) => e.open)).toBe(false);   // aufklappbar
@@ -867,6 +1008,28 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await expect(full).toContainText("Deine Einwilligung zur Rechtschreibprüfung kannst du jederzeit für die Zukunft widerrufen – nutze die Prüfung dann einfach nicht mehr; Prüfungen, die schon stattgefunden haben, bleiben davon unberührt.");
   await expect(full).toContainText(OP_COMPLAIN);
   expect(await full.locator("a").evaluateAll((as) => as.map((a) => a.getAttribute("href")))).toEqual(["mailto:" + OP.email, "mailto:" + OP.email, OP_AUTH_URL]);
+  // Tippzeiten: Zweck (nur als Anlass für ein Gespräch), Daten samt Zugriff auf das Gerät (§ 25 TDDDG), Empfänger, Speicherdauer,
+  // Freiwilligkeit – und der Schalter im eigenen Abschnitt „Widerspruch gegen die Tippzeit-Messung“ vor „Deine Rechte“
+  await expect(full).toContainText(TT_PURPOSE);
+  await expect(full.locator('h2.privh:text-is("Welche Daten?") + p + p')).toHaveText(TT_ACCESS);
+  await expect(full).toContainText("Außerdem deine Antworten mit ihren Tippzeiten (je eingegebenem Zeichen, wie viele Millisekunden seit dem vorangehenden Zeichen vergangen sind – längere Pausen nur als „mehr als 70 Millisekunden“, keine Uhrzeiten; nach einem Widerspruch keine), die KI-Rückmeldungen");
+  await expect(recipients(full, "h2").first()).toHaveText("Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen. Sie sieht auch die Tippzeiten – als Färbung deiner Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie.");
+  await expect(full).toContainText("Gespeichert werden deine Angaben und Antworten (samt Tippzeiten) dort nur verschlüsselt.");
+  await expect(full).toContainText(TT_STAY);
+  await expect(full).toContainText("Die Tippzeiten misst diese Seite, solange du nicht widersprichst (siehe „" + TT_OBJ_HEAD + "“).");
+  await expect(full).toContainText("Einer Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO). " +
+    "Der Tippzeit-Messung kannst du direkt mit einem Schalter widersprechen – siehe „" + TT_OBJ_HEAD + "“. Deine Einwilligung zur Rechtschreibprüfung");
+  const ttSw = full.getByRole("checkbox", { name: TT_SWITCH });
+  // eigener Abschnitt: Überschrift (h2 wie die übrigen) → Schalter mit Wirkung und Geltungsbereich → „Deine Rechte“
+  expect(await ttSw.evaluate((e) => { const b = e.closest(".ttoptbox"); return [b.previousElementSibling.tagName, b.previousElementSibling.className, b.previousElementSibling.textContent, b.nextElementSibling.textContent]; }))
+    .toEqual(["H2", "privh", TT_OBJ_HEAD, "Deine Rechte"]);
+  await expect(ttSw).toBeEnabled();
+  await expect(ttSw).not.toBeChecked();
+  // Wirkung und Geltungsbereich per aria-describedby (zwei Absätze); die Rückmeldung (role=status) direkt unter dem Schalter
+  expect(await ttSw.evaluate((e) => [e.id, e.getAttribute("aria-describedby").split(" ").map((id) => document.getElementById(id).textContent),
+    e.closest(".ttoptbox").firstElementChild.textContent, e.closest("label").nextElementSibling.className]))
+    .toEqual(["p-privfull-ttoff", [TT_EFFECT, TT_SCOPE], "Der Messung der Tippzeiten kannst du direkt hier widersprechen:", "ttopt-st"]);
+  expect(await ttSw.evaluate((e) => e.closest("label").getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);   // ganze Zeile klickbar
   // die Seite kommt hier vom Worker: GitHub nur für die Checklisten-Seite hinter dem QR-Code
   await expect(recipients(full, "h2").filter({ hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
   await expect(full).not.toContainText("liefert diese Seite aus");
@@ -924,14 +1087,23 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   const pv = page.locator("#pv-preview");
   expect(await pv.locator("details.privfull").evaluate((e) => e.open)).toBe(true);   // Vorschau aufgeklappt
   await expect(pv.locator("h3.privh")).toHaveText(PRIV_HEADS);
+  await expect(pv.getByRole("checkbox", { name: TT_SWITCH })).toBeDisabled();   // Vorschau: der Schalter der Schüler:innen ohne Wirkung
   await expect(pv.locator(".privacy")).toContainText(OP_SHORT);
+  await expect(pv.locator(".privacy")).toContainText("Auch die Rechtschreibprüfung ist freiwillig.");   // Vorschau: dieselbe Kurzfassung wie auf dem Angaben-Bildschirm …
+  await expectTtShort(pv.locator(".privacy"));   // … mit dem einen Satz zur Tippzeit-Messung
+  await expect(pv.locator("details.privfull")).toContainText(TT_PURPOSE);   // alles Weitere steht im ausführlichen Hinweis
+  await expect(pv.locator(`h3.privh:text-is("${TT_OBJ_HEAD}") + .ttoptbox`)).toHaveCount(1);
   await expect(pv).toContainText(OP_RESP);
   // die Vorschau gilt für diese Adresse (Worker): GitHub nur für die Checklisten-Seite, für die ganze Seite als Zusatz darunter
   // (Zwischenstand-PDF und QR-Code führen auf GitHub Pages)
   await expect(recipients(pv, "h3").filter({ hasText: "GitHub" })).toHaveText([CHECK_GITHUB]);
   await expect(page.locator("#pv-preview-note")).toHaveText("Rufen die Schüler:innen die Seite über GitHub Pages auf (feibeitsblatt.janrickmer.de, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), " +
     "nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse deines Geräts. " +
-    "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
+    "Für Übermittlungen in die USA stützt sich GitHub auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln.“ " +
+    "Bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen der Satz zur Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „" + TT_OBJ_HEAD + "“ – dort wird nichts gemessen. " +
+    "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
+    "Bei Feibeitsblättern für einen Escape-Room kommen Sätze zu den Daten aus dem Escape-Room hinzu (voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät " +
+    "der Schüler:innen – außer sie schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie). " +
     "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“).");
   // Vorschau mit der (noch ungespeicherten) Frist – derselbe Baustein wie bei den Schüler:innen
   await page.selectOption("#pv-days", String(DAYS));
@@ -1002,6 +1174,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(page.locator("#p-sheet small")).toHaveText("Code " + S.shown + " · 3 Aufgaben");
   // Datenschutzhinweis zum Zeitpunkt der Erhebung: Betreiber und die in Test 1b gespeicherte Frist, alles nur per textContent
   await expect(page.locator("#p-privacy-short")).toContainText(OP_SHORT + " Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft. Nach " + DAYS + " Tagen werden sie automatisch gelöscht.");
+  await expectTtShort(page.locator("#p-privacy-short"));
   await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);
   const pfull = page.locator("#p-privfull");
   await pfull.locator("summary").click();
@@ -1016,6 +1189,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(await auth.getAttribute("rel")).toBe("noopener noreferrer");
   await expect(pfull.locator('a[href^="mailto:"]')).toHaveText([OP.email, OP.email]);   // Verantwortlicher und Kontakt für die Rechte
   await pfull.locator("summary").click();   // wieder zu
+  await expectOnlyTtShort(page, "Angaben (Einzelarbeit)");
 
   // Angaben: Prüfungen der Reihe nach
   const err = page.locator("#p-err");
@@ -1183,11 +1357,20 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(privacy).toContainText("(Cloudflare, Inc., USA; Datenbank in der EU)");
   await expect(privacy).toContainText("Erstversuch und Abgabe werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen.");
   await expect(privacy).not.toContainText("Die Lehrkraft löscht alles nach der Durchsicht.");
+  // Tippzeiten: wie in der Kurzfassung auf dem Angaben-Bildschirm nur der eine Satz – Schalter, Wirkung und Geltungsbereich im ausführlichen Hinweis darunter
+  await expectTtShort(privacy);
+  await expect(privacy).toContainText("deine Lehrkraft kann sie auch früher löschen. " + TT_SHORT + " Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät");   // ohne Hervorhebung im Fließtext
+  await expect(page.locator("#privfull-ed")).toContainText(TT_PURPOSE);
+  await expect(page.locator("#privfull-ed")).toContainText(TT_STAY);
   expect(await privacy.evaluate((e) => getComputedStyle(e).color)).toBe("rgb(111, 103, 90)");
   // darunter alle Informationen (beim Weiterschreiben gibt es keinen Angaben-Bildschirm) – Überschriften unter h2 „Abschluss“ als h3
   await expect(page.locator("#privfull-ed details.privfull summary")).toHaveText("Alle Informationen zum Datenschutz");
   await expect(page.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS);
   await expect(page.locator("#privfull-ed")).toContainText(OP_RESP);
+  // der ausführliche Hinweis ist beim Öffnen zu – der Schalter darin ist dann weder sichtbar noch per Tab oder Skript fokussierbar
+  expect(await page.locator("#privfull-ed details.privfull").evaluate((d) => d.open)).toBe(false);
+  expect(await page.locator("#privfull-ed-d-ttoff").evaluate((el) => { el.focus(); return document.activeElement === el; })).toBe(false);
+  await expectOnlyTtShort(page, "Schreibbereich vor dem Tippen");
 
   // Abstand zur nächsten Aufgabe: eine Leerzeile
   expect(Math.abs((await gapAfterTask(page, 1)) - lh)).toBeLessThan(1);
@@ -1271,6 +1454,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(page.locator("#dlg-cancel")).toHaveText("Trifft nicht zu");
   await expect(page.locator("#dlg-cancel")).toBeFocused();   // der sichere Knopf hat den Fokus
   expect(s.lt).toHaveLength(0);                               // vor der Bestätigung geht nichts raus
+  await expectOnlyTtShort(page, "Dialog vor der Rechtschreibprüfung");
   expect(await confirmDialog(page, "Rechtschreibung und Grammatik prüfen")).toBe(LT_CONSENT);
   const out = page.locator("#t-1 .lt-out");
   await expect(out).toBeVisible();
@@ -1300,7 +1484,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   // KI-Feedback (eine Anfrage an die KI, nur Aufgaben mit Auftrag an die KI, keine Personendaten)
   await expect(page.locator("#submit-btn")).toBeEnabled();
   await mockReset();
-  await requestFeedback(page);
+  await requestFeedback(page, () => expectOnlyTtShort(page, "Dialog vor dem KI-Feedback"));
   const fbReq = await s.calls((r) => r.path === "/api/feedback");
   expect(fbReq).toHaveLength(1);
   expect(fbReq[0].status).toBe(200);
@@ -1351,6 +1535,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(page.locator("#revise-hint")).toHaveText(/^Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten/);
   await expect(page.locator("#submit-btn")).toBeEnabled();
   expect(Math.abs((await gapAfterTask(page, 1)) - lh)).toBeLessThan(1);
+  await expectOnlyTtShort(page, "Schreibbereich nach dem KI-Feedback");
 
   // Mit dem Feedback geht die erste Fassung verschlüsselt als „Erstversuch“ an die Lehrkraft (Kennung wie später die Abgabe)
   await expect.poll(async () => (await s.calls((r) => r.path === "/api/submit")).length, { timeout: 30_000 }).toBe(1);
@@ -1389,6 +1574,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(i0).toBeGreaterThan(0);
   const draft = JSON.parse(pdf.subarray(d0, d1).toString("utf8"));
   expect(draft).toMatchObject({ v: 1, kind: "feibeitsblatt-draft", code: S.code, sheetTitle: TITLE, person: A.person, answers: A.final, first: A.first, attempt: fp.attempt, firstSent: true });
+  expectDraftTyping(draft, A.final, A.first);   // Tippzeiten im selben Datensatz (unverschlüsselt in der PDF – zeigen nur das Tempo)
   expect(draft.feedback.map((f) => ({ covered: f.covered, missing: f.missing, ...noteOf(f) }))).toEqual(exp);
   await expect(page.locator("#save-state")).toHaveText("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf");
   // … auf einem „frischen“ Gerät (neuer Kontext ohne Browserdaten) hochgeladen: erst eine fremde PDF → Meldung, dann die echte →
@@ -1407,7 +1593,10 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(fresh.page.locator("#submit-btn")).toBeEnabled();
   expect(await fresh.calls((r) => r.path === "/api/submit")).toEqual([]);
   expect(await fresh.page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")).length)).toBe(1);
-  expect(JSON.parse(await fresh.page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))))).toMatchObject({ attempt: fp.attempt, firstSent: true });
+  const freshDraft = JSON.parse(await fresh.page.evaluate(() => localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))));
+  expect(freshDraft).toMatchObject({ attempt: fp.attempt, firstSent: true });
+  expectDraftTyping(freshDraft, A.final, A.first);   // aus der PDF übernommen (cleanDraft prüft sie gegen die Texte)
+  if (TT_KEEP) expect(freshDraft.typing).toEqual(draft.typing);
   await closePage(fresh);
 
   // Abgabe: nur {code, envelope, stage, attempt}, alles verschlüsselt; Entwurf auf dem Gerät gelöscht. Danach holt die Seite eine
@@ -1421,6 +1610,8 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   });
   await expect(page.locator("#submit-hint")).toHaveText(/Nach der Abgabe bekommst du zu den Aufgaben, die die KI beurteilt und deren Antwort du nach dem KI-Feedback geändert hast, eine neue KI-Rückmeldung\.$/);
   await page.click("#submit-btn");
+  await expect(page.locator("#dlg.open")).toBeVisible();
+  await expectOnlyTtShort(page, "Abgabe-Dialog");
   const submitText = await confirmDialog(page, "Jetzt abgeben?");
   // A hat die Aufgaben 1 und 2 überarbeitet (Aufgabe 3 hat keinen Auftrag): nur diese gehen noch einmal an die KI
   expect(submitText).toContain("Danach bekommst du eine neue KI-Rückmeldung zu den Aufgaben 1 und 2: Von den Aufgaben, die die KI beurteilt, hast du nur diese nach dem KI-Feedback geändert – nur sie gehen noch einmal an die KI. Die neue Rückmeldung geht danach verschlüsselt auch an deine Lehrkraft. Deine Antworten gehen");
@@ -1451,6 +1642,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(noteCss.size).toBeLessThan(btnCss.size);                                                 // klein …
   expect(noteCss.color).toBe(mutedCss.color);                                                     // … und blass (gedämpfte Farbe wie „Deine Lösung ist … angekommen.“)
   await expect(page.locator("#screen-done .donehint, #screen-done .donelist")).toHaveCount(0);
+  await expectOnlyTtShort(page, "Bestätigung nach der Abgabe", 0);   // keine Kurzfassung mehr – und nichts zur Messung
   // PDF schon während die zweite Rückmeldung lädt: Hinweis in der Datei und auf der Seite
   const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   expect(sdl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Loesungen-" + S.shown + "-\\d{4}-\\d\\d-\\d\\d\\.pdf$"));
@@ -1626,7 +1818,8 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT_GROUP);
   await expect(page.locator("#p-privacy-short")).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur eure Lehrkraft\\. " +
     "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Das KI-Feedback ist freiwillig: Nur wenn ihr es anfordert, gehen eure Antworten – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, " +
-    "bei der Abgabe dann noch einmal die danach geänderten Antworten\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
+    "bei der Abgabe dann noch einmal die danach geänderten Antworten\\. Auch die Rechtschreibprüfung ist freiwillig\\. " + reEsc(TT_SHORT_G) + "$"));
+  await expectTtShort(page.locator("#p-privacy-short"), TT_SHORT_G);   // zur Messung nur der eine Satz in der „ihr“-Form, alles Weitere im ausführlichen Hinweis
   // auch alle Informationen zum Datenschutz in der „ihr“-Form (derselbe Inhalt; „Welche Daten?“ nennt beide Arbeitsformen)
   await page.locator("#p-privfull summary").click();
   await expect(page.locator("#p-privfull h2.privh")).toHaveText(PRIV_HEADS_GROUP);
@@ -1637,14 +1830,20 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-privfull")).toContainText("– ohne eure Namenskürzel und die Klasse –");
   await expect(page.locator("#p-privfull")).toContainText(OP_RESP + " Eure Angaben und Antworten liest eure Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen könnt ihr euch an den Betreiber oder an eure Lehrkraft wenden.");
   await expect(page.locator('#p-privfull h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText([
-    "Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand, der Erstversuch und die Abgabe – und das KI-Feedback, wenn ihr es anfordert: Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert diese Funktionen selbst an.",
+    "Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand, der Erstversuch und die Abgabe" + ttOutB(true) + " – und das KI-Feedback, wenn ihr es anfordert: Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert diese Funktionen selbst an.",
+    "Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen " + ttWhere("eurem", true) + "): Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit eure Lehrkraft bei Auffälligkeiten mit euch über eure Arbeitsweise sprechen kann; " +
+      "die Tippzeiten dienen " + TT_USE + ". Der Messung könnt ihr widersprechen – mit dem Schalter „" + TT_SWITCH_G + "“ (siehe „" + TT_OBJ_HEAD + "“).",
     "Rechtschreibprüfung (LanguageTool): eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Ihr gebt sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und eurer Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr die Prüfung nicht mehr nutzt.",
     "Aufruf und Auslieferung dieser Seite (" + DELIVER_WORKER + ") und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen könnt ihr Widerspruch einlegen (siehe „Eure Rechte“).",
-    "Speichern im Browser eures Geräts (euer Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."]);
+    "Speichern im Browser eures Geräts (euer Zwischenstand" + (TT_KEEP ? " – außer den Tippzeiten darin –" : "") + ", die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."]);
   await expect(page.locator("#p-privfull")).toContainText("Wendet euch dafür an den Betreiber (E-Mail: " + OP.email + ").");
+  await expect(page.locator('#p-privfull h2.privh:text-is("Welche Daten?") + p + p')).toHaveText(TT_ACCESS_G);
+  await expect(page.locator("#p-privfull")).toContainText("Der Tippzeit-Messung könnt ihr direkt mit einem Schalter widersprechen – siehe „" + TT_OBJ_HEAD + "“.");
+  await expect(page.locator(`#p-privfull h2.privh:text-is("${TT_OBJ_HEAD}") + .ttoptbox + h2`)).toHaveText("Eure Rechte");
   await expect(page.locator("#p-privfull")).toContainText("Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren – für den Betreiber zuständig ist: " + OP_AUTH + ", datenschutz.hessen.de (öffnet in neuem Tab).");
   expect(await page.locator("#p-privfull").textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
   await page.locator("#p-privfull summary").click();
+  await expectOnlyTtShort(page, "Angaben (Partner- / Gruppenarbeit)");
 
   // Prüfungen: leeres Feld, eine Person, Zeichen, doppeltes Kürzel, Form; Fehler in #p-err, Feld markiert und fokussiert
   const err = page.locator("#p-err");
@@ -2686,8 +2885,9 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     expect(res.status()).toBe(200);
     const body = await res.text();
     const j = JSON.parse(body);
-    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "privacy", "publicKey", "tasks", "title"]);
+    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "escape", "privacy", "publicKey", "tasks", "title"]);
     expect(j.sheet.aiFeedback).toBe(true);
+    expect(j.sheet.escape).toBe(null);   // kein Finale eines Escape-Rooms
     expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX, transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }]);
     expect(j.sheet.privacy).toEqual({ retentionDays: DAYS });   // nur die Frist (ohne updatedAt; verantwortlich ist der Betreiber, fest in index.html)
     expect(j.sheet.tasks).toEqual(TASKS.map((t, i) => ({ text: t.text, textFmt: [], material: S.material[i], images: i === 0 ? S.imgs.map((m) => ({ id: m.id, mode: m.mode, w: m.w, h: m.h, alt: m.alt })) : [], files: i === 1 ? [S.pdf] : [], answer: { type: "text" } })));
@@ -2870,6 +3070,8 @@ test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort de
   const QUOTA_FALLBACK = "Das KI-Feedback ist gerade nicht möglich (" + QUOTA_REASON + "). Du kannst es morgen noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.";
   await expect(page.locator("#fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht. Du kannst ohne KI-Feedback abgeben oder es morgen noch einmal versuchen.");
   await expect(page.locator("#fb-fallback")).toHaveText(QUOTA_FALLBACK);
+  await expect(page.locator("#ed-steps-list li").nth(1)).toHaveText(STEP_FB_BLOCKED);
+  await expect(page.locator("#ed-steps-list li.cur")).toHaveText(STEPS_AI[0]);
   await expect(page.locator("#fb-wait")).toBeHidden();   // kein automatischer neuer Versuch
   await page.waitForTimeout(500);
   expect((await s.calls((r) => r.path === "/api/feedback")).length).toBe(1);
@@ -2888,6 +3090,7 @@ test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort de
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
   await expect(page.locator("#fb-fallback")).toBeHidden();
   await expect(page.locator("#fb-btn")).toBeEnabled();
+  await expect(page.locator("#ed-steps-list li")).toHaveText(STEPS_AI);   // Kontingent erneuert: wieder „(freiwillig, empfohlen)“
   expect(JSON.parse(await page.evaluate((k) => localStorage.getItem(k), dKey))).toMatchObject({ fbUnavailable: "", fbUnavailableDay: "", fbFails: 1 });
   await page.click("#submit-btn");
   expect(await confirmDialog(page, "Ohne KI-Feedback abgeben?", false)).toBe(noFbDialog("Anfrage nicht abgeschlossen"));
@@ -3090,6 +3293,9 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p5.locator("#fb-btn")).toBeEnabled();                // … Feedback wieder möglich …
   await expect(p5.locator("#fb-status")).toHaveText("");            // … und kein „Die KI arbeitet …“ mehr
   await expect(p5.locator("#submit-btn")).toBeEnabled();
+  await expect(p5.locator("#ed-steps-list li")).toHaveText(STEPS_AI);   // der Kasten steht wieder auf „Aufgaben bearbeiten“
+  await expect(p5.locator("#ed-steps-list li.cur")).toHaveText(STEPS_AI[0]);
+  await expect(p5.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
   await typeAt(p5, "#a-2", " Nachtrag.");
   releaseJ();
   await p5.waitForTimeout(500);
@@ -3123,6 +3329,8 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p6.locator("#privacy")).toContainText(NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.");
   await expect(p6.locator("#privacy")).not.toContainText("KI-Dienst deiner Lehrkraft");
   await expect(p6.locator("#privfull-ed")).toContainText(NO_AI_SET);   // derselbe Inhalt wie im ausführlichen Hinweis
+  await expect(p6.locator("#ed-steps-list li").nth(1)).toHaveText(STEP_FB_BLOCKED);   // schon vor dem ersten Klick erkennbar
+  await expect(p6.locator("#ed-steps-list li.cur")).toHaveText(STEPS_AI[0]);
   for (let i = 0; i < 2; i++) await typeAt(p6, "#a-" + (i + 1), K.first[i]);
   await p6.click("#submit-btn");
   expect(await confirmDialog(p6, "Ohne KI-Feedback abgeben?", false)).toBe("Das KI-Feedback ist gerade nicht möglich (KI nicht eingerichtet). Du kannst es später versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. Bei der Abgabe geht nichts an die KI." + toTeacherUnavailable);
@@ -3142,6 +3350,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p6.locator("#fb-btn")).toBeFocused();
   expect(sheetGets).toBe(3);
   await expect(p6.locator("#fb-fallback")).toBeHidden();   // „KI nicht eingerichtet“ gilt nicht mehr …
+  await expect(p6.locator("#ed-steps-list li")).toHaveText(STEPS_AI);
   await expect(p6.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
   await expect(p6.locator("#privacy")).toContainText("an den KI-Dienst „127.0.0.1:");
   expect(await s6.calls((r) => r.path === "/api/feedback")).toEqual([]);   // nichts gesendet
@@ -3311,6 +3520,9 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   expect(JSON.parse((await s3.calls((r) => r.path.startsWith("/api/sheet/")))[0].body).sheet.aiFeedback).toBe(false);
   await expect(p3.locator("#fb-btn")).toBeHidden();
   await expect(p3.locator("#fin-text")).toHaveText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab.");
+  await expect(p3.locator("#ed-steps-list li")).toHaveText(STEPS_NO_AI);   // Ablauf-Kasten: drei Schritte, ohne KI-Feedback
+  await expect(p3.locator("#ed-steps-list li").nth(0)).toHaveAttribute("aria-current", "step");
+  await expect(p3.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
   await expect(p3.locator("#privacy")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
   await expect(p3.locator("#privacy")).not.toContainText("KI-Dienst");
   // ausführlicher Hinweis und Klasse-Hinweis ohne KI: kein KI-Dienst, kein Abschnitt zur KI, Angaben erst bei der Abgabe
@@ -3397,6 +3609,11 @@ test("7g Übergang Geburtstag: Lehrkraft sieht auch bei älteren Abgaben und Ers
   await expect(olderKim.locator(".dmeta")).toHaveText(/^Älterer Erstversuch vom \d\d\.\d\d\.\d{4}, \d\d:\d\d \(ohne Überarbeitung\) · KI-Feedback am /);
   await expect(olderKim.locator("table.cmp tbody td")).toHaveText([kimFirst.answers[0].first, "(noch nicht überarbeitet)"]);
   await expect(olderKim.locator("button")).toHaveCount(0);
+  // Tippzeiten: diese Stände wurden ohne Messung abgegeben – ein Satz statt Prozenten, keine Färbung
+  await expect(detKim.locator(".detbox:not(.older) > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (älterer Stand).");
+  await expect(olderKim.locator(".detbox.older > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (älterer Stand).");
+  await expect(detKim.locator(".dtt")).toHaveCount(0);
+  await expect(tp.locator("#t-subs-body .tt-r, #t-subs-body .tt-y, #t-subs-body .tt-g")).toHaveCount(0);
   await expect(detKim.getByRole("button", { name: "Diesen Eintrag löschen" })).toHaveCount(1);
   // Löschwunsch einer Person: „Diesen Eintrag löschen“ löscht Kims Abgabe samt dem ausgeblendeten Erstversuch, alle anderen bleiben
   await detKim.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
@@ -4625,6 +4842,1648 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste einmal vor → Lehrkr
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   expect(await d1Query(`SELECT sheet_code FROM sheet_checklists WHERE sheet_code='${code}'`)).toEqual([]);
   await closePage(t);
+});
+
+test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wortvorschlag ein und füllt eine Tabelle → Werte je Zeichen im Zwischenstand, auch nach Neuladen vor und nach dem KI-Feedback; nie an die KI; Erstversuch und Abgabe tragen sie verschlüsselt; der Kasten zeigt den aktuellen Schritt; 413 → einmal ohne Messung; Lehrkraft sieht Textmarker, Rot-Anteile (ab 50 % „hoch“, auch in der Gesamtzeile) beim Erstversuch, bei der Abgabe, ohne KI-Feedback und bei einem ausgeblendeten älteren Erstversuch (lang: Gelb und Grün zusammengefasst), Legende, Hinweis und „Färbung aus“ (auch nach einem Neubau der Details); Blatt nur mit Weltkarten ohne Tippzeiten-Kasten", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  // Schlüssel der Lehrkraft zum Entschlüsseln dessen, was der Browser sendet (wie die Lehrkraft-Seite, nur in Node)
+  const teacher = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value);
+  const priv = await openPrivateKey((await deriveTeacherKeys(PW, teacher.kdf)).encKey, teacher.encPrivateKey);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Tippzeiten");
+  await tp.fill("#bq-1", "Schreibe einen kurzen Satz.");
+  await tp.fill("#bs-1", "- Ein Satz");
+  await tp.fill("#bq-2", "Erkläre einen Begriff.");
+  await tp.fill("#bs-2", "- Haus");
+  await tp.selectOption("#bt-2", "table");
+  await tp.fill("#bc-2", "Begriff; Erklärung");
+  await tp.fill("#br-2", "2");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const rowsOf = () => d1Query(`SELECT id, stage, attempt, envelope FROM submissions WHERE sheet_code='${code}' ORDER BY id`);
+
+  /* ---------- Schüler:in 1 ---------- */
+  const s = await openPage(browser);
+  const { page } = s;
+  const logTypes = () => page.evaluate(() => { window.__types = []; document.addEventListener("input", (e) => window.__types.push(e.inputType + ":" + (e.data || "").length), true); });
+  await logTypes();
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "tim", nachname: "ti", geb: "--01-02", klasse: "7a" });
+  // Ablauf-Kasten: fünf Schritte, der erste aktuell (fett, aria-current), zwischen Kopf und Aufgaben im Fluss des Blattes
+  const steps = page.locator("#ed-steps-list li"), cur = page.locator("#ed-steps-list li.cur");
+  await expect(page.locator("#ed-steps-h")).toHaveText("So gehst du vor");
+  await expect(steps).toHaveText(STEPS_AI);
+  await expect(steps.nth(0)).toHaveAttribute("aria-current", "step");
+  await expect(page.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
+  await expect(page.locator("#a-1")).toBeFocused();
+  expect(await page.evaluate(() => {
+    const e = document.getElementById("ed-steps");
+    return { pos: getComputedStyle(e).position, prev: e.previousElementSibling.className, next: e.nextElementSibling.id,
+      weight: getComputedStyle(document.querySelector("#ed-steps-list li.cur")).fontWeight, top: document.getElementById("paperwrap").scrollTop };
+  })).toEqual({ pos: "static", prev: "sheet-head", next: "tasks", weight: "700", top: 0 });   // beim Öffnen nicht weggescrollt
+  const moved = await page.evaluate(() => {
+    const w = document.getElementById("paperwrap"), e = document.getElementById("ed-steps"), y0 = e.getBoundingClientRect().top;
+    w.scrollTop = 200; const d = w.scrollTop, y1 = e.getBoundingClientRect().top; w.scrollTop = 0;
+    return { d, dy: y0 - y1 };
+  });
+  expect(moved.d).toBeGreaterThan(0);
+  expect(moved.dy).toBeCloseTo(moved.d, 0);   // scrollt mit dem Blatt (weder sticky noch fixed)
+
+  // Tippen mit Pausen (grün), ein Wortvorschlag in einem Zug (erstes Zeichen gemessen, der Rest 0 ms = rot), Tabelle
+  await page.click("#a-1");
+  await page.keyboard.type("Ich tippe ", { delay: 120 });
+  await page.waitForTimeout(150);
+  await page.keyboard.insertText("Wortvorschlag");
+  await page.keyboard.type(" ja", { delay: 120 });
+  const cells = page.locator("#a-2 textarea.tcell:not(.measure)");
+  await cells.nth(0).click(); await page.waitForTimeout(150);
+  await page.keyboard.type("Haus", { delay: 120 });
+  await cells.nth(1).click(); await page.waitForTimeout(150);
+  await page.keyboard.insertText("Gebäude");
+  const types = await page.evaluate(() => window.__types);
+  expect(types).toContain("insertText:13");   // so lässt sich ein Fehlschlag deuten (Eingabeart und Länge je Ereignis)
+  expect(types).toContain("insertText:7");
+  const A1 = "Ich tippe Wortvorschlag ja", A1b = A1 + " weiter", A1c = A1b + " Ende", A2 = "Begriff | Erklärung\nHaus | Gebäude";
+  const rep = (v, n) => Array(n).fill(v), codesOf = (b) => Array.from(Buffer.from(b, "base64"));
+  const EXP1 = [71, 71, 71, 255, 71, 71, 71, 71, 71, 255, 71, ...rep(0, 12), 255, 71, 71], W = [255, ...rep(71, 6)], E = [255, ...rep(71, 4)];
+  const EXP2 = [...rep(255, 20), 71, 71, 71, 71, 255, 255, 255, 71, ...rep(0, 6)];
+  const draftOf = (pg) => pg.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
+  const draftWhen = async (pred, pg = page) => { await expect.poll(async () => { const d = await draftOf(pg); return !!d && pred(d); }, { timeout: 10_000 }).toBe(true); return draftOf(pg); };
+  let d = await draftWhen((x) => x.answers[0] === A1 && x.answers[1] === A2);
+  if (TT_KEEP) {
+    expect(codesOf(d.typing.answers[0])).toEqual(EXP1);
+    expect(codesOf(d.typing.answers[1])).toEqual(EXP2);   // Kopf, „ | “ und Zeilenumbruch ohne Messung (255)
+    expect(d.typing.first).toBeNull();
+    // Neuladen: die Werte bleiben (eingefroren), ein neues Zeichen dahinter gilt als Pause
+    await page.reload();
+    await logTypes();
+    await page.click("#resume-btn");
+    await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+    await typeAt(page, "#a-1", " weiter", { delay: 120 });
+    d = await draftWhen((x) => x.answers[0] === A1b);
+    expect(codesOf(d.typing.answers[0])).toEqual([...EXP1, ...W]);
+    expect(codesOf(d.typing.answers[1])).toEqual(EXP2);
+  } else {   // Schalter aus: nur im Arbeitsspeicher – nach Neuladen wäre der Text „ohne Messung“, deshalb hier ohne Neuladen
+    expect(d.typing).toBeUndefined();
+    await typeAt(page, "#a-1", " weiter", { delay: 120 });
+  }
+
+  // KI-Feedback: während die Anfrage läuft, ist Schritt 2 aktuell, danach Schritt 3; an die KI gehen nur die Texte
+  let releaseFb; const fbHeld = new Promise((r) => { releaseFb = r; });
+  await page.route("**/api/feedback", async (route) => { await fbHeld; await route.continue(); });
+  await page.click("#fb-btn");
+  await confirmDialog(page, "KI-Feedback anfordern?");
+  await expect(cur).toHaveText(STEPS_AI[1]);
+  await expect(steps.nth(1)).toHaveAttribute("aria-current", "step");
+  releaseFb();
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await page.unroute("**/api/feedback");
+  await expect(cur).toHaveText(STEPS_AI[2]);
+  await expect(page.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
+  const fb1 = await s.calls((e) => e.path === "/api/feedback");
+  expect(fb1).toHaveLength(1);
+  expect(Object.keys(JSON.parse(fb1[0].reqBody)).sort()).toEqual(["answers", "code", "recipients"]);
+  expect(JSON.parse(fb1[0].reqBody).answers).toEqual([A1b, A2]);
+  expect(fb1[0].reqBody).not.toContain("typing");
+
+  // Erstversuch (im Hintergrund gesendet): erst seine Zeile in D1 abwarten, dann den gespeicherten Umschlag entschlüsseln – derselbe
+  // Inhalt wie gesendet; Tippzeiten der ersten Fassung, final null
+  const sealed = async (stage) => {
+    const c = (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).filter((b) => b.stage === stage);
+    return c.length ? openEnvelope(priv, c.at(-1).envelope) : null;
+  };
+  await expect.poll(async () => (await rowsOf()).map((x) => x.stage), { timeout: 30_000 }).toEqual(["first"]);
+  const [row1] = await rowsOf();
+  expect(Object.keys(JSON.parse(row1.envelope)).sort()).toEqual(["ct", "ek", "iv", "v"]);   // beim Server nur der Umschlag
+  const first = await openEnvelope(priv, JSON.parse(row1.envelope));
+  await expect.poll(async () => !!(await sealed("first")), { timeout: 30_000 }).toBe(true);
+  expect(await sealed("first")).toEqual(first);
+  expect(first.stage).toBe("first");
+  expect(first.answers).toEqual([{ first: A1b, final: null }, { first: A2, final: null }]);
+  expect(first.typing.v).toBe(1);
+  expect(first.typing.answers.map((a) => a.final)).toEqual([null, null]);
+  expect(codesOf(first.typing.answers[0].first)).toEqual([...EXP1, ...W]);
+  expect(codesOf(first.typing.answers[1].first)).toEqual(EXP2);
+  // die Lehrkraft sieht den Erstversuch: nur die erste Fassung mit ihrem Rot-Anteil (zweite Spalte „noch nicht überarbeitet“)
+  const ZERO = "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur, Diktat oder ein übernommener Korrekturvorschlag des Browsers).";
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Erstversuch ohne Überarbeitung");
+  await expect(tp.locator("#t-tt")).toBeVisible();
+  await tp.locator("#t-subs-body tr.main").first().click();
+  const detF = tp.locator("#t-subs-body tr.details:visible"), dtF = (k) => detF.locator(".dtask").nth(k);
+  await expect(detF.locator(".dtt-sum")).toHaveText("Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 45 % (von 40 Zeichen)");
+  await expect(dtF(0).locator("table.cmp tbody td")).toHaveText([A1b, "(noch nicht überarbeitet)"]);
+  await expect(dtF(0).locator("table.cmp tbody td").first().locator(".tt-r")).toHaveText(["ortvorschlag"]);
+  await expect(dtF(0).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 41 % (von 29 Zeichen)");
+  await expect(dtF(1).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 55 % (von 11 Zeichen) – hoch. " + ZERO);
+  await expect(dtF(1).locator(".dtt .tt-high")).toHaveText(["erste Eingabe 55 % (von 11 Zeichen) – hoch"]);
+  if (TT_KEEP) {
+    // Neuladen nach dem KI-Feedback: die erste Fassung behält ihre Werte (Abgabe nach „Weiterschreiben“)
+    d = await draftWhen((x) => x.firstSent === true && Array.isArray(x.typing && x.typing.first));
+    expect(d.typing.first).toEqual(first.typing.answers.map((a) => a.first));
+    await page.reload();
+    await page.click("#resume-btn");
+    await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+    await expect(cur).toHaveText(STEPS_AI[2]);
+    await typeAt(page, "#a-1", " Ende", { delay: 120 });
+    d = await draftWhen((x) => x.answers[0] === A1c);
+    expect(d.typing.first).toEqual(first.typing.answers.map((a) => a.first));
+  } else await typeAt(page, "#a-1", " Ende", { delay: 120 });
+
+  // Abgabe: während des Sendens ist „Abgeben“ der aktuelle Schritt; der Erstversuch geht ungehindert durch
+  let releaseSub; const subHeld = new Promise((r) => { releaseSub = r; });
+  await page.route("**/api/submit", async (route) => { if (JSON.parse(route.request().postData() || "{}").stage === "final") await subHeld; await route.continue(); });
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Jetzt abgeben?");
+  await expect(cur).toHaveText("Abgeben");
+  await expect(steps.nth(3)).toHaveAttribute("aria-current", "step");
+  await expect(page.locator("#ed-steps-list li[aria-current]")).toHaveCount(1);
+  releaseSub();
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#ed-steps-list li")).toHaveCount(0);   // Schreibfläche geleert (gemeinsam genutzte Geräte)
+  // die Abgabe ersetzt den Erstversuch (gleiche Kennung, dieselbe Zeile); gespeichert ist genau das Gesendete (die zweite Rückmeldung
+  // kann im Hintergrund schon nachgereicht sein – unten genauer)
+  const rows2 = await rowsOf();
+  expect(rows2.map((x) => [x.id, x.stage, x.attempt])).toEqual([[row1.id, "final", row1.attempt]]);
+  const noFb2 = (x) => { const y = { ...x }; delete y.feedback2; return y; };
+  const fin = await sealed("final");
+  expect(noFb2(await openEnvelope(priv, JSON.parse(rows2[0].envelope)))).toEqual(fin);
+  expect(fin.answers).toEqual([{ first: A1b, final: A1c }, { first: A2, final: A2 }]);
+  expect(fin.answers.every((a) => typeof a.first === "string" && typeof a.final === "string")).toBe(true);
+  expect(fin.typing.v).toBe(1);
+  expect(fin.typing.answers[0].first).toBe(first.typing.answers[0].first);
+  expect(codesOf(fin.typing.answers[0].final)).toEqual([...EXP1, ...W, ...E]);
+  expect(fin.typing.answers[1].first).toBe("=");   // Tabelle unverändert: gleiche Werte, gleicher Text
+  expect(codesOf(fin.typing.answers[1].final)).toEqual(EXP2);
+  // die zweite KI-Rückmeldung bekommt wieder nur Texte
+  await expect.poll(async () => (await s.calls((e) => e.path === "/api/feedback")).length, { timeout: 30_000 }).toBe(2);
+  const fb2 = (await s.calls((e) => e.path === "/api/feedback"))[1];
+  expect(Object.keys(JSON.parse(fb2.reqBody)).sort()).toEqual(["answers", "code", "only", "recipients"]);
+  expect(fb2.reqBody).not.toContain("typing");
+  // … und geht danach verschlüsselt an die Lehrkraft: genau die angenommene Abgabe + feedback2 (nur Aufgabe 1 wurde geändert) –
+  // die Tippzeiten bleiben dabei erhalten
+  await expect.poll(async () => !!(await sealed("feedback2")), { timeout: 30_000 }).toBe(true);
+  const fb2Sent = await sealed("feedback2");
+  expect(noFb2(fb2Sent)).toEqual(fin);
+  expect(fb2Sent.typing).toEqual(fin.typing);
+  expect(fb2Sent.feedback2.results[0].covered.length + fb2Sent.feedback2.results[0].missing.length).toBeGreaterThan(0);
+  expect(fb2Sent.feedback2.results[1]).toBeNull();   // die Tabelle blieb unverändert: es gilt das erste Feedback
+  const fb2Body = (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).find((b) => b.stage === "feedback2");
+  expect([fb2Body.attempt, Object.keys(fb2Body).sort()]).toEqual([row1.attempt, ["attempt", "code", "envelope", "receivedAt", "stage"]]);
+  const rows3 = await rowsOf();
+  expect(rows3.map((x) => [x.id, x.stage, x.attempt])).toEqual([[row1.id, "final", row1.attempt]]);
+  expect(await openEnvelope(priv, JSON.parse(rows3[0].envelope))).toEqual(fb2Sent);
+  // die Lösungs-PDF (aus dem Arbeitsspeicher der Bestätigungsseite) enthält Texte, nie Tippzeiten
+  await expect(page.locator("#done-fb-list .fbbox")).not.toHaveCount(0, { timeout: 30_000 });
+  const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const sol = await readFile(await sdl.path());
+  expect(pdfShownText(sol)).toContain(A1c);
+  for (const b of [fin.typing.answers[0].first, fin.typing.answers[0].final, fin.typing.answers[1].final]) expect(sol.toString("latin1")).not.toContain(b);
+  expect(sol.toString("latin1")).not.toContain("typing");   // (der Titel des Blattes heißt „Tippzeiten“)
+  await closePage(s);
+
+  /* ---------- Schüler:in 2: der Server lehnt die erste Abgabe als zu groß ab → einmal dieselbe Nutzlast ohne Tippzeiten ---------- */
+  const s2 = await openPage(browser);
+  const p2 = s2.page, bodies = [];
+  await p2.route("**/api/submit", async (route) => {
+    bodies.push(route.request().postData());
+    if (bodies.length === 1) return route.fulfill({ status: 413, contentType: "application/json", body: JSON.stringify({ ok: false, code: "too_large", error: "Die Abgabe ist zu groß." }) });
+    return route.continue();
+  });
+  await enterCode(p2, shown);
+  await fillPerson(p2, { vorname: "uli", nachname: "ul", geb: "--03-04", klasse: "7a" });
+  await typeAt(p2, "#a-1", "Kurz", { delay: 120 });
+  // Neuladen (in beiden Stellungen des Schalters): mit TT_KEEP_IN_DRAFT behält „Kurz“ seine Werte, ohne gilt es danach als
+  // „ohne Messung“ (255, nie rot) – neu Getipptes wird weiter gemessen
+  const d2 = await draftWhen((x) => x.answers[0] === "Kurz", p2);
+  if (TT_KEEP) expect(codesOf(d2.typing.answers[0])).toEqual([71, 71, 71, 71]);
+  else {
+    expect(d2.typing).toBeUndefined();
+    // ein Stand aus der Zeit mit Schalter an (Tippzeiten im Zwischenstand) – nach dem Speichern beim Verlassen der Seite nachgestellt
+    await p2.evaluate(() => window.addEventListener("beforeunload", () => {
+      const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")), d = JSON.parse(localStorage.getItem(k));
+      d.typing = { v: 1, answers: ["R0dHRw==", ""], first: null }; localStorage.setItem(k, JSON.stringify(d)); sessionStorage.setItem("tt-t", String(d.t));
+    }));
+  }
+  await p2.reload();
+  if (!TT_KEEP) {   // … beim Laden der Seite sind die Tippzeiten weg, Text und Zeitpunkt bleiben (auch ohne „Weiterschreiben“)
+    const d2b = await draftOf(p2);
+    expect(d2b.typing).toBeUndefined();
+    expect([d2b.answers, String(d2b.t)]).toEqual([["Kurz", ""], await p2.evaluate(() => sessionStorage.getItem("tt-t"))]);
+  }
+  await p2.click("#resume-btn");
+  await expect(p2.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(p2.locator("#a-1")).toHaveValue("Kurz");
+  await typeAt(p2, "#a-1", " da", { delay: 120 });
+  await draftWhen((x) => x.answers[0] === "Kurz da", p2);
+  await p2.click("#submit-btn");
+  await confirmDialog(p2, "Ohne KI-Feedback abgeben?");
+  await expect(p2.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(bodies).toHaveLength(2);
+  const e1 = await openEnvelope(priv, JSON.parse(bodies[0]).envelope), e2 = await openEnvelope(priv, JSON.parse(bodies[1]).envelope);
+  expect(e1.answers).toEqual([{ first: "Kurz da", final: "Kurz da" }, { first: "", final: "" }]);
+  expect(e1.typing.answers.map((a) => a.first)).toEqual(["=", "="]);   // ohne KI-Feedback: erste = abgegebene Fassung
+  expect(codesOf(e1.typing.answers[0].final)).toEqual([...(TT_KEEP ? [71, 71, 71, 71] : [255, 255, 255, 255]), 255, 71, 71]);
+  expect(e1.typing.answers[1].final).toBe("");   // leere Tabelle: leerer Text, keine Werte
+  expect(e2.typing).toEqual({ v: 1, omitted: "too_large" });
+  const strip = (x) => { const y = { ...x }; delete y.typing; return y; };
+  expect(strip(e2)).toEqual(strip(e1));
+  await closePage(s2);
+
+  /* ---------- Schüler:in 3: ohne KI-Feedback, ein Wort per Wortvorschlag → eine Fassung, Rot-Anteil hoch (auch über alle Aufgaben) ---------- */
+  const s3 = await openPage(browser);
+  const p3 = s3.page;
+  await enterCode(p3, shown);
+  await fillPerson(p3, { vorname: "vic", nachname: "vo", geb: "--05-06", klasse: "7a" });
+  await p3.click("#a-1");
+  await p3.keyboard.insertText("Vorschlag");
+  await p3.click("#submit-btn");
+  await confirmDialog(p3, "Ohne KI-Feedback abgeben?");
+  await expect(p3.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await closePage(s3);
+
+  // ein älterer Erstversuch von Schüler:in 1 (z. B. auf einem anderen Gerät), sehr lang und im üblichen Tempo getippt: mehr Farbwechsel,
+  // als die Ansicht zeigt → Gelb und Grün zusammengefasst (grün) mit Hinweis, nie „ohne Messung“
+  const pub = (await (await request.get("/api/sheet/" + code)).json()).sheet.publicKey;
+  const LONG = "ab".repeat(1100), nowIso = new Date().toISOString();
+  const olderPayload = { v: 1, stage: "first", sheetCode: code, sheetTitle: "Tippzeiten", person: { vorname: "Tim", nachname: "Ti", geburtsdatum: "--01-02", klasse: "7a" },
+    answers: [{ first: LONG, final: null }, { first: "", final: null }], feedback: [{ covered: ["Ein Satz"], missing: [] }, { covered: [], missing: ["Haus"] }],
+    feedbackAt: nowIso, submittedAt: null,
+    typing: { v: 1, answers: [{ first: Buffer.from(Array.from(LONG, (_, x) => (x % 2 ? 30 : 71))).toString("base64"), final: null }, { first: "", final: null }] } };
+  expect((await request.post("/api/submit", { data: { code, stage: "first", attempt: "00112233445566aa", envelope: await makeEnvelope(pub, olderPayload) } })).status()).toBe(200);
+
+  /* ---------- Lehrkraft: Textmarker, Rot-Anteile, Legende, Hinweis, „Färbung aus“ ---------- */
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben · 1 älterer Erstversuch von Schüler:innen, die inzwischen abgegeben haben, wird nicht angezeigt");
+  await expect(tp.locator("#t-tt")).toBeVisible();
+  await expect(tp.locator("#t-tt-legend")).toHaveText("Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): rot (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · gelb = über 15 bis 70 ms · grün = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (" + (TT_KEEP ? "z. B. ältere Stände oder nach einem Widerspruch" : "z. B. ältere Stände, nach einem Widerspruch oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert keine Tippzeiten") + "); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).");
+  await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung " + TT_USE + ". Schüler:innen können der Messung widersprechen: Die Kurzfassung des Datenschutzhinweises nennt die Messung in einem Satz, im ausführlichen Hinweis („Alle Informationen zum Datenschutz“) steht im Abschnitt „" + TT_OBJ_HEAD + "“ der Schalter „" + TT_SWITCH + "“. Nach einem Widerspruch steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.");
+  const off = tp.locator("#t-tt-off");
+  await expect(off).toHaveAttribute("aria-pressed", "false");
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(3);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["Ti", "Tim", "02.01.", "7a"]);
+  expect(await tp.locator("#t-subs-body").textContent()).not.toContain("%");   // der Rot-Anteil steht nie in der Liste
+  await mains.nth(0).click();
+  const det = tp.locator("#t-subs-body tr.details:visible");
+  await expect(det.locator(".dtt-sum")).toHaveText("Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 45 % (von 40 Zeichen) · abgegebene Fassung 41 % (von 44 Zeichen)");
+  const dt = (k) => det.locator(".dtask").nth(k);
+  // Aufgabe 1: der Text der Zellen bleibt genau die Antwort; grün getippt, der Wortvorschlag rot (bis auf sein erstes Zeichen)
+  const td1 = dt(0).locator("table.cmp tbody td");
+  expect(await td1.nth(0).textContent()).toBe(A1b);
+  expect(await td1.nth(1).textContent()).toBe(A1c);
+  await expect(td1.nth(0).locator(".tt-g")).toHaveText(["Ich tippe W", "ja weiter"]);
+  await expect(td1.nth(1).locator(".tt-g")).toHaveText(["Ich tippe W", "ja weiter Ende"]);
+  await expect(td1.nth(1).locator(".tt-r")).toHaveText(["ortvorschlag"]);
+  await expect(dt(0).locator(".tt-y")).toHaveCount(0);
+  await expect(dt(0).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 41 % (von 29 Zeichen) · nach dem KI-Feedback 36 % (von 33 Zeichen)");
+  await expect(dt(0).locator(".dtt .tt-high")).toHaveCount(0);
+  // Aufgabe 2 (Tabelle): je Zelle gefärbt, der Kopf nie; Rot-Anteil hoch – fast alles in einem Zug
+  await expect(dt(1).locator("table.anstable td")).toHaveText(["Haus", "Gebäude", "Haus", "Gebäude"]);
+  await expect(dt(1).locator("table.anstable td .tt-r")).toHaveText(["ebäude", "ebäude"]);
+  await expect(dt(1).locator("table.anstable td .tt-g")).toHaveText(["Haus", "G", "Haus", "G"]);
+  await expect(dt(1).locator("table.anstable th span")).toHaveCount(0);
+  await expect(dt(1).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 55 % (von 11 Zeichen) – hoch · nach dem KI-Feedback 55 % (von 11 Zeichen) – hoch. " + ZERO);
+  await expect(dt(1).locator(".dtt .tt-high")).toHaveText(["erste Eingabe 55 % (von 11 Zeichen) – hoch", "nach dem KI-Feedback 55 % (von 11 Zeichen) – hoch"]);
+  expect(await dt(1).locator(".dtt .tt-high").first().evaluate((e) => getComputedStyle(e).color)).toBe(RED);
+  // der ausgeblendete ältere Erstversuch: gemessen, aber zu viele Wechsel für die Anzeige → grün zusammengefasst, mit Hinweis
+  const older = det.locator("details.dolder");
+  await expect(older.locator("summary")).toHaveText("1 älterer Erstversuch dieser Person (in der Liste ausgeblendet)");
+  await older.locator("summary").click();
+  const olderBox = older.locator(".detbox.older");
+  await expect(older.locator(".detbox.older > .dtt-sum")).toHaveText("Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 0 % (von 2.200 Zeichen)");
+  await expect(olderBox.locator(".dtask").nth(0).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: erste Eingabe 0 % (von 2.200 Zeichen). Wegen der Länge sind Gelb und Grün in der Färbung zusammengefasst (beides grün).");
+  await expect(olderBox.locator(".dtask").nth(0).locator("table.cmp tbody td").first().locator(".tt-g")).toHaveText([LONG]);
+  await expect(olderBox.locator(".tt-y, .tt-r")).toHaveCount(0);
+  await expect(olderBox.locator(".dtask").nth(1).locator(".dtt")).toHaveCount(0);   // leere Antwort: keine Zeile
+  await older.locator("summary").click();
+  const red = dt(0).locator(".tt-r").first();
+  const look = (loc) => loc.evaluate((e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.textDecorationLine]; });
+  expect(await look(red)).toEqual(["rgb(255, 196, 189)", "underline"]);   // Rot nicht nur über die Farbe: unterstrichen
+  // „Färbung aus“: gedrückt (sichtbar gefüllt), alle Details ohne Farben, der Text bleibt; die Legende bleibt farbig; übersteht Aktualisieren
+  await off.click();
+  await expect(off).toHaveAttribute("aria-pressed", "true");
+  await expect(tp.locator("#t-subs")).toHaveClass(/\btt-off\b/);
+  await tp.mouse.move(0, 0);   // ohne Hover; die Farbe geht mit einem Übergang über
+  await expect(off).toHaveCSS("background-color", "rgb(34, 31, 26)");
+  expect(await look(red)).toEqual(["rgba(0, 0, 0, 0)", "none"]);
+  expect(await td1.nth(1).textContent()).toBe(A1c);
+  expect(await tp.locator("#t-tt-legend .tt-r").evaluate((e) => getComputedStyle(e).backgroundColor)).toBe("rgb(255, 196, 189)");
+  // aufgeklappte Details werden neu gebaut (renderRetentionHint – hier über „Datenschutz und Löschfrist“ und zurück): auch dann ohne Farben
+  const builtBefore = await dt(0).elementHandle();
+  await tp.click("#t-privacy");
+  await expect(tp.locator("#pv-days")).toBeEnabled();
+  await tp.click("#pv-back");
+  await expect(tp.locator("#t-subs")).toBeVisible();
+  expect(await builtBefore.evaluate((e) => e.isConnected)).toBe(false);   // wirklich neu gebaut
+  await expect(dt(0).locator(".dtt")).toHaveCount(1);
+  expect(await look(dt(0).locator(".tt-r").first())).toEqual(["rgba(0, 0, 0, 0)", "none"]);
+  expect(await td1.nth(1).textContent()).toBe(A1c);
+  await tp.click("#t-refresh");
+  await expect(mains).toHaveCount(3);
+  await expect(off).toHaveAttribute("aria-pressed", "true");
+  await expect(tp.locator("#t-subs")).toHaveClass(/\btt-off\b/);
+  await off.click();
+  await expect(off).toHaveAttribute("aria-pressed", "false");
+  await expect(tp.locator("#t-subs")).not.toHaveClass(/\btt-off\b/);
+  // Schüler:in 2: Tippzeiten wegen der Größe weggelassen – ein Satz, keine Färbung
+  await mains.nth(1).click();
+  const det2 = tp.locator("#t-subs-body tr.details:visible").filter({ hasText: "Kurz da" });
+  await expect(det2.locator(".dtt-sum")).toHaveText("Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.");
+  await expect(det2.locator(".dtt")).toHaveCount(0);
+  await expect(det2.locator(".tt-r, .tt-y, .tt-g")).toHaveCount(0);
+  expect(await det2.locator("table.cmp.one tbody td").first().textContent()).toBe("Kurz da");
+  // Schüler:in 3 (ohne KI-Feedback): eine Spalte, eine Zeile ohne Bezeichnung; hoch – auch die Gesamtzeile rot und fett hervorgehoben
+  await mains.nth(2).click();
+  const det3 = tp.locator("#t-subs-body tr.details:visible").filter({ hasText: "Vorschlag" });
+  await expect(det3.locator("table.cmp.one tbody td").first().locator(".tt-r")).toHaveText(["orschlag"]);
+  await expect(det3.locator("table.cmp.one tbody td").first().locator(".tt-g")).toHaveText(["V"]);
+  await expect(det3.locator(".dtask").nth(0).locator(".dtt")).toHaveText("Tippzeiten – Rot-Anteil: 89 % (von 9 Zeichen) – hoch. " + ZERO);
+  await expect(det3.locator(".dtask").nth(1).locator(".dtt")).toHaveCount(0);
+  await expect(det3.locator(".dtt-sum")).toHaveText("Tippzeiten – Rot-Anteil über alle Aufgaben: 89 % (von 9 Zeichen) – hoch. " + ZERO);
+  const sumHigh = det3.locator(".dtt-sum .tt-high");
+  await expect(sumHigh).toHaveText(["89 % (von 9 Zeichen) – hoch"]);
+  expect(await sumHigh.evaluate((e) => [getComputedStyle(e).color, getComputedStyle(e).fontWeight])).toEqual([RED, "700"]);
+  // Blatt nur mit Weltkarten (hier per Antwort des Servers nachgestellt): dort wird nie gemessen – kein Tippzeiten-Kasten, keine Zeilen
+  const sheetUrl = "**/api/teacher/sheets/" + code;
+  const mapOnly = async (route) => {
+    const res = await route.fetch(), j = await res.json();
+    j.sheet.tasks = j.sheet.tasks.map((x) => ({ ...x, answer: { type: "map", map: "world", items: [{ id: "x", label: "X", countries: [{ id: "276", name: "Deutschland" }] }] } }));
+    await route.fulfill({ response: res, json: j });
+  };
+  await tp.route(sheetUrl, mapOnly);
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(mains).toHaveCount(3);
+  await expect(tp.locator("#t-subs-legend")).toBeVisible();
+  await expect(tp.locator("#t-tt")).toBeHidden();
+  await mains.nth(0).click();
+  await expect(tp.locator("#t-subs-body tr.details:visible .dtask")).toHaveCount(2);
+  await expect(tp.locator("#t-subs-body .dtt-sum, #t-subs-body .dtt, #t-subs-body .tt-r, #t-subs-body .tt-g")).toHaveCount(0);
+  await tp.unroute(sheetUrl, mapOnly);
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(mains).toHaveCount(3);
+  await expect(tp.locator("#t-tt")).toBeVisible();
+  // … und bei den Schüler:innen: weder die Kurzfassung (kein TT_SHORT) noch der ausführliche Hinweis (kein Abschnitt zum Widerspruch,
+  // kein Satz zu § 25 TDDDG für die Tippzeiten, kein Schalter) nennen die Messung
+  const m = await openPage(browser);
+  await m.page.route("**/api/sheet/" + code, async (route) => {
+    const res = await route.fetch(), j = await res.json();
+    j.sheet.tasks = j.sheet.tasks.map((x) => ({ ...x, answer: { type: "map", map: "world", items: [{ id: "x", label: "X", checks: [] }] } }));
+    await route.fulfill({ response: res, json: j });
+  });
+  await enterCode(m.page, shown);
+  await chooseSingle(m.page);
+  await expect(m.page.locator("#p-privacy-short")).toContainText("Auch die Rechtschreibprüfung ist freiwillig.");
+  await expect(m.page.locator("#p-privacy-short")).not.toHaveText(NO_TT);
+  const mfull = m.page.locator("#p-privfull");
+  await mfull.locator("summary").click();
+  await expect(mfull.locator("h2.privh")).toHaveText(PRIV_HEADS.filter((x) => x !== TT_OBJ_HEAD));
+  await expect(mfull).not.toContainText("Tippzeit");
+  await expect(mfull).not.toContainText("Zugriff auf dein Gerät");
+  await expect(mfull.locator("input")).toHaveCount(0);
+  await closePage(m);
+
+  /* ---------- Schüler:in 4 und 5: die zweite Rückmeldung nachreichen – mit feedback2 zu groß bzw. es kommt nichts an ---------- */
+  // fb2: Antwort des Servers je Nachreichen (n = 1, 2, …): eine Antwort per route.fulfill oder null = weiter zum Server;
+  // posts: so viele Versuche, dann ist die Seite fertig (geklappt bzw. aufgegeben)
+  const fb2Case = async (who, fb2, posts) => {
+    const x = await openPage(browser), xp = x.page, posted = [];
+    await enterCode(xp, shown);
+    await fillPerson(xp, who);
+    await typeAt(xp, "#a-1", "Ein Satz von " + who.vorname, { delay: 30 });
+    await xp.click("#fb-btn");
+    await confirmDialog(xp, "Noch nicht alles beantwortet");   // die Tabelle bleibt leer
+    await expect(xp.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+    await typeAt(xp, "#a-1", " und mehr", { delay: 30 });
+    await xp.route("**/api/submit", (route) => {
+      const b = JSON.parse(route.request().postData());
+      if (b.stage !== "feedback2") return route.continue();
+      posted.push(b);
+      const res = fb2(posted.length);
+      return res ? route.fulfill({ status: res.status, contentType: "application/json", body: JSON.stringify(res.body) }) : route.continue();
+    });
+    await submit(xp);
+    await expect(xp.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 60_000 });
+    await expect.poll(() => posted.length, { timeout: 30_000 }).toBe(posts);
+    await xp.waitForTimeout(2500);   // danach kein weiterer Versuch mehr (der nächste käme nach höchstens 2 s Pause)
+    expect(posted.length).toBe(posts);
+    const fin = await openEnvelope(priv, JSON.parse((await x.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => e.reqBody).find((b) => JSON.parse(b).stage === "final")).envelope);
+    const sent = await Promise.all(posted.map((b) => openEnvelope(priv, b.envelope)));
+    const row = (await rowsOf()).filter((x) => x.attempt === posted[0].attempt);
+    expect(row.length).toBe(1);
+    await closePage(x);
+    return { fin, sent, posted, got: await openEnvelope(priv, JSON.parse(row[0].envelope)) };
+  };
+  const noTyping = (x) => { const y = { ...x }; delete y.typing; return y; };
+  const ttHasValues = (t) => !!t && Array.isArray(t.answers) && t.answers.some((a) => [a.first, a.final].some((b) => typeof b === "string" && b.length > 1));
+  // 4: der Umschlag mit feedback2 ist zu groß (413) → dieselbe Nutzlast ohne Tippzeit-Werte; Antworten, Feedback und Angaben bleiben
+  const TOO_LARGE = { status: 413, body: { ok: false, error: "Die Abgabe ist zu groß.", code: "too_large" } };
+  const c4 = await fb2Case({ vorname: "via", nachname: "vi", geb: "--04-04", klasse: "7a" }, (n) => (n === 1 ? TOO_LARGE : null), 2);
+  expect(c4.sent.length).toBe(2);
+  expect(ttHasValues(c4.fin.typing)).toBe(true);
+  expect(c4.sent[0].typing).toEqual(c4.fin.typing);   // erst die angenommene Nutzlast unverändert + feedback2
+  expect(noFb2(c4.sent[0])).toEqual(c4.fin);
+  expect(c4.sent[1].typing).toEqual({ v: 1, omitted: "too_large" });   // dann ohne die Tippzeit-Werte – sonst nichts geändert
+  expect(noTyping(c4.sent[1])).toEqual(noTyping(c4.sent[0]));
+  expect(c4.sent[1].feedback2.results[0]).toBeTruthy();
+  expect(c4.got).toEqual(c4.sent[1]);   // angekommen: mit der zweiten Rückmeldung, die Tippzeiten als „nicht übermittelt“
+  // 5: das Nachreichen scheitert jedes Mal (503) → nach drei Versuchen aufgegeben; die Abgabe beim Server bleibt genau, wie sie war
+  const DOWN = { status: 503, body: { ok: false, error: "Der Server ist gerade nicht erreichbar.", code: "server_error" } };
+  const c5 = await fb2Case({ vorname: "wim", nachname: "wi", geb: "--05-05", klasse: "7a" }, () => DOWN, 3);
+  expect(c5.sent.length).toBe(3);
+  for (const x of c5.sent) expect(noFb2(x)).toEqual(c5.fin);
+  expect(c5.got).toEqual(c5.fin);
+  expect(ttHasValues(c5.got.typing)).toBe(true);
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis (Schreibbereich; Angaben-Bildschirm, auch einer Gruppe in der „ihr“-Form) → keine Tippzeiten mehr im Zwischenstand und in der Zwischenstand-PDF, ein schon gesendeter Erstversuch wird mit derselben Kennung ohne sie ersetzt (scheitert das, beim nächsten Öffnen; auch beim Öffnen über „Deine Angaben“), Zurücknehmen misst nur ab dann, auch während einer laufenden KI-Anfrage; gilt sofort im zweiten Tab (auch nach der Abgabe im ersten: die zweite Rückmeldung wird dann ohne Tippzeiten nachgereicht), bleibt beim Neuladen ohne Eingabe und beim Hochladen einer älteren Zwischenstand-PDF; während des Sendens abgelehnt; Abgabe trägt optOut, die Lehrkraft sieht „ohne Messung (widersprochen)“ – auch beim Erstversuch und beim ausgeblendeten älteren Erstversuch", async ({ browser }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  const teacher = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value);
+  const priv = await openPrivateKey((await deriveTeacherKeys(PW, teacher.kdf)).encKey, teacher.encPrivateKey);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Widerspruch");
+  await tp.fill("#bq-1", "Schreibe einen kurzen Satz.");
+  await tp.fill("#bs-1", "- Ein Satz");
+  await tp.fill("#bq-2", "Erkläre einen Begriff.");
+  await tp.fill("#bs-2", "- Haus");
+  await tp.selectOption("#bt-2", "table");
+  await tp.fill("#bc-2", "Begriff; Erklärung");
+  await tp.fill("#br-2", "2");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  // gespeicherte Einträge dieses Blattes, entschlüsselt wie auf der Lehrkraft-Seite
+  const rows = async () => Promise.all((await d1Query(`SELECT id, stage, attempt, envelope FROM submissions WHERE sheet_code='${code}' ORDER BY id`))
+    .map(async (r) => ({ id: r.id, stage: r.stage, attempt: r.attempt, p: await openEnvelope(priv, JSON.parse(r.envelope)) })));
+  const rowsOf = async (vorname) => (await rows()).filter((x) => x.p.person.vorname === vorname);
+  const draftOf = (pg) => pg.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
+  const draftWhen = async (pg, pred) => { await expect.poll(async () => { const d = await draftOf(pg); return !!d && pred(d); }, { timeout: 10_000 }).toBe(true); return draftOf(pg); };
+  const codesOf = (b) => Array.from(Buffer.from(b, "base64"));
+  // Wirkung und Geltungsbereich des Schalters (aria-describedby: zwei Absätze)
+  const described = (sw) => sw.evaluate((e) => [e.id, e.getAttribute("aria-describedby").split(" ").map((id) => document.getElementById(id).textContent)]);
+  // Messungen in den Feldern (Textfeld und die vier Zellen der Tabelle): null = verworfen
+  const ttStateOf = (pg) => pg.evaluate(() => [document.getElementById("a-1")._tt, Array.from(document.querySelectorAll("#a-2 textarea.tcell:not(.measure)"), (c) => c._tt)]);
+  const NONE = [null, [null, null, null, null]];
+  const ON = "Widerspruch eingetragen: Auf diesem Gerät misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr.";
+  const ON_G = "Widerspruch eingetragen: Auf diesem Gerät misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr.";
+  const OFF = "Widerspruch zurückgenommen: Ab jetzt misst diese Seite die Tippzeiten wieder.";
+  const TAB = "Widerspruch eingetragen (in einem anderen Tab mit diesem Feibeitsblatt): Auf diesem Gerät misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr.";
+  const LATE = "Deine Abgabe wird gerade gesendet – für sie gilt ein Widerspruch nicht mehr. Scheitert das Senden, kannst du den Haken danach setzen. " +
+    "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.";
+  const LATE_OFF = "Deine Abgabe wird gerade gesendet – ohne Tippzeiten, wie du es eingetragen hast. Scheitert das Senden, kannst du den Haken danach entfernen.";
+  const ORANGE_INK = "rgb(138, 69, 0)";   // --orange-ink: Ablehnung während des Sendens – keine Erfolgsfarbe
+  // eine Anfrage anhalten, bis der Test sie freigibt (dann weiter zum Server bzw. abgebrochen)
+  const hold = async (pg, path, how = "continue") => {
+    let release; const held = new Promise((r) => { release = r; });
+    await pg.route("**" + path, async (route) => { await held; await (how === "abort" ? route.abort() : route.continue()); });
+    return () => release();
+  };
+
+  /* ---------- Schüler:in 1: KI-Feedback (Erstversuch mit Tippzeiten), dann Widerspruch im Schreibbereich ---------- */
+  const s = await openPage(browser);
+  const { page } = s, warns = [];
+  page.on("console", (m) => { if (m.type() === "warning" && m.text().startsWith("Feibeitsblatt")) warns.push(m.text()); });
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "wil", nachname: "wi", geb: "--07-08", klasse: "7a" });
+  await typeAt(page, "#a-1", "Ich tippe", { delay: 120 });
+  const cells = page.locator("#a-2 textarea.tcell:not(.measure)");
+  await cells.nth(0).click();
+  await page.keyboard.type("Haus", { delay: 120 });
+  const A2 = "Begriff | Erklärung\nHaus |";
+  let d = await draftWhen(page, (x) => x.answers[0] === "Ich tippe" && x.answers[1] === A2);
+  if (TT_KEEP) expect(codesOf(d.typing.answers[0])).toEqual([71, 71, 71, 255, 71, 71, 71, 71, 71]);
+  await requestFeedback(page);
+  await expect.poll(async () => (await rows()).map((x) => x.stage), { timeout: 30_000 }).toEqual(["first"]);
+  const [r1] = await rows();
+  expect(r1.p.answers).toEqual([{ first: "Ich tippe", final: null }, { first: A2, final: null }]);
+  expect(codesOf(r1.p.typing.answers[0].first)).toEqual([71, 71, 71, 255, 71, 71, 71, 71, 71]);
+  d = await draftWhen(page, (x) => x.firstSent === true);
+  if (TT_KEEP) expect(d.typing.first.map((b) => Buffer.from(b, "base64").length)).toEqual(["Ich tippe".length, A2.length]);
+
+  // der Schalter steht im ausführlichen Hinweis unter den Aufgaben („du“), per Tastatur bedienbar; das Ersetzen scheitert erst
+  let aborted = 0;
+  await page.route("**/api/submit", (route) => { aborted++; return route.abort(); });
+  const ed = page.locator("#privfull-ed");
+  await ed.locator("summary").click();
+  const sw = ed.getByRole("checkbox", { name: TT_SWITCH });
+  await expect(sw).not.toBeChecked();
+  expect(await described(sw)).toEqual(["privfull-ed-d-ttoff", [TT_EFFECT, TT_SCOPE]]);
+  await sw.focus();
+  await page.keyboard.press("Space");
+  await expect(sw).toBeChecked();
+  await expect(sw).toBeFocused();
+  await expect(ed.locator(".ttopt-st")).toHaveText(ON);
+  await expect(ed.locator(".ttopt-st")).toHaveAttribute("role", "status");
+  // sofort gespeichert: keine Tippzeiten mehr, der Widerspruch und das noch fällige Ersetzen gemerkt
+  d = await draftWhen(page, (x) => x.ttOptOut === true && x.ttResend === true);
+  expect(d.typing).toBeUndefined();
+  expect(await ttStateOf(page)).toEqual(NONE);   // Messungen in den Feldern verworfen
+  await expect.poll(() => aborted, { timeout: 10_000 }).toBe(1);
+  await expect.poll(() => warns.length).toBe(1);
+  expect(warns[0]).toBe("Feibeitsblatt: Erstversuch ohne Tippzeiten noch nicht ersetzt – wird beim nächsten Öffnen nachgeholt.");   // leise, ohne Inhalte
+  expect((await rows())[0].p.typing.answers).toBeTruthy();   // noch der alte Eintrag
+  await page.unroute("**/api/submit");
+  // ohne Messung weitergeschrieben: nichts gemessen, nichts gespeichert
+  await typeAt(page, "#a-1", " neu", { delay: 120 });
+  d = await draftWhen(page, (x) => x.answers[0] === "Ich tippe neu");
+  expect(d.typing).toBeUndefined();
+  expect(await ttStateOf(page)).toEqual(NONE);
+  // die Zwischenstand-PDF merkt sich den Widerspruch (und das noch fällige Ersetzen) – ohne Tippzeiten
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#ed-pdf")]);
+  const pdf = await readFile(await dl.path());
+  const i0 = pdf.indexOf("/FbDraft 1"), d0 = pdf.indexOf("stream\n", i0) + 7, d1 = pdf.indexOf("\nendstream", d0);
+  const rec = JSON.parse(pdf.subarray(d0, d1).toString("utf8"));
+  expect([rec.ttOptOut, rec.ttResend, rec.typing, rec.answers[0]]).toEqual([true, true, undefined, "Ich tippe neu"]);
+
+  // Neuladen → „Weiterschreiben“: der Schalter zeigt den Widerspruch, das Ersetzen wird nachgeholt (dieselbe Zeile, dieselbe Kennung)
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect.poll(async () => (await rows())[0].p.typing, { timeout: 30_000 }).toEqual({ v: 1, optOut: true });
+  const [r2] = await rows();
+  expect([r2.id, r2.stage, r2.attempt]).toEqual([r1.id, "first", r1.attempt]);
+  expect([r2.p.answers, r2.p.feedback, r2.p.person]).toEqual([r1.p.answers, r1.p.feedback, r1.p.person]);   // sonst derselbe Erstversuch
+  d = await draftWhen(page, (x) => x.ttOptOut === true && !("ttResend" in x));
+  await ed.locator("summary").click();
+  await expect(sw).toBeChecked();
+  await expect(ed.locator(".ttopt-st")).toHaveText("");
+  // die Zwischenstand-PDF auf einem anderen Gerät hochgeladen: der Widerspruch gilt dort weiter (Schalter gesetzt, nichts gemessen)
+  const o = await openPage(browser);
+  await o.page.setInputFiles("#start-pdf-file", { name: "stand.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(o.page.locator("#screen-editor")).toHaveClass(/active/);
+  await o.page.locator("#privfull-ed summary").click();
+  await expect(o.page.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH })).toBeChecked();
+  await typeAt(o.page, "#a-1", "!", { delay: 120 });
+  const od = await draftWhen(o.page, (x) => x.answers[0] === "Ich tippe neu!" && !("ttResend" in x));   // das Ersetzen ist erledigt
+  expect([od.ttOptOut, od.typing]).toEqual([true, undefined]);
+  await closePage(o);
+  expect((await rows())[0].p.typing).toEqual({ v: 1, optOut: true });
+
+  // zurücknehmen: ab jetzt wird wieder gemessen – der vorhandene Text bleibt „ohne Messung“ (255), auch die erste Fassung
+  await sw.click();
+  await expect(sw).not.toBeChecked();
+  await expect(ed.locator(".ttopt-st")).toHaveText(OFF);
+  await typeAt(page, "#a-1", " ja", { delay: 120 });
+  d = await draftWhen(page, (x) => x.answers[0] === "Ich tippe neu ja");
+  expect(d.ttOptOut).toBeUndefined();
+  if (TT_KEEP) {
+    expect(codesOf(d.typing.answers[0])).toEqual([...Array(13).fill(255), 255, 71, 71]);
+    expect(codesOf(d.typing.answers[1]).every((c) => c === 255)).toBe(true);
+    expect(d.typing.first).toEqual([null, null]);
+  }
+  // … und wieder widersprechen; die Abgabe trägt dann nur den Widerspruch
+  await sw.click();
+  await expect(sw).toBeChecked();
+  await expect(ed.locator(".ttopt-st")).toHaveText(ON);
+  d = await draftWhen(page, (x) => x.ttOptOut === true);
+  expect(d.typing).toBeUndefined();
+  // während die Abgabe gesendet wird, wirkt der Schalter nicht (die Nutzlast ist gebaut): der Haken bleibt, die Meldung sagt warum
+  const go1 = await hold(page, "/api/submit");
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Jetzt abgeben?");
+  await expect(page.locator("#submit-status")).toHaveText("Deine Abgabe wird verschlüsselt und gesendet …");
+  await sw.click();
+  await expect(sw).toBeChecked();
+  await expect(ed.locator(".ttopt-st")).toHaveText(LATE_OFF);
+  expect(await ed.locator(".ttopt-st").evaluate((e) => getComputedStyle(e).color)).toBe(ORANGE_INK);
+  go1();
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await page.unroute("**/api/submit");
+  await expect.poll(async () => (await rows()).map((x) => [x.id, x.stage]), { timeout: 30_000 }).toEqual([[r1.id, "final"]]);
+  const fin = (await rows())[0].p;
+  expect(fin.typing).toEqual({ v: 1, optOut: true });
+  expect(fin.answers).toEqual([{ first: "Ich tippe", final: "Ich tippe neu ja" }, { first: A2, final: A2 }]);
+  // an die KI gingen nie Tippzeiten (erstes Feedback und zweite Rückmeldung)
+  await expect.poll(async () => (await s.calls((e) => e.path === "/api/feedback")).length, { timeout: 30_000 }).toBe(2);
+  for (const c of await s.calls((e) => e.path === "/api/feedback")) expect(c.reqBody).not.toMatch(/typing|ttOptOut|optOut/);
+  // die nachgereichte zweite Rückmeldung ersetzt die Abgabe – der Widerspruch bleibt dabei erhalten
+  await expect.poll(async () => !!(await rows())[0].p.feedback2, { timeout: 30_000 }).toBe(true);
+  const fin2 = (await rows())[0].p;
+  expect(fin2.typing).toEqual({ v: 1, optOut: true });
+  expect(fin2.answers).toEqual(fin.answers);
+  await closePage(s);
+
+  /* ---------- Schüler:in 2, Gerät 1: Erstversuch mit Tippzeiten → neu über „Deine Angaben“ geöffnet, Haken schon dort ---------- */
+  const Z = { vorname: "zwe", nachname: "zw", geb: "--09-10", klasse: "7a" };
+  const z = await openPage(browser);
+  const zp = z.page;
+  await enterCode(zp, shown);
+  await fillPerson(zp, Z);
+  await typeAt(zp, "#a-1", "Zwei", { delay: 120 });
+  await zp.click("#fb-btn");
+  await confirmDialog(zp, "Noch nicht alles beantwortet");   // Aufgabe 2 bleibt leer
+  await expect(zp.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await expect.poll(async () => (await rowsOf("Zwe")).length, { timeout: 30_000 }).toBe(1);
+  const [z1] = await rowsOf("Zwe");
+  expect(codesOf(z1.p.typing.answers[0].first)).toEqual([71, 71, 71, 71]);
+  await draftWhen(zp, (x) => x.firstSent === true);
+  await zp.reload();
+  await enterCode(zp, shown);
+  await chooseSingle(zp);
+  await zp.fill("#p-vorname", Z.vorname);
+  await zp.fill("#p-nachname", Z.nachname);
+  await zp.fill("#p-gtag", "10");
+  await zp.fill("#p-gmonat", "9");
+  await zp.fill("#p-klasse", Z.klasse);
+  const zpf = zp.locator("#p-privfull");
+  await zpf.locator("summary").click();
+  const zsw = zpf.getByRole("checkbox", { name: TT_SWITCH });
+  expect(await described(zsw)).toEqual(["p-privfull-ttoff", [TT_EFFECT, TT_SCOPE]]);
+  await zsw.check();
+  await expect(zpf.locator(".ttopt-st")).toHaveText(ON);
+  await zp.click("#p-btn");
+  await expect(zp.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(zp.locator("#a-1")).toHaveValue("Zwei");
+  // sofort: Zwischenstand ohne Tippzeiten (auch die der ersten Fassung), derselbe Erstversuch (Zeile, Kennung) ohne sie ersetzt
+  d = await draftWhen(zp, (x) => x.ttOptOut === true);
+  expect(d.typing).toBeUndefined();
+  expect(await ttStateOf(zp)).toEqual(NONE);
+  await expect.poll(async () => (await rowsOf("Zwe")).map((x) => [x.id, x.stage, x.attempt, x.p.typing]), { timeout: 30_000 })
+    .toEqual([[z1.id, "first", z1.attempt, { v: 1, optOut: true }]]);
+  expect((await rowsOf("Zwe"))[0].p.answers).toEqual(z1.p.answers);
+  await draftWhen(zp, (x) => x.ttOptOut === true && !("ttResend" in x));
+  await closePage(z);
+
+  /* ---------- Schüler:in 2, Gerät 2 (andere Kennung, kein Widerspruch): Schalter während des Sendens, zweiter Tab ---------- */
+  const z2 = await openPage(browser);
+  const za = z2.page;
+  await enterCode(za, shown);
+  await fillPerson(za, Z);
+  const zed = za.locator("#privfull-ed");
+  await zed.locator("summary").click();
+  const zsa = zed.getByRole("checkbox", { name: TT_SWITCH });
+  await expect(zsa).not.toBeChecked();   // der Widerspruch steht im Zwischenstand von Gerät 1, nicht beim Server
+  await typeAt(za, "#a-1", "Drei", { delay: 120 });
+  await draftWhen(za, (x) => x.answers[0] === "Drei");
+  // Abgabe wird gesendet (angehalten): Haken springt zurück, Meldung ohne Erfolgsfarbe; das Senden scheitert → Meldung weg, Schalter wirkt
+  const go2 = await hold(za, "/api/submit", "abort");
+  await za.click("#submit-btn");
+  await confirmDialog(za, "Ohne KI-Feedback abgeben?");
+  await expect(za.locator("#submit-status")).toHaveText("Deine Abgabe wird verschlüsselt und gesendet …");
+  await zsa.click();
+  await expect(zsa).not.toBeChecked();
+  const zst = zed.locator(".ttopt-st");
+  await expect(zst).toHaveText(LATE);
+  expect(await zst.evaluate((e) => getComputedStyle(e).color)).toBe(ORANGE_INK);
+  go2();
+  await expect(za.locator("#submit-status")).toContainText("Deine Antworten sind noch da");
+  await expect(zst).toHaveText("");
+  await za.unroute("**/api/submit");
+  expect(await rowsOf("Zwe")).toHaveLength(1);   // nichts angekommen
+  // zweiter Tab mit demselben Stand (gleicher Speicher): ein Widerspruch im ersten gilt sofort auch dort
+  const zb = await z2.context.newPage();
+  const zbErrors = [];
+  zb.on("pageerror", (e) => zbErrors.push(String(e)));
+  await zb.goto("/");
+  await zb.click("#resume-btn");
+  await expect(zb.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(zb.locator("#a-1")).toHaveValue("Drei");
+  await zsa.click();
+  await expect(zsa).toBeChecked();
+  await expect(zst).toHaveText(ON);
+  await expect(zst).not.toHaveClass(/late/);
+  await zb.locator("#privfull-ed summary").click();
+  const zsb = zb.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH });
+  await expect(zsb).toBeChecked();
+  await expect(zb.locator("#privfull-ed .ttopt-st")).toHaveText(TAB);
+  expect(await ttStateOf(zb)).toEqual(NONE);
+  await typeAt(zb, "#a-1", " B", { delay: 120 });
+  d = await draftWhen(zb, (x) => x.answers[0] === "Drei B");
+  expect([d.ttOptOut, d.typing]).toEqual([true, undefined]);   // der zweite Tab überschreibt den Widerspruch nicht
+  await zb.click("#submit-btn");
+  await confirmDialog(zb, "Ohne KI-Feedback abgeben?");
+  await expect(zb.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect.poll(async () => (await rowsOf("Zwe")).map((x) => x.stage), { timeout: 30_000 }).toEqual(["first", "final"]);
+  const zf = (await rowsOf("Zwe"))[1];
+  expect(zf.attempt).not.toBe(z1.attempt);   // anderes Gerät, andere Kennung: der Erstversuch von Gerät 1 bleibt (ausgeblendet)
+  expect([zf.p.typing, zf.p.answers[0]]).toEqual([{ v: 1, optOut: true }, { first: "Drei B", final: "Drei B" }]);
+  expect(zbErrors).toEqual([]);
+  await closePage(z2);
+
+  /* ---------- Schüler:in 3: Haken während einer laufenden KI-Anfrage an und wieder aus; ältere Zwischenstand-PDF hochgeladen ---------- */
+  const v = await openPage(browser);
+  const vp = v.page;
+  await enterCode(vp, shown);
+  await fillPerson(vp, { vorname: "vie", nachname: "vi", geb: "--11-12", klasse: "7a" });
+  await typeAt(vp, "#a-1", "Vier", { delay: 120 });
+  await draftWhen(vp, (x) => x.answers[0] === "Vier");
+  const [dl4] = await Promise.all([vp.waitForEvent("download"), vp.click("#ed-pdf")]);   // vor dem Widerspruch gesichert (samt Tippzeiten)
+  const pdf4 = await readFile(await dl4.path());
+  const go4 = await hold(vp, "/api/feedback");
+  await vp.click("#fb-btn");
+  await confirmDialog(vp, "Noch nicht alles beantwortet");   // Aufgabe 2 bleibt leer
+  await expect(vp.locator("#fb-status")).toHaveText("Die KI arbeitet … das kann bis zu einer Minute dauern.");
+  const ved = vp.locator("#privfull-ed");
+  await ved.locator("summary").click();
+  const vsw = ved.getByRole("checkbox", { name: TT_SWITCH });
+  await vsw.click();
+  await expect(vsw).toBeChecked();
+  await vsw.click();
+  await expect(vsw).not.toBeChecked();
+  go4();
+  await expect(vp.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await vp.unroute("**/api/feedback");
+  // die vor dem Widerspruch gelesenen Werte gelten nicht mehr: erste Fassung ohne Messung (Zwischenstand und Erstversuch)
+  d = await draftWhen(vp, (x) => x.firstSent === true);
+  if (TT_KEEP) expect(d.typing.first).toEqual([null, null]);
+  else expect(d.typing).toBeUndefined();
+  await expect.poll(async () => (await rowsOf("Vie")).length, { timeout: 30_000 }).toBe(1);
+  const [v1] = await rowsOf("Vie");
+  expect(v1.p.typing).toEqual({ v: 1, answers: [{ first: null, final: null }, { first: null, final: null }] });
+  // widersprechen (der Erstversuch wird ersetzt), dann auf diesem Gerät die ältere Zwischenstand-PDF hochladen und ihren Stand wählen
+  await vsw.click();
+  await expect(vsw).toBeChecked();
+  await expect.poll(async () => (await rowsOf("Vie")).map((x) => [x.id, x.p.typing]), { timeout: 30_000 }).toEqual([[v1.id, { v: 1, optOut: true }]]);
+  await draftWhen(vp, (x) => x.ttOptOut === true && !("ttResend" in x));
+  await vp.reload();
+  await vp.setInputFiles("#start-pdf-file", { name: "alt.pdf", mimeType: "application/pdf", buffer: pdf4 });
+  await confirmDialog(vp, "Neuerer Zwischenstand auf diesem Gerät");   // „Stand aus der PDF-Datei“
+  await expect(vp.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(vp.locator("#a-1")).toHaveValue("Vier");
+  await ved.locator("summary").click();
+  await expect(vsw).toBeChecked();   // ein Import nimmt den Widerspruch auf diesem Gerät nie zurück
+  d = await draftWhen(vp, (x) => x.ttOptOut === true && x.answers[0] === "Vier");
+  expect([d.typing, d.feedback]).toEqual([undefined, null]);
+  expect(await ttStateOf(vp)).toEqual(NONE);
+  await closePage(v);
+
+  /* ---------- Gruppe: Widerspruch schon auf dem Angaben-Bildschirm („ihr“-Form) → sofort gespeichert, auch ohne Eingabe ---------- */
+  const g = await openPage(browser);
+  const gp = g.page;
+  await enterCode(gp, shown);
+  await expect(gp.locator("#screen-mode")).toHaveClass(/active/);
+  await gp.click("#mode-group");
+  await expect(gp.locator("#screen-person")).toHaveClass(/active/);
+  await gp.fill("#p-m-1", "max mu");
+  await gp.click("#p-add");
+  await gp.fill("#p-m-2", "li mu");
+  await gp.fill("#p-klasse", "7a");
+  const pf = gp.locator("#p-privfull");
+  await pf.locator("summary").click();
+  const gsw = pf.getByRole("checkbox", { name: TT_SWITCH_G });
+  await expect(gsw).not.toBeChecked();
+  expect(await gsw.evaluate((e) => [e.getAttribute("aria-describedby").split(" ").map((id) => document.getElementById(id).textContent), e.closest(".ttoptbox").firstElementChild.textContent]))
+    .toEqual([[TT_EFFECT_G, TT_SCOPE_G], "Der Messung der Tippzeiten könnt ihr direkt hier widersprechen – es genügt, wenn eine oder einer von euch das möchte:"]);
+  await expect(pf).toContainText("Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (siehe „" + TT_OBJ_HEAD + "“).");
+  await gsw.click();
+  await expect(gsw).toBeChecked();
+  await expect(pf.locator(".ttopt-st")).toHaveText(ON_G);
+  expect(await pf.textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
+  await gp.click("#p-btn");
+  await expect(gp.locator("#screen-editor")).toHaveClass(/active/);
+  d = await draftWhen(gp, (x) => x.ttOptOut === true);   // ohne eine Eingabe gespeichert
+  expect(d.answers.every((a) => a === "")).toBe(true);
+  // neu geladen, bevor jemand tippt; dieselbe Gruppe (andere Reihenfolge) öffnet wieder über „Eure Angaben“ → der Widerspruch gilt
+  await gp.reload();
+  await enterCode(gp, shown);
+  await gp.click("#mode-group");
+  await gp.fill("#p-m-1", "li mu");
+  await gp.click("#p-add");
+  await gp.fill("#p-m-2", "max mu");
+  await gp.fill("#p-klasse", "7a");
+  await gp.click("#p-btn");
+  await expect(gp.locator("#screen-editor")).toHaveClass(/active/);
+  // im Schreibbereich derselbe Schalter („du“-Form wie der ganze Schreibbereich), schon gesetzt
+  await gp.locator("#privfull-ed summary").click();
+  await expect(gp.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH })).toBeChecked();
+  await typeAt(gp, "#a-1", "Wir", { delay: 120 });
+  await gp.locator("#a-2 textarea.tcell:not(.measure)").nth(0).click();
+  await gp.keyboard.type("Ort", { delay: 120 });
+  d = await draftWhen(gp, (x) => x.answers[0] === "Wir" && x.answers[1] === "Begriff | Erklärung\nOrt |");
+  expect([d.ttOptOut, d.typing]).toEqual([true, undefined]);
+  expect(await ttStateOf(gp)).toEqual(NONE);   // in keinem Feld gemessen
+  await gp.click("#submit-btn");
+  await confirmDialog(gp, "Ohne KI-Feedback abgeben?");
+  await expect(gp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect.poll(async () => (await rows()).filter((x) => x.p.person.gruppe).length, { timeout: 30_000 }).toBe(1);
+  const grp = (await rows()).find((x) => x.p.person.gruppe).p;
+  expect([grp.person.gruppe, grp.typing]).toEqual([["LiMu", "MaxMu"], { v: 1, optOut: true }]);
+  await closePage(g);
+
+  /* ---------- Lehrkraft: „ohne Messung (widersprochen)“ bei Abgaben, beim Erstversuch und beim ausgeblendeten älteren Erstversuch ---------- */
+  await tp.click("#t-refresh");
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(4);   // Wil, Zwe (Erstversuch von Gerät 1 ausgeblendet), Vie (Erstversuch), Gruppe
+  await tp.click("#t-expand-all");
+  const dets = tp.locator("#t-subs-body tr.details:visible");
+  await expect(dets).toHaveCount(4);
+  await expect(dets.locator(".detbox > .dtt-sum")).toHaveText(Array(4).fill("Tippzeiten: ohne Messung (widersprochen)."));
+  await expect(dets.locator(".dtt, .tt-r, .tt-y, .tt-g")).toHaveCount(0);
+  const wil = dets.filter({ hasText: "Ich tippe neu ja" });
+  expect(await wil.locator(".dtask").nth(0).locator("table.cmp tbody td").nth(1).textContent()).toBe("Ich tippe neu ja");
+  const vie = dets.filter({ hasText: "Erstversuch ohne Überarbeitung – noch nicht abgegeben" });
+  await expect(vie.locator(".detbox > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (widersprochen).");
+  const older = dets.locator("details.dolder");
+  await expect(older).toHaveCount(1);
+  await expect(older.locator("summary")).toHaveText("1 älterer Erstversuch dieser Person (in der Liste ausgeblendet)");
+  await older.locator("summary").click();
+  await expect(older.locator(".detbox.older > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (widersprochen).");
+  await expect(older.locator(".dtt, .tt-r, .tt-y, .tt-g")).toHaveCount(0);
+
+  /* ---------- Schüler:in 5 und 6: zwei Tabs – der erste gibt ab, der zweite widerspricht, während die zweite Rückmeldung noch aussteht ----------
+   * Der zweite Tab weiß nichts von der Abgabe; sein Widerspruch steht im Zwischenstand (den der erste bei der Abgabe gelöscht hat). Der erste
+   * reicht danach keine Tippzeit-Werte mehr nach – die Abgabe wird mit {optOut} ersetzt: a) eingefroren (storage-Ereignis verpasst), der
+   * Widerspruch kommt, während die KI noch arbeitet → er sieht vor dem Nachreichen nach; b) der Widerspruch kommt, während das Nachreichen mit
+   * den Werten unterwegs ist → angekommen, dann gleich noch einmal ohne sie */
+  const stripFb2 = (p) => { const y = { ...p }; delete y.typing; delete y.feedback2; return y; };
+  const lateOptOut = async (who, name, frozen) => {
+    const x = await openPage(browser), xa = x.page;
+    await enterCode(xa, shown);
+    await fillPerson(xa, who);
+    await typeAt(xa, "#a-1", "Fünf", { delay: 120 });
+    await xa.click("#fb-btn");
+    await confirmDialog(xa, "Noch nicht alles beantwortet");   // Aufgabe 2 bleibt leer
+    await expect(xa.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+    await draftWhen(xa, (y) => y.firstSent === true);
+    await typeAt(xa, "#a-1", " und mehr", { delay: 120 });
+    await draftWhen(xa, (y) => y.answers[0] === "Fünf und mehr");
+    const xb = await x.context.newPage(), xbErrors = [];
+    xb.on("pageerror", (e) => xbErrors.push(String(e)));
+    await xb.goto("/");
+    await xb.click("#resume-btn");
+    await expect(xb.locator("#screen-editor")).toHaveClass(/active/);
+    await expect(xb.locator("#a-1")).toHaveValue("Fünf und mehr");
+    if (frozen) await xa.evaluate(() => window.addEventListener("storage", (e) => e.stopImmediatePropagation(), true));
+    let release; const held = new Promise((r) => { release = r; });
+    const posted = [];
+    if (frozen) await xa.route("**/api/feedback", async (route) => { await held; await route.continue(); });   // die KI arbeitet noch
+    await xa.route("**/api/submit", async (route) => {
+      const b = JSON.parse(route.request().postData());
+      if (b.stage === "feedback2") { posted.push(b); if (!frozen && posted.length === 1) await held; }   // das erste Nachreichen unterwegs
+      await route.continue();
+    });
+    await submit(xa);
+    const finalOf = async () => (await rowsOf(name)).find((r) => r.stage === "final");
+    await expect.poll(async () => !!(await finalOf()), { timeout: 30_000 }).toBe(true);
+    const fin = (await finalOf()).p;
+    expect(fin.typing.answers.some((a) => typeof a.final === "string" && a.final.length > 1)).toBe(true);   // die Abgabe trägt Tippzeit-Werte
+    if (!frozen) await expect.poll(() => posted.length, { timeout: 60_000 }).toBe(1);
+    // der zweite Tab widerspricht (er zeigt noch den Schreibbereich)
+    await xb.locator("#privfull-ed summary").click();
+    const sb = xb.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH });
+    await sb.click();
+    await expect(sb).toBeChecked();
+    await expect(xb.locator("#privfull-ed .ttopt-st")).toHaveText(ON);
+    await draftWhen(xb, (y) => y.ttOptOut === true);
+    release();
+    await expect(xa.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 60_000 });
+    await expect.poll(async () => { const r = await finalOf(); return r && r.p.feedback2 ? r.p.typing : null; }, { timeout: 30_000 }).toEqual({ v: 1, optOut: true });
+    await xa.waitForTimeout(2500);   // danach nichts mehr
+    const sent = await Promise.all(posted.map((b) => openEnvelope(priv, b.envelope)));
+    expect(sent.map((p) => p.typing.optOut === true)).toEqual(frozen ? [true] : [false, true]);
+    for (const p of sent) expect(stripFb2(p)).toEqual(stripFb2(fin));   // sonst genau die angenommene Abgabe
+    const got = await finalOf();
+    expect((await rowsOf(name)).map((r) => r.stage)).toEqual(["final"]);
+    expect(got.p).toEqual(sent.at(-1));
+    expect(got.p.feedback2.results[0]).toBeTruthy();
+    expect(xbErrors).toEqual([]);
+    await closePage(x);
+  };
+  await lateOptOut({ vorname: "fue", nachname: "fu", geb: "--02-03", klasse: "7a" }, "Fue", true);
+  await lateOptOut({ vorname: "sec", nachname: "se", geb: "--03-04", klasse: "7a" }, "Sec", false);
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+/* ---------- Feibeitsblatt als Finale eines Escape-Rooms (Schnittstelle v1) ----------
+ * Daten frei erfunden; confirm ist eine beliebige Ziffernfolge. Die Gegenseite (Hülle, Link-Kodierung, Überblick-PDF) baut
+ * test/escape-fixture.mjs genau wie der Quelltext eines Escape-Rooms. */
+const ESC_ROOM = { id: "test-escape", name: "FastFashion-Test" };
+const ESC_STATIONS = [
+  { label: "Station 1 · Was steckt im Preis?", attempts: 1, errors: [] },
+  { label: "Station 2 · Feld oder Ölquelle?", attempts: 3, errors: [{ item: "Rohstoff für Polyester", wrong: "Baumwolle", right: "Erdöl", note: "Polyester ist ein Kunststoff." }, { item: "Wasserbedarf", right: "Wasser" }] },
+  { label: "Station 3 · Nähen für die Welt", attempts: 2, errors: [{ item: "Lohnanteil am Preis", wrong: "10 %", right: "ca. 1 %" }] },
+  { label: "Station 4 · Ware unter Verdacht", attempts: 1, errors: [] },
+  { label: "Station 5 · Zweites Leben oder Müll?", attempts: 1, errors: [] },
+  { label: "Station 6 · Was darf Kaya posten?", attempts: 1, errors: [] },
+];
+const escRec = (code, o = {}) => ({
+  code, room: { ...ESC_ROOM, url: "https://escape.example/" },
+  person: { vorname: "Maximilian", nachname: "Mustermann", geburtsdatum: "04.05.2010", klasse: "10b" },
+  confirm: "31415926", word: "GLOBUS", completedAt: "2026-10-27T10:15:00.000Z", stations: ESC_STATIONS,
+  notes: ESC_STATIONS.map((st, i) => ({ label: st.label, text: `Erläuterung zu Station ${i + 1}.\n\nGenaue Daten: −23,8 % gegenüber dem Vorjahr; ≈ 81 % Anteil.` })),
+  resumes: [{ place: "nach Station 2", savedAt: "2026-10-26T09:00:00.000Z", loadedAt: "2026-10-27T08:00:00.000Z" }],
+  ...o,
+});
+const escLink = (hull) => "/#escape=" + b64url(JSON.stringify(hull));
+const ESCT = { code: "", shown: "", normalShown: "" };   // gemeinsamer Zustand von 7n und 7o
+const ESC_START_MSG = "Dieses Feibeitsblatt gehört zum Escape-Room „FastFashion-Test“. Öffne es über den Arena-Tunnel am Ende des Escape-Rooms – oder lade deine Überblick-PDF unter „Zwischenstand-PDF hochladen“ hoch.";
+const ESC_LINK_BAD = "Der Link aus dem Escape-Room ist unvollständig. Lade deine Überblick-PDF unter „Zwischenstand-PDF hochladen“ hoch.";
+const ESC_PDF_BAD = "In dieser Überblick-PDF steckt kein vollständiger Datensatz aus dem Escape-Room. Lade genau die Datei hoch, die du im Escape-Room heruntergeladen hast – kein Screenshot und kein Ausdruck davon.";
+const ESC_NOT_OPEN = "Dieses Escape-Room-Finale ist noch nicht freigeschaltet. Deine Lehrkraft sagt dir, wann es losgeht – dann kommst du über den Arena-Tunnel am Ende des Escape-Rooms hierher (mit der Zwischenstand-Datei des Escape-Rooms kommst du dorthin zurück).";
+const ESC_NO_SHEET = "Zu diesem Escape-Room-Finale gibt es kein Feibeitsblatt (mehr). Bitte sag deiner Lehrkraft Bescheid.";
+const ESC_WRONG = "Die Daten aus dem Escape-Room passen nicht zu diesem Feibeitsblatt. Bitte sag deiner Lehrkraft Bescheid.";
+const ESC_NEED = "Dieser Zwischenstand gehört zu einem Escape-Room-Finale, enthält aber keine Daten aus dem Escape-Room. Lade deine Überblick-PDF unter „Zwischenstand-PDF hochladen“ hoch.";
+const ESC_BACK = "Diese Seite hat deine Daten aus dem Escape-Room nicht gespeichert. Du kannst jederzeit über den Arena-Tunnel oder mit deiner Überblick-PDF zurückkommen.";
+// per Link angekommen: der Link steht im Verlauf des Browsers (replaceState entfernt ihn nur aus der Adresszeile)
+const ESC_BACK_LINK = "Diese Seite hat deine Daten aus dem Escape-Room nicht gespeichert. Der Link aus dem Escape-Room mit diesen Daten steht aber noch im Verlauf deines Browsers – " +
+  "auf einem geteilten Gerät lösche ihn dort. Du kannst jederzeit über den Arena-Tunnel oder mit deiner Überblick-PDF zurückkommen.";
+const ESC_UPDATED = "Die Daten aus dem Escape-Room „FastFashion-Test“ in deinem Zwischenstand wurden durch die gerade mitgebrachten ersetzt (Escape-Room abgeschlossen am 27.10.2026, 11:15 Uhr).";
+const ESC_NOTE = "Du kommst aus dem Escape-Room „FastFashion-Test“ – deine Angaben sind schon eingetragen.";
+const ESC_SHORT = "Aus dem Escape-Room „FastFashion-Test“ bleiben dein voller Name, dein Geburtsdatum und dein Bestätigungscode auf diesem Gerät; nur deine Ergebnisse dort gehen verschlüsselt an deine Lehrkraft.";
+const ESC_EDITOR = "Aus dem Escape-Room „FastFashion-Test“ stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode nur in deinem Zwischenstand auf diesem Gerät und in PDF-Dateien, die du herunterlädst; " +
+  "an deine Lehrkraft gehen davon nur deine Ergebnisse aus dem Escape-Room – verschlüsselt mit Erstversuch und Abgabe, nie an eine KI.";
+const ESC_STEP_LAST = "Lösungen, letztes Feedback und Escape-Room-Überblick herunterladen " + STEP_LATE;
+const DONE_PDF_ESC = "Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter und speichere sie in deinen Unterlagen zu unserem Unterricht";
+const ESC_FAILED = "Noch nicht abgegeben: Die Abgabe ist wegen eines technischen Fehlers fehlgeschlagen. Reiche diese Datei bitte per E-Mail bei " + OP.email + " ein.";
+const personValues = (page) => page.evaluate(() => ["p-vorname", "p-nachname", "p-gtag", "p-gmonat", "p-klasse"].map((id) => document.getElementById(id).value));
+const draftOfPage = (pg) => pg.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
+const embedPdf = (obj, marker = "/FbDraft 1") => {   // kleine PDF-Datei mit einem eingebetteten Datensatz (wie eine Zwischenstand-PDF)
+  const j = Buffer.from(JSON.stringify(obj), "utf8");
+  return Buffer.concat([Buffer.from(`%PDF-1.7\n1 0 obj\n<< /Type /EmbeddedFile ${marker} /Length ${j.length} >>\nstream\n`, "latin1"), j, Buffer.from("\nendstream\nendobj\n%%EOF\n", "latin1")]);
+};
+// ESCAPE_PDF_OUT=<Ordner> npm run test:e2e speichert die PDF-Dateien aus 7n/7o und Bildschirmfotos der Ankunft lokal zum Ansehen
+const ESC_OUT = process.env.ESCAPE_PDF_OUT || "";
+const escSave = async (name, buf) => { if (ESC_OUT) { await mkdir(ESC_OUT, { recursive: true }); await writeFile(join(ESC_OUT, name), buf); } };
+// Typ jedes Downloads mitschreiben (application/octet-stream: nur speichern, nie im Tab öffnen)
+const blobSpy = () => {
+  window.__blobTypes = [];
+  const orig = URL.createObjectURL;
+  URL.createObjectURL = function (b) { try { window.__blobTypes.push(b && b.type); } catch (e) { /* egal */ } return orig.apply(this, arguments); };
+};
+// heutiges Datum wie im Browser (playwright.config.mjs: timezoneId Europe/Berlin) – nicht in der Zeitzone des Rechners, sonst passt
+// es zwischen Mitternacht in Berlin und Mitternacht UTC nicht zu den Dateinamen der Seite
+const ymd = () => { const p = Object.fromEntries(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((x) => [x.type, x.value])); return `${p.year}-${p.month}-${p.day}`; };
+
+test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung geprüft, Überblick-PDF als Material abgelehnt) → Code-Eingabe gesperrt → Ankunft per Link (Laden, Hash-Wechsel, Netzfehler mit „Erneut versuchen“) und mit der Überblick-PDF (auch neu gespeichert und mit manipulierter Prüfsumme) → Angaben vorausgefüllt, Datenschutzhinweis mit den Daten aus dem Raum → Zwischenstand mit der Hülle, Neuladen, Zwischenstand-PDF → vorhandener Zwischenstand direkt; Fehlerfälle (nicht freigeschaltet, fremder Raum, kaputt, ohne Daten aus dem Raum, Hash im Schreibbereich, liegen gebliebene Ankunft; „Weiterschreiben“ bleibt erreichbar)", async ({ browser }) => {
+  /* ---------- 1. Lehrkraft ---------- */
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");   // ein normales Blatt für den Wechsel aus einer liegen gebliebenen Ankunft (Schritt 7)
+  await tp.fill("#b-title", "Normales Blatt");
+  await tp.fill("#bq-1", "Schreibe einen Satz.");
+  await tp.fill("#bs-1", "- Ein Satz");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  ESCT.normalShown = (await tp.locator("#b-res-code").textContent()).trim();
+  await tp.click("#b-res-back");
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Finale FastFashion");
+  await tp.fill("#bq-1", "Fasse Kayas wichtigste Erkenntnis zusammen.");
+  await tp.fill("#bs-1", "- Kaya\n- Preis");
+  await tp.fill("#bq-2", "Begründe deine Meinung.");
+  await tp.fill("#bs-2", "- Meinung");
+  await expect(tp.locator("#b-esc-fields")).toBeHidden();
+  await tp.check("#b-esc");
+  await expect(tp.locator("#b-esc-fields")).toBeVisible();
+  await expect(tp.locator("#b-esc")).toBeFocused();   // kein Fokussprung beim Setzen des Hakens (WCAG 3.2.2) – die Felder folgen per Tab
+  await tp.keyboard.press("Tab");
+  await expect(tp.locator("#b-esc-name")).toBeFocused();
+  // Name und Kennung prüft schon der Browser (dieselben Regeln wie der Server)
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-err")).toHaveText("Escape-Room: Bitte den Namen des Escape-Rooms eintragen.");
+  await expect(tp.locator("#b-esc-name")).toBeFocused();
+  await expect(tp.locator("#b-esc-name")).toHaveClass(/invalid/);
+  await tp.fill("#b-esc-name", ESC_ROOM.name);
+  await tp.fill("#b-esc-id", "Test Escape");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-err")).toHaveText("Escape-Room: Die Kennung braucht 3 bis 60 Zeichen (nur a–z, 0–9 und Bindestrich) – genau wie ESCAPE_ROOM.id im Quelltext des Escape-Rooms.");
+  await expect(tp.locator("#b-esc-id")).toBeFocused();
+  await expect(tp.locator("#b-result")).toBeHidden();
+  await tp.fill("#b-esc-id", " Test-Escape ");   // Großbuchstaben und Leerraum am Rand werden zur Kennung „test-escape“
+  await tp.locator("#b-rows tr").first().locator("input.bfile-input").setInputFiles({ name: "Ueberblick.pdf", mimeType: "application/pdf", buffer: overviewPdf(escHull(escRec("K7QM4X"))) });
+  await expect(tp.locator("#b-rows tr .bfile-stat").first()).toContainText("Das ist eine Überblick-PDF aus einem Escape-Room mit persönlichen Angaben von Schüler:innen – bitte nicht als Material anhängen.");
+  // … auch neu gespeichert ohne Kennzeichen (erkannt an der eingebetteten Hülle)
+  await tp.locator("#b-rows tr").first().locator("input.bfile-input").setInputFiles({ name: "Ueberblick2.pdf", mimeType: "application/pdf", buffer: overviewPdf(escHull(escRec("K7QM4X")), { flate: true, marker: false, compact: true }) });
+  await expect(tp.locator("#b-rows tr .bfile-stat").first()).toContainText("„Ueberblick2.pdf“: Das ist eine Überblick-PDF aus einem Escape-Room");
+  await expect(tp.locator("#b-rows tr").first().locator(".bfile")).toHaveCount(0);
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#b-res-esc")).toHaveText("Tragen Sie diesen Code im Quelltext des Escape-Rooms „FastFashion-Test“ ein (FEIBEITSBLATT_CODE). Schüler:innen öffnen das Feibeitsblatt über den Arena-Tunnel am Ende des Escape-Rooms oder mit ihrer Überblick-PDF.");
+  await expect(tp.locator("#b-res-normal")).toBeHidden();
+  ESCT.shown = (await tp.locator("#b-res-code").textContent()).trim(); ESCT.code = ESCT.shown.replace("-", "");
+  const pub = await (await tp.request.get("/api/sheet/" + ESCT.code)).json();
+  expect(pub.sheet.escape).toEqual(ESC_ROOM);   // öffentlich nur Kennung und Name
+  await tp.click("#b-res-back");
+  const row = tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" });
+  await expect(row.locator("td").nth(1)).toHaveText("Escape-Room " + ESC_ROOM.name);   // kein Code in der Liste
+  await expect(row).not.toContainText(ESCT.shown);
+  await expect(tp.locator("#t-sheets-body tr", { hasText: "Normales Blatt" })).toContainText(ESCT.normalShown);
+  await row.click();
+  await expect(tp.locator("#t-sel-code-lbl")).toHaveText("Code für den Quelltext des Escape-Rooms");
+  await expect(tp.locator("#t-sel-code")).toHaveText(ESCT.shown);
+  await expect(tp.locator("#t-sel-meta")).toContainText(" · Escape-Room „FastFashion-Test“ (Kennung test-escape)");
+  await expect(tp.locator("#t-sel-esc")).toHaveText("Schüler:innen öffnen dieses Feibeitsblatt nur über den Escape-Room „FastFashion-Test“ (Arena-Tunnel am Ende oder ihre Überblick-PDF); " +
+    "die Eingabe des Codes auf der Startseite ist gesperrt. Die Prüfsumme in den Abgaben zeigt nur, ob der Datensatz aus dem Escape-Room unverändert ankam – ein Indiz, kein Beweis (der Quelltext ist öffentlich).");
+  await expect(tp.locator("#t-analog")).toBeHidden();
+  await expect(tp.locator("#t-analog-hint")).toBeHidden();
+  // ein normales Blatt danach: wieder „Code für die Schüler:innen“ und analoges Arbeitsblatt
+  await tp.locator("#t-sheets-body tr", { hasText: "Normales Blatt" }).click();
+  await expect(tp.locator("#t-sel-code-lbl")).toHaveText("Code für die Schüler:innen");
+  await expect(tp.locator("#t-sel-esc")).toBeHidden();
+  await expect(tp.locator("#t-analog")).toBeVisible();
+  await closePage(t);
+
+  /* ---------- 2. Code-Eingabe gesperrt ---------- */
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, ESCT.shown);
+  await expect(page.locator("#start-err")).toHaveText(ESC_START_MSG);
+  await expect(page.locator("#screen-start")).toHaveClass(/active/);
+  await expect(page.locator("#code-input")).toBeFocused();
+
+  /* ---------- 3. Ankunft per Link (Seite neu geladen): Adresse sofort ohne Daten, Angaben vorausgefüllt, nur Einzelarbeit ---------- */
+  const hull = escHull(escRec(ESCT.code));
+  await s.context.addInitScript(blobSpy);
+  await page.goto("about:blank");
+  await page.goto(escLink(hull));
+  await expect(page.locator("#screen-person")).toHaveClass(/active/);
+  expect(page.url()).toBe(BASE_URL + "/");
+  expect(await page.evaluate(() => [location.hash, history.state, "FEIBEITSBLATT_ESCAPE_LINK" in window])).toEqual(["", null, false]);   // Übergabe aus dem Kopf-Skript gelöscht
+  expect(await personValues(page)).toEqual(["Max", "Mu", "4", "5", "10b"]);
+  await expect(page.locator("#p-escape")).toHaveText(ESC_NOTE);
+  await expect(page.locator("#p-sheet small")).toHaveText("Escape-Room „FastFashion-Test“ · 2 Aufgaben");
+  await expect(page.locator("#p-back")).toHaveText("← zur Startseite");
+  await expect(page.locator("#p-btn")).toBeFocused();
+  await expect(page.locator("#p-btn")).toHaveAttribute("aria-describedby", "p-escape");   // der Hinweis wird beim Ankommen mit vorgelesen
+  await expect(page.locator("#p-group")).toBeHidden();
+  await expect(page.locator("#p-privacy-esc")).toHaveText(ESC_SHORT);
+  await expectTtShort(page.locator("#p-privacy-short"));
+  await expectOnlyTtShort(page, "Angaben (Escape-Room)");
+  const pf = page.locator("#p-privfull");
+  await expect(pf.locator('h2.privh:text-is("Welche Daten?") + p + p + p')).toHaveText(ESC_DATA(ESC_ROOM.name));   // nach dem Satz zu § 25 TDDDG
+  for (const x of [ESC_PURPOSE(ESC_ROOM.name), ESC_STAY]) await expect(pf).toContainText(x);
+  await expect(recipients(pf, "h2").filter({ hasText: "Escape-Room" })).toHaveText([ESC_TEACHER, ESC_MAIL]);
+  await expect(pf.locator('h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText(privBases(true, DELIVER_WORKER));   // die Liste bleibt gleich
+  await shots(page, "escape-angaben", [375, 1280], ESC_OUT);
+
+  /* ---------- 4. Schreibbereich: Hülle sofort im Zwischenstand, Neuladen → Weiterschreiben ---------- */
+  await page.click("#p-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#who-name")).toHaveText("Max · Mu · 04.05. · Klasse 10b");
+  await expect(page.locator("#sheet-meta")).toContainText("Finale des Escape-Rooms „FastFashion-Test“");
+  await expect(page.locator("#esc-updated")).toBeHidden();   // noch kein Zwischenstand – nichts ersetzt
+  await expect.poll(async () => ((await draftOfPage(page)) || {}).escape).toEqual(hull);
+  await expect(page.locator("#ed-steps-list li")).toHaveText([...STEPS_AI.slice(0, 4), ESC_STEP_LAST]);
+  await expect(page.locator("#privacy-esc")).toHaveText(ESC_EDITOR);
+  await expect(page.locator("#privfull-ed")).toContainText(ESC_PURPOSE(ESC_ROOM.name));
+  const TXT = "Kaya prüft die Preise.";
+  await typeAt(page, "#a-1", TXT);
+  await expect.poll(async () => ((await draftOfPage(page)) || { answers: [] }).answers[0]).toBe(TXT);
+  await page.reload();
+  await expect(page.locator("#resume-box")).toBeVisible();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe(TXT);
+  expect((await draftOfPage(page)).escape).toEqual(hull);
+  await expect(page.locator("#privacy-esc")).toBeVisible();
+
+  /* ---------- 5. Zwischenstand-PDF: trägt die Hülle, nennt den Escape-Room; auf einem anderen Gerät hochgeladen geht es weiter ---------- */
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#ed-pdf")]);
+  expect((await page.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");   // voller Name, Geburtsdatum, Bestätigungscode: nur speichern
+  const dpdf = await readFile(await dl.path());
+  await escSave("7n-zwischenstand.pdf", dpdf);
+  const i0 = dpdf.indexOf("/FbDraft 1"), d0 = dpdf.indexOf("stream\n", i0) + 7, d1 = dpdf.indexOf("\nendstream", d0);
+  const ddraft = JSON.parse(dpdf.subarray(d0, d1).toString("utf8"));
+  expect(ddraft.escape).toEqual(hull);
+  expect(dpdf.includes("/FbEscape 1")).toBe(false);   // ein Zwischenstand, keine Überblick-PDF
+  const dtext = pdfShownText(dpdf);
+  expect(dtext).toContain("Escape-Room: „FastFashion-Test“ – mit deinen Daten aus dem Escape-Room");
+  expect(dtext).toContain("Die Datei enthält auch deine Daten aus dem Escape-Room (voller Name, Geburtsdatum, Bestätigungscode und Ergebnisse)");
+  const f = await openPage(browser);
+  await f.page.setInputFiles("#start-pdf-file", { name: "z.pdf", mimeType: "application/pdf", buffer: dpdf });
+  await expect(f.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(await f.page.inputValue("#a-1")).toBe(TXT);
+  await expect.poll(async () => ((await draftOfPage(f.page)) || {}).escape).toEqual(hull);
+  // … ohne die Daten aus dem Raum (umgebaut) → nicht möglich
+  const noEsc = { ...ddraft }; delete noEsc.escape;
+  const g = await openPage(browser);
+  await g.page.setInputFiles("#start-pdf-file", { name: "z.pdf", mimeType: "application/pdf", buffer: embedPdf(noEsc) });
+  await expect(g.page.locator("#start-err")).toHaveText(ESC_NEED);
+  await expect(g.page.locator("#screen-start")).toHaveClass(/active/);
+  await closePage(g);
+  await closePage(f);
+
+  /* ---------- 6. Überblick-PDF hochladen ---------- */
+  const u = await openPage(browser);
+  const up = u.page;
+  const upload = (buf) => up.setInputFiles("#start-pdf-file", { name: "Ueberblick.pdf", mimeType: "application/pdf", buffer: buf });
+  await upload(overviewPdf(hull));
+  await expect(up.locator("#screen-person")).toHaveClass(/active/);
+  expect(await personValues(up)).toEqual(["Max", "Mu", "4", "5", "10b"]);
+  await up.click("#p-back");   // zur Startseite: die Daten werden verworfen
+  await expect(up.locator("#screen-start")).toHaveClass(/active/);
+  await expect(up.locator("#start-status")).toHaveText(ESC_BACK);
+  await expect(up.locator("#code-input")).toBeFocused();
+  await upload(overviewPdf(hull, { flate: true, marker: false, compact: true, lenRef: true }));   // neu gespeichert
+  await expect(up.locator("#screen-person")).toHaveClass(/active/);
+  await expect(up.locator("#start-status")).toHaveText("");
+  await up.click("#p-back");
+  // Prüfsumme manipuliert (FlateDecode): die Daten werden trotzdem übernommen – ob sie stimmt, sieht nur die Lehrkraft (Test 7o)
+  const forged = { ...hull, d: hull.d.replace('"attempts":3', '"attempts":1') };
+  expect(forged.d).not.toBe(hull.d);
+  await upload(overviewPdf(forged, { flate: true }));
+  await expect(up.locator("#screen-person")).toHaveClass(/active/);
+  expect(await personValues(up)).toEqual(["Max", "Mu", "4", "5", "10b"]);
+  await expect(up.locator("#p-escape")).toHaveText(ESC_NOTE);
+  await up.click("#p-back");
+  await upload(overviewPdf(escHull(escRec(""))));
+  await expect(up.locator("#start-err")).toHaveText(ESC_NOT_OPEN);
+  await upload(overviewPdf(escHull(escRec(ESCT.code, { room: { id: "anderer-raum", name: "Anders" } }))));
+  await expect(up.locator("#start-err")).toHaveText(ESC_WRONG);
+  await upload(overviewPdf('{"kind":"feibeitsblatt-escape","v":1,"d":"{'));
+  await expect(up.locator("#start-err")).toHaveText(ESC_PDF_BAD);
+  // unvollständige Angaben: die Lücken nennt der Hinweis, der Fokus steht im ersten leeren Feld
+  await upload(overviewPdf(escHull(escRec(ESCT.code, { person: { vorname: "Maximilian", nachname: "Mustermann", geburtsdatum: "31.04.2010", klasse: "" } }))));
+  await expect(up.locator("#p-escape")).toHaveText(ESC_NOTE + " Bitte trage noch deinen Geburtstag und deine Klasse ein.");
+  await expect(up.locator("#p-gtag")).toBeFocused();
+  await expect(up.locator("#p-gtag")).toHaveAttribute("aria-describedby", "p-escape");
+  await expect(up.locator("#p-btn")).not.toHaveAttribute("aria-describedby", /p-escape/);
+  await up.click("#p-back");
+
+  /* ---------- 7. Link-Varianten ---------- */
+  await up.goto("about:blank"); await up.goto("/#escape=%%%");
+  await expect(up.locator("#start-err")).toHaveText(ESC_LINK_BAD);
+  expect(up.url()).toBe(BASE_URL + "/");
+  await up.evaluate((x) => { location.hash = x; }, escLink(hull).slice(1));   // Hash-Wechsel auf der Startseite
+  await expect(up.locator("#screen-person")).toHaveClass(/active/);
+  expect(up.url()).toBe(BASE_URL + "/");
+  await up.click("#p-back");
+  await expect(up.locator("#start-status")).toHaveText(ESC_BACK_LINK);   // per Link angekommen: der Link steht im Verlauf des Browsers
+  // Netzfehler beim Laden des Blattes: die Daten bleiben, „Erneut versuchen“ holt es nach – scheitert auch das, bleibt der Fokus auf dem Knopf
+  let aborted = 0;
+  await up.route("**/api/sheet/*", (r) => (aborted++ < 2 ? r.abort() : r.continue()));
+  await up.goto("about:blank"); await up.goto(escLink(hull));
+  await expect(up.locator("#start-err")).toHaveText(/Deine Daten aus dem Escape-Room sind noch da – versuche es gleich noch einmal\.$/);
+  await expect(up.locator("#start-esc-retry")).toBeVisible();
+  await up.focus("#start-esc-retry");
+  await up.keyboard.press("Enter");
+  await expect.poll(() => aborted).toBe(2);
+  await expect(up.locator("#start-esc-retry")).toBeVisible();
+  await expect(up.locator("#start-esc-retry")).toBeFocused();
+  await up.keyboard.press("Enter");
+  await expect(up.locator("#screen-person")).toHaveClass(/active/);
+  await expect(up.locator("#start-esc-retry")).toBeHidden();
+  await up.unroute("**/api/sheet/*");
+  // fremde Texte bleiben Text
+  const xss = escHull(escRec(ESCT.code, { person: { vorname: "<img src=x onerror=window.__x=1>", nachname: "Mustermann", geburtsdatum: "04.05.2010", klasse: "10b" },
+    stations: [{ label: "<img src=x onerror=window.__x=2>", attempts: 2, errors: [{ item: "<img src=x onerror=window.__x=3>" }] }] }));
+  await up.goto("about:blank"); await up.goto(escLink(xss));
+  await expect(up.locator("#screen-person")).toHaveClass(/active/);
+  expect(await up.evaluate(() => [document.querySelectorAll("img[src=x]").length, window.__x])).toEqual([0, undefined]);
+  // liegen gebliebene Ankunft: über „Impressum & Datenschutz“ weg, dann ein normaler Code → keine Daten aus dem Raum
+  await up.evaluate(() => { location.hash = "#impressum"; });
+  await expect(up.locator("#screen-legal")).toHaveClass(/active/);
+  await up.click("#legal-home");
+  await enterCode(up, ESCT.normalShown);
+  await fillPerson(up, { vorname: "Max", nachname: "Mu", geb: "--05-04", klasse: "10b" });
+  await expect(up.locator("#privacy-esc")).toBeHidden();
+  await typeAt(up, "#a-1", "Ein Satz.");
+  await expect.poll(async () => !!(await draftOfPage(up))).toBe(true);
+  expect((await draftOfPage(up)).escape).toBeUndefined();
+  await expect(up.locator("#ed-steps-list li")).toHaveText(STEPS_AI);
+  // Wettlauf: das Escape-Blatt lädt langsam, währenddessen kommt ein Zwischenstand eines normalen Blattes → die späte Antwort ändert
+  // nichts mehr; Schreibbereich und Abgabe gehören zum normalen Blatt
+  let release;
+  const held = new Promise((r) => { release = r; });
+  await up.route(`**/api/sheet/${ESCT.code}`, async (r) => { await held; await r.continue(); });
+  await up.goto("about:blank"); await up.goto(escLink(hull));
+  await expect(up.locator("#start-btn")).toBeDisabled();   // lädt (angehalten)
+  const normalCode = ESCT.normalShown.replace("-", "");
+  const lia = { v: 1, kind: "feibeitsblatt-draft", code: normalCode, sheetTitle: "Normales Blatt", t: Date.now(),
+    person: { vorname: "Lia", nachname: "Wa", geburtsdatum: "--03-02", klasse: "10c" }, answers: ["Satz aus dem Wettlauf."] };
+  await up.setInputFiles("#start-pdf-file", { name: "z.pdf", mimeType: "application/pdf", buffer: embedPdf(lia) });
+  await expect(up.locator("#screen-editor")).toHaveClass(/active/);
+  const late = up.waitForResponse((r) => r.url().endsWith("/api/sheet/" + ESCT.code));
+  release();
+  await late;
+  await up.waitForTimeout(300);   // die späte Antwort ist verarbeitet
+  await up.unroute(`**/api/sheet/${ESCT.code}`);
+  await expect(up.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(up.locator("#sheet-title")).toHaveText("Normales Blatt");
+  await expect(up.locator("#tasks .task")).toHaveCount(1);
+  await expect(up.locator("#ed-steps-list li")).toHaveText(STEPS_AI);
+  await expect(up.locator("#privacy-esc")).toBeHidden();
+  expect(await up.inputValue("#a-1")).toBe("Satz aus dem Wettlauf.");
+  const posted = [];
+  await up.route("**/api/submit", (r) => { posted.push(JSON.parse(r.request().postData()).code); return r.abort(); });
+  await up.click("#submit-btn");
+  await confirmDialog(up, "Ohne KI-Feedback abgeben?");
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted).toEqual([normalCode]);   // nicht an das Escape-Blatt
+  await expect(up.locator("#submit-status")).toHaveClass(/bad/);
+  await expect(up.locator("#submit-esc")).toBeHidden();
+  await up.unroute("**/api/submit");
+  await closePage(u);
+  // Der Hash verschwindet schon im Kopf der Seite – auch wenn das große Skript gar nicht läuft (hier mit einem eingeschleusten Syntaxfehler)
+  const bctx = await browser.newContext();
+  const bp = await bctx.newPage();
+  await bp.route((url) => url.pathname === "/", async (r) => {
+    const resp = await r.fetch(), html = await resp.text(), mark = '"use strict";\n(function(){';
+    expect(html.split(mark).length).toBe(2);
+    await r.fulfill({ response: resp, body: html.replace(mark, mark + " @@@ ") });
+  });
+  const perr = [];
+  bp.on("pageerror", (e) => perr.push(String(e)));
+  await bp.goto(escLink(hull));
+  await expect.poll(() => perr.length).toBeGreaterThan(0);   // das große Skript scheitert …
+  expect(bp.url()).toBe(BASE_URL + "/");                      // … die Daten stehen trotzdem nicht mehr in der Adresse
+  expect(await bp.evaluate(() => [location.hash, typeof window.FEIBEITSBLATT_ESCAPE_LINK])).toEqual(["", "string"]);
+  await bctx.close();
+  // Link im Schreibbereich: sofort aus der Adresse entfernt, nichts übernommen
+  const other = escHull(escRec(ESCT.code, { confirm: "27182818" }));
+  await page.evaluate((x) => { location.hash = x; }, escLink(other).slice(1));
+  await expect.poll(() => page.url()).toBe(BASE_URL + "/");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe(TXT);
+  expect((await draftOfPage(page)).escape).toEqual(hull);
+
+  /* ---------- 8. Vorhandener Zwischenstand: erneute Ankunft → direkt in den Schreibbereich (neue Daten gewinnen, sichtbar gemeldet) ---------- */
+  await page.goto("about:blank");
+  await page.goto(escLink(other));
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe(TXT);
+  await expect.poll(async () => ((await draftOfPage(page)) || {}).escape).toEqual(other);
+  await expect(page.locator("#esc-updated")).toBeVisible();
+  await expect(page.locator("#esc-updated")).toHaveText(ESC_UPDATED);
+  // dieselben Daten noch einmal: keine Meldung
+  await page.goto("about:blank");
+  await page.goto(escLink(other));
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#save-state")).toHaveText(/./);
+  await expect(page.locator("#esc-updated")).toBeHidden();
+  // Fehler bei der Ankunft: der vorhandene Zwischenstand bleibt über „Weiterschreiben“ erreichbar
+  for (const [link, msg] of [["/#escape=%%%", ESC_LINK_BAD], [escLink(escHull(escRec(""))), ESC_NOT_OPEN]]) {
+    await page.goto("about:blank"); await page.goto(link);
+    await expect(page.locator("#start-err")).toHaveText(msg);
+    expect(page.url()).toBe(BASE_URL + "/");
+    await expect(page.locator("#resume-box")).toBeVisible();
+  }
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await page.inputValue("#a-1")).toBe(TXT);
+  expect((await draftOfPage(page)).escape).toEqual(other);
+  await closePage(s);
+});
+
+test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (verschlüsselt, ohne vollen Namen und Bestätigungscode, nie an die KI) → Abschluss-PDF (nur zum Speichern, mit Überblick und Lösungserläuterungen, ohne Tippzeiten) → technisch gescheiterte Abgabe mit E-Mail-Weg (403 ja, bad_envelope nein) → Lehrkraft: Kurzfassung, Prüfsumme, Überblick, PDF mit Kürzeln; Überblick-PDF ist keine Sicherung; „Als Vorlage“ und Sicherung → Import → neues Blatt für denselben Raum; Blatt gelöscht → Finale meldet es", async ({ browser }) => {
+  const teacher = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value);
+  const priv = await openPrivateKey((await deriveTeacherKeys(PW, teacher.kdf)).encKey, teacher.encPrivateKey);
+  const SECRET = ["Maximilian", "Mustermann", "04.05.2010", "31415926", "Erika", "Musterfrau", "09.11.2009", "27182818", "Genaue Daten", "escape.example"];
+  const mock0 = (await mockState()).requests.length;
+
+  /* ---------- 9. Abgabe mit KI-Feedback ---------- */
+  const s = await openPage(browser);
+  const { page } = s;
+  await s.context.addInitScript(blobSpy);
+  const hull = escHull(escRec(ESCT.code));
+  await page.goto("about:blank"); await page.goto(escLink(hull));
+  await expect(page.locator("#screen-person")).toHaveClass(/active/);
+  await page.click("#p-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await typeAt(page, "#a-1", "Kaya hat gelernt, dass der Preis wenig über die Herstellung sagt.");
+  await typeAt(page, "#a-2", "Ich finde, sie sollte nicht werben.");
+  await requestFeedback(page);
+  await expect.poll(async () => (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).length, { timeout: 30_000 }).toBe(1);   // Erstversuch
+  await typeAt(page, "#a-2", " Denn Fast Fashion schadet.");
+  await submit(page);
+  // an die KI und an den Server: nie die Daten aus dem Raum im Klartext
+  const fbCalls = await s.calls((e) => e.path === "/api/feedback");
+  expect(fbCalls.length).toBeGreaterThanOrEqual(1);
+  for (const c of fbCalls) for (const x of [...SECRET, "Rohstoff für Polyester", "GLOBUS", "escape"]) expect(c.reqBody, x).not.toContain(x);
+  for (const r of (await mockState()).requests.slice(mock0)) for (const x of [...SECRET, "Rohstoff für Polyester", "GLOBUS"]) expect(JSON.stringify(r.messages), x).not.toContain(x);
+  const subCalls = (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody));
+  for (const b of subCalls.filter((x) => x.stage !== "feedback2")) expect(Object.keys(b).sort()).toEqual(["attempt", "code", "envelope", "stage"]);   // das Nachreichen (unten) mit receivedAt
+  const firstP = await openEnvelope(priv, subCalls.find((b) => b.stage === "first").envelope);
+  const finalP = await openEnvelope(priv, subCalls.find((b) => b.stage === "final").envelope);
+  for (const p of [firstP, finalP]) {
+    expect(Object.keys(p.escape)).toEqual(["room", "word", "completedAt", "stations", "resumes", "check"]);
+    expect(p.escape.check).toBe("ok");
+    expect(p.escape.room).toEqual(ESC_ROOM);
+    expect(p.escape.stations).toEqual(ESC_STATIONS);
+    expect(p.person).toEqual({ vorname: "Max", nachname: "Mu", geburtsdatum: "--05-04", klasse: "10b" });
+    for (const x of SECRET) expect(JSON.stringify(p), x).not.toContain(x);
+  }
+  const rows = await d1Query(`SELECT stage, envelope FROM submissions WHERE sheet_code='${ESCT.code}'`);
+  expect(rows.map((r) => r.stage)).toEqual(["final"]);   // die Abgabe ersetzt den Erstversuch
+  const noFb2 = (x) => { const y = { ...x }; delete y.feedback2; return y; };
+  expect(noFb2(await openEnvelope(priv, JSON.parse(rows[0].envelope)))).toEqual(finalP);   // (die zweite Rückmeldung kann schon nachgereicht sein)
+  const scan = await scanState(SECRET.slice(0, 4).concat(["Rohstoff für Polyester"]));
+  expect(Object.values(scan.count)).toEqual([0, 0, 0, 0, 0]);   // beim Server nur verschlüsselt
+
+  /* ---------- 10. Abschluss-PDF ---------- */
+  await expect(page.locator("#done-pdf")).toHaveText(DONE_PDF_ESC);
+  await expect(page.locator("#done-pdf-note")).toHaveText("Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.");
+  await expect(page.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 60_000 });   // zweite Rückmeldung abwarten (steht dann in der Datei)
+  // … sie geht danach verschlüsselt an die Lehrkraft: genau die angenommene Abgabe + feedback2 – die Daten aus dem Raum (ohne vollen
+  // Namen und Bestätigungscode) und die Tippzeiten bleiben dabei erhalten, nie an die KI
+  const fb2Call = async () => (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).find((b) => b.stage === "feedback2");
+  await expect.poll(async () => !!(await fb2Call()), { timeout: 30_000 }).toBe(true);
+  const fb2Body = await fb2Call();
+  expect(Object.keys(fb2Body).sort()).toEqual(["attempt", "code", "envelope", "receivedAt", "stage"]);
+  const fb2P = await openEnvelope(priv, fb2Body.envelope);
+  expect(noFb2(fb2P)).toEqual(finalP);
+  expect([fb2P.escape, fb2P.typing]).toEqual([finalP.escape, finalP.typing]);
+  expect(fb2P.typing.answers.some((a) => typeof a.final === "string" && a.final.length > 1)).toBe(true);
+  expect(fb2P.feedback2.results.map((x) => !!x)).toEqual([false, true]);   // nur Aufgabe 2 wurde nach dem Feedback geändert
+  for (const x of SECRET) expect(JSON.stringify(fb2P), x).not.toContain(x);
+  const rowsFb2 = await d1Query(`SELECT stage, envelope FROM submissions WHERE sheet_code='${ESCT.code}'`);
+  expect(rowsFb2.map((r) => r.stage)).toEqual(["final"]);
+  expect(await openEnvelope(priv, JSON.parse(rowsFb2[0].envelope))).toEqual(fb2P);
+  const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  expect(sdl.suggestedFilename()).toBe(`Escape-Room-FastFashion-Test-Abschluss-${ymd()}.pdf`);
+  expect((await page.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");
+  const spdf = await readFile(await sdl.path());
+  await escSave("7o-abschluss.pdf", spdf);
+  pdfStructure(spdf, 5);
+  const stext = pdfShownText(spdf);
+  const at = (x) => { const k = stext.indexOf(x); expect(k, x).toBeGreaterThan(-1); return k; };
+  const order = ["Meine Lösungen – Finale FastFashion", "Escape-Room „FastFashion-Test“ – Überblick", "Lösungserläuterungen", "Verwendung von Zwischenstand-Dateien des Escape-Rooms"].map(at);
+  expect(order).toEqual([...order].sort((a, b) => a - b));
+  for (const x of ["Name: Maximilian Mustermann", "Geburtsdatum: 04.05.2010 · Klasse: 10b", "Bestätigungscode: 31415926", "Codewort: GLOBUS", "Stationen im ersten Versuch fehlerfrei: 4 von 6",
+    "Fehler im ersten Versuch insgesamt: 3", "• Rohstoff für Polyester", "Antwort: Baumwolle", "Richtig: Erdöl", "Genaue Daten: -23,8 % gegenüber dem Vorjahr; ~ 81 % Anteil.", "• nach Station 2"]) at(x);
+  expect(stext).not.toContain("Tippzeit");
+  expect(stext).not.toContain("?23,8");
+  for (const a of finalP.typing.answers) for (const b of [a.first, a.final]) if (typeof b === "string" && b.length > 4) expect(spdf.toString("latin1")).not.toContain(b);
+  await closePage(s);
+
+  /* ---------- 11. Abgabe technisch gescheitert: E-Mail-Weg mit Abschluss-PDF (Prüfsumme manipuliert → „stimmt nicht“) ---------- */
+  const f = await openPage(browser);
+  const fp = f.page;
+  const erika = escRec(ESCT.code, { person: { vorname: "Erika", nachname: "Musterfrau", geburtsdatum: "09.11.2009", klasse: "10a" }, confirm: "27182818",
+    stations: [{ label: "Station 1 · Was steckt im Preis?", attempts: 2, errors: [{ item: "<img src=x onerror=window.__x=1>", wrong: "<b>w</b>" }] }], resumes: [] });
+  const bad = { ...escHull(erika), s: "0123456789abcdef" };
+  await f.context.addInitScript(blobSpy);
+  await fp.goto("about:blank"); await fp.goto(escLink(bad));
+  await expect(fp.locator("#screen-person")).toHaveClass(/active/);
+  expect(await personValues(fp)).toEqual(["Eri", "Mu", "9", "11", "10a"]);
+  await fp.click("#p-btn");
+  await expect(fp.locator("#screen-editor")).toHaveClass(/active/);
+  await typeAt(fp, "#a-1", "Antwort von Eri.");
+  // jede Antwort auf /api/submit vorgeben (status 0 = Netzfehler); ein Versuch gilt erst als beendet, wenn er gesendet hat und
+  // „Abgeben“ wieder frei ist (sonst prüfte die Erwartung noch den Zustand des vorigen Versuchs)
+  let posts = 0;
+  const failWith = async (status, body) => {
+    await fp.unroute("**/api/submit");
+    await fp.route("**/api/submit", (r) => { posts++; return status ? r.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }) : r.abort(); });
+  };
+  const trySubmit = async () => {
+    const n = posts;
+    await fp.click("#submit-btn");
+    await confirmDialog(fp, "Ohne KI-Feedback abgeben?");
+    await expect.poll(() => posts).toBeGreaterThan(n);
+    await expect(fp.locator("#submit-btn")).toBeEnabled();
+    await expect(fp.locator("#submit-status")).toHaveClass(/bad/);
+  };
+  await failWith(0);
+  await trySubmit();
+  const box = fp.locator("#submit-esc");
+  await expect(box).toBeVisible();
+  await expect(fp.locator("#submit-esc-text")).toHaveText("Noch nicht abgegeben: Die Abgabe ist wegen eines technischen Fehlers fehlgeschlagen. Versuche es gleich noch einmal. Klappt es nicht, lade diese Datei herunter und reiche sie per E-Mail bei " + OP.email + " ein.");
+  await expect(fp.locator(`#submit-esc-text a[href="mailto:${OP.email}"]`)).toHaveCount(1);
+  await expect(fp.locator("#submit-esc-note")).toHaveText("Die Datei enthält deinen vollen Namen, dein Geburtsdatum, deinen Bestätigungscode und deine Antworten – schicke sie nur an diese Adresse.");
+  const [fdl] = await Promise.all([fp.waitForEvent("download"), fp.click("#submit-esc-pdf")]);
+  expect(fdl.suggestedFilename()).toBe(`Escape-Room-FastFashion-Test-Abschluss-${ymd()}-nicht-abgegeben.pdf`);
+  expect((await fp.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");
+  const fpdf = await readFile(await fdl.path());
+  await escSave("7o-nicht-abgegeben.pdf", fpdf);
+  await shots(fp, "escape-gescheitert", [375, 1280], ESC_OUT);
+  pdfStructure(fpdf, 5);
+  const ftext = pdfShownText(fpdf);
+  expect(ftext.indexOf(ESC_FAILED)).toBe(0);   // ganz oben
+  for (const x of ["noch nicht abgegeben", "Antwort von Eri.", "Name: Erika Musterfrau", "Bestätigungscode: 27182818", "• <img src=x onerror=window.__x=1>"]) expect(ftext).toContain(x);
+  expect(ftext).not.toContain("Tippzeit");
+  expect(ftext).not.toContain("abgegeben am");
+  // Antwort ohne JSON (z. B. eine Zwischenstelle) → ebenso technisch
+  await fp.unroute("**/api/submit");
+  await fp.route("**/api/submit", (r) => { posts++; return r.fulfill({ status: 403, contentType: "text/html", body: "<html><body>Forbidden</body></html>" }); });
+  await trySubmit();
+  await expect(box).toBeVisible();
+  // Prüffehler des Servers → kein E-Mail-Weg (neu laden und noch einmal abgeben hilft)
+  await failWith(400, { ok: false, error: "Die Abgabe ist beschädigt.", code: "bad_envelope" });
+  await trySubmit();
+  await expect(box).toBeHidden();
+  // Blatt voll (409): zuerst die Lehrkraft (sie kann Einträge löschen) – der E-Mail-Weg erst, wenn es danach wieder scheitert
+  await failWith(409, { ok: false, error: "Für dieses Feibeitsblatt sind bereits sehr viele Abgaben gespeichert. Bitte wende dich an deine Lehrkraft.", code: "too_many_submissions" });
+  await trySubmit();
+  await expect(fp.locator("#submit-status")).toContainText("Bitte wende dich an deine Lehrkraft.");
+  await expect(box).toBeHidden();
+  await trySubmit();
+  await expect(box).toBeVisible();
+  // Blatt gelöscht (404): sofort
+  await failWith(404, { ok: false, error: "Zu diesem Code gibt es kein Feibeitsblatt.", code: "not_found" });
+  await trySubmit();
+  await expect(box).toBeVisible();
+  // zu viele Abgaben aus diesem Netz (429): erst warten – vor Ablauf der Wartezeit kein E-Mail-Weg, auch nicht beim zweiten Mal …
+  const RATE = "Gerade wurden von diesem Netzwerk sehr viele Abgaben gesendet. Bitte versuche es in etwa 1 Minute erneut – deine Antworten bleiben auf diesem Gerät gespeichert.";
+  await failWith(429, { ok: false, error: RATE, code: "rate_limited", retryAfter: 60 });
+  await trySubmit();
+  await expect(fp.locator("#submit-status")).toHaveText(RATE + " Deine Antworten sind noch da.");
+  await expect(box).toBeHidden();
+  await trySubmit();
+  await expect(box).toBeHidden();
+  // … nach der Wartezeit schon (hier 1 Sekunde; ein Netzfehler dazwischen beginnt neu)
+  await failWith(0);
+  await trySubmit();
+  await expect(box).toBeVisible();
+  await failWith(429, { ok: false, error: RATE, code: "rate_limited", retryAfter: 1 });
+  await trySubmit();
+  await expect(box).toBeHidden();
+  await fp.waitForTimeout(1200);
+  await trySubmit();
+  await expect(box).toBeVisible();
+  await fp.unroute("**/api/submit");
+  await fp.click("#submit-btn");
+  await confirmDialog(fp, "Ohne KI-Feedback abgeben?");
+  await expect(fp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(box).toBeHidden();
+  expect(await fp.evaluate(() => [document.querySelectorAll("img[src=x]").length, window.__x])).toEqual([0, undefined]);
+  await closePage(f);
+
+  /* ---------- 11b. Abgabe zu groß (zweimal 413): erst ohne Tippzeiten, dann ohne die Fehler-Einzelheiten – sie scheitert nie daran ---------- */
+  const l = await openPage(browser);
+  const lp = l.page;
+  const lena = escRec(ESCT.code, { person: { vorname: "Lena", nachname: "Beispiel", geburtsdatum: "12.03.2010", klasse: "10c" }, confirm: "16180339" });
+  await lp.goto("about:blank"); await lp.goto(escLink(escHull(lena)));
+  await expect(lp.locator("#screen-person")).toHaveClass(/active/);
+  await lp.click("#p-btn");
+  await expect(lp.locator("#screen-editor")).toHaveClass(/active/);
+  await typeAt(lp, "#a-1", "Antwort von Len.");
+  const sent = [];
+  await lp.route("**/api/submit", (r) => {
+    sent.push(JSON.parse(r.request().postData()));
+    return sent.length <= 2 ? r.fulfill({ status: 413, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die Abgabe ist zu groß.", code: "too_large" }) }) : r.continue();
+  });
+  await lp.click("#submit-btn");
+  await confirmDialog(lp, "Ohne KI-Feedback abgeben?");
+  await expect(lp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  expect(sent.length).toBe(3);
+  const [l1, l2, l3] = await Promise.all(sent.map((b) => openEnvelope(priv, b.envelope)));
+  const withErrors = (x) => x.stations.some((st) => st.errors.length > 0);
+  expect(l1.typing.answers.length).toBe(2);   // erst mit Tippzeiten und Fehlern
+  expect(withErrors(l1.escape)).toBe(true);
+  expect(l2.typing).toEqual({ v: 1, omitted: "too_large" });   // dann ohne Tippzeiten
+  expect(withErrors(l2.escape)).toBe(true);
+  expect(l3.typing).toEqual({ v: 1, omitted: "too_large" });   // zuletzt auch ohne die Fehler-Einzelheiten
+  expect(l3.escape.omitted).toBe("too_large");
+  expect(withErrors(l3.escape)).toBe(false);
+  expect(l3.escape.stations.map((st) => st.attempts)).toEqual(ESC_STATIONS.map((st) => st.attempts));
+  await lp.unroute("**/api/submit");
+  await closePage(l);
+
+  /* ---------- 12. Lehrkraft-Ansicht ---------- */
+  const t = await openPage(browser);
+  const tp = t.page;
+  await t.context.addInitScript(blobSpy);
+  await tp.reload();
+  await expect(tp.locator("#screen-start")).toHaveClass(/active/);
+  await teacherLogin(tp, PW);
+  await tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" }).click();
+  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(3);
+  await tp.click("#t-expand-all");
+  const dmax = tp.locator("#t-subs-body tr.details", { hasText: "Kaya hat gelernt" }).locator(".desc").first();
+  const deri = tp.locator("#t-subs-body tr.details", { hasText: "Antwort von Eri." }).locator(".desc").first();
+  await expect(tp.locator("#t-subs-body tr.details .desc")).toHaveCount(3);
+  // Lena: Abgabe nur ohne Tippzeiten und ohne Fehler-Einzelheiten angekommen (11b)
+  const dlen = tp.locator("#t-subs-body tr.details", { hasText: "Antwort von Len." });
+  await expect(dlen.locator(".desc-sum")).toHaveText("Abgeschlossen am 27.10.2026, 11:15 Uhr · im ersten Versuch fehlerfrei: 4 von 6 Stationen · " +
+    "Fehler im ersten Versuch: nicht übermittelt (die Abgabe wäre sonst zu groß gewesen) · Zwischenstand-Dateien des Escape-Rooms: 1");
+  await expect(dlen.locator(".dtt-sum")).toHaveText("Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.");
+  await dlen.locator("details.desc-more summary").click();
+  await expect(dlen.locator(".desc-att, .desc-ok").nth(1)).toHaveText("3 Versuche – die Fehler im ersten Versuch wurden nicht übermittelt");
+  await expect(dmax.locator(".desc-h")).toHaveText("Escape-Room „FastFashion-Test“");
+  await expect(dmax.locator(".desc-sum")).toHaveText("Abgeschlossen am 27.10.2026, 11:15 Uhr · im ersten Versuch fehlerfrei: 4 von 6 Stationen · Fehler im ersten Versuch insgesamt: 3 · Zwischenstand-Dateien des Escape-Rooms: 1");
+  await expect(dmax.locator(".desc-check")).toHaveText("Prüfsumme des Datensatzes: stimmt – ein Indiz, kein Beweis.");
+  await expect(deri.locator(".desc-check")).toHaveText("Prüfsumme des Datensatzes: stimmt nicht – der Datensatz wurde verändert oder ist beschädigt.");
+  await expect(deri.locator(".desc-check")).toHaveClass(/bad/);
+  await expect(deri.locator(".desc-sum")).toHaveText(/ · im ersten Versuch fehlerfrei: 0 von 1 Station · Fehler im ersten Versuch insgesamt: 1 · Zwischenstand-Dateien des Escape-Rooms: keine$/);
+  // „Überblick ansehen“ wird erst beim Aufklappen gebaut: Codewort, je Station Versuche und Fehler, Zwischenstand-Dateien
+  await expect(dmax.locator(".desc-body")).toHaveCount(0);
+  await dmax.locator("details.desc-more summary").click();
+  const mbody = dmax.locator(".desc-body");
+  await expect(mbody.locator(".desc-word")).toHaveText("Codewort: GLOBUS");
+  await expect(mbody.locator("h5")).toHaveText([...ESC_STATIONS.map((st) => st.label), "Zwischenstand-Dateien des Escape-Rooms"]);
+  await expect(mbody.locator(".desc-ok, .desc-att")).toHaveText(["1 Versuch – fehlerfrei", "3 Versuche – beim ersten Versuch nicht korrekt:", "2 Versuche – beim ersten Versuch nicht korrekt:",
+    "1 Versuch – fehlerfrei", "1 Versuch – fehlerfrei", "1 Versuch – fehlerfrei"]);
+  await expect(mbody.locator(".desc-errs li").first()).toHaveText("Rohstoff für PolyesterAntwort: BaumwolleRichtig: ErdölPolyester ist ein Kunststoff.");
+  await expect(mbody.locator(".desc-errs li b")).toHaveText(["Rohstoff für Polyester", "Wasserbedarf", "Lohnanteil am Preis"]);
+  await expect(mbody.locator(".desc-res li")).toHaveText(["nach Station 2 · gespeichert am 26.10.2026, 10:00 Uhr · geladen am 27.10.2026, 09:00 Uhr"]);
+  await deri.locator("details.desc-more summary").click();
+  await expect(deri.locator(".desc-errs li b")).toHaveText(["<img src=x onerror=window.__x=1>"]);
+  await expect(deri.locator(".desc-body > p").last()).toHaveText("Keine.");
+  expect(await tp.evaluate(() => [document.querySelectorAll("img[src=x]").length, window.__x])).toEqual([0, undefined]);
+  for (const x of ["Maximilian", "Mustermann", "31415926", "27182818", "Erika", "Beispiel", "16180339"]) await expect(tp.locator("#t-subs")).not.toContainText(x);
+  const [tdl] = await Promise.all([tp.waitForEvent("download"), dmax.locator("button.desc-pdf").click()]);
+  expect(tdl.suggestedFilename()).toMatch(new RegExp(`^Escape-Room-FastFashion-Test-Ueberblick-${ESCT.shown}-Eintrag-\\d+\\.pdf$`));
+  const tpdf = await readFile(await tdl.path());
+  await escSave("7o-lehrkraft-ueberblick.pdf", tpdf);
+  pdfStructure(tpdf, 5);
+  expect((await tp.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");
+  const ttext = pdfShownText(tpdf);
+  expect(ttext).toContain("Mu · Max · Geburtstag 04.05. · Klasse 10b");
+  expect(ttext).toContain("Prüfsumme des Datensatzes: stimmt – ein Indiz, kein Beweis.");
+  for (const x of ["Maximilian", "Mustermann", "31415926", "Bestätigungscode:", "Genaue Daten"]) expect(ttext).not.toContain(x);
+  // Lösungs-PDF der Abgabe (wie bei jedem Blatt): nur die Lösungsseiten samt nachgereichter zweiter Rückmeldung – ohne die Seiten aus dem
+  // Escape-Room (dafür „Überblick als PDF herunterladen“), ohne Tippzeiten, ohne vollen Namen und Bestätigungscode
+  const detMax = tp.locator("#t-subs-body tr.details", { hasText: "Kaya hat gelernt" });
+  await expect(detMax.locator(".dtask").nth(1).locator(".dfb2 .fb-head")).toHaveText("KI-Rückmeldung zur abgegebenen Fassung");
+  await expect(detMax.locator(".dtask").nth(0).locator(".dfb2")).toHaveCount(0);
+  await expect(detMax.locator(".dtt-sum")).toHaveCount(1);   // die Tippzeiten sind nach dem Nachreichen noch da
+  const [ldl] = await Promise.all([tp.waitForEvent("download"), detMax.locator("button.dpdf").click()]);
+  // Datum im Dateinamen = Tag des Eingangs (Ortszeit des Browsers, wie „Abgegeben am …“) – nicht der Tag des Downloads
+  const [, gd, gm, gy] = /^Abgegeben am (\d\d)\.(\d\d)\.(\d{4}), /.exec(await detMax.locator(".dmeta").textContent()) || [];
+  expect(gy).toBeTruthy();
+  expect(ldl.suggestedFilename()).toBe(`Feibeitsblatt-Loesungen-${ESCT.shown}-10b-MaxMu-${gy}-${gm}-${gd}.pdf`);
+  const lpdf = await readFile(await ldl.path());
+  await escSave("7o-lehrkraft-loesungen.pdf", lpdf);
+  pdfStructure(lpdf, 5);
+  expect(lpdf.toString("latin1")).toContain("/Metadata ");   // KI-Kennzeichnung (XMP) wie bei den Schüler:innen
+  const ltext = pdfShownText(lpdf);
+  for (const x of ["Meine Lösungen – Finale FastFashion", "Max · Mu · Klasse 10b", "KI-Rückmeldung zur abgegebenen Fassung:", "Ich finde, sie sollte nicht werben. Denn Fast Fashion schadet."]) expect(ltext, x).toContain(x);
+  for (const x of [...SECRET, "Überblick", "Escape-Room", "Codewort", "GLOBUS", "Rohstoff für Polyester", "Lösungserläuterungen", "Tippzeit"]) expect(ltext, x).not.toContain(x);
+  for (const a of finalP.typing.answers) for (const b of [a.first, a.final]) if (typeof b === "string" && b.length > 4) expect(lpdf.toString("latin1")).not.toContain(b);
+  // eine Überblick-PDF ist keine Sicherung eines Feibeitsblatts
+  await tp.setInputFiles("#t-import-file", { name: "Ueberblick.pdf", mimeType: "application/pdf", buffer: overviewPdf(hull) });
+  await expect(tp.locator("#t-import-status")).toHaveText("Das ist eine Überblick-PDF aus einem Escape-Room (von Schüler:innen), kein gesichertes Feibeitsblatt. Bitte wählen Sie eine Datei, die Sie mit „Als PDF-Datei herunterladen“ gesichert haben.");
+  // „Als Vorlage verwenden“: das neue Blatt gehört wieder zum Escape-Room
+  const finale = tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" });
+  await finale.click();
+  await expect(tp.locator("#t-sel-meta")).toContainText("2 Aufgaben");
+  await tp.click("#t-template");
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(tp.locator("#b-esc")).toBeChecked();
+  await expect(tp.locator("#b-esc-fields")).toBeVisible();
+  expect([await tp.inputValue("#b-esc-name"), await tp.inputValue("#b-esc-id")]).toEqual([ESC_ROOM.name, ESC_ROOM.id]);
+  await expect(tp.locator("#b-import")).toHaveText("Das neue Feibeitsblatt gehört wieder zum Escape-Room „FastFashion-Test“ und bekommt einen neuen Code – tragen Sie ihn danach im Quelltext des Escape-Rooms ein.");
+  // der Hinweis gilt nur, solange das neue Blatt wirklich zu diesem Escape-Room gehört (Haken, Name und Kennung)
+  await tp.click("#b-esc");
+  await expect(tp.locator("#b-esc")).not.toBeChecked();
+  await expect(tp.locator("#b-esc")).toBeFocused();   // kein Fokussprung
+  await expect(tp.locator("#b-import")).toBeHidden();
+  await tp.click("#b-esc");
+  await expect(tp.locator("#b-esc")).toBeFocused();
+  await expect(tp.locator("#b-import")).toBeVisible();
+  await tp.fill("#b-esc-name", "Anderer Raum");
+  await expect(tp.locator("#b-import")).toBeHidden();
+  await tp.fill("#b-esc-name", ESC_ROOM.name);
+  await expect(tp.locator("#b-import")).toBeVisible();
+  await tp.click("#b-back");   // geändert (und zurückgeändert) → Rückfrage
+  await confirmDialog(tp, "Eingaben verwerfen?");
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  // Sicherung: Datensatz mit escape (ohne Abgaben), sichtbar eine Zeile zum Escape-Room → Import → neues Blatt für denselben Raum
+  await finale.click();
+  await expect(tp.locator("#t-sel-meta")).toContainText("2 Aufgaben");
+  const [xdl] = await Promise.all([tp.waitForEvent("download"), tp.click("#t-export")]);
+  expect(xdl.suggestedFilename()).toBe(`Feibeitsblatt-${ESCT.shown}-Finale FastFashion.pdf`);
+  const xpdf = await readFile(await xdl.path());
+  await escSave("7o-sicherung.pdf", xpdf);
+  const xs = pdfStream(xpdf, "/FbSheet 1"), xraw = xpdf.subarray(xs.start, xs.start + xs.len);
+  const xrec = JSON.parse((xs.dict.includes("/FlateDecode") ? inflateSync(xraw) : xraw).toString("utf8"));
+  expect(xrec).toMatchObject({ kind: "feibeitsblatt-sheet", v: 1, code: ESCT.code, title: "Finale FastFashion", escape: ESC_ROOM });
+  for (const x of [...SECRET, "Kaya hat gelernt", "Antwort von Eri.", "GLOBUS", "Rohstoff für Polyester"]) expect(JSON.stringify(xrec), x).not.toContain(x);   // keine Abgaben
+  expect(pdfShownText(xpdf)).toContain("Escape-Room: „FastFashion-Test“ (Kennung test-escape) – Schüler:innen öffnen dieses Feibeitsblatt über den Escape-Room.");
+  await tp.setInputFiles("#t-import-file", { name: "Sicherung.pdf", mimeType: "application/pdf", buffer: xpdf });
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  await expect(tp.locator("#b-esc")).toBeChecked();
+  expect([await tp.inputValue("#b-esc-name"), await tp.inputValue("#b-esc-id")]).toEqual([ESC_ROOM.name, ESC_ROOM.id]);
+  await expect(tp.locator("#b-import")).toContainText(`(bisheriger Code ${ESCT.shown}`);
+  await expect(tp.locator("#b-import")).toContainText("Es gehört zum Escape-Room „FastFashion-Test“ – den neuen Code tragen Sie danach im Quelltext des Escape-Rooms ein.");
+  await tp.uncheck("#b-esc");   // ohne Haken: ein normales Blatt – der Satz zum Escape-Room verschwindet, der übrige Hinweis bleibt
+  await expect(tp.locator("#b-import-esc")).toBeHidden();
+  await expect(tp.locator("#b-import")).toBeVisible();
+  await tp.check("#b-esc");
+  await expect(tp.locator("#b-import-esc")).toBeVisible();
+  await tp.fill("#b-title", "Finale FastFashion – Kurs B");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-res-esc")).toBeVisible();
+  const code2 = (await tp.locator("#b-res-code").textContent()).trim();
+  expect(code2).not.toBe(ESCT.shown);
+  expect((await (await tp.request.get("/api/sheet/" + code2.replace("-", ""))).json()).sheet.escape).toEqual(ESC_ROOM);
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(code2);
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  // Blatt löschen: der Dialog nennt den Escape-Room; danach meldet das Finale, dass es kein Blatt mehr gibt
+  await finale.click();
+  await expect(tp.locator("#t-sel-code")).toHaveText(ESCT.shown);
+  await tp.click("#t-del-sheet");
+  expect(await confirmDialog(tp, "Feibeitsblatt löschen?")).toContain("Der Escape-Room „FastFashion-Test“ verweist mit seinem Arena-Tunnel auf diesen Code");
+  await expect(tp.locator("#t-sheets-body tr", { hasText: "Finale FastFashion" })).toHaveCount(0);
+  await closePage(t);
+  const n = await openPage(browser);
+  await n.page.goto("about:blank"); await n.page.goto(escLink(hull));
+  await expect(n.page.locator("#start-err")).toHaveText(ESC_NO_SHEET);
+  await expect(n.page.locator("#screen-start")).toHaveClass(/active/);
+  await closePage(n);
 });
 
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {

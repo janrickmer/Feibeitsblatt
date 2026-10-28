@@ -142,10 +142,61 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
     aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)", transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }],
     // die Neuinstallation (Setup ohne Blätter) löscht nach 30 Tagen (updatedAt/auto bleiben intern)
-    privacy: { retentionDays: 30 } });
+    privacy: { retentionDays: 30 }, escape: null });
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
   assert.deepEqual(r.json.sheets.map((s) => [s.code, s.title, s.taskCount, s.submissionCount]), [[code, "Bio", 2, 0]]);
+});
+
+test("Escape-Room-Blatt: escape {id, name} nur beim Anlegen, in Liste, Einzelansicht und öffentlich; normale Blätter null; ungültig → 400; keine zusätzliche D1-Abfrage; keine Checkliste", async () => {
+  const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen zählen
+  const restoreRandom = () => { Math.random = rnd; };
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Finale", tasks, escape: { id: " Powi-JG10-fastfashion ", name: "  Fast\u202eFashion ", url: "https://x.example/", extra: 1 } } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code, esc = { id: "powi-jg10-fastfashion", name: "FastFashion" };
+  try {
+    assert.deepEqual(r.json.escape, esc);
+    assert.deepEqual({ ...d1.db.prepare("SELECT escape_id, escape_name FROM sheets WHERE code=?").get(c) }, { escape_id: esc.id, escape_name: esc.name });
+    r = await call("GET", "/api/teacher/sheets", { auth });
+    assert.deepEqual(r.json.sheets.find((s) => s.code === c).escape, esc);
+    assert.equal(r.json.sheets.find((s) => s.code === code).escape, null);
+    r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+    assert.deepEqual(r.json.sheet.escape, esc);
+    r = await call("GET", "/api/sheet/" + c);
+    assert.deepEqual(r.json.sheet.escape, esc);   // nur Kennung und Name – keine Adresse, nichts Weiteres
+    assert.equal(/x\.example|extra|solution|Chloroplasten/.test(r.text), false, r.text);
+    const qEsc = r.queries;
+    assert.equal((await call("GET", "/api/sheet/" + code)).queries, qEsc);   // dieselbe Zahl D1-Abfragen wie bei einem normalen Blatt
+    assert.equal(qEsc, 4);
+    // ungültige Angaben → 400 mit deutscher Meldung, nichts angelegt
+    const n0 = d1.db.prepare("SELECT COUNT(*) AS n FROM sheets").get().n;
+    for (const [escape, msg] of [
+      [{ id: "ab", name: "X" }, /^Escape-Room: Die Kennung braucht 3 bis 60 Zeichen/],
+      [{ id: "a".repeat(61), name: "X" }, /^Escape-Room: Die Kennung/],
+      [{ id: "powi_jg10", name: "X" }, /^Escape-Room: Die Kennung/],
+      [{ id: "powi-jg10", name: " \u200b " }, /^Escape-Room: Bitte den Namen/],
+      [{ id: "powi-jg10", name: "x".repeat(81) }, /^Escape-Room: Der Name ist zu lang \(höchstens 80 Zeichen\)\.$/],
+      ["FastFashion", /^Escape-Room: Die Angaben haben ein ungültiges Format\.$/],
+    ]) {
+      r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "x", tasks, escape } });
+      assert.equal(r.status, 400, JSON.stringify(escape)); assert.match(r.json.error, msg);
+    }
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheets").get().n, n0);
+    // kein analoges Arbeitsblatt: Checkliste weder vorschlagen noch speichern (das öffentliche Ziel des QR-Codes gibt es dann nie)
+    r = await call("POST", "/api/teacher/sheets/" + c + "/checklist", { auth, body: {} });
+    assert.equal(r.status, 400); assert.equal(r.json.code, "escape_sheet");
+    assert.equal(r.json.error, "Zu einem Feibeitsblatt für einen Escape-Room gibt es kein analoges Arbeitsblatt.");
+    r = await call("PUT", "/api/teacher/sheets/" + c + "/checklist", { auth, body: { ai: false, tasks: [{ n: 1, points: ["Du nennst Licht."] }, { n: 2, points: [] }] } });
+    assert.equal(r.status, 400); assert.equal(r.json.code, "escape_sheet");
+    assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM sheet_checklists WHERE sheet_code=?").get(c).n, 0);
+    assert.equal((await call("GET", "/api/sheet/" + c + "/checklist")).json.code, "no_checklist");
+    // eine von Hand verdorbene Kennung gilt als normales Blatt (nie ungeprüft ausgeliefert)
+    d1.db.prepare("UPDATE sheets SET escape_id='<b>' WHERE code=?").run(c);
+    assert.equal((await call("GET", "/api/sheet/" + c)).json.sheet.escape, null);
+  } finally {
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+    restoreRandom();
+  }
 });
 
 test("sheet material: gespeichert, öffentlich und für die Lehrkraft geliefert, ungültige Links abgelehnt", async () => {
@@ -752,20 +803,40 @@ test("stage feedback2 (second AI feedback sent later): only replaces exactly the
   assert.equal(count(), n0);
 });
 
-test("schema upgrade: an old submissions table without stage/attempt gets the columns added (idempotent)", async () => {
-  const { ensureSubmissionColumns } = await import("../../worker/index.js");
+test("schema upgrade: old submissions/sheets tables without the later columns get them added (idempotent)", async () => {
+  const { ensureColumns } = await import("../../worker/index.js");
   d1.db.exec("CREATE TABLE old_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT, sheet_code TEXT NOT NULL, received_at INTEGER NOT NULL, envelope TEXT NOT NULL)");
   d1.db.exec("ALTER TABLE submissions RENAME TO submissions_new; ALTER TABLE old_submissions RENAME TO submissions");
+  d1.db.exec("CREATE TABLE old_sheets (code TEXT PRIMARY KEY, title TEXT NOT NULL, tasks TEXT NOT NULL, created_at INTEGER NOT NULL)");
+  d1.db.exec("ALTER TABLE sheets RENAME TO sheets_new; ALTER TABLE old_sheets RENAME TO sheets");
   try {
     d1.db.prepare("INSERT INTO submissions(sheet_code, received_at, envelope) VALUES (?, ?, ?)").run(code, 1, "{}");
-    for (let i = 0; i < 2; i++) await ensureSubmissionColumns(d1);   // zweimal: nichts doppelt
+    d1.db.prepare("INSERT INTO sheets(code, title, tasks, created_at) VALUES (?, ?, ?, ?)").run("AXT2KM", "Altes Blatt", JSON.stringify(tasks), 1);
+    d1.queries = 0;
+    await ensureColumns(d1);
+    assert.ok(d1.queries <= 7, "D1-Abfragen: " + d1.queries);   // zwei PRAGMAs (ein Batch), vier ALTERs (ein Batch), Index
+    await ensureColumns(d1);   // zweimal: nichts doppelt
     const cols = d1.db.prepare("PRAGMA table_info(submissions)").all().map((c) => c.name);
     assert.deepEqual(cols, ["id", "sheet_code", "received_at", "envelope", "stage", "attempt"]);
     const row = d1.db.prepare("SELECT stage, attempt FROM submissions").get();
     assert.deepEqual({ ...row }, { stage: "final", attempt: null });   // alte Zeilen gelten als Abgaben
     assert.ok(d1.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_submissions_attempt'").get());
+    assert.deepEqual(d1.db.prepare("PRAGMA table_info(sheets)").all().map((c) => c.name), ["code", "title", "tasks", "created_at", "escape_id", "escape_name"]);
+    assert.deepEqual({ ...d1.db.prepare("SELECT escape_id, escape_name FROM sheets").get() }, { escape_id: null, escape_name: null });   // alte Blätter: normale Blätter
+    const r = await call("GET", "/api/teacher/sheets/AXT2KM", { auth });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.sheet.escape, null);
+    // Wettlauf: ein anderer Isolate hat die Spalten gerade angelegt – das ALTER scheitert, erneutes Nachsehen genügt
+    d1.db.exec("ALTER TABLE sheets DROP COLUMN escape_name");
+    const realBatch = d1.batch;
+    d1.batch = async (list) => {
+      if (list.some((x) => /^ALTER/.test(x.sql))) { d1.db.exec("ALTER TABLE sheets ADD COLUMN escape_name TEXT"); throw new Error("D1_ERROR: duplicate column name: escape_name"); }
+      return realBatch(list);
+    };
+    try { await ensureColumns(d1); } finally { d1.batch = realBatch; }
+    assert.deepEqual(d1.db.prepare("PRAGMA table_info(sheets)").all().map((c) => c.name).slice(-2), ["escape_id", "escape_name"]);
   } finally {
     d1.db.exec("DROP TABLE submissions; ALTER TABLE submissions_new RENAME TO submissions");
+    d1.db.exec("DROP TABLE sheets; ALTER TABLE sheets_new RENAME TO sheets");
   }
 });
 
