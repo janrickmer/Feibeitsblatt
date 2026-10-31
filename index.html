@@ -184,6 +184,8 @@
   .done-check{width:104px; height:104px; margin:6px auto 2px; display:block}
   .done-check circle{fill:var(--green)}
   .done-check path{fill:none; stroke:#fff; stroke-width:7; stroke-linecap:round; stroke-linejoin:round}
+  /* Partner- und Gruppenarbeit: über dem Download-Button rot und fett daran erinnern, die Lösungen an die anderen weiterzuschicken */
+  .donegroup{font-family:var(--sans); font-size:15px; font-weight:700; line-height:1.45; color:var(--red); margin:0 0 12px; text-align:left}
   .donenote{font-family:var(--sans); font-size:12.5px; line-height:1.45; color:var(--muted); margin:8px 0 18px; text-align:left}
   .donefb{margin:0 0 22px; text-align:left; font-family:var(--sans)}
   .donefb-h{font-family:var(--sans); font-size:16px; font-weight:700; margin:0 0 6px}
@@ -1026,6 +1028,7 @@
       <p class="sub">Deine Lösung ist bei deiner Lehrkraft angekommen.</p>
       <p class="donetime" id="done-time"></p>
       <p class="donedel hidden" id="done-del"></p>
+      <p class="donegroup hidden" id="done-group">Schicke die Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!</p>
       <button type="button" class="btn block" id="done-pdf" aria-describedby="done-pdf-note">Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht</button>
       <p class="donenote" id="done-pdf-note">Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.</p>
       <p class="status" id="done-status" aria-live="polite"></p>
@@ -6730,6 +6733,10 @@ async function submitAll() {
       recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, fb2Until: 0, pdfBeforeFb2: false,
       escape: S.escape && S.sheet.escape ? { rec: S.escape.rec, name: S.sheet.escape.name } : null };   // Escape-Room-Finale: Überblick für die Abschluss-PDF
     $("done-pdf").textContent = S.lastSubmission.escape ? DONE_PDF_ESC : DONE_PDF;
+    // Partner- und Gruppenarbeit: die Lösungen hat nur dieses Gerät – rot und fett über dem Button, sie an die anderen weiterzuschicken
+    const grp = isGroup(S.lastSubmission.person);
+    $("done-group").classList.toggle("hidden", !grp);
+    $("done-pdf").setAttribute("aria-describedby", grp ? "done-group done-pdf-note" : "done-pdf-note");
     $("submit-esc").classList.add("hidden");
     S.firstTyping = null;   // die Tippzeiten der ersten Fassung braucht nach der Abgabe nichts mehr (TT_ACCESS: „bis zur Abgabe“)
     // nur mit erstem Feedback kann eine zweite Rückmeldung nachgereicht werden: dafür genau die angenommene Nutzlast (sendSealed hat sie
