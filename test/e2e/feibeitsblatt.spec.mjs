@@ -1697,7 +1697,8 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   const subRes = JSON.parse((await s.calls((r) => r.path === "/api/submit"))[1].body);
   expect(subRes.retentionDays).toBe(DAYS);
   await expect(page.locator("#done-del")).toHaveText("Bei deiner Lehrkraft wird deine Abgabe nach " + DAYS + " Tagen automatisch gelöscht (am " + deDate(subRes.receivedAt + DAYS * 864e5) + " oder kurz danach). Wenn du deine Lösungen behalten möchtest, lade sie dir herunter.");
-  expect(await page.$eval("#done-del", (e) => [e.previousElementSibling.id, e.nextElementSibling.id])).toEqual(["done-time", "done-pdf"]);
+  expect(await page.$eval("#done-del", (e) => [e.previousElementSibling.id, e.nextElementSibling.id])).toEqual(["done-time", "done-group"]);
+  await expect(page.locator("#done-group")).toBeHidden();   // der Hinweis zum Weiterschicken nur bei Partner- und Gruppenarbeit (2b)
   const [pdfBox, noteBox, fbBox] = await Promise.all(["#done-pdf", "#done-pdf-note", "#done-fb"].map((sel) => page.locator(sel).boundingBox()));
   expect(pdfBox.y + pdfBox.height).toBeLessThanOrEqual(noteBox.y);
   expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(fbBox.y);                              // Button und Hinweis über der Rückmeldung
@@ -2107,6 +2108,8 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await e.page.click("#submit-btn");
   await confirmDialog(e.page, "Ohne KI-Feedback abgeben?");
   await expect(e.page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(e.page.locator("#done-group")).toBeHidden();
+  await expect(e.page.locator("#done-pdf")).toHaveAttribute("aria-describedby", "done-pdf-note");
   await closePage(e);
 
   // Abgabe der Gruppe → Lösungs-PDF nennt die Gruppe (Kopf und Fußzeile), der Dateiname keine Kürzel
@@ -2115,6 +2118,17 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   expect(subDlg).toContain("Deine Antworten gehen – ohne die Namenskürzel der Gruppe und die Klasse – über den Server");
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#done-fb .fbbox")).toHaveCount(2, { timeout: 60_000 });
+  // Gruppe: direkt über dem Download-Button rot und fett die Aufforderung, die Lösungen an die anderen weiterzuschicken
+  const grpNote = page.locator("#done-group");
+  await expect(grpNote).toBeVisible();
+  await expect(grpNote).toHaveText("Schicke die Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!");
+  expect(await page.$eval("#done-pdf", (e) => e.previousElementSibling.id)).toBe("done-group");
+  expect(await grpNote.evaluate((e) => [getComputedStyle(e).color, getComputedStyle(e).fontWeight])).toEqual(["rgb(179, 38, 30)", "700"]);   // --red, fett
+  const [grpBox, dlBox] = await Promise.all([grpNote.boundingBox(), page.locator("#done-pdf").boundingBox()]);
+  expect(grpBox.y + grpBox.height).toBeLessThanOrEqual(dlBox.y);
+  await expect(page.locator("#done-pdf")).toHaveAttribute("aria-describedby", "done-group done-pdf-note");
+  await expect(page.locator("#done-pdf")).toHaveAccessibleDescription("Schicke die Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe! Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.");
+  await shots(page, "5-bestaetigung");
   const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   expect(sdl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Loesungen-" + shown + "-\\d{4}-\\d\\d-\\d\\d\\.pdf$"));
   const sol = pdfShownText(await readFile(await sdl.path()));

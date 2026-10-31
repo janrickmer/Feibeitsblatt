@@ -116,7 +116,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
   **Bestätigung nach der Abgabe** (`#screen-done`, nur nach HTTP 200 von `/api/submit`): großer grüner Haken
   (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, `#done-del` (nur mit Frist: Löschdatum =
-  `receivedAt` + `retentionDays` aus der Antwort von `/api/submit`, „oder kurz danach“), dann **ganz oben über der zweiten KI-Rückmeldung**
+  `receivedAt` + `retentionDays` aus der Antwort von `/api/submit`, „oder kurz danach“), bei Partner- und Gruppenarbeit
+  (`isGroup(S.lastSubmission.person)`, Wunsch der Lehrkraft) `p#done-group.donegroup` rot (`--red`) und fett „Schicke die Lösungen nach dem
+  Herunterladen auch an die anderen Mitglieder deiner Gruppe!“ (du-Form, ohne Kürzel; sonst verborgen; `#done-pdf` dann
+  `aria-describedby="done-group done-pdf-note"`; E2E 2b/3), dann **ganz oben über der zweiten KI-Rückmeldung**
   Button `#done-pdf` „Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“ (bei
   Escape-Blättern `DONE_PDF_ESC` „Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter …“) und
   direkt darunter klein und blass `#done-pdf-note` (`.donenote`, `aria-describedby`) „Es ist möglich, dass du mit diesen

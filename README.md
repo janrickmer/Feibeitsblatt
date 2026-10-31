@@ -186,7 +186,9 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Abgabe käme ja trotzdem an. War die Abgabe technisch erfolgreich, erscheint die
    Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt; ist eine Löschfrist
    festgelegt, steht darunter, an welchem Tag die Abgabe bei Ihnen automatisch gelöscht wird („… oder kurz danach“,
-   mit dem Rat, die Lösungen herunterzuladen). Direkt darunter – noch über
+   mit dem Rat, die Lösungen herunterzuladen). Bei Partner- und Gruppenarbeit steht danach rot und fett **„Schicke die
+   Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!“** (die Lösungen hat nur das Gerät, auf dem
+   abgegeben wurde). Direkt darunter – noch über
    der KI-Rückmeldung zur abgegebenen Fassung – steht der Button **„Lade dir deine Lösungen herunter und speichere sie
    in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, Fassungen und KI-Rückmeldungen) und darunter
    klein und blass: „Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte
