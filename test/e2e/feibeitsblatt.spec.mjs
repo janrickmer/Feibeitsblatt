@@ -2301,7 +2301,9 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   expect((await s.calls((r) => r.path === "/api/feedback")).map((r) => r.status)).toEqual([502, 502, 200]);
   const [bdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   const bsol = (await readFile(await bdl.path())).toString("latin1");
-  expect(bsol).toContain("(KI-Feedback \\(gilt auch f\\374r die abgegebene Fassung\\):) Tj");
+  // unverändert abgegeben: die erste Rückmeldung als Rückmeldung zur abgegebenen Fassung (Aufgaben 1 und 2; Aufgabe 3 nur der Hinweis)
+  expect(bsol.split("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj").length - 1).toBe(2);
+  for (const x of ["gilt auch f", "(KI-Feedback zur ersten Fassung", "(Erste Fassung"]) expect(bsol, x).not.toContain(x);
   expect(bsol).not.toContain("lag beim Herunterladen noch nicht vor");
   S.sheetBodies.push(...(await s.calls((r) => r.path.startsWith("/api/sheet/"))).map((r) => r.body));
   await closePage(s);
