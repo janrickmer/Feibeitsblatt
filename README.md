@@ -74,8 +74,9 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Feedback herunterladen (nur direkt nach der Abgabe auf der Bestätigungsseite); bei Blättern ohne KI-Feedback nur
    bearbeiten, abgeben, herunterladen. Der aktuelle Schritt ist fett und markiert; der Kasten scrollt mit dem Blatt.
    Die Arbeitsaufträge stehen untereinander. Unter jedem steht ein Textfeld, das mit dem Text
-   wächst; alles Folgende rückt dabei nach unten. Zwischen einem Antwortfeld und der nächsten Aufgabe bleibt eine
-   leere Zeile Abstand. Einfügen aus der Zwischenablage und Hineinziehen von Text sind gesperrt – es darf nur
+   wächst; alles Folgende rückt dabei nach unten. Jede Aufgabe steht mit ihrem Material, ihren Videos und Dateien,
+   dem Antwortfeld und ihrem KI-Feedback auf einer eigenen, zart getönten Fläche (ohne Linie) – so ist klar, was
+   zusammengehört; zwischen den Flächen bleibt etwas Abstand. Einfügen aus der Zwischenablage und Hineinziehen von Text sind gesperrt – es darf nur
    selbst getippt werden. Autokorrektur und Diktierfunktion der Tastatur bleiben möglich (in der Tippzeit-Färbung
    der Lehrkraft erscheinen solche Eingaben rot, ebenso ein per Rechtsklick übernommener Korrekturvorschlag des Browsers). Beim Schreiben misst die Seite die Tippzeiten, ohne sie anzuzeigen;
    die Kurzfassungen des Datenschutzhinweises (auf dem Angaben-Bildschirm und unter den Aufgaben) sagen das in einem Satz,
