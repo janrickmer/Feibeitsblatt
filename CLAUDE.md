@@ -126,9 +126,12 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.“, danach `#done-status` (Meldungen zum Download). `S.lastSubmission` (Code, Titel, Aufgabentexte, person, answers
   first/final, feedback, receivedAt) bleibt nur im Arbeitsspeicher bis „Neues Feibeitsblatt öffnen“ (`resetStudent`);
   `makeSolutionsPdf` baut mehrseitig mit denselben Bausteinen (`pdfWrap`/`pdfStr`/`latin1`/`pdfUtf16`): je Aufgabe
-  Aufgabenstellung, abgegebene Fassung + „KI-Rückmeldung zur abgegebenen Fassung:“ (`sub.feedback2`, ohne Zählung;
-  Punkte „• Gelingt schon: …“ grün, „• Tipp: …“ rot), bei Überarbeitung erste Fassung + „KI-Feedback zur ersten Fassung:“ (unverändert abgegeben:
-  „KI-Feedback (gilt auch für die abgegebene Fassung):“), fehlt `feedback2` noch, ein Hinweis unter dem Kopf;
+  Aufgabenstellung, abgegebene Fassung + „KI-Rückmeldung zur abgegebenen Fassung:“ (`sub.feedback2.results`, ohne Zählung;
+  Punkte „• Gelingt schon: …“ grün, „• Tipp: …“ rot; überarbeitete Aufgaben die neue, unveränderte die erste Rückmeldung – derselbe Text;
+  nur ein Hinweis ohne Stichpunkte, z. B. `NO_SOLUTION_NOTE`, grau ohne Überschrift) – **nie die erste Fassung oder das Feedback zu ihr**
+  (Entscheidung der Lehrkraft vom 04.11.2026); fehlt `feedback2` (lädt noch, kam nicht, nicht an die Lehrkraft übermittelt), **keine
+  Rückmeldung**, nur der Hinweis unter dem Kopf. Ausnahme: die Abschluss-PDF einer gescheiterten Escape-Abgabe (`sub.failed`, noch nichts
+  abgegeben) zeigt wie bisher erste Fassung + „KI-Feedback zur ersten Fassung:“;
   Fußzeile „Seite n von N“; nur mit KI-Stichpunkten (`hasAi`, vorab aus `items` berechnet) die KI-Kennzeichnung: sichtbar
   `AI_PDF_NOTE` unter dem Kopf, `/Subject` + `/Keywords` im Info-Dict, XMP-Stream (`xmpPacket`, UTF-8, `/Length` in Bytes,
   letztes Objekt `6 + 2·Seiten`, `/Metadata` im Katalog) mit `Iptc4xmpExt:DigitalSourceType` `compositeSynthetic`;
@@ -140,8 +143,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   genau wie der Server sieht: nur Aufgaben mit Stichpunkten im ersten Feedback und `fbText` (Zeilenumbrüche,
   Steuerzeichen, trim wie `cleanText`) verschieden – derselbe Helfer im Abgabe-Dialog. Nichts geändert → keine Anfrage,
   `feedback2 = {results: erstes Feedback, same: true}`; sonst werden nur geänderte Aufgaben übernommen, für die anderen
-  bleibt die erste Rückmeldung (`kept[i]`, Anzeige „Unverändert abgegeben – wie beim ersten Feedback.“, im PDF „gilt auch
-  für die abgegebene Fassung“) – nie zwei widersprüchliche Urteile für denselben Text. **Gesendet werden nur die geänderten
+  bleibt die erste Rückmeldung (`kept[i]`, Anzeige „Unverändert abgegeben – wie beim ersten Feedback.“, im PDF als
+  „KI-Rückmeldung zur abgegebenen Fassung“) – nie zwei widersprüchliche Urteile für denselben Text. **Gesendet werden nur die geänderten
   Aufgaben** (spart Token/Kontingent): `only = fb2Nums(changed)`, `answers = fb2Sent(final, changed)` (unveränderte als `""`);
   ein Ergebnis fehlt für eine gewählte Aufgabe → `bad_result` (ein älterer Server ohne `only` liefert alle – passt auch).
   Zu lang (`fb2TooLong(final, changed)`, nur die gesendeten, wie `validateAnswers`) → keine Anfrage, Hinweis. Sonst
@@ -160,7 +163,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Listen wie im Editor (`appendFbLists`: „Das gelingt dir schon“ `.fb-sub.fb-ok` / `.fb-sub.fb-miss` – im Editor „Tipps zum
   Überarbeiten“, nach der Abgabe „Tipps zum Weiterlernen“). PDF ohne zweite Rückmeldung
   heruntergeladen (lädt noch oder vorübergehend gescheitert) → `pdfBeforeFb2`, nach Ankunft Hinweis in `#done-status`,
-  erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“. E2E-Test
+  erneut herunterzuladen; kommt endgültig keine, sagt `#done-status` das und die PDF „gab es diesmal nicht“ (dann ohne Rückmeldung). E2E-Test
   7b (eigenes Blatt, wird gelöscht): Aufgabe 1 nur Leerzeichen, Aufgabe 2 überarbeitet → nur Aufgabe 2 neu (Anfrage mit `only:[2]`, Antwort 1 leer, im Prompt nur Aufgabe 2), nachgereicht mit `replaced:"final"` und ohne Hinweis darunter. E2E-Test 7p
   (eigenes Blatt, wird gelöscht; Hinweis wörtlich, neutrale Farbe): `{gone:true}` per `page.route` → ein Versuch, „gone“-Hinweis, PDF mit
   der Rückmeldung; Uhr der Seite per `page.clock` – `install` + `reload`, während die KI-Anfrage angehalten ist `setSystemTime` +16 min
