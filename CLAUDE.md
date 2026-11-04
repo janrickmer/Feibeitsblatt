@@ -1169,7 +1169,12 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
   Clips), `insertReplacementText` ≤ 60, Komposition/Diktat ≤ 2000; Sprung-Fallback im `input`). Antwortfelder
-  wachsen per `scrollHeight` (ResizeObserver auf `#sheet`); eine Leerzeile Abstand zur nächsten Aufgabe; im
+  wachsen per `scrollHeight` (ResizeObserver auf `#sheet`); jede Aufgabe `#tasks .task` auf einer zart getönten Fläche `--task-bg`
+  ohne Linie (Wunsch der Lehrkraft vom 04.11.2026: Schüler:innen erkannten nicht, welches Antwortfeld zu welcher Aufgabe gehört; Fläche
+  um Aufgabenstellung, Material, Videos, Dateien, Antwortfeld, Rechtschreibprüfung und KI-Feedback, abgerundet, `padding` 18/20 px, mobil
+  14/12 px; Antwortfeld, Material, Tabelle und LanguageTool-Ergebnis darauf in `--paper2`; vom Ende des Antwortblocks bis zur nächsten Fläche weiter genau eine Zeilenhöhe – Innenabstand
+  unten + `margin-top:calc(1.78em - …)`, E2E 2 `gapAfterTask`; mobil
+  stehen Größe und „herunterladen“ der Dateiknöpfe in eigener Zeile); im
   Schreibmodus scrollt nur `.paperwrap`, nichts liegt über der Schreibfläche (Abgeben ohne KI-Feedback: eigener Punkt
   unten). Zwischenstand in `localStorage` unter `feibeitsblatt:draft:<SHA-256>` (`draftKeyFor`: Code|Kürzel|Geburtstag|
   Klasse, Gruppe Code|gruppe|sortierte Kürzel|Klasse; Schlüssel ohne Klartext-Angaben; 7 Tage), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite,
