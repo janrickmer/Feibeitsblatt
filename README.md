@@ -190,7 +190,7 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!“** (die Lösungen hat nur das Gerät, auf dem
    abgegeben wurde). Direkt darunter – noch über
    der KI-Rückmeldung zur abgegebenen Fassung – steht der Button **„Lade dir deine Lösungen herunter und speichere sie
-   in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, Fassungen und KI-Rückmeldungen) und darunter
+   in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, abgegebenen Lösungen und der KI-Rückmeldung dazu) und darunter
    klein und blass: „Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte
    erlernt hast.“
    **Zweite KI-Rückmeldung:** Direkt nach der Abgabe gehen die Antworten, die nach dem ersten Feedback geändert
@@ -222,10 +222,12 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    „nicht übermittelt – die Abgabe wäre sonst zu groß gewesen“); Antworten, KI-Feedback und Angaben bleiben immer, und
    kommt nichts an, bleibt die Abgabe, wie sie ist. Dafür hält die Seite die angekommene Abgabe getrennt von den Lösungen
    im Arbeitsspeicher, bis die Rückmeldung nachgereicht ist oder feststeht, dass keine mehr kommt – höchstens 15 Minuten.
-   Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung mit der KI-Rückmeldung dazu, bei
-   Überarbeitung auch die erste Fassung und das erste KI-Feedback (mehrere Seiten, falls nötig); wird sie
-   heruntergeladen, bevor die zweite Rückmeldung da ist, steht das in der Datei, und die Seite erinnert daran, sie
-   danach noch einmal herunterzuladen. Sie entsteht im Browser und enthält keinen Geburtstag. Stehen KI-Rückmeldungen
+   Die PDF enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung und die KI-Rückmeldung zur abgegebenen
+   Fassung (mehrere Seiten, falls nötig) – bei überarbeiteten Aufgaben die neue Rückmeldung, bei unverändert
+   abgegebenen die erste (derselbe Text, deshalb keine neue Anfrage); die erste Fassung und das Feedback zu ihr stehen
+   nicht darin. Wird sie heruntergeladen, bevor die zweite Rückmeldung da ist (oder kommt keine), enthält sie keine
+   Rückmeldung, sondern nur einen Hinweis darauf, und die Seite erinnert daran, sie nach der Ankunft noch einmal
+   herunterzuladen. Sie entsteht im Browser und enthält keinen Geburtstag. Stehen KI-Rückmeldungen
    darin, sagt die erste Seite das („Die Rückmeldungen in dieser Datei hat eine KI erzeugt …“), und die Metadaten der
    Datei kennzeichnen sie maschinenlesbar (siehe [Sicherheit](#sicherheit), KI-Kennzeichnung). Der Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
    Lösungen bleiben nur bis „Neues Feibeitsblatt öffnen“ für den Download im Arbeitsspeicher.
@@ -403,9 +405,9 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat, und bei
    Aufgaben, die nach dem Feedback geändert wurden, die „KI-Rückmeldung zur abgegebenen Fassung“ (sobald die Seite der
    Schülerin bzw. des Schülers sie nachgereicht hat). Am Ende der Details lädt **„Lösungs-PDF herunterladen“** dieselbe
-   PDF-Datei herunter, die die Schülerin bzw. der Schüler nach der Abgabe bekommt (Aufgaben, Fassungen und
-   KI-Rückmeldungen; im Dateinamen Code, Klasse, Kürzel und Abgabedatum, nie der Geburtstag) – erzeugt in Ihrem
-   Browser, nichts geht dafür an den Server. Fehlt die zweite Rückmeldung, steht das in der Datei. Tippzeiten stehen nie
+   PDF-Datei herunter, die die Schülerin bzw. der Schüler nach der Abgabe bekommt (Aufgaben, abgegebene Lösungen und
+   die KI-Rückmeldung dazu; im Dateinamen Code, Klasse, Kürzel und Abgabedatum, nie der Geburtstag) – erzeugt in Ihrem
+   Browser, nichts geht dafür an den Server. Fehlt die zweite Rückmeldung, steht das statt einer Rückmeldung in der Datei. Tippzeiten stehen nie
    darin; bei einem Escape-Room-Finale enthält sie nur die Lösungsseiten (den Überblick aus dem Raum gibt es dort über
    „Überblick als PDF herunterladen“). Eine Tabelle
    erscheint dort als Tabelle, eine Weltkarten-Zuordnung als Liste („Kaffee → Brasilien“) mit „Zugeordnet: x von n“.
@@ -1035,7 +1037,7 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | Cookies und ähnliche Daten von YouTube – nur nach einem Klick auf „Video von YouTube laden“ | im Browser des benutzten Geräts, gesetzt und gelesen von Google (YouTube), nicht von Feibeitsblatt | nach den Bedingungen von Google; Feibeitsblatt speichert weder die Einwilligung noch, welche Videos geladen wurden | bis sie ablaufen oder im Browser gelöscht werden |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, KI-Feedback – kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
-| Lösungs-PDF einer Abgabe aus Ihrer Übersicht („Lösungs-PDF herunterladen“; dieselben Inhalte wie „Meine Lösungen“: Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, beide Fassungen, KI-Rückmeldungen – kein Geburtstag, keine Tippzeiten; bei einem Escape-Room-Finale nur die Lösungsseiten, ohne den Überblick aus dem Raum), nur auf Klick | auf Ihrem Gerät, dort, wo Sie die Datei speichern (im Dateinamen Code, Klasse, Kürzel und Abgabedatum); im Browser erzeugt, der Server sieht sie nie | unverschlüsselt und lesbar | bis Sie die Datei löschen – die Löschfrist gilt dafür nicht |
+| Lösungs-PDF einer Abgabe aus Ihrer Übersicht („Lösungs-PDF herunterladen“; dieselben Inhalte wie „Meine Lösungen“: Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, abgegebene Fassung, KI-Rückmeldung zur abgegebenen Fassung – kein Geburtstag, keine Tippzeiten; bei einem Escape-Room-Finale nur die Lösungsseiten, ohne den Überblick aus dem Raum), nur auf Klick | auf Ihrem Gerät, dort, wo Sie die Datei speichern (im Dateinamen Code, Klasse, Kürzel und Abgabedatum); im Browser erzeugt, der Server sieht sie nie | unverschlüsselt und lesbar | bis Sie die Datei löschen – die Löschfrist gilt dafür nicht |
 | Abschluss-PDF eines Escape-Room-Finales (statt „Meine Lösungen“; dazu der Überblick aus dem Escape-Room mit vollem Namen, Geburtsdatum, Klasse, Bestätigungscode, Ergebnissen und Lösungserläuterungen – keine Tippzeiten), nur auf Klick nach der Abgabe oder nach einer technisch gescheiterten Abgabe (dann mit dem Vermerk „Noch nicht abgegeben …“) | dort, wo die Schülerin bzw. der Schüler die Datei speichert; nur wenn sie bzw. er sie nach einer gescheiterten Abgabe per E-Mail schickt, auch im Postfach des Betreibers (`window.FEIBEITSBLATT_OPERATOR`) | unverschlüsselt, lesbar; per E-Mail unverschlüsselt über die beteiligten E-Mail-Anbieter | bis die Datei gelöscht wird; eine E-Mail laut Datenschutzhinweis, bis die Lehrkraft sie übernommen hat (siehe [Was wohin gesendet wird](#was-wohin-gesendet-wird)) |
 
 Der Server speichert weder die Anfragen an die KI noch deren Antworten zum Feedback – nur den Vorschlag der KI für die

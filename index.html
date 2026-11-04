@@ -5353,8 +5353,9 @@ $("ed-pdf").addEventListener("click", () => {
   } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
 });
 /* ---------- „Meine Lösungen“ als PDF nach der Abgabe (mehrseitig, zum Aufbewahren und Lernen) ----------
- * Inhalt: Blatt, Angaben, Abgabezeitpunkt, je Aufgabe die Aufgabenstellung, die abgegebene Lösung, bei Überarbeitung auch
- * die erste Fassung und das KI-Feedback. Gleiche Bausteine wie die Zwischenstand-PDF (Helvetica, WinAnsi), ohne Bibliothek.
+ * Inhalt: Blatt, Angaben, Abgabezeitpunkt, je Aufgabe die Aufgabenstellung, die abgegebene Lösung und die KI-Rückmeldung zur
+ * abgegebenen Fassung (nie die erste Fassung oder das Feedback dazu – außer in der Abschluss-PDF einer gescheiterten Abgabe).
+ * Gleiche Bausteine wie die Zwischenstand-PDF (Helvetica, WinAnsi), ohne Bibliothek.
  * KI-Kennzeichnung (Art. 50 Abs. 2 KI-VO), nur wenn KI-Stichpunkte darin stehen: sichtbarer Hinweis unter dem Kopf, Subject und
  * Keywords im Info-Dictionary und ein XMP-Datenstrom (/Metadata im Katalog) mit dem IPTC Digital Source Type „compositeSynthetic“
  * (Texte der Schüler:in gemischt mit KI-erzeugtem Text). */
@@ -5464,15 +5465,18 @@ function makeSolutionsPdf(sub) {
   const fb2 = sub.feedback2 && Array.isArray(sub.feedback2.results) ? sub.feedback2 : null;
   // Was je Aufgabe gedruckt wird – vorab, damit der Kopf sagen kann, ob KI-Rückmeldungen darin stehen
   const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
+  // Nach der Abgabe nur die Rückmeldung zur abgegebenen Fassung (fb2.results: bei überarbeiteten Aufgaben die neue, bei unveränderten die
+  // erste – derselbe Text, keine neue Anfrage) – nie die erste Fassung oder das Feedback dazu; fehlt die zweite Rückmeldung (lädt noch,
+  // kam nicht, nicht an die Lehrkraft übermittelt), steht keine Rückmeldung darin, nur der Hinweis im Kopf (Entscheidung der Lehrkraft).
+  // Nur die Abschluss-PDF einer technisch gescheiterten Abgabe (failed, noch nichts abgegeben) zeigt wie bisher die erste Fassung mit Feedback.
   const items = Array.from({ length: Math.max(tasks.length, answers.length) }, (_, i) => {
     const a = answers[i] || {}, fin = typeof a.final === "string" ? a.final : "", first = typeof a.first === "string" ? a.first : "";
     const isMap = !!(sub.kinds && sub.kinds[i] === "map");   // Weltkarte: kein KI-Feedback, also auch keine Notiz dazu
-    const fb = !isMap && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
-    const kept = !!fb2 && (fb2.same || !!(fb2.kept && fb2.kept[i]));   // unverändert: es gilt die erste Rückmeldung (steht weiter unten)
-    const f2 = fb2 && !kept && !isMap && fb2.results[i] ? normFb(fb2.results[i]) : null;
-    return { fin, first, fb, kept, f2: hasAiPoints(f2) ? f2 : null, showFb: !!fb && (hasAiPoints(fb) || !!fb.note) };
+    const fb = failed && !isMap && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
+    const rf = !failed && fb2 && !isMap && fb2.results[i] ? normFb(fb2.results[i]) : null;
+    return { fin, first, fb, rf: rf && (hasAiPoints(rf) || rf.note) ? rf : null, showFb: !!fb && (hasAiPoints(fb) || !!fb.note) };
   });
-  const hasAi = items.some((it) => it.f2 || (it.showFb && hasAiPoints(it.fb)));
+  const hasAi = items.some((it) => hasAiPoints(it.rf) || (it.showFb && hasAiPoints(it.fb)));
   if (failed) { /* noch nicht abgegeben: weder eine zweite Rückmeldung noch ein Vermerk zur Abgabe ohne KI-Feedback */ }
   else if (Array.isArray(sub.feedback) && !fb2) {
     gap(4);
@@ -5489,7 +5493,7 @@ function makeSolutionsPdf(sub) {
     for (const m of f.missing) para("• Tipp: " + m, 10.5, false, { indent: 10, color: "0.7 0.15 0.12" });
     if (f.note) para(f.note, 10.5, false, { indent: 10, color: "0.35 0.35 0.35" });
   };
-  items.forEach(({ fin, first, fb, kept, f2, showFb }, i) => {
+  items.forEach(({ fin, first, fb, rf, showFb }, i) => {
     pg.room(80);   // Aufgabenkopf nicht ganz unten beginnen
     para("Aufgabe " + (i + 1), 13, true);
     gap(2);
@@ -5497,19 +5501,22 @@ function makeSolutionsPdf(sub) {
     gap(6);
     para(failed ? "Meine Lösung (Stand beim Herunterladen):" : "Meine Lösung (abgegebene Fassung):", 10.5, true);
     para(fin.trim() ? fin : "(leer)", 11, false);
-    if (f2) {
+    if (hasAiPoints(rf)) {
       gap(6);
       para("KI-Rückmeldung zur abgegebenen Fassung:", 10.5, true);
-      fbLines(f2);
+      fbLines(rf);
+    } else if (rf) {   // nur ein Hinweis (z. B. „Zu dieser Aufgabe gibt es kein KI-Feedback.“) – ohne Überschrift
+      gap(6);
+      para(rf.note, 10.5, false, { color: "0.35 0.35 0.35" });
     }
-    if (fb && first.trim() && fbText(first) !== fbText(fin)) {   // nur bei inhaltlicher Änderung (nicht wegen Leerzeichen am Ende)
+    if (fb && first.trim() && fbText(first) !== fbText(fin)) {   // nur gescheiterte Abgabe; nur bei inhaltlicher Änderung (nicht wegen Leerzeichen am Ende)
       gap(6);
       para("Erste Fassung (vor dem KI-Feedback):", 10.5, true, { color: "0.35 0.35 0.35" });
       para(first, 10.5, false, { color: "0.35 0.35 0.35" });
     }
     if (showFb) {
       gap(6);
-      para(kept ? "KI-Feedback (gilt auch für die abgegebene Fassung):" : "KI-Feedback zur ersten Fassung:", 10.5, true, { color: "0.35 0.35 0.35" });
+      para("KI-Feedback zur ersten Fassung:", 10.5, true, { color: "0.35 0.35 0.35" });
       fbLines(fb);
     }
     gap(16);

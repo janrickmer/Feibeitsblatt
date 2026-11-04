@@ -1719,20 +1719,13 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(sol).toContain("(Meine L\\366sungen \\226 " + TITLE.replace("–", "\\226") + ") Tj");   // Titel (WinAnsi: ö = \366, – = \226)
   expect(sol).toContain("(Aufgabe 1) Tj"); expect(sol).toContain("(Aufgabe 3) Tj");
   expect(sol).toContain("(Meine L\\366sung \\(abgegebene Fassung\\):) Tj");
-  expect(sol).toContain("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj");   // A hat überarbeitet
+  // nur die abgegebene Fassung: weder die erste Fassung noch das Feedback zu ihr (A hat überarbeitet) – und solange die neue Rückmeldung
+  // fehlt, gar keine Rückmeldung, also auch keine KI-Kennzeichnung
+  for (const x of ["(Erste Fassung", "(KI-Feedback zur ersten Fassung", "gilt auch f", "(\\225 Gelingt schon:", "(\\225 Tipp:", "/Metadata "]) expect(sol, x).not.toContain(x);
+  expect(pdfShownText(Buffer.from(sol, "latin1"))).not.toContain("Die Rückmeldungen in dieser Datei hat eine KI erzeugt");
+  pdfStructure(Buffer.from(sol, "latin1"));
   expect(sol).toContain("Max \\267 Mu \\267 Klasse 8b");
   expect(sol).not.toContain("--05-04"); expect(sol).not.toMatch(/04\.05\.(?!\d)/);   // kein Geburtstag in der Datei („04.05.2026“ wäre ein Abgabedatum)
-  // KI-Kennzeichnung: sichtbarer Hinweis, Subject/Keywords, XMP mit IPTC „compositeSynthetic“ (Schülertext + KI-Text); Aufbau gültig
-  expect(pdfShownText(Buffer.from(sol, "latin1"))).toContain("Die Rückmeldungen in dieser Datei hat eine KI erzeugt (KI-Feedback). Sie können Fehler enthalten.");
-  const st1 = pdfStructure(Buffer.from(sol, "latin1"));
-  const xmpNo = Number(/\/Type \/Catalog \/Pages 2 0 R \/Metadata (\d+) 0 R/.exec(st1.objAt(1))[1]);
-  expect(xmpNo).toBe(st1.count - 1);   // das letzte Objekt
-  expect(st1.objAt(xmpNo)).toMatch(/^\d+ 0 obj\n<< \/Type \/Metadata \/Subtype \/XML \/Length \d+ >>\nstream\n/);
-  expect(st1.objAt(5)).toMatch(/\/Subject <FEFF[0-9a-f]+> \/Keywords <FEFF[0-9a-f]+>/);
-  const xmp = Buffer.from(/stream\n([\s\S]*)\nendstream/.exec(st1.objAt(xmpNo))[1], "latin1").toString("utf8");
-  expect(xmp).toContain("<Iptc4xmpExt:DigitalSourceType>http://cv.iptc.org/newscodes/digitalsourcetype/compositeSynthetic</Iptc4xmpExt:DigitalSourceType>");
-  expect(xmp).toContain("<rdf:li xml:lang=\"x-default\">Meine Lösungen – " + TITLE + "</rdf:li>");   // UTF-8, Titel XML-maskiert
-  expect(await page.evaluate((x) => { const d = new DOMParser().parseFromString(x.slice(x.indexOf("<x:xmpmeta"), x.indexOf("<?xpacket end")), "application/xml"); return d.getElementsByTagName("parsererror").length; }, xmp)).toBe(0);
 
   // der erste Versuch der zweiten Rückmeldung scheitert → Hinweis, Abgabe unberührt, „Rückmeldung erneut anfordern“
   releaseFb2();
@@ -1779,16 +1772,29 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(page.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
   const sol2 = (await readFile(await sdl2.path())).toString("latin1");
   S.solA = pdfShownText(Buffer.from(sol2, "latin1"));   // Test 4: die Lösungs-PDF aus der Übersicht der Lehrkraft zeigt genau denselben Text
-  expect(sol2).toContain("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj");   // ohne Zählung
-  pdfStructure(Buffer.from(sol2, "latin1"));
-  expect(sol2).toContain("/Metadata ");
+  // je Aufgabe nur die Rückmeldung zur abgegebenen Fassung (Aufgaben 1 und 2 überarbeitet, Aufgabe 3 ohne Auftrag nur mit dem Hinweis)
+  expect(sol2.split("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj").length - 1).toBe(2);   // ohne Zählung
+  expect(S.solA).toContain(NO_SOLUTION_NOTE);
+  // KI-Kennzeichnung: sichtbarer Hinweis, Subject/Keywords, XMP mit IPTC „compositeSynthetic“ (Schülertext + KI-Text); Aufbau gültig
+  expect(S.solA).toContain("Die Rückmeldungen in dieser Datei hat eine KI erzeugt (KI-Feedback). Sie können Fehler enthalten.");
+  const st1 = pdfStructure(Buffer.from(sol2, "latin1"));
+  const xmpNo = Number(/\/Type \/Catalog \/Pages 2 0 R \/Metadata (\d+) 0 R/.exec(st1.objAt(1))[1]);
+  expect(xmpNo).toBe(st1.count - 1);   // das letzte Objekt
+  expect(st1.objAt(xmpNo)).toMatch(/^\d+ 0 obj\n<< \/Type \/Metadata \/Subtype \/XML \/Length \d+ >>\nstream\n/);
+  expect(st1.objAt(5)).toMatch(/\/Subject <FEFF[0-9a-f]+> \/Keywords <FEFF[0-9a-f]+>/);
+  const xmp = Buffer.from(/stream\n([\s\S]*)\nendstream/.exec(st1.objAt(xmpNo))[1], "latin1").toString("utf8");
+  expect(xmp).toContain("<Iptc4xmpExt:DigitalSourceType>http://cv.iptc.org/newscodes/digitalsourcetype/compositeSynthetic</Iptc4xmpExt:DigitalSourceType>");
+  expect(xmp).toContain("<rdf:li xml:lang=\"x-default\">Meine Lösungen – " + TITLE + "</rdf:li>");   // UTF-8, Titel XML-maskiert
+  expect(await page.evaluate((x) => { const d = new DOMParser().parseFromString(x.slice(x.indexOf("<x:xmpmeta"), x.indexOf("<?xpacket end")), "application/xml"); return d.getElementsByTagName("parsererror").length; }, xmp)).toBe(0);
   // auch nach der Abgabe gekennzeichnet: Boxen der zweiten Rückmeldung (nicht Aufgabe 3 ohne Auftrag an die KI)
   expect(await aiMarks(page.locator("#done-fb-1"))).toEqual(["true", "feedback-final", AI_SOURCE]);
   expect(await aiMarks(page.locator("#done-fb-3"))).toEqual([null, null, null]);
-  expect(sol2).toContain("(KI-Feedback zur ersten Fassung:) Tj");
-  expect(sol2).not.toContain("lag beim Herunterladen noch nicht vor");
+  for (const x of ["(Erste Fassung", "(KI-Feedback zur ersten Fassung", "gilt auch f", "lag beim Herunterladen noch nicht vor"]) expect(sol2, x).not.toContain(x);
   for (const c of exp2[0].covered) expect(sol2).toContain("(\\225 Gelingt schon: " + c.slice(0, 20));   // • = \225 (WinAnsi)
-  for (const m of exp1[0].missing) expect(sol2).toContain("(\\225 Tipp: " + m.slice(0, 20));       // aus dem ersten Feedback
+  for (const m of exp2[0].missing) expect(sol2).toContain("(\\225 Tipp: " + m.slice(0, 20));
+  const firstOnly = exp1[0].missing.filter((m) => !exp2.some((e) => e.missing.includes(m)));   // Tipps nur des ersten Feedbacks
+  expect(firstOnly.length).toBeGreaterThan(0);
+  for (const m of firstOnly) expect(sol2).not.toContain("(\\225 Tipp: " + m.slice(0, 20));   // das erste Feedback steht nicht mehr darin
   for (const w of ["Kernpunkt", "ngesprochen", "fehlt:"]) expect(sol2).not.toContain(w);
   // Erstversuch (beim Feedback) + Abgabe + danach die zweite Rückmeldung verschlüsselt an die Lehrkraft (ersetzt nur die Abgabe)
   await expect.poll(async () => (await s.calls((r) => r.path === "/api/submit")).length).toBe(3);
@@ -2295,7 +2301,9 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   expect((await s.calls((r) => r.path === "/api/feedback")).map((r) => r.status)).toEqual([502, 502, 200]);
   const [bdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   const bsol = (await readFile(await bdl.path())).toString("latin1");
-  expect(bsol).toContain("(KI-Feedback \\(gilt auch f\\374r die abgegebene Fassung\\):) Tj");
+  // unverändert abgegeben: die erste Rückmeldung als Rückmeldung zur abgegebenen Fassung (Aufgaben 1 und 2; Aufgabe 3 nur der Hinweis)
+  expect(bsol.split("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj").length - 1).toBe(2);
+  for (const x of ["gilt auch f", "(KI-Feedback zur ersten Fassung", "(Erste Fassung"]) expect(bsol, x).not.toContain(x);
   expect(bsol).not.toContain("lag beim Herunterladen noch nicht vor");
   S.sheetBodies.push(...(await s.calls((r) => r.path.startsWith("/api/sheet/"))).map((r) => r.body));
   await closePage(s);
@@ -2709,7 +2717,8 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(detB.locator(".dfb2")).toHaveCount(0);   // nichts geändert: keine zweite Rückmeldung, es gilt die erste
   const [bdl] = await Promise.all([page.waitForEvent("download"), detB.locator("button.dpdf").click()]);
   const bText = pdfShownText(await readFile(await bdl.path()));
-  expect(bText).toContain("KI-Feedback (gilt auch für die abgegebene Fassung):");
+  expect(bText).toContain("KI-Rückmeldung zur abgegebenen Fassung:");   // unverändert abgegeben: die erste Rückmeldung, als Rückmeldung zur abgegebenen Fassung
+  for (const x of ["gilt auch für", "KI-Feedback zur ersten Fassung", "Erste Fassung"]) expect(bText, x).not.toContain(x);
   expect(bText).not.toContain("nicht an die Lehrkraft übermittelt");
   expect(bdl.suggestedFilename()).toMatch(/^Feibeitsblatt-Loesungen-[A-Z0-9]{3}-[A-Z0-9]{3}-7a-OezgUen-\d{4}-\d\d-\d\d\.pdf$/);   // Umlaute als ASCII
   await page.click("#t-expand-all");
@@ -3103,13 +3112,15 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   expect(prompt2).not.toContain("### Aufgabe 1");
   expect(prompt2).not.toContain(F.first[0]);
   expect(prompt2).not.toContain(TASKS_F[0].text);
-  // PDF: neue Rückmeldung nur bei Aufgabe 2; Aufgabe 1 „gilt auch für die abgegebene Fassung“, ohne „Erste Fassung“ (nur ein Leerzeichen)
+  // PDF: je Aufgabe die Rückmeldung zur abgegebenen Fassung – Aufgabe 1 (unverändert) mit der ersten, Aufgabe 2 mit der neuen; nie die
+  // erste Fassung oder das Feedback zu ihr
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   const sol = (await readFile(await dl.path())).toString("latin1");
-  expect(sol.split("(KI-R\\374ckmeldung zur abgegebenen Fassung").length - 1).toBe(1);
-  expect(sol).toContain("(KI-Feedback \\(gilt auch f\\374r die abgegebene Fassung\\):) Tj");
-  expect(sol).toContain("(KI-Feedback zur ersten Fassung:) Tj");
-  expect(sol.split("(Erste Fassung \\(vor dem KI-Feedback\\):) Tj").length - 1).toBe(1);
+  expect(sol.split("(KI-R\\374ckmeldung zur abgegebenen Fassung:) Tj").length - 1).toBe(2);
+  for (const x of ["gilt auch f", "(KI-Feedback zur ersten Fassung", "(Erste Fassung"]) expect(sol, x).not.toContain(x);
+  const solT = pdfShownText(await readFile(await dl.path()));
+  for (const c of exp1[0].covered) expect(solT).toContain("• Gelingt schon: " + c.slice(0, 20));   // Aufgabe 1: die erste Rückmeldung
+  for (const c of exp2[1].covered) expect(solT).toContain("• Gelingt schon: " + c.slice(0, 20));   // Aufgabe 2: die neue
   await closePage(s);
   // aufräumen: das Blatt samt Abgabe löschen (die Tests 8 und 9 legen ihre eigenen Blätter an)
   await t.page.click("#b-res-back");
@@ -3362,7 +3373,7 @@ test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort de
   const [rdl] = await Promise.all([tp.waitForEvent("download"), detR.locator("button.dpdf").click()]);
   const rText = pdfShownText(await readFile(await rdl.path()));
   expect(rText).toContain("Eine KI-Rückmeldung zur abgegebenen Fassung wurde nicht an die Lehrkraft übermittelt.");
-  expect(rText).toContain("KI-Feedback zur ersten Fassung:");
+  for (const x of ["KI-Rückmeldung zur abgegebenen Fassung:", "KI-Feedback zur ersten Fassung", "Erste Fassung", "Gelingt schon:", "Tipp:"]) expect(rText, x).not.toContain(x);   // dann gar keine Rückmeldung
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
