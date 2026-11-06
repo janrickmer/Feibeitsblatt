@@ -6,7 +6,8 @@ import {
   callAI, testKey, anonymize, safeData, extractJsonObject, rankModels, buildGeminiBody, buildOpenAIBody, PROVIDERS,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI, NO_SOLUTION_NOTE, FEEDBACK_CAPS,
   reserveSlot, skipQuery, skipStatements, pickFallbacks, providerLabel, PUBLIC_MSG, TTL, AIError, gateKey, FEEDBACK_SYSTEM,
-  recipientLabel, nextUtcMidnight, CF_LOCAL, CF_NO_BINDING, CF_MODELS, parseWorkersAI, cfUsage, cfNeurons, DEFAULT_PROVIDER } from "../../worker/ai.js";
+  recipientLabel, nextUtcMidnight, CF_LOCAL, CF_NO_BINDING, CF_MODELS, parseWorkersAI, cfUsage, cfNeurons, DEFAULT_PROVIDER,
+  tokensOf, parseDurationMs, dailyRequestInfo } from "../../worker/ai.js";
 import { parseFeedbackPrompt, mockFeedback } from "../mock-ai.mjs";
 
 const realFetch = globalThis.fetch;
@@ -470,6 +471,7 @@ test("workers ai: Gemma mit Denkmodus aus, max_completion_tokens, JSON-Modus; im
   assert.deepEqual(c.inputs.messages, msgs);
   assert.deepEqual(r.usage, { prompt_tokens: 3000, completion_tokens: 300, reasoning_tokens: 0 });
   assert.equal(r.cost.requests, 1); assert.ok(Math.abs(r.cost.neurons - (3000 * 9091 + 300 * 27273) / 1e6) < 1e-9);
+  assert.equal(r.cost.tokens, 3300); assert.deepEqual(r.cost.limits, {});   // Workers AI meldet keine Grenze in Headern
   // ohne Ausgabegrenze: 2048 (sonst teils nur 256 Token → abgeschnittenes JSON)
   const ai2 = fakeAI([chat("{\"ok\":1}")]);
   await callAI(CF(ai2), msgs);
@@ -683,4 +685,56 @@ test("checklist: Gemini bekommt das responseSchema mit nr/punkte; Antwort wird n
   assert.deepEqual(gc.responseSchema.properties.aufgaben.items.required, ["nr", "punkte"]);
   assert.deepEqual(gc.responseSchema.properties.aufgaben.items.propertyOrdering, ["nr", "punkte"]);
   assert.deepEqual(normalizeChecklist(r.json, nrs).get(1), ["Du nennst Licht."]);
+});
+
+/* ---------- Verbrauch je KI für die Lehrkraft: Token, Anfragen, von Groq gemeldete Grenze für Anfragen pro Tag ---------- */
+test("tokensOf: OpenAI-kompatibel (total oder Summe), Workers AI (auch im result-Umschlag), Gemini usageMetadata; sonst 0", () => {
+  assert.equal(tokensOf("openai", { usage: { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 } }), 150);
+  assert.equal(tokensOf("openai", { usage: { prompt_tokens: 120, completion_tokens: 30 } }), 150);
+  assert.equal(tokensOf("workers-ai", { result: { response: "x", usage: { prompt_tokens: 7, completion_tokens: 2 } } }), 9);
+  assert.equal(tokensOf("gemini", { usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5, thoughtsTokenCount: 3, totalTokenCount: 18 } }), 18);
+  assert.equal(tokensOf("gemini", { usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } }), 15);
+  for (const d of [null, {}, { usage: null }, { usage: { prompt_tokens: -4, completion_tokens: "x" } }, { usageMetadata: "x" }])
+    assert.equal(tokensOf("openai", d), 0);
+  assert.equal(tokensOf("openai", { usage: { total_tokens: 1e12 } }), 1e8);   // unsinnige Werte gekappt
+});
+test("parseDurationMs: Groq-Dauern (\"2m59.56s\", \"7.66s\", \"120ms\", \"1h0m0s\"), reine Zahl = Sekunden; Unsinn → null", () => {
+  const cases = { "2m59.56s": 179560, "7.66s": 7660, "120ms": 120, "1h0m0s": 3600000, "1h2m3.5s": 3723500, "90": 90000, "1m": 60000, " 3s ": 3000 };
+  for (const [k, v] of Object.entries(cases)) assert.equal(parseDurationMs(k), v, k);
+  for (const k of ["", null, undefined, "abc", "1x", "m", "-5s", "8d", "200h", "1s2m", "9".repeat(50)]) assert.equal(parseDurationMs(k), null, String(k));
+});
+test("dailyRequestInfo: nur Groq; x-ratelimit-*-requests = Anfragen pro Tag, Rücksetzung als Zeitpunkt; fehlende/kaputte Header → null", () => {
+  const h = (o) => new Headers(o);
+  const ok = { "x-ratelimit-limit-requests": "1000", "x-ratelimit-remaining-requests": "992", "x-ratelimit-reset-requests": "11m31.2s",
+    "x-ratelimit-limit-tokens": "8000", "x-ratelimit-remaining-tokens": "7000", "x-ratelimit-reset-tokens": "7.5s" };
+  assert.deepEqual(dailyRequestInfo(PROVIDERS.groq, h(ok), 5000), { limit: 1000, left: 992, resetAt: 5000 + 691200, at: 5000 });
+  for (const p of ["openrouter", "cerebras", "gemini", "custom", "cloudflare"]) assert.equal(dailyRequestInfo(PROVIDERS[p], h(ok), 5000), null, p);
+  assert.equal(dailyRequestInfo(PROVIDERS.groq, h({ ...ok, "x-ratelimit-reset-requests": "bald" }), 5000), null);
+  assert.equal(dailyRequestInfo(PROVIDERS.groq, h({ ...ok, "x-ratelimit-remaining-requests": "-1" }), 5000), null);
+  assert.equal(dailyRequestInfo(PROVIDERS.groq, h({ ...ok, "x-ratelimit-limit-requests": "0" }), 5000), null);
+  assert.equal(dailyRequestInfo(PROVIDERS.groq, h({}), 5000), null);
+  assert.equal(dailyRequestInfo(PROVIDERS.groq, h({ ...ok, "x-ratelimit-remaining-requests": "2000" }), 5000).left, 1000);   // nie mehr als die Grenze
+});
+test("callAI zählt für alle Anbieter beantwortete Anfragen und Token; Groq: Grenze je Modell aus den Headern, auch aus einer 429-Antwort", async () => {
+  const rl = (left, reset) => ({ "x-ratelimit-limit-requests": "1000", "x-ratelimit-remaining-requests": String(left), "x-ratelimit-reset-requests": reset });
+  script = [
+    { status: 429, body: { error: { message: "Rate limit reached on requests per minute (RPM): Limit 30. Please try again in 1s." } }, headers: { ...rl(0, "3h"), "retry-after": "1" } },
+    { ...oa("{\"a\":1}", { usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } }), headers: rl(990, "14m24s") },
+  ];
+  const t0 = Date.now();
+  const r = await callAI({ provider: "groq", apiKey: "k", model: "openai/gpt-oss-120b", fallbacks: ["llama-3.3-70b-versatile"] }, msgs);
+  assert.deepEqual(r.json, { a: 1 });
+  assert.equal(r.cost.requests, 1); assert.equal(r.cost.tokens, 120); assert.equal(r.cost.neurons, 0);
+  assert.deepEqual(Object.keys(r.cost.limits).sort(), ["llama-3.3-70b-versatile", "openai/gpt-oss-120b"]);
+  const a = r.cost.limits["openai/gpt-oss-120b"], b = r.cost.limits["llama-3.3-70b-versatile"];
+  assert.deepEqual([a.limit, a.left, b.limit, b.left], [1000, 0, 1000, 990]);
+  assert.ok(a.resetAt - a.at === 3 * 3600e3 && b.resetAt - b.at === 864000 && a.at >= t0 && b.at >= a.at);
+  // OpenRouter u. a.: Token und Anfragen ja, Grenze nie (auch wenn der Dienst ähnlich benannte Header schickt)
+  script = [{ ...oa("{\"b\":2}", { usage: { prompt_tokens: 5, completion_tokens: 6 } }), headers: rl(10, "1m") }];
+  const o = await callAI({ provider: "openrouter", apiKey: "k", model: "openai/gpt-oss-120b:free" }, msgs);
+  assert.deepEqual({ ...o.cost }, { requests: 1, neurons: 0, tokens: 11, limits: {} });
+  // Gemini: Token aus usageMetadata; ein Fehler trägt den bis dahin gezählten Verbrauch (e.cost)
+  script = [{ body: { candidates: [{ content: { parts: [{ text: "kein json" }] }, finishReason: "STOP" }], usageMetadata: { totalTokenCount: 42 } } }];
+  await assert.rejects(callAI({ provider: "gemini", apiKey: "k", model: "gemini-flash-latest" }, msgs, { maxAttempts: 1 }),
+    (e) => e instanceof AIError && e.cost.requests === 1 && e.cost.tokens === 42);
 });

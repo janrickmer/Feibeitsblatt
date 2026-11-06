@@ -788,6 +788,7 @@
   .provinfo{margin:0 0 16px}
   .provwarn{color:var(--red); font-weight:600}
   .cfusage{margin:8px 0 0}
+  .cfusage .use-lim{display:block; margin-top:2px}
   .cfusage.over{color:var(--red)}
   .provinfo p{margin:0 0 6px}
   .provinfo p:last-child{margin-bottom:0}
@@ -9409,14 +9410,57 @@ function fmtUntil(ms) {   // „23.10. um 02:00 Uhr“ (Ortszeit des Browsers)
   const d = new Date(ms);
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " um " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
 }
-// Workers AI: geschätzter Verbrauch heute (UTC) und ggf. die Sperre „Tageskontingent aufgebraucht“ – unter dem gewählten Anbieter
-function renderCfUsage(el, p) {
-  const u = T.ai && T.ai.usage, show = p === "cloudflare" && !!u;
-  el.classList.toggle("hidden", !show);
-  if (!show) return;
-  const q = T.ai.quotaUntil && T.ai.quotaUntil > Date.now() ? T.ai.quotaUntil : 0;
-  el.textContent = `Heute (UTC) geschätzt verbraucht: ca. ${groupInt(u.neurons)} von ${groupInt(u.limit)} Neurons (${u.requests === 1 ? "1 Anfrage" : groupInt(u.requests) + " Anfragen"}) – genau im Cloudflare-Dashboard unter „Workers AI“.` +
-    (q ? ` Tageskontingent aufgebraucht bis ${fmtUntil(q)} (Neustart 0:00 Uhr UTC).` : "");
+const fmtClock = (ms) => new Date(ms).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+const nextUtcMidnightMs = (now = Date.now()) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1); };
+const countOf = (n, one, many) => (Number(n) === 1 ? "1 " + one : groupInt(n) + " " + many);
+// Verbrauch heute über Feibeitsblatt für den gewählten Anbieter: der gespeicherte Eintrag dieser Rolle (which = "main" | "reserve"),
+// Workers AI auch ungespeichert (consumption.cloudflare – das Kontingent gilt für das ganze Konto; ein älterer Worker liefert nur
+// `usage` ohne Token). Ein anderer Anbieter als der gespeicherte: nichts (die Zahlen gehörten nicht zu ihm).
+function usageFor(p, which) {
+  const all = (T.ai && T.ai.consumption) || {}, u = all[which];
+  if (u && u.provider === p) return u;
+  if (p !== "cloudflare") return null;
+  if (all.cloudflare && all.cloudflare.provider === "cloudflare") return all.cloudflare;
+  const l = T.ai && T.ai.usage;
+  return l ? { provider: "cloudflare", requests: l.requests, tokens: null, neurons: l.neurons, neuronLimit: l.limit, limits: "neurons", resetAt: nextUtcMidnightMs() } : null;
+}
+// Zwei Teile: eigene Zählung (Token und Anfragen heute, UTC) und Grenze samt Rücksetzzeit – nur, wo der Anbieter sie meldet
+// (Workers AI: geschätzte Neurons des Gratiskontingents, zurückgesetzt 0:00 UTC; Groq: Anfragen pro Tag je Modell aus den
+// Antwort-Headern, zurückgesetzt laut Groq), sonst „Grenze nicht abfragbar“. Zeiten in der Ortszeit des Browsers.
+function usageParts(u, p, now = Date.now()) {
+  const n = Number(u.requests) || 0, tok = Number(u.tokens) || 0, label = p === "custom" ? "der Dienst" : provLabel(p);
+  const von = p === "custom" ? "vom Dienst" : "von " + label;
+  const own = !n ? "Heute über Feibeitsblatt noch keine Anfrage."
+    : u.tokens == null ? `Heute über Feibeitsblatt: ${countOf(n, "Anfrage", "Anfragen")}.`
+    : tok ? `Heute über Feibeitsblatt verbraucht: ${groupInt(tok)} Token in ${countOf(n, "Anfrage", "Anfragen")}.`
+    : `Heute über Feibeitsblatt: ${countOf(n, "Anfrage", "Anfragen")} (Token meldet ${label} nicht).`;
+  const reset = fmtUntil(u.resetAt || nextUtcMidnightMs(now)) + " (0:00 Uhr UTC)";
+  let lim;
+  if (u.limits === "neurons") {
+    lim = (n || Number(u.neurons) > 0 ? `Das sind geschätzt ca. ${groupInt(u.neurons)} von ${groupInt(u.neuronLimit)} Neurons des kostenlosen Tageskontingents.`
+      : `Vom kostenlosen Tageskontingent (${groupInt(u.neuronLimit)} Neurons) ist über Feibeitsblatt noch nichts verbraucht.`) +
+      ` Es gilt für das ganze Cloudflare-Konto (genau im Cloudflare-Dashboard unter „Workers AI“) und wird am ${reset} zurückgesetzt; dann beginnt auch diese Zählung neu.`;
+  } else if (u.limits === "requests") {
+    const rate = Array.isArray(u.rate) ? u.rate : [];
+    lim = `Diese Zählung beginnt am ${reset} neu. ` + (rate.length
+      ? `Grenze für Anfragen pro Tag laut ${label} (je Modell, Stand der letzten Antwort): ` + rate.map((x) => (x.resetAt > now
+        ? `„${x.model}“ noch ${groupInt(x.left)} von ${groupInt(x.limit)} (Stand ${fmtClock(x.at)}), wird am ${fmtUntil(x.resetAt)} zurückgesetzt`
+        : `„${x.model}“ am ${fmtUntil(x.resetAt)} zurückgesetzt (seitdem keine Antwort über Feibeitsblatt)`)).join("; ") + "."
+      : `Die Grenze für Anfragen pro Tag meldet ${label} mit jeder Antwort – heute gab es noch keine.`) +
+      ` Eine Grenze für Token pro Tag meldet ${label} in seinen Antworten nicht – sie steht in Ihrem Konto bei ${label}.`;
+  } else lim = `Diese Zählung beginnt am ${reset} neu. Grenze nicht abfragbar: Feibeitsblatt erfährt ${von} weder das Kontingent noch, wann es zurückgesetzt wird – beides steht in Ihrem Konto beim Anbieter.`;
+  return { own, lim };
+}
+// Unter dem gewählten Anbieter (erste KI bzw. Reserve); Workers AI dazu die Sperre „Tageskontingent aufgebraucht“ (rot)
+function renderUsage(el, p, which) {
+  const u = usageFor(p, which);
+  el.classList.toggle("hidden", !u);
+  el.textContent = "";
+  el.classList.remove("over");
+  if (!u) return;
+  const { own, lim } = usageParts(u, p);
+  const q = p === "cloudflare" && T.ai.quotaUntil && T.ai.quotaUntil > Date.now() ? T.ai.quotaUntil : 0;
+  el.append(h("span", { class: "use-own", text: own }), " ", h("span", { class: "use-lim", text: lim + (q ? ` Tageskontingent aufgebraucht bis ${fmtUntil(q)} (Neustart 0:00 Uhr UTC).` : "") }));
   el.classList.toggle("over", !!q);
 }
 let aiDirty = false;
@@ -9442,7 +9486,7 @@ function aiSyncForm() {
   else if (saved === p) hint = "Kein gültiger Schlüssel gespeichert – bitte den API-Schlüssel neu eintragen.";
   else hint = "Noch kein Schlüssel gespeichert.";
   $("ai-key-hint").textContent = hint;
-  renderCfUsage($("ai-usage"), p);
+  renderUsage($("ai-usage"), p, "main");
 }
 async function openAi() {
   teacherView("tv-ai");
@@ -9590,7 +9634,7 @@ function ai2SyncForm() {
   $("ai2-key-hint").textContent = hint;
   $("ai2-test").disabled = !(rs && rs.hasKey);
   $("ai2-remove").disabled = !rs;
-  renderCfUsage($("ai2-usage"), p);
+  renderUsage($("ai2-usage"), p, "reserve");
 }
 $("ai2-prov").addEventListener("change", () => {
   ai2Dirty = true;

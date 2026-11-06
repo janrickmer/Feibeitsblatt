@@ -65,19 +65,23 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Tageskontingent von Workers AI (kontoweit) → 503 `ai_quota` ohne `retryAfter`, sonst 502 `ai_error`; ohne
   `SETTINGS_SECRET` → 503 `server_not_configured` (nur beim Speichern eines API-Schlüssels). `GET`/`PUT /api/teacher/ai`
   liefern je Eintrag `hasKey` (= nutzbar), `ready`, `saved`, `keyless`, `keyError?` und dazu `quotaUntil` (Sperre "*"
-  oder `null`) und `usage: {day, requests, neurons, limit}` (Workers AI heute, UTC); `/ai/test` bei Workers AI `usage`
-  (prompt/completion/reasoning_tokens, nie Inhalt).
+  oder `null`), `usage: {day, requests, neurons, limit}` (Workers AI heute, UTC – Form für gecachte Seiten) und `consumption:
+  {main, reserve, cloudflare}` (je Eintrag `entryUsage`, `null` ohne Eintrag: `{provider, day, requests, tokens, resetAt (nächstes
+  0:00 UTC), limits: "neurons"|"requests"|null}`, Workers AI dazu `neurons`/`neuronLimit`, Groq `rate: [{model, limit, left, resetAt,
+  at}]` – siehe Verbrauch je KI); `/ai/test` bei Workers AI `usage` (prompt/completion/reasoning_tokens, nie Inhalt).
 - **Codes:** 6 Zeichen aus `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (≥ 1 Buchstabe, ≥ 1 Ziffer), Anzeige `K7Q-M4X`,
   Eingabe normalisieren (Großbuchstaben, nur `A–Z0–9`), Erzeugung mit `crypto.getRandomValues` ohne Modulo-Bias.
 - **D1-Schema:** `settings(key, value)` (`teacher` = `{authHash, kdf, publicKey, encPrivateKey}`, `ai`, `privacy`), `sheets`,
   `submissions(id, sheet_code, received_at, envelope, stage TEXT DEFAULT 'final', attempt TEXT)` + Indizes
   (`sheet_code, id`, `sheet_code, attempt` und `received_at` für die Löschfrist), `sheet_images(id, sheet_code, task, pos, mode, mime,
   w, h, bytes, data TEXT = Base64, created_at)` + Index (`sheet_code, task, pos`), `rate_limits`, `ai_gate`,
-  `ai_skip`, `ai_usage(day 'YYYY-MM-DD' UTC, provider, requests, neurons, PK(day, provider))`,
+  `ai_skip`, `ai_usage(day 'YYYY-MM-DD' UTC, provider = Schlüssel des Eintrags (`e.key`: erster Anbieter bzw. `provider#r`,
+  Workers AI immer `cloudflare`), requests, neurons, tokens, req_limits TEXT (JSON je Modell, nur Groq), PK(day, provider))`,
   `sheet_checklists(sheet_code PK, draft, final, updated_at)`. Angelegt per
   `CREATE TABLE IF NOT EXISTS` beim ersten Request je Isolate (ein `batch`), keine Migrationen → Schemaänderungen
   nur additiv und idempotent im `SCHEMA`-Array; nachträgliche Spalten wie `stage`/`attempt` und `sheets.escape_id`/`escape_name`
-  (Escape-Room-Blatt, NULL = normales Blatt) per `ensureColumns` (`LATER_COLUMNS`; beide `PRAGMA table_info` in einem Batch →
+  (Escape-Room-Blatt, NULL = normales Blatt) und `ai_usage.tokens`/`req_limits` per `ensureColumns` (`LATER_COLUMNS`; die drei
+  `PRAGMA table_info` (submissions, sheets, ai_usage) in einem Batch →
   fehlende `ALTER TABLE … ADD COLUMN` in einem Batch, Fehler bei Wettlauf zweier Isolates werden durch erneutes Nachsehen abgefangen).
 - **Erstversuch ↔ Abgabe:** `POST /api/submit` nimmt `{code, envelope, stage?: "first"|"final"|"feedback2", attempt?: 16 Hex, receivedAt?}`
   (`validateSubmitMeta`; `first` braucht `attempt`). Der Browser erzeugt je Bearbeitung eine Kennung (`S.attempt`,
@@ -275,8 +279,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   tragen `retryAfterMs` → `retryAfterOfErr` (5–60 s) im 429 `ai_busy`. routeFeedback: Budget 100 s, erster Anbieter
   45 s (mit Reserve) und 6 Versuche, Reserve ≤ 40 s/3 Versuche nur bei ≥ 35 s Rest. D1-Abfragen je Feedback (Anweisungen
   eines Batches einzeln, Schema schon angelegt): Erfolg im ersten Versuch ≤ 18; je Versuch ≤ 3, dazu Aufräumen, Zählung,
-  Verbrauch, Erstattung → höchstens 32 ohne, 42 mit Reserve (Unit-Tests: Erfolg über Workers AI ≤ 18, volle Warteschlangen
-  mit Reserve ≤ 42; jeder Aufruf ≤ 50). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
+  Verbrauch (ein Upsert je Eintrag), Erstattung → höchstens 32 ohne, 43 mit Reserve (Unit-Tests: Erfolg über Workers AI ≤ 18,
+  volle Warteschlangen mit Reserve ≤ 42; jeder Aufruf ≤ 50). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
   `FB_MAX_MS` 4 min, Wartezeit = retryAfter × (1 + 0–30 %) + 0–3 s, ein `setTimeout` auf einen absoluten Zeitpunkt +
   `visibilitychange`, Sekundenzähler in `#fb-wait` (aria-hidden) außerhalb der Live-Region `#fb-status` (beide und `#fb-fallback` direkt unter `#fb-btn`, vor dem
   Datenschutzhinweis `#privacy`/`#privacy-esc`/`#privfull-ed` – E2E 7f prüft die Lage), Felder nur
@@ -326,8 +330,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `chat_template_kwargs`/`enable_thinking`/`thinking`, zuerst die kwargs), dann nächstes Modell, gesperrt nur `TTL.soft`
   (5 min – eine einzelne seltsame Anfrage ändert die Modellfolge nicht für einen Tag) – `minRetryMs` bleibt, also am Ende
   eher `ai_busy` als `ai_error`. `parseWorkersAI` (choices, `{response}` als Text/Objekt, packt `{result}` aus),
-  `cfUsage`/`cfNeurons`: `callAI` liefert `cost {requests, neurons}` (auch an Fehlern) → ein Upsert in `ai_usage` im
-  `waitUntil`-Batch (keine zusätzliche Abfrage je Versuch), Aufräumen > 2 Tage. Kontoweite Sperre = `ai_skip` mit model `"*"`
+  `cfUsage`/`cfNeurons`: `callAI` liefert `cost {requests, neurons, tokens, limits}` (auch an Fehlern; siehe Verbrauch je KI) → ein
+  Upsert je Eintrag in `ai_usage` im `waitUntil`-Batch (keine zusätzliche Abfrage je Versuch), Aufräumen > 2 Tage. Kontoweite Sperre = `ai_skip` mit model `"*"`
   unter `entryKey` (bei `accountDaily` ohne `#r`, für erste und Reserve-Rolle gleich): `routeFeedback` fragt dann nicht,
   ohne Reserve schon **vor** `countAll` 503 `ai_quota` (nichts gezählt), mit Reserve bekommt diese das volle Budget (`lead`:
   deadline = Rest, 6 Versuche); ein Treffer im Aufruf erstattet die Zählung (DAILY_LIMIT ∈ `AI_REFUND`). Speichern löscht
@@ -341,7 +345,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Browser-`PROVIDERS`, `.provwarn` per JS gefüllt, `askConfirm` „Anbieter trotz Warnung speichern?“ nur wenn nicht schon
   gespeichert; bei der Reserve im selben Dialog), Schlüsselfeld `#ai-key-field` bei keyless verborgen (`#ai-keyless-hint`),
   Modellfeld beim Anbieterwechsel leeren, `savedMain()` (nur `saved !== false`; `ai2Save` verlangt ihn, `AI_MAIN_FIRST`),
-  `#ai-usage`/`#ai2-usage` (`renderCfUsage`, „Tageskontingent aufgebraucht bis …“, `.over` rot), Test zeigt `testUsageText`;
+  `#ai-usage`/`#ai2-usage` (`renderUsage`, siehe Verbrauch je KI; bei Workers AI „Tageskontingent aufgebraucht bis …“, `.over` rot),
+  Test zeigt `testUsageText`;
   Zahlen per `groupInt` bzw. `thousands` (ai.js) als „10.000“ wie `toLocaleString("de-DE")`; Konflikt-Hinweise („Reserve ist
   schon Workers AI“ u. ä.) räumt `clearStaleClash` nach Speichern/Entfernen weg. `#t-aiwarn`: gespeicherter, aber nicht
   nutzbarer Anbieter → nur `keyError` + `AI_WARN_UNTIL` („Bis dahin … nur ohne KI-Feedback“), die Aufforderung „wählen Sie …
@@ -349,6 +354,28 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   aufgebraucht“, `laterFor` → „morgen“) mit `S.fbUnavailableDay` (UTC-Tag, im Zwischenstand/PDF als `fbUnavailableDay`);
   `quotaExpired()` (openEditor – dann sofort gespeichert –, `renderFeedbackState`, `noAiState`) löscht den Grund an einem
   späteren UTC-Tag, `fbFails` bleibt; keine automatische Wiederholung.
+- **Verbrauch je KI (Lehrkraft, Wunsch vom 06.11.2026):** Je KI-Eintrag (erste KI, Reserve getrennt) zählt der Worker heute (UTC)
+  über Feibeitsblatt beantwortete Anfragen (`r.ok`, auch Checkliste und Verbindungstest) und Token (`tokensOf`: OpenAI-kompatibel
+  `usage.total_tokens` bzw. prompt + completion, Workers AI ebenso, Gemini `usageMetadata.totalTokenCount`; 0 = nicht gemeldet) in
+  `cost` → `usageStmt(db, e.key, cost, now)` (bei jedem Anbieter, sobald `spent`: Anfrage oder gemeldete Grenze). **Grenzen nur, wo
+  der Anbieter sie meldet:** Workers AI = geschätzte Neurons gegen `CF_DAILY_NEURONS` (Konto, zurückgesetzt 0:00 UTC – Cloudflare-
+  Preisseite); **Groq** (`rateHeaders: "groq"`) = `dailyRequestInfo` aus `x-ratelimit-limit-requests`/`-remaining-requests`/
+  `-reset-requests` (laut console.groq.com/docs/rate-limits immer Anfragen pro Tag; Reset als Dauer „2m59.56s“ → `parseDurationMs` →
+  Zeitpunkt), auch aus 429-Antworten, je Modell in `cost.limits` → `req_limits` per `json_patch` (neuester Stand je Modell),
+  `rateView` liefert die drei zuletzt gemeldeten; die `*-tokens`-Header gelten pro Minute (nicht genutzt), eine Token-Tagesgrenze
+  meldet Groq nicht. Alle anderen (OpenRouter, Gemini, Cerebras – deren Header nicht belegt –, custom): `limits: null`. Browser:
+  `usageFor(p, which)` (nur der gespeicherte Anbieter dieser Rolle; Workers AI auch ungespeichert über `consumption.cloudflare`, ein
+  älterer Worker über `usage`), `usageParts` → `span.use-own` „Heute über Feibeitsblatt verbraucht: 23.456 Token in 8 Anfragen.“ (bzw.
+  „noch keine Anfrage“, „(Token meldet … nicht)“) und `span.use-lim`: Workers AI „Das sind geschätzt ca. … von 10.000 Neurons des
+  kostenlosen Tageskontingents. Es gilt für das ganze Cloudflare-Konto (…) und wird am TT.MM. um HH:MM Uhr (0:00 Uhr UTC)
+  zurückgesetzt; dann beginnt auch diese Zählung neu.“; sonst „Diese Zählung beginnt am … (0:00 Uhr UTC) neu.“ + Groq „Grenze für
+  Anfragen pro Tag laut Groq (je Modell, Stand der letzten Antwort): „Modell“ noch x von y (Stand HH:MM Uhr), wird am … zurückgesetzt“
+  (vorbei: „am … zurückgesetzt (seitdem keine Antwort über Feibeitsblatt)“) + „Eine Grenze für Token pro Tag meldet Groq in seinen
+  Antworten nicht – …“ bzw. **„Grenze nicht abfragbar: Feibeitsblatt erfährt von … weder das Kontingent noch, wann es zurückgesetzt
+  wird – beides steht in Ihrem Konto beim Anbieter.“** Zeiten per `fmtUntil`/`fmtClock` in Ortszeit; nach einem Test `refreshAiState`.
+  Nie Inhalte speichern, nur Zahlen. Tests: ai (`tokensOf`, `parseDurationMs`, `dailyRequestInfo`, `callAI` mit Groq-Headern auch bei
+  429), worker (je Eintrag getrennt, echte Groq-Antwort per fetch-Attrappe mit Headern, `json_patch`, anderer Tag), Smoke (echte D1),
+  E2E 1 (Workers AI frisch/aufgebraucht, Groq per `page.route`, eigener Dienst nach dem Test).
 - **Datenschutz-Angaben und Löschfrist (Art. 13 DSGVO):** Feibeitsblatt ist ein privates, nicht kommerzielles und
   kostenloses Angebot – verantwortlich ist der **Betreiber**, **keine Schule** (keine Schulfelder, keine Vorlage „Hessen“,
   keine:n Datenschutzbeauftragte:n nennen, keine Rückfälle „deine Schule … frag deine Lehrkraft“). Betreiber und

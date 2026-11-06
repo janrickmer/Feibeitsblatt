@@ -452,7 +452,15 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(cfInfo).toContainText("Der Server nutzt kein AI Gateway");
   await expect(page.locator("#ai-key-field")).toBeHidden();
   await expect(page.locator("#ai-keyless-hint")).toHaveText(KEYLESS_HINT + " Aktiv wird Workers AI erst, wenn Sie „Speichern“ klicken.");
-  await expect(page.locator("#ai-usage")).toHaveText("Heute (UTC) geschätzt verbraucht: ca. 0 von 10.000 Neurons (0 Anfragen) – genau im Cloudflare-Dashboard unter „Workers AI“.");
+  // Verbrauch heute über Feibeitsblatt je KI: Token und Anfragen, Grenze samt Rücksetzzeit (Ortszeit des Browsers, wie fmtUntil)
+  const fmtUntilIn = (ms) => page.evaluate((x) => {
+    const d = new Date(x);
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " um " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+  }, ms);
+  const nextMid = () => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1); };
+  const resetCf = await fmtUntilIn(nextMid());
+  await expect(page.locator("#ai-usage")).toHaveText("Heute über Feibeitsblatt noch keine Anfrage. Vom kostenlosen Tageskontingent (10.000 Neurons) ist über Feibeitsblatt noch nichts verbraucht. " +
+    "Es gilt für das ganze Cloudflare-Konto (genau im Cloudflare-Dashboard unter „Workers AI“) und wird am " + resetCf + " (0:00 Uhr UTC) zurückgesetzt; dann beginnt auch diese Zählung neu.");
   await expect(page.locator("#ai-usage")).not.toHaveClass(/\bover\b/);
   await page.click("#ai-test");   // nicht gespeichert: nichts wird getestet
   await expect(page.locator("#ai-status")).toHaveText("Bitte zuerst „Speichern“ klicken – erst dann ist Workers AI aktiv.");
@@ -550,15 +558,48 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.route("**/api/teacher/ai", async (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     const res = await route.fetch();
-    return route.fulfill({ json: { ...(await res.json()), quotaUntil: until, usage: { day: "2026-10-22", requests: 37, neurons: 10012, limit: 10000 } } });
+    return route.fulfill({ json: { ...(await res.json()), quotaUntil: until, usage: { day: "2026-10-22", requests: 37, neurons: 10012, limit: 10000 },
+      consumption: { main: { provider: "cloudflare", day: "2026-10-22", requests: 37, tokens: 81234, resetAt: until, limits: "neurons", neurons: 10012, neuronLimit: 10000 }, reserve: null } } });
   });
   await page.click("#t-ai");
   await expect(page.locator("#ai-save")).toBeEnabled();
-  await expect(page.locator("#ai-usage")).toHaveText("Heute (UTC) geschätzt verbraucht: ca. 10.012 von 10.000 Neurons (37 Anfragen) – genau im Cloudflare-Dashboard unter „Workers AI“. Tageskontingent aufgebraucht bis " + untilText + " (Neustart 0:00 Uhr UTC).");
+  await expect(page.locator("#ai-usage")).toHaveText("Heute über Feibeitsblatt verbraucht: 81.234 Token in 37 Anfragen. Das sind geschätzt ca. 10.012 von 10.000 Neurons des kostenlosen Tageskontingents. " +
+    "Es gilt für das ganze Cloudflare-Konto (genau im Cloudflare-Dashboard unter „Workers AI“) und wird am " + untilText + " (0:00 Uhr UTC) zurückgesetzt; dann beginnt auch diese Zählung neu. Tageskontingent aufgebraucht bis " + untilText + " (Neustart 0:00 Uhr UTC).");
   await expect(page.locator("#ai-usage")).toHaveClass(/\bover\b/);
   await expect(page.locator("#ai-usage")).toHaveCSS("color", RED);
   await page.click("#ai-back");
   await expect(page.locator("#t-aiinfo")).toHaveText("KI-Feedback über Cloudflare Workers AI. Das Tageskontingent von Cloudflare Workers AI ist aufgebraucht bis " + untilText + " (Neustart 0:00 Uhr UTC).");
+  await page.unroute("**/api/teacher/ai");
+  // Groq meldet mit jeder Antwort die Grenze für Anfragen pro Tag je Modell (Header) – lokal nicht erreichbar: Ansicht vorgegeben
+  const gNow = Date.now(), gReset = gNow + 20 * 60e3, gOld = gNow - 3600e3, gMid = nextMid();
+  await page.route("**/api/teacher/ai", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    const j = await (await route.fetch()).json();
+    return route.fulfill({ json: { ...j, provider: "groq", label: "Groq", model: "", defaultModel: "openai/gpt-oss-120b", baseUrl: "", hasKey: true, ready: true, saved: true,
+      keyless: false, keyHint: "…test", keyError: undefined, quotaUntil: null, reserve: null,
+      consumption: { ...j.consumption, main: { provider: "groq", day: "2026-11-06", requests: 12, tokens: 45678, resetAt: gMid, limits: "requests", rate: [
+        { model: "openai/gpt-oss-120b", limit: 1000, left: 988, at: gNow - 60e3, resetAt: gReset },
+        { model: "llama-3.3-70b-versatile", limit: 1000, left: 999, at: gOld - 3600e3, resetAt: gOld }] }, reserve: null } } });
+  });
+  await page.click("#t-ai");
+  await expect(page.locator("#ai-save")).toBeEnabled();
+  await expect(page.locator("#ai-prov")).toHaveValue("groq");
+  const gStand = await page.evaluate((x) => new Date(x).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr", gNow - 60e3);
+  await expect(page.locator("#ai-usage")).toHaveText("Heute über Feibeitsblatt verbraucht: 45.678 Token in 12 Anfragen. Diese Zählung beginnt am " + (await fmtUntilIn(gMid)) + " (0:00 Uhr UTC) neu. " +
+    "Grenze für Anfragen pro Tag laut Groq (je Modell, Stand der letzten Antwort): „openai/gpt-oss-120b“ noch 988 von 1.000 (Stand " + gStand + "), wird am " + (await fmtUntilIn(gReset)) + " zurückgesetzt; " +
+    "„llama-3.3-70b-versatile“ am " + (await fmtUntilIn(gOld)) + " zurückgesetzt (seitdem keine Antwort über Feibeitsblatt). Eine Grenze für Token pro Tag meldet Groq in seinen Antworten nicht – sie steht in Ihrem Konto bei Groq.");
+  await expect(page.locator("#ai-usage")).not.toHaveClass(/\bover\b/);
+  // Reserve: keine gespeichert, vorausgewählt Workers AI – dessen Kontingent gilt für das ganze Konto, deshalb steht es trotzdem da
+  await expect(page.locator("#ai2-prov")).toHaveValue("cloudflare");
+  await expect(page.locator("#ai2-usage")).toHaveText(/^Heute über Feibeitsblatt noch keine Anfrage\. Vom kostenlosen Tageskontingent \(10\.000 Neurons\) ist über Feibeitsblatt noch nichts verbraucht\./);
+  await page.selectOption("#ai2-prov", "groq");   // Groq als Reserve ist nicht gespeichert: keine Zahlen
+  await expect(page.locator("#ai2-usage")).toBeHidden();
+  await page.selectOption("#ai-prov", "openrouter");   // ein anderer als der gespeicherte Anbieter: keine Zahlen (sie gehörten nicht zu ihm)
+  await expect(page.locator("#ai-usage")).toBeHidden();
+  await page.selectOption("#ai-prov", "groq");
+  await expect(page.locator("#ai-usage")).toBeVisible();
+  await page.click("#ai-back");
+  await expect(page.locator("#t-aiinfo")).toHaveText(/^KI-Feedback über Groq\./);   // die Übersicht hat ihre Anfrage beantwortet bekommen
   await page.unroute("**/api/teacher/ai");
   // Gespeichert, aber nicht nutzbar (älterer Deploy ohne Binding „AI“): nur der Grund – keine Aufforderung, etwas zu speichern
   const noBinding = "Workers AI ist für diesen Worker nicht eingerichtet (Binding „AI“ fehlt). Bitte den Workflow „Deploy“ erneut ausführen – die aktuelle wrangler.jsonc enthält es.";
@@ -592,6 +633,9 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await page.click("#ai-test");
   await expect(page.locator("#ai-status")).toHaveText(/^Verbindung erfolgreich: Eigener Dienst, Modell „openai\/gpt-oss-120b“\. Testantwort: „Verbindung steht\.“/, { timeout: 60_000 });
   expect((await mockState()).count).toBeGreaterThanOrEqual(1);
+  // Der Test zählt mit (Token aus der Antwort der Mock-KI); ein eigener Dienst meldet keine Grenze
+  await expect(page.locator("#ai-usage")).toHaveText(new RegExp("^Heute über Feibeitsblatt verbraucht: [1-9][\\d.]* Token in 1 Anfrage\\. Diese Zählung beginnt am " + (await fmtUntilIn(nextMid())).replace(/[.]/g, "\\.") +
+    " \\(0:00 Uhr UTC\\) neu\\. Grenze nicht abfragbar: Feibeitsblatt erfährt vom Dienst weder das Kontingent noch, wann es zurückgesetzt wird – beides steht in Ihrem Konto beim Anbieter\\.$"));
 
   // Reserve-KI: eigener Block mit eigenem Schlüssel, Test über ?which=reserve, „entfernen“ räumt wieder auf
   await expect(page.locator("#ai2-key-hint")).toHaveText("Keine Reserve-KI eingerichtet.");

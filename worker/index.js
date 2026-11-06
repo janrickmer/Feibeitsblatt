@@ -14,7 +14,7 @@ import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
   buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI,
   TEST_MESSAGES, reserveSlot, skipQuery, skipStatements, gateKey, recipientLabel, wantsFeedback,
-  CF_NO_BINDING, CF_DAILY_NEURONS, utcDay, recipientTransfer,
+  CF_NO_BINDING, CF_DAILY_NEURONS, utcDay, nextUtcMidnight, recipientTransfer,
   buildChecklistMessages, normalizeChecklist, checklistAcceptor, CHECKLIST_SCHEMA_GEMINI,
 } from "./ai.js";
 
@@ -96,7 +96,10 @@ const SCHEMA = [
   // Summen für die gemeinsame Speichergrenze (LIMITS.storageBytes) nur aus dem Index lesen
   "CREATE INDEX IF NOT EXISTS idx_sheet_files_bytes ON sheet_files(n, bytes)",
   "CREATE INDEX IF NOT EXISTS idx_sheet_images_bytes ON sheet_images(bytes)",
-  // Geschätzter Verbrauch von Workers AI je Tag (UTC) – das Gratiskontingent (Neurons) gilt für das ganze Cloudflare-Konto
+  // Verbrauch über Feibeitsblatt je Tag (UTC) und Eintrag (provider = Schlüssel des Eintrags: erster Anbieter bzw. provider#r für die
+  // Reserve, Workers AI immer "cloudflare" – das Gratiskontingent (Neurons) gilt für das ganze Cloudflare-Konto): beantwortete
+  // Anfragen, Token, geschätzte Neurons (nur Workers AI) und req_limits = JSON je Modell mit der zuletzt gemeldeten Grenze für
+  // Anfragen pro Tag (nur Groq). tokens und req_limits kamen später (LATER_COLUMNS) – auch für neue Datenbanken erst dort.
   "CREATE TABLE IF NOT EXISTS ai_usage (day TEXT NOT NULL, provider TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0, neurons REAL NOT NULL DEFAULT 0, PRIMARY KEY(day, provider))",
   // Automatische Löschung nach der Frist der Lehrkraft (PURGE_SQL in lib.js) sucht über den Eingangszeitpunkt
   "CREATE INDEX IF NOT EXISTS idx_submissions_received ON submissions(received_at)",
@@ -113,20 +116,24 @@ async function ensureSchema(db) {
   await ensureColumns(db);
   schemaReady = true;
 }
-// Nachträgliche Spalten: Erstversuche (submissions.stage, .attempt) und Escape-Room-Blätter (sheets.escape_id, .escape_name; NULL =
-// normales Blatt). ALTER TABLE ist nicht idempotent, deshalb vorher nachsehen (beide Tabellen in einem Batch). Kommt ein paralleler
-// Isolate zuvor, schlägt das ALTER fehl – dann genügt es, dass die Spalten jetzt da sind.
+// Nachträgliche Spalten: Erstversuche (submissions.stage, .attempt), Escape-Room-Blätter (sheets.escape_id, .escape_name; NULL =
+// normales Blatt) und der Verbrauch je KI (ai_usage.tokens, .req_limits). ALTER TABLE ist nicht idempotent, deshalb vorher nachsehen
+// (alle drei Tabellen in einem Batch). Kommt ein paralleler Isolate zuvor, schlägt das ALTER fehl – dann genügt es, dass die Spalten
+// jetzt da sind.
 const LATER_COLUMNS = [
   ["submissions", "stage", "ALTER TABLE submissions ADD COLUMN stage TEXT NOT NULL DEFAULT 'final'"],
   ["submissions", "attempt", "ALTER TABLE submissions ADD COLUMN attempt TEXT"],
   ["sheets", "escape_id", "ALTER TABLE sheets ADD COLUMN escape_id TEXT"],
   ["sheets", "escape_name", "ALTER TABLE sheets ADD COLUMN escape_name TEXT"],
+  ["ai_usage", "tokens", "ALTER TABLE ai_usage ADD COLUMN tokens INTEGER NOT NULL DEFAULT 0"],
+  ["ai_usage", "req_limits", "ALTER TABLE ai_usage ADD COLUMN req_limits TEXT"],
 ];
 export async function ensureColumns(db) {
   const have = async () => {
-    const [sub, sh] = await db.batch([db.prepare("PRAGMA table_info(submissions)"), db.prepare("PRAGMA table_info(sheets)")]);
+    const [sub, sh, us] = await db.batch([db.prepare("PRAGMA table_info(submissions)"), db.prepare("PRAGMA table_info(sheets)"),
+      db.prepare("PRAGMA table_info(ai_usage)")]);
     const names = (r) => new Set(((r || {}).results || []).map((x) => String(x.name)));
-    return { submissions: names(sub), sheets: names(sh) };
+    return { submissions: names(sub), sheets: names(sh), ai_usage: names(us) };
   };
   const missing = (cols) => LATER_COLUMNS.filter(([t, c]) => !cols[t].has(c));
   let todo = missing(await have());
@@ -235,11 +242,19 @@ function entryView(e) {
 }
 const aiPublicView = (ai) => ({ ...entryView(ai), reserve: ai.reserve ? entryView(ai.reserve) : null });
 const cfgOf = (e, skip = []) => ({ provider: e.provider, apiKey: e.apiKey, ai: e.ai, model: e.model, fallbacks: e.fallbacks, skip, base: e.baseUrl, key: e.key || e.provider });
-// Workers AI: geschätzter Verbrauch je Tag (UTC) und Anbieter – ein Upsert je Aufruf, der etwas verbraucht hat
-const usageStmt = (db, provider, cost, now) => db.prepare(
-  "INSERT INTO ai_usage(day,provider,requests,neurons) VALUES(?1,?2,?3,?4) ON CONFLICT(day,provider) DO UPDATE SET " +
-  "requests=requests+excluded.requests, neurons=neurons+excluded.neurons").bind(utcDay(now), provider, cost.requests, Math.round(cost.neurons * 1000) / 1000);
-const spent = (cost) => !!cost && cost.requests > 0;
+// Verbrauch über Feibeitsblatt je Tag (UTC) und Eintrag (key = e.key) – ein Upsert je Eintrag und Aufruf, der etwas verbraucht oder eine
+// Grenze gemeldet hat (bei KI-Anfragen per waitUntil im selben Batch wie die Sperren). req_limits: json_patch ersetzt je Modell den
+// ganzen Eintrag durch den neuesten dieses Aufrufs (die Anzeige nennt den Stand)
+const usageStmt = (db, key, cost, now) => {
+  const lim = cost.limits && typeof cost.limits === "object" && Object.keys(cost.limits).length ? JSON.stringify(cost.limits) : null;
+  return db.prepare(
+    "INSERT INTO ai_usage(day,provider,requests,neurons,tokens,req_limits) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(day,provider) DO UPDATE SET " +
+    "requests=requests+excluded.requests, neurons=neurons+excluded.neurons, tokens=tokens+excluded.tokens, req_limits=CASE " +
+    "WHEN excluded.req_limits IS NULL THEN req_limits WHEN req_limits IS NULL OR NOT json_valid(req_limits) THEN excluded.req_limits " +
+    "ELSE json_patch(req_limits, excluded.req_limits) END")
+    .bind(utcDay(now), key, cost.requests || 0, Math.round((cost.neurons || 0) * 1000) / 1000, Math.round(cost.tokens || 0), lim);
+};
+const spent = (cost) => !!cost && (cost.requests > 0 || (!!cost.limits && Object.keys(cost.limits).length > 0));
 // Konto-Tageskontingent aufgebraucht: bis 0:00 UTC keine Anfrage mehr an diesen Anbieter (Sperre mit model "*")
 const quotaLock = (db, key, until) => skipStatements(db, key, [{ model: "*", reason: "Tageskontingent aufgebraucht", until }], Date.now());
 
@@ -627,22 +642,54 @@ const gate = (c) => (provider, gapMs, remainingMs = 100000, model = "", key = pr
 // Sperre eines Modells sofort schreiben (nicht erst nach Ende des Aufrufs), damit parallel laufende Anfragen sie sehen
 const onRotate = (c) => (key, model, reason, until) => c.waitUntil(c.db.batch(skipStatements(c.db, key, [{ model, reason, until }], Date.now())).catch(() => {}));
 
-// Für die KI-Einstellungen: Sperre „Tageskontingent aufgebraucht“ (quotaUntil) und geschätzter Verbrauch heute (UTC) von
-// Workers AI – nur zur Orientierung; genau steht der Verbrauch im Cloudflare-Dashboard
+// Für die KI-Einstellungen: Sperre „Tageskontingent aufgebraucht“ (quotaUntil) von Workers AI und der Verbrauch heute (UTC) über
+// Feibeitsblatt – alle Zeilen des Tages in einer Abfrage (je Eintrag eine; ältere löscht das Aufräumen). Nur zur Orientierung: genau
+// stehen Verbrauch und Grenzen beim Anbieter (Workers AI: Cloudflare-Dashboard).
 const cfStatusStmts = (c) => [
   c.db.prepare("SELECT MAX(until) AS until FROM ai_skip WHERE provider='cloudflare' AND model='*' AND until>?1").bind(c.now),
-  c.db.prepare("SELECT requests, neurons FROM ai_usage WHERE day=?1 AND provider='cloudflare'").bind(utcDay(c.now)),
+  c.db.prepare("SELECT provider, requests, neurons, tokens, req_limits FROM ai_usage WHERE day=?1").bind(utcDay(c.now)),
 ];
-function cfStatusView(c, q, u) {
-  const until = Number((firstRow(q) || {}).until) || 0, row = firstRow(u) || {};
+// req_limits (JSON je Modell, siehe usageStmt) → höchstens drei Modelle, die zuletzt gemeldeten zuerst; nur geprüfte Zahlen
+function rateView(raw) {
+  let o = null;
+  try { o = typeof raw === "string" && raw.length <= 20000 ? JSON.parse(raw) : null; } catch {}
+  if (!o || typeof o !== "object" || Array.isArray(o)) return [];
+  const int = (v) => (Number.isSafeInteger(v) && v >= 0 ? v : null);
+  return Object.keys(o).slice(0, 40).map((model) => {
+    const x = o[model];
+    if (!x || typeof x !== "object" || !model || model.length > 200) return null;
+    const limit = int(x.limit), left = int(x.left), resetAt = int(x.resetAt), at = int(x.at);
+    return limit && left != null && resetAt && at ? { model, limit, left: Math.min(left, limit), resetAt, at } : null;
+  }).filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 3);
+}
+// Verbrauch eines Eintrags (erster Anbieter oder Reserve): limits sagt, welche Grenze der Anbieter meldet – "neurons" (Workers AI:
+// geschätzt gegen das Gratiskontingent des Kontos), "requests" (Groq: Anfragen pro Tag je Modell aus den Antwort-Headern) oder null
+// (nicht abfragbar). resetAt = nächstes 0:00 UTC: dann beginnt die eigene Zählung neu (bei Workers AI auch das Kontingent).
+function entryUsage(c, e, rows) {
+  if (!e || !PROVIDERS[e.provider]) return null;
+  const p = PROVIDERS[e.provider], row = rows.find((r) => r && r.provider === e.key) || {};
+  const out = { provider: e.provider, day: utcDay(c.now), requests: Number(row.requests) || 0, tokens: Math.round(Number(row.tokens) || 0),
+    resetAt: nextUtcMidnight(c.now), limits: p.accountDaily ? "neurons" : p.rateHeaders ? "requests" : null };
+  if (p.accountDaily) { out.neurons = Math.round(Number(row.neurons) || 0); out.neuronLimit = CF_DAILY_NEURONS; }
+  if (p.rateHeaders) out.rate = rateView(row.req_limits);
+  return out;
+}
+// usage (nur Workers AI, Form wie bisher – für noch gecachte Seiten) und consumption: {main, reserve} je Eintrag, dazu cloudflare
+// (Workers AI unter seinem festen Schlüssel – das Kontingent gilt für das ganze Konto; die Seite zeigt es auch, solange Workers AI
+// nur ausgewählt, aber nicht gespeichert ist)
+function cfStatusView(c, q, u, ai) {
+  const until = Number((firstRow(q) || {}).until) || 0, rows = ((u || {}).results || []);
+  const row = rows.find((r) => r && r.provider === "cloudflare") || {};
   return { quotaUntil: until > c.now ? until : null,
-    usage: { day: utcDay(c.now), requests: Number(row.requests) || 0, neurons: Math.round(Number(row.neurons) || 0), limit: CF_DAILY_NEURONS } };
+    usage: { day: utcDay(c.now), requests: Number(row.requests) || 0, neurons: Math.round(Number(row.neurons) || 0), limit: CF_DAILY_NEURONS },
+    consumption: { main: entryUsage(c, ai, rows), reserve: entryUsage(c, ai && ai.reserve, rows),
+      cloudflare: entryUsage(c, { provider: "cloudflare", key: "cloudflare" }, rows) } };
 }
 async function routeAiGet(c) {
   await requireTeacher(c);
   const [st, q, u] = await c.db.batch([settingStmt(c.db, "ai"), ...cfStatusStmts(c)]);
   const ai = await aiConfig(c.env, firstRow(st));
-  return json({ ok: true, ...aiPublicView(ai), ...cfStatusView(c, q, u) });
+  return json({ ok: true, ...aiPublicView(ai), ...cfStatusView(c, q, u, ai) });
 }
 
 // Einen Anbieter-Eintrag (erster Anbieter oder Reserve) aus der Eingabe prüfen, Modell-Rangliste holen und den
@@ -723,7 +770,8 @@ async function routeAiPut(c) {
     c.db.prepare("DELETE FROM ai_skip WHERE provider IN (SELECT value FROM json_each(?1)) AND model<>'*'").bind(JSON.stringify([...new Set(clear)])),
     ...cfStatusStmts(c),
   ]);
-  Object.assign(out, aiPublicView(await aiConfig(c.env, { value })), cfStatusView(c, rest[0], rest[1]));
+  const saved = await aiConfig(c.env, { value });
+  Object.assign(out, aiPublicView(saved), cfStatusView(c, rest[0], rest[1], saved));
   return json(out);
 }
 
@@ -747,7 +795,7 @@ async function routeAiTest(c) {
   } catch (x) {
     if (!(x instanceof AIError)) throw x;
     const writes = [];
-    if (e.keyless && spent(x.cost)) writes.push(usageStmt(c.db, e.provider, x.cost, c.now));
+    if (spent(x.cost)) writes.push(usageStmt(c.db, e.key, x.cost, c.now));
     if (x.code === "DAILY_LIMIT" && x.accountWide && x.until > c.now) writes.push(...quotaLock(c.db, e.key, x.until));   // gilt sofort auch für die Schüler:innen
     if (writes.length) await c.db.batch(writes).catch(() => {});
     throw new HttpError(502, "ai_error", x.message, { aiCode: x.code });
@@ -758,7 +806,7 @@ async function routeAiTest(c) {
     c.db.prepare("UPDATE settings SET value=?1 WHERE key='ai' AND value=?2").bind(JSON.stringify(stored), ai.raw),
     // Workers AI antwortet wieder (z. B. nach einem Wechsel auf Workers Paid): die Sperre „Tageskontingent aufgebraucht“ endet
     ...(e.keyless ? [c.db.prepare("DELETE FROM ai_skip WHERE provider=?1 AND model='*'").bind(e.key)] : []),
-    ...(e.keyless && spent(out.cost) ? [usageStmt(c.db, e.provider, out.cost, c.now)] : []),
+    ...(spent(out.cost) ? [usageStmt(c.db, e.key, out.cost, c.now)] : []),
   ]);
   const sample = String(out.json && typeof out.json.antwort === "string" ? out.json.antwort : out.text).slice(0, 200);
   const res = { ok: true, which, provider: e.provider, label: PROVIDERS[e.provider].label, model: out.model, sample, fallbacks: e.fallbacks,
@@ -881,7 +929,7 @@ function skipReader(c) {
 // Nur ein Eintrag, und sein Konto-Tageskontingent ist aufgebraucht: Es steht schon vorher fest, dass nichts zur KI geht – nicht zählen
 const quotaBlocked = async (entries, skipOf) => entries.length === 1 && !!PROVIDERS[entries[0].provider].accountDaily && (await skipOf(entries[0])).includes("*");
 const quotaErr = () => new AIError("DAILY_LIMIT", "Tageskontingent aufgebraucht.", { accountWide: true });
-// Fragt die Einträge in dieser Reihenfolge (erster Anbieter, dann die Reserve) → {out, err}. Verbrauch von Workers AI und die Sperre
+// Fragt die Einträge in dieser Reihenfolge (erster Anbieter, dann die Reserve) → {out, err}. Verbrauch je Eintrag und die Sperre
 // „Tageskontingent aufgebraucht“ gehen per waitUntil in D1. Zeitbudget: insgesamt 100 s (der Browser wartet bis 150 s); mit Reserve
 // bekommt der erste Anbieter 45 s, die Reserve den Rest – aber nur, wenn noch ≥ 35 s bleiben (sonst ein nutzloser Abbruch). Langes
 // Warten erledigt der Browser (Wiederholung). Wurde der erste Anbieter gar nicht gefragt (nur wegen "*" übersprungen), bekommt die
@@ -889,7 +937,7 @@ const quotaErr = () => new AIError("DAILY_LIMIT", "Tageskontingent aufgebraucht.
 async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, accept, outTokens }) {
   const t0 = Date.now(), BUDGET = 100000, startAt = Math.floor(Math.random() * 64);
   let out = null, err = null, called = false;
-  const usage = [];   // Workers AI: geschätzter Verbrauch je Aufruf (auch gescheiterter)
+  const usage = [];   // Verbrauch je Eintrag und Aufruf (auch gescheiterter), Workers AI mit geschätzten Neurons
   for (let i = 0; i < entries.length && !out; i++) {
     const e = entries[i], left = BUDGET - (Date.now() - t0), lead = !called;   // lead: der erste Eintrag, der wirklich gefragt wird
     if (i > 0 && (!(err && RESERVE_ON.has(err.code)) || (!lead && left < 35000))) break;   // Reserve nur bei Verfügbarkeitsproblemen
@@ -903,10 +951,10 @@ async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, 
         maxAttempts: lead ? 6 : 3, startAt: startAt + i, outTokens,
         beforeAttempt: gate(c), onRotate: onRotate(c),
       });
-      if (e.keyless && spent(out.cost)) usage.push(usageStmt(c.db, e.provider, out.cost, c.now));
+      if (spent(out.cost)) usage.push(usageStmt(c.db, e.key, out.cost, c.now));
     } catch (x) {
       if (!(x instanceof AIError)) throw x;
-      if (e.keyless && spent(x.cost)) usage.push(usageStmt(c.db, e.provider, x.cost, c.now));
+      if (spent(x.cost)) usage.push(usageStmt(c.db, e.key, x.cost, c.now));
       if (x.code === "DAILY_LIMIT" && x.accountWide && x.until > c.now) usage.push(...quotaLock(c.db, e.key, x.until));   // für alle folgenden Anfragen bis 0:00 UTC
       // Es zählt der letzte Fehler – außer die Reserve ist selbst falsch eingerichtet, dann bleibt der des ersten Anbieters
       if (!err || !(x.code === "NO_KEY" || x.code === "CONFIG" || x.code === "NO_MODEL")) err = x;
