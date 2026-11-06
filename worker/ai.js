@@ -17,8 +17,9 @@ export const PROVIDERS = {
     defaultModel: "@cf/google/gemma-4-26b-a4b-it", fallbacks: ["@cf/zai-org/glm-4.7-flash", "@cf/qwen/qwen3-30b-a3b-fp8"],
     gapMs: 200, recipient: "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert",
     transfer: "EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln", keyHint: "" },
+  // rateHeaders: Groq meldet mit jeder Antwort je Modell die Grenze für Anfragen pro Tag (siehe dailyRequestInfo)
   groq: { label: "Groq", kind: "openai", base: "https://api.groq.com/openai/v1", defaultModel: "openai/gpt-oss-120b",
-    gapMs: 2500, perModelGate: true,
+    gapMs: 2500, perModelGate: true, rateHeaders: "groq",
     recipient: "Groq LLC (USA) – Vertragspartner im EWR: Groq UK Limited (London); Datenhaltung in den USA, Verarbeitung auch in anderen Ländern",
     transfer: "Standardvertragsklauseln",
     maxTokensField: "max_completion_tokens", reasoning: "effort", keyHint: " Bitte unter console.groq.com → API Keys prüfen." },
@@ -180,6 +181,43 @@ export function cfUsage(data) {
   const det = u.completion_tokens_details && typeof u.completion_tokens_details === "object" ? u.completion_tokens_details : {};
   return { prompt_tokens: n(u.prompt_tokens), completion_tokens: n(u.completion_tokens), reasoning_tokens: n(det.reasoning_tokens ?? u.reasoning_tokens) };
 }
+// Token einer beantworteten Anfrage (nur die Zahl, nie Inhalt) für die Verbrauchsanzeige der Lehrkraft: OpenAI-kompatibel (auch
+// Workers AI) usage.total_tokens bzw. prompt + completion, Gemini usageMetadata.totalTokenCount bzw. die Summe der Teile; 0 =
+// vom Dienst nicht gemeldet
+export function tokensOf(kind, data) {
+  const n = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.min(1e8, Math.round(Number(v))) : 0);
+  if (kind === "gemini") {
+    const m = data && data.usageMetadata;
+    if (!m || typeof m !== "object") return 0;
+    return n(m.totalTokenCount) || Math.min(1e8, n(m.promptTokenCount) + n(m.candidatesTokenCount) + n(m.thoughtsTokenCount));
+  }
+  const d = kind === "workers-ai" ? cfBody(data) : data, u = d && d.usage;
+  if (!u || typeof u !== "object") return 0;
+  return n(u.total_tokens) || Math.min(1e8, n(u.prompt_tokens) + n(u.completion_tokens));
+}
+// Dauer im Format der Groq-Header ("2m59.56s", "7.66s", "120ms", "1h0m0s"; eine reine Zahl = Sekunden) → ms; sonst null
+export function parseDurationMs(raw) {
+  const s = String(raw == null ? "" : raw).trim();
+  if (!s || s.length > 40) return null;
+  if (/^\d+(?:\.\d+)?$/.test(s)) return Math.round(parseFloat(s) * 1000);
+  const m = /^(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m(?!s))?(?:(\d+(?:\.\d+)?)s)?(?:(\d+(?:\.\d+)?)ms)?(?:(\d+(?:\.\d+)?)(?:µs|us))?(?:(\d+(?:\.\d+)?)ns)?$/.exec(s);
+  if (!m || !m.slice(1).some((x) => x != null)) return null;
+  const f = (x) => (x == null ? 0 : parseFloat(x));
+  const ms = f(m[1]) * 3600e3 + f(m[2]) * 60e3 + f(m[3]) * 1e3 + f(m[4]) + f(m[5]) / 1e3 + f(m[6]) / 1e6;
+  return Number.isFinite(ms) && ms <= 7 * 86400e3 ? Math.round(ms) : null;
+}
+// Groq (console.groq.com/docs/rate-limits): x-ratelimit-limit-requests und -remaining-requests beziehen sich immer auf die
+// Anfragen pro Tag (RPD) des Modells, x-ratelimit-reset-requests ist die Dauer bis zum Zurücksetzen; die *-tokens-Header gelten
+// pro Minute (nicht genutzt). Andere Anbieter: nichts (Cerebras u. a. – Bedeutung ihrer Header nicht belegt). → {limit, left,
+// resetAt, at} | null
+export function dailyRequestInfo(p, headers, now = Date.now()) {
+  if (!p || p.rateHeaders !== "groq" || !headers || typeof headers.get !== "function") return null;
+  const int = (v) => (v != null && /^\s*\d{1,9}\s*$/.test(String(v)) ? parseInt(v, 10) : null);
+  const limit = int(headers.get("x-ratelimit-limit-requests")), left = int(headers.get("x-ratelimit-remaining-requests"));
+  const ms = parseDurationMs(headers.get("x-ratelimit-reset-requests"));
+  if (limit == null || left == null || ms == null || limit < 1) return null;
+  return { limit, left: Math.min(left, limit), resetAt: now + ms, at: now };
+}
 export function cfNeurons(model, u) {
   const [i, o] = (CF_MODELS[model] || {}).neurons || CF_PRICE_UNKNOWN;
   return u ? (u.prompt_tokens * i + u.completion_tokens * o) / 1e6 : 0;
@@ -251,11 +289,12 @@ const TOO_LONG_RE = /context|too large|too long|reduce the length|maximum .*toke
  * opts: { json=true, geminiSchema, temperature=0.2, maxTokens, outTokens (nur Workers AI), timeoutMs=45000, deadlineMs=85000,
  *         maxAttempts=8, maxWaitMs=20000, reasoning=true, accept?: (json) => boolean,
  *         beforeAttempt?: async (provider, gapMs, remainingMs) => void }
- * →    { text, json?, model, provider, rotated: [{model, reason, ttlMs}], cost: {requests, neurons}, usage? }
- *      |  throws AIError (mit e.rotated und e.cost) – cost zählt bei Workers AI jede beantwortete Anfrage (Neurons geschätzt)
+ * →    { text, json?, model, provider, rotated: [{model, reason, ttlMs}], cost: {requests, neurons, tokens, limits}, usage? }
+ *      |  throws AIError (mit e.rotated und e.cost) – cost zählt jede beantwortete Anfrage und ihre Token (Workers AI: dazu die
+ *      geschätzten Neurons); limits = je Modell die zuletzt gemeldete Grenze für Anfragen pro Tag (nur Groq, dailyRequestInfo)
  */
 export async function callAI(cfg, messages, opts = {}) {
-  const rotated = [], cost = { requests: 0, neurons: 0 };
+  const rotated = [], cost = { requests: 0, neurons: 0, tokens: 0, limits: {} };
   try { return await callAIInner(cfg, messages, opts, rotated, cost); }
   catch (e) { if (e instanceof AIError) { e.rotated = rotated; e.cost = cost; } throw e; }   // auch bei Fehlern erschöpfte Modelle und Verbrauch merken
 }
@@ -349,10 +388,14 @@ async function callAIInner(cfg, messages, opts, rotated, cost) {
       }
     } finally { clearTimeout(timer); }
 
-    if (cf && r.ok) {   // jede beantwortete Anfrage verbraucht Neurons (auch wenn die Antwort unbrauchbar ist)
-      const u = cfUsage(data);
-      cost.requests++; cost.neurons += cfNeurons(model, u);
-      if (u) usage = u;
+    if (p.rateHeaders) { const info = dailyRequestInfo(p, r.headers); if (info) cost.limits[model] = info; }   // auch bei 429
+    if (r.ok) {   // jede beantwortete Anfrage zählt (auch wenn die Antwort unbrauchbar ist); Workers AI: verbraucht Neurons
+      cost.requests++; cost.tokens += tokensOf(p.kind, data);
+      if (cf) {
+        const u = cfUsage(data);
+        cost.neurons += cfNeurons(model, u);
+        if (u) usage = u;
+      }
     }
     const emsg = errText(data);
     const okBody = r.ok && data && (p.kind === "gemini" || (!data.error && data.success !== false));   // manche Dienste melden Fehler mit HTTP 200

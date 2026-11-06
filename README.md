@@ -674,7 +674,7 @@ Lehrkräfte-Übersicht übernehmen. Ist das passiert, setzen Sie den Zugang wie 
    (auch nach einem Update bleibt ein bisher gespeicherter Anbieter unverändert).
 4. „Verbindung testen“ klicken. Erscheint eine kurze Beispielantwort, funktioniert das KI-Feedback. Bei Workers AI
    zeigt der Test auch, wie viele Token er verbraucht hat (davon im „Denkmodus“: sollte 0 sein); darunter steht der
-   geschätzte Verbrauch des Tages.
+   [Verbrauch des Tages](#verbrauch-je-ki) samt Zeitpunkt, an dem das Kontingent zurückgesetzt wird.
 5. Optional eine [Reserve-KI](#reserve-ki-zweiter-anbieter) eintragen, z. B. Groq mit einem kostenlosen API-Schlüssel
    (<https://console.groq.com/keys>) – sie springt ein, wenn das Tageskontingent von Workers AI aufgebraucht ist.
 
@@ -788,8 +788,8 @@ Hinweise:
   großes Feibeitsblatt (viel Material, lange Aufträge an die KI, viele Aufgaben) oder sehr viele Anfragen – auch
   absichtlich, von einer einzelnen Person – können es aufbrauchen; die Grenzen je Netzwerk und Blatt (siehe
   [Kapazität](#kapazität-und-grenzen)) liegen höher als das, was 10 000 Neurons hergeben. Den geschätzten Verbrauch des
-  Tages zeigen die KI-Einstellungen („Heute (UTC) geschätzt verbraucht: ca. … von 10.000 Neurons“), den genauen das
-  Cloudflare-Dashboard unter „Workers AI“.
+  Tages über Feibeitsblatt zeigen die KI-Einstellungen („Das sind geschätzt ca. … von 10.000 Neurons des kostenlosen
+  Tageskontingents“, siehe [Verbrauch je KI](#verbrauch-je-ki)), den genauen das Cloudflare-Dashboard unter „Workers AI“.
 - Ist das Kontingent aufgebraucht, sehen die Schüler:innen „Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es
   wieder.“ – vor der Abgabe ergänzt die Seite, dass sie ohne KI-Feedback abgeben können. Bei Workers AI fragt der
   Server bis 0:00 Uhr UTC gar nicht mehr nach (die Reserve-KI übernimmt, falls eingerichtet), und eine Abgabe ohne
@@ -845,6 +845,28 @@ eine schon geöffnete Seite einfach nicht, bis sie neu geladen ist. Für Google 
 als Reserve) bestätigen, dass ein Abrechnungskonto hinterlegt ist; ist der Anbieter als „nicht für den Schuleinsatz
 geeignet“ gekennzeichnet, steht die Warnung im selben Dialog. Beide Schlüssel liegen nur verschlüsselt auf dem
 Server. Ohne Reserve ändert sich nichts.
+
+### Verbrauch je KI
+
+Unter dem gewählten Anbieter zeigen die KI-Einstellungen für die erste KI und – getrennt – für die Reserve-KI, was
+**heute über Feibeitsblatt** verbraucht wurde: „Heute über Feibeitsblatt verbraucht: 23.456 Token in 8 Anfragen.“
+Gezählt werden alle beantworteten Anfragen (Feedback, Checklisten-Vorschläge, Verbindungstests) mit den Token, die der
+Anbieter in seiner Antwort meldet (Eingabe und Ausgabe zusammen; fehlt die Angabe, steht „ohne Token-Angabe“). Abgelehnte
+Anfragen (z. B. „ausgelastet“ oder eine Wiederholung ohne JSON-Modus nach einem Fehler) zählen hier nicht – ob der
+Anbieter sie mitzählt, entscheidet er; seine Restzahl kann deshalb etwas niedriger sein, als diese Zählung erwarten lässt. „Heute“ ist
+der Tag nach UTC: Die Zählung beginnt um 0:00 Uhr UTC neu – die Seite nennt den Zeitpunkt in Ihrer Ortszeit (1:00 Uhr
+MEZ bzw. 2:00 Uhr MESZ). Nutzen Sie denselben Schlüssel bzw. dasselbe Konto auch anderswo, zählt das hier nicht mit.
+
+Die **Grenze** steht nur dort, wo der Anbieter sie mitteilt:
+
+| Anbieter | Angezeigte Grenze | Wann zurückgesetzt |
+|---|---|---|
+| Cloudflare Workers AI | geschätzte Neurons von 10.000 des kostenlosen Tageskontingents (aus den Token-Zahlen und der Preisliste; das Kontingent gilt für das ganze Cloudflare-Konto, genau steht der Verbrauch im Cloudflare-Dashboard) | 0:00 Uhr UTC (laut Cloudflare-Preisseite); ist es aufgebraucht, zusätzlich rot „Tageskontingent aufgebraucht bis …“ |
+| Groq | je Modell die **Anfragen pro Tag** für das ganze Groq-Konto: „noch 992 von 1.000“ mit dem Stand der jeweils letzten Antwort – Groq schickt sie mit jeder Antwort (Header `x-ratelimit-*-requests`, laut Groq-Doku immer Anfragen pro Tag); die zuletzt genutzten Modelle zuerst (höchstens sechs) | „spätestens am … um … Uhr wieder vollständig verfügbar“: der Zeitpunkt, den Groq in derselben Antwort nennt (`x-ratelimit-reset-requests`), in Ihrer Ortszeit. Nach dem Beispiel in Groqs Doku kommen verbrauchte Anfragen schon vorher nach und nach zurück – es gibt keinen festen Zeitpunkt für alle. Eine Grenze für **Token pro Tag** meldet Groq in seinen Antworten nicht – sie steht in der Groq-Konsole. Nach dem Speichern eines neuen Schlüssels steht bis zur nächsten Antwort keine Grenze da. |
+| alle anderen (OpenRouter, Gemini, Cerebras, eigener Dienst) | „Grenze hier nicht abfragbar“ – Feibeitsblatt liest von diesen Diensten weder das Kontingent noch, wann es zurückgesetzt wird | steht in Ihrem Konto beim Anbieter |
+
+Gespeichert werden dafür nur Zahlen je Tag und KI (Tabelle `ai_usage`, siehe [Was gespeichert wird](#was-gespeichert-wird)),
+nie Inhalte; ältere Tage löscht das Aufräumen nach etwa zwei Tagen.
 
 ## Sicherheit
 
@@ -1030,7 +1052,7 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | Angaben des Betreibers (Name, Anschrift, E-Mail, Aufsichtsbehörde) | in `index.html` (`window.FEIBEITSBLATT_OPERATOR`), nicht in der Datenbank | öffentlich (Impressum, Datenschutzhinweis) | bis sie in `index.html` geändert werden |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
 | KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert; Workers AI hat keinen) | bis Sie sie ändern |
-| Geschätzter Verbrauch von Workers AI je Tag (Zahl der Anfragen und Neurons, keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
+| Verbrauch je KI und Tag (Zahl der Anfragen und Token, bei Workers AI geschätzte Neurons, bei Groq die zuletzt gemeldete Grenze für Anfragen pro Tag je Modell; keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach beim täglichen Aufräumen gelöscht (ohne Zeitplan: beim Öffnen der Übersicht) |
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
 | Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe (und, wenn die KI-Rückmeldung zur abgegebenen Fassung noch nachgereicht wird, bis dahin) hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
@@ -1433,8 +1455,9 @@ vom Blatt ab):
   weicht der Server auf das nächste aus. Lehnt ein Modell eine Anfrage aus unbekanntem Grund ab, versucht der Server
   sie noch einmal ohne JSON-Modus (der Denkmodus bleibt aus), dann ohne die Einstellung für den Denkmodus und erst dann
   das nächste Modell; gesperrt wird das Modell dafür nur fünf Minuten, nicht den ganzen Tag.
-- Den geschätzten Verbrauch (aus den Token-Zahlen der Antworten) zeigen die KI-Einstellungen; Verbindungstests und
-  andere Nutzung von Workers AI im selben Konto zählen mit. Genau steht er im Cloudflare-Dashboard unter „Workers AI“.
+- Den geschätzten Verbrauch über Feibeitsblatt (aus den Token-Zahlen der Antworten, Verbindungstests eingeschlossen)
+  zeigen die KI-Einstellungen ([Verbrauch je KI](#verbrauch-je-ki)). Andere Nutzung von Workers AI im selben Konto zählt
+  dort nicht mit, verbraucht aber dasselbe Kontingent – genau steht es im Cloudflare-Dashboard unter „Workers AI“.
 
 Rechenbeispiel für **60 Schüler:innen am Tag mit je etwa 600 Wörtern** bei Groq (gpt-oss-120b; die
 Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole prüfen):

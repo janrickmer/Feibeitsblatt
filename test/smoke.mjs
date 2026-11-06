@@ -487,7 +487,17 @@ async function main() {
     expectErr(await api("POST", "/api/feedback", { code, answers: ["a", "", ""], only: [4] }), 400, "bad_answers"); feedbackCount++;
     expectErr(await api("POST", "/api/feedback", { code, answers: ["a", "", ""], only: [] }), 400, "bad_answers"); feedbackCount++;
     assert.equal(mock.state.requests.length, 1);
-    ok("Feedback: eine KI-Anfrage im neuen Format (Auftrag der Lehrkraft), gut/tipps wie erwartet, Aufgabe ohne Auftrag mit Hinweis; Längenprüfungen; zweite Rückmeldung nur für die gewählten Aufgaben (only)");
+    // Verbrauch heute je KI in echter D1 (der Upsert samt json_valid/json_patch wird übersetzt; den json_patch-Zweig selbst erreicht nur
+    // Groq – Unit-Test): Anfragen und Token des eigenen Dienstes, keine Grenze abfragbar
+    {
+      const u = await api("GET", "/api/teacher/ai", undefined, { auth });
+      assert.equal(u.status, 200, u.text);
+      const m = u.json.consumption.main;
+      assert.equal(m.provider, "custom"); assert.equal(m.limits, null); assert.equal(u.json.consumption.reserve, null);
+      assert.ok(m.requests >= 2 && m.tokens > 0, JSON.stringify(m));
+      assert.equal(m.day, new Date().toISOString().slice(0, 10)); assert.ok(m.resetAt > Date.now() && m.resetAt % 86400e3 === 0);
+    }
+    ok("Feedback: eine KI-Anfrage im neuen Format (Auftrag der Lehrkraft), gut/tipps wie erwartet, Aufgabe ohne Auftrag mit Hinweis; Längenprüfungen; zweite Rückmeldung nur für die gewählten Aufgaben (only); Verbrauch je KI gezählt");
 
     mock.setMode("fenced");
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;

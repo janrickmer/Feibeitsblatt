@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults, expectedChecklist, mockAIBinding, parseFeedbackPrompt } from "../mock-ai.mjs";
-import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf } from "../../worker/lib.js";
+import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf, sealSecret } from "../../worker/lib.js";
 import { nextUtcMidnight, TTL } from "../../worker/ai.js";
 import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
@@ -889,12 +889,15 @@ test("schema upgrade: old submissions/sheets tables without the later columns ge
   d1.db.exec("ALTER TABLE submissions RENAME TO submissions_new; ALTER TABLE old_submissions RENAME TO submissions");
   d1.db.exec("CREATE TABLE old_sheets (code TEXT PRIMARY KEY, title TEXT NOT NULL, tasks TEXT NOT NULL, created_at INTEGER NOT NULL)");
   d1.db.exec("ALTER TABLE sheets RENAME TO sheets_new; ALTER TABLE old_sheets RENAME TO sheets");
+  d1.db.exec("CREATE TABLE old_ai_usage (day TEXT NOT NULL, provider TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0, neurons REAL NOT NULL DEFAULT 0, PRIMARY KEY(day, provider))");
+  d1.db.exec("ALTER TABLE ai_usage RENAME TO ai_usage_new; ALTER TABLE old_ai_usage RENAME TO ai_usage");
   try {
+    d1.db.prepare("INSERT INTO ai_usage(day, provider, requests, neurons) VALUES ('2026-01-01', 'cloudflare', 3, 12.5)").run();
     d1.db.prepare("INSERT INTO submissions(sheet_code, received_at, envelope) VALUES (?, ?, ?)").run(code, 1, "{}");
     d1.db.prepare("INSERT INTO sheets(code, title, tasks, created_at) VALUES (?, ?, ?, ?)").run("AXT2KM", "Altes Blatt", JSON.stringify(tasks), 1);
     d1.queries = 0;
     await ensureColumns(d1);
-    assert.ok(d1.queries <= 7, "D1-Abfragen: " + d1.queries);   // zwei PRAGMAs (ein Batch), vier ALTERs (ein Batch), Index
+    assert.ok(d1.queries <= 10, "D1-Abfragen: " + d1.queries);   // drei PRAGMAs (ein Batch), sechs ALTERs (ein Batch), Index
     await ensureColumns(d1);   // zweimal: nichts doppelt
     const cols = d1.db.prepare("PRAGMA table_info(submissions)").all().map((c) => c.name);
     assert.deepEqual(cols, ["id", "sheet_code", "received_at", "envelope", "stage", "attempt"]);
@@ -903,6 +906,8 @@ test("schema upgrade: old submissions/sheets tables without the later columns ge
     assert.ok(d1.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_submissions_attempt'").get());
     assert.deepEqual(d1.db.prepare("PRAGMA table_info(sheets)").all().map((c) => c.name), ["code", "title", "tasks", "created_at", "escape_id", "escape_name"]);
     assert.deepEqual({ ...d1.db.prepare("SELECT escape_id, escape_name FROM sheets").get() }, { escape_id: null, escape_name: null });   // alte Blätter: normale Blätter
+    assert.deepEqual(d1.db.prepare("PRAGMA table_info(ai_usage)").all().map((c) => c.name), ["day", "provider", "requests", "neurons", "tokens", "req_limits"]);
+    assert.deepEqual({ ...d1.db.prepare("SELECT requests, neurons, tokens, req_limits FROM ai_usage").get() }, { requests: 3, neurons: 12.5, tokens: 0, req_limits: null });
     const r = await call("GET", "/api/teacher/sheets/AXT2KM", { auth });
     assert.equal(r.status, 200, r.text); assert.equal(r.json.sheet.escape, null);
     // Wettlauf: ein anderer Isolate hat die Spalten gerade angelegt – das ALTER scheitert, erneutes Nachsehen genügt
@@ -917,6 +922,7 @@ test("schema upgrade: old submissions/sheets tables without the later columns ge
   } finally {
     d1.db.exec("DROP TABLE submissions; ALTER TABLE submissions_new RENAME TO submissions");
     d1.db.exec("DROP TABLE sheets; ALTER TABLE sheets_new RENAME TO sheets");
+    d1.db.exec("DROP TABLE ai_usage; ALTER TABLE ai_usage_new RENAME TO ai_usage");
   }
 });
 
@@ -1083,6 +1089,12 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     assert.equal(usageRow().requests, 2); assert.ok(usageRow().neurons > 0);
     r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
     assert.equal(r.json.usage.requests, 2); assert.equal(r.json.usage.limit, 10000); assert.equal(r.json.quotaUntil, null);
+    // je Eintrag: Anfragen, Token und geschätzte Neurons des Kontos, zurückgesetzt um 0:00 UTC; keine Reserve
+    const cu = r.json.consumption.main, nextMid = (() => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1); })();
+    assert.deepEqual({ p: cu.provider, req: cu.requests, lim: cu.limits, nl: cu.neuronLimit, n: cu.neurons, reset: cu.resetAt, day: cu.day },
+      { p: "cloudflare", req: 2, lim: "neurons", nl: 10000, n: r.json.usage.neurons, reset: nextMid, day: new Date().toISOString().slice(0, 10) });
+    assert.ok(cu.tokens > 0); assert.equal(cu.rate, undefined); assert.equal(r.json.consumption.reserve, null);
+    assert.deepEqual(r.json.consumption.cloudflare, cu);   // Workers AI auch unter seinem festen Schlüssel (Kontingent des Kontos)
     // Lokal (wrangler dev --local): Binding da, Aufruf scheitert → Feedback 503 ai_not_configured, Test 502 mit Hinweis
     cf.mode = "local";
     r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });
@@ -1156,7 +1168,7 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     const locks = d1.db.prepare("SELECT model, until FROM ai_skip WHERE provider='cloudflare' AND model<>'*'").all();
     assert.equal(locks.length, 2); assert.ok(locks.every((x) => x.until - Date.now() <= TTL.soft), JSON.stringify(locks));
     // Aufräumen: alte Verbrauchszeilen (älter als zwei Tage) verschwinden beim gelegentlichen Aufräumen
-    d1.db.prepare("INSERT INTO ai_usage VALUES('2000-01-01','cloudflare',5,10)").run();
+    d1.db.prepare("INSERT INTO ai_usage(day, provider, requests, neurons) VALUES('2000-01-01','cloudflare',5,10)").run();
     const rnd = Math.random; Math.random = () => 0;
     try { await call("GET", "/api/sheet/" + c, { env: CFENV }); } finally { Math.random = rnd; }
     assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM ai_usage WHERE day='2000-01-01'").get().n, 0);
@@ -1169,9 +1181,95 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
   }
 });
 
+test("KI-Einstellungen: Verbrauch heute je KI – erste KI und Reserve getrennt gezählt (Anfragen, Token), Groq mit gemeldeter Tagesgrenze je Modell, sonst nicht abfragbar", async () => {
+  const day = new Date().toISOString().slice(0, 10), mockId = "custom:127.0.0.1:" + mock.port;
+  const nextMid = (() => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1); })();
+  d1.db.prepare("DELETE FROM ai_usage").run(); d1.db.prepare("DELETE FROM ai_skip").run();
+  try {
+    let r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-use-main", reserve: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-use-res" } } });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.consumption.main, { provider: "custom", day, requests: 0, tokens: 0, resetAt: nextMid, limits: null });
+    assert.deepEqual(r.json.consumption.reserve, { provider: "custom", day, requests: 0, tokens: 0, resetAt: nextMid, limits: null });
+    r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Verbrauch", tasks } });
+    assert.equal(r.status, 200, r.text); const c = r.json.code;
+    mock.reset();
+    r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Pflanzen brauchen Licht.", "x"], recipients: [mockId] }, ip: "203.0.113.97" });
+    assert.equal(r.status, 200, r.text); assert.equal(mock.state.requests.length, 1);
+    r = await call("POST", "/api/teacher/ai/test?which=reserve", { auth });
+    assert.equal(r.status, 200, r.text);
+    const rows = Object.fromEntries(d1.db.prepare("SELECT provider, requests, tokens, neurons, req_limits FROM ai_usage WHERE day=?").all(day).map((x) => [x.provider, { ...x }]));
+    assert.deepEqual(Object.keys(rows).sort(), ["custom", "custom#r"]);   // die Reserve unter ihrem eigenen Schlüssel
+    assert.equal(rows.custom.requests, 1); assert.ok(rows.custom.tokens > 100); assert.equal(rows.custom.neurons, 0); assert.equal(rows.custom.req_limits, null);
+    assert.equal(rows["custom#r"].requests, 1); assert.ok(rows["custom#r"].tokens > 0);
+    r = await call("GET", "/api/teacher/ai", { auth });
+    assert.ok(r.queries <= 4, "D1-Abfragen: " + r.queries);   // Anmeldung + ein Batch (Einstellungen, Sperre, Verbrauch)
+    assert.deepEqual(r.json.consumption.main, { provider: "custom", day, requests: 1, tokens: rows.custom.tokens, resetAt: nextMid, limits: null });
+    assert.deepEqual(r.json.consumption.reserve, { provider: "custom", day, requests: 1, tokens: rows["custom#r"].tokens, resetAt: nextMid, limits: null });
+    assert.deepEqual(r.json.usage, { day, requests: 0, neurons: 0, limit: 10000 });   // Workers AI (Form wie bisher) unberührt
+    assert.deepEqual(r.json.consumption.cloudflare, { provider: "cloudflare", day, requests: 0, tokens: 0, resetAt: nextMid, limits: "neurons", neurons: 0, neuronLimit: 10000 });
+    // Ein zweiter Aufruf addiert; eine von Groq gemeldete Grenze wird je Modell ersetzt (json_patch), Fremdes und Unsinn fallen weg
+    const now = Date.now(), lim = (left, at) => ({ limit: 1000, left, resetAt: at + 3600e3, at });
+    d1.db.prepare("INSERT INTO ai_usage(day, provider, requests, neurons, tokens, req_limits) VALUES(?, 'groq', 4, 0, 900, ?)")
+      .run(day, JSON.stringify({ a: lim(996, now - 5000), b: lim(500, now - 9000), c: lim(10, now - 1000), d: lim(7, now - 20000), kaputt: { limit: "x" } }));
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='ai'").run(JSON.stringify({ provider: "groq", model: "", fallbacks: [] }));
+    r = await call("GET", "/api/teacher/ai", { auth });
+    const g = r.json.consumption.main;
+    assert.deepEqual({ p: g.provider, req: g.requests, tok: g.tokens, lim: g.limits }, { p: "groq", req: 4, tok: 900, lim: "requests" });
+    assert.deepEqual(g.rate.map((x) => [x.model, x.left]), [["c", 10], ["a", 996], ["b", 500], ["d", 7]]);   // die zuletzt gemeldeten zuerst, Kaputtes weg
+    assert.equal(g.neurons, undefined); assert.equal(r.json.consumption.reserve, null);
+    // Echte Groq-Antwort (fetch an api.groq.com, Inhalt von der Mock-KI) mit den Headern der Tagesgrenze: der Verbrauch kommt dazu,
+    // die Grenze des Modells wird ersetzt (json_patch), die übrigen bleiben
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='ai'").run(JSON.stringify({ provider: "groq", model: "", fallbacks: [], apiKeyEnc: await sealSecret("gsk-unit-nur-test", SECRET) }));
+    const realFetch = globalThis.fetch, seen = [];
+    globalThis.fetch = async (url, init) => {
+      if (!String(url).startsWith("https://api.groq.com/")) return realFetch(url, init);
+      seen.push(String(url));
+      const res = await realFetch(mock.url + "/chat/completions", init);
+      return new Response(await res.text(), { status: res.status, headers: { "content-type": "application/json",
+        "x-ratelimit-limit-requests": "1000", "x-ratelimit-remaining-requests": "499", "x-ratelimit-reset-requests": "12m0s",
+        "x-ratelimit-limit-tokens": "8000", "x-ratelimit-remaining-tokens": "5000", "x-ratelimit-reset-tokens": "22.5s" } });
+    };
+    let t1;
+    try {
+      t1 = Date.now();
+      r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Pflanzen brauchen Licht.", "x"], recipients: ["groq"] }, ip: "203.0.113.98" });
+    } finally { globalThis.fetch = realFetch; }
+    assert.equal(r.status, 200, r.text); assert.deepEqual(seen, ["https://api.groq.com/openai/v1/chat/completions"]);
+    r = await call("GET", "/api/teacher/ai", { auth });
+    const g2 = r.json.consumption.main;
+    assert.equal(g2.requests, 5); assert.ok(g2.tokens > 1000, String(g2.tokens));
+    const used = mock.state.requests.at(-1).model;   // das Startmodell ist absichtlich versetzt (startAt)
+    assert.deepEqual(g2.rate.map((x) => [x.model, x.limit, x.left]), [[used, 1000, 499], ["c", 1000, 10], ["a", 1000, 996], ["b", 1000, 500], ["d", 1000, 7]]);
+    assert.ok(g2.rate[0].at >= t1 && g2.rate[0].resetAt - g2.rate[0].at === 720000);
+    // Höchstens sechs Modelle (so viele fragt ein Aufruf höchstens)
+    d1.db.prepare("UPDATE ai_usage SET req_limits=json_patch(req_limits, ?) WHERE provider='groq' AND day=?")
+      .run(JSON.stringify({ e: lim(1, now - 30000), f: lim(2, now - 40000), g: lim(3, now - 50000) }), day);
+    r = await call("GET", "/api/teacher/ai", { auth });
+    assert.deepEqual(r.json.consumption.main.rate.map((x) => x.model), [used, "c", "a", "b", "d", "e"]);
+    // Neu gespeichert (anderer Schlüssel, ggf. anderes Konto): die gemeldete Grenze gilt nicht mehr, die eigene Zählung bleibt;
+    // eine andere Rolle (Reserve groq#r) wird nicht angefasst
+    d1.db.prepare("INSERT INTO ai_usage(day, provider, requests, neurons, tokens, req_limits) VALUES(?, 'groq#r', 1, 0, 50, ?)").run(day, JSON.stringify({ r1: lim(5, now) }));
+    globalThis.fetch = async (url, init) => realFetch(String(url).replace("https://api.groq.com/openai/v1", mock.url), init);
+    try { r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "groq", model: "", apiKey: "gsk-unit-neu" } }); }
+    finally { globalThis.fetch = realFetch; }
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual({ p: r.json.consumption.main.provider, req: r.json.consumption.main.requests, rate: r.json.consumption.main.rate }, { p: "groq", req: 5, rate: [] });
+    assert.equal(d1.db.prepare("SELECT req_limits FROM ai_usage WHERE provider='groq#r'").get().req_limits, JSON.stringify({ r1: lim(5, now) }));
+    // Ein anderer Tag zählt nicht mit
+    d1.db.prepare("UPDATE ai_usage SET day='2000-01-01'").run();
+    r = await call("GET", "/api/teacher/ai", { auth });
+    assert.deepEqual({ req: r.json.consumption.main.requests, rate: r.json.consumption.main.rate }, { req: 0, rate: [] });
+    assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
+  } finally {
+    d1.db.prepare("DELETE FROM ai_usage").run();
+    await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: null } });
+  }
+});
+
 // D1-Abfragen je Feedback (Anweisungen eines Batches einzeln gezählt, Schema schon angelegt): Aufräumen 3 + Blatt/Einstellungen 2 +
 // Sperren je Eintrag 1 + Zählung 3 + je Versuch ≤ 3 (Warteschlange voll: Reservierung + Nachfrage 2; sonst Reservierung + Sperre)
-// + Verbrauch/Sperre 2 + Erstattung 3 → ohne Reserve (6 Versuche) ≤ 32, mit Reserve (6 + 3 Versuche) ≤ 42 – unter der Grenze 50
+// + Verbrauch je Eintrag/Sperre 2 (mit Reserve 3) + Erstattung 3 → ohne Reserve (6 Versuche) ≤ 32, mit Reserve (6 + 3 Versuche) ≤ 43 –
+// unter der Grenze 50 (hier gehen keine Anfragen raus: kein Verbrauch, ≤ 42)
 test("feedback: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräumen, Erstattung) bleibt unter der Grenze von 42 D1-Abfragen", async () => {
   const cf = mockAIBinding(mock), CFENV = { ...ENV, AI: cf };
   let r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: { provider: "cloudflare", model: "" } } });
