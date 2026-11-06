@@ -649,7 +649,8 @@ const cfStatusStmts = (c) => [
   c.db.prepare("SELECT MAX(until) AS until FROM ai_skip WHERE provider='cloudflare' AND model='*' AND until>?1").bind(c.now),
   c.db.prepare("SELECT provider, requests, neurons, tokens, req_limits FROM ai_usage WHERE day=?1").bind(utcDay(c.now)),
 ];
-// req_limits (JSON je Modell, siehe usageStmt) → höchstens drei Modelle, die zuletzt gemeldeten zuerst; nur geprüfte Zahlen
+// req_limits (JSON je Modell, siehe usageStmt) → höchstens sechs Modelle (so viele fragt ein Aufruf höchstens), die zuletzt gemeldeten
+// zuerst; nur geprüfte Zahlen
 function rateView(raw) {
   let o = null;
   try { o = typeof raw === "string" && raw.length <= 20000 ? JSON.parse(raw) : null; } catch {}
@@ -660,7 +661,7 @@ function rateView(raw) {
     if (!x || typeof x !== "object" || !model || model.length > 200) return null;
     const limit = int(x.limit), left = int(x.left), resetAt = int(x.resetAt), at = int(x.at);
     return limit && left != null && resetAt && at ? { model, limit, left: Math.min(left, limit), resetAt, at } : null;
-  }).filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 3);
+  }).filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 6);
 }
 // Verbrauch eines Eintrags (erster Anbieter oder Reserve): limits sagt, welche Grenze der Anbieter meldet – "neurons" (Workers AI:
 // geschätzt gegen das Gratiskontingent des Kontos), "requests" (Groq: Anfragen pro Tag je Modell aus den Antwort-Headern) oder null
@@ -764,10 +765,12 @@ async function routeAiPut(c) {
   if (reserve && main.provider === reserve.provider && PROVIDERS[main.provider] && PROVIDERS[main.provider].accountDaily)
     throw new InputError(MSG.aiSameAccount);
   const value = JSON.stringify(reserve ? { ...main, reserve } : main);
-  const [, , ...rest] = await c.db.batch([
+  const [, , , ...rest] = await c.db.batch([
     c.db.prepare("INSERT INTO settings(key,value) VALUES('ai',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(value),
     // neuer Schlüssel/Modell: Sperren aufheben – außer „Tageskontingent aufgebraucht“ (gilt für das Konto, nicht die Einstellung)
     c.db.prepare("DELETE FROM ai_skip WHERE provider IN (SELECT value FROM json_each(?1)) AND model<>'*'").bind(JSON.stringify([...new Set(clear)])),
+    // gemeldete Grenzen gehören zum bisherigen Schlüssel bzw. Konto: bis zur nächsten Antwort keine (die eigene Zählung bleibt)
+    c.db.prepare("UPDATE ai_usage SET req_limits=NULL WHERE provider IN (SELECT value FROM json_each(?1)) AND req_limits IS NOT NULL").bind(JSON.stringify([...new Set(clear)])),
     ...cfStatusStmts(c),
   ]);
   const saved = await aiConfig(c.env, { value });
@@ -806,8 +809,10 @@ async function routeAiTest(c) {
     c.db.prepare("UPDATE settings SET value=?1 WHERE key='ai' AND value=?2").bind(JSON.stringify(stored), ai.raw),
     // Workers AI antwortet wieder (z. B. nach einem Wechsel auf Workers Paid): die Sperre „Tageskontingent aufgebraucht“ endet
     ...(e.keyless ? [c.db.prepare("DELETE FROM ai_skip WHERE provider=?1 AND model='*'").bind(e.key)] : []),
-    ...(spent(out.cost) ? [usageStmt(c.db, e.key, out.cost, c.now)] : []),
   ]);
+  // Verbrauch für die Anzeige: ein Fehler beim Zählen macht den gelungenen Test nicht zunichte (vor der Antwort, damit die Seite
+  // ihn beim Neuladen schon sieht)
+  if (spent(out.cost)) await c.db.batch([usageStmt(c.db, e.key, out.cost, c.now)]).catch(() => {});
   const sample = String(out.json && typeof out.json.antwort === "string" ? out.json.antwort : out.text).slice(0, 200);
   const res = { ok: true, which, provider: e.provider, label: PROVIDERS[e.provider].label, model: out.model, sample, fallbacks: e.fallbacks,
     modelCount: t.models.length, rotated: out.rotated.map((r) => ({ model: r.model, reason: r.reason })) };

@@ -361,20 +361,29 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   der Anbieter sie meldet:** Workers AI = geschätzte Neurons gegen `CF_DAILY_NEURONS` (Konto, zurückgesetzt 0:00 UTC – Cloudflare-
   Preisseite); **Groq** (`rateHeaders: "groq"`) = `dailyRequestInfo` aus `x-ratelimit-limit-requests`/`-remaining-requests`/
   `-reset-requests` (laut console.groq.com/docs/rate-limits immer Anfragen pro Tag; Reset als Dauer „2m59.56s“ → `parseDurationMs` →
-  Zeitpunkt), auch aus 429-Antworten, je Modell in `cost.limits` → `req_limits` per `json_patch` (neuester Stand je Modell),
-  `rateView` liefert die drei zuletzt gemeldeten; die `*-tokens`-Header gelten pro Minute (nicht genutzt), eine Token-Tagesgrenze
-  meldet Groq nicht. Alle anderen (OpenRouter, Gemini, Cerebras – deren Header nicht belegt –, custom): `limits: null`. Browser:
+  Zeitpunkt), auch aus 429-Antworten, je Modell in `cost.limits` → `req_limits` per `json_patch` (der zuletzt geschriebene Stand je
+  Modell gewinnt – mit seinem `at`), `rateView` liefert höchstens sechs, die zuletzt gemeldeten zuerst; `routeAiPut` setzt
+  `req_limits` der gespeicherten Einträge (`clear`) auf NULL (neuer Schlüssel = womöglich anderes Konto), die Zählung bleibt. Die
+  `*-tokens`-Header gelten pro Minute (nicht genutzt), eine Token-Tagesgrenze meldet Groq nicht. Nach Groqs Doku-Beispiel (14 400 RPD,
+  30 verbraucht, Reset „2m59.56s“) füllt sich das Kontingent laufend wieder auf → Text „spätestens am … wieder vollständig verfügbar“,
+  nie „zurückgesetzt“. Alle anderen (OpenRouter, Gemini, Cerebras – Rate-Limit-Header am 06.11.2026 nicht belegt –, custom):
+  `limits: null`, Text „Grenze hier nicht abfragbar: Feibeitsblatt liest von … weder …“. Abgelehnte Anfragen (nicht `r.ok`) zählen
+  nicht. `routeAiTest` schreibt den Verbrauch in einem eigenen Batch mit `.catch` (ein Fehler beim Zählen macht den Test nicht
+  zunichte). Browser:
   `usageFor(p, which)` (nur der gespeicherte Anbieter dieser Rolle; Workers AI auch ungespeichert über `consumption.cloudflare`, ein
   älterer Worker über `usage`), `usageParts` → `span.use-own` „Heute über Feibeitsblatt verbraucht: 23.456 Token in 8 Anfragen.“ (bzw.
-  „noch keine Anfrage“, „(Token meldet … nicht)“) und `span.use-lim`: Workers AI „Das sind geschätzt ca. … von 10.000 Neurons des
+  „noch keine Anfrage“, „(ohne Token-Angabe)“) und `span.use-lim`: Workers AI „Das sind geschätzt … von 10.000 Neurons des
   kostenlosen Tageskontingents. Es gilt für das ganze Cloudflare-Konto (…) und wird am TT.MM. um HH:MM Uhr (0:00 Uhr UTC)
   zurückgesetzt; dann beginnt auch diese Zählung neu.“; sonst „Diese Zählung beginnt am … (0:00 Uhr UTC) neu.“ + Groq „Grenze für
-  Anfragen pro Tag laut Groq (je Modell, Stand der letzten Antwort): „Modell“ noch x von y (Stand HH:MM Uhr), wird am … zurückgesetzt“
-  (vorbei: „am … zurückgesetzt (seitdem keine Antwort über Feibeitsblatt)“) + „Eine Grenze für Token pro Tag meldet Groq in seinen
-  Antworten nicht – …“ bzw. **„Grenze nicht abfragbar: Feibeitsblatt erfährt von … weder das Kontingent noch, wann es zurückgesetzt
-  wird – beides steht in Ihrem Konto beim Anbieter.“** Zeiten per `fmtUntil`/`fmtClock` in Ortszeit; nach einem Test `refreshAiState`.
+  Anfragen pro Tag laut Groq (gilt für Ihr ganzes Groq-Konto; je Modell, Stand der jeweils letzten Antwort): „Modell“ noch x von y
+  (Stand HH:MM Uhr), spätestens am … wieder vollständig verfügbar“ (vorbei: „seit dem … wieder vollständig verfügbar (y; seither keine
+  Antwort über Feibeitsblatt)“; ohne Angabe „… – heute kam noch keine solche Angabe.“) + „Eine Grenze für Token pro Tag meldet Groq in
+  seinen Antworten nicht – …“ bzw. **„Grenze hier nicht abfragbar: Feibeitsblatt liest von … weder das Kontingent noch, wann es
+  zurückgesetzt wird – beides steht in Ihrem Konto beim Anbieter[ des Dienstes].“** Zeiten per `fmtUntil`/`fmtClock` in Ortszeit;
+  nach einem Test `refreshAiState`.
   Nie Inhalte speichern, nur Zahlen. Tests: ai (`tokensOf`, `parseDurationMs`, `dailyRequestInfo`, `callAI` mit Groq-Headern auch bei
-  429), worker (je Eintrag getrennt, echte Groq-Antwort per fetch-Attrappe mit Headern, `json_patch`, anderer Tag), Smoke (echte D1),
+  429), worker (je Eintrag getrennt, echte Groq-Antwort per fetch-Attrappe mit Headern, `json_patch`, höchstens sechs, Speichern leert
+  die Grenze nur der gespeicherten Rolle, anderer Tag), Smoke (echte D1: Upsert samt `json_patch` übersetzt, Zweig nur mit custom),
   E2E 1 (Workers AI frisch/aufgebraucht, Groq per `page.route`, eigener Dienst nach dem Test).
 - **Datenschutz-Angaben und Löschfrist (Art. 13 DSGVO):** Feibeitsblatt ist ein privates, nicht kommerzielles und
   kostenloses Angebot – verantwortlich ist der **Betreiber**, **keine Schule** (keine Schulfelder, keine Vorlage „Hessen“,

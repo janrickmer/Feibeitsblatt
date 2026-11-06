@@ -1215,7 +1215,7 @@ test("KI-Einstellungen: Verbrauch heute je KI – erste KI und Reserve getrennt 
     r = await call("GET", "/api/teacher/ai", { auth });
     const g = r.json.consumption.main;
     assert.deepEqual({ p: g.provider, req: g.requests, tok: g.tokens, lim: g.limits }, { p: "groq", req: 4, tok: 900, lim: "requests" });
-    assert.deepEqual(g.rate.map((x) => [x.model, x.left]), [["c", 10], ["a", 996], ["b", 500]]);   // die drei zuletzt gemeldeten
+    assert.deepEqual(g.rate.map((x) => [x.model, x.left]), [["c", 10], ["a", 996], ["b", 500], ["d", 7]]);   // die zuletzt gemeldeten zuerst, Kaputtes weg
     assert.equal(g.neurons, undefined); assert.equal(r.json.consumption.reserve, null);
     // Echte Groq-Antwort (fetch an api.groq.com, Inhalt von der Mock-KI) mit den Headern der Tagesgrenze: der Verbrauch kommt dazu,
     // die Grenze des Modells wird ersetzt (json_patch), die übrigen bleiben
@@ -1239,8 +1239,22 @@ test("KI-Einstellungen: Verbrauch heute je KI – erste KI und Reserve getrennt 
     const g2 = r.json.consumption.main;
     assert.equal(g2.requests, 5); assert.ok(g2.tokens > 1000, String(g2.tokens));
     const used = mock.state.requests.at(-1).model;   // das Startmodell ist absichtlich versetzt (startAt)
-    assert.deepEqual(g2.rate.map((x) => [x.model, x.limit, x.left]), [[used, 1000, 499], ["c", 1000, 10], ["a", 1000, 996]]);
+    assert.deepEqual(g2.rate.map((x) => [x.model, x.limit, x.left]), [[used, 1000, 499], ["c", 1000, 10], ["a", 1000, 996], ["b", 1000, 500], ["d", 1000, 7]]);
     assert.ok(g2.rate[0].at >= t1 && g2.rate[0].resetAt - g2.rate[0].at === 720000);
+    // Höchstens sechs Modelle (so viele fragt ein Aufruf höchstens)
+    d1.db.prepare("UPDATE ai_usage SET req_limits=json_patch(req_limits, ?) WHERE provider='groq' AND day=?")
+      .run(JSON.stringify({ e: lim(1, now - 30000), f: lim(2, now - 40000), g: lim(3, now - 50000) }), day);
+    r = await call("GET", "/api/teacher/ai", { auth });
+    assert.deepEqual(r.json.consumption.main.rate.map((x) => x.model), [used, "c", "a", "b", "d", "e"]);
+    // Neu gespeichert (anderer Schlüssel, ggf. anderes Konto): die gemeldete Grenze gilt nicht mehr, die eigene Zählung bleibt;
+    // eine andere Rolle (Reserve groq#r) wird nicht angefasst
+    d1.db.prepare("INSERT INTO ai_usage(day, provider, requests, neurons, tokens, req_limits) VALUES(?, 'groq#r', 1, 0, 50, ?)").run(day, JSON.stringify({ r1: lim(5, now) }));
+    globalThis.fetch = async (url, init) => realFetch(String(url).replace("https://api.groq.com/openai/v1", mock.url), init);
+    try { r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "groq", model: "", apiKey: "gsk-unit-neu" } }); }
+    finally { globalThis.fetch = realFetch; }
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual({ p: r.json.consumption.main.provider, req: r.json.consumption.main.requests, rate: r.json.consumption.main.rate }, { p: "groq", req: 5, rate: [] });
+    assert.equal(d1.db.prepare("SELECT req_limits FROM ai_usage WHERE provider='groq#r'").get().req_limits, JSON.stringify({ r1: lim(5, now) }));
     // Ein anderer Tag zählt nicht mit
     d1.db.prepare("UPDATE ai_usage SET day='2000-01-01'").run();
     r = await call("GET", "/api/teacher/ai", { auth });

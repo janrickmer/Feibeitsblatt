@@ -563,7 +563,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   });
   await page.click("#t-ai");
   await expect(page.locator("#ai-save")).toBeEnabled();
-  await expect(page.locator("#ai-usage")).toHaveText("Heute über Feibeitsblatt verbraucht: 81.234 Token in 37 Anfragen. Das sind geschätzt ca. 10.012 von 10.000 Neurons des kostenlosen Tageskontingents. " +
+  await expect(page.locator("#ai-usage")).toHaveText("Heute über Feibeitsblatt verbraucht: 81.234 Token in 37 Anfragen. Das sind geschätzt 10.012 von 10.000 Neurons des kostenlosen Tageskontingents. " +
     "Es gilt für das ganze Cloudflare-Konto (genau im Cloudflare-Dashboard unter „Workers AI“) und wird am " + untilText + " (0:00 Uhr UTC) zurückgesetzt; dann beginnt auch diese Zählung neu. Tageskontingent aufgebraucht bis " + untilText + " (Neustart 0:00 Uhr UTC).");
   await expect(page.locator("#ai-usage")).toHaveClass(/\bover\b/);
   await expect(page.locator("#ai-usage")).toHaveCSS("color", RED);
@@ -586,8 +586,8 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#ai-prov")).toHaveValue("groq");
   const gStand = await page.evaluate((x) => new Date(x).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr", gNow - 60e3);
   await expect(page.locator("#ai-usage")).toHaveText("Heute über Feibeitsblatt verbraucht: 45.678 Token in 12 Anfragen. Diese Zählung beginnt am " + (await fmtUntilIn(gMid)) + " (0:00 Uhr UTC) neu. " +
-    "Grenze für Anfragen pro Tag laut Groq (je Modell, Stand der letzten Antwort): „openai/gpt-oss-120b“ noch 988 von 1.000 (Stand " + gStand + "), wird am " + (await fmtUntilIn(gReset)) + " zurückgesetzt; " +
-    "„llama-3.3-70b-versatile“ am " + (await fmtUntilIn(gOld)) + " zurückgesetzt (seitdem keine Antwort über Feibeitsblatt). Eine Grenze für Token pro Tag meldet Groq in seinen Antworten nicht – sie steht in Ihrem Konto bei Groq.");
+    "Grenze für Anfragen pro Tag laut Groq (gilt für Ihr ganzes Groq-Konto; je Modell, Stand der jeweils letzten Antwort): „openai/gpt-oss-120b“ noch 988 von 1.000 (Stand " + gStand + "), spätestens am " + (await fmtUntilIn(gReset)) + " wieder vollständig verfügbar; " +
+    "„llama-3.3-70b-versatile“ seit dem " + (await fmtUntilIn(gOld)) + " wieder vollständig verfügbar (1.000; seither keine Antwort über Feibeitsblatt). Eine Grenze für Token pro Tag meldet Groq in seinen Antworten nicht – sie steht in Ihrem Konto bei Groq.");
   await expect(page.locator("#ai-usage")).not.toHaveClass(/\bover\b/);
   // Reserve: keine gespeichert, vorausgewählt Workers AI – dessen Kontingent gilt für das ganze Konto, deshalb steht es trotzdem da
   await expect(page.locator("#ai2-prov")).toHaveValue("cloudflare");
@@ -635,7 +635,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   expect((await mockState()).count).toBeGreaterThanOrEqual(1);
   // Der Test zählt mit (Token aus der Antwort der Mock-KI); ein eigener Dienst meldet keine Grenze
   await expect(page.locator("#ai-usage")).toHaveText(new RegExp("^Heute über Feibeitsblatt verbraucht: [1-9][\\d.]* Token in 1 Anfrage\\. Diese Zählung beginnt am " + (await fmtUntilIn(nextMid())).replace(/[.]/g, "\\.") +
-    " \\(0:00 Uhr UTC\\) neu\\. Grenze nicht abfragbar: Feibeitsblatt erfährt vom Dienst weder das Kontingent noch, wann es zurückgesetzt wird – beides steht in Ihrem Konto beim Anbieter\\.$"));
+    " \\(0:00 Uhr UTC\\) neu\\. Grenze hier nicht abfragbar: Feibeitsblatt liest vom Dienst weder das Kontingent noch, wann es zurückgesetzt wird – beides steht in Ihrem Konto beim Anbieter des Dienstes\\.$"));
 
   // Reserve-KI: eigener Block mit eigenem Schlüssel, Test über ?which=reserve, „entfernen“ räumt wieder auf
   await expect(page.locator("#ai2-key-hint")).toHaveText("Keine Reserve-KI eingerichtet.");
@@ -2251,6 +2251,7 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   await page.click("#t-1 .ltbtn");                                       // der Dialog fragt wieder
   await expect(page.locator("#dlg-title")).toHaveText("Rechtschreibung und Grammatik prüfen");
   await expect(page.locator("#t-1 .ltstat:not(.lt-off)")).toHaveText("");
+  await expect(page.locator("#dlg-cancel")).toBeFocused();               // der Dialog setzt den Fokus erst nach 20 ms – vorher ginge Esc daneben
   await page.keyboard.press("Escape");                                   // Esc gilt wie „Trifft nicht zu“
   await expect(page.locator("#dlg")).not.toHaveClass(/open/);
   await expect(page.locator(".ltbtn")).toHaveCount(0);                   // für dieses geöffnete Blatt kein Button mehr …

@@ -851,7 +851,9 @@ Server. Ohne Reserve ändert sich nichts.
 Unter dem gewählten Anbieter zeigen die KI-Einstellungen für die erste KI und – getrennt – für die Reserve-KI, was
 **heute über Feibeitsblatt** verbraucht wurde: „Heute über Feibeitsblatt verbraucht: 23.456 Token in 8 Anfragen.“
 Gezählt werden alle beantworteten Anfragen (Feedback, Checklisten-Vorschläge, Verbindungstests) mit den Token, die der
-Anbieter in seiner Antwort meldet (Eingabe und Ausgabe zusammen; meldet ein Dienst keine, steht das dort). „Heute“ ist
+Anbieter in seiner Antwort meldet (Eingabe und Ausgabe zusammen; fehlt die Angabe, steht „ohne Token-Angabe“). Abgelehnte
+Anfragen (z. B. „ausgelastet“ oder eine Wiederholung ohne JSON-Modus nach einem Fehler) zählen hier nicht – ob der
+Anbieter sie mitzählt, entscheidet er; seine Restzahl kann deshalb etwas niedriger sein, als diese Zählung erwarten lässt. „Heute“ ist
 der Tag nach UTC: Die Zählung beginnt um 0:00 Uhr UTC neu – die Seite nennt den Zeitpunkt in Ihrer Ortszeit (1:00 Uhr
 MEZ bzw. 2:00 Uhr MESZ). Nutzen Sie denselben Schlüssel bzw. dasselbe Konto auch anderswo, zählt das hier nicht mit.
 
@@ -860,8 +862,8 @@ Die **Grenze** steht nur dort, wo der Anbieter sie mitteilt:
 | Anbieter | Angezeigte Grenze | Wann zurückgesetzt |
 |---|---|---|
 | Cloudflare Workers AI | geschätzte Neurons von 10.000 des kostenlosen Tageskontingents (aus den Token-Zahlen und der Preisliste; das Kontingent gilt für das ganze Cloudflare-Konto, genau steht der Verbrauch im Cloudflare-Dashboard) | 0:00 Uhr UTC (laut Cloudflare-Preisseite); ist es aufgebraucht, zusätzlich rot „Tageskontingent aufgebraucht bis …“ |
-| Groq | je Modell die **Anfragen pro Tag**: „noch 992 von 1.000“ mit dem Stand der letzten Antwort – Groq schickt sie mit jeder Antwort (Header `x-ratelimit-*-requests`, laut Groq-Doku immer Anfragen pro Tag); höchstens die drei zuletzt genutzten Modelle | der Zeitpunkt, den Groq in derselben Antwort nennt (`x-ratelimit-reset-requests`), in Ihrer Ortszeit. Eine Grenze für **Token pro Tag** meldet Groq in seinen Antworten nicht – sie steht in der Groq-Konsole. |
-| alle anderen (OpenRouter, Gemini, Cerebras, eigener Dienst) | „Grenze nicht abfragbar“ – Feibeitsblatt erfährt weder das Kontingent noch, wann es zurückgesetzt wird | steht in Ihrem Konto beim Anbieter |
+| Groq | je Modell die **Anfragen pro Tag** für das ganze Groq-Konto: „noch 992 von 1.000“ mit dem Stand der jeweils letzten Antwort – Groq schickt sie mit jeder Antwort (Header `x-ratelimit-*-requests`, laut Groq-Doku immer Anfragen pro Tag); die zuletzt genutzten Modelle zuerst (höchstens sechs) | „spätestens am … um … Uhr wieder vollständig verfügbar“: der Zeitpunkt, den Groq in derselben Antwort nennt (`x-ratelimit-reset-requests`), in Ihrer Ortszeit. Nach dem Beispiel in Groqs Doku kommen verbrauchte Anfragen schon vorher nach und nach zurück – es gibt keinen festen Zeitpunkt für alle. Eine Grenze für **Token pro Tag** meldet Groq in seinen Antworten nicht – sie steht in der Groq-Konsole. Nach dem Speichern eines neuen Schlüssels steht bis zur nächsten Antwort keine Grenze da. |
+| alle anderen (OpenRouter, Gemini, Cerebras, eigener Dienst) | „Grenze hier nicht abfragbar“ – Feibeitsblatt liest von diesen Diensten weder das Kontingent noch, wann es zurückgesetzt wird | steht in Ihrem Konto beim Anbieter |
 
 Gespeichert werden dafür nur Zahlen je Tag und KI (Tabelle `ai_usage`, siehe [Was gespeichert wird](#was-gespeichert-wird)),
 nie Inhalte; ältere Tage löscht das Aufräumen nach etwa zwei Tagen.

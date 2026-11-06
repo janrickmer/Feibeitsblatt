@@ -487,7 +487,8 @@ async function main() {
     expectErr(await api("POST", "/api/feedback", { code, answers: ["a", "", ""], only: [4] }), 400, "bad_answers"); feedbackCount++;
     expectErr(await api("POST", "/api/feedback", { code, answers: ["a", "", ""], only: [] }), 400, "bad_answers"); feedbackCount++;
     assert.equal(mock.state.requests.length, 1);
-    // Verbrauch heute je KI (echte D1: Upsert mit json_valid/json_patch): Anfragen und Token des eigenen Dienstes, keine Grenze abfragbar
+    // Verbrauch heute je KI in echter D1 (der Upsert samt json_valid/json_patch wird übersetzt; den json_patch-Zweig selbst erreicht nur
+    // Groq – Unit-Test): Anfragen und Token des eigenen Dienstes, keine Grenze abfragbar
     {
       const u = await api("GET", "/api/teacher/ai", undefined, { auth });
       assert.equal(u.status, 200, u.text);

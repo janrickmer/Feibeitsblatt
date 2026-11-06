@@ -9433,22 +9433,24 @@ function usageParts(u, p, now = Date.now()) {
   const own = !n ? "Heute über Feibeitsblatt noch keine Anfrage."
     : u.tokens == null ? `Heute über Feibeitsblatt: ${countOf(n, "Anfrage", "Anfragen")}.`
     : tok ? `Heute über Feibeitsblatt verbraucht: ${groupInt(tok)} Token in ${countOf(n, "Anfrage", "Anfragen")}.`
-    : `Heute über Feibeitsblatt: ${countOf(n, "Anfrage", "Anfragen")} (Token meldet ${label} nicht).`;
+    : `Heute über Feibeitsblatt: ${countOf(n, "Anfrage", "Anfragen")} (ohne Token-Angabe).`;
   const reset = fmtUntil(u.resetAt || nextUtcMidnightMs(now)) + " (0:00 Uhr UTC)";
   let lim;
   if (u.limits === "neurons") {
-    lim = (n || Number(u.neurons) > 0 ? `Das sind geschätzt ca. ${groupInt(u.neurons)} von ${groupInt(u.neuronLimit)} Neurons des kostenlosen Tageskontingents.`
+    lim = (n || Number(u.neurons) > 0 ? `Das sind geschätzt ${groupInt(u.neurons)} von ${groupInt(u.neuronLimit)} Neurons des kostenlosen Tageskontingents.`
       : `Vom kostenlosen Tageskontingent (${groupInt(u.neuronLimit)} Neurons) ist über Feibeitsblatt noch nichts verbraucht.`) +
       ` Es gilt für das ganze Cloudflare-Konto (genau im Cloudflare-Dashboard unter „Workers AI“) und wird am ${reset} zurückgesetzt; dann beginnt auch diese Zählung neu.`;
   } else if (u.limits === "requests") {
     const rate = Array.isArray(u.rate) ? u.rate : [];
+    // Groq nennt die Dauer, bis die Grenze wieder ganz verfügbar ist; verbrauchte Anfragen kommen nach Groqs Beispiel schon vorher
+    // nach und nach zurück – deshalb „spätestens … wieder vollständig verfügbar“, nicht „zurückgesetzt“
     lim = `Diese Zählung beginnt am ${reset} neu. ` + (rate.length
-      ? `Grenze für Anfragen pro Tag laut ${label} (je Modell, Stand der letzten Antwort): ` + rate.map((x) => (x.resetAt > now
-        ? `„${x.model}“ noch ${groupInt(x.left)} von ${groupInt(x.limit)} (Stand ${fmtClock(x.at)}), wird am ${fmtUntil(x.resetAt)} zurückgesetzt`
-        : `„${x.model}“ am ${fmtUntil(x.resetAt)} zurückgesetzt (seitdem keine Antwort über Feibeitsblatt)`)).join("; ") + "."
-      : `Die Grenze für Anfragen pro Tag meldet ${label} mit jeder Antwort – heute gab es noch keine.`) +
+      ? `Grenze für Anfragen pro Tag laut ${label} (gilt für Ihr ganzes ${label}-Konto; je Modell, Stand der jeweils letzten Antwort): ` + rate.map((x) => (x.resetAt > now
+        ? `„${x.model}“ noch ${groupInt(x.left)} von ${groupInt(x.limit)} (Stand ${fmtClock(x.at)}), spätestens am ${fmtUntil(x.resetAt)} wieder vollständig verfügbar`
+        : `„${x.model}“ seit dem ${fmtUntil(x.resetAt)} wieder vollständig verfügbar (${groupInt(x.limit)}; seither keine Antwort über Feibeitsblatt)`)).join("; ") + "."
+      : `Die Grenze für Anfragen pro Tag meldet ${label} mit jeder Antwort – heute kam noch keine solche Angabe.`) +
       ` Eine Grenze für Token pro Tag meldet ${label} in seinen Antworten nicht – sie steht in Ihrem Konto bei ${label}.`;
-  } else lim = `Diese Zählung beginnt am ${reset} neu. Grenze nicht abfragbar: Feibeitsblatt erfährt ${von} weder das Kontingent noch, wann es zurückgesetzt wird – beides steht in Ihrem Konto beim Anbieter.`;
+  } else lim = `Diese Zählung beginnt am ${reset} neu. Grenze hier nicht abfragbar: Feibeitsblatt liest ${von} weder das Kontingent noch, wann es zurückgesetzt wird – beides steht in Ihrem Konto beim Anbieter${p === "custom" ? " des Dienstes" : ""}.`;
   return { own, lim };
 }
 // Unter dem gewählten Anbieter (erste KI bzw. Reserve); Workers AI dazu die Sperre „Tageskontingent aufgebraucht“ (rot)
