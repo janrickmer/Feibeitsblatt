@@ -4066,12 +4066,15 @@ test("7c Antwortarten: Lehrkraft legt Weltkarten-Zuordnung (mit Kartenbild) und 
     const norm = (v) => { const d = document.createElement("i"); d.style.color = v; document.body.appendChild(d); const x = getComputedStyle(d).color; d.remove(); return x; };
     return { card: norm(getComputedStyle(c).getPropertyValue("--mc").trim()), land: getComputedStyle(p).fill, arrow: a ? norm(a.getAttribute("stroke")) : null };
   }, [k, id]);
+  const arrowOf = (item) => page.locator(`#a-1 .mapw-arrows g.arrow[data-item="${item}"] .shaft`);   // gezeichnet im nächsten Frame (rAF)
+  await expect(arrowOf("kaffee")).toHaveCount(1);
   const c1 = await colorOf(0, "076");
   expect(c1.land).toBe(c1.card); expect(c1.arrow).toBe(c1.card);
   expect(c1.card).not.toBe("rgb(217, 48, 37)");
   await cards.nth(1).click();
   await clickCountry(page, 1, "356");
   await expect(cards.nth(1).locator(".mcard-ans")).toHaveText("✓ Indien");
+  await expect(arrowOf("tee")).toHaveCount(1);
   const c2 = await colorOf(1, "356");
   expect(c2.land).toBe(c2.card); expect(c2.arrow).toBe(c2.card); expect(c2.card).not.toBe(c1.card);
   await expect(page.locator("#a-1 .mapw-arrows g.arrow")).toHaveCount(2);
