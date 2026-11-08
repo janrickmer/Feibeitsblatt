@@ -188,11 +188,26 @@
   /* Partner- und Gruppenarbeit: über dem Download-Button rot und fett daran erinnern, die Lösungen an die anderen weiterzuschicken */
   .donegroup{font-family:var(--sans); font-size:15px; font-weight:700; line-height:1.45; color:var(--red); margin:0 0 12px; text-align:left}
   .donenote{font-family:var(--sans); font-size:12.5px; line-height:1.45; color:var(--muted); margin:8px 0 18px; text-align:left}
+  /* Download der Lösungen: deutlich als Knopf erkennbar (Symbol, Schatten wie eine Taste, beim Drücken „eingedrückt“) */
+  .btn.dl{display:flex; align-items:center; justify-content:center; gap:12px; text-align:left; font-size:16px; padding:14px 18px; border-radius:12px;
+    margin:10px 0 0; box-shadow:0 4px 0 #0c0a08, 0 7px 16px var(--shadow); transition:transform .06s, box-shadow .06s, background .15s}
+  .btn.dl:hover{background:#3a3428; transform:translateY(-1px); box-shadow:0 5px 0 #0c0a08, 0 9px 18px var(--shadow)}
+  .btn.dl:active{transform:translateY(3px); box-shadow:0 1px 0 #0c0a08, 0 2px 6px var(--shadow)}
+  .btn.dl .dl-ico{flex:none; width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round}
+  .btn.dl[aria-disabled="true"]{opacity:.5; cursor:not-allowed; transform:none; box-shadow:none}
+  .btn.dl[aria-disabled="true"]:hover{background:var(--ink)}
+  /* Warten auf die finale KI-Rückmeldung: Ladesymbol, kleiner Countdown (aria-hidden), daneben der Text */
+  .donewait{display:flex; align-items:center; gap:2px; font-family:var(--sans); font-size:13.5px; line-height:1.45; color:var(--muted); margin:10px 0 0; text-align:left}
+  .donewait .spinner{flex:none}
+  .donewait-count{flex:none; font-variant-numeric:tabular-nums; font-size:12px; font-weight:700; color:var(--accent); min-width:2.6em; margin-right:6px}
+  .donewait-count:empty{display:none}
   .donefb{margin:0 0 22px; text-align:left; font-family:var(--sans)}
   .donefb-h{font-family:var(--sans); font-size:16px; font-weight:700; margin:0 0 6px}
   .donefb .status{margin:0 0 4px}
-  .donefb-wait{font-size:13px; color:var(--muted); margin:0 0 4px}
   .donefb .fbbox{margin:8px 0 0}
+  .ckcreate{margin:18px 0 6px; text-align:left}
+  .ckcreate #b-ck-intro{margin:0 0 12px}
+  .dlg-check{margin:4px 0 14px; font-family:var(--sans); font-size:15px; font-weight:600}
   .donefb .btn{margin-top:10px}
   .donefb-note{font-size:13px; line-height:1.45; color:var(--muted); margin:10px 0 0}   /* zweite Rückmeldung erreicht die Lehrkraft nicht: neutral, ohne Erfolgs- oder Alarmfarbe */
   .donefb .btn + .donefb-note{margin-top:6px}
@@ -1042,13 +1057,13 @@
       <p class="donetime" id="done-time"></p>
       <p class="donedel hidden" id="done-del"></p>
       <p class="donegroup hidden" id="done-group">Schicke die Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!</p>
-      <button type="button" class="btn block" id="done-pdf" aria-describedby="done-pdf-note">Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht</button>
+      <button type="button" class="btn block dl" id="done-pdf" aria-describedby="done-pdf-note"><svg class="dl-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5v11.5"/><path d="M7 10.5l5 5 5-5"/><path d="M4.5 16.5v3h15v-3"/></svg><span id="done-pdf-label">Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht</span></button>
+      <p class="donewait hidden" id="done-wait"><span class="spinner" aria-hidden="true"></span><span class="donewait-count" id="done-wait-count" aria-hidden="true"></span><span id="done-wait-text" role="status"></span></p>
       <p class="donenote" id="done-pdf-note">Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.</p>
       <p class="status" id="done-status" aria-live="polite"></p>
       <div class="donefb hidden" id="done-fb">
-        <h2 class="donefb-h">KI-Rückmeldung zu deiner abgegebenen Fassung</h2>
+        <h2 class="donefb-h">Deine finale KI-Rückmeldung</h2>
         <p class="status" id="done-fb-status" aria-live="polite"></p>
-        <p class="donefb-wait hidden" id="done-fb-wait" aria-hidden="true"></p>
         <div id="done-fb-list"></div>
         <p class="donefb-note hidden" id="done-fb-teacher" role="status"></p>
         <button type="button" class="btn ghost small hidden" id="done-fb-retry" aria-describedby="done-fb-retry-note">Rückmeldung erneut anfordern</button>
@@ -1200,9 +1215,10 @@
           <button type="button" class="btn ghost small" id="t-template">Als Vorlage für ein neues Feibeitsblatt verwenden</button>
           <button type="button" class="btn ghost small" id="t-export">Als PDF-Datei herunterladen</button>
           <button type="button" class="btn ghost small" id="t-analog">Analoges Arbeitsblatt als PDF herunterladen</button>
+          <button type="button" class="btn ghost small" id="t-ck-edit">Checkliste bearbeiten</button>
         </div>
         <p class="status" id="t-export-status" aria-live="polite"></p>
-        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Ihre Aufträge an die KI und die PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.<span id="t-analog-hint"> „Analoges Arbeitsblatt als PDF herunterladen“ erstellt ein Arbeitsblatt zum Ausdrucken mit Schreiblinien und einem QR-Code, der zu einer Checkliste zum Abhaken führt – die Checkliste prüfen Sie vorher.</span></p>
+        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Ihre Aufträge an die KI und die PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.<span id="t-analog-hint"> „Analoges Arbeitsblatt als PDF herunterladen“ erstellt ein Arbeitsblatt zum Ausdrucken mit Schreiblinien und einem QR-Code, der zur Checkliste zum Abhaken führt – zu der Checkliste, die Sie beim Anlegen bestätigt haben.</span> „Checkliste bearbeiten“ ändert die Checkliste, die in der Lösungs-PDF der Schüler:innen steht, wenn die finale KI-Rückmeldung nicht rechtzeitig kommt.</p>
 
         <div class="subhead">
           <h3>Abgaben</h3>
@@ -1263,7 +1279,7 @@
             <p class="fhint" id="b-esc-hint">Kennung genau wie im Quelltext des Escape-Rooms (ESCAPE_ROOM.id): 3 bis 60 Zeichen, nur a–z, 0–9 und Bindestrich. Schüler:innen öffnen dieses Feibeitsblatt dann nur über den Escape-Room – über den Link am Ende oder mit ihrer Überblick-PDF; die Eingabe des Codes auf der Startseite ist gesperrt, es gibt nur Einzelarbeit und kein analoges Arbeitsblatt. Den Code tragen Sie nach dem Anlegen im Quelltext des Escape-Rooms ein (FEIBEITSBLATT_CODE). Liegt der Quelltext öffentlich (z. B. GitHub Pages), kann jede:r mit dem Code das Feibeitsblatt öffnen und abgeben – schreiben Sie in die Aufgaben und Aufträge an die KI nichts Vertrauliches.</p>
           </div>
         </fieldset>
-        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Sachliche Fehler benennt die KI, die richtige Lösung – auch einzelne Begriffe oder Zahlen daraus – verrät sie aber nur, wenn Ihr Auftrag es ausdrücklich erlaubt; Noten vergibt sie nicht. Sie sieht nur Texte (Aufgabenstellung, Material, Ihren Auftrag und die Antwort), keine Bilder, Videos, PDF-Dateien oder Inhalte verlinkter Seiten. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
+        <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Sachliche Fehler benennt die KI; die richtige Lösung – auch einzelne Begriffe oder Zahlen daraus – verrät sie beim Feedback zum Überarbeiten nur, wenn Ihr Auftrag es ausdrücklich erlaubt. Nach der Abgabe nennt die finale KI-Rückmeldung dagegen konkret, was gefehlt hat und hätte vorkommen müssen – auch wenn Ihr Auftrag verlangt, die Lösung nicht zu verraten (das gilt nur vor der Abgabe). Noten vergibt sie nicht. Sie sieht nur Texte (Aufgabenstellung, Material, Ihren Auftrag und die Antwort), keine Bilder, Videos, PDF-Dateien oder Inhalte verlinkter Seiten. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
         <div class="tablewrap">
           <table class="batch builder">
             <thead><tr>
@@ -1291,6 +1307,11 @@
         </div>
         <p class="status" id="b-res-img" aria-live="polite"></p>
         <p class="status bad hidden" id="b-res-vid" role="status"></p>
+        <div class="ckcreate hidden" id="b-ck">
+          <h2 class="pvh">Checkliste für die Schüler:innen</h2>
+          <p class="note" id="b-ck-intro">Die KI schlägt aus Ihren Aufträgen an die KI Punkte vor, mit denen die Schüler:innen ihre Antworten selbst prüfen können – bitte prüfen, ändern und bestätigen Sie sie. Die Checkliste steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung nicht rechtzeitig kommt oder abgewählt wurde, und hinter dem QR-Code des analogen Arbeitsblattes. Für den Vorschlag bekommt die KI nur die Aufgabenstellungen, das Material und Ihre Aufträge, keine Daten der Schüler:innen. Nach dem Bestätigen ist die Checkliste für alle sichtbar, die den Link kennen – schreiben Sie deshalb nichts Geheimes hinein.</p>
+          <div id="b-ck-slot"></div>
+        </div>
         <div class="row">
           <button type="button" class="btn" id="b-res-back">Zur Übersicht</button>
           <button type="button" class="btn ghost small hidden" id="b-res-retry">Fehlende Dateien erneut hochladen</button>
@@ -1455,10 +1476,11 @@
     <!-- Analoges Arbeitsblatt: PDF zum Ausdrucken und Checkliste hinter dem QR-Code -->
     <div id="tv-analog" class="hidden">
       <button type="button" class="backlink" id="ck-back">← zurück zur Übersicht</button>
-      <h1>Analoges Arbeitsblatt</h1>
+      <h1 id="ck-h1">Analoges Arbeitsblatt</h1>
       <p class="selmeta" id="ck-sheet"></p>
-      <p class="sub" style="max-width:760px; margin-bottom:10px">Das PDF zum Ausdrucken enthält den Titel, einen Hinweis auf die digitale Fassung mit dem Code, alle Aufgabenstellungen mit Material (Links als Adresse) und Bildern sowie Platz für die Antworten: 8 Schreiblinien je Textaufgabe, Tabellen mit zwei Schreibzeilen je Zeile und bei der Weltkarten-Zuordnung eine Umrisskarte mit einer Liste zum Eintragen der Länder. PDF-Dateien zu den Aufgaben stehen nur mit ihrem Namen darauf. Am Ende steht ein QR-Code, der zur Checkliste unten führt: Dort haken die Schüler:innen je Aufgabe ab, ob ihre Antwort die Erwartungen erfüllt.</p>
-      <p class="sub" style="max-width:760px">Die Punkte schlägt eine KI aus Ihren Aufträgen an die KI vor – bitte prüfen und ändern Sie sie. Für den Vorschlag bekommt die KI nur die Aufgabenstellungen, das Material und Ihre Aufträge an die KI, keine Abgaben und keine Daten der Schüler:innen. Nach dem Speichern ist die Checkliste über den QR-Code für alle sichtbar, die den Link kennen: Schreiben Sie deshalb nichts Geheimes hinein und keine fertige Lösung, wenn die Schüler:innen sie nicht sehen sollen.</p>
+      <p class="sub" id="ck-intro1" style="max-width:760px; margin-bottom:10px">Das PDF zum Ausdrucken enthält den Titel, einen Hinweis auf die digitale Fassung mit dem Code, alle Aufgabenstellungen mit Material (Links als Adresse) und Bildern sowie Platz für die Antworten: 8 Schreiblinien je Textaufgabe, Tabellen mit zwei Schreibzeilen je Zeile und bei der Weltkarten-Zuordnung eine Umrisskarte mit einer Liste zum Eintragen der Länder. PDF-Dateien zu den Aufgaben stehen nur mit ihrem Namen darauf. Am Ende steht ein QR-Code, der zur Checkliste unten führt: Dort haken die Schüler:innen je Aufgabe ab, ob ihre Antwort die Erwartungen erfüllt.</p>
+      <p class="sub" style="max-width:760px">Die Punkte schlägt eine KI aus Ihren Aufträgen an die KI vor – bitte prüfen und ändern Sie sie. Für den Vorschlag bekommt die KI nur die Aufgabenstellungen, das Material und Ihre Aufträge an die KI, keine Abgaben und keine Daten der Schüler:innen. Die Checkliste steht außerdem in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung nicht rechtzeitig kommt oder abgewählt wurde. Nach dem Speichern ist sie für alle sichtbar, die den Link kennen: Schreiben Sie deshalb nichts Geheimes hinein und keine fertige Lösung, wenn die Schüler:innen sie nicht sehen sollen.</p>
+      <div id="ck-home"><div id="ck-box">
       <div class="moodle-hint aiwarn hidden" id="ck-aiwarn" style="max-width:760px"></div>
       <div class="pbox" style="max-width:760px">
         <h2 class="pvh">Checkliste zum QR-Code</h2>
@@ -1471,6 +1493,7 @@
         </div>
         <p class="status" id="ck-status" aria-live="polite"></p>
       </div>
+      </div></div>
     </div>
 
     <!-- Passwort ändern -->
@@ -1502,6 +1525,7 @@
   <div class="box">
     <h2 id="dlg-title"></h2>
     <p id="dlg-text"></p>
+    <label class="checkrow dlg-check hidden" id="dlg-check-row"><input type="checkbox" id="dlg-check"> <span id="dlg-check-label"></span></label>
     <div class="row">
       <button type="button" class="btn ghost" id="dlg-cancel">Abbrechen</button>
       <button type="button" class="btn" id="dlg-ok">OK</button>
@@ -2541,7 +2565,9 @@ function show(id) {
    damit ein doppeltes Enter nichts Unumkehrbares bestätigt. Ein Klick auf den Hintergrund gilt wie „Abbrechen“ – außer
    o.backdrop gibt einen eigenen Wert vor (ltConsent: null = nur geschlossen, keine Antwort).
    Es gibt nur einen Dialog: Ist schon einer offen (z. B. kommt eine Antwort des Servers an, während „Ohne KI-Feedback abgeben?“
-   offen ist), bekommt der zweite Aufruf sofort null (= keine Antwort) – Text und Antwort des offenen Dialogs bleiben unverändert. */
+   offen ist), bekommt der zweite Aufruf sofort null (= keine Antwort) – Text und Antwort des offenen Dialogs bleiben unverändert.
+   o.check = {label, checked}: ein Kästchen unter dem Text (Abgabe-Dialog: finale KI-Rückmeldung) – sein Zustand steht nach dem Schließen
+   in $("dlg-check").checked (bis zum nächsten Aufruf); ohne o.check ist die Zeile verborgen. */
 let dlgResolve = null, dlgReturn = null, dlgOpenedAt = 0, dlgBackdrop = false;
 function askConfirm(o) {
   if (dlgResolve) return Promise.resolve(null);
@@ -2553,6 +2579,9 @@ function askConfirm(o) {
     $("dlg-ok").textContent = o.ok || "OK";
     $("dlg-cancel").textContent = o.cancel || "Abbrechen";
     $("dlg-ok").className = "btn" + (o.danger ? " danger" : "");
+    $("dlg-check-row").classList.toggle("hidden", !o.check);
+    $("dlg-check").checked = !!o.check && o.check.checked !== false;
+    $("dlg-check-label").textContent = o.check ? o.check.label : "";
     $("dlg").classList.add("open");
     setTimeout(() => (o.danger || o.safeFirst ? $("dlg-cancel") : $("dlg-ok")).focus(), 20);
   });
@@ -2568,8 +2597,8 @@ $("dlg-ok").addEventListener("click", () => closeDlg(true));
 $("dlg-cancel").addEventListener("click", () => closeDlg(false));
 $("dlg").addEventListener("keydown", (e) => {
   if (e.key === "Escape") { e.preventDefault(); closeDlg(false); }
-  else if (e.key === "Tab") { // Fokus im Dialog halten
-    const a = $("dlg-cancel"), b = $("dlg-ok");
+  else if (e.key === "Tab") { // Fokus im Dialog halten (erstes Element: das Kästchen, falls sichtbar)
+    const a = $("dlg-check-row").classList.contains("hidden") ? $("dlg-cancel") : $("dlg-check"), b = $("dlg-ok");
     if (e.shiftKey && document.activeElement === a) { e.preventDefault(); b.focus(); }
     else if (!e.shiftKey && document.activeElement === b) { e.preventDefault(); a.focus(); }
   }
@@ -3412,18 +3441,19 @@ const authorityLink = () => (OPERATOR.authority.url ? newTabLink(OPERATOR.author
 const authorityTail = () => (AUTH_TEXT ? [" – für den Betreiber zuständig ist: " + AUTH_TEXT + (OPERATOR.authority.url ? ", " : "."),
   authorityLink(), OPERATOR.authority.url ? "." : null] : ["."]);
 // Kurzfassung (nennt auch den KI-Dienst: auf dem Server wird nur verschlüsselt gespeichert, das KI-Feedback aber geht an einen Dienst –
-// nach dem KI-Feedback bei der Abgabe noch einmal, zweite Rückmeldung)
+// ebenso nach der Abgabe für die finale KI-Rückmeldung, außer sie wird beim Abgeben abgewählt)
 // group: Partner- / Gruppenarbeit – derselbe Inhalt in der „ihr“-Form (Angaben-Bildschirm der Gruppe); typing: das Blatt misst Tippzeiten
 // (ttMeasured) – dann am Ende genau der eine neutrale Satz TT_SHORT, nichts weiter zur Messung (Schalter, Wirkung und Geltungsbereich stehen
 // im eigenen Abschnitt des ausführlichen Hinweises, privacyNoticeDom)
 function privacyShortText(p, list, withAi, group, typing) {
   const days = p && p.retentionDays;
-  const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst" };
+  const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert", wa: "wählt" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst", wa: "wählst" };
   return `Verantwortlich ist ${OP_NAME} – Feibeitsblatt ist ein privates, kostenloses Angebot. Auf dem Server werden ${w.d} Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur ${w.d} Lehrkraft. ` +
     (days ? `Nach ${days} Tagen werden sie automatisch gelöscht. ` : `${w.D} Lehrkraft löscht sie nach der Durchsicht. `) +
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
-      : list.length ? `Das KI-Feedback ist freiwillig: Nur wenn ${w.du} es ${w.anf}, gehen ${w.d} Antworten – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
-        (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") + ", bei der Abgabe dann noch einmal die danach geänderten Antworten. Auch die Rechtschreibprüfung ist freiwillig."
+      : list.length ? `Das KI-Feedback ist freiwillig. ${w.D} Antworten gehen – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
+        (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") +
+        `, wenn ${w.du} das KI-Feedback ${w.anf}, und nach der Abgabe für die finale KI-Rückmeldung – außer ${w.du} ${w.wa} sie beim Abgeben ab. Auch die Rechtschreibprüfung ist freiwillig.`
       : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.") +
     (typing ? " " + TT_SHORT(group) : "");
 }
@@ -3445,8 +3475,8 @@ const CHECK_STAY = ` Die Häkchen einer solchen Checkliste löscht ${CHECK_PAGE}
 const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnest: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
   `und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`;
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
-const FB2_SEND = " Hast du KI-Feedback bekommen, gehen bei der Abgabe die Antworten, die du danach geändert hast, auf demselben Weg noch einmal an die KI – " +
-  "für eine zweite Rückmeldung zu diesen Aufgaben, die danach wie deine Abgabe verschlüsselt auch an deine Lehrkraft geht (hast du nichts geändert, wird nichts gesendet).";
+const FB2_SEND = " Nach der Abgabe gehen deine Antworten – auch ohne vorheriges KI-Feedback – auf demselben Weg an die KI: für die finale KI-Rückmeldung, die zu jeder Aufgabe nennt, " +
+  "was gelungen ist und was gefehlt hat, und die danach wie deine Abgabe verschlüsselt auch an deine Lehrkraft geht (beim Abgeben kannst du sie abwählen).";
 /* YouTube-Videos unter dem Material (nur bei Blättern mit Videos – sheetHasVideos): eigene Absätze bzw. Listenpunkte neben den übrigen,
    nie in deren Sätze gemischt; privacyNoticeDom mit der Option videos, die Kurzfassungen bekommen einen eigenen Absatz (ytShort in
    #p-privacy-yt bzw. #privacy-yt – die Kurzfassung selbst bleibt unverändert). Grundlage ist die Einwilligung je Video mit dem Klick auf
@@ -3510,8 +3540,8 @@ const PRIV_IHR = {
   checkGithub: `Nur wenn ihr eine Checkliste über den QR-Code öffnet: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
     `und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
   github: `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
-  fb2Send: " Habt ihr KI-Feedback bekommen, gehen bei der Abgabe die Antworten, die ihr danach geändert habt, auf demselben Weg noch einmal an die KI – " +
-    "für eine zweite Rückmeldung zu diesen Aufgaben, die danach wie eure Abgabe verschlüsselt auch an eure Lehrkraft geht (habt ihr nichts geändert, wird nichts gesendet).",
+  fb2Send: " Nach der Abgabe gehen eure Antworten – auch ohne vorheriges KI-Feedback – auf demselben Weg an die KI: für die finale KI-Rückmeldung, die zu jeder Aufgabe nennt, " +
+    "was gelungen ist und was gefehlt hat, und die danach wie eure Abgabe verschlüsselt auch an eure Lehrkraft geht (beim Abgeben könnt ihr sie abwählen).",
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
   ...YT_PRIV_IHR,
 };
@@ -3654,10 +3684,11 @@ function privacyNoticeDom(p, list, opts) {
   // Cloudflare betreibt Server und Datenbank; mit Workers AI ist Cloudflare zugleich der KI-Dienst (ein Eintrag statt zwei)
   items.push(h("li", { text: "Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU. " +
     t(`Gespeichert werden deine Angaben und Antworten${tt ? " (samt Tippzeiten)" : ""} dort nur verschlüsselt.`, `Gespeichert werden eure Angaben und Antworten${tt ? " (samt Tippzeiten)" : ""} dort nur verschlüsselt.`) +
-    (withAi ? t(" Für das KI-Feedback verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.",
-      " Für das KI-Feedback verarbeitet der Server eure Antworten – ohne eure Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.") : "") +
+    (withAi ? t(" Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.",
+      " Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server eure Antworten – ohne eure Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.") : "") +
     t(" Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) deines Geräts.", " Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) eures Geräts.") +
-    (cfAt < 0 ? "" : (cfAt === 0 ? t(" Wenn du das KI-Feedback anforderst, ist Cloudflare zugleich der KI-Dienst (Workers AI)", " Wenn ihr das KI-Feedback anfordert, ist Cloudflare zugleich der KI-Dienst (Workers AI)")
+    (cfAt < 0 ? "" : (cfAt === 0 ? t(" Wenn du das KI-Feedback anforderst und für die finale KI-Rückmeldung nach der Abgabe, ist Cloudflare zugleich der KI-Dienst (Workers AI)",
+      " Wenn ihr das KI-Feedback anfordert und für die finale KI-Rückmeldung nach der Abgabe, ist Cloudflare zugleich der KI-Dienst (Workers AI)")
       : ` Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}, ist Cloudflare zugleich der KI-Dienst (Workers AI, Reserve)`) +
       t(": Dafür bekommt Cloudflare deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden.",
         ": Dafür bekommt Cloudflare eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft; die KI-Verarbeitung kann auch außerhalb der EU stattfinden.") +
@@ -3668,15 +3699,15 @@ function privacyNoticeDom(p, list, opts) {
   ai.forEach((x, i) => {
     if (x.id === "cloudflare") return;
     items.push(h("li", { text: (i === 0
-      ? t(`Nur wenn du das KI-Feedback anforderst: der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} – und verarbeitet sie nach seinen eigenen Bedingungen.`,
-        `Nur wenn ihr das KI-Feedback anfordert: der KI-Dienst „${x.label}“. Er bekommt eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft – ohne eure Namenskürzel und die Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`) + B.fb2Send
+      ? t(`Wenn du das KI-Feedback anforderst und für die finale KI-Rückmeldung nach der Abgabe (außer du wählst sie ab): der KI-Dienst „${x.label}“. Er bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} – und verarbeitet sie nach seinen eigenen Bedingungen.`,
+        `Wenn ihr das KI-Feedback anfordert und für die finale KI-Rückmeldung nach der Abgabe (außer ihr wählt sie ab): der KI-Dienst „${x.label}“. Er bekommt eure Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag eurer Lehrkraft – ohne eure Namenskürzel und die Klasse – und verarbeitet sie nach seinen eigenen Bedingungen.`) + B.fb2Send
       : `Nur wenn der KI-Dienst ${firstName} ${RESERVE_WHEN}: der KI-Dienst „${x.label}“ (Reserve). Er bekommt dieselben Daten und verarbeitet sie nach seinen eigenen Bedingungen.`) +
       ` Grundlage einer Übermittlung außerhalb der EU: ${x.transfer || TRANSFER_UNKNOWN}.` }));
   });
   if (!withAi) items.push(h("li", { text: t("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.", "Zu diesem Feibeitsblatt gibt es kein KI-Feedback – eure Antworten gehen an keine KI.") }));
-  else if (o.general) items.push(h("li", { text: "Nur wenn du das KI-Feedback anforderst: der KI-Dienst, den deine Lehrkraft eingerichtet hat – und, falls sie eine Reserve " +
-    `eingerichtet hat, ein zweiter KI-Dienst, wenn der erste ${RESERVE_WHEN}. Diese Seite nennt dir jeden mit Sitz und ` +
-    `Grundlage der Übermittlung, bevor etwas gesendet wird. Der KI-Dienst bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData} –, bei der Abgabe gegebenenfalls noch einmal die danach geänderten Antworten.` }));
+  else if (o.general) items.push(h("li", { text: "Wenn du das KI-Feedback anforderst und für die finale KI-Rückmeldung nach der Abgabe (außer du wählst sie beim Abgeben ab): der KI-Dienst, " +
+    `den deine Lehrkraft eingerichtet hat – und, falls sie eine Reserve eingerichtet hat, ein zweiter KI-Dienst, wenn der erste ${RESERVE_WHEN}. Diese Seite nennt dir jeden mit Sitz und ` +
+    `Grundlage der Übermittlung, bevor etwas gesendet wird. Der KI-Dienst bekommt deine Antworten zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft – ${withoutData}.` }));
   else if (!ai.length) items.push(h("li", { text: o.site ? "Ein KI-Dienst ist gerade nicht eingerichtet – deine Antworten gehen an keine KI." : B.noAiSet }));
   items.push(h("li", { text: t("Nur wenn du die Rechtschreibprüfung nutzt (freiwillig; laut Anbieter erst ab 16 Jahren, mit 16 und 17 nur mit Erlaubnis deiner Eltern): " +
     "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne deine Angaben, aber mit der Internetadresse deines Geräts. ",
@@ -3698,9 +3729,11 @@ function privacyNoticeDom(p, list, opts) {
   const ttWhere = (your) => [ttInDraft && `in ${your} Zwischenstand`, withAi && "im Erstversuch", "in der Abgabe"].filter(Boolean).join(", ").replace(/, (?=[^,]*$)/, " und ");
   const bases = [
     t(`Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
-      (withAi ? " – und das KI-Feedback, wenn du es anforderst: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " + (withAi ? "diese Funktionen" : "es") + " selbst an.",
+      (withAi ? " – und das KI-Feedback, wenn du es anforderst, sowie die finale KI-Rückmeldung nach der Abgabe: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " +
+      (withAi ? "das KI-Feedback selbst an; die finale KI-Rückmeldung kannst du beim Abgeben abwählen." : "es selbst an."),
     `Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
-      (withAi ? " – und das KI-Feedback, wenn ihr es anfordert: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert " + (withAi ? "diese Funktionen" : "es") + " selbst an."),
+      (withAi ? " – und das KI-Feedback, wenn ihr es anfordert, sowie die finale KI-Rückmeldung nach der Abgabe: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert " +
+      (withAi ? "das KI-Feedback selbst an; die finale KI-Rückmeldung könnt ihr beim Abgeben abwählen." : "es selbst an.")),
     tt ? t(`Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen ${ttWhere("deinem")}): ` +
       "Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit deine Lehrkraft bei Auffälligkeiten mit dir über deine Arbeitsweise sprechen kann; " +
       `die Tippzeiten dienen ${TT_USE}. Der Messung kannst du widersprechen – mit dem Schalter „${TT_SWITCH_DU}“ (siehe „${TT_OBJ_HEAD}“).`,
@@ -3726,10 +3759,12 @@ function privacyNoticeDom(p, list, opts) {
       t("Deine Angaben und Antworten liest deine Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen kannst du dich an den Betreiber oder an deine Lehrkraft wenden.",
         "Eure Angaben und Antworten liest eure Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen könnt ihr euch an den Betreiber oder an eure Lehrkraft wenden.")),
     head(t("Wozu werden deine Daten verarbeitet?", "Wozu werden eure Daten verarbeitet?")),
-    para((withAi ? t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst und – wenn du möchtest – Rückmeldungen einer KI zum Überarbeiten bekommst. " +
-      "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und die KI-Rückmeldungen – auch die zu deiner abgegebenen Fassung.",
-    "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt und – wenn ihr möchtet – Rückmeldungen einer KI zum Überarbeiten bekommt. " +
-      "Eure Lehrkraft sieht eure Antworten (mit KI-Feedback eure erste und eure überarbeitete Fassung) und die KI-Rückmeldungen – auch die zu eurer abgegebenen Fassung.")
+    para((withAi ? t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst und – wenn du möchtest – Rückmeldungen einer KI zum Überarbeiten bekommst und nach der Abgabe " +
+      "eine finale KI-Rückmeldung, die zu jeder Aufgabe nennt, was gelungen ist und was gefehlt hat. " +
+      "Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) und die KI-Rückmeldungen – auch die finale zu deiner abgegebenen Fassung.",
+    "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt und – wenn ihr möchtet – Rückmeldungen einer KI zum Überarbeiten bekommt und nach der Abgabe " +
+      "eine finale KI-Rückmeldung, die zu jeder Aufgabe nennt, was gelungen ist und was gefehlt hat. " +
+      "Eure Lehrkraft sieht eure Antworten (mit KI-Feedback eure erste und eure überarbeitete Fassung) und die KI-Rückmeldungen – auch die finale zu eurer abgegebenen Fassung.")
       : t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten.", "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt. Eure Lehrkraft sieht eure Antworten.")) +
       (tt ? TT_PURPOSE(g) : "") + B.checkPurpose),
     esc ? para(ESC_PRIV.purpose(esc)) : null,
@@ -3744,7 +3779,7 @@ function privacyNoticeDom(p, list, opts) {
       "wer die Angaben einträgt, trägt die Kürzel der anderen mit ein, deshalb sollen alle in der Gruppe davon wissen; bei Einzelarbeit die ersten Buchstaben des Vor- und " +
       "Nachnamens, der Geburtstag (Tag und Monat, ohne Jahr) und die Klasse. Außerdem eure Antworten") +
       (tt ? " mit ihren Tippzeiten (je eingegebenem Zeichen, wie viele Millisekunden seit dem vorangehenden Zeichen vergangen sind – längere Pausen nur als „mehr als 70 Millisekunden“, keine Uhrzeiten; nach einem Widerspruch keine)" : "") +
-      (withAi ? ", die KI-Rückmeldungen, bei einer Abgabe ohne KI-Feedback ein Vermerk dazu (war das KI-Feedback nicht möglich, mit dem Grund)" : "") +
+      (withAi ? ", die KI-Rückmeldungen, bei einer Abgabe ohne KI-Feedback ein Vermerk dazu (war das KI-Feedback nicht möglich, mit dem Grund), ob die finale KI-Rückmeldung abgewählt wurde" : "") +
       t(" und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) deines Geräts; gespeichert wird sie nicht im Klartext, ",
         " und die Zeitpunkte. Beim Aufruf verarbeitet der Server technisch die Internetadresse (IP-Adresse) eures Geräts; gespeichert wird sie nicht im Klartext, ") +
       "sondern nur unkenntlich gemacht in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang."),
@@ -3774,13 +3809,13 @@ function privacyNoticeDom(p, list, opts) {
     head(t("Musst du mitmachen?", "Müsst ihr mitmachen?")),
     para(t("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. ",
       "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
-      (withAi ? "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig: " : "Die Rechtschreibprüfung ist freiwillig: ") +
+      (withAi ? "Das KI-Feedback, die finale KI-Rückmeldung (beim Abgeben abwählbar) und die Rechtschreibprüfung sind freiwillig: " : "Die Rechtschreibprüfung ist freiwillig: ") +
       t("Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.", "Ihr könnt auch ohne sie abgeben, ohne dass euch daraus ein Nachteil entsteht.") +
       (tt ? t(` Die Tippzeiten misst diese Seite, solange du nicht widersprichst (siehe „${TT_OBJ_HEAD}“).`, ` Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (siehe „${TT_OBJ_HEAD}“).`) : "") +
       (yt ? B.ytChoice : "")),   // kein „ohne Nachteil“ zusagen: eine Aufgabe kann das Video voraussetzen
     withAi ? head(t("Entscheidet die KI über dich?", "Entscheidet die KI über euch?")) : null,
-    withAi ? para(t("Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.",
-      "Nein. Die KI gibt nur Hinweise und Tipps, keine Noten. Über eure Arbeit entscheidet eure Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüft sie selbst.")) : null,
+    withAi ? para(t("Nein. Die KI gibt nur Hinweise und Tipps – nach der Abgabe auch, was gefehlt hat –, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.",
+      "Nein. Die KI gibt nur Hinweise und Tipps – nach der Abgabe auch, was gefehlt hat –, keine Noten. Über eure Arbeit entscheidet eure Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüft sie selbst.")) : null,
     // Widerspruch gegen die Tippzeit-Messung: eigener Abschnitt mit dem Schalter (bzw. auf „Impressum & Datenschutz“, wo er steht),
     // getrennt von „Deine Rechte“ (Art. 21 Abs. 4 DSGVO) – dort nur ein kurzer Verweis
     tt ? head(TT_OBJ_HEAD) : null,
@@ -3831,15 +3866,16 @@ function renderPrivacy() {
   $("privacy").textContent = "";
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     (withAi
-      ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
+      ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
+        `Nach der Abgabe gehen deine Antworten außerdem für die finale KI-Rückmeldung an die KI – auch ohne vorheriges KI-Feedback, außer du wählst sie beim Abgeben ab. ` +
         (!r.any   // keine KI eingerichtet: derselbe Inhalt wie im ausführlichen Hinweis (nie einen KI-Dienst nennen, den es nicht gibt)
           ? `${NO_AI_SET} Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird. `
-          : `Beim Klick auf „KI um ein Feedback bitten“ werden nur deine Antworten – ${noPersonData()} – an den Server dieser Seite geschickt. ` +
+          : `Beim Klick auf „KI um ein Feedback bitten“ und für die finale KI-Rückmeldung werden nur deine Antworten – ${noPersonData()} – an den Server dieser Seite geschickt. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
         (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
         [r.cf && ", bei Cloudflare auch außerhalb der EU möglich", r.usa && (r.cf ? ", bei den übrigen Diensten mit Sitz in den USA" : ", bei Sitz in den USA") + " außerhalb der EU"].filter(Boolean).join("") + `. ` +
-        `Bei der Abgabe gehen die Antworten, die du nach dem ersten KI-Feedback geändert hast, auf demselben Weg noch einmal an die KI – dafür bekommst du zu diesen Aufgaben eine zweite Rückmeldung, die danach verschlüsselt auch an deine Lehrkraft geht (hast du nichts geändert, wird nichts gesendet). ` +
+        `Die finale KI-Rückmeldung nennt zu jeder Aufgabe, die die KI beurteilt, was gelungen ist und was gefehlt hat; sie geht danach verschlüsselt auch an deine Lehrkraft. ` +
         `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
         `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `)
       : `Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI. `) +
@@ -3849,6 +3885,7 @@ function renderPrivacy() {
     (withAi
       ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
         `Deine Abgabe nach der Überarbeitung ersetzt ihn. Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund). ` +
+        `Die finale KI-Rückmeldung kommt – wenn sie in den ersten ${FB2_MIN} Minuten nach der Abgabe da ist – verschlüsselt zu deiner Abgabe dazu. ` +
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
       : `Deine Abgabe wird zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
@@ -5158,7 +5195,7 @@ function makeDraftPdf(d, withAi = true, escName = "") {
   put(M, y, "Bitte beachte", 12.5, true); y += 18;
   ["Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
     "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
-    withAi ? "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites Feedback gibt es nicht." : "",
+    withAi ? "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites KI-Feedback zum Überarbeiten gibt es nicht." : "",
     esc ? "Die Datei enthält auch deine Daten aus dem Escape-Room (voller Name, Geburtsdatum, Bestätigungscode und Ergebnisse) – damit kannst du hier weitermachen." : ""
   ].filter(Boolean).forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
   put(M, H - 40, "Erstellt mit Feibeitsblatt · " + url, 9, false, "0.45 0.45 0.45");
@@ -5463,8 +5500,10 @@ function pdfAssemble(pages, meta) {
   for (const b of parts) { out.set(b, o); o += b.length; }
   return out;
 }
-/* sub.failed: Escape-Room-Finale, Abgabe technisch gescheitert – Vermerk ganz oben, „Stand“ statt „abgegeben am“, keine Sätze zur zweiten
-   Rückmeldung; sub.escape = {rec, name}: danach die Seiten mit dem Überblick aus dem Raum (escPdfPages, mode "student") */
+/* sub.failed: Escape-Room-Finale, Abgabe technisch gescheitert – Vermerk ganz oben, „Stand“ statt „abgegeben am“, keine Sätze zur finalen
+   Rückmeldung; sub.escape = {rec, name}: danach die Seiten mit dem Überblick aus dem Raum (escPdfPages, mode "student").
+   Unter jeder Antwort die finale KI-Rückmeldung (schwarz – auf der Seite grün/rot); liegt sie nicht vor, die Checkliste der Lehrkraft
+   (sub.checklist = {ai, points:[[…]…]}) mit Kästchen zum Abhaken. sub.finalWanted: angeboten und gewählt (true) bzw. abgewählt (false). */
 function makeSolutionsPdf(sub) {
   const pg = pdfPager(), { para, gap } = pg;
   const p = sub.person || {}, when = toDate(sub.receivedAt) || new Date(), grp = isGroup(p), failed = !!sub.failed;
@@ -5475,38 +5514,63 @@ function makeSolutionsPdf(sub) {
   para("Meine Lösungen – " + (sub.title || "Feibeitsblatt"), 17, true);
   gap(4);
   para(`${grp ? "Gruppe: " + p.gruppe.join(", ") : p.vorname + " · " + p.nachname} · Klasse ${p.klasse} · ${failed ? "Stand: " + fmtDT(when) + " Uhr – noch nicht abgegeben" : "abgegeben am " + fmtDT(when) + " Uhr"} · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
-  const fb2 = sub.feedback2 && Array.isArray(sub.feedback2.results) ? sub.feedback2 : null;
+  const fb2 = sub.feedback2 && Array.isArray(sub.feedback2.results) ? sub.feedback2 : null, finalFb = !!fb2 && fb2.final === true;
+  const ck = !failed && !fb2 && sub.checklist && Array.isArray(sub.checklist.points) ? sub.checklist : null;
+  const GREY = { color: "0.35 0.35 0.35" };
   // Was je Aufgabe gedruckt wird – vorab, damit der Kopf sagen kann, ob KI-Rückmeldungen darin stehen
   const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
-  // Nach der Abgabe nur die Rückmeldung zur abgegebenen Fassung (fb2.results: bei überarbeiteten Aufgaben die neue, bei unveränderten die
-  // erste – derselbe Text, keine neue Anfrage) – nie die erste Fassung oder das Feedback dazu; fehlt die zweite Rückmeldung (lädt noch,
-  // kam nicht, nicht an die Lehrkraft übermittelt), steht keine Rückmeldung darin, nur der Hinweis im Kopf (Entscheidung der Lehrkraft).
-  // Nur die Abschluss-PDF einer technisch gescheiterten Abgabe (failed, noch nichts abgegeben) zeigt wie bisher die erste Fassung mit Feedback.
+  // Nach der Abgabe nur die finale Rückmeldung zur abgegebenen Fassung (fb2.results; bei älteren Abgaben die zweite Rückmeldung, in der
+  // unveränderte Aufgaben die erste behielten) – nie die erste Fassung oder das Feedback dazu. Fehlt sie, steht die Checkliste der
+  // Lehrkraft darunter (falls hinterlegt). Nur die Abschluss-PDF einer technisch gescheiterten Abgabe (failed, noch nichts abgegeben)
+  // zeigt wie bisher die erste Fassung mit Feedback.
   const items = Array.from({ length: Math.max(tasks.length, answers.length) }, (_, i) => {
     const a = answers[i] || {}, fin = typeof a.final === "string" ? a.final : "", first = typeof a.first === "string" ? a.first : "";
     const isMap = !!(sub.kinds && sub.kinds[i] === "map");   // Weltkarte: kein KI-Feedback, also auch keine Notiz dazu
     const fb = failed && !isMap && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
     const rf = !failed && fb2 && !isMap && fb2.results[i] ? normFb(fb2.results[i]) : null;
-    return { fin, first, fb, rf: rf && (hasAiPoints(rf) || rf.note) ? rf : null, showFb: !!fb && (hasAiPoints(fb) || !!fb.note) };
+    const pts = ck && !isMap && Array.isArray(ck.points[i]) ? ck.points[i] : [];
+    return { fin, first, fb, rf: rf && (hasAiPoints(rf) || rf.note) ? rf : null, showFb: !!fb && (hasAiPoints(fb) || !!fb.note), pts };
   });
   const hasAi = items.some((it) => hasAiPoints(it.rf) || (it.showFb && hasAiPoints(it.fb)));
-  if (failed) { /* noch nicht abgegeben: weder eine zweite Rückmeldung noch ein Vermerk zur Abgabe ohne KI-Feedback */ }
-  else if (Array.isArray(sub.feedback) && !fb2) {
+  if (!failed && !Array.isArray(sub.feedback) && sub.noAi && sub.noAi !== "none") {   // einmal im Kopf statt bei Aufgabe 1; ohne Wertung
     gap(4);
-    para(sub.fb2Missing ? "Eine KI-Rückmeldung zur abgegebenen Fassung wurde nicht an die Lehrkraft übermittelt."   // aus der Übersicht der Lehrkraft
-      : sub.fb2Final ? "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gab es diesmal nicht." : "Die KI-Rückmeldung zu deiner abgegebenen Fassung lag beim Herunterladen noch nicht vor.", 10.5, false, { color: "0.35 0.35 0.35" });
-  } else if (!Array.isArray(sub.feedback) && sub.noAi !== "none") {   // einmal im Kopf statt bei Aufgabe 1; ohne Wertung
-    gap(4);
-    para(sub.feedbackError ? "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (" + sub.feedbackError + ")." : "Ohne KI-Feedback abgegeben.", 10.5, false, { color: "0.35 0.35 0.35" });
+    para(sub.feedbackError ? "Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (" + sub.feedbackError + ")." : "Ohne KI-Feedback zum Überarbeiten abgegeben.", 10.5, false, GREY);
   }
-  if (hasAi) { gap(4); para(AI_PDF_NOTE, 10.5, false, { color: "0.35 0.35 0.35" }); }
+  // finale Rückmeldung fehlt: abgewählt, nicht an die Lehrkraft übermittelt (aus ihrer Übersicht) oder beim Herunterladen nicht da
+  const fbNote = failed || fb2 ? "" : sub.finalWanted === false ? "Die finale KI-Rückmeldung wurde beim Abgeben abgewählt."
+    : sub.fb2Missing ? "Eine finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt."
+    : sub.finalWanted === true ? "Die finale KI-Rückmeldung lag beim Herunterladen nicht vor." : "";
+  if (fbNote) { gap(4); para(fbNote, 10.5, false, GREY); }
+  if (items.some((it) => it.pts.length)) {
+    gap(4);
+    para("Statt einer KI-Rückmeldung steht bei jeder Aufgabe die Checkliste deiner Lehrkraft – prüfe damit selbst, ob deine Antwort alles Wichtige enthält." +
+      (ck.ai ? " Die Checkliste hat deine Lehrkraft aus einem Vorschlag einer KI erstellt und geprüft." : ""), 10.5, false, GREY);
+  }
+  if (hasAi) { gap(4); para(AI_PDF_NOTE, 10.5, false, GREY); }
   gap(14);
-  const fbLines = (f) => {   // Rückmeldung: gelingt schon (grün), Tipps (rot), Hinweis
-    for (const c of f.covered) para("• Gelingt schon: " + c, 10.5, false, { indent: 10, color: "0.12 0.42 0.16" });
-    for (const m of f.missing) para("• Tipp: " + m, 10.5, false, { indent: 10, color: "0.7 0.15 0.12" });
-    if (f.note) para(f.note, 10.5, false, { indent: 10, color: "0.35 0.35 0.35" });
+  // Rückmeldung schwarz (die Seite zeigt sie grün/rot): finale – „Das gelingt dir schon“ / „Das hat gefehlt“; ältere bzw. die erste
+  // (gescheiterte Escape-Abgabe) – „Gelingt schon“ / „Tipp“; Hinweise grau
+  const fbLines = (f, fin) => {
+    if (fin) {
+      if (f.covered.length) { para("Das gelingt dir schon:", 10.5, true, { indent: 10 }); for (const c of f.covered) para("• " + c, 10.5, false, { indent: 18 }); }
+      if (f.missing.length) { para(FB2_MISS_LABEL + ":", 10.5, true, { indent: 10 }); for (const m of f.missing) para("• " + m, 10.5, false, { indent: 18 }); }
+    } else {
+      for (const c of f.covered) para("• Gelingt schon: " + c, 10.5, false, { indent: 10 });
+      for (const m of f.missing) para("• Tipp: " + m, 10.5, false, { indent: 10 });
+    }
+    if (f.note) para(f.note, 10.5, false, { indent: 10, ...GREY });
   };
-  items.forEach(({ fin, first, fb, rf, showFb }, i) => {
+  // Checkliste: je Punkt ein leeres Kästchen zum Abhaken (gezeichnet – WinAnsi kennt kein ☐)
+  const checkLines = (points) => {
+    const size = 10.5, lh = Math.round(size * 1.38);
+    for (const pt of points) pdfWrap(pt, size, false, pg.TW - 28).forEach((l, k) => {
+      if (pg.y + lh > pg.H - pg.BOTTOM) pg.newPage();
+      pg.y += lh;
+      if (k === 0) pg.op(`0 0 0 RG 0.8 w ${(pg.M + 10).toFixed(2)} ${(pg.H - pg.y - 1).toFixed(2)} 8 8 re S`);
+      pg.line(pg.M + 26, l, size, false);
+    });
+  };
+  items.forEach(({ fin, first, fb, rf, showFb, pts }, i) => {
     pg.room(80);   // Aufgabenkopf nicht ganz unten beginnen
     para("Aufgabe " + (i + 1), 13, true);
     gap(2);
@@ -5516,11 +5580,15 @@ function makeSolutionsPdf(sub) {
     para(fin.trim() ? fin : "(leer)", 11, false);
     if (hasAiPoints(rf)) {
       gap(6);
-      para("KI-Rückmeldung zur abgegebenen Fassung:", 10.5, true);
-      fbLines(rf);
+      para(finalFb ? "Finale KI-Rückmeldung:" : "KI-Rückmeldung zur abgegebenen Fassung:", 10.5, true);
+      fbLines(rf, finalFb);
     } else if (rf) {   // nur ein Hinweis (z. B. „Zu dieser Aufgabe gibt es kein KI-Feedback.“) – ohne Überschrift
       gap(6);
-      para(rf.note, 10.5, false, { color: "0.35 0.35 0.35" });
+      para(rf.note, 10.5, false, GREY);
+    } else if (pts.length) {   // keine finale Rückmeldung: die Checkliste der Lehrkraft zu dieser Aufgabe
+      gap(6);
+      para("Checkliste – prüfe selbst, ob deine Antwort das enthält:", 10.5, true);
+      checkLines(pts);
     }
     if (fb && first.trim() && fbText(first) !== fbText(fin)) {   // nur gescheiterte Abgabe; nur bei inhaltlicher Änderung (nicht wegen Leerzeichen am Ende)
       gap(6);
@@ -5529,8 +5597,8 @@ function makeSolutionsPdf(sub) {
     }
     if (showFb) {
       gap(6);
-      para("KI-Feedback zur ersten Fassung:", 10.5, true, { color: "0.35 0.35 0.35" });
-      fbLines(fb);
+      para("KI-Feedback zur ersten Fassung:", 10.5, true, GREY);
+      fbLines(fb, false);
     }
     gap(16);
   });
@@ -5628,20 +5696,22 @@ function escPdfPages(pg, esc, o) {
 }
 const DONE_PDF = "Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht";
 const DONE_PDF_ESC = "Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter und speichere sie in deinen Unterlagen zu unserem Unterricht";
-$("done-pdf").addEventListener("click", () => {
+/* Download der Lösungen: gesperrt, bis die finale KI-Rückmeldung da ist (höchstens FB2_GATE_MS, siehe doneGate). Danach ohne sie: Die
+   Anfrage wird abgebrochen (fb2Drop) – die PDF-Datei enthält statt der Rückmeldung die Checkliste der Lehrkraft (fb2LoadChecklist; lädt sie
+   noch, wird kurz gewartet). */
+$("done-pdf").addEventListener("click", async () => {
   const sub = S.lastSubmission, st = $("done-status");
   if (!sub) { setStatus(st, "Die Lösungen sind auf diesem Gerät nicht mehr verfügbar.", "bad"); return; }
+  if (sub.gateOpen === false) { setStatus(st, "Einen Moment noch – deine finale KI-Rückmeldung wird gerade erstellt. Danach kannst du deine Lösungen herunterladen.", ""); return; }
+  if (sub.fb2State === "loading") fb2Drop(sub);   // nicht länger warten
+  if (!sub.feedback2 && sub.checklist === undefined && sub.checklistP) await Promise.race([sub.checklistP, sleep(4000)]);
+  if (S.lastSubmission !== sub) return;
   try {
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
     // Escape-Room-Finale: Gesamt-PDF mit dem Überblick (voller Name, Bestätigungscode) – nur zum Speichern, nie im Tab; Name ohne Personendaten
     if (sub.escape) downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/octet-stream" }), `Escape-Room-${escFileRoom(sub.escape.name)}-Abschluss-${stamp}.pdf`);
     else downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/pdf" }), `Feibeitsblatt-Loesungen-${fmtCode(sub.code)}-${stamp}.pdf`);
-    if (Array.isArray(sub.feedback) && !sub.feedback2 && !sub.fb2Final) {   // die zweite Rückmeldung fehlt noch: hinweisen und später erinnern
-      sub.pdfBeforeFb2 = true;
-      setStatus(st, sub.fb2State === "loading"
-        ? "Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung ist noch nicht darin. Lade die Datei noch einmal herunter, sobald die Rückmeldung darunter erscheint."
-        : "Die PDF-Datei wird heruntergeladen – die KI-Rückmeldung zu deiner abgegebenen Fassung fehlt darin noch. Wenn „Rückmeldung erneut anfordern“ klappt, lade die Datei danach noch einmal herunter.", "ok");
-    } else setStatus(st, "Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.", "ok");
+    setStatus(st, "Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen." + (sub.feedback2 ? "" : sub.checklist ? " Statt einer finalen KI-Rückmeldung steht darin die Checkliste deiner Lehrkraft." : ""), "ok");
   } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuche es noch einmal.", "bad"); }
 });
 
@@ -6000,7 +6070,7 @@ function renderSteps() {
   const blocked = !S.feedback && (fbBlockedNow() || !(S.sheet.aiRecipients || []).length);
   const esc = !!S.sheet.escape;   // Finale eines Escape-Rooms: die Abschluss-PDF enthält auch den Überblick aus dem Raum
   const items = ai ? [["Aufgaben bearbeiten"], ["KI-Feedback anfordern", blocked ? "(freiwillig, empfohlen – gerade nicht möglich)" : "(freiwillig, empfohlen)"],
-    ["Lösungen mithilfe des KI-Feedbacks überarbeiten"], ["Abgeben"], [esc ? "Lösungen, letztes Feedback und Escape-Room-Überblick herunterladen" : "Lösungen und letztes Feedback herunterladen", STEP_LATE]]
+    ["Lösungen mithilfe des KI-Feedbacks überarbeiten"], ["Abgeben"], [esc ? "Lösungen, finale KI-Rückmeldung und Escape-Room-Überblick herunterladen" : "Lösungen mit finaler KI-Rückmeldung herunterladen", STEP_LATE]]
     : [["Aufgaben bearbeiten"], ["Abgeben"], [esc ? "Lösungen und Escape-Room-Überblick herunterladen" : "Lösungen herunterladen", STEP_LATE]];
   const cur = ai ? (S.submitting ? 4 : S.feedback ? 3 : S.busyFeedback ? 2 : 1) : (S.submitting ? 2 : 1);
   const key = JSON.stringify(items);
@@ -6040,10 +6110,10 @@ function renderFeedbackState() {
     : "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
   $("submit-hint").textContent = has
     ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " +
-      (recipientParts().any ? "Nach der Abgabe bekommst du zu den Aufgaben, die die KI beurteilt und deren Antwort du nach dem KI-Feedback geändert hast, eine neue KI-Rückmeldung." : FB2_NO_AI + ".")
+      (recipientParts().any ? "Nach der Abgabe bekommst du eine finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt (beim Abgeben abwählbar)." : FB2_NO_AI + ".")
     : noAi ? "Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : !aiSheet ? "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
-    : "Du kannst auch ohne KI-Feedback abgeben – dann geht bei der Abgabe nichts an die KI. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
+    : "Du kannst auch ohne KI-Feedback abgeben. Nach der Abgabe bekommst du eine finale KI-Rückmeldung (beim Abgeben abwählbar). Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
   const fbf = $("fb-fallback");
   fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es " + laterFor(S.fbUnavailable) + " noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war." : "";
   fbf.classList.toggle("hidden", !noAi);
@@ -6130,11 +6200,11 @@ async function requestFeedback() {
   const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
-    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (bei der Abgabe folgt noch eine Rückmeldung zu den Antworten, die du danach änderst; sie geht verschlüsselt auch an deine Lehrkraft). Möchtest du es trotzdem jetzt anfordern?`,
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (nach der Abgabe folgt noch die finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt – beim Abgeben abwählbar; sie geht verschlüsselt auch an deine Lehrkraft). Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
-    text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; bei der Abgabe gehen die Antworten, die du danach änderst, noch einmal denselben Weg, und du bekommst zu ihnen eine zweite Rückmeldung (sie geht verschlüsselt auch an deine Lehrkraft). Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
+    text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; nach der Abgabe gehen deine Antworten noch einmal denselben Weg für die finale KI-Rückmeldung (beim Abgeben abwählbar; sie geht verschlüsselt auch an deine Lehrkraft). Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok || submitBusy(st, SENDING_FB)) return;
@@ -6298,81 +6368,150 @@ async function sendSealed(payload, bodyOf, pub = S.pub) {
   }
 }
 
-/* ---------- Zweite KI-Rückmeldung zur abgegebenen Fassung (auf der Bestätigungsseite) ----------
+/* ---------- Finale KI-Rückmeldung zur abgegebenen Fassung (auf der Bestätigungsseite) ----------
  * Erst wird abgegeben – die Abgabe hängt nie von der KI ab –, dann gehen wie beim ersten Feedback (ohne Namenskürzel, Geburtstag
- * und Klasse, an dieselben Empfänger) nur die Aufgaben noch einmal an die KI, die die KI beurteilt (Stichpunkte im ersten
- * Feedback) und deren Text sich so geändert hat, wie der Server ihn sieht (fbText): `only` nennt sie, die übrigen Antworten
- * gehen leer mit (spart Token und Kontingent). Für alle anderen gilt die erste Rückmeldung weiter. Hat sich nichts davon
- * geändert, wird gar nicht gefragt. Die
- * Rückmeldung steht auf der Bestätigungsseite und in der Lösungs-PDF (Download-Button #done-pdf) und geht danach verschlüsselt
- * auch an die Lehrkraft (sendFeedback2). Ist die KI ausgelastet, wird automatisch wiederholt. */
+ * und Klasse, an dieselben Empfänger) alle abgegebenen Antworten noch einmal an die KI: auch ohne erstes Feedback, außer die
+ * finale KI-Rückmeldung wurde im Abgabe-Dialog abgewählt (vorausgewählt, fb2Offer). Der Server beurteilt im Final-Modus (final: true
+ * mit Kennung und Eingang der Abgabe – nur nach einer Abgabe und höchstens 15 Minuten danach) alle Aufgaben mit Auftrag und nennt
+ * konkret, was gelungen ist und was gefehlt hat – nach der Abgabe auch, wenn der Auftrag sonst verlangt, die Lösung nicht zu verraten
+ * (Entscheidung der Lehrkraft vom 08.11.2026). Bis sie da ist, höchstens FB2_GATE_MS, ist der Download (#done-pdf) gesperrt; ein kleiner
+ * Countdown neben dem Ladesymbol (#done-wait) zeigt die Zeit. Danach geht der Download auch ohne sie – die Lösungs-PDF enthält dann
+ * statt der Rückmeldung die Checkliste der Lehrkraft (fb2LoadChecklist) –, und im Hintergrund wird weiter gewartet, bis heruntergeladen
+ * wird (dann abgebrochen, fb2Drop). Die Rückmeldung steht auf der Bestätigungsseite (grün/rot) und in der Lösungs-PDF (schwarz) und
+ * geht danach verschlüsselt auch an die Lehrkraft (sendFeedback2). Ist die KI ausgelastet, wird automatisch wiederholt. */
+const FB2_GATE_MS = 30e3;   // so lange wartet der Download höchstens auf die finale KI-Rückmeldung
 const FB2_MANUAL = 3;   // „Rückmeldung erneut anfordern“ nach einem vorübergehenden Fehler höchstens so oft
 const FB2_TRANSIENT = new Set(["ai_busy", "ai_error", "network", "timeout", "server_error", "rate_limited", "bad_result", "db_limit"]);
 // Text so, wie der Server ihn prüft und an die KI gibt: Zeilenumbrüche vereinheitlicht, Steuerzeichen weg, außen getrimmt
 const fbText = (s) => String(s == null ? "" : s).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
-// je Aufgabe: beurteilt die KI sie (Stichpunkte im ersten Feedback) und hat sich ihr Text inhaltlich geändert?
+// Ältere Abgaben (vor der finalen KI-Rückmeldung): die zweite Rückmeldung galt nur für Aufgaben mit Stichpunkten im ersten Feedback,
+// deren Text sich geändert hatte – die Lehrkraft-Ansicht leitet das für sie weiter so ab (fb2Of)
 function fb2Changes(firsts, finals, feedback) {
   return finals.map((fin, i) => {
     const f = Array.isArray(feedback) && feedback[i] ? normFb(feedback[i]) : null;
     return !!f && f.covered.length + f.missing.length > 0 && fbText(firsts[i]) !== fbText(fin);
   });
 }
-// Nur die geänderten Antworten gehen mit (fb2Sent) – zu lang für den Server (wie validateAnswers im Worker)?
-const fb2Sent = (finals, changed) => finals.map((a, i) => (changed[i] ? a : ""));
-const fb2TooLong = (finals, changed) => fb2Sent(finals, changed).reduce((n, a) => n + String(a || "").length, 0) > MAX_ANSWERS_TOTAL;
-// „Aufgabe 2“ bzw. „den Aufgaben 2 und 3“ – die Aufgaben der zweiten Rückmeldung
-const fb2Nums = (changed) => changed.flatMap((c, i) => (c ? [i + 1] : []));
-const fb2Which = (nums) => (nums.length === 1 ? "Aufgabe " + nums[0] : "den Aufgaben " + listNums(nums));
+// Alle Antworten zusammen zu lang für den Server (wie validateAnswers im Worker)? Dann gibt es keine finale Rückmeldung
+const fb2TooLong = (finals) => finals.reduce((n, a) => n + String(a || "").length, 0) > MAX_ANSWERS_TOTAL;
 // Erstes KI-Feedback liegt vor (Zwischenstand), aber die Seite kennt jetzt keinen Empfänger (KI entfernt oder nicht nutzbar):
-// keine zweite Rückmeldung – die abgegebenen Antworten gehen dann gar nicht erst an den Server (Abgabe-Dialog, Hinweis, Bestätigung)
-const FB2_NO_AI = "Eine KI-Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht – ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet";
+// keine finale Rückmeldung – die abgegebenen Antworten gehen dann gar nicht erst an den Server (Abgabe-Dialog, Hinweis)
+const FB2_NO_AI = "Eine finale KI-Rückmeldung gibt es diesmal nicht – ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet";
+/* Wird die finale KI-Rückmeldung im Abgabe-Dialog angeboten (vorausgewählt, abwählbar)? Nur bei Blättern mit Auftrag an die KI, mit
+   einem Empfänger, nicht bei aufgebrauchtem Kontingent oder ohne eingerichtete KI (na = Einstufung ohne erstes Feedback) und nicht, wenn
+   die Antworten zusammen zu lang sind (der Server nähme sie nicht an). Eingefroren beim Öffnen des Dialogs – wie dessen Text. */
+function fb2Offer(finals, na) {
+  if (!S.sheet || !S.sheet.aiFeedback || !recipientParts().any) return false;
+  if (na && (na.reason === FB_QUOTA || na.reason === FB_NO_AI)) return false;
+  return !fb2TooLong(finals);
+}
+const FB2_CHECK_LABEL = "Nach der Abgabe eine finale KI-Rückmeldung erhalten";
+// Satz im Abgabe-Dialog über dem vorausgewählten Kästchen (FB2_CHECK_LABEL) – nennt die Empfänger wie der Feedback-Dialog
+const fb2DialogLine = () => "Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI beurteilt, was dir gelungen ist und was gefehlt hat, " +
+  "und geht verschlüsselt auch an deine Lehrkraft. " + recipientSentence() + " Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.";
 function resetFinalFeedback() {
   $("done-fb").classList.add("hidden"); $("done-fb-list").textContent = "";
   setStatus($("done-fb-status"), "", ""); $("done-fb-retry").classList.add("hidden");
-  $("done-fb-wait").classList.add("hidden"); $("done-fb-wait").textContent = "";
   for (const id of ["done-fb-teacher", "done-fb-retry-note"]) { $(id).classList.add("hidden"); $(id).textContent = ""; }
+  doneWaitHide();
+  $("done-pdf").removeAttribute("aria-disabled");
 }
-// Warten vor dem nächsten automatischen Versuch (absoluter Zeitpunkt; Sekundenzähler außerhalb der Live-Region) → true = weiter
-function waitFinalFeedback(run, ms, nextTry) {
+/* Download sperren, bis die finale Rückmeldung da ist – höchstens FB2_GATE_MS (absoluter Zeitpunkt: auch nach dem Ruhezustand des Geräts
+   richtig). Der Countdown neben dem Ladesymbol ist aria-hidden (sonst sagte ein Screenreader jede Sekunde an), der Text daneben eine
+   Statusmeldung. #done-pdf bleibt per aria-disabled fokussierbar (beschrieben durch den Text); der Klick-Handler prüft gateOpen selbst. */
+const DONE_WAIT_TEXT = "Deine finale KI-Rückmeldung wird gerade erstellt – bitte gedulde dich kurz.";
+const doneWaitLate = (sub) => "Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei statt der KI-Rückmeldung " +
+  (sub.checklist === false ? "keine Rückmeldung" : "die Checkliste deiner Lehrkraft") + ". Wenn du noch wartest, kommt die Rückmeldung vielleicht noch.";
+let doneWaitTimer = 0;
+function doneWaitHide() {
+  clearInterval(doneWaitTimer); doneWaitTimer = 0;
+  $("done-wait").classList.add("hidden"); $("done-wait-count").textContent = ""; $("done-wait-text").textContent = "";
+}
+function doneWaitShow(sub, text) {
+  const w = $("done-wait"), t = $("done-wait-text");
+  w.classList.remove("hidden");
+  if (t.textContent !== text) t.textContent = text;
+}
+function doneGate(sub) {
+  sub.gateOpen = false; sub.gateUntil = Date.now() + FB2_GATE_MS;
+  $("done-pdf").setAttribute("aria-disabled", "true");
+  $("done-pdf").setAttribute("aria-describedby", ($("done-group").classList.contains("hidden") ? "" : "done-group ") + "done-wait-text done-pdf-note");
+  doneWaitShow(sub, DONE_WAIT_TEXT);
+  const tick = () => {
+    if (S.lastSubmission !== sub || sub.gateOpen) { clearInterval(doneWaitTimer); return; }
+    const left = sub.gateUntil - Date.now();
+    if (left <= 0) { doneGateOpen(sub, "timeout"); return; }
+    $("done-wait-count").textContent = Math.ceil(left / 1000) + " s";
+  };
+  clearInterval(doneWaitTimer);
+  doneWaitTimer = setInterval(tick, 250);
+  tick();
+}
+// Download wieder frei: Rückmeldung da (done), endgültig nicht möglich (failed) oder Zeit um (timeout – dann wird weiter gewartet)
+function doneGateOpen(sub, why) {
+  if (S.lastSubmission !== sub) return;
+  sub.gateOpen = true;
+  clearInterval(doneWaitTimer); doneWaitTimer = 0;
+  $("done-pdf").removeAttribute("aria-disabled");
+  $("done-pdf").setAttribute("aria-describedby", ($("done-group").classList.contains("hidden") ? "" : "done-group ") + "done-pdf-note");
+  $("done-wait-count").textContent = "";
+  if (why === "timeout" && sub.fb2State === "loading") doneWaitShow(sub, doneWaitLate(sub));
+  else doneWaitHide();
+}
+// Nicht länger warten (Download nach Ablauf der Wartezeit, solange die Rückmeldung noch nicht da ist): Anfrage abbrechen, nichts mehr nachreichen
+function fb2Drop(sub) {
+  S.fbRun++;
+  if (S.fbAbort) { try { S.fbAbort.abort(); } catch (e) { /* egal */ } S.fbAbort = null; }
+  sub.fb2State = "dropped";
+  fb2Release(sub);
+  doneWaitHide();
+  $("done-fb-retry").classList.add("hidden"); fb2RetryNote();
+}
+/* Checkliste der Lehrkraft für die Lösungs-PDF (statt der finalen Rückmeldung, wenn sie nicht vorliegt): öffentlich wie auf der
+   Checklisten-Seite, gleich nach der Abgabe geholt. sub.checklist: undefined = wird geladen, false = keine, sonst {ai, points:[[…]…]}. */
+function fb2LoadChecklist(sub) {
+  sub.checklist = undefined;
+  sub.checklistP = api("GET", "/api/sheet/" + encodeURIComponent(sub.code) + "/checklist", { timeout: 20000 }).then((r) => {
+    const tasks = Array.isArray(r && r.tasks) ? r.tasks.slice(0, 30) : [];
+    const points = tasks.map((t) => (t && Array.isArray(t.points) ? t.points : []).filter((p) => typeof p === "string" && p.trim()).slice(0, CHECK_POINTS).map((p) => p.slice(0, CHECK_POINT_MAX)));
+    sub.checklist = points.some((x) => x.length) ? { ai: r.ai === true, points } : false;
+  }).catch(() => { sub.checklist = false; });
+  return sub.checklistP;
+}
+// Warten vor dem nächsten automatischen Versuch (absoluter Zeitpunkt) → true = weiter; still – den Stand zeigt #done-wait
+function waitFinalFeedback(run, ms) {
   return new Promise((resolve) => {
-    const due = Date.now() + ms, w = $("done-fb-wait");
-    setStatus($("done-fb-status"), `Gerade bitten sehr viele gleichzeitig um eine Rückmeldung – die KI ist ausgelastet. Nächster Versuch automatisch in etwa ${roughTime(ms)} (Versuch ${nextTry} von ${FB_TRIES}). Lass diese Seite geöffnet.`, "busy");
-    w.classList.remove("hidden");
-    let iv = 0, timer = 0, ended = false;
+    const due = Date.now() + ms;
+    let timer = 0, ended = false;
     const finish = () => {
       if (ended) return;
-      ended = true; clearInterval(iv); clearTimeout(timer); document.removeEventListener("visibilitychange", onVis);
-      w.classList.add("hidden"); w.textContent = "";
+      ended = true; clearTimeout(timer); document.removeEventListener("visibilitychange", onVis);
       resolve(run === S.fbRun);
     };
-    const tick = () => { if (run !== S.fbRun) { finish(); return; } w.textContent = `Nächster Versuch in ${Math.max(0, Math.ceil((due - Date.now()) / 1000))} s`; };
     const onVis = () => { if (document.visibilityState === "visible" && Date.now() >= due) finish(); };
     document.addEventListener("visibilitychange", onVis);
-    iv = setInterval(tick, 1000); tick();
     timer = setTimeout(finish, ms);
   });
 }
-// Rückmeldung je Aufgabe: bei unverändert abgegebenen Aufgaben (einzeln) ein Hinweis darauf, dann die Listen – ohne Zählung,
-// denn die Stichpunkte sind Beratung, kein Abhaken einer festen Liste
+// Rückmeldung je Aufgabe (grün „Das gelingt dir schon“, rot „Das hat gefehlt“) – ohne Zählung, denn die Stichpunkte sind Beratung,
+// kein Abhaken einer festen Liste
 function renderFinalFeedback() {
   const sub = S.lastSubmission, list = $("done-fb-list");
   list.textContent = "";
   if (!sub || !sub.feedback2) return;
-  const { same, kept } = sub.feedback2;
   sub.feedback2.results.forEach((f, i) => {
     if (sub.kinds && sub.kinds[i] === "map") return;   // Weltkarte: kein KI-Feedback
     const box = markAi(h("div", { class: "fbbox", id: "done-fb-" + (i + 1) }, [h("p", { class: "fb-head", text: "Aufgabe " + (i + 1) })]), "feedback-final", hasAiPoints(f));
-    if (!same && kept && kept[i] && f.covered.length + f.missing.length) box.appendChild(h("p", { class: "fb-sum", text: "Unverändert abgegeben – wie beim ersten Feedback." }));
-    appendFbLists(box, f, "Tipps zum Weiterlernen");   // nach der Abgabe wird nichts mehr überarbeitet
+    appendFbLists(box, f, FB2_MISS_LABEL);   // nach der Abgabe wird nichts mehr überarbeitet: was gefehlt hat, keine Tipps
     list.appendChild(box);
   });
 }
-/* Die zweite Rückmeldung geht – wie die Abgabe verschlüsselt – auch an die Lehrkraft (Lösungs-PDF und Details in ihrer Übersicht):
- * dieselbe Abgabe mit `feedback2` (nur die neu beurteilten Aufgaben, die übrigen null) als stage „feedback2“ mit Kennung und dem
- * Eingang, den der Server bei der Abgabe gemeldet hat. Der Server ersetzt nur genau diese Abgabe und nur bis 15 Minuten nach dem
- * Eingang – gelöscht, inzwischen neu abgegeben oder später: nichts (gone). Ohne Änderung wird nichts gesendet (die Lehrkraft leitet
- * „unverändert“ selbst ab). Scheitert es, bleibt die Abgabe ohne sie; die Bestätigungsseite sagt das ruhig unter der Rückmeldung
- * (#done-fb-teacher, fb2TeacherText) – der Abgabe-Dialog hatte angekündigt, dass sie auch an die Lehrkraft geht.
+const FB2_MISS_LABEL = "Das hat gefehlt";
+/* Die finale Rückmeldung geht – wie die Abgabe verschlüsselt – auch an die Lehrkraft (Lösungs-PDF und Details in ihrer Übersicht):
+ * dieselbe Abgabe mit `feedback2` ({at, final: true, results} für alle Aufgaben) als stage „feedback2“ mit Kennung und dem Eingang, den
+ * der Server bei der Abgabe gemeldet hat. Der Server ersetzt nur genau diese Abgabe und nur bis 15 Minuten nach dem Eingang – gelöscht,
+ * inzwischen neu abgegeben oder später: nichts (gone). Scheitert es, bleibt die Abgabe ohne sie; die Bestätigungsseite sagt das ruhig
+ * unter der Rückmeldung (#done-fb-teacher, fb2TeacherText) – der Abgabe-Dialog hatte angekündigt, dass sie auch an die Lehrkraft geht.
  * „Dieselbe Abgabe“ heißt: genau die Nutzlast, die der Server bei der Abgabe angenommen hat (S.fb2Base, nach den Rückfällen von
  * sealPayload/sendSealed) – Tippzeiten (auch {optOut}/{omitted}) und Daten aus dem Escape-Room bleiben so beim Ersetzen erhalten, nichts
  * wird neu gelesen. Wird der Umschlag erst mit feedback2 zu groß, gelten dieselben Rückfälle wie bei der Abgabe (erst ohne Tippzeit-Werte,
@@ -6382,26 +6521,26 @@ const FB2_HOLD_MS = 15 * 60e3;   // = REPLACE_WINDOW_MS (worker/lib.js) – dana
 /* Erreicht die zweite Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig und sachlich (keine Erfolgs-, keine
    Alarmfarbe; nie etwas zu Tippzeiten). fb2TeacherText: Ergebnis von sendFeedback2 → Hinweis unter der Rückmeldung (#done-fb-teacher);
    fb2RetryText: fb2Reach vor „Rückmeldung erneut anfordern“ → Hinweis unter dem Knopf (#done-fb-retry-note). "" = nichts zu sagen.
-   „Die neue Rückmeldung“ wie im Abgabe-Dialog („Die neue Rückmeldung geht danach verschlüsselt auch an deine Lehrkraft.“) – für unverändert
-   abgegebene Aufgaben gilt das erste Feedback, das schon mit der Abgabe ging. Nie behaupten, was die Lehrkraft jetzt hat: Die Abgabe kann
+   „Die finale KI-Rückmeldung“ wie im Abgabe-Dialog („… und geht verschlüsselt auch an deine Lehrkraft.“). Nie behaupten, was die
+   Lehrkraft jetzt hat: Die Abgabe kann
    inzwischen gelöscht oder durch eine neuere derselben Bearbeitung ersetzt sein, das ganze Blatt gelöscht (beides „gone“). */
 const FB2_MIN = Math.round(FB2_HOLD_MS / 60e3);
 const FB2_UNAFFECTED = " Deine Abgabe ist davon nicht betroffen.";
 function fb2TeacherText(res) {
-  if (res === "expired") return `Die neue Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten ${FB2_MIN} Minuten nach der Abgabe übermitteln.` + FB2_UNAFFECTED;
-  if (res === "gone") return "Die neue Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + FB2_UNAFFECTED;
-  if (res === "failed" || res === "skipped") return "Die neue Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln." + FB2_UNAFFECTED;
-  return "";   // "sent", "same" (nichts nachzureichen)
+  if (res === "expired") return `Die finale KI-Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten ${FB2_MIN} Minuten nach der Abgabe übermitteln.` + FB2_UNAFFECTED;
+  if (res === "gone") return "Die finale KI-Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + FB2_UNAFFECTED;
+  if (res === "failed" || res === "skipped") return "Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln." + FB2_UNAFFECTED;
+  return "";   // "sent", "none" (nichts nachzureichen)
 }
 function fb2RetryText(reach) {
-  if (reach === "expired") return `Seit deiner Abgabe sind mehr als ${FB2_MIN} Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht mehr übermitteln.`;
-  if (reach === "skipped") return "Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht übermitteln.";
+  if (reach === "expired") return `Seit deiner Abgabe sind mehr als ${FB2_MIN} Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.`;
+  if (reach === "skipped") return "Eine neue finale KI-Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht übermitteln.";
   return "";   // "ok"
 }
 /* Die angenommene Nutzlast enthält die Tippzeiten: Sie bleibt getrennt von S.lastSubmission (daraus entstehen die PDF-Dateien der
    Schüler:innen – nie Tippzeiten) und nur so lange im Arbeitsspeicher, wie noch nachgereicht werden kann (TT_ACCESS: „bis zur Abgabe
-   (und, wenn … nachgereicht wird, bis dahin)“): freigegeben nach dem Nachreichen (geklappt oder endgültig gescheitert), ohne Änderung
-   (same), ohne mögliche zweite Rückmeldung (finalFeedbackGone), bei „Neues Feibeitsblatt öffnen“ (resetStudent) und spätestens nach
+   (und, wenn … nachgereicht wird, bis dahin)“): freigegeben nach dem Nachreichen (geklappt oder endgültig gescheitert), ohne mögliche
+   finale Rückmeldung (finalFeedbackGone), beim Herunterladen ohne sie (fb2Drop), bei „Neues Feibeitsblatt öffnen“ (resetStudent) und spätestens nach
    FB2_HOLD_MS; die Werte selbst schon, sobald ein Widerspruch aus einem anderen Tab ankommt (fb2FollowOptOut). key = Schlüssel des
    Zwischenstands der Abgabe (dort sieht fb2FollowOptOut nach). */
 function fb2Hold(sub, payload, r, sentAt) {
@@ -6427,13 +6566,14 @@ function fb2Reach(sub) {
   if (fb2Expired(sub)) return "expired";
   return sub && S.fb2Base && S.fb2Base.sub === sub ? "ok" : "skipped";
 }
-/* Unter „Rückmeldung erneut anfordern“ (kein Dialog): Ist die Frist vorbei, sagt der Text schon vor dem Klick, dass eine neue Rückmeldung
-   nur noch die Schülerin bzw. der Schüler sieht. Aufgerufen, wenn der Knopf erscheint oder verschwindet und aus fb2Check. */
+/* Unter „Rückmeldung erneut anfordern“ (kein Dialog): Ist die Frist vorbei, nimmt der Server keine Anfrage mehr an – der Knopf
+   verschwindet, der Text sagt es. Aufgerufen, wenn der Knopf erscheint oder verschwindet und aus fb2Check. */
 function fb2RetryNote() {
   const sub = S.lastSubmission, retry = $("done-fb-retry"), note = $("done-fb-retry-note");
-  const text = sub && !retry.classList.contains("hidden") ? fb2RetryText(fb2Reach(sub)) : "";
+  if (sub && !retry.classList.contains("hidden") && fb2Expired(sub)) { retry.classList.add("hidden"); sub.fb2RetryLate = true; }
+  const text = sub && (!retry.classList.contains("hidden") || sub.fb2RetryLate) ? fb2RetryText(fb2Reach(sub)) : "";
   if (!text) { if (!note.classList.contains("hidden") || note.textContent) { note.classList.add("hidden"); note.textContent = ""; } return; }
-  if (note.classList.contains("hidden") || note.textContent !== text) liveFill(note, note, text, () => S.lastSubmission === sub && !retry.classList.contains("hidden"));
+  if (note.classList.contains("hidden") || note.textContent !== text) liveFill(note, note, text, () => S.lastSubmission === sub && (!retry.classList.contains("hidden") || !!sub.fb2RetryLate));
 }
 /* Frist nachrechnen. Ein einzelner Zeitgeber über 15 Minuten kommt zu spät, wenn das Gerät im Ruhezustand war (die Wanduhr läuft weiter,
    der Zeitgeber zählt die Schlafzeit nicht) oder der Tab im Hintergrund lag. Deshalb prüft fb2Check, solange die Nutzlast gehalten wird,
@@ -6481,16 +6621,16 @@ function fb2FollowOptOut(raw) {
 }
 /* → "sent" (bei der Lehrkraft angekommen) | "expired" (Frist vorbei, nichts gesendet bzw. nichts ersetzt) | "gone" (der Server hat nichts
    ersetzt: Abgabe gelöscht oder inzwischen mit derselben Bearbeitung neu abgegeben, oder das Blatt ist gelöscht – 404) | "failed" (endgültig gescheitert bzw. dreimal
-   vorübergehend) | "skipped" (nie gehalten, oder „Neues Feibeitsblatt öffnen“) | "same" (nichts nachzureichen). Nur "sent" zählt als gesendet. */
+   vorübergehend) | "skipped" (nie gehalten, oder „Neues Feibeitsblatt öffnen“) | "none" (nichts nachzureichen). Nur "sent" zählt als gesendet. */
 async function sendFeedback2(sub) {
   if (S.lastSubmission !== sub) return "skipped";
   if (sub.fb2Sent) return "sent";
-  if (!sub.feedback2 || sub.feedback2.same) { fb2Release(sub); return "same"; }
+  if (!sub.feedback2) { fb2Release(sub); return "none"; }
   const base = S.fb2Base;
   const lost = () => { fb2Release(sub); return fb2Expired(sub) ? "expired" : "skipped"; };   // nicht (mehr) gehalten
   if (!base || base.sub !== sub || fb2Expired(sub)) return lost();
   const fb2 = sub.feedback2;
-  const payload = { ...base.payload, feedback2: { at: fb2.at, results: fb2.results.map((f, i) => (fb2.kept[i] ? null : fbOut(normFb(f)))) } };
+  const payload = { ...base.payload, feedback2: { at: fb2.at, final: true, results: fb2.results.map((f) => fbOut(normFb(f))) } };
   // einmal angekommen, bleibt es angekommen – auch wenn das erneute Senden ohne Tippzeit-Werte (Widerspruch unterwegs) danach scheitert
   let arrived = false;
   const end = (res) => { if (!arrived) return res; sub.fb2Sent = true; return "sent"; };
@@ -6522,93 +6662,91 @@ async function sendFeedback2(sub) {
     return end("failed");   // dreimal vorübergehend gescheitert
   } finally { fb2Release(sub); }   // geklappt oder endgültig gescheitert: die Nutzlast samt Tippzeiten wird nicht mehr gebraucht
 }
-// Keine zweite Rückmeldung mehr möglich: eine schon geladene PDF-Datei enthält dann alles, was es gibt
+// Keine finale Rückmeldung mehr möglich: Download frei (die PDF-Datei enthält dann die Checkliste), nichts mehr nachzureichen
 function finalFeedbackGone(sub) {
   sub.fb2Final = true;
-  fb2Release(sub);   // nichts mehr nachzureichen
-  if (sub.pdfBeforeFb2) setStatus($("done-status"), "Deine PDF-Datei enthält schon alles, was es gibt – eine KI-Rückmeldung zu deiner abgegebenen Fassung kommt diesmal nicht.", "");
+  fb2Release(sub);
+  doneGateOpen(sub, "failed");
 }
+// Satz zur PDF-Datei, wenn die finale Rückmeldung nicht kommt (Checkliste der Lehrkraft, falls hinterlegt)
+const fb2PdfInstead = (sub) => (sub.checklist === false ? "" : " In deiner PDF-Datei steht dafür die Checkliste deiner Lehrkraft.");
 function finalFeedbackFailed(e) {
   const sub = S.lastSubmission;
   if (!sub) return;
   sub.fb2State = "failed";
   const code = e instanceof ApiError ? e.code : "";
-  // nur dann hilft ein neuer Versuch – nie bei aufgebrauchtem Tageskontingent (503 ai_quota gilt bis 0:00 Uhr UTC)
+  // nur dann hilft ein neuer Versuch – nie bei aufgebrauchtem Tageskontingent (503 ai_quota gilt bis 0:00 Uhr UTC) und nie, wenn der
+  // Server zu dieser Abgabe keine finale Rückmeldung (mehr) gibt (final_gone/final_expired/final_done)
   const transient = code !== "ai_quota" && (!code || FB2_TRANSIENT.has(code) || e.status === 429 || e.status >= 500);
   const msg = code === "ai_changed" ? "Die Lehrkraft hat inzwischen die KI-Einstellungen geändert – deine Antworten wurden deshalb nicht noch einmal gesendet."
-    : code === "ai_quota" ? "Das KI-Kontingent für heute ist aufgebraucht – eine Rückmeldung zu deiner abgegebenen Fassung gibt es diesmal nicht."
-    : code === "not_found" ? "Dieses Feibeitsblatt gibt es inzwischen nicht mehr – eine KI-Rückmeldung ist deshalb nicht möglich."
+    : code === "ai_quota" ? "Das KI-Kontingent für heute ist aufgebraucht – eine finale KI-Rückmeldung gibt es diesmal nicht."
+    : code === "not_found" ? "Dieses Feibeitsblatt gibt es inzwischen nicht mehr – eine finale KI-Rückmeldung ist deshalb nicht möglich."
+    : code === "final_expired" ? `Seit deiner Abgabe sind mehr als ${FB2_MIN} Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.`
+    : code === "final_gone" || code === "final_done" ? "Zu deiner Abgabe ist keine finale KI-Rückmeldung (mehr) möglich."
     : code === "ai_busy" ? "Die KI ist gerade sehr stark ausgelastet – auch nach mehreren Versuchen hat es nicht geklappt."
     : code === "bad_result" ? "Die Antwort der KI war unvollständig."
     : errMsg(e, "s");
-  const canRetry = transient && (sub.fb2Manual || 0) < FB2_MANUAL;
-  setStatus($("done-fb-status"), msg + " Deine Abgabe ist davon nicht betroffen" + (canRetry ? " – du kannst die Rückmeldung noch einmal anfordern." : "."), "bad");
+  const canRetry = transient && (sub.fb2Manual || 0) < FB2_MANUAL && !fb2Expired(sub);
+  $("done-fb").classList.remove("hidden");
+  setStatus($("done-fb-status"), msg + " Deine Abgabe ist davon nicht betroffen" + (canRetry ? " – du kannst die Rückmeldung noch einmal anfordern." : ".") + fb2PdfInstead(sub), "bad");
   $("done-fb-retry").classList.toggle("hidden", !canRetry);
-  fb2RetryNote();   // ist die Frist schon vorbei, sagt der Text unter dem Knopf das vorher
+  fb2RetryNote();
   if (!canRetry) finalFeedbackGone(sub);
+  else doneGateOpen(sub, "failed");   // der Download wartet nicht auf einen neuen Versuch
 }
 async function requestFinalFeedback() {
   const sub = S.lastSubmission;
-  if (!sub || !Array.isArray(sub.feedback)) { fb2Release(sub); return; }   // ohne erstes Feedback (KI nicht eingerichtet oder ausgefallen) keine zweite Rückmeldung
+  if (!sub || !sub.fb2Want) { fb2Release(sub); return; }   // abgewählt oder nicht angeboten: keine finale Rückmeldung
   const st = $("done-fb-status"), retry = $("done-fb-retry");
-  $("done-fb").classList.remove("hidden"); retry.classList.add("hidden"); fb2RetryNote();
-  const answers = sub.answers.map((a) => a.final), changed = fb2Changes(sub.answers.map((a) => a.first), answers, sub.feedback);
-  if (!changed.some(Boolean)) {   // nichts, was die KI neu beurteilen würde: die erste Rückmeldung gilt weiter, nichts wird gesendet
-    sub.feedback2 = { results: sub.feedback.map(normFb), same: true, kept: changed.map(() => true), at: new Date().toISOString() };
-    sub.fb2State = "done";
-    fb2Release(sub);   // nichts nachzureichen (die Lehrkraft leitet „unverändert“ selbst ab)
-    setStatus(st, "An den Aufgaben, die die KI beurteilt, hast du nach dem ersten Feedback nichts verändert – die Rückmeldung bleibt dieselbe:", "");
-    renderFinalFeedback();
-    return;
-  }
-  if (fb2TooLong(answers, changed)) {   // der Server nähme die Anfrage nicht an (Grenze für alle Antworten zusammen)
-    sub.fb2State = "failed";
-    setStatus(st, `Deine geänderten Antworten sind zusammen zu lang für eine KI-Rückmeldung (höchstens ${MAX_ANSWERS_TOTAL.toLocaleString("de-DE")} Zeichen). Deine Abgabe ist davon nicht betroffen.`, "bad");
-    finalFeedbackGone(sub);
-    return;
-  }
+  retry.classList.add("hidden"); fb2RetryNote();
+  const answers = sub.answers.map((a) => a.final);
   if (!sub.recipients.length) {   // wie im Abgabe-Dialog angekündigt: ohne Empfänger nichts senden (auch nicht an den Server)
     sub.fb2State = "failed";
-    setStatus(st, FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen.", "");
+    $("done-fb").classList.remove("hidden");
+    setStatus(st, FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen." + fb2PdfInstead(sub), "");
     finalFeedbackGone(sub);
     return;
   }
-  const run = ++S.fbRun, t0 = Date.now(), only = fb2Nums(changed), sent = fb2Sent(answers, changed);
+  const run = ++S.fbRun, t0 = Date.now();
   sub.fb2State = "loading";
+  if (sub.gateOpen) doneWaitShow(sub, doneWaitLate(sub));   // erneut angefordert: der Download wartet nicht mehr
   for (let tries = 1; ; tries++) {
     if (run !== S.fbRun) return;
-    setStatus(st, tries === 1 ? `Die KI sieht sich deine geänderte${only.length === 1 ? " Antwort" : "n Antworten"} an (${fb2Which(only).replace(/^den /, "")}) … das kann bis zu einer Minute dauern.` : `Neuer Versuch – die KI arbeitet (Versuch ${tries} von ${FB_TRIES}).`, "busy");
     S.fbAbort = new AbortController();
     let r;
     try {
-      r = await api("POST", "/api/feedback", { body: { code: sub.code, answers: sent, recipients: sub.recipients, only }, timeout: 150000, signal: S.fbAbort.signal });
+      r = await api("POST", "/api/feedback", { body: { code: sub.code, answers, recipients: sub.recipients, final: true, attempt: sub.attempt, receivedAt: sub.serverAt },
+        timeout: 150000, signal: S.fbAbort.signal });
     } catch (e) {
       if (run !== S.fbRun || (e instanceof ApiError && e.code === "aborted")) return;
       if (e instanceof ApiError && e.code === "ai_busy" && tries < FB_TRIES && Date.now() - t0 < FB_MAX_MS) {
         const base = Math.max(3, Math.min(60, e.retryAfter || 30)) * 1000;   // mit Zufallsanteil, damit nicht alle gleichzeitig wiederkommen
-        if (await waitFinalFeedback(run, Math.round(base * (1 + jitterMs(0.3)) + jitterMs(3000)), tries + 1)) continue;
+        if (await waitFinalFeedback(run, Math.round(base * (1 + jitterMs(0.3)) + jitterMs(3000)))) continue;
         return;
       }
       finalFeedbackFailed(e);
       return;
     } finally { if (run === S.fbRun) S.fbAbort = null; }
     if (run !== S.fbRun) return;
-    // je gewählter Aufgabe ein Ergebnis (die übrigen sind null – ein älterer Server ohne `only` liefert alle)
-    if (!Array.isArray(r.results) || r.results.length !== answers.length || only.some((n) => !r.results[n - 1] || typeof r.results[n - 1] !== "object")) { finalFeedbackFailed(new ApiError("bad_result")); return; }
-    // neu beurteilt nur, was sich geändert hat – für unveränderte Aufgaben gilt die erste Rückmeldung (keine widersprüchlichen Urteile)
-    sub.feedback2 = { results: r.results.map((x, i) => (changed[i] ? normFb(x) : normFb(sub.feedback[i]))), same: false, kept: changed.map((c) => !c), at: new Date().toISOString() };
+    // je Aufgabe ein Ergebnis, und zwar aus dem Final-Modus (ein älterer Server kennt ihn nicht und gäbe Tipps zum Überarbeiten)
+    if (!r || r.final !== true || !Array.isArray(r.results) || r.results.length !== answers.length || r.results.some((x) => !x || typeof x !== "object")) {
+      finalFeedbackFailed(new ApiError("bad_result")); return;
+    }
+    sub.feedback2 = { results: r.results.map((x) => normFb(x)), final: true, at: new Date().toISOString() };
     sub.fb2State = "done";
+    doneGateOpen(sub, "done");
+    $("done-fb").classList.remove("hidden"); retry.classList.add("hidden"); fb2RetryNote();
     setStatus(st, "So sieht die KI deine abgegebene Fassung:", "");
     renderFinalFeedback();
     // verschlüsselt auch an die Lehrkraft (ersetzt die Abgabe, legt nie eine neue an); erreicht sie die Lehrkraft nicht, ein ruhiger Hinweis
     sendFeedback2(sub).catch(() => "failed").then((res) => fb2TeacherShow(sub, res));
-    if (sub.pdfBeforeFb2) setStatus($("done-status"), "Die KI-Rückmeldung zu deiner abgegebenen Fassung ist jetzt da. Lade die PDF-Datei noch einmal herunter, damit sie darin steht.", "");
     return;
   }
 }
 $("done-fb-retry").addEventListener("click", () => {
   const sub = S.lastSubmission;
-  if (!sub || sub.fb2State === "loading") return;
+  if (!sub || sub.fb2State === "loading" || sub.fb2State === "dropped") return;
+  if (fb2Expired(sub)) { fb2RetryNote(); return; }   // der Server nähme nichts mehr an
   sub.fb2Manual = (sub.fb2Manual || 0) + 1;
   requestFinalFeedback();
 });
@@ -6622,7 +6760,9 @@ for (const ev of ["focus", "pointerenter"]) $("done-fb-retry").addEventListener(
  * Abgeben geht immer – das KI-Feedback ist freiwillig. Ohne Feedback trägt die (verschlüsselte) Abgabe noAi:
  * "declined" = ohne KI-Feedback abgegeben, und es lief nie eine Anfrage; "unavailable" = das KI-Feedback war nicht möglich
  * (Grund in feedbackError: KI nicht eingerichtet, ausgefallen, ein Versuch gescheitert oder mit der Abgabe abgebrochen);
- * "none" = das Blatt hat keinen Auftrag an die KI. Ohne Feedback gibt es keinen Erstversuch, keine zweite Rückmeldung, first = final. */
+ * "none" = das Blatt hat keinen Auftrag an die KI. Ohne Feedback gibt es keinen Erstversuch, first = final. Die finale KI-Rückmeldung
+ * nach der Abgabe bietet der Abgabe-Dialog in jedem Fall an, wenn sie möglich ist (fb2Offer: vorausgewählt, abwählbar); die Wahl steht
+ * verschlüsselt als finalWanted in der Abgabe (die Lehrkraft sieht „abgewählt“). */
 const FB_NOT_DONE = "Anfrage nicht abgeschlossen";   // Grund, wenn eine Anfrage lief, aber kein Feedback ankam (ohne S.fbUnavailable)
 const FB_QUOTA = "KI-Kontingent für heute aufgebraucht";   // Grund bei 503 ai_quota (Workers AI: Tageskontingent des Kontos)
 const FB_NO_AI = "KI nicht eingerichtet";   // Grund ohne Empfänger (beim Laden und beim Nachsehen) bzw. bei 503 ai_not_configured
@@ -6650,37 +6790,35 @@ function noAiState(wasBusy) {
   return { mode: reason ? "unavailable" : "declined", reason, tried };
 }
 const emptyNums = (answers) => { const out = []; answers.forEach((a, i) => { if (!String(a || "").trim()) out.push(i + 1); }); return out; };
-// na: Einstufung ohne KI-Feedback zum Zeitpunkt des Dialogs (noAiState) – submitAll hält sich danach an das, was hier steht
-function submitDialog(withFb, finals, na) {
+// na: Einstufung ohne KI-Feedback zum Zeitpunkt des Dialogs (noAiState); offer: finale KI-Rückmeldung anbieten (fb2Offer) – submitAll
+// hält sich danach an das, was hier steht. Mit offer steht unter dem Text das vorausgewählte Kästchen FB2_CHECK_LABEL.
+function submitDialog(withFb, finals, na, offer) {
   const empty = emptyNums(finals);   // ganz leere Blätter lässt submitAll gar nicht erst abgeben
   const emptyLine = empty.length ? `Achtung: ${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n` : "";
   const lock = "Nach der Abgabe kannst du deine Antworten nicht mehr ändern.";
+  const check = offer ? { check: { label: FB2_CHECK_LABEL, checked: true } } : {};
   if (withFb) {
-    const changed = fb2Changes(S.first, finals, S.feedback), nums = fb2Nums(changed), unchanged = !nums.length, tooLong = !unchanged && fb2TooLong(finals, changed);
-    // beurteilte Aufgaben, die unverändert bleiben – für sie gilt das erste Feedback weiter
-    const keptAi = (S.feedback || []).some((f, i) => !changed[i] && f && normFb(f).covered.length + normFb(f).missing.length > 0);
-    return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true,
+    return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiter überarbeiten", safeFirst: true, ...check,
       text: emptyLine + lock + " Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" +
-        (unchanged ? "An den Aufgaben, die die KI beurteilt, hast du nach dem KI-Feedback nichts geändert – deshalb wird nichts noch einmal an die KI gesendet; die Rückmeldung bleibt dieselbe."
-          : tooLong ? "Deine geänderten Antworten sind zusammen zu lang für eine zweite KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet."
+        (offer ? fb2DialogLine()
           : !recipientParts().any ? FB2_NO_AI + "; an die KI wird nichts gesendet."   // z. B. weitergeschrieben, nachdem die KI entfernt wurde
-          : `Danach bekommst du eine neue KI-Rückmeldung zu ${fb2Which(nums)}: Von den Aufgaben, die die KI beurteilt, hast du nur diese nach dem KI-Feedback geändert – nur ${nums.length === 1 ? "sie geht" : "sie gehen"} noch einmal an die KI` +
-            (keptAi ? "; für die übrigen Aufgaben gilt das erste Feedback weiter. " : ". ") + "Die neue Rückmeldung geht danach verschlüsselt auch an deine Lehrkraft. " + recipientSentence()) };
+          : "Deine Antworten sind zusammen zu lang für eine finale KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet.") };
   }
   if (na.mode === "none") return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiterschreiben", safeFirst: true,
     text: emptyLine + lock + " Deine Antworten gehen verschlüsselt an deine Lehrkraft; nur sie kann sie lesen." };
-  const base = { title: "Ohne KI-Feedback abgeben?", ok: "Ohne KI-Feedback abgeben", cancel: "Weiterschreiben", safeFirst: true };
+  const base = { title: "Ohne KI-Feedback abgeben?", ok: "Ohne KI-Feedback abgeben", cancel: "Weiterschreiben", safeFirst: true, ...check };
   const toTeacher = " Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass " +
     (na.mode === "declined" ? "du ohne KI-Feedback abgegeben hast." : "das KI-Feedback nicht möglich war.");
+  const after = (none) => (offer ? "\n" + fb2DialogLine() : none);   // finale KI-Rückmeldung nach der Abgabe – oder nichts an die KI
   if (S.busyFeedback) return { ...base, cancel: "Auf das KI-Feedback warten",
     text: emptyLine + "Deine Anfrage um KI-Feedback läuft noch. Gibst du jetzt ab, wird sie abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.\n" +
-      lock + " Bei der Abgabe geht nichts mehr an die KI." + toTeacher };
+      lock + toTeacher + after(" Bei der Abgabe geht nichts mehr an die KI.") };
   if (na.mode === "unavailable") return { ...base,
     text: emptyLine + (na.tried ? "Das KI-Feedback hat bisher nicht geklappt" : "Das KI-Feedback ist gerade nicht möglich") + ` (${na.reason}). ` +
       `Du kannst es ${laterFor(na.reason)} ${na.tried ? "noch einmal " : ""}versuchen oder jetzt ohne KI-Feedback abgeben – ohne dass dir daraus ein Nachteil entsteht.\n` +
-      lock + " Bei der Abgabe geht nichts an die KI." + toTeacher };
+      lock + toTeacher + after(" Bei der Abgabe geht nichts an die KI.") };
   return { ...base,
-    text: emptyLine + "Du hast kein KI-Feedback angefordert. Das ist in Ordnung: " + FB_VOLUNTARY + "\n" + lock + " An die KI wird nichts gesendet." + toTeacher };
+    text: emptyLine + "Du hast kein KI-Feedback angefordert. Das ist in Ordnung: " + FB_VOLUNTARY + "\n" + lock + toTeacher + after(" An die KI wird nichts gesendet.") };
 }
 async function submitAll() {
   if (S.submitted) return;
@@ -6690,7 +6828,9 @@ async function submitAll() {
   const finals = S.tas.map((t) => t.value);
   if (emptyNums(finals).length === finals.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
   const withFb = !!S.feedback, wasBusy = S.busyFeedback, said = withFb ? null : noAiState(false);
-  const ok = await askConfirm(submitDialog(withFb, finals, said));
+  const offer = fb2Offer(finals, said);   // eingefroren wie der Text des Dialogs
+  const ok = await askConfirm(submitDialog(withFb, finals, said, offer));
+  const wantFinal = offer && ok === true && $("dlg-check").checked;   // finale KI-Rückmeldung nach der Abgabe (vorausgewählt, abwählbar)
   if (S.submitted) return;
   if (!!S.feedback !== withFb) {   // während der Dialog offen war, ist das angeforderte KI-Feedback angekommen: erst zeigen, nichts abgeben
     if (ok) setStatus(st, "Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.", "");
@@ -6726,6 +6866,7 @@ async function submitAll() {
     };
     if (na) payload.noAi = na.mode;
     if (na && na.mode === "unavailable") payload.feedbackError = na.reason;
+    if (offer) payload.finalWanted = wantFinal;   // angeboten: gewählt oder abgewählt (die Lehrkraft sieht „abgewählt“)
     // Tippzeiten (nur verschlüsselt, nie in S.lastSubmission): erste Fassung "=" bei gleichem Text und gleichen Werten (ohne KI-Feedback immer)
     try {
       if (S.ttOptOut) payload.typing = ttOptOutPayload();   // widersprochen: keine Werte, die Lehrkraft sieht „ohne Messung (widersprochen)“
@@ -6750,26 +6891,28 @@ async function submitAll() {
     // Für den Download-Button (#done-pdf) auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
     S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
       feedback: payload.feedback, feedbackError: payload.feedbackError || "", noAi: payload.noAi || "", receivedAt: d.getTime(),
-      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, fb2Until: 0, pdfBeforeFb2: false,
+      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, fb2Until: 0,
+      fb2Want: wantFinal, finalWanted: payload.finalWanted, attempt: S.attempt, serverAt: Number.isSafeInteger(r.receivedAt) ? r.receivedAt : 0, gateOpen: true, checklist: undefined,
       escape: S.escape && S.sheet.escape ? { rec: S.escape.rec, name: S.sheet.escape.name } : null };   // Escape-Room-Finale: Überblick für die Abschluss-PDF
-    $("done-pdf").textContent = S.lastSubmission.escape ? DONE_PDF_ESC : DONE_PDF;
+    $("done-pdf-label").textContent = S.lastSubmission.escape ? DONE_PDF_ESC : DONE_PDF;
     // Partner- und Gruppenarbeit: die Lösungen hat nur dieses Gerät – rot und fett über dem Button, sie an die anderen weiterzuschicken
     const grp = isGroup(S.lastSubmission.person);
     $("done-group").classList.toggle("hidden", !grp);
-    $("done-pdf").setAttribute("aria-describedby", grp ? "done-group done-pdf-note" : "done-pdf-note");
     $("submit-esc").classList.add("hidden");
     S.firstTyping = null;   // die Tippzeiten der ersten Fassung braucht nach der Abgabe nichts mehr (TT_ACCESS: „bis zur Abgabe“)
-    // nur mit erstem Feedback kann eine zweite Rückmeldung nachgereicht werden: dafür genau die angenommene Nutzlast (sendSealed hat sie
-    // um die Rückfälle gekürzt, mit denen sie ankam) – getrennt von S.lastSubmission und nur, bis nichts mehr nachgereicht wird
+    // nur mit gewählter finaler Rückmeldung wird nachgereicht: dafür genau die angenommene Nutzlast (sendSealed hat sie um die Rückfälle
+    // gekürzt, mit denen sie ankam) – getrennt von S.lastSubmission und nur, bis nichts mehr nachgereicht wird
     fb2Release();
-    if (withFb) fb2Hold(S.lastSubmission, payload, r, sentAt);
+    if (wantFinal) fb2Hold(S.lastSubmission, payload, r, sentAt);
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
+    $("done-pdf").setAttribute("aria-describedby", grp ? "done-group done-pdf-note" : "done-pdf-note");
+    fb2LoadChecklist(S.lastSubmission);   // für die Lösungs-PDF, falls die finale Rückmeldung nicht kommt (oder abgewählt wurde)
     closeDlg(null);   // ein während des Sendens geöffneter Dialog (z. B. Rechtschreibprüfung) bleibt nicht über der Bestätigung stehen – ohne Antwort (null, nicht „Trifft nicht zu“)
     clearEditor();
     show("screen-done");
     focusSoon("done-btn", 30);
-    if (withFb) requestFinalFeedback();   // zweite KI-Rückmeldung zur abgegebenen Fassung – die Abgabe ist schon angekommen
+    if (wantFinal) { doneGate(S.lastSubmission); requestFinalFeedback(); }   // finale KI-Rückmeldung – die Abgabe ist schon angekommen
   } catch (e) {
     if (stopped) {   // die abgebrochene Anfrage hatte Felder und Feedback-Button gesperrt: wieder freigeben (Feedback bleibt möglich)
       S.tas.forEach((t) => { t.readOnly = false; });
@@ -7195,11 +7338,13 @@ async function loadSubs() {
           // Tippzeiten: nur geprüfte Base64-Form (dekodiert wird erst beim Aufklappen); ein Fehler kostet nur die Messung, nie den Eintrag
           try { p.typing = ttCleanPayload(p.typing, p.answers); } catch (e) { p.typing = null; }
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
-          // zweite KI-Rückmeldung (nachgereicht, nur geänderte Aufgaben; die übrigen null); ein Fehler kostet nur sie, nie den Eintrag
+          // finale KI-Rückmeldung (nachgereicht, final: alle Aufgaben) bzw. bei älteren Abgaben die zweite (nur geänderte Aufgaben, die
+          // übrigen null); ein Fehler kostet nur sie, nie den Eintrag. finalWanted: im Abgabe-Dialog gewählt (true) bzw. abgewählt (false)
           try {
             p.feedback2 = p.feedback2 && typeof p.feedback2 === "object" && Array.isArray(p.feedback2.results)
-              ? { at: cut(p.feedback2.at, 40), results: p.feedback2.results.slice(0, 30).map((f) => (f && typeof f === "object" ? normFb(f) : null)) } : null;
+              ? { at: cut(p.feedback2.at, 40), final: p.feedback2.final === true, results: p.feedback2.results.slice(0, 30).map((f) => (f && typeof f === "object" ? normFb(f) : null)) } : null;
           } catch (e) { p.feedback2 = null; }
+          p.finalWanted = typeof p.finalWanted === "boolean" ? p.finalWanted : undefined;
           p.noAi = NO_AI_MODES.has(p.noAi) ? p.noAi : "";   // ohne KI-Feedback: ohne Anfrage / nicht möglich / Blatt ohne KI
           p.feedbackError = cut(p.feedbackError, 100);
           // Daten aus einem Escape-Room (Finale): geprüft und gekappt; ein Fehler kostet nur diese Daten, nie den Eintrag
@@ -7298,10 +7443,12 @@ function applyTtOff() {
 $("t-tt-off").addEventListener("click", () => { T.ttOff = !T.ttOff; applyTtOff(); });
 // ohne TT_KEEP_IN_DRAFT gilt Text, der vor einem Neuladen (bzw. vor dem Hochladen einer Zwischenstand-PDF) geschrieben wurde, als „ohne Messung“
 if (!TT_KEEP_IN_DRAFT) $("t-tt-none").textContent = "z. B. ältere Stände, nach einem Widerspruch oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert keine Tippzeiten";
-/* Zweite KI-Rückmeldung einer Abgabe – wie im Browser der Schüler:innen (requestFinalFeedback): neu beurteilt sind nur Aufgaben mit
- * Stichpunkten im ersten Feedback, deren Text sich geändert hat (fb2Changes); hat sich nichts geändert, gilt das erste Feedback (dann
- * wurde nichts gesendet). Fehlt die nachgereichte Rückmeldung (Seite vorher geschlossen, KI nicht erreichbar, ältere Abgabe) → null. */
+/* KI-Rückmeldung zur abgegebenen Fassung einer Abgabe: die finale (final: true – alle Aufgaben, auch ohne erstes Feedback), so wie sie
+ * nachgereicht wurde. Ältere Abgaben (vor der finalen Rückmeldung) wie damals im Browser: neu beurteilt waren nur Aufgaben mit Stichpunkten
+ * im ersten Feedback, deren Text sich geändert hatte (fb2Changes); hatte sich nichts geändert, galt das erste Feedback (nichts gesendet).
+ * Fehlt die nachgereichte Rückmeldung (abgewählt, Seite vorher geschlossen, nicht abgewartet, KI nicht erreichbar) → null. */
 function fb2Of(p) {
+  if (p && p.feedback2 && p.feedback2.final) return { results: p.feedback2.results.map((f) => (f ? normFb(f) : null)), final: true, at: p.feedback2.at };
   if (!p || !Array.isArray(p.feedback)) return null;
   const changed = fb2Changes(p.answers.map((a) => a.first), p.answers.map((a) => a.final), p.feedback);
   if (!changed.some(Boolean)) return { results: changed.map((_, i) => normFb(p.feedback[i] || {})), same: true, kept: changed.map(() => true) };
@@ -7309,7 +7456,7 @@ function fb2Of(p) {
   return { results: changed.map((c, i) => (c ? p.feedback2.results[i] || null : normFb(p.feedback[i] || {}))), same: false, kept: changed.map((c) => !c), at: p.feedback2.at };
 }
 // Lösungs-PDF einer Abgabe aus der Übersicht: dieselbe Datei, die die Schülerin bzw. der Schüler nach der Abgabe bekommt (makeSolutionsPdf)
-function teacherSolutionsSub(s) {
+function teacherSolutionsSub(s, checklist) {
   const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [];
   const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
   const fb2 = fb2Of(p), withFb = Array.isArray(p.feedback);
@@ -7317,7 +7464,18 @@ function teacherSolutionsSub(s) {
     kinds: Array.from({ length: n }, (_, i) => (tasks[i] ? cleanAnswer(tasks[i].answer).type : "text")), person: p.person,
     answers: Array.from({ length: n }, (_, i) => ({ first: (p.answers[i] || {}).first || "", final: (p.answers[i] || {}).final || "" })),
     feedback: withFb ? p.feedback : null, feedbackError: p.feedbackError || "", noAi: p.noAi || "", receivedAt: s.receivedAt,
-    feedback2: fb2, fb2Missing: withFb && !fb2 };
+    // nicht übermittelt: gewählt (bzw. bei älteren Abgaben: mit erstem Feedback), aber nicht nachgereicht; abgewählt sagt die PDF selbst
+    feedback2: fb2, fb2Missing: !fb2 && (p.finalWanted === true || (p.finalWanted === undefined && withFb)), finalWanted: p.finalWanted === false ? false : undefined,
+    checklist: checklist || false };   // statt der fehlenden Rückmeldung die Checkliste (beim Klick geladen, teacherChecklistLoad)
+}
+// Gespeicherte Checkliste des ausgewählten Blattes für die Lösungs-PDF aus der Übersicht (wie bei den Schüler:innen) → {ai, points} | false
+async function teacherChecklistLoad() {
+  try {
+    const r = await TA(ckPath(T.sel));
+    const fin = r && r.checklist && r.checklist.final;
+    const points = fin && Array.isArray(fin.tasks) ? fin.tasks.slice(0, 30).map((t) => (t && Array.isArray(t.points) ? t.points.filter((x) => typeof x === "string" && x.trim()).slice(0, CHECK_POINTS) : [])) : [];
+    return points.some((x) => x.length) ? { ai: fin.ai === true, points } : false;
+  } catch (e) { if (handleAuthError(e)) throw e; return false; }
 }
 // „Feibeitsblatt-Loesungen-K7Q-M4X-8b-MaxMu-2026-10-27.pdf“ – Klasse und Kürzel, damit sich die Dateien unterscheiden (nie der Geburtstag)
 function teacherSolutionsName(s) {
@@ -7352,10 +7510,15 @@ function buildDetail(s, older) {
   } else if (noFb && noAiNote(p)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: noAiNote(p) }));
   }
+  if (!isFirst && !older) {   // finale KI-Rückmeldung: abgewählt bzw. gewählt, aber nicht nachgereicht (sonst steht sie je Aufgabe da)
+    const finalNote = p.finalWanted === false ? "Die finale KI-Rückmeldung wurde beim Abgeben abgewählt."
+      : !fb2Of(p) && p.finalWanted === true ? "Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt." : "";
+    if (finalNote) box.appendChild(h("p", { class: "moodle-hint dfinal", style: "margin:0 0 12px; text-align:left", text: finalNote }));
+  }
   const escBox = escDetailDom(s);   // nur bei Blättern für einen Escape-Room
   if (escBox) box.appendChild(escBox);
   const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback", L0 = "Abgegebene Fassung (ohne KI-Feedback)";
-  const fb2 = isFirst ? null : fb2Of(p);   // zweite KI-Rückmeldung (nur bei geänderten Aufgaben neu)
+  const fb2 = isFirst ? null : fb2Of(p);   // finale KI-Rückmeldung (ältere Abgaben: zweite, nur bei geänderten Aufgaben neu)
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
     const spec = tasks[i] ? cleanAnswer(tasks[i].answer) : { type: "text" }, ty = (tt && tt.per[i]) || { first: null, fin: null, line: null };
@@ -7380,10 +7543,10 @@ function buildDetail(s, older) {
       if (f.note) fbEl.appendChild(h("p", { class: "fb-note", text: f.note }));
       else if (!f.covered.length && !f.missing.length) fbEl.appendChild(h("p", { class: "fb-note", text: "Keine Rückmeldung." }));
     }
-    const f2 = fb2 && !fb2.same && !fb2.kept[i] && fb2.results[i] && hasAiPoints(fb2.results[i]) ? fb2.results[i] : null;
-    const fb2El = f2 ? markAi(h("div", { class: "dfb dfb2" }, [h("p", { class: "fb-head", text: "KI-Rückmeldung zur abgegebenen Fassung" }),
+    const f2 = fb2 && (fb2.final || (!fb2.same && !fb2.kept[i])) && fb2.results[i] && hasAiPoints(fb2.results[i]) ? fb2.results[i] : null;
+    const fb2El = f2 ? markAi(h("div", { class: "dfb dfb2" }, [h("p", { class: "fb-head", text: fb2.final ? "Finale KI-Rückmeldung" : "KI-Rückmeldung zur abgegebenen Fassung" }),
       f2.covered.length ? h("p", { class: "fb-ok", text: "Gelingt schon:" }) : null, f2.covered.length ? h("ul", { class: "fb-ok" }, f2.covered.map((x) => h("li", { text: x }))) : null,
-      f2.missing.length ? h("p", { class: "fb-miss", text: "Tipps zum Weiterlernen:" }) : null, f2.missing.length ? h("ul", { class: "fb-miss" }, f2.missing.map((x) => h("li", { text: x }))) : null]), "feedback-final", true) : null;
+      f2.missing.length ? h("p", { class: "fb-miss", text: fb2.final ? "Hat gefehlt:" : "Tipps zum Weiterlernen:" }) : null, f2.missing.length ? h("ul", { class: "fb-miss" }, f2.missing.map((x) => h("li", { text: x }))) : null]), "feedback-final", true) : null;
     const cmp = noFb ? h("table", { class: "cmp one" }, [   // zuerst die Zellen (sie melden info.cut), dann die Zeile zum Rot-Anteil
       h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L0 })])]),
       h("tbody", null, [h("tr", null, [cell(fin, L0, null, false, ty.fin)])])
@@ -7417,12 +7580,15 @@ function buildDetail(s, older) {
   del.addEventListener("click", () => deleteEntry(s, del));
   // Lösungs-PDF wie die der Schüler:innen – nur für Abgaben (ein Erstversuch hat noch keine abgegebene Fassung)
   const pdf = isFirst ? null : h("button", { type: "button", class: "btn small dpdf", text: "Lösungs-PDF herunterladen" });
-  if (pdf) pdf.addEventListener("click", () => {
-    const st = $("t-subs-status");
+  if (pdf) pdf.addEventListener("click", async () => {
+    const st = $("t-subs-status"), code = T.sel;
     try {
-      downloadBlob(new Blob([makeSolutionsPdf(teacherSolutionsSub(s))], { type: "application/pdf" }), teacherSolutionsName(s));
+      // ohne finale Rückmeldung wie bei den Schüler:innen die Checkliste des Blattes (nur dann geladen)
+      const checklist = fb2Of(p) ? false : await teacherChecklistLoad();
+      if (T.sel !== code) return;   // inzwischen ein anderes Blatt gewählt oder abgemeldet
+      downloadBlob(new Blob([makeSolutionsPdf(teacherSolutionsSub(s, checklist))], { type: "application/pdf" }), teacherSolutionsName(s));
       setStatus(st, "", "");
-    } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuchen Sie es erneut.", "bad"); }
+    } catch (e) { if (!handleAuthError(e)) setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuchen Sie es erneut.", "bad"); }
   });
   box.appendChild(h("div", { class: "ddel" }, [pdf, del]));
   return box;
@@ -8016,11 +8182,14 @@ $("t-del-sheet").addEventListener("click", async () => {
   finally { busy(btn, false); }
 });
 
-/* ---------- Analoges Arbeitsblatt: PDF zum Ausdrucken und Checkliste hinter dem QR-Code (Lehrkraft) ----------
- * Ansicht #tv-analog: lädt die Checkliste des Blattes (GET …/checklist). Gibt es weder Entwurf noch gespeicherte Checkliste, schlägt die
- * KI einmal vor (POST, als Entwurf beim Blatt gespeichert – Neuladen fragt nicht erneut). Die Lehrkraft prüft und ändert die Punkte
- * (eine Zeile = ein Punkt); „Speichern und PDF herunterladen“ speichert sie (PUT, ab jetzt über den QR-Code öffentlich) und baut das
- * PDF (makeAnalogPdf). Abbruchzähler T.analogRun wie T.importRun/T.exportRun: nach Verlassen oder Abmelden kommt nichts mehr an. */
+/* ---------- Checkliste (Lehrkraft): beim Anlegen bestätigt, für die Lösungs-PDF und das analoge Arbeitsblatt ----------
+ * Ein Editor (#ck-box) in drei Lagen (CK.mode): "create" – gleich nach „Code generieren“ im Ergebnis des Blatt-Editors (#b-ck-slot):
+ * die KI schlägt einmal vor (POST, als Entwurf beim Blatt gespeichert), die Lehrkraft prüft, ändert und bestätigt (PUT – ab jetzt
+ * öffentlich: Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung fehlt, und QR-Code des analogen Arbeitsblattes);
+ * "edit" – „Checkliste bearbeiten“ in den Blattdetails (#tv-analog, speichern ohne PDF); "analog" – „Analoges Arbeitsblatt“ ohne
+ * bestätigte Checkliste (ältere Blätter): speichern und PDF wie bisher. Mit bestätigter Checkliste lädt „Analoges Arbeitsblatt als PDF
+ * herunterladen“ das PDF direkt (openAnalog) – ohne noch einmal zu fragen. Der Editor wird zwischen den Ansichten verschoben (ckMount),
+ * es gibt ihn nur einmal. Abbruchzähler T.analogRun wie T.importRun/T.exportRun: nach Verlassen oder Abmelden kommt nichts mehr an. */
 const CHECK_POINTS = 8, CHECK_POINT_MAX = 160;   // = LIMITS.checkPoints / LIMITS.checkPoint im Worker
 const CK_LIMIT_HINT = `Höchstens ${CHECK_POINTS} Punkte, je höchstens ${CHECK_POINT_MAX} Zeichen.`;
 const CK_NO_BRIEF = "Ohne Auftrag an die KI – Punkte können Sie selbst eintragen.";
@@ -8029,8 +8198,11 @@ const CK_FAIL_TAIL = "Sie können die Punkte selbst eintragen oder es später er
 const CK_NO_AI_SHEET = "Zu keiner Aufgabe dieses Blattes gibt es einen Auftrag an die KI. Deshalb steht im PDF kein Satz zur KI-Rückmeldung (digital gibt es zu diesem Blatt keine), und die KI schlägt keine Checkliste vor – tragen Sie die Punkte selbst ein.";
 const checkUrlOf = (code) => PUBLIC_URL.replace(/#.*$/, "") + "#checkliste=" + normCode(code);   // Ziel des QR-Codes (Code ohne Bindestrich)
 const ckWants = (t) => !!String((t && t.solution) || "").trim() && cleanAnswer(t && t.answer).type !== "map";   // wie wantsFeedback im Worker
-let ckDirty = false, CK = null;   // CK: {code, sheet, run, ai, final, updatedAt, aiFeedback, aiReady, loaded, saving ("put"|"pdf"|""), leaving (offene Rückfrage)}
-const analogStillWanted = (run) => !!CK && run === T.analogRun && run === CK.run && !!T.authKey && !$("tv-analog").classList.contains("hidden") && $("screen-teacher").classList.contains("active");
+let ckDirty = false, CK = null;   // CK: {code, sheet, run, mode, view, ai, final, updatedAt, aiFeedback, aiReady, loaded, saving ("put"|"pdf"|""), leaving (offene Rückfrage)}
+const analogStillWanted = (run) => !!CK && run === T.analogRun && run === CK.run && !!T.authKey && !$(CK.view).classList.contains("hidden") &&
+  (CK.mode !== "create" || !$("b-result").classList.contains("hidden")) && $("screen-teacher").classList.contains("active");
+const CK_SAVE_LABEL = { create: "Checkliste bestätigen", edit: "Checkliste speichern", analog: "Speichern und PDF herunterladen" };
+const ckMount = (slot) => { const box = $("ck-box"); if (box.parentNode !== $(slot)) $(slot).appendChild(box); };
 const ckPath = (code) => "/api/teacher/sheets/" + encodeURIComponent(code) + "/checklist";
 function ckShort(text, max) {   // Aufgabenstellung einzeilig, am Wortende gekürzt
   const s = privLine(text);
@@ -8084,9 +8256,9 @@ function ckStateText(kind, list) {
   const fin = CK.final, when = fin && CK.updatedAt ? ` vom ${fmtDT(CK.updatedAt)} Uhr` : "";
   if (kind === "draft") return list && list.ai === false
     ? "Noch nicht gespeichert."   // ohne Auftrag an die KI (leerer Entwurf): den Grund nennt #ck-aiwarn
-    : "Vorschlag der KI – noch nicht gespeichert. Bitte prüfen und ändern Sie die Punkte; erst mit „Speichern und PDF herunterladen“ sind sie über den QR-Code sichtbar." +
+    : `Vorschlag der KI – noch nicht gespeichert. Bitte prüfen und ändern Sie die Punkte; erst mit „${CK_SAVE_LABEL[CK.mode]}“ gilt die Checkliste (Lösungs-PDF der Schüler:innen, QR-Code).` +
       (fin ? " Bis dahin gilt die gespeicherte Checkliste." : "");
-  if (kind === "final") return `Gespeicherte Checkliste${when} – über den QR-Code sichtbar.`;
+  if (kind === "final") return `Gespeicherte Checkliste${when} – sie steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung fehlt, und ist über den QR-Code sichtbar.`;
   return "";
 }
 function ckShowOpen() {
@@ -8135,13 +8307,17 @@ async function ckSuggest(run, force) {
     }
   }
 }
-async function openAnalog() {
-  if (!T.selSheet || !T.sel || cleanEscapeSpec(T.selSheet.escape)) return;   // Escape-Room-Finale: kein analoges Arbeitsblatt
-  const code = T.sel, sheet = T.selSheet;
-  teacherView("tv-analog");
+// Editor öffnen: mode "create" (im Ergebnis des Blatt-Editors, sheet = die eben gesendeten Aufgaben), "edit" bzw. "analog" (#tv-analog)
+async function ckEditorOpen(code, sheet, mode) {
+  const view = mode === "create" ? "tv-builder" : "tv-analog";
+  if (mode !== "create") teacherView("tv-analog");
+  ckMount(mode === "create" ? "b-ck-slot" : "ck-home");
   const run = T.analogRun = (T.analogRun || 0) + 1, st = $("ck-status");
-  CK = { code, sheet, run, ai: false, final: null, updatedAt: null, aiFeedback: (sheet.tasks || []).some(ckWants), aiReady: true, loaded: false };
+  CK = { code, sheet, run, mode, view, ai: false, final: null, updatedAt: null, aiFeedback: (sheet.tasks || []).some(ckWants), aiReady: true, loaded: false };
   ckDirty = false;
+  $("ck-h1").textContent = mode === "analog" ? "Analoges Arbeitsblatt" : "Checkliste";
+  $("ck-intro1").classList.toggle("hidden", mode !== "analog");
+  $("ck-save").textContent = CK_SAVE_LABEL[mode];
   $("ck-sheet").textContent = `${sheet.title || "Feibeitsblatt"} · Code ${fmtCode(code)}`;
   $("ck-list").textContent = ""; $("ck-state").textContent = ""; $("ck-aiwarn").classList.add("hidden");
   $("ck-open").classList.add("hidden"); $("ck-regen").classList.toggle("hidden", !CK.aiFeedback);
@@ -8169,11 +8345,11 @@ async function openAnalog() {
       $("ck-state").textContent = list ? ckStateText(c.draft ? "draft" : "final", c.draft) : "Noch nicht gespeichert.";
       setStatus(st, "", "");
       CK.loaded = true; ckLock(false); ckShowOpen();
-      focusSoon("ck-1", 30);
+      if (mode !== "create") focusSoon("ck-1", 30);   // beim Anlegen bleibt der Fokus beim Code („Kopieren“)
       return;
     }
     await ckSuggest(run, false);   // noch nichts da: die KI schlägt einmal vor
-    if (analogStillWanted(run)) focusSoon("ck-1", 30);
+    if (analogStillWanted(run) && mode !== "create") focusSoon("ck-1", 30);
   } catch (e) {
     if (handleAuthError(e) || !analogStillWanted(run)) return;
     setStatus(st, "Die Checkliste konnte nicht geladen werden: " + errMsg(e, "t"), "bad");
@@ -8181,12 +8357,38 @@ async function openAnalog() {
     $("ck-regen").disabled = true;   // ohne den gespeicherten Stand nicht überschreiben: erst zurück und neu öffnen
   }
 }
+/* „Analoges Arbeitsblatt als PDF herunterladen“: mit bestätigter Checkliste gleich das PDF (nicht noch einmal fragen – Status in
+   #t-export-status), sonst der Editor (prüfen, speichern, PDF). Verlassen der Übersicht, Wechsel des Blattes oder Abmelden: nichts mehr. */
+async function openAnalog() {
+  if (!T.selSheet || !T.sel || cleanEscapeSpec(T.selSheet.escape)) return;   // Escape-Room-Finale: kein analoges Arbeitsblatt
+  const code = T.sel, sheet = T.selSheet, st = $("t-export-status"), btn = $("t-analog");
+  const run = T.analogDirect = (T.analogDirect || 0) + 1;
+  const stale = () => run !== T.analogDirect || T.sel !== code || !T.authKey || $("tv-overview").classList.contains("hidden");
+  busy(btn, true, "PDF wird erstellt …");
+  setStatus(st, "Das analoge Arbeitsblatt wird erstellt …", "busy");
+  try {
+    const r = await TA(ckPath(code));
+    if (stale()) return;
+    const fin = r.checklist && r.checklist.final;
+    if (!fin) { setStatus(st, "", ""); busy(btn, false); ckEditorOpen(code, sheet, "analog"); return; }   // noch keine bestätigte Checkliste
+    const shows = await analogImages(code, sheet, (msg) => { if (stale()) throw new Error("verlassen"); setStatus(st, msg, "busy"); });
+    const hasPoints = (fin.tasks || []).some((t) => t && Array.isArray(t.points) && t.points.length);
+    const pdf = await makeAnalogPdf({ code, title: sheet.title || "", tasks: sheet.tasks || [], shows, aiNote: r.aiFeedback !== false && r.aiReady !== false, checkUrl: hasPoints ? checkUrlOf(code) : "" });
+    if (stale()) return;
+    downloadBlob(new Blob([pdf], { type: "application/pdf" }), analogPdfName(code, sheet.title));
+    setStatus(st, `Das analoge Arbeitsblatt (${fmtKB(pdf.length)}) wird heruntergeladen – mit der Checkliste, die Sie bestätigt haben.` + (hasPoints ? "" : " Ohne Checklistenpunkte enthält es keinen QR-Code zur Checkliste."), "ok");
+  } catch (e) {
+    if (handleAuthError(e) || stale()) return;
+    setStatus(st, "Das analoge Arbeitsblatt konnte nicht erstellt werden" + (e instanceof ApiError ? ": " + errMsg(e, "t") : e && e.message ? " (" + e.message + ")." : ".") + " Bitte versuchen Sie es erneut.", "bad");
+  } finally { if (run === T.analogDirect) busy(btn, false); }
+}
 $("t-analog").addEventListener("click", openAnalog);
+$("t-ck-edit").addEventListener("click", () => { if (T.sel && T.selSheet) ckEditorOpen(T.sel, T.selSheet, "edit"); });
 // Rückfrage vor „zurück zur Übersicht“ (#ck-back; abmelden lässt sich nur aus der Übersicht) – oder null. Läuft gerade das Speichern
 // (CK.saving "put"), geht es beim Server weiter (die Änderungen werden gespeichert und über den QR-Code sichtbar), nur das PDF kommt nicht
 // mehr; ebenso, während das PDF entsteht ("pdf"). Sonst nur bei ungespeicherten Änderungen. kind: "busy" bzw. "dirty"
 function ckLeaveQuestion() {
-  if (!CK || $("tv-analog").classList.contains("hidden")) return null;
+  if (!CK || $(CK.view).classList.contains("hidden")) return null;
   const busyQ = (text) => ({ kind: "busy", title: "Zurück zur Übersicht?", text, ok: "Zurück zur Übersicht", cancel: "Hier bleiben", safeFirst: true });
   if (CK.saving === "put") return busyQ("Die Checkliste wird gerade gespeichert. Das Speichern läuft weiter, auch wenn Sie jetzt zurückgehen – das PDF wird dann aber nicht heruntergeladen.");
   if (CK.saving === "pdf") return busyQ("Die Checkliste ist gespeichert; das PDF wird gerade erstellt. Wenn Sie jetzt zurückgehen, wird es nicht heruntergeladen.");
@@ -8252,8 +8454,8 @@ async function ckSave() {
     setStatus(st, parsed.err.msg, "bad");
     return;
   }
-  const any = parsed.tasks.some((t) => t.points.length);
-  if (!any && !(await askConfirm({ title: "Ohne Checkliste herunterladen?", text: "Ohne Checklistenpunkte enthält das PDF keinen QR-Code zur Checkliste. Trotzdem herunterladen?", ok: "Trotzdem herunterladen", cancel: "Abbrechen" }))) return;
+  const any = parsed.tasks.some((t) => t.points.length), pdfToo = CK.mode === "analog";
+  if (!any && pdfToo && !(await askConfirm({ title: "Ohne Checkliste herunterladen?", text: "Ohne Checklistenpunkte enthält das PDF keinen QR-Code zur Checkliste. Trotzdem herunterladen?", ok: "Trotzdem herunterladen", cancel: "Abbrechen" }))) return;
   if (!analogStillWanted(run)) return;
   setStatus(st, "Die Checkliste wird gespeichert …", "busy");
   let r;
@@ -8268,7 +8470,7 @@ async function ckSave() {
     setStatus(st, "Nicht gespeichert – " + errMsg(e, "t"), "bad");
     return;
   }
-  ck.saving = "pdf";
+  ck.saving = pdfToo ? "pdf" : "";
   if (!analogStillWanted(run)) return;
   CK.final = r.final || { v: 1, ai: CK.ai && any, tasks: parsed.tasks }; CK.updatedAt = r.updatedAt || Date.now();
   ckDirty = false;
@@ -8276,6 +8478,10 @@ async function ckSave() {
   ckFields(true);             // auch, während das PDF entsteht (frei erst im finally des Klicks) – sonst ginge Getipptes beim Zurückgehen ohne Rückfrage verloren
   $("ck-state").textContent = ckStateText("final");
   ckShowOpen();
+  if (!pdfToo) {   // beim Anlegen bzw. „Checkliste bearbeiten“: nur speichern
+    setStatus(st, CK.mode === "create" ? (any ? "Checkliste bestätigt." : "Gespeichert – ohne Checklistenpunkte.") : "Die Checkliste ist gespeichert.", "ok");
+    return;
+  }
   setStatus(st, "Gespeichert. Das PDF wird erstellt …", "busy");
   try {
     const shows = await analogImages(code, sheet, (msg) => { if (!analogStillWanted(run)) throw new Error("verlassen"); setStatus(st, "Gespeichert. " + msg, "busy"); });
@@ -8758,7 +8964,7 @@ async function makeAnalogPdf(o) {
 // escape: {id, name} – Feibeitsblatt für einen Escape-Room (aus „Als Vorlage“ oder einer Sicherung), sonst ein normales Blatt
 function openBuilder(title, rows, escape) {
   teacherView("tv-builder");
-  $("b-form").classList.remove("hidden"); $("b-result").classList.add("hidden");
+  $("b-form").classList.remove("hidden"); $("b-result").classList.add("hidden"); $("b-ck").classList.add("hidden");
   $("b-err").textContent = ""; $("b-import").classList.add("hidden"); $("b-import").textContent = ""; $("b-import")._esc = null; $("b-import")._base = "";
   setStatus($("t-import-status"), "", "");   // eine alte Meldung zu einer abgelehnten Datei gilt nicht mehr
   const d = new Date(); $("b-today").textContent = fmtD(d);
@@ -9296,6 +9502,9 @@ $("b-gen").addEventListener("click", async () => {
     if (vidLost) liveFill(vidNote, vidNote, "Die Videos wurden vom Server nicht gespeichert – bitte die Seite neu laden.", () => !$("b-result").classList.contains("hidden"));
     else { vidNote.textContent = ""; vidNote.classList.add("hidden"); }
     T.sel = r.code;
+    // Checkliste gleich beim Anlegen: die KI schlägt vor, die Lehrkraft bestätigt (parallel zu den Uploads; nur die eben gesendeten Texte)
+    $("b-ck").classList.remove("hidden");
+    ckEditorOpen(r.code, { title: $("b-res-title").textContent, tasks: tasks.map((t) => ({ text: t.text, solution: t.solution, answer: t.answer })) }, "create");
     T.pendingUploads = uploads.map((u) => Object.assign({ code: r.code }, u)); T.doneUploads = 0;
     T.uploadKinds = { images: uploads.filter((u) => u.kind === "image").length, files: uploads.filter((u) => u.kind === "file").length };
     window.scrollTo(0, 0);
@@ -9370,6 +9579,9 @@ async function runUploads() {
 $("b-res-retry").addEventListener("click", async () => { const b = $("b-res-retry"); busy(b, true, "Wird hochgeladen …"); try { await runUploads(); } finally { busy(b, false); } });
 $("b-res-copy").addEventListener("click", () => copyText($("b-res-code").textContent, $("b-res-copy")));
 $("b-res-back").addEventListener("click", async () => {
+  // geänderte, aber nicht bestätigte Checkliste: erst fragen (sonst gingen die Änderungen verloren)
+  if (CK && CK.mode === "create" && ckDirty && !(await askConfirm({ title: "Checkliste nicht bestätigt", text: "Ihre Änderungen an der Checkliste gehen verloren, wenn Sie jetzt zur Übersicht gehen. Sie können die Checkliste später unter „Checkliste bearbeiten“ ändern.", ok: "Zur Übersicht", cancel: "Hier bleiben", safeFirst: true }))) return;
+  ckDirty = false;
   teacherView("tv-overview");
   await loadSheets(true);
   if (T.sel && T.sheets.some((s) => s.code === T.sel)) selectSheet(T.sel);
