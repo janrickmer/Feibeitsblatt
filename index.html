@@ -3890,7 +3890,7 @@ function renderPrivacy() {
     (withAi
       ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
         `Deine Abgabe nach der Überarbeitung ersetzt ihn. Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund). ` +
-        `Die finale KI-Rückmeldung kommt – wenn sie in den ersten ${FB2_MIN} Minuten nach der Abgabe da ist – verschlüsselt zu deiner Abgabe dazu. ` +
+        (r.any ? `Die finale KI-Rückmeldung kommt – wenn sie in den ersten ${FB2_MIN} Minuten nach der Abgabe da ist – verschlüsselt zu deiner Abgabe dazu. ` : "") +
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
       : `Deine Abgabe wird zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
