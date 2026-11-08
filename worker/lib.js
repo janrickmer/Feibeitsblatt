@@ -157,11 +157,12 @@ export function validateEnvelope(env) {
 /* Erstversuch oder Abgabe: stage "first" = erste Fassung samt KI-Feedback (noch nicht abgegeben), "final" = Abgabe.
    attempt = vom Browser erzeugte Kennung je Bearbeitung; die Abgabe ersetzt damit den Erstversuch derselben Bearbeitung. */
 export const ATTEMPT_RE = /^[0-9a-f]{16}$/;
-export const REPLACE_WINDOW_MS = 15 * 60e3;   // finale KI-Rückmeldung anfordern und nachreichen: nur so lange nach dem Eingang der Abgabe
+export const REPLACE_WINDOW_MS = 15 * 60e3;   // finale KI-Rückmeldung anfordern: nur so lange nach dem Eingang der Abgabe
 export function validateSubmitMeta(body) {
   let stage = body.stage == null ? "final" : body.stage;
-  // „feedback2“: die schon angekommene Abgabe derselben Bearbeitung um die zweite KI-Rückmeldung ergänzen (ersetzen, nie neu
-  // anlegen) – ein eigener Wert, damit ein älterer Server ihn ablehnt statt eine Abgabe daraus zu machen
+  // „feedback2“: früher reichte der Browser damit die finale KI-Rückmeldung nach (er ersetzte die eigene Abgabe). Seit dem 08.11.2026
+  // speichert der Server sie selbst (verschlüsselt, final_env) und ersetzt nie mehr eine Abgabe nachträglich – ältere, noch gecachte
+  // Seiten schicken den Wert weiter; geprüft wird er wie bisher, routeSubmit antwortet nur noch kept/gone
   const replace = stage === "feedback2";
   if (replace) stage = "final";
   if (stage !== "first" && stage !== "final") throw new InputError("Unbekannte Art der Abgabe.", "bad_request");
@@ -176,6 +177,38 @@ export function validateSubmitMeta(body) {
   const receivedAt = body.receivedAt;
   if (!attempt || !Number.isSafeInteger(receivedAt) || receivedAt <= 0) throw new InputError("Ergänzen geht nur für die eigene Abgabe.", "bad_request");
   return { stage, attempt, replace, receivedAt };
+}
+
+/* Finale KI-Rückmeldung für die Lehrkraft verschlüsseln – genau wie der Browser eine Abgabe (Crypto.seal in index.html): zufälliger
+   AES-GCM-256-Schlüssel, 12 Byte IV, AES-GCM über UTF-8-JSON, der Schlüssel mit RSA-OAEP/SHA-256 unter dem öffentlichen Schlüssel der
+   Lehrkraft (SPKI, Standard-Base64) eingepackt → Umschlag {v:1, ek, iv, ct} als JSON-Text (validateEnvelope: nur bekannte Felder,
+   höchstens LIMITS.envelopeBytes). Nur Verschlüsseln mit dem öffentlichen Schlüssel und AES – keine Schlüsselerzeugung für RSA, kein
+   PBKDF2 (10 ms CPU). Wirft bei einem unbrauchbaren Schlüssel oder einem zu großen Umschlag. */
+export async function sealForTeacher(publicKeyB64, payload) {
+  const pub = await importPublicKey(publicKeyB64);
+  const raw = crypto.getRandomValues(new Uint8Array(32)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt"]);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, TE.encode(JSON.stringify(payload)));
+  const ek = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pub, raw);
+  return validateEnvelope({ v: 1, ek: bytesToB64(new Uint8Array(ek)), iv: bytesToB64(iv), ct: bytesToB64(new Uint8Array(ct)) });
+}
+
+/* Wartezeit auf die finale KI-Rückmeldung (settings `final` = {v:1, waitSec}): So lange ist der Download auf der Bestätigungsseite
+   höchstens gesperrt, danach gibt es die Lösungs-PDF mit der Checkliste (im Hintergrund wartet die Seite weiter). Die Lehrkraft wählt
+   30, 60 oder 90 Sekunden (Vorgabe 30). */
+export const FINAL_WAIT_OPTIONS = [30, 60, 90];
+export const FINAL_WAIT_DEFAULT = 30;
+export function validateFinalWait(body) {
+  const w = isObj(body) ? body.waitSec : undefined;
+  if (!FINAL_WAIT_OPTIONS.includes(w)) throw new InputError("Bitte wählen Sie eine Wartezeit von 30, 60 oder 90 Sekunden.", "bad_request");
+  return w;
+}
+// Gespeicherte Wartezeit erneut prüfen (Objekt oder JSON-Text; fehlt oder ungültig → Vorgabe)
+export function finalWaitOut(raw) {
+  let v = raw;
+  if (typeof v === "string") { try { v = JSON.parse(v); } catch { v = null; } }
+  const w = isObj(v) ? v.waitSec : undefined;
+  return FINAL_WAIT_OPTIONS.includes(w) ? w : FINAL_WAIT_DEFAULT;
 }
 
 /* Finale KI-Rückmeldung nach der Abgabe (POST /api/feedback mit final:true): nur zur eigenen Abgabe – Kennung der Bearbeitung und
@@ -776,7 +809,7 @@ export const RATE = {
   feedback_chars: { max: 800000, windowMs: 3600e3 },   // … gewichtet nach Zeichen der Antworten
   sheet_feedback: { max: 600, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (begrenzt Missbrauch je Blatt; das kontoweite
                                                        // Tageskontingent von Workers AI ist kleiner und bleibt aufbrauchbar – dafür gibt es die Reserve)
-  submit: { max: 360, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu drei Aufrufe: Erstversuch, Abgabe, zweite Rückmeldung)
+  submit: { max: 360, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu zwei Aufrufe: Erstversuch, Abgabe; „feedback2“ älterer Seiten zählt nicht)
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
   checklist: { max: 60, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste je IP (Lehrkraft; jedes neue Blatt fragt einmal)
 };
