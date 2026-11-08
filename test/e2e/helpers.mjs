@@ -121,16 +121,31 @@ export async function closePage(p) {
   await p.context.close();
 }
 
-/* Eigener Bestätigungsdialog der Seite (#dlg) */
-export async function confirmDialog(page, title, accept = true) {
+/* Eigener Bestätigungsdialog der Seite (#dlg). opts.check: Kästchen unter dem Text (Abgabe-Dialog: „Nach der Abgabe eine finale
+   KI-Rückmeldung erhalten“, vorausgewählt) – true/false setzt es vor dem Klick (es muss sichtbar sein), "none" verlangt, dass es fehlt;
+   ohne opts.check bleibt es, wie die Seite es setzt. opts.state = {} bekommt {visible, checked, label} des Kästchens beim Öffnen. */
+export async function confirmDialog(page, title, accept = true, opts = {}) {
   const dlg = page.locator("#dlg.open");
   await expect(dlg).toBeVisible();
   await expect(page.locator("#dlg-title")).toHaveText(title);
   const text = await page.locator("#dlg-text").textContent();
+  if (opts.state) Object.assign(opts.state, await dialogCheck(page));
+  if (opts.check === "none") await expect(page.locator("#dlg-check-row")).toBeHidden();
+  else if (opts.check !== undefined) {
+    await expect(page.locator("#dlg-check-row")).toBeVisible();
+    await expect(page.locator("#dlg-check-label")).toHaveText(FINAL_CHECK_LABEL);
+    await page.locator("#dlg-check").setChecked(!!opts.check);
+  }
   await page.click(accept ? "#dlg-ok" : "#dlg-cancel");
   await expect(dlg).toBeHidden();
   return text;
 }
+export const FINAL_CHECK_LABEL = "Nach der Abgabe eine finale KI-Rückmeldung erhalten";
+// Kästchen im offenen Dialog: {visible, checked, label}
+export const dialogCheck = (page) => page.evaluate(() => {
+  const row = document.getElementById("dlg-check-row");
+  return { visible: !!row && !row.classList.contains("hidden"), checked: document.getElementById("dlg-check").checked, label: document.getElementById("dlg-check-label").textContent };
+});
 
 /* Lehrkraft: Türcode + Passwort → Übersicht */
 export async function teacherLogin(page, password) {
@@ -159,6 +174,9 @@ export const gapAfterTask = (page, n) => page.evaluate((n) => {
 export const mockState = async () => (await fetch(MOCK_URL + "/__mock/state")).json();
 export const mockReset = async () => (await fetch(MOCK_URL + "/__mock/reset", { method: "POST" })).json();
 export const mockMode = async (mode) => (await fetch(MOCK_URL + "/__mock/mode", { method: "POST", body: JSON.stringify({ mode, delayMs: 0 }) })).json();
+// Anfragen der Mock-KI nach Art (System-Prompt): "feedback" | "final" | "checklist" | "test"
+export const mockRequests = async (kind) => (await mockState()).requests.filter((r) => !kind || r.kind === kind);
+export const mockCount = async (kind) => (await mockRequests(kind)).length;
 
 /* ---------- Lokale D1 ---------- */
 const run = promisify(execFile);

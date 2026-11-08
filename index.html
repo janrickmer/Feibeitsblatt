@@ -2382,8 +2382,10 @@ function setStatus(node, text, kind) {
 /* Fokus kurz nach einem Bildschirmwechsel setzen – aber nur, wenn die Person nicht schon selbst ein Feld gewählt hat */
 function focusSoon(id, ms = 30) {
   setTimeout(() => {
-    const el = $(id), a = document.activeElement;
-    if (el && (!a || a === document.body)) { try { el.focus(); } catch (e) { /* egal */ } }
+    // hat noch ein Element den Fokus, das mit dem vorigen Bildschirm verborgen wurde (z. B. das Code-Feld nach Enter – der Browser gibt
+    // den Fokus erst beim nächsten Zeichnen frei), gilt das wie „kein Fokus“
+    const el = $(id), a = document.activeElement, gone = !!a && a !== document.body && (!a.isConnected || !a.getClientRects().length);
+    if (el && (!a || a === document.body || gone)) { try { el.focus(); } catch (e) { /* egal */ } }
   }, ms);
 }
 function busy(btn, on, text) {
@@ -2761,7 +2763,8 @@ function linkDialog(ed) {
   $("ld-remove").classList.toggle("hidden", !anchor);
   $("ld-ok").textContent = anchor ? "Übernehmen" : "Einfügen";
   $("linkdlg").classList.add("open");
-  setTimeout(() => ($("ld-text").value && !$("ld-url").value ? $("ld-url") : $("ld-text")).focus(), 20);
+  // erstes Feld fokussieren – außer, es wurde schon ein Feld des Dialogs gewählt (sonst landete dort Getipptes im falschen Feld)
+  setTimeout(() => { if (!$("linkdlg").contains(document.activeElement)) ($("ld-text").value && !$("ld-url").value ? $("ld-url") : $("ld-text")).focus(); }, 20);
 }
 function closeLinkDlg() {
   $("linkdlg").classList.remove("open");
@@ -2822,7 +2825,7 @@ function askVideo(others) {
     $("yd-url").value = ""; $("yd-title").value = ""; $("yd-err").textContent = ""; $("yd-found").textContent = "";
     $("yd-url").classList.remove("invalid");
     $("ytdlg").classList.add("open");
-    setTimeout(() => { if (ydResolve === resolve) $("yd-url").focus(); }, 20);
+    setTimeout(() => { if (ydResolve === resolve && !$("ytdlg").contains(document.activeElement)) $("yd-url").focus(); }, 20);
   });
 }
 function closeVideoDlg(val) {
@@ -6572,7 +6575,11 @@ function fb2Reach(sub) {
    verschwindet, der Text sagt es. Aufgerufen, wenn der Knopf erscheint oder verschwindet und aus fb2Check. */
 function fb2RetryNote() {
   const sub = S.lastSubmission, retry = $("done-fb-retry"), note = $("done-fb-retry-note");
-  if (sub && !retry.classList.contains("hidden") && fb2Expired(sub)) { retry.classList.add("hidden"); sub.fb2RetryLate = true; }
+  if (sub && !retry.classList.contains("hidden") && fb2Expired(sub)) {
+    retry.classList.add("hidden"); sub.fb2RetryLate = true;
+    // die Meldung darüber bot noch einen neuen Versuch an – ohne diesen Satz (der Hinweis unter dem Knopf sagt, warum)
+    if (sub.fb2FailText) fb2StatusWithChecklist(sub, $("done-fb-status"), sub.fb2FailText + ".", "bad");
+  }
   const text = sub && (!retry.classList.contains("hidden") || sub.fb2RetryLate) ? fb2RetryText(fb2Reach(sub)) : "";
   if (!text) { if (!note.classList.contains("hidden") || note.textContent) { note.classList.add("hidden"); note.textContent = ""; } return; }
   if (note.classList.contains("hidden") || note.textContent !== text) liveFill(note, note, text, () => S.lastSubmission === sub && (!retry.classList.contains("hidden") || !!sub.fb2RetryLate));
@@ -6671,7 +6678,16 @@ function finalFeedbackGone(sub) {
   doneGateOpen(sub, "failed");
 }
 // Satz zur PDF-Datei, wenn die finale Rückmeldung nicht kommt (Checkliste der Lehrkraft, falls hinterlegt)
-const fb2PdfInstead = (sub) => (sub.checklist === false ? "" : " In deiner PDF-Datei steht dafür die Checkliste deiner Lehrkraft.");
+// Nur, wenn die Checkliste schon geladen ist (lädt sie noch, ergänzt fb2StatusWithChecklist den Satz, sobald sie da ist)
+const fb2PdfInstead = (sub) => (sub.checklist && Array.isArray(sub.checklist.points) ? " In deiner PDF-Datei steht dafür die Checkliste deiner Lehrkraft." : "");
+// Statuszeile zur fehlenden finalen Rückmeldung; lädt die Checkliste noch, wird der Satz zur PDF-Datei nachgetragen, solange dieselbe Meldung steht
+function fb2StatusWithChecklist(sub, el, text, cls) {
+  setStatus(el, text + fb2PdfInstead(sub), cls);
+  if (sub.checklist !== undefined || !sub.checklistP) return;
+  sub.checklistP.then(() => {
+    if (S.lastSubmission === sub && el.textContent === text && fb2PdfInstead(sub)) setStatus(el, text + fb2PdfInstead(sub), cls);
+  });
+}
 function finalFeedbackFailed(e) {
   const sub = S.lastSubmission;
   if (!sub) return;
@@ -6692,7 +6708,8 @@ function finalFeedbackFailed(e) {
     : errMsg(e, "s");
   const canRetry = transient && (sub.fb2Manual || 0) < FB2_MANUAL && !fb2Expired(sub);
   $("done-fb").classList.remove("hidden");
-  setStatus($("done-fb-status"), msg + " Deine Abgabe ist davon nicht betroffen" + (canRetry ? " – du kannst die Rückmeldung noch einmal anfordern." : ".") + fb2PdfInstead(sub), "bad");
+  sub.fb2FailText = msg + " Deine Abgabe ist davon nicht betroffen";
+  fb2StatusWithChecklist(sub, $("done-fb-status"), sub.fb2FailText + (canRetry ? " – du kannst die Rückmeldung noch einmal anfordern." : "."), "bad");
   $("done-fb-retry").classList.toggle("hidden", !canRetry);
   fb2RetryNote();
   if (!canRetry) finalFeedbackGone(sub);
@@ -6707,13 +6724,16 @@ async function requestFinalFeedback() {
   if (!sub.recipients.length) {   // wie im Abgabe-Dialog angekündigt: ohne Empfänger nichts senden (auch nicht an den Server)
     sub.fb2State = "failed";
     $("done-fb").classList.remove("hidden");
-    setStatus(st, FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen." + fb2PdfInstead(sub), "");
+    fb2StatusWithChecklist(sub, st, FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen.", "");
     finalFeedbackGone(sub);
     return;
   }
   const run = ++S.fbRun, t0 = Date.now();
   sub.fb2State = "loading";
-  if (sub.gateOpen) doneWaitShow(sub, doneWaitLate(sub));   // erneut angefordert: der Download wartet nicht mehr
+  if (sub.gateOpen) {   // erneut angefordert: der Download wartet nicht mehr; die Meldung zum gescheiterten Versuch gilt nicht mehr
+    setStatus(st, "", ""); $("done-fb").classList.add("hidden");
+    doneWaitShow(sub, doneWaitLate(sub));
+  }
   for (let tries = 1; ; tries++) {
     if (run !== S.fbRun) return;
     S.fbAbort = new AbortController();
@@ -8394,7 +8414,8 @@ $("t-ck-edit").addEventListener("click", () => { if (T.sel && T.selSheet) ckEdit
 function ckLeaveQuestion() {
   if (!CK || $(CK.view).classList.contains("hidden")) return null;
   const busyQ = (text) => ({ kind: "busy", title: "Zurück zur Übersicht?", text, ok: "Zurück zur Übersicht", cancel: "Hier bleiben", safeFirst: true });
-  if (CK.saving === "put") return busyQ("Die Checkliste wird gerade gespeichert. Das Speichern läuft weiter, auch wenn Sie jetzt zurückgehen – das PDF wird dann aber nicht heruntergeladen.");
+  if (CK.saving === "put") return busyQ("Die Checkliste wird gerade gespeichert. Das Speichern läuft weiter, auch wenn Sie jetzt zurückgehen" +
+    (CK.mode === "analog" ? " – das PDF wird dann aber nicht heruntergeladen." : "."));   // „Checkliste bearbeiten“ lädt kein PDF
   if (CK.saving === "pdf") return busyQ("Die Checkliste ist gespeichert; das PDF wird gerade erstellt. Wenn Sie jetzt zurückgehen, wird es nicht heruntergeladen.");
   if (!ckDirty) return null;
   return { kind: "dirty", title: "Ohne Speichern zurück?", text: "Ihre Änderungen an der Checkliste gehen verloren.", ok: "Verwerfen", cancel: "Weiter bearbeiten", safeFirst: true };
@@ -10379,7 +10400,9 @@ else {
   showResume();
   const c = checkHashCode(); if (c !== null) openChecklist(c); else if (legalHash()) openLegal();   // Adresse aus dem QR-Code des analogen Arbeitsblattes bzw. Link „Impressum & Datenschutz“
 }
-setTimeout(() => { if (screen === "screen-start") $("code-input").focus(); }, 50);
+// nur, solange noch nichts den Fokus hat – sonst nähme er ihn z. B. „Erneut versuchen“ nach einer schnell gescheiterten Ankunft aus einem
+// Escape-Room wieder weg
+setTimeout(() => { const a = document.activeElement; if (screen === "screen-start" && (!a || a === document.body)) $("code-input").focus(); }, 50);
 
 /* ---------- QR-Code (Link zur Checkliste auf dem analogen Arbeitsblatt; nur zur Laufzeit gebraucht) ----------
  * Eigene Umsetzung nach ISO/IEC 18004, nur was gebraucht wird: Byte-Modus (UTF-8, ohne ECI-Kennung – die Adresse ist reines
