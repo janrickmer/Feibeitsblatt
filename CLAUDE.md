@@ -303,8 +303,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   selbst; bei Escape-Blättern nur die
   Lösungsseiten – `teacherSolutionsSub` setzt kein `escape`, den Überblick gibt es über „Überblick als PDF herunterladen“ –, nie
   Tippzeiten, nie ein voller Name), daneben in den Details weiter `p.dtt`/`p.dtt-sum` und `escDetailDom`, Dateiname `teacherSolutionsName`
-  `Feibeitsblatt-Loesungen-<Code>-<Klasse>-<Kürzel bzw. Gruppe-…>-<Abgabedatum>.pdf` (ASCII, nie Geburtstag). `.dmeta` sagt weiter „ohne
-  KI-Feedback“ (gemeint: zum Überarbeiten). Datenschutzhinweis, Feedback-Dialog und `#submit-hint` nennen die finale Rückmeldung (auch ohne
+  `Feibeitsblatt-Loesungen-<Code>-<Klasse>-<Kürzel bzw. Gruppe-…>-<Abgabedatum>.pdf` (ASCII, nie Geburtstag). `.dmeta` sagt „ohne
+  KI-Feedback zum Überarbeiten“ (Blatt ohne Auftrag an die KI: „ohne KI-Feedback“). Datenschutzhinweis, Feedback-Dialog und `#submit-hint` nennen die finale Rückmeldung (auch ohne
   vorheriges KI-Feedback, beim Abgeben abwählbar) und dass die Lehrkraft sie bekommt. Je Schüler:in also bis zu zwei KI-Anfragen (KI-Feedback +
   finale; ohne erstes Feedback eine) → Rate-Limits verdoppelt (der Vorschlag der Checkliste, einer je neuem Blatt, zählt unter `checklist`); bis zu drei Aufrufe von
   `/api/submit` (Erstversuch, Abgabe, Nachreichen; ohne erstes Feedback zwei) → `submit` 360/h.
