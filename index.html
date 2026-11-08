@@ -1276,7 +1276,7 @@
               <label for="b-esc-id">Kennung des Escape-Rooms</label>
               <input type="text" id="b-esc-id" maxlength="60" placeholder="z. B. powi-jg10-fastfashion" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="b-esc-hint">
             </div>
-            <p class="fhint" id="b-esc-hint">Kennung genau wie im Quelltext des Escape-Rooms (ESCAPE_ROOM.id): 3 bis 60 Zeichen, nur a–z, 0–9 und Bindestrich. Schüler:innen öffnen dieses Feibeitsblatt dann nur über den Escape-Room – über den Link am Ende oder mit ihrer Überblick-PDF; die Eingabe des Codes auf der Startseite ist gesperrt, es gibt nur Einzelarbeit und kein analoges Arbeitsblatt. Den Code tragen Sie nach dem Anlegen im Quelltext des Escape-Rooms ein (FEIBEITSBLATT_CODE). Liegt der Quelltext öffentlich (z. B. GitHub Pages), kann jede:r mit dem Code das Feibeitsblatt öffnen und abgeben – schreiben Sie in die Aufgaben und Aufträge an die KI nichts Vertrauliches.</p>
+            <p class="fhint" id="b-esc-hint">Kennung genau wie im Quelltext des Escape-Rooms (ESCAPE_ROOM.id): 3 bis 60 Zeichen, nur a–z, 0–9 und Bindestrich. Schüler:innen öffnen dieses Feibeitsblatt dann nur über den Escape-Room – über den Link am Ende oder mit ihrer Überblick-PDF; die Eingabe des Codes auf der Startseite ist gesperrt, es gibt nur Einzelarbeit und kein analoges Arbeitsblatt. Den Code tragen Sie nach dem Anlegen im Quelltext des Escape-Rooms ein (FEIBEITSBLATT_CODE). Liegt der Quelltext öffentlich (z. B. GitHub Pages), kann jede:r mit dem Code das Feibeitsblatt öffnen und abgeben – schreiben Sie in die Aufgaben und Aufträge an die KI nichts Vertrauliches. Die finale KI-Rückmeldung nach einer (auch erfundenen) Abgabe nennt konkret, was gefehlt hat, und die bestätigte Checkliste ist mit dem Code abrufbar – beides verrät, worauf Ihre Aufträge an die KI hinauslaufen.</p>
           </div>
         </fieldset>
         <p class="note" id="b-soltip" style="margin:0 0 14px"><b>Auftrag an die KI:</b> Schreiben Sie der KI, worauf sie beim Feedback zu dieser Aufgabe achten soll – etwa welche Inhalte, Begriffe oder Argumente zu einer guten Antwort gehören, welche Fehler häufig vorkommen, worauf es nicht ankommt und wie ausführlich oder in welchem Ton sie antworten soll. Der Auftrag ist kein starres Ziel, das wörtlich erreicht werden muss, sondern die Grundlage, auf der die KI berät: Die Schüler:innen bekommen Stichpunkte dazu, was ihnen schon gelingt, und Tipps zum Überarbeiten; eigene Worte zählen genauso wie Ihre Formulierung. Sachliche Fehler benennt die KI; die richtige Lösung – auch einzelne Begriffe oder Zahlen daraus – verrät sie beim Feedback zum Überarbeiten nur, wenn Ihr Auftrag es ausdrücklich erlaubt. Nach der Abgabe nennt die finale KI-Rückmeldung dagegen konkret, was gefehlt hat und hätte vorkommen müssen – auch wenn Ihr Auftrag verlangt, die Lösung nicht zu verraten (das gilt nur vor der Abgabe). Noten vergibt sie nicht. Sie sieht nur Texte (Aufgabenstellung, Material, Ihren Auftrag und die Antwort), keine Bilder, Videos, PDF-Dateien oder Inhalte verlinkter Seiten. Den Auftrag sehen die Schüler:innen nicht, die Tipps beruhen aber darauf – schreiben Sie deshalb nichts hinein, was geheim bleiben muss (z. B. für eine Klassenarbeit). Ohne Auftrag gibt es zu dieser Aufgabe kein KI-Feedback.<br><b>Beispiel</b> zur Aufgabe „Erkläre, wozu Pflanzen Licht brauchen.“: „Eine gute Antwort erklärt, dass Licht die Energie für die Fotosynthese liefert und die Pflanze damit Zucker herstellt. Der Begriff ‚Fotosynthese‘ soll fallen. Rechtschreibung ist hier nicht wichtig. Verrate die Lösung nicht, sondern frage nach, wenn die Erklärung fehlt.“</p>
@@ -1483,7 +1483,7 @@
       <div id="ck-home"><div id="ck-box">
       <div class="moodle-hint aiwarn hidden" id="ck-aiwarn" style="max-width:760px"></div>
       <div class="pbox" style="max-width:760px">
-        <h2 class="pvh">Checkliste zum QR-Code</h2>
+        <h2 class="pvh" id="ck-h2">Checkliste zum QR-Code</h2>
         <p class="note ckstate" id="ck-state"></p>
         <div id="ck-list"></div>
         <div class="row">
@@ -3473,7 +3473,7 @@ const CHECK_PAGE = CHECK_HOST ? `die Checklisten-Seite (${CHECK_HOST})` : "diese
 const CHECK_PURPOSE = " Bekommst du ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste deiner Lehrkraft führen: Dort hakst du ab, " +
   `was deine Antwort schon erfüllt. Dafür lädt ${CHECK_PAGE} nur die Checkliste vom Server – ohne Angaben zu dir; die Internetadresse deines Geräts wird dabei ` +
   "wie beim Laden der Seite verarbeitet. Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Dieselbe Checkliste lädt diese Seite nach " +
-  "der Abgabe vom Server – ohne Angaben zu dir –, damit sie in deiner Lösungs-PDF stehen kann, falls die finale KI-Rückmeldung nicht rechtzeitig kommt.";
+  "jeder Abgabe vom Server – ohne Angaben zu dir –, damit sie in deiner Lösungs-PDF unter den Antworten ohne KI-Rückmeldung stehen kann.";
 const CHECK_STAY = ` Die Häkchen einer solchen Checkliste löscht ${CHECK_PAGE} beim nächsten Aufruf in diesem Browser, wenn du sie ${DRAFT_DAYS} Tage nicht geändert ` +
   "hast; früher geht es mit „Alle Häkchen entfernen“.";
 const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnest: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
@@ -3539,7 +3539,7 @@ const PRIV_IHR = {
   checkPurpose: " Bekommt ihr ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste eurer Lehrkraft führen: Dort hakt ihr ab, " +
     `was eure Antwort schon erfüllt. Dafür lädt ${CHECK_PAGE} nur die Checkliste vom Server – ohne Angaben zu euch; die Internetadresse eures Geräts wird dabei ` +
     "wie beim Laden der Seite verarbeitet. Eure Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Dieselbe Checkliste lädt diese Seite nach " +
-    "der Abgabe vom Server – ohne Angaben zu euch –, damit sie in eurer Lösungs-PDF stehen kann, falls die finale KI-Rückmeldung nicht rechtzeitig kommt.",
+    "jeder Abgabe vom Server – ohne Angaben zu euch –, damit sie in eurer Lösungs-PDF unter den Antworten ohne KI-Rückmeldung stehen kann.",
   checkStay: ` Die Häkchen einer solchen Checkliste löscht ${CHECK_PAGE} beim nächsten Aufruf in diesem Browser, wenn ihr sie ${DRAFT_DAYS} Tage nicht geändert ` +
     "habt; früher geht es mit „Alle Häkchen entfernen“.",
   checkGithub: `Nur wenn ihr eine Checkliste über den QR-Code öffnet: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
@@ -3872,10 +3872,10 @@ function renderPrivacy() {
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     (withAi
       ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
-        `Nach der Abgabe gehen deine Antworten außerdem für die finale KI-Rückmeldung an die KI – auch ohne vorheriges KI-Feedback, außer du wählst sie beim Abgeben ab. ` +
         (!r.any   // keine KI eingerichtet: derselbe Inhalt wie im ausführlichen Hinweis (nie einen KI-Dienst nennen, den es nicht gibt)
           ? `${NO_AI_SET} Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird. `
-          : `Beim Klick auf „KI um ein Feedback bitten“ und für die finale KI-Rückmeldung werden nur deine Antworten – ${noPersonData()} – an den Server dieser Seite geschickt. ` +
+          : `Nach der Abgabe gehen deine Antworten außerdem für die finale KI-Rückmeldung an die KI – auch ohne vorheriges KI-Feedback, außer du wählst sie beim Abgeben ab. ` +
+        `Beim Klick auf „KI um ein Feedback bitten“ und für die finale KI-Rückmeldung werden nur deine Antworten – ${noPersonData()} – an den Server dieser Seite geschickt. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
         (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
@@ -5520,7 +5520,9 @@ function makeSolutionsPdf(sub) {
   gap(4);
   para(`${grp ? "Gruppe: " + p.gruppe.join(", ") : p.vorname + " · " + p.nachname} · Klasse ${p.klasse} · ${failed ? "Stand: " + fmtDT(when) + " Uhr – noch nicht abgegeben" : "abgegeben am " + fmtDT(when) + " Uhr"} · Code ${fmtCode(sub.code)}`, 10.5, false, { color: "0.35 0.35 0.35" });
   const fb2 = sub.feedback2 && Array.isArray(sub.feedback2.results) ? sub.feedback2 : null, finalFb = !!fb2 && fb2.final === true;
-  const ck = !failed && !fb2 && sub.checklist && Array.isArray(sub.checklist.points) ? sub.checklist : null;
+  // Checkliste der Lehrkraft: unter jeder Antwort, zu der keine KI-Rückmeldung mit Stichpunkten da ist (auch bei Aufgaben ohne Auftrag
+  // an die KI, wenn die finale Rückmeldung zu den übrigen kam)
+  const ck = !failed && sub.checklist && Array.isArray(sub.checklist.points) ? sub.checklist : null;
   const GREY = { color: "0.35 0.35 0.35" };
   // Was je Aufgabe gedruckt wird – vorab, damit der Kopf sagen kann, ob KI-Rückmeldungen darin stehen
   const tasks = Array.isArray(sub.tasks) ? sub.tasks : [], answers = Array.isArray(sub.answers) ? sub.answers : [];
@@ -5533,7 +5535,7 @@ function makeSolutionsPdf(sub) {
     const isMap = !!(sub.kinds && sub.kinds[i] === "map");   // Weltkarte: kein KI-Feedback, also auch keine Notiz dazu
     const fb = failed && !isMap && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
     const rf = !failed && fb2 && !isMap && fb2.results[i] ? normFb(fb2.results[i]) : null;
-    const pts = ck && !isMap && Array.isArray(ck.points[i]) ? ck.points[i] : [];
+    const pts = ck && !isMap && !hasAiPoints(rf) && Array.isArray(ck.points[i]) ? ck.points[i] : [];
     return { fin, first, fb, rf: rf && (hasAiPoints(rf) || rf.note) ? rf : null, showFb: !!fb && (hasAiPoints(fb) || !!fb.note), pts };
   });
   const hasAi = items.some((it) => hasAiPoints(it.rf) || (it.showFb && hasAiPoints(it.fb)));
@@ -5548,7 +5550,10 @@ function makeSolutionsPdf(sub) {
   if (fbNote) { gap(4); para(fbNote, 10.5, false, GREY); }
   if (items.some((it) => it.pts.length)) {
     gap(4);
-    para("Statt einer KI-Rückmeldung steht bei jeder Aufgabe die Checkliste deiner Lehrkraft – prüfe damit selbst, ob deine Antwort alles Wichtige enthält." +
+    para((fb2 ? "Bei Aufgaben ohne KI-Rückmeldung steht unter deiner Antwort die Checkliste deiner Lehrkraft"
+      : sub.noAi === "none" ? "Unter deinen Antworten steht die Checkliste deiner Lehrkraft"
+      : "Statt einer KI-Rückmeldung steht unter deinen Antworten die Checkliste deiner Lehrkraft") +
+      " – prüfe damit selbst, ob deine Antwort alles Wichtige enthält." +
       (ck.ai ? " Die Checkliste hat deine Lehrkraft aus einem Vorschlag einer KI erstellt und geprüft." : ""), 10.5, false, GREY);
   }
   if (hasAi) { gap(4); para(AI_PDF_NOTE, 10.5, false, GREY); }
@@ -5587,13 +5592,13 @@ function makeSolutionsPdf(sub) {
       gap(6);
       para(finalFb ? "Finale KI-Rückmeldung:" : "KI-Rückmeldung zur abgegebenen Fassung:", 10.5, true);
       fbLines(rf, finalFb);
-    } else if (rf) {   // nur ein Hinweis (z. B. „Zu dieser Aufgabe gibt es kein KI-Feedback.“) – ohne Überschrift
-      gap(6);
-      para(rf.note, 10.5, false, GREY);
-    } else if (pts.length) {   // keine finale Rückmeldung: die Checkliste der Lehrkraft zu dieser Aufgabe
+    } else if (pts.length) {   // keine KI-Rückmeldung mit Stichpunkten: die Checkliste der Lehrkraft zu dieser Aufgabe
       gap(6);
       para("Checkliste – prüfe selbst, ob deine Antwort das enthält:", 10.5, true);
       checkLines(pts);
+    } else if (rf) {   // nur ein Hinweis (z. B. „Zu dieser Aufgabe gibt es kein KI-Feedback.“) – ohne Überschrift
+      gap(6);
+      para(rf.note, 10.5, false, GREY);
     }
     if (fb && first.trim() && fbText(first) !== fbText(fin)) {   // nur gescheiterte Abgabe; nur bei inhaltlicher Änderung (nicht wegen Leerzeichen am Ende)
       gap(6);
@@ -5709,13 +5714,14 @@ $("done-pdf").addEventListener("click", async () => {
   if (!sub) { setStatus(st, "Die Lösungen sind auf diesem Gerät nicht mehr verfügbar.", "bad"); return; }
   if (sub.gateOpen === false) { setStatus(st, "Einen Moment noch – deine finale KI-Rückmeldung wird gerade erstellt. Danach kannst du deine Lösungen herunterladen.", ""); return; }
   if (sub.fb2State === "loading") fb2Drop(sub);   // nicht länger warten
-  if (!sub.feedback2 && sub.checklist === undefined && sub.checklistP) await Promise.race([sub.checklistP, sleep(4000)]);
+  if (sub.checklist === undefined && sub.checklistP) await Promise.race([sub.checklistP, sleep(4000)]);
   if (S.lastSubmission !== sub) return;
   try {
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
     // Escape-Room-Finale: Gesamt-PDF mit dem Überblick (voller Name, Bestätigungscode) – nur zum Speichern, nie im Tab; Name ohne Personendaten
     if (sub.escape) downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/octet-stream" }), `Escape-Room-${escFileRoom(sub.escape.name)}-Abschluss-${stamp}.pdf`);
     else downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/pdf" }), `Feibeitsblatt-Loesungen-${fmtCode(sub.code)}-${stamp}.pdf`);
+    sub.pdfNoFinal = !sub.feedback2;   // kommt die Rückmeldung danach doch noch (erneut angefordert), sagt requestFinalFeedback es
     setStatus(st, "Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen." + (sub.feedback2 ? "" : sub.checklist ? " Statt einer finalen KI-Rückmeldung steht darin die Checkliste deiner Lehrkraft." : ""), "ok");
   } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuche es noch einmal.", "bad"); }
 });
@@ -6118,7 +6124,9 @@ function renderFeedbackState() {
       (recipientParts().any ? "Nach der Abgabe bekommst du eine finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt (beim Abgeben abwählbar)." : FB2_NO_AI + ".")
     : noAi ? "Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : !aiSheet ? "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
-    : "Du kannst auch ohne KI-Feedback abgeben. Nach der Abgabe bekommst du eine finale KI-Rückmeldung (beim Abgeben abwählbar). Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
+    // die finale Rückmeldung nur ankündigen, wenn es sie geben kann (wie fb2Offer: ein KI-Dienst ist eingerichtet)
+    : "Du kannst auch ohne KI-Feedback abgeben. " + (recipientParts().any ? "Nach der Abgabe bekommst du eine finale KI-Rückmeldung (beim Abgeben abwählbar). " : "") +
+      "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
   const fbf = $("fb-fallback");
   fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es " + laterFor(S.fbUnavailable) + " noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war." : "";
   fbf.classList.toggle("hidden", !noAi);
@@ -6425,17 +6433,20 @@ function resetFinalFeedback() {
    richtig). Der Countdown neben dem Ladesymbol ist aria-hidden (sonst sagte ein Screenreader jede Sekunde an), der Text daneben eine
    Statusmeldung. #done-pdf bleibt per aria-disabled fokussierbar (beschrieben durch den Text); der Klick-Handler prüft gateOpen selbst. */
 const DONE_WAIT_TEXT = "Deine finale KI-Rückmeldung wird gerade erstellt – bitte gedulde dich kurz.";
-const doneWaitLate = (sub) => "Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei statt der KI-Rückmeldung " +
-  (sub.checklist === false ? "keine Rückmeldung" : "die Checkliste deiner Lehrkraft") + ". Wenn du noch wartest, kommt die Rückmeldung vielleicht noch.";
+const doneWaitLate = (sub) => "Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei " +
+  (sub.checklist === false ? "keine KI-Rückmeldung" : "statt der KI-Rückmeldung die Checkliste deiner Lehrkraft") + ". Wenn du noch wartest, kommt die Rückmeldung vielleicht noch.";
 let doneWaitTimer = 0;
 function doneWaitHide() {
   clearInterval(doneWaitTimer); doneWaitTimer = 0;
-  $("done-wait").classList.add("hidden"); $("done-wait-count").textContent = ""; $("done-wait-text").textContent = "";
+  $("done-wait").classList.add("hidden"); $("done-wait-count").textContent = ""; $("done-wait-text").textContent = ""; $("done-wait")._txt = "";
 }
+// erst einblenden, dann füllen (liveFill) – sonst sagt ein Screenreader die erste Meldung meist nicht an; _txt: die zuletzt gewünschte
+// Meldung (eine später gesetzte, z. B. doneWaitLate, wird nie von einem noch ausstehenden Füllen überschrieben)
 function doneWaitShow(sub, text) {
   const w = $("done-wait"), t = $("done-wait-text");
-  w.classList.remove("hidden");
-  if (t.textContent !== text) t.textContent = text;
+  w._txt = text;
+  if (w.classList.contains("hidden")) liveFill(w, t, text, () => S.lastSubmission === sub && w._txt === text);
+  else if (t.textContent !== text) t.textContent = text;
 }
 function doneGate(sub) {
   sub.gateOpen = false; sub.gateUntil = Date.now() + FB2_GATE_MS;
@@ -6682,11 +6693,20 @@ function finalFeedbackGone(sub) {
 const fb2PdfInstead = (sub) => (sub.checklist && Array.isArray(sub.checklist.points) ? " In deiner PDF-Datei steht dafür die Checkliste deiner Lehrkraft." : "");
 // Statuszeile zur fehlenden finalen Rückmeldung; lädt die Checkliste noch, wird der Satz zur PDF-Datei nachgetragen, solange dieselbe Meldung steht
 function fb2StatusWithChecklist(sub, el, text, cls) {
+  el._seq = (el._seq || 0) + 1;   // eine noch ausstehende Füllung (doneFbReveal) gilt nicht mehr
   setStatus(el, text + fb2PdfInstead(sub), cls);
   if (sub.checklist !== undefined || !sub.checklistP) return;
   sub.checklistP.then(() => {
     if (S.lastSubmission === sub && el.textContent === text && fb2PdfInstead(sub)) setStatus(el, text + fb2PdfInstead(sub), cls);
   });
+}
+// #done-fb erst einblenden, dann die Statusmeldung füllen (in einem verborgenen Kasten entstanden, sagt ein Screenreader sie meist nicht
+// an – wie liveFill); _seq: nur die zuletzt gewünschte Meldung wird noch gesetzt
+function doneFbReveal(sub, fill) {
+  const box = $("done-fb"), st = $("done-fb-status"), seq = (st._seq = (st._seq || 0) + 1);
+  if (!box.classList.contains("hidden")) { fill(); return; }
+  box.classList.remove("hidden"); setStatus(st, "", "");
+  setTimeout(() => { if (S.lastSubmission === sub && st._seq === seq && !box.classList.contains("hidden")) fill(); }, 80);
 }
 function finalFeedbackFailed(e) {
   const sub = S.lastSubmission;
@@ -6707,10 +6727,15 @@ function finalFeedbackFailed(e) {
     : code === "too_long" || code === "bad_answers" || code === "bad_request" || code === "bad_json" ? "Deine abgegebenen Antworten konnte die KI diesmal nicht beurteilen."
     : errMsg(e, "s");
   const canRetry = transient && (sub.fb2Manual || 0) < FB2_MANUAL && !fb2Expired(sub);
-  $("done-fb").classList.remove("hidden");
   sub.fb2FailText = msg + " Deine Abgabe ist davon nicht betroffen";
-  fb2StatusWithChecklist(sub, $("done-fb-status"), sub.fb2FailText + (canRetry ? " – du kannst die Rückmeldung noch einmal anfordern." : "."), "bad");
-  $("done-fb-retry").classList.toggle("hidden", !canRetry);
+  const text = sub.fb2FailText + (canRetry ? " – du kannst die Rückmeldung noch einmal anfordern." : ".");
+  doneFbReveal(sub, () => fb2StatusWithChecklist(sub, $("done-fb-status"), text, "bad"));
+  const retry = $("done-fb-retry");
+  retry.classList.toggle("hidden", !canRetry);
+  // „Rückmeldung erneut anfordern“ hatte den Fokus (requestFinalFeedback hat ihn beim Ausblenden auf den Download gesetzt): zurück
+  const ae = document.activeElement;
+  if (canRetry && sub.retryFocus && (!ae || ae === document.body || ae === $("done-pdf"))) retry.focus();
+  sub.retryFocus = false;
   fb2RetryNote();
   if (!canRetry) finalFeedbackGone(sub);
   else doneGateOpen(sub, "failed");   // der Download wartet nicht auf einen neuen Versuch
@@ -6719,19 +6744,20 @@ async function requestFinalFeedback() {
   const sub = S.lastSubmission;
   if (!sub || !sub.fb2Want) { fb2Release(sub); return; }   // abgewählt oder nicht angeboten: keine finale Rückmeldung
   const st = $("done-fb-status"), retry = $("done-fb-retry");
+  sub.retryFocus = document.activeElement === retry;   // per Tastatur erneut angefordert: der Fokus fällt nicht auf <body>
   retry.classList.add("hidden"); fb2RetryNote();
+  if (sub.retryFocus) $("done-pdf").focus();   // der Download ist frei (der Knopf erscheint erst nach geöffneter Sperre)
   const answers = sub.answers.map((a) => a.final);
   if (!sub.recipients.length) {   // wie im Abgabe-Dialog angekündigt: ohne Empfänger nichts senden (auch nicht an den Server)
     sub.fb2State = "failed";
-    $("done-fb").classList.remove("hidden");
-    fb2StatusWithChecklist(sub, st, FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen.", "");
+    doneFbReveal(sub, () => fb2StatusWithChecklist(sub, st, FB2_NO_AI + ". Deine Abgabe ist davon nicht betroffen.", ""));
     finalFeedbackGone(sub);
     return;
   }
   const run = ++S.fbRun, t0 = Date.now();
   sub.fb2State = "loading";
   if (sub.gateOpen) {   // erneut angefordert: der Download wartet nicht mehr; die Meldung zum gescheiterten Versuch gilt nicht mehr
-    setStatus(st, "", ""); $("done-fb").classList.add("hidden");
+    st._seq = (st._seq || 0) + 1; setStatus(st, "", ""); $("done-fb").classList.add("hidden");
     doneWaitShow(sub, doneWaitLate(sub));
   }
   for (let tries = 1; ; tries++) {
@@ -6759,9 +6785,11 @@ async function requestFinalFeedback() {
     sub.feedback2 = { results: r.results.map((x) => normFb(x)), final: true, at: new Date().toISOString() };
     sub.fb2State = "done";
     doneGateOpen(sub, "done");
-    $("done-fb").classList.remove("hidden"); retry.classList.add("hidden"); fb2RetryNote();
-    setStatus(st, "So sieht die KI deine abgegebene Fassung:", "");
+    retry.classList.add("hidden"); sub.retryFocus = false; fb2RetryNote();
     renderFinalFeedback();
+    doneFbReveal(sub, () => setStatus(st, "So sieht die KI deine abgegebene Fassung:", ""));
+    // schon eine PDF-Datei ohne sie heruntergeladen (z. B. nach einem gescheiterten Versuch): neu herunterladen
+    if (sub.pdfNoFinal) setStatus($("done-status"), "Deine finale KI-Rückmeldung ist jetzt da – lade die PDF-Datei noch einmal herunter, damit sie darin steht.", "");
     // verschlüsselt auch an die Lehrkraft (ersetzt die Abgabe, legt nie eine neue an); erreicht sie die Lehrkraft nicht, ein ruhiger Hinweis
     sendFeedback2(sub).catch(() => "failed").then((res) => fb2TeacherShow(sub, res));
     return;
@@ -6890,7 +6918,10 @@ async function submitAll() {
     };
     if (na) payload.noAi = na.mode;
     if (na && na.mode === "unavailable") payload.feedbackError = na.reason;
-    if (offer) payload.finalWanted = wantFinal;   // angeboten: gewählt oder abgewählt (die Lehrkraft sieht „abgewählt“)
+    // finalMode: Abgabe mit der finalen KI-Rückmeldung (fb2Of: ohne nachgereichte Rückmeldung gibt es keine – nie die alte Regel
+    // „unverändert → erstes Feedback gilt“); finalWanted nur, wenn sie angeboten war: gewählt oder abgewählt (die Lehrkraft sieht „abgewählt“)
+    payload.finalMode = true;
+    if (offer) payload.finalWanted = wantFinal;
     // Tippzeiten (nur verschlüsselt, nie in S.lastSubmission): erste Fassung "=" bei gleichem Text und gleichen Werten (ohne KI-Feedback immer)
     try {
       if (S.ttOptOut) payload.typing = ttOptOutPayload();   // widersprochen: keine Werte, die Lehrkraft sieht „ohne Messung (widersprochen)“
@@ -6944,7 +6975,10 @@ async function submitAll() {
       renderFeedbackState();
     }
     const wait = e instanceof ApiError && (e.code === "rate_limited" || e.status === 429);   // die Meldung nennt schon die Wartezeit
-    setStatus(st, (e.code === "crypto" ? "Deine Abgabe konnte nicht verschlüsselt werden." : errMsg(e, "s")) +
+    // Diese Bearbeitung ist schon abgegeben und mit der finalen KI-Rückmeldung abgeschlossen (z. B. aus einem anderen Tab oder einer
+    // Zwischenstand-PDF derselben Bearbeitung): ein neuer Versuch hilft nie
+    if (e instanceof ApiError && e.code === "final_locked") setStatus(st, FINAL_LOCKED_TEXT, "bad");
+    else setStatus(st, (e.code === "crypto" ? "Deine Abgabe konnte nicht verschlüsselt werden." : errMsg(e, "s")) +
       (wait ? " Deine Antworten sind noch da." : " Deine Antworten sind noch da – versuche es gleich noch einmal."), "bad");
     if (S.escape && escMailNow(e)) showSubmitEsc();   // Escape-Room-Finale: Abschluss-PDF für die E-Mail an den Betreiber
   } finally {
@@ -6954,6 +6988,8 @@ async function submitAll() {
     else if (S.sheet) renderFeedbackState();   // gescheitert: KI-Feedback wieder möglich
   }
 }
+const FINAL_LOCKED_TEXT = "Diese Bearbeitung ist schon abgegeben und mit der finalen KI-Rückmeldung abgeschlossen – sie lässt sich nicht noch einmal " +
+  "abgeben. Möchtest du etwas ändern, wende dich an deine Lehrkraft. Mit „Abbrechen und Zwischenstand löschen“ entfernst du diesen Stand von diesem Gerät.";
 $("submit-btn").addEventListener("click", submitAll);
 /* ---------- Escape-Room-Finale: Abgabe technisch gescheitert → Abschluss-PDF für die E-Mail ----------
  * Technisch ist jeder Fehler außer den Prüffehlern des Servers (die Schülerin kann kürzen bzw. neu laden): Netz, Zeitüberschreitung,
@@ -6964,7 +7000,7 @@ $("submit-btn").addEventListener("click", submitAll);
  * gefülltes Blatt soll nicht gleich eine ganze Klasse auf den unverschlüsselten E-Mail-Weg schicken. Bewusst ein Knopf statt eines
  * automatischen Downloads (ein Download ohne Klick nach einem Fehler kann der Browser sperren). Die Datei enthält den aktuellen Stand
  * (Antworten, erste Fassung, KI-Feedback) und den Überblick aus dem Raum – nie Tippzeiten. */
-const ESC_NOT_TECHNICAL = new Set(["bad_envelope", "bad_request", "bad_json", "bad_answers", "too_long", "too_large"]);
+const ESC_NOT_TECHNICAL = new Set(["bad_envelope", "bad_request", "bad_json", "bad_answers", "too_long", "too_large", "final_locked"]);
 // "now" = E-Mail-Weg sofort, "soft" = erst Warten bzw. Lehrkraft, "" = nie (Prüffehler: kürzen bzw. neu laden hilft)
 function escFailKind(e) {
   if (!(e instanceof ApiError)) return "now";
@@ -7174,7 +7210,8 @@ function handleAuthError(e) {
   return false;
 }
 const pvUnsaved = () => pvDirty && !$("tv-privacy").classList.contains("hidden");   // ungespeicherte Angaben zum Datenschutz (sichtbare Seite)
-const ckUnsaved = () => ckDirty && !$("tv-analog").classList.contains("hidden");    // ungespeicherte Änderungen an der Checkliste (sichtbare Seite)
+// ungespeicherte Änderungen an der Checkliste auf der sichtbaren Seite (#tv-analog bzw. beim Anlegen im Ergebnis des Blatt-Editors)
+const ckUnsaved = () => ckDirty && !!CK && !$(CK.view).classList.contains("hidden") && (CK.mode !== "create" || !$("b-result").classList.contains("hidden"));
 async function logout(force, why) {
   if (force !== true && T.builderDirty && !(await askConfirm({ title: "Abmelden?", text: "Ihre Eingaben für das neue Feibeitsblatt gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
   if (force !== true && pvUnsaved() && !(await askConfirm({ title: "Abmelden?", text: "Ihre Änderungen an den Angaben zum Datenschutz gehen dabei verloren.", ok: "Abmelden", cancel: "Abbrechen" }))) return;
@@ -7207,6 +7244,7 @@ function touchIdle() {
 /* ---------- Übersicht ---------- */
 function teacherView(id) {
   if (id !== "tv-overview") T.importRun = (T.importRun || 0) + 1;   // ein noch laufender Import aus der Übersicht gilt nicht mehr
+  if (id !== "tv-overview") T.overviewLeft = (T.overviewLeft || 0) + 1;   // ebenso ein direkt erstelltes analoges Arbeitsblatt (openAnalog)
   if (id !== "tv-analog") T.analogRun = (T.analogRun || 0) + 1;     // ebenso ein Vorschlag oder ein PDF des analogen Arbeitsblattes
   ["tv-overview", "tv-builder", "tv-ai", "tv-privacy", "tv-analog", "tv-pw"].forEach((v) => $(v).classList.toggle("hidden", v !== id));
   window.scrollTo(0, 0);
@@ -7369,6 +7407,7 @@ async function loadSubs() {
               ? { at: cut(p.feedback2.at, 40), final: p.feedback2.final === true, results: p.feedback2.results.slice(0, 30).map((f) => (f && typeof f === "object" ? normFb(f) : null)) } : null;
           } catch (e) { p.feedback2 = null; }
           p.finalWanted = typeof p.finalWanted === "boolean" ? p.finalWanted : undefined;
+          p.finalMode = p.finalMode === true || p.finalWanted !== undefined;   // Abgabe mit finaler KI-Rückmeldung (fb2Of)
           p.noAi = NO_AI_MODES.has(p.noAi) ? p.noAi : "";   // ohne KI-Feedback: ohne Anfrage / nicht möglich / Blatt ohne KI
           p.feedbackError = cut(p.feedbackError, 100);
           // Daten aus einem Escape-Room (Finale): geprüft und gekappt; ein Fehler kostet nur diese Daten, nie den Eintrag
@@ -7454,8 +7493,9 @@ const NO_AI_MODES = new Set(["declined", "unavailable", "none"]);
 // das KI-Feedback nicht möglich war (ältere Abgaben ohne noAi: nur dann ohne Feedback möglich, tragen immer feedbackError)
 function noAiNote(p) {
   if (p.noAi === "none") return "";
-  if (p.noAi === "declined") return "Ohne KI-Feedback abgegeben.";
-  return "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich" + (p.feedbackError ? " (" + p.feedbackError + ")" : "") + ".";
+  // „zum Überarbeiten“: eine finale KI-Rückmeldung nach der Abgabe kann es trotzdem geben (wie im Kopf der Lösungs-PDF)
+  if (p.noAi === "declined") return "Ohne KI-Feedback zum Überarbeiten abgegeben.";
+  return "Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich" + (p.feedbackError ? " (" + p.feedbackError + ")" : "") + ".";
 }
 const ttLineDom = (cls, pieces) => h("p", { class: cls }, pieces.map((x) => (x.high ? h("span", { class: "tt-high", text: x.t }) : x.t)));
 /* „Färbung aus“ (#t-tt-off, aria-pressed = Färbung ist aus): gilt für diese Sitzung und alle Details (Klasse an #t-subs – gebaute
@@ -7473,7 +7513,7 @@ if (!TT_KEEP_IN_DRAFT) $("t-tt-none").textContent = "z. B. ältere Stände, nach
  * Fehlt die nachgereichte Rückmeldung (abgewählt, Seite vorher geschlossen, nicht abgewartet, KI nicht erreichbar) → null. */
 function fb2Of(p) {
   if (p && p.feedback2 && p.feedback2.final) return { results: p.feedback2.results.map((f) => (f ? normFb(f) : null)), final: true, at: p.feedback2.at };
-  if (!p || !Array.isArray(p.feedback)) return null;
+  if (!p || p.finalMode || !Array.isArray(p.feedback)) return null;   // neue Abgabe ohne nachgereichte finale Rückmeldung: keine
   const changed = fb2Changes(p.answers.map((a) => a.first), p.answers.map((a) => a.final), p.feedback);
   if (!changed.some(Boolean)) return { results: changed.map((_, i) => normFb(p.feedback[i] || {})), same: true, kept: changed.map(() => true) };
   if (!p.feedback2) return null;
@@ -7487,9 +7527,10 @@ function teacherSolutionsSub(s, checklist) {
   return { code: T.sel, title: (T.selSheet && T.selSheet.title) || "", tasks: Array.from({ length: n }, (_, i) => (tasks[i] ? String(tasks[i].text || "") : "")),
     kinds: Array.from({ length: n }, (_, i) => (tasks[i] ? cleanAnswer(tasks[i].answer).type : "text")), person: p.person,
     answers: Array.from({ length: n }, (_, i) => ({ first: (p.answers[i] || {}).first || "", final: (p.answers[i] || {}).final || "" })),
-    feedback: withFb ? p.feedback : null, feedbackError: p.feedbackError || "", noAi: p.noAi || "", receivedAt: s.receivedAt,
+    // ältere Abgaben ohne noAi: wie in den Details „nicht möglich“ (noAiNote)
+    feedback: withFb ? p.feedback : null, feedbackError: p.feedbackError || "", noAi: p.noAi || (withFb ? "" : "unavailable"), receivedAt: s.receivedAt,
     // nicht übermittelt: gewählt (bzw. bei älteren Abgaben: mit erstem Feedback), aber nicht nachgereicht; abgewählt sagt die PDF selbst
-    feedback2: fb2, fb2Missing: !fb2 && (p.finalWanted === true || (p.finalWanted === undefined && withFb)), finalWanted: p.finalWanted === false ? false : undefined,
+    feedback2: fb2, fb2Missing: !fb2 && (p.finalWanted === true || (!p.finalMode && withFb)), finalWanted: p.finalWanted === false ? false : undefined,
     checklist: checklist || false };   // statt der fehlenden Rückmeldung die Checkliste (beim Klick geladen, teacherChecklistLoad)
 }
 // Gespeicherte Checkliste des ausgewählten Blattes für die Lösungs-PDF aus der Übersicht (wie bei den Schüler:innen) → {ai, points} | false
@@ -7516,7 +7557,7 @@ function buildDetail(s, older) {
   const noFb = !isFirst && !Array.isArray(p.feedback);   // eine Fassung: die abgegebene
   const meta = [older ? `Älterer Erstversuch vom ${fmtDT(s.receivedAt)} (ohne Überarbeitung)` : isFirst ? "Erstversuch ohne Überarbeitung – noch nicht abgegeben" : `Abgegeben am ${fmtDT(s.receivedAt)}`];
   if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
-  else if (noFb) meta.push("ohne KI-Feedback");
+  else if (noFb) meta.push(p.noAi === "none" ? "ohne KI-Feedback" : "ohne KI-Feedback zum Überarbeiten");
   const keep = retentionDaysT(), got = toDate(s.receivedAt);   // Löschfrist gilt ab dem Eingang (ein Erstversuch: ab seinem Eingang)
   if (keep && got) meta.push("automatische Löschung ab dem " + fmtD(got.getTime() + keep * 864e5));   // gelöscht im nächsten nächtlichen Lauf oder beim Öffnen der Übersicht
   box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
@@ -7541,7 +7582,7 @@ function buildDetail(s, older) {
   }
   const escBox = escDetailDom(s);   // nur bei Blättern für einen Escape-Room
   if (escBox) box.appendChild(escBox);
-  const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback", L0 = "Abgegebene Fassung (ohne KI-Feedback)";
+  const L1 = "Erste Eingabe (vor dem KI-Feedback)", L2 = "Eingabe nach dem KI-Feedback", L0 = p.noAi === "none" ? "Abgegebene Fassung (ohne KI-Feedback)" : "Abgegebene Fassung (ohne KI-Feedback zum Überarbeiten)";
   const fb2 = isFirst ? null : fb2Of(p);   // finale KI-Rückmeldung (ältere Abgaben: zweite, nur bei geänderten Aufgaben neu)
   for (let i = 0; i < n; i++) {
     const a = p.answers[i] || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
@@ -7608,7 +7649,7 @@ function buildDetail(s, older) {
     const st = $("t-subs-status"), code = T.sel;
     try {
       // ohne finale Rückmeldung wie bei den Schüler:innen die Checkliste des Blattes (nur dann geladen)
-      const checklist = fb2Of(p) ? false : await teacherChecklistLoad();
+      const checklist = await teacherChecklistLoad();   // wie bei den Schüler:innen: auch bei Aufgaben ohne KI-Rückmeldung
       if (T.sel !== code) return;   // inzwischen ein anderes Blatt gewählt oder abgemeldet
       downloadBlob(new Blob([makeSolutionsPdf(teacherSolutionsSub(s, checklist))], { type: "application/pdf" }), teacherSolutionsName(s));
       setStatus(st, "", "");
@@ -8226,6 +8267,11 @@ let ckDirty = false, CK = null;   // CK: {code, sheet, run, mode, view, ai, fina
 const analogStillWanted = (run) => !!CK && run === T.analogRun && run === CK.run && !!T.authKey && !$(CK.view).classList.contains("hidden") &&
   (CK.mode !== "create" || !$("b-result").classList.contains("hidden")) && $("screen-teacher").classList.contains("active");
 const CK_SAVE_LABEL = { create: "Checkliste bestätigen", edit: "Checkliste speichern", analog: "Speichern und PDF herunterladen" };
+// Einleitung des Checklisten-Schritts beim Anlegen (#b-ck-intro); Escape-Room-Finale: ohne analoges Arbeitsblatt und QR-Code
+const B_CK_INTRO_HEAD = "Die KI schlägt aus Ihren Aufträgen an die KI Punkte vor, mit denen die Schüler:innen ihre Antworten selbst prüfen können – bitte prüfen, ändern und bestätigen Sie sie. ";
+const B_CK_INTRO_TAIL = " Für den Vorschlag bekommt die KI nur die Aufgabenstellungen, das Material und Ihre Aufträge, keine Daten der Schüler:innen. Nach dem Bestätigen ist die Checkliste für alle sichtbar, die den Link kennen – schreiben Sie deshalb nichts Geheimes hinein.";
+const B_CK_INTRO = B_CK_INTRO_HEAD + "Die Checkliste steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung nicht rechtzeitig kommt oder abgewählt wurde, und hinter dem QR-Code des analogen Arbeitsblattes." + B_CK_INTRO_TAIL;
+const B_CK_INTRO_ESC = B_CK_INTRO_HEAD + "Die Checkliste steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung nicht rechtzeitig kommt oder abgewählt wurde." + B_CK_INTRO_TAIL;
 const ckMount = (slot) => { const box = $("ck-box"); if (box.parentNode !== $(slot)) $(slot).appendChild(box); };
 const ckPath = (code) => "/api/teacher/sheets/" + encodeURIComponent(code) + "/checklist";
 function ckShort(text, max) {   // Aufgabenstellung einzeilig, am Wortende gekürzt
@@ -8280,15 +8326,16 @@ function ckStateText(kind, list) {
   const fin = CK.final, when = fin && CK.updatedAt ? ` vom ${fmtDT(CK.updatedAt)} Uhr` : "";
   if (kind === "draft") return list && list.ai === false
     ? "Noch nicht gespeichert."   // ohne Auftrag an die KI (leerer Entwurf): den Grund nennt #ck-aiwarn
-    : `Vorschlag der KI – noch nicht gespeichert. Bitte prüfen und ändern Sie die Punkte; erst mit „${CK_SAVE_LABEL[CK.mode]}“ gilt die Checkliste (Lösungs-PDF der Schüler:innen, QR-Code).` +
+    : `Vorschlag der KI – noch nicht gespeichert. Bitte prüfen und ändern Sie die Punkte; erst mit „${CK_SAVE_LABEL[CK.mode]}“ gilt die Checkliste (Lösungs-PDF der Schüler:innen${CK.esc ? "" : ", QR-Code"}).` +
       (fin ? " Bis dahin gilt die gespeicherte Checkliste." : "");
-  if (kind === "final") return `Gespeicherte Checkliste${when} – sie steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung fehlt, und ist über den QR-Code sichtbar.`;
+  if (kind === "final") return `Gespeicherte Checkliste${when} – sie steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung fehlt` +
+    (CK.esc ? "." : ", und ist über den QR-Code sichtbar.");   // Escape-Room-Finale: kein analoges Arbeitsblatt, kein QR-Code
   return "";
 }
 function ckShowOpen() {
   const a = $("ck-open");
   a.href = checkUrlOf(CK.code);   // genau die Adresse des QR-Codes (PUBLIC_URL, z. B. GitHub Pages) – so prüft die Lehrkraft das Ziel selbst
-  a.classList.toggle("hidden", !CK.final);
+  a.classList.toggle("hidden", !CK.final || !!CK.esc);
 }
 // Fehler beim KI-Vorschlag → Satz für die Lehrkraft (keine automatische Wiederholung)
 function ckAiFailText(e) {
@@ -8311,7 +8358,10 @@ async function ckSuggest(run, force) {
   ckLock(true);
   setStatus(st, CK.aiFeedback ? "Die KI schlägt eine Checkliste vor …" : "Die Checkliste wird angelegt …", "busy");   // ohne Auftrag fragt der Server keine KI
   try {
-    const r = await TA(ckPath(CK.code), { method: "POST", body: force ? { force: true } : {}, timeout: 150000 });
+    const req = TA(ckPath(CK.code), { method: "POST", body: force ? { force: true } : {}, timeout: 150000 });
+    const pend = (T.ckPending = { code: CK.code, p: req });   // wer den Editor inzwischen neu öffnet, wartet darauf (keine zweite KI-Anfrage)
+    let r;
+    try { r = await req; } finally { if (T.ckPending === pend) T.ckPending = null; }
     if (!analogStillWanted(run)) return;
     CK.final = r.final || null;
     const list = r.draft || r.final || null;
@@ -8337,19 +8387,27 @@ async function ckEditorOpen(code, sheet, mode) {
   if (mode !== "create") teacherView("tv-analog");
   ckMount(mode === "create" ? "b-ck-slot" : "ck-home");
   const run = T.analogRun = (T.analogRun || 0) + 1, st = $("ck-status");
-  CK = { code, sheet, run, mode, view, ai: false, final: null, updatedAt: null, aiFeedback: (sheet.tasks || []).some(ckWants), aiReady: true, loaded: false };
+  CK = { code, sheet, run, mode, view, ai: false, final: null, updatedAt: null, aiFeedback: (sheet.tasks || []).some(ckWants), aiReady: true, loaded: false,
+    esc: !!cleanEscapeSpec(sheet.escape) };   // Escape-Room-Finale: Checkliste nur für die Lösungs-PDF (kein analoges Arbeitsblatt, kein QR-Code)
   ckDirty = false;
   $("ck-h1").textContent = mode === "analog" ? "Analoges Arbeitsblatt" : "Checkliste";
+  $("ck-h2").textContent = mode === "analog" ? "Checkliste zum QR-Code" : "Punkte der Checkliste";
   $("ck-intro1").classList.toggle("hidden", mode !== "analog");
-  $("ck-save").textContent = CK_SAVE_LABEL[mode];
   $("ck-sheet").textContent = `${sheet.title || "Feibeitsblatt"} · Code ${fmtCode(code)}`;
   $("ck-list").textContent = ""; $("ck-state").textContent = ""; $("ck-aiwarn").classList.add("hidden");
   $("ck-open").classList.add("hidden"); $("ck-regen").classList.toggle("hidden", !CK.aiFeedback);
   const sb = $("ck-save");
   sb._hadFocus = false; busy(sb, false);   // ein Speichern eines anderen Blattes, das noch läuft, hinterlässt weder Beschriftung noch Sperre
+  sb.textContent = CK_SAVE_LABEL[mode];   // erst nach busy(false): das setzte sonst die Beschriftung eines noch laufenden Speicherns zurück
   ckLock(true);
   setStatus(st, "Wird geladen …", "busy");
   try {
+    // schlägt die KI für dieses Blatt gerade noch vor (z. B. nach „Zur Übersicht“ während des Vorschlags): darauf warten statt neu zu fragen
+    if (T.ckPending && T.ckPending.code === code) {
+      setStatus(st, "Die KI schlägt gerade eine Checkliste vor …", "busy");
+      await T.ckPending.p.catch(() => {});
+      if (!analogStillWanted(run)) return;
+    }
     const r = await TA(ckPath(code));
     if (!analogStillWanted(run)) return;
     CK.aiFeedback = r.aiFeedback !== false; CK.aiReady = r.aiReady !== false;
@@ -8376,7 +8434,8 @@ async function ckEditorOpen(code, sheet, mode) {
     if (analogStillWanted(run) && mode !== "create") focusSoon("ck-1", 30);
   } catch (e) {
     if (handleAuthError(e) || !analogStillWanted(run)) return;
-    setStatus(st, "Die Checkliste konnte nicht geladen werden: " + errMsg(e, "t"), "bad");
+    setStatus(st, "Die Checkliste konnte nicht geladen werden: " + errMsg(e, "t") +
+      (mode === "create" ? " Sie können sie später in der Übersicht unter „Checkliste bearbeiten“ prüfen und bestätigen." : ""), "bad");
     $("ck-list").textContent = "";
     $("ck-regen").disabled = true;   // ohne den gespeicherten Stand nicht überschreiben: erst zurück und neu öffnen
   }
@@ -8386,23 +8445,26 @@ async function ckEditorOpen(code, sheet, mode) {
 async function openAnalog() {
   if (!T.selSheet || !T.sel || cleanEscapeSpec(T.selSheet.escape)) return;   // Escape-Room-Finale: kein analoges Arbeitsblatt
   const code = T.sel, sheet = T.selSheet, st = $("t-export-status"), btn = $("t-analog");
-  const run = T.analogDirect = (T.analogDirect || 0) + 1;
-  const stale = () => run !== T.analogDirect || T.sel !== code || !T.authKey || $("tv-overview").classList.contains("hidden");
+  const run = T.analogDirect = (T.analogDirect || 0) + 1, left = T.overviewLeft || 0;
+  // verlassen (auch kurz – etwa „Checkliste bearbeiten“ und zurück), anderes Blatt, abgemeldet oder ein neuer Klick: nichts mehr
+  const stale = () => run !== T.analogDirect || (T.overviewLeft || 0) !== left || T.sel !== code || !T.authKey || $("tv-overview").classList.contains("hidden");
+  const quit = () => { if (run === T.analogDirect && T.sel === code) setStatus(st, "", ""); };   // keine „wird erstellt …“-Meldung zurücklassen
   busy(btn, true, "PDF wird erstellt …");
   setStatus(st, "Das analoge Arbeitsblatt wird erstellt …", "busy");
   try {
     const r = await TA(ckPath(code));
-    if (stale()) return;
+    if (stale()) { quit(); return; }
     const fin = r.checklist && r.checklist.final;
     if (!fin) { setStatus(st, "", ""); busy(btn, false); ckEditorOpen(code, sheet, "analog"); return; }   // noch keine bestätigte Checkliste
     const shows = await analogImages(code, sheet, (msg) => { if (stale()) throw new Error("verlassen"); setStatus(st, msg, "busy"); });
     const hasPoints = (fin.tasks || []).some((t) => t && Array.isArray(t.points) && t.points.length);
     const pdf = await makeAnalogPdf({ code, title: sheet.title || "", tasks: sheet.tasks || [], shows, aiNote: r.aiFeedback !== false && r.aiReady !== false, checkUrl: hasPoints ? checkUrlOf(code) : "" });
-    if (stale()) return;
+    if (stale()) { quit(); return; }
     downloadBlob(new Blob([pdf], { type: "application/pdf" }), analogPdfName(code, sheet.title));
     setStatus(st, `Das analoge Arbeitsblatt (${fmtKB(pdf.length)}) wird heruntergeladen – mit der Checkliste, die Sie bestätigt haben.` + (hasPoints ? "" : " Ohne Checklistenpunkte enthält es keinen QR-Code zur Checkliste."), "ok");
   } catch (e) {
-    if (handleAuthError(e) || stale()) return;
+    if (handleAuthError(e)) return;
+    if (stale()) { quit(); return; }
     setStatus(st, "Das analoge Arbeitsblatt konnte nicht erstellt werden" + (e instanceof ApiError ? ": " + errMsg(e, "t") : e && e.message ? " (" + e.message + ")." : ".") + " Bitte versuchen Sie es erneut.", "bad");
   } finally { if (run === T.analogDirect) busy(btn, false); }
 }
@@ -8439,7 +8501,7 @@ $("ck-back").addEventListener("click", async () => {
 $("ck-regen").addEventListener("click", async () => {
   if (!CK || !CK.loaded) return;
   const run = CK.run;
-  if (!(await askConfirm({ title: "Neu vorschlagen lassen?", text: "Die KI schlägt die Checkliste neu vor; ihr Vorschlag ersetzt, was jetzt im Editor steht. Eine schon gespeicherte Checkliste bleibt über den QR-Code sichtbar, bis Sie wieder speichern.", ok: "Neu vorschlagen", cancel: "Abbrechen" }))) return;
+  if (!(await askConfirm({ title: "Neu vorschlagen lassen?", text: "Die KI schlägt die Checkliste neu vor; ihr Vorschlag ersetzt, was jetzt im Editor steht. Eine schon gespeicherte Checkliste bleibt gültig" + (CK.esc ? "" : " und über den QR-Code sichtbar") + ", bis Sie wieder speichern.", ok: "Neu vorschlagen", cancel: "Abbrechen" }))) return;
   if (!analogStillWanted(run)) return;
   await ckSuggest(run, true);
 });
@@ -9426,7 +9488,23 @@ $("b-add").addEventListener("click", () => {
 });
 $("b-title").addEventListener("input", () => { T.builderDirty = true; });
 $("t-new").addEventListener("click", () => openBuilder("", null));
+/* Ergebnis des Blatt-Editors mit dem Checklisten-Schritt verlassen (#b-res-back, #b-back): geänderte, aber nicht bestätigte Punkte erst
+   nach Rückfrage verwerfen. Läuft das Bestätigen gerade (CK.saving "put"), geht es beim Server weiter – dann ohne Rückfrage. Ein
+   unveränderter, nicht bestätigter Vorschlag hält niemanden auf; die Übersicht sagt danach, dass die Checkliste noch fehlt (ckCreateNote). */
+async function ckCreateLeaveOk() {
+  if (!CK || CK.mode !== "create" || $("b-result").classList.contains("hidden") || $("tv-builder").classList.contains("hidden")) return true;
+  if (CK.saving === "put" || !ckDirty) return true;
+  const ok = await askConfirm({ title: "Checkliste nicht bestätigt", text: "Ihre Änderungen an der Checkliste gehen verloren, wenn Sie jetzt zur Übersicht gehen. Sie können die Checkliste später unter „Checkliste bearbeiten“ ändern.", ok: "Zur Übersicht", cancel: "Hier bleiben", safeFirst: true });
+  if (ok) ckDirty = false;
+  return ok;
+}
+// Hinweis in der Übersicht nach dem Anlegen: ohne bestätigte Checkliste steht in der Lösungs-PDF keine (falls die finale Rückmeldung fehlt)
+function ckCreateNote(ck) {
+  if (!ck || ck.mode !== "create" || !ck.loaded || ck.final || ck.saving === "put" || T.sel !== ck.code) return;
+  setStatus($("t-export-status"), "Die Checkliste zu diesem Feibeitsblatt ist noch nicht bestätigt – ohne sie steht in der Lösungs-PDF der Schüler:innen keine Checkliste. Sie können das unter „Checkliste bearbeiten“ nachholen.", "");
+}
 async function leaveBuilder() {
+  if (!(await ckCreateLeaveOk())) return;
   if (T.builderDirty && !(await askConfirm({ title: "Eingaben verwerfen?", text: "Das neue Feibeitsblatt ist noch nicht gespeichert. Wenn Sie jetzt zur Übersicht gehen, gehen Ihre Eingaben verloren.", ok: "Verwerfen", cancel: "Weiter bearbeiten", danger: true }))) return;
   T.builderDirty = false;
   teacherView("tv-overview"); loadSheets(true);
@@ -9529,7 +9607,8 @@ $("b-gen").addEventListener("click", async () => {
     T.sel = r.code;
     // Checkliste gleich beim Anlegen: die KI schlägt vor, die Lehrkraft bestätigt (parallel zu den Uploads; nur die eben gesendeten Texte)
     $("b-ck").classList.remove("hidden");
-    ckEditorOpen(r.code, { title: $("b-res-title").textContent, tasks: tasks.map((t) => ({ text: t.text, solution: t.solution, answer: t.answer })) }, "create");
+    $("b-ck-intro").textContent = resEsc ? B_CK_INTRO_ESC : B_CK_INTRO;   // Escape-Room-Finale: kein analoges Arbeitsblatt, kein QR-Code
+    ckEditorOpen(r.code, { title: $("b-res-title").textContent, tasks: tasks.map((t) => ({ text: t.text, solution: t.solution, answer: t.answer })), escape: resEsc }, "create");
     T.pendingUploads = uploads.map((u) => Object.assign({ code: r.code }, u)); T.doneUploads = 0;
     T.uploadKinds = { images: uploads.filter((u) => u.kind === "image").length, files: uploads.filter((u) => u.kind === "file").length };
     window.scrollTo(0, 0);
@@ -9604,12 +9683,12 @@ async function runUploads() {
 $("b-res-retry").addEventListener("click", async () => { const b = $("b-res-retry"); busy(b, true, "Wird hochgeladen …"); try { await runUploads(); } finally { busy(b, false); } });
 $("b-res-copy").addEventListener("click", () => copyText($("b-res-code").textContent, $("b-res-copy")));
 $("b-res-back").addEventListener("click", async () => {
-  // geänderte, aber nicht bestätigte Checkliste: erst fragen (sonst gingen die Änderungen verloren)
-  if (CK && CK.mode === "create" && ckDirty && !(await askConfirm({ title: "Checkliste nicht bestätigt", text: "Ihre Änderungen an der Checkliste gehen verloren, wenn Sie jetzt zur Übersicht gehen. Sie können die Checkliste später unter „Checkliste bearbeiten“ ändern.", ok: "Zur Übersicht", cancel: "Hier bleiben", safeFirst: true }))) return;
+  if (!(await ckCreateLeaveOk())) return;   // geänderte, aber nicht bestätigte Checkliste: erst fragen
+  const ck = CK;
   ckDirty = false;
   teacherView("tv-overview");
   await loadSheets(true);
-  if (T.sel && T.sheets.some((s) => s.code === T.sel)) selectSheet(T.sel);
+  if (T.sel && T.sheets.some((s) => s.code === T.sel)) { await selectSheet(T.sel); ckCreateNote(ck); }
 });
 
 /* ---------- KI-Einstellungen ---------- */

@@ -110,8 +110,8 @@ const FIN_TEXT = "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein
 const SUBMIT_HINT_NO_FB = "Du kannst auch ohne KI-Feedback abgeben. Nach der Abgabe bekommst du eine finale KI-Rückmeldung (beim Abgeben abwählbar). Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
 // Bestätigungsseite: Warten auf die finale KI-Rückmeldung (Download höchstens 30 s gesperrt)
 const DONE_WAIT_TEXT = "Deine finale KI-Rückmeldung wird gerade erstellt – bitte gedulde dich kurz.";
-const doneWaitLate = (ck) => "Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei statt der KI-Rückmeldung " +
-  (ck ? "die Checkliste deiner Lehrkraft" : "keine Rückmeldung") + ". Wenn du noch wartest, kommt die Rückmeldung vielleicht noch.";
+const doneWaitLate = (ck) => "Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei " +
+  (ck ? "statt der KI-Rückmeldung die Checkliste deiner Lehrkraft" : "keine KI-Rückmeldung") + ". Wenn du noch wartest, kommt die Rückmeldung vielleicht noch.";
 // Abgabe-Dialog: Satz über dem vorausgewählten Kästchen (nach ihm die Empfänger und „Möchtest du das nicht, …“)
 const FINAL_DLG = "Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI beurteilt, was dir gelungen ist und was gefehlt hat, und geht verschlüsselt auch an deine Lehrkraft. ";
 const FINAL_DLG_END = " Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.";
@@ -2832,10 +2832,10 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   // C: ohne KI-Feedback abgegeben, weil die KI ausfiel → Hinweis mit Grund, nur eine Spalte (die abgegebene Fassung)
   await mains.nth(2).click();
   const detC = page.locator("#t-subs-body tr.details").nth(2);
-  await expect(detC.locator(".moodle-hint:not(.dfinal)")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");
+  await expect(detC.locator(".moodle-hint:not(.dfinal)")).toHaveText("Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");
   await expect(detC.locator(".dfinal")).toHaveText("Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.");   // C hat sie abgewählt
-  await expect(detC.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · ohne KI-Feedback · automatische Löschung ab dem \d\d\.\d\d\.\d{4}$/);
-  await expect(detC.locator(".dtask").nth(0).locator("table.cmp thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback)"]);
+  await expect(detC.locator(".dmeta")).toHaveText(/^Abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d · ohne KI-Feedback zum Überarbeiten · automatische Löschung ab dem \d\d\.\d\d\.\d{4}$/);
+  await expect(detC.locator(".dtask").nth(0).locator("table.cmp thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback zum Überarbeiten)"]);
   const tdC = detC.locator(".dtask").nth(0).locator("table.cmp tbody td");
   await expect(tdC).toHaveCount(1);
   expect(await tdC.nth(0).textContent()).toBe(C.first[0]);
@@ -3543,7 +3543,7 @@ test("7h Tageskontingent der KI aufgebraucht (503 ai_quota): Q bekommt sofort de
   await tp.click("#t-expand-all");
   const notes = tp.locator("#t-subs-body tr.details .moodle-hint:not(.dfinal)");
   await expect(notes).toHaveCount(1);
-  await expect(notes).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (" + QUOTA_REASON + ").");
+  await expect(notes).toHaveText("Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (" + QUOTA_REASON + ").");
   // R: gewählt, aber keine finale Rückmeldung – Details und Lösungs-PDF aus der Übersicht sagen das (Q wurde sie nicht angeboten)
   await expect(tp.locator("#t-subs-body tr.details .dfinal")).toHaveText(["Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt."]);
   const detR = tp.locator("#t-subs-body tr.details").nth(1);
@@ -3590,7 +3590,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   };
   const toTeacherUnavailable = " Deine Antworten gehen verschlüsselt an deine Lehrkraft; sie sieht, dass das KI-Feedback nicht möglich war.";
   const draftOf = (page) => page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("feibeitsblatt:draft:")))));
-  const NOT_DONE_NOTE = "Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen).";
+  const NOT_DONE_NOTE = "Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen).";
   const NOT_DONE_PDF = "Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (Anfrage nicht abgeschlossen). Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.";
   const DESELECTED = "Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.";
   const busyDialogStart = "Deine Anfrage um KI-Feedback läuft noch. Gibst du jetzt ab, wird sie abgebrochen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.";
@@ -3753,6 +3753,8 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   const NO_AI_SET = "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – deine Antworten gehen an keine KI.";
   await expect(p6.locator("#privacy")).toContainText(NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.");
   await expect(p6.locator("#privacy")).not.toContainText("KI-Dienst deiner Lehrkraft");
+  await expect(p6.locator("#privacy")).not.toContainText("finale KI-Rückmeldung");   // ohne KI-Dienst nichts ankündigen, was nicht kommt
+  await expect(p6.locator("#submit-hint")).toHaveText("Du kannst auch ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.");
   await expect(p6.locator("#privfull-ed")).toContainText(NO_AI_SET);   // derselbe Inhalt wie im ausführlichen Hinweis
   await expect(p6.locator("#ed-steps-list li").nth(1)).toHaveText(STEP_FB_BLOCKED);   // schon vor dem ersten Klick erkennbar
   await expect(p6.locator("#ed-steps-list li.cur")).toHaveText(STEPS_AI[0]);
@@ -3909,7 +3911,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
     feedback: null, feedbackAt: null, feedbackError: "KI nicht erreichbar", submittedAt: new Date().toISOString() };
   expect((await request.post("/api/submit", { data: { code: codeG, envelope: await makeEnvelope(pubG, old) } })).status()).toBe(200);
 
-  // Lehrkraft: neutrale Hinweise – G „Ohne KI-Feedback abgegeben.“ (keine Wertung, kein „selbst gewählt“), I/J/K/L/M/N/O mit
+  // Lehrkraft: neutrale Hinweise – G „Ohne KI-Feedback zum Überarbeiten abgegeben.“ (keine Wertung, kein „selbst gewählt“), I/J/K/L/M/N/O mit
   // Grund; H und P wie gewohnt
   await tp.click("#b-res-back");
   await expect(tp.locator("#t-sel-code")).toHaveText(shownG);
@@ -3919,10 +3921,10 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   for (const [k, n] of ["Gr", "Ha", "Ib", "Jo", "Ka", "Lu", "Mo", "Ne", "Ol", "Pi"].entries()) await expect(mains.nth(k).locator("td:not(.arrowcol)").nth(0)).toHaveText(n);
   await tp.click("#t-expand-all");
   const det = (k) => tp.locator("#t-subs-body tr.details").nth(k);
-  await expect(det(0).locator(".moodle-hint:not(.dfinal)")).toHaveText("Ohne KI-Feedback abgegeben.");
+  await expect(det(0).locator(".moodle-hint:not(.dfinal)")).toHaveText("Ohne KI-Feedback zum Überarbeiten abgegeben.");
   await expect(det(0).locator(".dfinal")).toHaveText(DESELECTED);
-  await expect(det(0).locator(".dmeta")).toHaveText(/ · ohne KI-Feedback · automatische Löschung ab dem \d\d\.\d\d\.\d{4}$/);
-  await expect(det(0).locator(".dtask").nth(0).locator("table.cmp.one thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback)"]);
+  await expect(det(0).locator(".dmeta")).toHaveText(/ · ohne KI-Feedback zum Überarbeiten · automatische Löschung ab dem \d\d\.\d\d\.\d{4}$/);
+  await expect(det(0).locator(".dtask").nth(0).locator("table.cmp.one thead th")).toHaveText(["Abgegebene Fassung (ohne KI-Feedback zum Überarbeiten)"]);
   await expect(det(0).locator(".dtask").nth(0).locator("table.cmp tbody td")).toHaveText([G.first[0]]);
   await expect(det(0).locator(".dtask").nth(1).locator("table.cmp tbody td")).toHaveText(["(leer)"]);
   await expect(det(0).locator(".dfb")).toHaveCount(0);
@@ -3936,8 +3938,8 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
     await expect(det(k).locator("table.cmp.one")).toHaveCount(2);
   }
   await expect(det(3).locator(".dtask").nth(1).locator("table.cmp tbody td")).toHaveText([J.first[1] + " Nachtrag."]);
-  await expect(det(4).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");   // nicht angeboten: kein Vermerk dazu
-  await expect(det(8).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");   // ältere Abgabe ohne noAi
+  await expect(det(4).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");   // nicht angeboten: kein Vermerk dazu
+  await expect(det(8).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (KI nicht erreichbar).");   // ältere Abgabe ohne noAi
   await expect(det(8).locator(".dtask").nth(0).locator("table.cmp.one tbody td")).toHaveText([old.answers[0].final]);
   await expect(det(9).locator(".moodle-hint")).toHaveCount(0);
   await expect(det(9).locator(".dfb:not(.dfb2)")).toHaveCount(2);
@@ -4818,9 +4820,9 @@ test("7j Während die Abgabe gesendet wird: KI-Feedback und „Abbrechen“ sind
   for (const [k, n] of ["Ra", "Se", "To"].entries()) await expect(mains.nth(k).locator("td:not(.arrowcol)").nth(0)).toHaveText(n);
   await tp.click("#t-expand-all");
   const det = (k) => tp.locator("#t-subs-body tr.details").nth(k);
-  await expect(det(0).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");
+  await expect(det(0).locator(".moodle-hint")).toHaveText("Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (KI nicht eingerichtet).");
   await expect(det(0).locator(".dfinal")).toHaveCount(0);   // nicht angeboten
-  await expect(det(1).locator(".moodle-hint:not(.dfinal)")).toHaveText("Ohne KI-Feedback abgegeben.");
+  await expect(det(1).locator(".moodle-hint:not(.dfinal)")).toHaveText("Ohne KI-Feedback zum Überarbeiten abgegeben.");
   await expect(det(1).locator(".dfinal")).toHaveText("Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.");
   await expect(det(2).locator(".moodle-hint")).toHaveCount(0);
   await expect(det(2).locator(".dtask").nth(0).locator("table.cmp tbody td")).toHaveText(["Das Gewissen ist eine innere Stimme.", "Das Gewissen ist eine innere Stimme. Es meldet sich nach einer Tat."]);
@@ -7692,7 +7694,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   const solB = await solText(bp);
   await expect(bp.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen. Statt einer finalen KI-Rückmeldung steht darin die Checkliste deiner Lehrkraft.");
   const shownB = pdfShownText(Buffer.from(solB, "latin1"));
-  expect(shownB).toContain("Ohne KI-Feedback zum Überarbeiten abgegeben. Die finale KI-Rückmeldung wurde beim Abgeben abgewählt. Statt einer KI-Rückmeldung steht bei jeder Aufgabe die Checkliste deiner Lehrkraft – prüfe damit selbst, ob deine Antwort alles Wichtige enthält.");
+  expect(shownB).toContain("Ohne KI-Feedback zum Überarbeiten abgegeben. Die finale KI-Rückmeldung wurde beim Abgeben abgewählt. Statt einer KI-Rückmeldung steht unter deinen Antworten die Checkliste deiner Lehrkraft – prüfe damit selbst, ob deine Antwort alles Wichtige enthält.");
   expectChecklistInPdf(solB, CKS);
   expect(solB).not.toContain("/Metadata ");   // keine KI-Rückmeldung darin
   expect(await b.calls((e) => e.path === "/api/feedback")).toEqual([]);

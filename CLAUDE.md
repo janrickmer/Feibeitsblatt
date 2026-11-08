@@ -155,13 +155,17 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   gelingt dir schon:“ und „Das hat gefehlt:“ (`FB2_MISS_LABEL`) und eingerückten Punkten „• …“ – **alles schwarz** (Wunsch der Lehrkraft vom
   08.11.2026; die Bestätigungsseite bleibt grün/rot); ältere Rückmeldungen ohne `final` (Lehrkraft-Ansicht) als „KI-Rückmeldung zur abgegebenen
   Fassung:“ mit „• Gelingt schon: …“/„• Tipp: …“, ebenfalls schwarz; nur ein Hinweis ohne Stichpunkte, z. B. `NO_SOLUTION_NOTE`, grau ohne
-  Überschrift – **nie die erste Fassung oder das Feedback zu ihr** (Entscheidung der Lehrkraft vom 04.11.2026). Fehlt `feedback2` (abgewählt, nicht
-  rechtzeitig, gescheitert, nicht an die Lehrkraft übermittelt), steht unter jeder Antwort, zu der es Punkte gibt, die **Checkliste der Lehrkraft**
+  Überschrift – **nie die erste Fassung oder das Feedback zu ihr** (Entscheidung der Lehrkraft vom 04.11.2026). Unter jeder Antwort ohne KI-Stichpunkte (fehlt
+  `feedback2` – abgewählt, nicht rechtzeitig, gescheitert, nicht an die Lehrkraft übermittelt – oder Aufgabe ohne Auftrag an die KI), zu der es
+  Punkte gibt, steht die **Checkliste der Lehrkraft** statt eines Hinweises wie `NO_SOLUTION_NOTE`
   (`sub.checklist = {ai, points: [[…]…]}`, siehe Analoges Arbeitsblatt + Checkliste): fett „Checkliste – prüfe selbst, ob deine Antwort das
   enthält:“ und je Punkt ein gezeichnetes leeres Kästchen (`checkLines`, `re S` – WinAnsi kennt kein ☐); unter dem Kopf grau der Grund
   (`fbNote`: „Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.“ / „Eine finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“
   (`fb2Missing`, nur aus der Lehrkraft-Ansicht) / „Die finale KI-Rückmeldung lag beim Herunterladen nicht vor.“) und, mit Punkten, „Statt einer
-  KI-Rückmeldung steht bei jeder Aufgabe die Checkliste deiner Lehrkraft – prüfe damit selbst, ob deine Antwort alles Wichtige enthält.“ (bei
+  KI-Rückmeldung steht unter deinen Antworten die Checkliste deiner Lehrkraft – prüfe damit selbst, ob deine Antwort alles Wichtige enthält.“
+  (mit `feedback2` „Bei Aufgaben ohne KI-Rückmeldung steht unter deiner Antwort die Checkliste deiner Lehrkraft – …“, Blatt ohne KI
+  (`noAi: "none"`) „Unter deinen Antworten steht die Checkliste deiner Lehrkraft – …“; nach einem Download ohne `feedback2` merkt
+  `sub.pdfNoFinal`, dass `requestFinalFeedback` bei Erfolg in `#done-status` zum erneuten Herunterladen auffordert) (bei
   `ai: true` dazu „Die Checkliste hat deine Lehrkraft aus einem Vorschlag einer KI erstellt und geprüft.“); ohne Checkliste nur der Grund. Abgabe
   ohne erstes Feedback (Blatt mit KI): grau „Ohne KI-Feedback zum Überarbeiten abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“
   Ausnahme: die Abschluss-PDF einer gescheiterten Escape-Abgabe (`sub.failed`, noch nichts abgegeben) zeigt wie bisher erste Fassung + grau
@@ -183,13 +187,20 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   nicht, wähle die finale KI-Rückmeldung unten ab.“ (ohne Angebot mit erstem Feedback `FB2_NO_AI` „…; an die KI wird nichts gesendet.“ bzw.
   „Deine Antworten sind zusammen zu lang für eine finale KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet.“; ohne erstes Feedback
   und ohne Angebot die bisherigen Sätze „An die KI wird nichts gesendet.“ u. ä.). `wantFinal = offer && ok === true && $("dlg-check").checked`;
-  angeboten → `payload.finalWanted = wantFinal` (verschlüsselt; die Lehrkraft sieht „abgewählt“). Kästchen und Satz nennen nie Tippzeiten
+  angeboten → `payload.finalWanted = wantFinal` (verschlüsselt; die Lehrkraft sieht „abgewählt“); **jede** neue Abgabe trägt `payload.finalMode = true`
+  (`fb2Of` wendet die alte Regel „unverändert → erstes Feedback gilt“ nur auf ältere Abgaben an). 409 `final_locked` (dieselbe Bearbeitung aus
+  einem anderen Tab bzw. einer Zwischenstand-PDF schon abgegeben und abgeschlossen) → `FINAL_LOCKED_TEXT` ohne „versuche es gleich noch
+  einmal“, nie der E-Mail-Weg (`ESC_NOT_TECHNICAL`). Kästchen und Satz nennen nie Tippzeiten
   (`expectOnlyTtShort`: Abgabe-Dialog 1, Bestätigung 0).
   **Nach der Abgabe:** `S.lastSubmission` bekommt `fb2Want`, `finalWanted`, `attempt` (`S.attempt`), `serverAt` (`receivedAt` der Antwort von
   `/api/submit`), `gateOpen`, `checklist`. `fb2LoadChecklist(sub)` holt **bei jeder Abgabe** sofort `GET /api/sheet/:code/checklist` (öffentlich,
   ohne Angaben, Timeout 20 s; `sub.checklist`: `undefined` = lädt, `false` = keine oder Fehler, sonst `{ai, points}` gekappt auf 30 Aufgaben ×
   `CHECK_POINTS` × `CHECK_POINT_MAX`; Versprechen in `sub.checklistP`). Nur mit `wantFinal`: `fb2Hold` (siehe unten), `doneGate(sub)` und
-  `requestFinalFeedback()`; abgewählt oder nicht angeboten → keine Anfrage, `#done-fb` bleibt verborgen, Download sofort frei.
+  `requestFinalFeedback()`; abgewählt oder nicht angeboten → keine Anfrage, `#done-fb` bleibt verborgen, Download sofort frei. Live-Regionen werden
+  erst eingeblendet, dann gefüllt (`doneWaitShow` per `liveFill` mit `#done-wait._txt`, `doneFbReveal(sub, fill)` für `#done-fb-status` mit
+  `_seq` – auch `fb2StatusWithChecklist` erhöht ihn). „Rückmeldung erneut anfordern“ per Tastatur: `sub.retryFocus`, der Fokus geht beim
+  Ausblenden auf `#done-pdf` und nach einem erneuten Fehlschlag zurück auf den Knopf. Ohne eingerichteten KI-Dienst (`!recipientParts().any`)
+  kündigen `renderPrivacy` und `#submit-hint` keine finale Rückmeldung an.
   **Sperre mit Countdown:** `doneGate` setzt `sub.gateOpen = false` und `sub.gateUntil = Date.now() + FB2_GATE_MS` (30 s, absoluter Zeitpunkt – auch
   nach dem Ruhezustand richtig), `#done-pdf` `aria-disabled="true"` (bleibt fokussierbar; der Klick-Handler prüft `gateOpen` selbst und sagt in
   `#done-status` „Einen Moment noch – deine finale KI-Rückmeldung wird gerade erstellt. Danach kannst du deine Lösungen herunterladen.“),
@@ -198,7 +209,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   gedulde dich kurz.“ `doneGateOpen(sub, why)`: `"done"` (Rückmeldung da) bzw. `"failed"` (`finalFeedbackGone` oder ein Fehler mit möglichem neuem
   Versuch – der Download wartet nie auf einen neuen Versuch) → frei, `#done-wait` weg; `"timeout"` bei noch laufender Anfrage → frei, ohne
   Countdown, der Spinner bleibt mit `doneWaitLate(sub)` „Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht
-  in der PDF-Datei statt der KI-Rückmeldung die Checkliste deiner Lehrkraft (bei `checklist === false` „keine Rückmeldung“). Wenn du noch
+  in der PDF-Datei statt der KI-Rückmeldung die Checkliste deiner Lehrkraft (bei `checklist === false` „… steht in der PDF-Datei keine KI-Rückmeldung“). Wenn du noch
   wartest, kommt die Rückmeldung vielleicht noch.“ – **im Hintergrund wird weiter gewartet, bis heruntergeladen wird**: Kommt sie vorher, steht sie
   auf der Seite und in der PDF. Klick auf den Download, während sie noch lädt → `fb2Drop(sub)` (`S.fbRun++`, `S.fbAbort.abort()`, `fb2State`
   `"dropped"`, `fb2Release`, `#done-wait` und „Rückmeldung erneut anfordern“ weg – danach nichts mehr, auch kein Nachreichen), höchstens 4 s
@@ -278,15 +289,17 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   nicht übermitteln.“). Die Hinweise nennen nie Tippzeiten; eine schon geladene PDF enthält die Rückmeldung trotzdem; die Lehrkraft-Seite sagt per
   `fb2Missing` „… wurde nicht an die Lehrkraft übermittelt.“ **Lehrkraft:** `loadSubs` kappt `feedback2` samt `final` (eigenes
   try/catch, wie `ttCleanPayload` und `escCleanPayload`) und liest `finalWanted` nur als Boolean (sonst `undefined` = ältere Abgabe bzw. nicht
-  angeboten), `fb2Of(p)`: mit `feedback2.final` diese Ergebnisse (alle Aufgaben, auch ohne erstes Feedback); ältere Abgaben wie damals im Browser
+  angeboten) und `finalMode` (gesetzt oder `finalWanted` vorhanden), `fb2Of(p)`: mit `feedback2.final` diese Ergebnisse (alle Aufgaben, auch ohne
+  erstes Feedback); neue Abgaben (`finalMode`) ohne sie → `null`; ältere Abgaben wie damals im Browser
   (`fb2Changes`: keine Änderung → `same`, die erste Rückmeldung gilt; sonst nur mit nachgereichtem `feedback2`), sonst `null`. `buildDetail` zeigt bei
   Abgaben (nicht Erstversuchen, nicht ausgeblendeten älteren) `p.moodle-hint.dfinal` „Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.“
   bzw. – gewählt, aber nicht nachgereicht – „Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“, je Aufgabe `.dfb.dfb2` „Finale
   KI-Rückmeldung“ mit „Gelingt schon:“ / „Hat gefehlt:“ (ältere: „KI-Rückmeldung zur abgegebenen Fassung“, nur geänderte Aufgaben, „Tipps zum
-  Weiterlernen:“; `markAi` `feedback-final`) und für Abgaben `.dpdf` „Lösungs-PDF herunterladen“ → ohne Rückmeldung erst `teacherChecklistLoad()`
+  Weiterlernen:“; `markAi` `feedback-final`) und für Abgaben `.dpdf` „Lösungs-PDF herunterladen“ → immer erst `teacherChecklistLoad()`
   (gespeicherte Checkliste des Blattes per Lehrkraft-Route, wie bei den Schüler:innen; abgemeldet bzw. anderes Blatt gewählt → nichts) →
   `makeSolutionsPdf(teacherSolutionsSub(s, checklist))` (dieselbe Datei wie bei den Schüler:innen über `pdfPager`/`pdfAssemble`, samt XMP-/KI-Kennzeichnung;
-  `fb2Missing` = keine Rückmeldung und `finalWanted === true` bzw. bei älteren Abgaben (`undefined`) mit erstem Feedback; abgewählt sagt die PDF
+  `fb2Missing` = keine Rückmeldung und `finalWanted === true` bzw. bei älteren Abgaben (ohne `finalMode`) mit erstem Feedback; ältere Abgaben ohne
+  `noAi` und ohne Feedback → `noAi: "unavailable"` wie `noAiNote`; abgewählt sagt die PDF
   selbst; bei Escape-Blättern nur die
   Lösungsseiten – `teacherSolutionsSub` setzt kein `escape`, den Überblick gibt es über „Überblick als PDF herunterladen“ –, nie
   Tippzeiten, nie ein voller Name), daneben in den Details weiter `p.dtt`/`p.dtt-sum` und `escDetailDom`, Dateiname `teacherSolutionsName`
@@ -1128,21 +1141,27 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bestätigt.“ bzw. „Gespeichert – ohne Checklistenpunkte.“; Fokus bleibt beim Code). Bestätigt dient sie **zwei Zwecken**: der Lösungs-PDF der
   Schüler:innen, wenn die finale KI-Rückmeldung fehlt (siehe Finale KI-Rückmeldung; geholt über die öffentliche Route), und dem QR-Code des
   analogen Arbeitsblattes – **öffentlich ab dem Bestätigen** (`#checkliste=CODE`), also womöglich schon während die Schüler:innen schreiben
-  (README, „Weiter vom Betreiber zu prüfen“). „Zur Übersicht“ (`#b-res-back`) fragt nur bei geänderten, nicht bestätigten Punkten („Checkliste
-  nicht bestätigt“, `safeFirst`); unbestätigt bleibt nur der Entwurf – dann steht in den Lösungs-PDFs keine Checkliste. Ein Editor `#ck-box` für
+  (README, „Weiter vom Betreiber zu prüfen“). „Zur Übersicht“ (`#b-res-back`) und der obere Rücklink `#b-back`
+  fragen über `ckCreateLeaveOk()` nur bei geänderten, nicht bestätigten Punkten („Checkliste nicht bestätigt“, `safeFirst`; nicht während das
+  Bestätigen läuft); unbestätigt bleibt nur der Entwurf – dann steht in den Lösungs-PDFs keine Checkliste, und `ckCreateNote` sagt es nach
+  `#b-res-back` in `#t-export-status`. Escape-Blätter (`CK.esc`, aus `sheet.escape`): `#b-ck-intro` = `B_CK_INTRO_ESC`, Zustandstexte und
+  die Rückfrage zu „Neu von der KI vorschlagen lassen“ ohne QR-Code, `#ck-open` verborgen; `h2#ck-h2` „Checkliste zum QR-Code“ nur im Modus
+  `"analog"`, sonst „Punkte der Checkliste“. Schlägt die KI noch vor (`T.ckPending` aus `ckSuggest`), wartet ein neu geöffneter Editor desselben
+  Blattes darauf statt erneut zu fragen; ein Ladefehler beim Anlegen verweist auf „Checkliste bearbeiten“. Ein Editor `#ck-box` für
   drei Lagen (`CK.mode`, `ckMount` verschiebt ihn zwischen `#b-ck-slot` und `#ck-home` in `#tv-analog`; `CK_SAVE_LABEL`): `"create"` (s. o.),
   `"edit"` – `#t-ck-edit` „Checkliste bearbeiten“ in den Blattdetails (auch bei Escape-Blättern) → `#tv-analog` mit `h1#ck-h1` „Checkliste“,
   „Checkliste speichern“, ohne PDF – und `"analog"` (ältere Blätter ohne bestätigte Checkliste: „Analoges Arbeitsblatt“, `#ck-intro1`,
   „Speichern und PDF herunterladen“ wie bisher). `#t-analog` „Analoges Arbeitsblatt als PDF herunterladen“ im ausgewählten Blatt →
-  `openAnalog`: mit bestätigter Checkliste **direkt** das PDF, ohne noch einmal zu fragen (Abbruchzähler `T.analogDirect`; Verlassen der
-  Übersicht, anderes Blatt oder Abmelden → nichts; Knopf „PDF wird erstellt …“, Meldungen in `#t-export-status`: „… – mit der Checkliste, die
+  `openAnalog`: mit bestätigter Checkliste **direkt** das PDF, ohne noch einmal zu fragen (Abbruchzähler `T.analogDirect` und `T.overviewLeft` –
+  steigt in `teacherView` bei jedem Verlassen der Übersicht; Verlassen, anderes Blatt oder Abmelden → nichts, die Meldung „wird erstellt …“
+  wird geleert; Knopf „PDF wird erstellt …“, Meldungen in `#t-export-status`: „… – mit der Checkliste, die
   Sie bestätigt haben.“, ohne Punkte „Ohne Checklistenpunkte enthält es keinen QR-Code zur Checkliste.“), sonst `ckEditorOpen(…, "analog")` →
   `#tv-analog` (Abbruchzähler `T.analogRun` wie `T.importRun`/`T.exportRun`: steigt in
   `teacherView` beim Verlassen und bei `logout`, `analogStillWanted`; `ckLeaveQuestion()` nur für `#ck-back` – abmelden lässt sich
   nur aus der Übersicht: während des PUT (`CK.saving` "put") „… Das Speichern läuft weiter … – das PDF wird dann aber nicht
   heruntergeladen.“, während das PDF entsteht ("pdf") ebenso (kind "busy"), sonst bei `ckDirty` „Ohne Speichern zurück?“ ("dirty");
   nach der Antwort wird neu bewertet – hat sich die Art geändert (Speichern inzwischen gescheitert), wird noch einmal gefragt;
-  solange die Frage offen ist (`CK.leaving`), wartet `ckSave` mit dem Download; `ckUnsaved` → beforeunload, nur bei sichtbarem `#tv-analog`;
+  solange die Frage offen ist (`CK.leaving`), wartet `ckSave` mit dem Download; `ckUnsaved` → beforeunload, bei sichtbarem `CK.view` (beim Anlegen nur mit sichtbarem `#b-result`);
   `analogStillWanted` prüft `CK.view` und im Modus `"create"` das sichtbare `#b-result`). D1 `sheet_checklists` = JSON
   `{v:1, ai, tasks:[{n, points}]}` in `draft` (Vorschlag der KI, nie öffentlich) und `final`, gelöscht mit dem Blatt. Routen: `GET
   …/sheets/:code/checklist` → `{checklist:{draft, final, updatedAt}|null, aiFeedback, aiReady}`; `POST {force?}`: schon Entwurf oder
@@ -1403,7 +1422,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   schließt `closeDlg(null)` (keine Antwort – beim LanguageTool-Dialog nicht „Trifft nicht zu“) einen offenen Dialog vor
   `show("screen-done")` (E2E 7j: `/api/submit` angehalten; dort auch: Nachsehen der Empfänger hinter offenem Abgabe-Dialog,
   erstes Feedback ohne Empfänger nach Weiterschreiben).
-  Lehrkraft (`noAiNote`, neutral): „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“
+  Lehrkraft (`noAiNote`, neutral): „Ohne KI-Feedback zum Überarbeiten abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“
   (alte Abgaben ohne `noAi` = nicht möglich), eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“ (`table.cmp.one`); Liste, Legende, Zähler unverändert. Lösungs-PDF: derselbe Satz im Kopf (nicht
   bei `none`); Zwischenstand-PDF „Stand: … KI-Feedback schon erhalten / angefordert, beim Sichern noch nicht erhalten
   (`fbPending`) / bisher nicht geklappt (Grund) / nicht angefordert“, ohne KI-Hinweise bei Blättern ohne KI. E2E 3b, 4

@@ -179,9 +179,9 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    abgebrochen wird. Wer ohne KI-Feedback abgibt, bestätigt das in einem eigenen Dialog („Ohne KI-Feedback
    abgeben?“); hat sie bzw. er nie eine Anfrage gestellt, geht dabei nichts an die KI – erst danach, wenn die finale
    KI-Rückmeldung nicht abgewählt wird (siehe unten). Ohne Feedback gibt es keinen Erstversuch, und Sie sehen in den
-   Abgaben nur eine Fassung mit dem neutralen Hinweis „Ohne KI-Feedback abgegeben.“ War das KI-Feedback nicht möglich – keine KI eingerichtet, Anbieter ausgefallen, ein
+   Abgaben nur eine Fassung mit dem neutralen Hinweis „Ohne KI-Feedback zum Überarbeiten abgegeben.“ War das KI-Feedback nicht möglich – keine KI eingerichtet, Anbieter ausgefallen, ein
    Versuch gescheitert, eine laufende Anfrage mit der Abgabe abgebrochen oder nie zu Ende gekommen (Tab geschlossen) –,
-   steht dort „Ohne KI-Feedback abgegeben – das KI-Feedback war nicht möglich (Grund).“ Was eine abgebrochene Anfrage
+   steht dort „Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (Grund).“ Was eine abgebrochene Anfrage
    schon gesendet hatte, hat der KI-Dienst erhalten; der Dialog sagt das. Bis zur Abgabe lässt sich das Feedback
    jederzeit anfordern; kommt es an, während der Abgabe-Dialog offen ist, wird nicht abgegeben, sondern erst das
    Feedback gezeigt (nach dem Schließen des Dialogs springt der Fokus zum Hinweis „Lies das KI-Feedback …“). Solange
@@ -468,7 +468,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    die Zahl; in den Details der Abgabe lässt er sich unter „… älterer Erstversuch dieser Person“ aufklappen). Bei einer
    Gruppe gilt dasselbe für dieselbe Klasse und dieselben Kürzel – in welcher Reihenfolge sie eingetragen wurden, spielt
    keine Rolle („… dieser Gruppe“). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“
-   und den Hinweis „Ohne KI-Feedback abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“; Liste,
+   und den Hinweis „Ohne KI-Feedback zum Überarbeiten abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“; Liste,
    Farben und Zähler unterscheiden sie nicht. „Alle aufklappen“ öffnet
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
    Beachten Sie: Kürzel, Geburtstag, Klasse, die Mitglieder einer Gruppe und „erste Fassung“ sind Angaben der Schüler:innen selbst – der
@@ -1496,8 +1496,8 @@ Schüler:innen.
 > QR-Code ausgeben: Der QR-Code führt zu einer Checkliste der Lehrkraft auf feibeitsblatt.janrickmer.de; beim Aufruf
 > verarbeiten GitHub, Inc. (USA; liefert diese Seite über GitHub Pages aus) und Cloudflare technisch die IP-Adresse. Die
 > Häkchen bleiben nur auf dem Gerät und werden nicht gesendet.] Dieselbe Checkliste lädt die Seite nach der Abgabe vom
-> Server (ohne Angaben zur Person), damit sie in der Lösungs-PDF stehen kann, falls die finale KI-Rückmeldung nicht
-> rechtzeitig kommt. [Falls ein Feibeitsblatt das Finale eines Escape-Rooms
+> Server (ohne Angaben zur Person), damit sie in der Lösungs-PDF unter den Antworten ohne KI-Rückmeldung stehen kann
+> (z. B. wenn die finale KI-Rückmeldung nicht rechtzeitig kommt). [Falls ein Feibeitsblatt das Finale eines Escape-Rooms
 > ist: Über den Link am Ende des Escape-Rooms oder die Überblick-PDF übernimmt Feibeitsblatt den vollen Namen, das
 > Geburtsdatum, die Klasse, den Bestätigungscode und die Ergebnisse aus dem Escape-Room. Voller Name, Geburtsdatum und
 > Bestätigungscode bleiben auf dem Gerät (Zwischenstand und heruntergeladene PDF-Dateien); an die Lehrkraft gehen nur
