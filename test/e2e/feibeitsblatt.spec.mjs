@@ -7561,6 +7561,15 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   expect(ckRow.draft).toBeNull();
   expect(JSON.parse(ckRow.final).tasks.map((x) => x.points)).toEqual([CK1, draft2, CK3]);
   const CKS = [CK1, draft2, CK3];
+  // Mit finaler Rückmeldung steht die Checkliste nur unter Aufgabe 3 (ohne Auftrag an die KI, also ohne KI-Rückmeldung) – statt „kein KI-Feedback“
+  const onlyCk3 = (sol) => {
+    for (const n of [1, 2]) expect(pdfTaskText(sol, n).text, "Aufgabe " + n).not.toContain(CK_PDF_HEAD);
+    const t3 = pdfTaskText(sol, 3).text;
+    expect(t3).toContain(CK_PDF_HEAD + " " + CK3.join(" "));
+    expect(t3).not.toContain("Zu dieser Aufgabe gibt es kein KI-Feedback.");
+    expect((sol.match(/0 0 0 RG 0\.8 w [\d.]+ [\d.]+ 8 8 re S/g) || []).length).toBe(CK3.length);
+    expect(pdfShownText(Buffer.from(sol, "latin1"))).toContain("Bei Aufgaben ohne KI-Rückmeldung steht unter deiner Antwort die Checkliste deiner Lehrkraft – prüfe damit selbst, ob deine Antwort alles Wichtige enthält.");
+  };
   await tp.click("#b-res-back");   // bestätigt: ohne Rückfrage
   await expect(tp.locator("#t-sel-code")).toHaveText(shown);
   // mit bestätigter Checkliste lädt „Analoges Arbeitsblatt“ das PDF direkt (ohne Editor); „Checkliste bearbeiten“ zeigt die bestätigte
@@ -7676,7 +7685,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   expect(solA.split("(Finale KI-R\\374ckmeldung:) Tj").length - 1).toBe(2);
   expectFinalInPdf(solA, expA);
   expect(pdfShownText(Buffer.from(solA, "latin1"))).toContain("Die Rückmeldungen in dieser Datei hat eine KI erzeugt (KI-Feedback). Sie können Fehler enthalten.");
-  expect(solA).not.toContain("(Checkliste \\226 pr\\374fe selbst");
+  onlyCk3(solA);
   // … und verschlüsselt an die Lehrkraft nachgereicht
   await expect.poll(async () => (await fb2Posted(a)).length, { timeout: 30_000 }).toBe(1);
   await closePage(a);
@@ -7751,7 +7760,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   const solD = await solText(dp);
   await expect(dp.locator("#done-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
   expectFinalInPdf(solD, expD);
-  expect(solD).not.toContain("(Checkliste \\226 pr\\374fe selbst");
+  onlyCk3(solD);
   expect(pdfShownText(Buffer.from(solD, "latin1"))).not.toContain("lag beim Herunterladen nicht vor");
   await expect.poll(async () => (await fb2Posted(d)).length, { timeout: 30_000 }).toBe(1);
   expect(await mockRequests("final")).toHaveLength(2);
@@ -7776,7 +7785,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
     expect(await aiMarks(f2)).toEqual(["true", "feedback-final", AI_SOURCE]);
     const sol = await teacherPdf(who);
     expectFinalInPdf(sol, exp);   // dieselbe finale Rückmeldung, schwarz
-    expect(sol).not.toContain("(Checkliste \\226 pr\\374fe selbst");
+    onlyCk3(sol);
   }
   expect(pdfShownText(Buffer.from(await teacherPdf("Ana"), "latin1"))).toBe(pdfShownText(Buffer.from(solA, "latin1")));   // genau die Datei der Schülerin
   await expect(det("Ben").locator(".dfinal")).toHaveText("Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.");
