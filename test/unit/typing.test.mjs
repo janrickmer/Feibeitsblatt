@@ -730,16 +730,15 @@ test("typing: Kurzfassungen nennen die Messung in genau einem neutralen Satz (TT
   const ed = code(body("function renderPrivacy()", 'const full = $("privfull-ed")'));
   assert.equal(ed.split(SHORT_EXPR).length - 1, 1);
   assert.doesNotMatch(ed.replace(SHORT_EXPR, ""), /Tippzeit|misst|Messung|[Ww]idersprech|Widerspruch|Schalter|\bTT_|ttMeasured|typing/);
-  // § 25 TDDDG: nur die Tatsache (Zugriff auf das Gerät) – keine behauptete Ausnahme, keine Einwilligung; Zwischenstand nur mit keep;
-  // mit KI-Feedback (ai, Vorgabe) auch, dass die Seite sie nach der Abgabe hält, bis die zweite Rückmeldung nachgereicht ist (sendFeedback2)
-  const HELD = (g) => ` (und, wenn die KI-Rückmeldung zu ${g ? "eurer" : "deiner"} abgegebenen Fassung noch nachgereicht wird, bis dahin)`;
+  // § 25 TDDDG: nur die Tatsache (Zugriff auf das Gerät) – keine behauptete Ausnahme, keine Einwilligung; Zwischenstand nur mit keep.
+  // Nach der Abgabe hält die Seite keine Tippzeiten mehr (die finale KI-Rückmeldung speichert der Server selbst, nichts wird nachgereicht)
   for (const g of [false, true]) {
     for (const ai of [true, false]) {
       const a1 = on.TT_ACCESS(g, true, ai), a0 = off.TT_ACCESS(g, false, ai);
       for (const x of [a1, a0]) {
         assert.match(x, /^Für die Tippzeiten liest diese Seite beim Schreiben in (deinem|eurem) Browser die Zeitpunkte (deiner|eurer) Eingaben aus/);
-        assert.ok(x.includes("bis zur Abgabe" + (ai ? HELD(g) : "") + " im Arbeitsspeicher"), x);
-        assert.equal(x.includes("nachgereicht"), ai, x);
+        assert.ok(x.includes("bis zur Abgabe im Arbeitsspeicher"), x);
+        assert.doesNotMatch(x, /nachgereicht|Rückmeldung/, x);
         assert.match(x, /\(nach einem Widerspruch nicht mehr\) – das ist ein Zugriff auf (dein|euer) Gerät im Sinne von § 25 TDDDG\.$/);
         assert.doesNotMatch(x, /unbedingt erforderlich|Einwilligung|Abs\. [12]|Ausnahme|zulässig/);
         assert.doesNotMatch(x, g ? /\b(du|dein\w*|dir|dich)\b/i : /\b(ihr|euer|eure\w*|euch)\b/i);
@@ -751,11 +750,14 @@ test("typing: Kurzfassungen nennen die Messung in genau einem neutralen Satz (TT
     assert.equal(on.TT_ACCESS(g), on.TT_ACCESS(g, true, true));   // Vorgabe: Blatt mit KI-Feedback
     assert.equal(B.TT_ACCESS(g), B.TT_ACCESS(g, TT_KEEP_IN_DRAFT, true));
   }
-  assert.equal(off.TT_ACCESS(false), "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe " +
-    "(und, wenn die KI-Rückmeldung zu deiner abgegebenen Fassung noch nachgereicht wird, bis dahin) im Arbeitsspeicher " +
-    "(nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");
-  assert.equal(off.TT_ACCESS(false, false, false), "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher " +
-    "(nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");   // Blatt ohne KI-Feedback: wie bisher
+  const ACCESS_DU = "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher " +
+    "(nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.";
+  assert.equal(off.TT_ACCESS(false), ACCESS_DU);
+  assert.equal(off.TT_ACCESS(false, false, false), ACCESS_DU);   // Blatt ohne KI-Feedback: derselbe Satz
+  assert.equal(off.TT_ACCESS(true), "Für die Tippzeiten liest diese Seite beim Schreiben in eurem Browser die Zeitpunkte eurer Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher " +
+    "(nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf euer Gerät im Sinne von § 25 TDDDG.");
+  // auch „Wie lange …?“ sagt nichts mehr vom Halten nach der Abgabe
+  assert.doesNotMatch(body("function privacyNoticeDom(", "\n}\n"), /nachgereicht|TT_HELD/);
   // … und nach einem Widerspruch liest die Seite wirklich keine Zeitpunkte mehr (Capture-Listener „input“, ttSync)
   assert.ok(html.includes("if (!S.ttOptOut) { ta._evType = e.inputType || \"\"; ta._evTs = performance.now(); }"));
   assert.ok(html.includes("if (S.ttOptOut) { el._evTs = el._evType = undefined; return; }"));
@@ -843,232 +845,157 @@ test("typing: Datenschutzhinweis – Wirkung und Geltungsbereich des Schalters f
     "Bei deiner Abgabe sieht deine Lehrkraft dann „ohne Messung (widersprochen)“ – das ist dein Recht und für deine Lehrkraft kein Anlass für einen Verdacht. Nimmst du den Haken wieder weg, misst die Seite erst ab dann wieder.");
 });
 
-test("typing: nach der Abgabe – die angenommene Nutzlast (mit Tippzeiten) nur getrennt von S.lastSubmission und nur, bis die finale Rückmeldung nachgereicht ist", () => {
+test("typing: nach der Abgabe – keine Nutzlast und keine Tippzeiten mehr gehalten; die finale Rückmeldung speichert der Server, nichts wird nachgereicht", () => {
   const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
-  // höchstens so lange, wie der Server ein Nachreichen annimmt
-  assert.match(html, /const FB2_HOLD_MS = 15 \* 60e3;/);
+  // die Frist für „Rückmeldung erneut anfordern“: so lange, wie der Server eine finale Anfrage annimmt
+  assert.match(html, /const FB2_WINDOW_MS = 15 \* 60e3;/);
   assert.equal(15 * 60e3, REPLACE_WINDOW_MS);
+  // das Nachreichen gibt es nicht mehr: kein feedback2 an /api/submit, keine gehaltene Nutzlast, kein Widerspruch-Nachführen für sie
+  for (const x of ["fb2Base", "sendFeedback2", "fb2Hold", "fb2Release", "fb2FollowOptOut", "fb2OptedOut", "fb2Reach", "TT_HELD", 'stage: "feedback2"', "FB2_HOLD_MS"])
+    assert.ok(!html.includes(x), x);
   // S.lastSubmission (daraus entstehen die PDF-Dateien der Schüler:innen) trägt nie die Nutzlast, ihre Tippzeiten oder den Schlüssel
   const last = body("S.lastSubmission = {", "};");
-  for (const x of ["payload,", "payload:", "typing", "pub", "fb2Base"]) assert.ok(!last.includes(x), x);
+  for (const x of ["payload,", "payload:", "typing", "pub"]) assert.ok(!last.includes(x), x);
   for (const f of ["function makeSolutionsPdf(", "function escPdfPages("]) {
     const src = body(f, "\n}\n");
-    for (const x of ["fb2Base", "typing", ".payload"]) assert.ok(!src.includes(x), f + " " + x);
+    for (const x of ["typing", ".payload"]) assert.ok(!src.includes(x), f + " " + x);
   }
-  // gemerkt nur mit gewählter finaler Rückmeldung, nach der Annahme (sendSealed hat die Rückfälle schon angewandt); die Tippzeiten der ersten Fassung weg
+  // nach der Abgabe: die Tippzeiten der ersten Fassung weg, die Nutzlast wird nicht gemerkt; die Frist zählt ab dem Absenden (nie länger als beim Server)
   const submit = body("async function submitAll()", "\n}\n");
-  const kSent = submit.indexOf("await sendSealed(payload"), kHold = submit.indexOf("if (wantFinal) fb2Hold(S.lastSubmission, payload, r, sentAt);");
-  assert.ok(kSent > 0 && kHold > kSent);
-  assert.ok(submit.indexOf("const sentAt = Date.now();") > 0 && submit.indexOf("const sentAt = Date.now();") < kSent);   // Frist ab dem Absenden: nie länger als beim Server
+  const kSent = submit.indexOf("await sendSealed(payload"), kAt = submit.indexOf("const sentAt = Date.now(), sentMono = performance.now();");
+  assert.ok(kAt > 0 && kSent > kAt);
   assert.ok(submit.indexOf("S.firstTyping = null;") > kSent);
-  // Nachreichen: genau diese Nutzlast + feedback2, dieselben Rückfälle wie bei der Abgabe (sendSealed), danach immer freigegeben
-  const send = body("async function sendFeedback2(sub)", "\n}\n");
-  assert.ok(send.includes("const payload = { ...base.payload, feedback2: "));
-  assert.ok(send.includes("await sendSealed(payload, (envelope) => ({ code: sub.code, envelope, stage: \"feedback2\", attempt: base.attempt, receivedAt: base.submitAt }), base.pub);"));
-  assert.ok(send.includes("} finally { fb2Release(sub); }"));
-  // freigegeben, sobald nichts mehr nachgereicht wird
-  assert.ok(body("function finalFeedbackGone(sub)", "\n}\n").includes("fb2Release(sub);"));
+  assert.ok(last.includes("fb2Until: sentAt + FB2_WINDOW_MS, fb2Mono: sentMono + FB2_WINDOW_MS,"));
+  assert.ok(last.includes("waitSec: finalWaitOf(S.sheet.finalWaitSec),"));
+  // nach dem Senden wird die Nutzlast nur noch gelesen (Angaben, Antworten, Feedback, Vermerke für S.lastSubmission) – nie gemerkt
+  const after = submit.slice(submit.indexOf("\n", kSent));
+  assert.deepEqual([...new Set(after.match(/\bpayload\b(\.\w+)?/g))].sort(), ["payload.answers", "payload.feedback", "payload.feedbackError", "payload.finalWanted", "payload.noAi", "payload.person"]);
+  // die finale Rückmeldung: einmal POST /api/feedback (final: true), danach nur der ruhige Hinweis, wenn der Server sie nicht gespeichert hat
   const req = body("async function requestFinalFeedback()", "\n}\n");
-  assert.ok(req.includes("if (!sub || !sub.fb2Want) { fb2Release(sub); return; }"));   // abgewählt bzw. nicht angeboten
-  assert.ok(body("function fb2Drop(sub)", "\n}\n").includes("fb2Release(sub);"));   // heruntergeladen, ohne zu warten
-  assert.ok(body("function resetStudent()", "\n}\n").includes("fb2Release();"));
-  const hold = body("function fb2Hold(", "\n}\n");
-  assert.ok(hold.includes("sub.fb2Until = (Number.isFinite(sentAt) && sentAt > 0 ? sentAt : Date.now()) + FB2_HOLD_MS;"));
-  assert.ok(hold.includes("base.until = performance.now() + Math.max(0, sub.fb2Until - Date.now());"));
-  assert.ok(hold.indexOf("fb2Check();") > hold.indexOf("S.fb2Base = base;"));   // freigegeben spätestens nach FB2_HOLD_MS (fb2Check, eigener Test)
+  assert.ok(req.includes("if (!sub || !sub.fb2Want) return;"));
+  assert.ok(req.includes("fb2TeacherShow(sub, r.stored);"));
+  assert.ok(!req.includes("/api/submit"));
+  // der Widerspruch aus einem anderen Tab betrifft nach der Abgabe nichts mehr auf dieser Seite (ttFollowStored endet bei S.submitted)
+  assert.ok(!body('window.addEventListener("storage", (e) => {', "\n});\n").includes("fb2"));
 });
 
-test("typing: Widerspruch aus einem anderen Tab nach der Abgabe – die gehaltene Nutzlast verliert die Tippzeit-Werte, nachgereicht wird ohne sie", () => {
+test("finale Rückmeldung: Hinweise unter der Rückmeldung (nicht für die Lehrkraft gespeichert) und unter „Rückmeldung erneut anfordern“ (Frist vorbei) – ruhig, ohne Tippzeiten", () => {
   const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
-  const src = body("const fb2OptedOut = ", "\n}\n") + "\n}\n";
-  const run = (S, stored) => {
-    const store = { get: (k) => { if (k !== "k1") throw new Error("Schlüssel"); return stored; } };
-    const f = new Function("S", "store", "ttStoredFlags", "ttOptOutPayload", src + "\nreturn { fb2OptedOut, fb2FollowOptOut };");
-    return f(S, store, ttStoredFlags, ttOptOutPayload);
-  };
-  const values = () => ({ v: 1, answers: [{ first: "=", final: "R0dH" }] });
-  const mk = (typing, extra = {}) => ({ fb2Base: { key: "k1", payload: { v: 1, answers: [], typing } }, ttOptOut: false, ttLastRaw: null, ...extra });
-  const OPT = JSON.stringify({ v: 1, answers: ["a"], ttOptOut: true, attempt: "0123456789abcdef" });
-  const NO = JSON.stringify({ v: 1, answers: ["a"], attempt: "0123456789abcdef" });
-  // ein anderer Tab hat (unter dem Schlüssel der Abgabe) widersprochen → {optOut}
-  let S = mk(values());
-  let fns = run(S, OPT);
-  assert.equal(fns.fb2FollowOptOut(), true);
-  assert.deepEqual(S.fb2Base.payload.typing, { v: 1, optOut: true });
-  assert.equal(fns.fb2OptedOut(S.fb2Base), true);
-  assert.equal(fns.fb2FollowOptOut(), false);   // schon übernommen
-  // auch über das storage-Ereignis (raw übergeben, der Speicher wird dann nicht gelesen)
-  S = mk(values()); fns = run(S, null);
-  assert.equal(fns.fb2FollowOptOut(OPT), true);
-  // kein Widerspruch, gelöschter Stand, eigener zuletzt geschriebener Stand, kaputter Text → unverändert
-  for (const [raw, extra] of [[NO, {}], [null, {}], [OPT, { ttLastRaw: OPT }], ["{kaputt\"ttOptOut\":true", {}]]) {
-    S = mk(values(), extra); fns = run(S, raw);
-    assert.equal(fns.fb2FollowOptOut(), false);
-    assert.deepEqual(S.fb2Base.payload.typing, values());
-  }
-  // Widerspruch kam schon, während die Abgabe gesendet wurde (S.ttOptOut) → ebenso; auch „nicht übermittelt“ wird zu {optOut}
-  S = mk(values(), { ttOptOut: true }); fns = run(S, null);
-  assert.equal(fns.fb2FollowOptOut(), true);
-  S = mk({ v: 1, omitted: "too_large" }, { ttOptOut: true }); fns = run(S, null);
-  assert.equal(fns.fb2FollowOptOut(), true);
-  assert.deepEqual(S.fb2Base.payload.typing, { v: 1, optOut: true });
-  // nichts gehalten → nichts zu tun
-  fns = run({ fb2Base: null, ttOptOut: true }, OPT);
-  assert.equal(fns.fb2FollowOptOut(), false);
-  // geprüft beim storage-Ereignis und vor jedem Nachreichen; kam der Widerspruch, während die Werte unterwegs waren, gleich noch einmal
-  assert.ok(html.includes("if (e.key && S.fb2Base && e.key === S.fb2Base.key) fb2FollowOptOut(e.newValue);"));
-  const send = body("async function sendFeedback2(sub)", "\n}\n");
-  const kFollow = send.indexOf("fb2FollowOptOut();"), kUse = send.indexOf("if (fb2OptedOut(base)) payload.typing = base.payload.typing;"), kSend = send.indexOf("await sendSealed(payload");
-  assert.ok(kFollow > send.indexOf("for (let tries = 1;") && kUse > kFollow && kSend > kUse);
-  assert.ok(send.indexOf("if (withValues && fb2OptedOut(base) && S.fb2Base === base) { tries = 0; continue; }") > kSend);
-  assert.ok(body("function fb2Hold(", "\n}\n").includes("key: S.draftKey"));
-});
-
-test("finale Rückmeldung: Hinweise, wenn sie die Lehrkraft nicht erreicht – Ergebnis → Text (ruhig, ohne Tippzeiten), nichts bei „gesendet“ und „nichts nachzureichen“", () => {
-  const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
-  const X = new Function(body("const FB2_HOLD_MS = ", "/* Die angenommene Nutzlast") + "\nreturn { FB2_MIN, fb2TeacherText, fb2RetryText };")();
+  const X = new Function(body("const FB2_WINDOW_MS = ", "// Frist für eine (neue) finale Anfrage vorbei?") + "\nreturn { FB2_MIN, FB2_TEACHER_FAILED, fb2RetryText };")();
   assert.equal(X.FB2_MIN, REPLACE_WINDOW_MS / 60e3);
-  const ok = " Deine Abgabe ist davon nicht betroffen.";
   // „Die finale KI-Rückmeldung“ wie im Abgabe-Dialog; nie behaupten, was die Lehrkraft jetzt hat (Abgabe bzw. Blatt womöglich gelöscht)
-  assert.equal(X.fb2TeacherText("expired"), "Die finale KI-Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln." + ok);
-  assert.equal(X.fb2TeacherText("gone"), "Die finale KI-Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + ok);
-  for (const r of ["failed", "skipped"]) assert.equal(X.fb2TeacherText(r), "Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln." + ok);
-  assert.match(html, /und geht verschlüsselt auch an deine Lehrkraft\. " \+ recipientSentence\(\)/);   // so kündigt es der Abgabe-Dialog an (fb2DialogLine)
-  for (const r of ["expired", "gone", "failed", "skipped"]) assert.doesNotMatch(X.fb2TeacherText(r), /sie hat|hat deine Abgabe|bekommt deine Abgabe/);
-  for (const r of ["sent", "none", "", undefined]) assert.equal(X.fb2TeacherText(r), "");
+  assert.equal(X.FB2_TEACHER_FAILED, "Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.");
+  assert.doesNotMatch(X.FB2_TEACHER_FAILED, /sie hat|hat deine Abgabe|bekommt deine Abgabe/);
+  // so kündigt es der Abgabe-Dialog an (fb2DialogLine): der Server speichert sie verschlüsselt zur Abgabe, dort liest sie nur die Lehrkraft
+  assert.match(html, /"der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen\. " \+ recipientSentence\(\)/);
+  assert.ok(!html.includes("geht verschlüsselt auch an deine Lehrkraft") && !html.includes("auch an eure Lehrkraft geht"));
   // nach Ablauf der Frist nimmt der Server keine finale Anfrage mehr an (final_expired) – der Text sagt es, der Knopf verschwindet
-  assert.equal(X.fb2RetryText("expired"), "Seit deiner Abgabe sind mehr als 15 Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.");
-  assert.equal(X.fb2RetryText("skipped"), "Eine neue finale KI-Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht übermitteln.");
-  assert.equal(X.fb2RetryText("ok"), "");
-  // keine weiteren Tippzeit-Sätze an sichtbaren Stellen (wie NO_TT in den E2E-Tests)
+  assert.equal(X.fb2RetryText(true), "Seit deiner Abgabe sind mehr als 15 Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.");
+  assert.equal(X.fb2RetryText(false), "");
+  // keine Tippzeit-Sätze an sichtbaren Stellen (wie NO_TT in den E2E-Tests) – auch nicht in den Dialog- und Datenschutzsätzen zur finalen Rückmeldung
   const NO_TT = /Tippzeit|misst|Messung|gemessen|Zeitmess|Schreibprozess|widersprech|Widerspruch|Schalter|Haken/i;
-  for (const x of ["expired", "gone", "failed", "skipped"]) { assert.doesNotMatch(X.fb2TeacherText(x), NO_TT); assert.doesNotMatch(X.fb2RetryText(x), NO_TT); }
-  // angezeigt nur, solange dieselbe Abgabe auf der Bestätigungsseite steht – erst einblenden, dann füllen (sonst nicht angesagt)
-  const show = body("function fb2TeacherShow(", "\n}\n");
-  assert.ok(show.includes("if (!text || S.lastSubmission !== sub) return;") && show.includes("liveFill(el, el, text, () => S.lastSubmission === sub);"));
-  assert.ok(body("async function requestFinalFeedback()", "\n}\n").includes("sendFeedback2(sub).catch(() => \"failed\").then((res) => fb2TeacherShow(sub, res));"));
-  assert.ok(body("function finalFeedbackFailed(", "\n}\n").includes("fb2RetryNote();"));
+  for (const x of [X.FB2_TEACHER_FAILED, X.fb2RetryText(true)]) assert.doesNotMatch(x, NO_TT);
+  for (const x of [body("const fb2DialogLine = ", ";\n"), body("const FB2_SEND = ", ";\n"), body("  fb2Send: ", ",\n")]) assert.doesNotMatch(x, NO_TT);
+  // angezeigt nur, wenn der Server sie nicht gespeichert hat und dieselbe Abgabe noch dasteht – erst einblenden, dann füllen (liveFill)
+  const show = body("function fb2TeacherShow(", "\n}\n") + "\n}\n";
+  const run = (stored, same = true) => {
+    const sub = {}, calls = [], el = { id: "done-fb-teacher" };
+    const S = { lastSubmission: same ? sub : {} };
+    new Function("S", "$", "liveFill", "FB2_TEACHER_FAILED", show + "\nreturn fb2TeacherShow;")(S, (id) => (id === "done-fb-teacher" ? el : null),
+      (a, b, text, still) => calls.push({ a, b, text, still: still() }), X.FB2_TEACHER_FAILED)(sub, stored);
+    return calls;
+  };
+  assert.deepEqual(run(true), []);
+  for (const st of [false, undefined, null, "true", 1]) assert.deepEqual(run(st).map((c) => [c.text, c.still]), [[X.FB2_TEACHER_FAILED, true]]);
+  assert.deepEqual(run(false, false), []);   // inzwischen „Neues Feibeitsblatt öffnen“
   assert.match(html, /<p class="donefb-note hidden" id="done-fb-teacher" role="status"><\/p>/);
   assert.match(html, /<button type="button" class="btn ghost small hidden" id="done-fb-retry" aria-describedby="done-fb-retry-note">Rückmeldung erneut anfordern<\/button>\s*<p class="donefb-note hidden" id="done-fb-retry-note" role="status"><\/p>/);
 });
 
-test("finale Rückmeldung: sendFeedback2 liefert ein Ergebnis – nur „sent“ zählt als gesendet (gone, Frist vorbei, gescheitert, nie gehalten nicht)", async () => {
+test("finale Rückmeldung: fb2Check rechnet die Frist nach, solange „Rückmeldung erneut anfordern“ dasteht – auch wenn die Wanduhr springt (Ruhezustand) oder zurückgestellt wird", () => {
   const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
-  const src = [body("class ApiError extends Error {", "\n}\n") + "\n}\n", body("function fb2Release(sub)", "/* Unter „Rückmeldung erneut anfordern“"),
-    body("const fb2OptedOut = ", "\n}\n") + "\n}\n", body("async function sendFeedback2(sub)", "\n}\n") + "\n}\n"].join("\n");
-  const VALUES = { v: 1, answers: [{ first: "=", final: "R0dH" }] };
-  // replies: je Aufruf von sendSealed eine Antwort (Objekt) oder ein Fehler (Funktion, die wirft); before(n, S, sub) läuft vor der Antwort
-  const run = async ({ replies = [], held = true, until = Date.now() + 60e3, none = false, before } = {}) => {
-    const sub = { code: "K7QM4X", fb2Sent: false, fb2Until: until, feedback2: none ? null : { at: "2026-10-28T10:00:00.000Z", final: true, results: [{ covered: ["a"], missing: [] }, { covered: ["b"], missing: ["c"] }] } };
-    const S = { lastSubmission: sub, ttOptOut: false, ttLastRaw: null, fb2Base: null };
-    if (held) S.fb2Base = { sub, payload: { v: 1, stage: "final", typing: VALUES }, pub: "PUB", attempt: "0123456789abcdef", submitAt: 1761645600000, key: "k1", timer: 0 };
-    const calls = [];
-    const f = new Function("S", "store", "ttStoredFlags", "ttOptOutPayload", "ttHasData", "sendSealed", "sleep", "fbOut", "normFb",
-      src + "\nreturn { sendFeedback2, fb2Reach, ApiError };");
-    let fns;
-    const sendSealed = async (payload, bodyOf, pub) => {
-      calls.push({ payload: JSON.parse(JSON.stringify(payload)), body: bodyOf("ENV"), pub });
-      if (before) before(calls.length, S, sub);
-      const r = replies[calls.length - 1];
-      if (typeof r === "function") r(fns.ApiError);
-      return r || { ok: true, id: 1, replaced: "final" };
-    };
-    fns = f(S, { get: () => null }, ttStoredFlags, ttOptOutPayload, ttHasData, sendSealed, async () => {}, (x) => x, (x) => x);
-    const reachBefore = fns.fb2Reach(sub);
-    const res = await fns.sendFeedback2(sub);
-    return { res, calls, sub, S, reachBefore };
-  };
-  const err = (code, status) => (E) => { throw new E(code, "", status); };
-  // angekommen: genau die gehaltene Nutzlast + feedback2 (final: alle Aufgaben), als stage „feedback2“ mit Kennung und Eingang
-  let r = await run();
-  assert.deepEqual([r.res, r.sub.fb2Sent, r.S.fb2Base, r.calls.length, r.reachBefore], ["sent", true, null, 1, "ok"]);
-  assert.deepEqual(r.calls[0].body, { code: "K7QM4X", envelope: "ENV", stage: "feedback2", attempt: "0123456789abcdef", receivedAt: 1761645600000 });
-  assert.deepEqual(r.calls[0].payload.feedback2, { at: "2026-10-28T10:00:00.000Z", final: true, results: [{ covered: ["a"], missing: [] }, { covered: ["b"], missing: ["c"] }] });
-  // {ok:true, gone:true}: nichts ersetzt – nicht gesendet, kein weiterer Versuch
-  r = await run({ replies: [{ ok: true, gone: true }] });
-  assert.deepEqual([r.res, r.sub.fb2Sent, r.S.fb2Base, r.calls.length], ["gone", false, null, 1]);
-  // gone, und inzwischen ist auch die Frist auf diesem Gerät vorbei → „expired“
-  r = await run({ replies: [{ ok: true, gone: true }], before: (n, S, sub) => { sub.fb2Until = Date.now() - 1; } });
-  assert.deepEqual([r.res, r.sub.fb2Sent], ["expired", false]);
-  // Frist schon vorbei (Zeitgeber im Hintergrund gedrosselt): nichts gesendet, freigegeben
-  r = await run({ until: Date.now() - 1 });
-  assert.deepEqual([r.res, r.sub.fb2Sent, r.S.fb2Base, r.calls.length, r.reachBefore], ["expired", false, null, 0, "expired"]);
-  // nie gehalten (z. B. ohne Kennung oder Eingang) → „skipped“, nichts gesendet
-  r = await run({ held: false, until: 0 });
-  assert.deepEqual([r.res, r.calls.length, r.reachBefore], ["skipped", 0, "skipped"]);
-  // Frist abgelaufen (Zeitgeber hat freigegeben) → „expired“
-  r = await run({ held: false, until: Date.now() - 1 });
-  assert.deepEqual([r.res, r.calls.length], ["expired", 0]);
-  // endgültig gescheitert (4xx außer 408/429) nach einem Versuch; dreimal vorübergehend → „failed“; vorübergehend, dann angekommen → „sent“
-  r = await run({ replies: [err("bad_request", 400)] });
-  assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length], ["failed", false, 1]);
-  // das Blatt ist inzwischen gelöscht (404 not_found – mit ihm alle Abgaben): wie „gone“, nach Fristablauf „expired“; kein weiterer Versuch
-  r = await run({ replies: [err("not_found", 404)] });
-  assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length, r.S.fb2Base], ["gone", false, 1, null]);
-  r = await run({ replies: [err("not_found", 404)], before: (n, S, sub) => { sub.fb2Until = Date.now() - 1; } });
-  assert.deepEqual([r.res, r.calls.length], ["expired", 1]);
-  r = await run({ replies: [err("server_error", 503), err("network", 0), err("rate_limited", 429)] });
-  assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length, r.S.fb2Base], ["failed", false, 3, null]);
-  r = await run({ replies: [err("server_error", 503)] });
-  assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length], ["sent", true, 2]);
-  // Frist läuft zwischen zwei Versuchen ab → „expired“, kein weiterer Versuch
-  r = await run({ replies: [err("server_error", 503)], before: (n, S, sub) => { sub.fb2Until = Date.now() - 1; } });
-  assert.deepEqual([r.res, r.calls.length], ["expired", 1]);
-  // keine finale Rückmeldung: nichts nachzureichen
-  r = await run({ none: true });
-  assert.deepEqual([r.res, r.calls.length, r.S.fb2Base], ["none", 0, null]);
-  // Widerspruch, während die Werte unterwegs waren: einmal angekommen bleibt angekommen, auch wenn das Senden ohne Werte danach scheitert
-  r = await run({ replies: [null, err("bad_request", 400)], before: (n, S) => { if (n === 1) S.fb2Base.payload.typing = { v: 1, optOut: true }; } });   // wie fb2FollowOptOut
-  assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length], ["sent", true, 2]);
-  assert.deepEqual([r.calls[0].payload.typing, r.calls[1].payload.typing], [VALUES, { v: 1, optOut: true }]);
-  // „Neues Feibeitsblatt öffnen“ zwischen zwei Versuchen → „skipped“ (dann zeigt die Seite ohnehin nichts mehr dazu)
-  r = await run({ replies: [err("server_error", 503)], before: (n, S) => { S.lastSubmission = null; } });
-  assert.deepEqual([r.res, r.calls.length, r.sub.fb2Sent], ["skipped", 1, false]);
-});
-
-test("zweite Rückmeldung: fb2Check rechnet die Frist nach – auch wenn die Wanduhr springt (Ruhezustand) oder zurückgestellt wird; freigegeben spätestens nach FB2_HOLD_MS", () => {
-  const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
-  const src = body("const FB2_TICK_MS = ", "\n}\n") + "\n}\n";
+  const src = body("const FB2_WINDOW_MS = ", "// Unter der Rückmeldung, wenn der Server sie nicht");
   // nachgebaut: Wanduhr (Date.now) und Zeitgeber-Uhr (performance.now) getrennt steuerbar, Zeitgeber werden nur aufgezeichnet
-  const run = ({ wallLeft, monoLeft }) => {
-    let wall = 1_800_000_000_000, mono = 5_000, notes = 0;
-    const timers = [], cleared = [];
-    const sub = { fb2Until: wall + wallLeft };
-    const base = { sub, timer: 0, until: mono + monoLeft };
-    const S = { fb2Base: base };
-    const env = { S, Date: { now: () => wall }, performance: { now: () => mono }, fb2RetryNote: () => { notes++; },
-      setTimeout: (f, ms) => { timers.push(ms); return timers.length; }, clearTimeout: (id) => cleared.push(id) };
-    const X = new Function(...Object.keys(env), src + "\nreturn { FB2_TICK_MS, fb2Check };")(...Object.values(env));
-    X.fb2Check();
-    return { X, S, base, timers, cleared, notes: () => notes, jump: (dWall, dMono) => { wall += dWall; mono += dMono; } };
+  const el = (hidden) => {
+    const cls = new Set(hidden ? ["hidden"] : []);
+    return { textContent: "", classList: { contains: (c) => cls.has(c), add: (c) => cls.add(c), remove: (c) => cls.delete(c) } };
   };
-  // noch 10 Minuten: gehalten, nächste Prüfung nach FB2_TICK_MS (nicht erst nach 10 Minuten – ein Zeitgeber zählt die Schlafzeit nicht)
-  let r = run({ wallLeft: 10 * 60e3, monoLeft: 10 * 60e3 });
+  const run = ({ wallLeft, monoLeft, visible = true, sub: has = true, failText = "" }) => {
+    let wall = 1_800_000_000_000, mono = 5_000;
+    const timers = [], fills = [], status = [];
+    const sub = { fb2Until: wall + wallLeft, fb2Mono: mono + monoLeft, fb2FailText: failText };
+    const els = { "done-fb-retry": el(!visible), "done-fb-retry-note": el(true), "done-fb-status": el(false) };
+    const S = { lastSubmission: has ? sub : null };
+    const env = { S, $: (id) => els[id], Date: { now: () => wall }, performance: { now: () => mono },
+      setTimeout: (f, ms) => { timers.push(ms); return timers.length; }, clearTimeout: () => {},
+      liveFill: (box, t, text) => { fills.push(text); box.classList.remove("hidden"); t.textContent = text; },
+      fb2StatusWithChecklist: (s, e, text, cls) => status.push([text, cls]) };
+    const X = new Function(...Object.keys(env), src + "\nreturn { FB2_TICK_MS, fb2Check, fb2Expired };")(...Object.values(env));
+    X.fb2Check();
+    return { X, S, sub, els, timers, fills, status, jump: (dWall, dMono) => { wall += dWall; mono += dMono; } };
+  };
+  const retryHidden = (r) => r.els["done-fb-retry"].classList.contains("hidden");
+  // noch 10 Minuten: Knopf bleibt, nächste Prüfung nach FB2_TICK_MS (nicht erst nach 10 Minuten – ein Zeitgeber zählt die Schlafzeit nicht)
+  let r = run({ wallLeft: 10 * 60e3, monoLeft: 10 * 60e3, failText: "Die KI ist gerade sehr stark ausgelastet. Deine Abgabe ist davon nicht betroffen" });
   assert.equal(r.X.FB2_TICK_MS, 15e3);
-  assert.equal(r.S.fb2Base, r.base);
   assert.deepEqual(r.timers, [15e3]);
-  assert.equal(r.notes(), 1);   // der Hinweis unter dem Knopf wird jedes Mal nachgeführt
-  // Ruhezustand: die Wanduhr springt 16 Minuten, die Zeitgeber-Uhr kaum → bei der nächsten Prüfung freigegeben, kein weiterer Zeitgeber
+  assert.equal(retryHidden(r), false);
+  assert.deepEqual([r.fills, r.status, r.sub.fb2RetryLate], [[], [], undefined]);
+  // Ruhezustand: die Wanduhr springt 16 Minuten, die Zeitgeber-Uhr kaum → bei der nächsten Prüfung Knopf weg, Hinweis, kein weiterer Zeitgeber
   r.jump(16 * 60e3, 15e3);
   r.X.fb2Check();
-  assert.equal(r.S.fb2Base, null);
+  assert.equal(retryHidden(r), true);
+  assert.equal(r.sub.fb2RetryLate, true);
+  assert.deepEqual(r.fills, ["Seit deiner Abgabe sind mehr als 15 Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich."]);
+  assert.deepEqual(r.status, [["Die KI ist gerade sehr stark ausgelastet. Deine Abgabe ist davon nicht betroffen.", "bad"]]);   // ohne das Angebot eines neuen Versuchs
   assert.deepEqual(r.timers, [15e3]);
-  assert.equal(r.notes(), 2);
+  // noch einmal geprüft (z. B. beim Zurückkehren): nichts doppelt
+  r.X.fb2Check();
+  assert.equal(r.fills.length, 1);
   // kurz vor Ablauf: der letzte Zeitgeber trifft genau die Frist
   r = run({ wallLeft: 4e3, monoLeft: 4e3 });
   assert.deepEqual(r.timers, [4e3]);
-  // Wanduhr zurückgestellt (wallLeft groß), seit dem Halten aber 15 Minuten vergangen (monoLeft ≤ 0) → trotzdem freigegeben
+  // Wanduhr zurückgestellt (wallLeft groß), seit dem Absenden aber 15 Minuten vergangen (monoLeft ≤ 0) → trotzdem abgelaufen
   r = run({ wallLeft: 60 * 60e3, monoLeft: 0 });
-  assert.equal(r.S.fb2Base, null);
+  assert.equal(retryHidden(r), true);
   assert.deepEqual(r.timers, []);
-  // nichts gehalten: nur der Hinweis wird nachgeführt
-  const none = run({ wallLeft: 1, monoLeft: 1 });
-  none.S.fb2Base = null;
-  none.X.fb2Check();
-  assert.equal(none.notes(), 2);
-  // aufgerufen beim Zurückkehren, vor dem Klick (Fokus, Mauszeiger auf dem Knopf) und aus fb2Hold
+  assert.equal(r.X.fb2Expired(r.sub), true);
+  // ohne sichtbaren Knopf läuft kein Zeitgeber (auch nicht ohne Abgabe auf der Seite)
+  r = run({ wallLeft: 10 * 60e3, monoLeft: 10 * 60e3, visible: false });
+  assert.deepEqual([r.timers, r.fills, r.sub.fb2RetryLate], [[], [], undefined]);
+  r = run({ wallLeft: 10 * 60e3, monoLeft: 10 * 60e3, sub: false });
+  assert.deepEqual(r.timers, []);
+  // aufgerufen beim Zurückkehren, vor dem Klick (Fokus, Mauszeiger auf dem Knopf), wenn der Knopf erscheint oder verschwindet
   assert.ok(html.includes('document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fb2Check(); });'));
   assert.ok(html.includes('window.addEventListener("pageshow", () => fb2Check());') && html.includes('window.addEventListener("focus", () => fb2Check());'));
   assert.ok(html.includes('for (const ev of ["focus", "pointerenter"]) $("done-fb-retry").addEventListener(ev, () => fb2Check());'));
-  assert.ok(!body("function fb2Hold(", "\n}\n").includes("setTimeout"));   // kein einzelner langer Zeitgeber mehr – fb2Check übernimmt
+  assert.ok(body("function finalFeedbackFailed(", "\n}\n").includes("fb2Check();"));
+  assert.ok(body("function fb2Drop(", "\n}\n").includes("fb2Check();"));
+  assert.ok(body("function resetFinalFeedback()", "\n}\n").includes("clearTimeout(fb2Check.timer); fb2Check.timer = 0;"));
+});
+
+test("finale Rückmeldung: Wartezeit der Lehrkraft (30/60/90 s) steuert die Sperre des Downloads; die Lehrkraft-Ansicht entschlüsselt die vom Server gespeicherte Rückmeldung", () => {
+  const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
+  const W = new Function(body("const FINAL_WAIT_OPTIONS = ", "async function fetchSheet(") + "\nreturn { FINAL_WAIT_OPTIONS, FINAL_WAIT_DEFAULT, finalWaitOf };")();
+  assert.deepEqual(W.FINAL_WAIT_OPTIONS, [30, 60, 90]);
+  assert.equal(W.FINAL_WAIT_DEFAULT, 30);
+  for (const v of [30, 60, 90]) assert.equal(W.finalWaitOf(v), v);
+  for (const v of [undefined, null, 0, 45, 120, "60", 60.5, NaN, [60], {}]) assert.equal(W.finalWaitOf(v), 30);
+  assert.ok(body("async function fetchSheet(", "\n}\n").includes("finalWaitSec: finalWaitOf(sh.finalWaitSec !== undefined ? sh.finalWaitSec : r.finalWaitSec),"));
+  assert.ok(body("function doneGate(", "\n}\n").includes("sub.gateUntil = Date.now() + finalWaitOf(sub.waitSec) * 1000;"));
+  // KI-Einstellungen: drei Optionen mit Legende, Knopf und Statuszeile; gespeichert über PUT /api/teacher/final-wait
+  for (const v of [30, 60, 90]) assert.match(html, new RegExp(`<input type="radio" name="fw" id="fw-${v}" value="${v}">`));
+  assert.match(html, /<legend>Wartezeit auf die finale KI-Rückmeldung<\/legend>/);
+  assert.match(html, /<button type="button" class="btn" id="fw-save">Wartezeit speichern<\/button>/);
+  assert.match(html, /<p class="status" id="fw-status" role="status"><\/p>/);
+  assert.ok(html.includes('TA("/api/teacher/final-wait", { method: "PUT", body: { waitSec: sel } })'));
+  assert.ok(body("async function openAi()", "\n}\n").includes("fwFill(r.finalWaitSec);"));
+  // Lehrkraft: finalEnv mit demselben Schlüssel geöffnet, nur die erwartete Form, gekappt; ein Fehler kostet nur die Rückmeldung
+  const subs = body("async function loadSubs()", "\n}\n");
+  const k = subs.indexOf('if (s.finalEnv && (typeof s.finalEnv === "string" || typeof s.finalEnv === "object")) {');
+  assert.ok(k > subs.indexOf("p.feedback2 = p.feedback2 && typeof p.feedback2"));   // die vom Server gespeicherte gewinnt
+  const part = subs.slice(k, subs.indexOf("} catch (e) { /* bleibt", k));
+  assert.ok(part.includes("await Crypto.open(T.priv, s.finalEnv)"));
+  assert.ok(part.includes('f.kind === "feibeitsblatt-final" && f.v === 1 && Array.isArray(f.results)'));
+  assert.ok(part.includes("f.results.slice(0, 30).map((x) => (x && typeof x === \"object\" ? normFb(x) : null))"));
 });

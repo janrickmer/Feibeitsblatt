@@ -805,8 +805,10 @@ export const RATE = {
   auth_all: { max: 200, windowMs: 3600e3 },        // falsche Passwörter insgesamt (gegen verteiltes Raten)
   lookup_miss: { max: 30, windowMs: 600e3 },       // unbekannte Codes je IP
   // je Schüler:in bis zu zwei KI-Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung
-  feedback: { max: 240, windowMs: 3600e3 },        // KI-Anfragen je IP
-  feedback_chars: { max: 800000, windowMs: 3600e3 },   // … gewichtet nach Zeichen der Antworten
+  // verdoppelt am 08.11.2026 (Entscheidung des Betreibers): Die finale KI-Rückmeldung kommt nach fast jeder Abgabe, und im Schulnetz teilen
+  // sich meist alle Klassen eine IP – die Grenze bremst Schleifen und einzelne Quellen, schützt aber kein Kontingent vollständig
+  feedback: { max: 480, windowMs: 3600e3 },        // KI-Anfragen je IP
+  feedback_chars: { max: 1600000, windowMs: 3600e3 },  // … gewichtet nach Zeichen der Antworten
   sheet_feedback: { max: 600, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (begrenzt Missbrauch je Blatt; das kontoweite
                                                        // Tageskontingent von Workers AI ist kleiner und bleibt aufbrauchbar – dafür gibt es die Reserve)
   submit: { max: 360, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu zwei Aufrufe: Erstversuch, Abgabe; „feedback2“ älterer Seiten zählt nicht)

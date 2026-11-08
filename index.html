@@ -652,6 +652,9 @@
   .toolrow .spacer{flex:1 1 auto}
   .row{display:flex; gap:10px 12px; flex-wrap:wrap; align-items:center; margin-top:14px}
   .pbox{background:var(--paper2); border:1px solid var(--line); border-radius:12px; padding:22px 24px; margin-top:18px}
+  fieldset.fwset{border:0; padding:0; margin:0; min-width:0}
+  fieldset.fwset > legend{padding:0; margin:0 0 6px; font-family:var(--serif); font-weight:600; font-size:18px}
+  .checkrow.fwopt{min-height:44px; margin:0}   /* ganze Zeile anklickbar, ≥ 44 px (WCAG 2.5.8) */
   .note{font-size:13px; color:var(--muted); margin:10px 0 0; line-height:1.55}
   .note b{color:var(--ink); font-weight:600}
   .aiinfo{font-size:13px; color:var(--muted); margin:14px 0 0}
@@ -1433,7 +1436,20 @@
         </div>
         <p class="status" id="ai2-status" aria-live="polite"></p>
       </div>
-      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage derselben Art (KI-Feedback bzw. finale KI-Rückmeldung) zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits. Je Schülerin bzw. Schüler sind es meist zwei Anfragen (KI-Feedback und finale KI-Rückmeldung), dazu eine je neuem Feibeitsblatt für den Vorschlag der Checkliste. Bei Cloudflare Workers AI zählen alle Token – für Gemma 4 gibt es keinen Rabatt für gecachte Eingaben.</p>
+      <div class="pbox" style="max-width:760px; margin-top:16px">
+        <fieldset class="fwset" aria-describedby="fw-hint">
+          <legend>Wartezeit auf die finale KI-Rückmeldung</legend>
+          <p class="note" id="fw-hint" style="margin:0 0 6px">Nach der Abgabe warten die Schüler:innen höchstens so lange auf die finale KI-Rückmeldung, bevor sie ihre Lösungen herunterladen können. Danach steht in ihrer Lösungs-PDF statt der Rückmeldung die Checkliste, die Sie beim Anlegen bestätigt haben (falls vorhanden); im Hintergrund wird weiter gewartet – kommt die Rückmeldung noch vor dem Herunterladen, steht sie darin. Eine längere Wartezeit bringt öfter die echte Rückmeldung, besonders wenn viele gleichzeitig abgeben.</p>
+          <label class="checkrow fwopt"><input type="radio" name="fw" id="fw-30" value="30"> <span>30 Sekunden (Vorgabe)</span></label>
+          <label class="checkrow fwopt"><input type="radio" name="fw" id="fw-60" value="60"> <span>60 Sekunden</span></label>
+          <label class="checkrow fwopt"><input type="radio" name="fw" id="fw-90" value="90"> <span>90 Sekunden</span></label>
+        </fieldset>
+        <div class="row" style="margin-top:10px">
+          <button type="button" class="btn" id="fw-save">Wartezeit speichern</button>
+        </div>
+        <p class="status" id="fw-status" role="status"></p>
+      </div>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts; nur die finale KI-Rückmeldung legt er – mit Ihrem Schlüssel verschlüsselt, also nur für Sie lesbar – zur jeweiligen Abgabe. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage derselben Art (KI-Feedback bzw. finale KI-Rückmeldung) zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits. Je Schülerin bzw. Schüler sind es meist zwei Anfragen (KI-Feedback und finale KI-Rückmeldung), dazu eine je neuem Feibeitsblatt für den Vorschlag der Checkliste. Bei Cloudflare Workers AI zählen alle Token – für Gemma 4 gibt es keinen Rabatt für gecachte Eingaben.</p>
     </div>
 
     <!-- Datenschutz: Betreiber (fest eingetragen) und Löschfrist -->
@@ -3322,7 +3338,6 @@ const S = {
   attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
   fbRun: 0, fbStop: null, fbAbort: null,   // laufende Feedback-Anfrage: Lauf-Kennung (gegen späte Antworten nach Abbruch/Wechsel), Warten abbrechen, Anfrage abbrechen
   lastSubmission: null,   // die soeben abgegebene Lösung (nur im Arbeitsspeicher, bis „Neues Feibeitsblatt öffnen“) – für die PDF der Lösungen
-  fb2Base: null,   // die vom Server angenommene Nutzlast der Abgabe – nur zum Nachreichen der zweiten Rückmeldung, getrennt von lastSubmission (fb2Hold)
   // Finale eines Escape-Rooms: escPending = aus dem Raum angekommen, Schreibbereich noch nicht offen (nur Arbeitsspeicher); escape = zum
   // geöffneten Blatt – je {hull, rec, check} (Hülle unverändert für den Zwischenstand, geprüfter Datensatz, Prüfsumme)
   escPending: null, escape: null,
@@ -3334,6 +3349,10 @@ const LAST_KEY = "feibeitsblatt:last";   // zuletzt geöffnetes Blatt + Angaben:
 /* Blatt vom Server laden (wirft ApiError) – ohne S zu ändern: Startseite, Zwischenstand-PDF, „Weiterschreiben“ und eine Ankunft aus
    einem Escape-Room übernehmen es erst per useSheet, wenn ihr Lauf noch gilt (ESC.run) – eine späte Antwort ändert nie das gerade
    geöffnete Blatt */
+/* Wartezeit auf die finale KI-Rückmeldung nach der Abgabe (Einstellung der Lehrkraft in „KI-Einstellungen“, settings final): 30, 60 oder
+   90 Sekunden, sonst die Vorgabe 30 (ältere Worker liefern keine). So lange ist der Download auf der Bestätigungsseite höchstens gesperrt. */
+const FINAL_WAIT_OPTIONS = [30, 60, 90], FINAL_WAIT_DEFAULT = 30;   // = FINAL_WAIT_OPTIONS in worker/lib.js
+const finalWaitOf = (v) => (FINAL_WAIT_OPTIONS.includes(v) ? v : FINAL_WAIT_DEFAULT);
 async function fetchSheet(code) {
   const r = await api("GET", "/api/sheet/" + encodeURIComponent(code));
   const sh = r.sheet || {};
@@ -3354,6 +3373,7 @@ async function fetchSheet(code) {
     aiRecipients: recipientsOf(sh),   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
     aiFeedback: sh.aiFeedback !== false,   // false = keine Aufgabe mit Auftrag an die KI: kein KI-Feedback (ältere Worker: wie bisher)
     privacy: cleanPrivacy(sh.privacy),   // Löschfrist für den Datenschutzhinweis (null = keine gespeichert)
+    finalWaitSec: finalWaitOf(sh.finalWaitSec !== undefined ? sh.finalWaitSec : r.finalWaitSec),   // Wartezeit auf die finale KI-Rückmeldung (30 | 60 | 90)
     escape: cleanEscapeSpec(sh.escape)   // Finale eines Escape-Rooms {id, name} (nur über den Raum zu öffnen) – sonst null
   } };
 }
@@ -3480,7 +3500,7 @@ const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnes
   `und verarbeitet dabei technisch die Internetadresse deines Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`;
 // Zweites Senden nach der Abgabe (requestFinalFeedback) – steht beim ersten KI-Dienst, wie in renderPrivacy und im Abgabe-Dialog
 const FB2_SEND = " Nach der Abgabe gehen deine Antworten – auch ohne vorheriges KI-Feedback – auf demselben Weg an die KI: für die finale KI-Rückmeldung, die zu jeder Aufgabe nennt, " +
-  "was gelungen ist und was gefehlt hat, und die danach wie deine Abgabe verschlüsselt auch an deine Lehrkraft geht (beim Abgeben kannst du sie abwählen).";
+  "was gelungen ist und was gefehlt hat, und die der Server danach verschlüsselt zu deiner Abgabe speichert – dort kann sie nur deine Lehrkraft lesen (beim Abgeben kannst du sie abwählen).";
 /* YouTube-Videos unter dem Material (nur bei Blättern mit Videos – sheetHasVideos): eigene Absätze bzw. Listenpunkte neben den übrigen,
    nie in deren Sätze gemischt; privacyNoticeDom mit der Option videos, die Kurzfassungen bekommen einen eigenen Absatz (ytShort in
    #p-privacy-yt bzw. #privacy-yt – die Kurzfassung selbst bleibt unverändert). Grundlage ist die Einwilligung je Video mit dem Klick auf
@@ -3546,7 +3566,7 @@ const PRIV_IHR = {
     `und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
   github: `GitHub, Inc. (USA) liefert diese Seite aus (GitHub Pages) und verarbeitet dabei technisch die Internetadresse eures Geräts. Für Übermittlungen in die USA stützt sich GitHub ${DPF_SCC}.`,
   fb2Send: " Nach der Abgabe gehen eure Antworten – auch ohne vorheriges KI-Feedback – auf demselben Weg an die KI: für die finale KI-Rückmeldung, die zu jeder Aufgabe nennt, " +
-    "was gelungen ist und was gefehlt hat, und die danach wie eure Abgabe verschlüsselt auch an eure Lehrkraft geht (beim Abgeben könnt ihr sie abwählen).",
+    "was gelungen ist und was gefehlt hat, und die der Server danach verschlüsselt zu eurer Abgabe speichert – dort kann sie nur eure Lehrkraft lesen (beim Abgeben könnt ihr sie abwählen).",
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
   ...YT_PRIV_IHR,
 };
@@ -3600,15 +3620,14 @@ const TT_SHORT = (g) => (g
   ? "Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen könnt ihr unter „Alle Informationen zum Datenschutz“."
   : "Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen kannst du unter „Alle Informationen zum Datenschutz“.");
 // Zugriff auf das Gerät (§ 25 TDDDG) – nur die Tatsache, im Fließtext unter „Welche Daten?“; was im Zwischenstand steht, folgt TT_KEEP_IN_DRAFT.
-// ai (Blatt mit KI-Feedback): nach der Abgabe bleiben die Tippzeiten in der angenommenen Nutzlast, bis die zweite Rückmeldung nachgereicht
-// ist (S.fb2Base, sendFeedback2) – TT_HELD sagt das, ohne Blatt ohne KI-Feedback entfällt es
-const TT_HELD = (g, ai) => (ai ? ` (und, wenn die KI-Rückmeldung zu ${g ? "eurer" : "deiner"} abgegebenen Fassung noch nachgereicht wird, bis dahin)` : "");
+// ai (Blatt mit KI-Feedback): „bis zur Abgabe“ bzw. „bis dahin“ beim Zwischenstand. Nach der Abgabe hält die Seite keine Tippzeiten mehr
+// (die finale KI-Rückmeldung speichert der Server selbst – nichts wird nachgereicht)
 const TT_ACCESS = (g, keep = TT_KEEP_IN_DRAFT, ai = true) => (g
   ? "Für die Tippzeiten liest diese Seite beim Schreiben in eurem Browser die Zeitpunkte eurer Eingaben aus" +
-    (keep ? `, hält sie bis zur Abgabe${TT_HELD(g, ai)} im Arbeitsspeicher und speichert die Tippzeiten bis ${ai ? "zur Abgabe" : "dahin"} auch in eurem Zwischenstand in diesem Browser` : ` und hält sie bis zur Abgabe${TT_HELD(g, ai)} im Arbeitsspeicher`) +
+    (keep ? `, hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis ${ai ? "zur Abgabe" : "dahin"} auch in eurem Zwischenstand in diesem Browser` : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
     " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf euer Gerät im Sinne von § 25 TDDDG."
   : "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus" +
-    (keep ? `, hält sie bis zur Abgabe${TT_HELD(g, ai)} im Arbeitsspeicher und speichert die Tippzeiten bis ${ai ? "zur Abgabe" : "dahin"} auch in deinem Zwischenstand in diesem Browser` : ` und hält sie bis zur Abgabe${TT_HELD(g, ai)} im Arbeitsspeicher`) +
+    (keep ? `, hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis ${ai ? "zur Abgabe" : "dahin"} auch in deinem Zwischenstand in diesem Browser` : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
     " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");
 const ttMeasured = (sh) => !(sh && Array.isArray(sh.answers) && sh.tasks && sh.tasks.length && sh.tasks.every((_, i) => sh.answers[i] && sh.answers[i].type === "map"));
 const TT_PURPOSE = (g) => (g
@@ -3689,8 +3708,10 @@ function privacyNoticeDom(p, list, opts) {
   // Cloudflare betreibt Server und Datenbank; mit Workers AI ist Cloudflare zugleich der KI-Dienst (ein Eintrag statt zwei)
   items.push(h("li", { text: "Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU. " +
     t(`Gespeichert werden deine Angaben und Antworten${tt ? " (samt Tippzeiten)" : ""} dort nur verschlüsselt.`, `Gespeichert werden eure Angaben und Antworten${tt ? " (samt Tippzeiten)" : ""} dort nur verschlüsselt.`) +
-    (withAi ? t(" Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.",
-      " Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server eure Antworten – ohne eure Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.") : "") +
+    (withAi ? t(" Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht. " +
+        "Die finale KI-Rückmeldung verschlüsselt der Server für deine Lehrkraft und speichert sie nur verschlüsselt zu deiner Abgabe.",
+      " Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server eure Antworten – ohne eure Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht. " +
+        "Die finale KI-Rückmeldung verschlüsselt der Server für eure Lehrkraft und speichert sie nur verschlüsselt zu eurer Abgabe.") : "") +
     t(" Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) deines Geräts.", " Technisch bedingt verarbeitet Cloudflare auch die Internetadresse (IP-Adresse) eures Geräts.") +
     (cfAt < 0 ? "" : (cfAt === 0 ? t(" Wenn du das KI-Feedback anforderst und für die finale KI-Rückmeldung nach der Abgabe, ist Cloudflare zugleich der KI-Dienst (Workers AI)",
       " Wenn ihr das KI-Feedback anfordert und für die finale KI-Rückmeldung nach der Abgabe, ist Cloudflare zugleich der KI-Dienst (Workers AI)")
@@ -3801,10 +3822,10 @@ function privacyNoticeDom(p, list, opts) {
       ` Danach liegt sie noch ${BACKUP_DAYS} in der Datensicherung der Datenbank. ${B.draftStay}` +
       (tt ? t(` Die Tippzeiten gehören zu ${withAi ? "Erstversuch und Abgabe" : "deiner Abgabe"} und werden mit ${withAi ? "ihnen" : "ihr"} gelöscht; ` +
           (ttInDraft ? "bis zur Abgabe stehen sie auch in deinem Zwischenstand – und in jeder Zwischenstand-PDF-Datei, die du sicherst, bis du sie löschst."
-            : (withAi ? "bis zur Abgabe" + TT_HELD(false, true) : "bis dahin") + " hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht."),
+            : (withAi ? "bis zur Abgabe" : "bis dahin") + " hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht."),
         ` Die Tippzeiten gehören zu ${withAi ? "Erstversuch und Abgabe" : "eurer Abgabe"} und werden mit ${withAi ? "ihnen" : "ihr"} gelöscht; ` +
           (ttInDraft ? "bis zur Abgabe stehen sie auch in eurem Zwischenstand – und in jeder Zwischenstand-PDF-Datei, die ihr sichert, bis ihr sie löscht."
-            : (withAi ? "bis zur Abgabe" + TT_HELD(true, true) : "bis dahin") + " hält diese Seite sie nur im Arbeitsspeicher – in eurem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.")) : "") +
+            : (withAi ? "bis zur Abgabe" : "bis dahin") + " hält diese Seite sie nur im Arbeitsspeicher – in eurem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.")) : "") +
       B.checkStay +
       (cfAt >= 0 ? ` Workers AI speichert ${t("deine", "eure")} Antworten laut Cloudflare nur so lange, wie es für die Rückmeldung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten ` +
         "Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare." : "") +
@@ -3880,7 +3901,7 @@ function renderPrivacy() {
         (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
         [r.cf && ", bei Cloudflare auch außerhalb der EU möglich", r.usa && (r.cf ? ", bei den übrigen Diensten mit Sitz in den USA" : ", bei Sitz in den USA") + " außerhalb der EU"].filter(Boolean).join("") + `. ` +
-        `Die finale KI-Rückmeldung nennt zu jeder Aufgabe, die die KI beurteilt, was gelungen ist und was gefehlt hat; sie geht danach verschlüsselt auch an deine Lehrkraft. ` +
+        `Die finale KI-Rückmeldung nennt zu jeder Aufgabe, die die KI beurteilt, was gelungen ist und was gefehlt hat; auch deine Lehrkraft bekommt sie. ` +
         `Ist die KI ausgelastet, wiederholt diese Seite die Anfrage automatisch (bis zu ${FB_TRIES} Versuche, jeweils dein aktueller Text). ` +
         `Schreibe deshalb keine persönlichen Daten (z. B. Namen oder Adressen) in deine Antworten. `)
       : `Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI. `) +
@@ -3890,7 +3911,7 @@ function renderPrivacy() {
     (withAi
       ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
         `Deine Abgabe nach der Überarbeitung ersetzt ihn. Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund). ` +
-        (r.any ? `Die finale KI-Rückmeldung kommt – wenn sie in den ersten ${FB2_MIN} Minuten nach der Abgabe da ist – verschlüsselt zu deiner Abgabe dazu. ` : "") +
+        (r.any ? `Die finale KI-Rückmeldung speichert der Server verschlüsselt zu deiner Abgabe; dort kann sie nur deine Lehrkraft lesen. ` : "") +
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
       : `Deine Abgabe wird zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert; nur deine Lehrkraft kann sie lesen. ` +
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
@@ -4968,6 +4989,11 @@ const TT_OPT_OFF = "Widerspruch zurückgenommen: Ab jetzt misst diese Seite die 
 // leert submitAll die Meldung (ttClearLate) – dann gilt der Schalter wieder
 const TT_OPT_LATE = "Deine Abgabe wird gerade gesendet – für sie gilt ein Widerspruch nicht mehr. Scheitert das Senden, kannst du den Haken danach setzen. " +
   "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.";
+// Widerspruch aus einem anderen Tab, während dieser Tab die Abgabe sendet: gilt ab jetzt (scheitert das Senden, auch für den neuen
+// Versuch), aber nicht mehr für die Abgabe, die schon unterwegs ist – nach der Abgabe wird nichts mehr nachträglich ersetzt
+const TT_OPT_TAB_LATE = "Widerspruch eingetragen (in einem anderen Tab mit diesem Feibeitsblatt): Für die Abgabe, die gerade gesendet wird, gilt er nicht mehr. " +
+  "Scheitert das Senden, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr. Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner " +
+  "ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.";
 const TT_OPT_LATE_OFF = "Deine Abgabe wird gerade gesendet – ohne Tippzeiten, wie du es eingetragen hast. Scheitert das Senden, kannst du den Haken danach entfernen.";
 function ttClearLate() { document.querySelectorAll(".ttopt-st.late").forEach((st) => { st.textContent = ""; st.classList.remove("late"); }); }
 /* Widerspruch aus einem anderen Tab mit demselben Zwischenstand (gleiches Blatt, gleiche Person, gleicher Speicher): gilt auch hier. Geprüft
@@ -4988,12 +5014,12 @@ function ttFollowStored(raw) {
   // ein gesendeter Erstversuch dieser Bearbeitung trägt womöglich Tippzeiten (ohne firstSent sendet sendFirstAttempt ihn ohnehin ohne sie)
   if (S.feedback && (S.firstSent || (fl.resend && fl.attempt === S.attempt))) S.ttResend = true;
   syncTtBoxes();
-  document.querySelectorAll(".ttoptbox .ttopt-st").forEach((st) => { st.classList.remove("late"); st.textContent = TT_OPT_TAB; });
+  const late = !!S.submitting;   // die Abgabe ist schon gebaut und unterwegs (Farbe wie TT_OPT_LATE, keine Erfolgsfarbe)
+  document.querySelectorAll(".ttoptbox .ttopt-st").forEach((st) => { st.classList.toggle("late", late); st.textContent = late ? TT_OPT_TAB_LATE : TT_OPT_TAB; });
   return true;
 }
 window.addEventListener("storage", (e) => {
   try {
-    if (e.key && S.fb2Base && e.key === S.fb2Base.key) fb2FollowOptOut(e.newValue);   // nach der Abgabe: nachgereicht wird dann ohne Tippzeiten
     if (!e.key || e.key !== S.draftKey || screen !== "screen-editor") return;
     if (ttFollowStored(e.newValue) && S.ttResend) sendFirstAttempt();
   } catch (x) { /* egal: saveDraft und das Senden sehen ohnehin nach */ }
@@ -5706,7 +5732,7 @@ function escPdfPages(pg, esc, o) {
 }
 const DONE_PDF = "Lade dir deine Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht";
 const DONE_PDF_ESC = "Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter und speichere sie in deinen Unterlagen zu unserem Unterricht";
-/* Download der Lösungen: gesperrt, bis die finale KI-Rückmeldung da ist (höchstens FB2_GATE_MS, siehe doneGate). Danach ohne sie: Die
+/* Download der Lösungen: gesperrt, bis die finale KI-Rückmeldung da ist (höchstens die Wartezeit des Blattes, siehe doneGate). Danach ohne sie: Die
    Anfrage wird abgebrochen (fb2Drop) – die PDF-Datei enthält statt der Rückmeldung die Checkliste der Lehrkraft (fb2LoadChecklist; lädt sie
    noch, wird kurz gewartet). */
 $("done-pdf").addEventListener("click", async () => {
@@ -6214,11 +6240,11 @@ async function requestFeedback() {
   const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
   const ok = await askConfirm(empty.length ? {
     title: "Noch nicht alles beantwortet",
-    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (nach der Abgabe folgt noch die finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt – beim Abgeben abwählbar; sie geht verschlüsselt auch an deine Lehrkraft). Möchtest du es trotzdem jetzt anfordern?`,
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (nach der Abgabe folgt noch die finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt – beim Abgeben abwählbar; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen). Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
   } : {
     title: "KI-Feedback anfordern?",
-    text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; nach der Abgabe gehen deine Antworten noch einmal denselben Weg für die finale KI-Rückmeldung (beim Abgeben abwählbar; sie geht verschlüsselt auch an deine Lehrkraft). Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
+    text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; nach der Abgabe gehen deine Antworten noch einmal denselben Weg für die finale KI-Rückmeldung (beim Abgeben abwählbar; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen). Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok || submitBusy(st, SENDING_FB)) return;
@@ -6357,7 +6383,7 @@ async function sendFirstAttempt() {
 
 /* Nutzlast verschlüsseln; wäre der Umschlag für den Server zu groß, erst ohne Tippzeiten ({v:1, omitted:"too_large"}), dann – bei einem
    Escape-Room-Finale – ohne die Fehler-Einzelheiten aus dem Raum (escTrim): eine Abgabe scheitert nie an den Tippzeiten oder den Daten aus
-   dem Raum. Fehler beim Verschlüsseln → ApiError("crypto"). pub: der Schlüssel des Blattes (beim Nachreichen der gemerkte, sendFeedback2). */
+   dem Raum. Fehler beim Verschlüsseln → ApiError("crypto"). pub: der öffentliche Schlüssel der Lehrkraft (vom Blatt). */
 async function sealPayload(payload, pub = S.pub) {
   try {
     let env = await Crypto.seal(pub, payload);
@@ -6366,7 +6392,7 @@ async function sealPayload(payload, pub = S.pub) {
     return env;
   } catch (e) { throw new ApiError("crypto"); }
 }
-/* Erstversuch, Abgabe bzw. nachgereichte zweite Rückmeldung senden. Lehnt der Server sie als zu groß ab (413; 409 = Blatt voll, auch nach
+/* Erstversuch bzw. Abgabe senden. Lehnt der Server sie als zu groß ab (413; 409 = Blatt voll, auch nach
    Bytes), folgt genau dieselbe Nutzlast erst ohne Tippzeiten, dann ohne die Fehler-Einzelheiten aus dem Escape-Room – je einmal, nichts neu
    lesen (die Felder sind beim Senden nicht gesperrt). Danach ist payload genau das, was der Server angenommen hat. */
 async function sendSealed(payload, bodyOf, pub = S.pub) {
@@ -6388,12 +6414,13 @@ async function sendSealed(payload, bodyOf, pub = S.pub) {
  * finale KI-Rückmeldung wurde im Abgabe-Dialog abgewählt (vorausgewählt, fb2Offer). Der Server beurteilt im Final-Modus (final: true
  * mit Kennung und Eingang der Abgabe – nur nach einer Abgabe und höchstens 15 Minuten danach) alle Aufgaben mit Auftrag und nennt
  * konkret, was gelungen ist und was gefehlt hat – nach der Abgabe auch, wenn der Auftrag sonst verlangt, die Lösung nicht zu verraten
- * (Entscheidung der Lehrkraft vom 08.11.2026). Bis sie da ist, höchstens FB2_GATE_MS, ist der Download (#done-pdf) gesperrt; ein kleiner
- * Countdown neben dem Ladesymbol (#done-wait) zeigt die Zeit. Danach geht der Download auch ohne sie – die Lösungs-PDF enthält dann
- * statt der Rückmeldung die Checkliste der Lehrkraft (fb2LoadChecklist) –, und im Hintergrund wird weiter gewartet, bis heruntergeladen
- * wird (dann abgebrochen, fb2Drop). Die Rückmeldung steht auf der Bestätigungsseite (grün/rot) und in der Lösungs-PDF (schwarz) und
- * geht danach verschlüsselt auch an die Lehrkraft (sendFeedback2). Ist die KI ausgelastet, wird automatisch wiederholt. */
-const FB2_GATE_MS = 30e3;   // so lange wartet der Download höchstens auf die finale KI-Rückmeldung
+ * (Entscheidung der Lehrkraft vom 08.11.2026). Bis sie da ist, höchstens die Wartezeit, die die Lehrkraft in den KI-Einstellungen
+ * gewählt hat (30, 60 oder 90 s – S.sheet.finalWaitSec, finalWaitOf), ist der Download (#done-pdf) gesperrt; ein kleiner Countdown neben
+ * dem Ladesymbol (#done-wait) zeigt die Zeit. Danach geht der Download auch ohne sie – die Lösungs-PDF enthält dann statt der
+ * Rückmeldung die Checkliste der Lehrkraft (fb2LoadChecklist) –, und im Hintergrund wird weiter gewartet, bis heruntergeladen wird (dann
+ * abgebrochen, fb2Drop). Die Rückmeldung steht auf der Bestätigungsseite (grün/rot) und in der Lösungs-PDF (schwarz). Für die Lehrkraft
+ * speichert sie der Server selbst – verschlüsselt mit ihrem öffentlichen Schlüssel zur Abgabe (Entscheidung des Betreibers vom 08.11.2026:
+ * der Browser ersetzt eine Abgabe nie nachträglich; Antwort stored: true). Ist die KI ausgelastet, wird automatisch wiederholt. */
 const FB2_MANUAL = 3;   // „Rückmeldung erneut anfordern“ nach einem vorübergehenden Fehler höchstens so oft
 const FB2_TRANSIENT = new Set(["ai_busy", "ai_error", "network", "timeout", "server_error", "rate_limited", "bad_result", "db_limit"]);
 // Text so, wie der Server ihn prüft und an die KI gibt: Zeilenumbrüche vereinheitlicht, Steuerzeichen weg, außen getrimmt
@@ -6421,17 +6448,18 @@ function fb2Offer(finals, na) {
 }
 const FB2_CHECK_LABEL = "Nach der Abgabe eine finale KI-Rückmeldung erhalten";
 // Satz im Abgabe-Dialog über dem vorausgewählten Kästchen (FB2_CHECK_LABEL) – nennt die Empfänger wie der Feedback-Dialog
-const fb2DialogLine = () => "Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI beurteilt, was dir gelungen ist und was gefehlt hat, " +
-  "und geht verschlüsselt auch an deine Lehrkraft. " + recipientSentence() + " Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.";
+const fb2DialogLine = () => "Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI beurteilt, was dir gelungen ist und was gefehlt hat; " +
+  "der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen. " + recipientSentence() + " Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.";
 function resetFinalFeedback() {
   $("done-fb").classList.add("hidden"); $("done-fb-list").textContent = "";
   setStatus($("done-fb-status"), "", ""); $("done-fb-retry").classList.add("hidden");
   for (const id of ["done-fb-teacher", "done-fb-retry-note"]) { $(id).classList.add("hidden"); $(id).textContent = ""; }
+  clearTimeout(fb2Check.timer); fb2Check.timer = 0;   // ohne „Rückmeldung erneut anfordern“ keine Fristprüfung
   doneWaitHide();
   $("done-pdf").removeAttribute("aria-disabled");
 }
-/* Download sperren, bis die finale Rückmeldung da ist – höchstens FB2_GATE_MS (absoluter Zeitpunkt: auch nach dem Ruhezustand des Geräts
-   richtig). Der Countdown neben dem Ladesymbol ist aria-hidden (sonst sagte ein Screenreader jede Sekunde an), der Text daneben eine
+/* Download sperren, bis die finale Rückmeldung da ist – höchstens die Wartezeit des Blattes (sub.waitSec, absoluter Zeitpunkt: auch nach
+   dem Ruhezustand des Geräts richtig). Der Countdown neben dem Ladesymbol ist aria-hidden (sonst sagte ein Screenreader jede Sekunde an), der Text daneben eine
    Statusmeldung. #done-pdf bleibt per aria-disabled fokussierbar (beschrieben durch den Text); der Klick-Handler prüft gateOpen selbst. */
 const DONE_WAIT_TEXT = "Deine finale KI-Rückmeldung wird gerade erstellt – bitte gedulde dich kurz.";
 const doneWaitLate = (sub) => "Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei " +
@@ -6450,7 +6478,7 @@ function doneWaitShow(sub, text) {
   else if (t.textContent !== text) t.textContent = text;
 }
 function doneGate(sub) {
-  sub.gateOpen = false; sub.gateUntil = Date.now() + FB2_GATE_MS;
+  sub.gateOpen = false; sub.gateUntil = Date.now() + finalWaitOf(sub.waitSec) * 1000;
   $("done-pdf").setAttribute("aria-disabled", "true");
   $("done-pdf").setAttribute("aria-describedby", ($("done-group").classList.contains("hidden") ? "" : "done-group ") + "done-wait-text done-pdf-note");
   doneWaitShow(sub, DONE_WAIT_TEXT);
@@ -6475,14 +6503,13 @@ function doneGateOpen(sub, why) {
   if (why === "timeout" && sub.fb2State === "loading") doneWaitShow(sub, doneWaitLate(sub));
   else doneWaitHide();
 }
-// Nicht länger warten (Download nach Ablauf der Wartezeit, solange die Rückmeldung noch nicht da ist): Anfrage abbrechen, nichts mehr nachreichen
+// Nicht länger warten (Download nach Ablauf der Wartezeit, solange die Rückmeldung noch nicht da ist): Anfrage abbrechen
 function fb2Drop(sub) {
   S.fbRun++;
   if (S.fbAbort) { try { S.fbAbort.abort(); } catch (e) { /* egal */ } S.fbAbort = null; }
   sub.fb2State = "dropped";
-  fb2Release(sub);
   doneWaitHide();
-  $("done-fb-retry").classList.add("hidden"); fb2RetryNote();
+  $("done-fb-retry").classList.add("hidden"); fb2Check();
 }
 /* Checkliste der Lehrkraft für die Lösungs-PDF (statt der finalen Rückmeldung, wenn sie nicht vorliegt): öffentlich wie auf der
    Checklisten-Seite, gleich nach der Abgabe geholt. sub.checklist: undefined = wird geladen, false = keine, sonst {ai, points:[[…]…]}. */
@@ -6524,67 +6551,26 @@ function renderFinalFeedback() {
   });
 }
 const FB2_MISS_LABEL = "Das hat gefehlt";
-/* Die finale Rückmeldung geht – wie die Abgabe verschlüsselt – auch an die Lehrkraft (Lösungs-PDF und Details in ihrer Übersicht):
- * dieselbe Abgabe mit `feedback2` ({at, final: true, results} für alle Aufgaben) als stage „feedback2“ mit Kennung und dem Eingang, den
- * der Server bei der Abgabe gemeldet hat. Der Server ersetzt nur genau diese Abgabe und nur bis 15 Minuten nach dem Eingang – gelöscht,
- * inzwischen neu abgegeben oder später: nichts (gone). Scheitert es, bleibt die Abgabe ohne sie; die Bestätigungsseite sagt das ruhig
- * unter der Rückmeldung (#done-fb-teacher, fb2TeacherText) – der Abgabe-Dialog hatte angekündigt, dass sie auch an die Lehrkraft geht.
- * „Dieselbe Abgabe“ heißt: genau die Nutzlast, die der Server bei der Abgabe angenommen hat (S.fb2Base, nach den Rückfällen von
- * sealPayload/sendSealed) – Tippzeiten (auch {optOut}/{omitted}) und Daten aus dem Escape-Room bleiben so beim Ersetzen erhalten, nichts
- * wird neu gelesen. Wird der Umschlag erst mit feedback2 zu groß, gelten dieselben Rückfälle wie bei der Abgabe (erst ohne Tippzeit-Werte,
- * dann ohne Fehler-Einzelheiten aus dem Raum – die zweite Rückmeldung scheitert nie an ihnen); Antworten, Feedback, Angaben und Vermerke
- * bleiben immer, und kommt nichts an, bleibt die Abgabe beim Server, wie sie ist (der Server ersetzt atomar, nie halb). */
-const FB2_HOLD_MS = 15 * 60e3;   // = REPLACE_WINDOW_MS (worker/lib.js) – danach nähme der Server nichts mehr an; der Unit-Test vergleicht
-/* Erreicht die zweite Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig und sachlich (keine Erfolgs-, keine
-   Alarmfarbe; nie etwas zu Tippzeiten). fb2TeacherText: Ergebnis von sendFeedback2 → Hinweis unter der Rückmeldung (#done-fb-teacher);
-   fb2RetryText: fb2Reach vor „Rückmeldung erneut anfordern“ → Hinweis unter dem Knopf (#done-fb-retry-note). "" = nichts zu sagen.
-   „Die finale KI-Rückmeldung“ wie im Abgabe-Dialog („… und geht verschlüsselt auch an deine Lehrkraft.“). Nie behaupten, was die
-   Lehrkraft jetzt hat: Die Abgabe kann
-   inzwischen gelöscht oder durch eine neuere derselben Bearbeitung ersetzt sein, das ganze Blatt gelöscht (beides „gone“). */
-const FB2_MIN = Math.round(FB2_HOLD_MS / 60e3);
+/* Für die Lehrkraft (Details und Lösungs-PDF in ihrer Übersicht) speichert der Server die finale Rückmeldung selbst: verschlüsselt mit
+ * ihrem öffentlichen Schlüssel zu genau dieser Abgabe (Kennung und Eingang), nur in den ersten 15 Minuten nach dem Eingang und nur
+ * einmal (Entscheidung des Betreibers vom 08.11.2026 – der Browser ersetzt eine Abgabe nie nachträglich; sonst könnte ein manipulierter
+ * Browser Antworten unterschieben, die die Rückmeldung verraten hat, oder die Rückmeldung selbst fälschen). Die Antwort sagt mit stored,
+ * ob das geklappt hat. Wenn nicht (gelöscht, inzwischen neu abgegeben, beim Speichern gescheitert), sagt die Bestätigungsseite das ruhig
+ * und sachlich unter der Rückmeldung (#done-fb-teacher, FB2_TEACHER_FAILED; keine Erfolgs-, keine Alarmfarbe; nie etwas zu Tippzeiten) –
+ * der Abgabe-Dialog hatte angekündigt, dass die Lehrkraft sie bekommt. Nie behaupten, was die Lehrkraft jetzt hat (die Abgabe bzw. das
+ * Blatt kann inzwischen gelöscht sein). */
+const FB2_WINDOW_MS = 15 * 60e3;   // = REPLACE_WINDOW_MS (worker/lib.js) – danach nimmt der Server keine finale Anfrage mehr an; der Unit-Test vergleicht
+const FB2_MIN = Math.round(FB2_WINDOW_MS / 60e3);
 const FB2_UNAFFECTED = " Deine Abgabe ist davon nicht betroffen.";
-function fb2TeacherText(res) {
-  if (res === "expired") return `Die finale KI-Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten ${FB2_MIN} Minuten nach der Abgabe übermitteln.` + FB2_UNAFFECTED;
-  if (res === "gone") return "Die finale KI-Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + FB2_UNAFFECTED;
-  if (res === "failed" || res === "skipped") return "Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln." + FB2_UNAFFECTED;
-  return "";   // "sent", "none" (nichts nachzureichen)
-}
-function fb2RetryText(reach) {
-  if (reach === "expired") return `Seit deiner Abgabe sind mehr als ${FB2_MIN} Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.`;
-  if (reach === "skipped") return "Eine neue finale KI-Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht übermitteln.";
-  return "";   // "ok"
-}
-/* Die angenommene Nutzlast enthält die Tippzeiten: Sie bleibt getrennt von S.lastSubmission (daraus entstehen die PDF-Dateien der
-   Schüler:innen – nie Tippzeiten) und nur so lange im Arbeitsspeicher, wie noch nachgereicht werden kann (TT_ACCESS: „bis zur Abgabe
-   (und, wenn … nachgereicht wird, bis dahin)“): freigegeben nach dem Nachreichen (geklappt oder endgültig gescheitert), ohne mögliche
-   finale Rückmeldung (finalFeedbackGone), beim Herunterladen ohne sie (fb2Drop), bei „Neues Feibeitsblatt öffnen“ (resetStudent) und spätestens nach
-   FB2_HOLD_MS; die Werte selbst schon, sobald ein Widerspruch aus einem anderen Tab ankommt (fb2FollowOptOut). key = Schlüssel des
-   Zwischenstands der Abgabe (dort sieht fb2FollowOptOut nach). */
-function fb2Hold(sub, payload, r, sentAt) {
-  if (!sub || !payload || !S.pub || !ATTEMPT_RE.test(S.attempt) || !Number.isSafeInteger(r && r.receivedAt) || r.receivedAt <= 0) return;
-  const base = { sub, payload, pub: S.pub, attempt: S.attempt, submitAt: r.receivedAt, key: S.draftKey, timer: 0, until: 0 };
-  // Die Frist des Servers läuft ab dem Eingang (receivedAt, Uhr des Servers); hier gezählt ab dem Absenden der Abgabe (Uhr des Geräts):
-  // nie länger als beim Server – „abgelaufen“ hier heißt also auch dort abgelaufen. sub.fb2Until ist nur ein Zeitpunkt, keine Daten.
-  sub.fb2Until = (Number.isFinite(sentAt) && sentAt > 0 ? sentAt : Date.now()) + FB2_HOLD_MS;
-  base.until = performance.now() + Math.max(0, sub.fb2Until - Date.now());   // dieselbe Frist ohne Wanduhr (falls sie zurückgestellt wird)
-  S.fb2Base = base;
-  fb2Check();   // nachrechnen, bis die Frist abläuft
-}
-function fb2Release(sub) {
-  const base = S.fb2Base;
-  if (!base || (sub && base.sub !== sub)) return;
-  clearTimeout(base.timer);
-  S.fb2Base = null;
-}
-// Frist für das Nachreichen vorbei? Nachgerechnet, denn ein Zeitgeber kommt im Hintergrund oder nach dem Ruhezustand des Geräts zu spät
-const fb2Expired = (sub) => !!sub && sub.fb2Until > 0 && Date.now() >= sub.fb2Until;
-// Erreicht eine (neue) zweite Rückmeldung die Lehrkraft noch? "ok" | "expired" (Frist vorbei) | "skipped" (nie gehalten oder freigegeben)
-function fb2Reach(sub) {
-  if (fb2Expired(sub)) return "expired";
-  return sub && S.fb2Base && S.fb2Base.sub === sub ? "ok" : "skipped";
-}
+const FB2_TEACHER_FAILED = "Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln." + FB2_UNAFFECTED;
+// Hinweis unter „Rückmeldung erneut anfordern“ (#done-fb-retry-note), sobald die Frist vorbei ist – sonst "" (nichts zu sagen)
+const fb2RetryText = (expired) => (expired ? `Seit deiner Abgabe sind mehr als ${FB2_MIN} Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.` : "");
+// Frist für eine (neue) finale Anfrage vorbei? Nachgerechnet, denn ein Zeitgeber kommt im Hintergrund oder nach dem Ruhezustand des
+// Geräts zu spät: auf der Wanduhr (fb2Until) oder – falls sie zurückgestellt wird – seit dem Absenden gezählt (fb2Mono, performance.now).
+// Beides zählt ab dem Absenden der Abgabe (Uhr des Geräts), nie länger als beim Server (ab dem Eingang).
+const fb2Expired = (sub) => !!sub && sub.fb2Until > 0 && (Date.now() >= sub.fb2Until || (sub.fb2Mono > 0 && performance.now() >= sub.fb2Mono));
 /* Unter „Rückmeldung erneut anfordern“ (kein Dialog): Ist die Frist vorbei, nimmt der Server keine Anfrage mehr an – der Knopf
-   verschwindet, der Text sagt es. Aufgerufen, wenn der Knopf erscheint oder verschwindet und aus fb2Check. */
+   verschwindet, der Text sagt es. Aufgerufen aus fb2Check. */
 function fb2RetryNote() {
   const sub = S.lastSubmission, retry = $("done-fb-retry"), note = $("done-fb-retry-note");
   if (sub && !retry.classList.contains("hidden") && fb2Expired(sub)) {
@@ -6592,101 +6578,34 @@ function fb2RetryNote() {
     // die Meldung darüber bot noch einen neuen Versuch an – ohne diesen Satz (der Hinweis unter dem Knopf sagt, warum)
     if (sub.fb2FailText) fb2StatusWithChecklist(sub, $("done-fb-status"), sub.fb2FailText + ".", "bad");
   }
-  const text = sub && (!retry.classList.contains("hidden") || sub.fb2RetryLate) ? fb2RetryText(fb2Reach(sub)) : "";
+  const text = sub && sub.fb2RetryLate ? fb2RetryText(true) : "";
   if (!text) { if (!note.classList.contains("hidden") || note.textContent) { note.classList.add("hidden"); note.textContent = ""; } return; }
-  if (note.classList.contains("hidden") || note.textContent !== text) liveFill(note, note, text, () => S.lastSubmission === sub && (!retry.classList.contains("hidden") || !!sub.fb2RetryLate));
+  if (note.classList.contains("hidden") || note.textContent !== text) liveFill(note, note, text, () => S.lastSubmission === sub && !!sub.fb2RetryLate);
 }
-/* Frist nachrechnen. Ein einzelner Zeitgeber über 15 Minuten kommt zu spät, wenn das Gerät im Ruhezustand war (die Wanduhr läuft weiter,
-   der Zeitgeber zählt die Schlafzeit nicht) oder der Tab im Hintergrund lag. Deshalb prüft fb2Check, solange die Nutzlast gehalten wird,
-   alle FB2_TICK_MS und beim Zurückkehren (visibilitychange, pageshow, focus) sowie, wenn der Knopf „Rückmeldung erneut anfordern“ den
-   Fokus oder den Mauszeiger bekommt: Ist die Frist vorbei – auf der Wanduhr (fb2Expired) oder seit dem Halten gezählt (base.until,
-   performance.now) –, wird die Nutzlast samt Tippzeiten freigegeben (spätestens nach FB2_HOLD_MS) und der Hinweis unter dem Knopf nachgeführt. */
+/* Frist nachrechnen, solange „Rückmeldung erneut anfordern“ dasteht. Ein einzelner Zeitgeber über 15 Minuten kommt zu spät, wenn das
+   Gerät im Ruhezustand war (die Wanduhr läuft weiter, der Zeitgeber zählt die Schlafzeit nicht) oder der Tab im Hintergrund lag. Deshalb
+   prüft fb2Check alle FB2_TICK_MS und beim Zurückkehren (visibilitychange, pageshow, focus) sowie, wenn der Knopf den Fokus oder den
+   Mauszeiger bekommt; aufgerufen auch, wenn der Knopf erscheint oder verschwindet. Ist die Frist vorbei, verschwindet der Knopf, und der
+   Hinweis darunter sagt es (fb2RetryNote). Ohne sichtbaren Knopf läuft kein Zeitgeber (fb2Check.timer). */
 const FB2_TICK_MS = 15e3;
 function fb2Check() {
-  const base = S.fb2Base;
-  if (base) {
-    clearTimeout(base.timer);
-    const left = Math.min(base.sub.fb2Until - Date.now(), base.until - performance.now());
-    if (left <= 0) S.fb2Base = null;
-    else base.timer = setTimeout(fb2Check, Math.min(FB2_TICK_MS, left));
-  }
+  clearTimeout(fb2Check.timer); fb2Check.timer = 0;
   fb2RetryNote();
+  const sub = S.lastSubmission;
+  if (!sub || !(sub.fb2Until > 0) || $("done-fb-retry").classList.contains("hidden")) return;
+  const left = Math.min(sub.fb2Until - Date.now(), sub.fb2Mono > 0 ? sub.fb2Mono - performance.now() : Infinity);
+  if (left > 0) fb2Check.timer = setTimeout(fb2Check, Math.min(FB2_TICK_MS, left));
 }
-// Unter der Rückmeldung, wenn sie die Lehrkraft nicht erreicht hat – nur, solange dieselbe Abgabe angezeigt wird (erst einblenden, dann füllen)
-function fb2TeacherShow(sub, res) {
-  const el = $("done-fb-teacher"), text = fb2TeacherText(res);
-  if (!text || S.lastSubmission !== sub) return;
-  liveFill(el, el, text, () => S.lastSubmission === sub);
+// Unter der Rückmeldung, wenn der Server sie nicht für die Lehrkraft gespeichert hat (stored !== true) – nur, solange dieselbe Abgabe
+// angezeigt wird (erst einblenden, dann füllen)
+function fb2TeacherShow(sub, stored) {
+  const el = $("done-fb-teacher");
+  if (stored === true || S.lastSubmission !== sub) return;
+  liveFill(el, el, FB2_TEACHER_FAILED, () => S.lastSubmission === sub);
 }
-const fb2OptedOut = (base) => !!(base && base.payload.typing && base.payload.typing.optOut === true);
-/* Widerspruch gegen die Tippzeit-Messung, nachdem dieser Tab abgegeben hat: Ein zweiter Tab mit demselben Stand weiß nichts von der
-   Abgabe und trägt den Widerspruch in den Zwischenstand unter demselben Schlüssel ein (diesen hat dieser Tab bei der Abgabe gelöscht –
-   ein Stand dort stammt also aus einem anderen Tab; was dieser Tab selbst zuletzt geschrieben hat, S.ttLastRaw, zählt wie bei
-   ttFollowStored nicht), oder er kam schon, während die Abgabe gesendet wurde (ttFollowStored hat dann S.ttOptOut gesetzt). Dann hält
-   diese Seite die Tippzeiten nicht mehr (TT_ACCESS: „nach einem Widerspruch nicht mehr“): Die gehaltene Nutzlast trägt ab jetzt
-   {v:1, optOut:true}, wird die zweite Rückmeldung noch nachgereicht, ersetzt sie die Abgabe ohne Tippzeiten (die Lehrkraft sieht „ohne
-   Messung (widersprochen)“). Geprüft beim storage-Ereignis und – für eingefrorene Tabs – vor jedem Nachreichen. → true = jetzt übernommen. */
-function fb2FollowOptOut(raw) {
-  const base = S.fb2Base;
-  if (!base || fb2OptedOut(base)) return false;
-  let on = S.ttOptOut === true;
-  if (!on && base.key) {
-    try {
-      if (raw === undefined) raw = store.get(base.key);
-      on = raw !== S.ttLastRaw && !!ttStoredFlags(raw);
-    } catch (e) { on = false; }
-  }
-  if (!on) return false;
-  base.payload.typing = ttOptOutPayload();   // die Werte sind damit nicht mehr erreichbar
-  return true;
-}
-/* → "sent" (bei der Lehrkraft angekommen) | "expired" (Frist vorbei, nichts gesendet bzw. nichts ersetzt) | "gone" (der Server hat nichts
-   ersetzt: Abgabe gelöscht oder inzwischen mit derselben Bearbeitung neu abgegeben, oder das Blatt ist gelöscht – 404) | "failed" (endgültig gescheitert bzw. dreimal
-   vorübergehend) | "skipped" (nie gehalten, oder „Neues Feibeitsblatt öffnen“) | "none" (nichts nachzureichen). Nur "sent" zählt als gesendet. */
-async function sendFeedback2(sub) {
-  if (S.lastSubmission !== sub) return "skipped";
-  if (sub.fb2Sent) return "sent";
-  if (!sub.feedback2) { fb2Release(sub); return "none"; }
-  const base = S.fb2Base;
-  const lost = () => { fb2Release(sub); return fb2Expired(sub) ? "expired" : "skipped"; };   // nicht (mehr) gehalten
-  if (!base || base.sub !== sub || fb2Expired(sub)) return lost();
-  const fb2 = sub.feedback2;
-  const payload = { ...base.payload, feedback2: { at: fb2.at, final: true, results: fb2.results.map((f) => fbOut(normFb(f))) } };
-  // einmal angekommen, bleibt es angekommen – auch wenn das erneute Senden ohne Tippzeit-Werte (Widerspruch unterwegs) danach scheitert
-  let arrived = false;
-  const end = (res) => { if (!arrived) return res; sub.fb2Sent = true; return "sent"; };
-  try {
-    for (let tries = 1; tries <= 3; tries++) {
-      if (S.lastSubmission !== sub) return end("skipped");   // „Neues Feibeitsblatt öffnen“: nichts mehr nachreichen
-      if (S.fb2Base !== base || fb2Expired(sub)) return end(lost());   // Frist vorbei: der Server nähme nichts mehr an
-      fb2FollowOptOut();   // Widerspruch aus einem anderen Tab (auch wenn dieser Tab das storage-Ereignis verpasst hat)
-      if (fb2OptedOut(base)) payload.typing = base.payload.typing;
-      const withValues = ttHasData(payload.typing);
-      let r;
-      try {
-        r = await sendSealed(payload, (envelope) => ({ code: sub.code, envelope, stage: "feedback2", attempt: base.attempt, receivedAt: base.submitAt }), base.pub);
-      } catch (e) {
-        // Blatt inzwischen gelöscht (404 not_found, mit ihm alle Abgaben): wie „gone“ – nichts mehr zu ersetzen
-        if (e instanceof ApiError && e.code === "not_found") return end(fb2Expired(sub) ? "expired" : "gone");
-        if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) return end("failed");   // endgültig (auch 413 trotz Rückfällen)
-        if (tries < 3) await sleep(2000 * tries);
-        continue;
-      }
-      // {ok:true, gone:true}: nichts ersetzt (gelöscht, inzwischen neu abgegeben oder beim Server zu spät) – zählt nicht als gesendet
-      if (r && r.gone === true) return end(fb2Expired(sub) ? "expired" : "gone");
-      arrived = true;
-      // kam der Widerspruch, während die Werte unterwegs waren: gleich noch einmal ohne sie (wie beim Ersetzen des Erstversuchs)
-      if (withValues && fb2OptedOut(base) && S.fb2Base === base) { tries = 0; continue; }
-      sub.fb2Sent = true;
-      return "sent";
-    }
-    return end("failed");   // dreimal vorübergehend gescheitert
-  } finally { fb2Release(sub); }   // geklappt oder endgültig gescheitert: die Nutzlast samt Tippzeiten wird nicht mehr gebraucht
-}
-// Keine finale Rückmeldung mehr möglich: Download frei (die PDF-Datei enthält dann die Checkliste), nichts mehr nachzureichen
+// Keine finale Rückmeldung mehr möglich: Download frei (die PDF-Datei enthält dann die Checkliste)
 function finalFeedbackGone(sub) {
   sub.fb2Final = true;
-  fb2Release(sub);
   doneGateOpen(sub, "failed");
 }
 // Satz zur PDF-Datei, wenn die finale Rückmeldung nicht kommt (Checkliste der Lehrkraft, falls hinterlegt)
@@ -6737,16 +6656,16 @@ function finalFeedbackFailed(e) {
   const ae = document.activeElement;
   if (canRetry && sub.retryFocus && (!ae || ae === document.body || ae === $("done-pdf"))) retry.focus();
   sub.retryFocus = false;
-  fb2RetryNote();
+  fb2Check();   // Hinweis unter dem Knopf; solange er dasteht, wird die Frist nachgerechnet
   if (!canRetry) finalFeedbackGone(sub);
   else doneGateOpen(sub, "failed");   // der Download wartet nicht auf einen neuen Versuch
 }
 async function requestFinalFeedback() {
   const sub = S.lastSubmission;
-  if (!sub || !sub.fb2Want) { fb2Release(sub); return; }   // abgewählt oder nicht angeboten: keine finale Rückmeldung
+  if (!sub || !sub.fb2Want) return;   // abgewählt oder nicht angeboten: keine finale Rückmeldung
   const st = $("done-fb-status"), retry = $("done-fb-retry");
   sub.retryFocus = document.activeElement === retry;   // per Tastatur erneut angefordert: der Fokus fällt nicht auf <body>
-  retry.classList.add("hidden"); fb2RetryNote();
+  retry.classList.add("hidden"); fb2Check();
   if (sub.retryFocus) $("done-pdf").focus();   // der Download ist frei (der Knopf erscheint erst nach geöffneter Sperre)
   const answers = sub.answers.map((a) => a.final);
   if (!sub.recipients.length) {   // wie im Abgabe-Dialog angekündigt: ohne Empfänger nichts senden (auch nicht an den Server)
@@ -6786,20 +6705,20 @@ async function requestFinalFeedback() {
     sub.feedback2 = { results: r.results.map((x) => normFb(x)), final: true, at: new Date().toISOString() };
     sub.fb2State = "done";
     doneGateOpen(sub, "done");
-    retry.classList.add("hidden"); sub.retryFocus = false; fb2RetryNote();
+    retry.classList.add("hidden"); sub.retryFocus = false; fb2Check();
     renderFinalFeedback();
     doneFbReveal(sub, () => setStatus(st, "So sieht die KI deine abgegebene Fassung:", ""));
     // schon eine PDF-Datei ohne sie heruntergeladen (z. B. nach einem gescheiterten Versuch): neu herunterladen
     if (sub.pdfNoFinal) setStatus($("done-status"), "Deine finale KI-Rückmeldung ist jetzt da – lade die PDF-Datei noch einmal herunter, damit sie darin steht.", "");
-    // verschlüsselt auch an die Lehrkraft (ersetzt die Abgabe, legt nie eine neue an); erreicht sie die Lehrkraft nicht, ein ruhiger Hinweis
-    sendFeedback2(sub).catch(() => "failed").then((res) => fb2TeacherShow(sub, res));
+    // für die Lehrkraft hat der Server sie selbst verschlüsselt zur Abgabe gespeichert (stored) – wenn nicht, ein ruhiger Hinweis
+    fb2TeacherShow(sub, r.stored);
     return;
   }
 }
 $("done-fb-retry").addEventListener("click", () => {
   const sub = S.lastSubmission;
   if (!sub || sub.fb2State === "loading" || sub.fb2State === "dropped") return;
-  if (fb2Expired(sub)) { fb2RetryNote(); return; }   // der Server nähme nichts mehr an
+  if (fb2Expired(sub)) { fb2Check(); return; }   // der Server nähme nichts mehr an: Knopf weg, Hinweis
   sub.fb2Manual = (sub.fb2Manual || 0) + 1;
   requestFinalFeedback();
 });
@@ -6919,7 +6838,7 @@ async function submitAll() {
     };
     if (na) payload.noAi = na.mode;
     if (na && na.mode === "unavailable") payload.feedbackError = na.reason;
-    // finalMode: Abgabe mit der finalen KI-Rückmeldung (fb2Of: ohne nachgereichte Rückmeldung gibt es keine – nie die alte Regel
+    // finalMode: Abgabe mit der finalen KI-Rückmeldung (fb2Of: ohne gespeicherte Rückmeldung gibt es keine – nie die alte Regel
     // „unverändert → erstes Feedback gilt“); finalWanted nur, wenn sie angeboten war: gewählt oder abgewählt (die Lehrkraft sieht „abgewählt“)
     payload.finalMode = true;
     if (offer) payload.finalWanted = wantFinal;
@@ -6933,7 +6852,8 @@ async function submitAll() {
     } catch (e) { payload.typing = { v: 1, omitted: "error" }; }
     if (S.escape) payload.escape = escPayload(S.escape.rec, escCheck(S.escape.hull));   // Ergebnisse aus dem Escape-Room (ohne Personendaten)
     saveDraft();
-    const sentAt = Date.now();   // ab hier zählt die Frist für das Nachreichen der zweiten Rückmeldung (fb2Hold)
+    // ab hier zählt die Frist für eine (neue) finale Anfrage – auf dem Gerät nie länger als beim Server (dort ab dem Eingang)
+    const sentAt = Date.now(), sentMono = performance.now();
     const r = await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }));
     S.submitted = true;
     delDraft(S.draftKey); store.del(LAST_KEY);
@@ -6947,19 +6867,19 @@ async function submitAll() {
     // Für den Download-Button (#done-pdf) auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
     S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
       feedback: payload.feedback, feedbackError: payload.feedbackError || "", noAi: payload.noAi || "", receivedAt: d.getTime(),
-      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false, fb2Until: 0,
+      recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false,
+      fb2Until: sentAt + FB2_WINDOW_MS, fb2Mono: sentMono + FB2_WINDOW_MS,   // Frist für „Rückmeldung erneut anfordern“ (fb2Expired) – nur Zeitpunkte
       fb2Want: wantFinal, finalWanted: payload.finalWanted, attempt: S.attempt, serverAt: Number.isSafeInteger(r.receivedAt) ? r.receivedAt : 0, gateOpen: true, checklist: undefined,
+      waitSec: finalWaitOf(S.sheet.finalWaitSec),   // so lange wartet der Download höchstens auf die finale Rückmeldung (doneGate; Einstellung der Lehrkraft)
       escape: S.escape && S.sheet.escape ? { rec: S.escape.rec, name: S.sheet.escape.name } : null };   // Escape-Room-Finale: Überblick für die Abschluss-PDF
     $("done-pdf-label").textContent = S.lastSubmission.escape ? DONE_PDF_ESC : DONE_PDF;
     // Partner- und Gruppenarbeit: die Lösungen hat nur dieses Gerät – rot und fett über dem Button, sie an die anderen weiterzuschicken
     const grp = isGroup(S.lastSubmission.person);
     $("done-group").classList.toggle("hidden", !grp);
     $("submit-esc").classList.add("hidden");
-    S.firstTyping = null;   // die Tippzeiten der ersten Fassung braucht nach der Abgabe nichts mehr (TT_ACCESS: „bis zur Abgabe“)
-    // nur mit gewählter finaler Rückmeldung wird nachgereicht: dafür genau die angenommene Nutzlast (sendSealed hat sie um die Rückfälle
-    // gekürzt, mit denen sie ankam) – getrennt von S.lastSubmission und nur, bis nichts mehr nachgereicht wird
-    fb2Release();
-    if (wantFinal) fb2Hold(S.lastSubmission, payload, r, sentAt);
+    // nach der Abgabe hält diese Seite keine Tippzeiten mehr (TT_ACCESS: „bis zur Abgabe“): die finale Rückmeldung speichert der Server
+    // selbst – nichts wird nachgereicht, die angenommene Nutzlast wird nicht gemerkt
+    S.firstTyping = null;
     setStatus($("done-status"), "", "");
     resetFinalFeedback();
     $("done-pdf").setAttribute("aria-describedby", grp ? "done-group done-pdf-note" : "done-pdf-note");
@@ -7062,8 +6982,7 @@ function stopFeedbackRun() {
   if (S.sheet && S.tas.length) renderSteps();
 }
 function resetStudent() {
-  stopFeedbackRun();   // beendet auch eine noch laufende zweite Rückmeldung (gleiche Lauf-Kennung)
-  fb2Release();   // nichts mehr nachreichen: die angenommene Nutzlast (samt Tippzeiten) gleich freigeben
+  stopFeedbackRun();   // beendet auch eine noch laufende finale Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
   Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null, escPending: null, escape: null, escSoft: null });
@@ -7401,12 +7320,27 @@ async function loadSubs() {
           // Tippzeiten: nur geprüfte Base64-Form (dekodiert wird erst beim Aufklappen); ein Fehler kostet nur die Messung, nie den Eintrag
           try { p.typing = ttCleanPayload(p.typing, p.answers); } catch (e) { p.typing = null; }
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
-          // finale KI-Rückmeldung (nachgereicht, final: alle Aufgaben) bzw. bei älteren Abgaben die zweite (nur geänderte Aufgaben, die
-          // übrigen null); ein Fehler kostet nur sie, nie den Eintrag. finalWanted: im Abgabe-Dialog gewählt (true) bzw. abgewählt (false)
+          // in der Abgabe selbst: die von einer früheren Seite nachgereichte finale KI-Rückmeldung (final: alle Aufgaben) bzw. bei älteren
+          // Abgaben die zweite (nur geänderte Aufgaben, die übrigen null); ein Fehler kostet nur sie, nie den Eintrag.
+          // finalWanted: im Abgabe-Dialog gewählt (true) bzw. abgewählt (false)
           try {
             p.feedback2 = p.feedback2 && typeof p.feedback2 === "object" && Array.isArray(p.feedback2.results)
               ? { at: cut(p.feedback2.at, 40), final: p.feedback2.final === true, results: p.feedback2.results.slice(0, 30).map((f) => (f && typeof f === "object" ? normFb(f) : null)) } : null;
           } catch (e) { p.feedback2 = null; }
+          // die finale KI-Rückmeldung, die der Server selbst für Sie verschlüsselt zur Abgabe gespeichert hat (finalEnv, seit dem 08.11.2026):
+          // gilt vor einer nachgereichten in der Abgabe; nur die erwartete Form, gekappt wie oben – ein Fehler kostet nur sie, nie den Eintrag.
+          // Nur, wenn der Prüfwert ah (SHA-256 der beurteilten Antworten) zu den abgegebenen Antworten passt – sonst bezieht sie sich auf
+          // andere Antworten (ein manipulierter Browser) und wird nicht angezeigt (finalMismatch)
+          if (s.finalEnv && (typeof s.finalEnv === "string" || typeof s.finalEnv === "object")) {   // Text (so liefert ihn der Server) oder schon geparst
+            try {
+              const f = await Crypto.open(T.priv, s.finalEnv);
+              if (f && typeof f === "object" && f.kind === "feibeitsblatt-final" && f.v === 1 && Array.isArray(f.results)) {
+                if (typeof f.ah === "string" && f.ah === await finalAnswersDigest(p.answers.map((a) => a.final)))
+                  p.feedback2 = { at: cut(f.at, 40), final: true, results: f.results.slice(0, 30).map((x) => (x && typeof x === "object" ? normFb(x) : null)) };
+                else { p.feedback2 = null; p.finalMismatch = true; }
+              }
+            } catch (e) { /* bleibt bei der Rückmeldung aus der Abgabe (bzw. keiner) */ }
+          }
           p.finalWanted = typeof p.finalWanted === "boolean" ? p.finalWanted : undefined;
           p.finalMode = p.finalMode === true || p.finalWanted !== undefined;   // Abgabe mit finaler KI-Rückmeldung (fb2Of)
           p.noAi = NO_AI_MODES.has(p.noAi) ? p.noAi : "";   // ohne KI-Feedback: ohne Anfrage / nicht möglich / Blatt ohne KI
@@ -7508,13 +7442,22 @@ function applyTtOff() {
 $("t-tt-off").addEventListener("click", () => { T.ttOff = !T.ttOff; applyTtOff(); });
 // ohne TT_KEEP_IN_DRAFT gilt Text, der vor einem Neuladen (bzw. vor dem Hochladen einer Zwischenstand-PDF) geschrieben wurde, als „ohne Messung“
 if (!TT_KEEP_IN_DRAFT) $("t-tt-none").textContent = "z. B. ältere Stände, nach einem Widerspruch oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert keine Tippzeiten";
-/* KI-Rückmeldung zur abgegebenen Fassung einer Abgabe: die finale (final: true – alle Aufgaben, auch ohne erstes Feedback), so wie sie
- * nachgereicht wurde. Ältere Abgaben (vor der finalen Rückmeldung) wie damals im Browser: neu beurteilt waren nur Aufgaben mit Stichpunkten
+/* KI-Rückmeldung zur abgegebenen Fassung einer Abgabe: die finale (final: true – alle Aufgaben, auch ohne erstes Feedback), so wie der
+ * Server sie verschlüsselt zur Abgabe gespeichert hat (finalEnv; bei Abgaben vor dem 08.11.2026: wie sie nachgereicht wurde). Ältere Abgaben (vor der finalen Rückmeldung) wie damals im Browser: neu beurteilt waren nur Aufgaben mit Stichpunkten
  * im ersten Feedback, deren Text sich geändert hatte (fb2Changes); hatte sich nichts geändert, galt das erste Feedback (nichts gesendet).
- * Fehlt die nachgereichte Rückmeldung (abgewählt, Seite vorher geschlossen, nicht abgewartet, KI nicht erreichbar) → null. */
+ * Fehlt die finale Rückmeldung (abgewählt, Seite vorher geschlossen, nicht abgewartet, KI nicht erreichbar, nicht gespeichert) → null. */
+// Prüfwert der Antworten, die der Server für die finale KI-Rückmeldung beurteilt hat: SHA-256 (hex) über JSON der Antworten, bereinigt wie
+// cleanText/validateAnswers im Worker (Zeilenenden \n, Steuerzeichen außer Tab und Zeilenumbruch weg; null → "")
+const FINAL_CTRL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+async function finalAnswersDigest(finals) {
+  const clean = finals.map((a) => String(a == null ? "" : a).replace(/\r\n?/g, "\n").replace(FINAL_CTRL_RE, ""));
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(clean)));
+  return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+const FINAL_MISMATCH_NOTE = "Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten und wird deshalb nicht angezeigt.";
 function fb2Of(p) {
   if (p && p.feedback2 && p.feedback2.final) return { results: p.feedback2.results.map((f) => (f ? normFb(f) : null)), final: true, at: p.feedback2.at };
-  if (!p || p.finalMode || !Array.isArray(p.feedback)) return null;   // neue Abgabe ohne nachgereichte finale Rückmeldung: keine
+  if (!p || p.finalMode || !Array.isArray(p.feedback)) return null;   // neue Abgabe ohne gespeicherte finale Rückmeldung: keine
   const changed = fb2Changes(p.answers.map((a) => a.first), p.answers.map((a) => a.final), p.feedback);
   if (!changed.some(Boolean)) return { results: changed.map((_, i) => normFb(p.feedback[i] || {})), same: true, kept: changed.map(() => true) };
   if (!p.feedback2) return null;
@@ -7530,7 +7473,7 @@ function teacherSolutionsSub(s, checklist) {
     answers: Array.from({ length: n }, (_, i) => ({ first: (p.answers[i] || {}).first || "", final: (p.answers[i] || {}).final || "" })),
     // ältere Abgaben ohne noAi: wie in den Details „nicht möglich“ (noAiNote)
     feedback: withFb ? p.feedback : null, feedbackError: p.feedbackError || "", noAi: p.noAi || (withFb ? "" : "unavailable"), receivedAt: s.receivedAt,
-    // nicht übermittelt: gewählt (bzw. bei älteren Abgaben: mit erstem Feedback), aber nicht nachgereicht; abgewählt sagt die PDF selbst
+    // nicht übermittelt: gewählt (bzw. bei älteren Abgaben: mit erstem Feedback), aber keine gespeichert; abgewählt sagt die PDF selbst
     feedback2: fb2, fb2Missing: !fb2 && (p.finalWanted === true || (!p.finalMode && withFb)), finalWanted: p.finalWanted === false ? false : undefined,
     checklist: checklist || false };   // statt der fehlenden Rückmeldung die Checkliste (beim Klick geladen, teacherChecklistLoad)
 }
@@ -7576,8 +7519,8 @@ function buildDetail(s, older) {
   } else if (noFb && noAiNote(p)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: noAiNote(p) }));
   }
-  if (!isFirst && !older) {   // finale KI-Rückmeldung: abgewählt bzw. gewählt, aber nicht nachgereicht (sonst steht sie je Aufgabe da)
-    const finalNote = p.finalWanted === false ? "Die finale KI-Rückmeldung wurde beim Abgeben abgewählt."
+  if (!isFirst && !older) {   // finale KI-Rückmeldung: abgewählt bzw. gewählt, aber keine gespeichert (sonst steht sie je Aufgabe da)
+    const finalNote = p.finalMismatch ? FINAL_MISMATCH_NOTE : p.finalWanted === false ? "Die finale KI-Rückmeldung wurde beim Abgeben abgewählt."
       : !fb2Of(p) && p.finalWanted === true ? "Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt." : "";
     if (finalNote) box.appendChild(h("p", { class: "moodle-hint dfinal", style: "margin:0 0 12px; text-align:left", text: finalNote }));
   }
@@ -9826,10 +9769,12 @@ async function openAi() {
   teacherView("tv-ai");
   const st = $("ai-status");
   setStatus(st, "Wird geladen …", "busy");
-  ["ai-save", "ai-test"].forEach((id) => { $(id).disabled = true; });
+  ["ai-save", "ai-test", "fw-save"].forEach((id) => { $(id).disabled = true; });
+  setStatus($("fw-status"), "", "");
   try {
     const r = await TA("/api/teacher/ai");
     T.ai = r;
+    fwFill(r.finalWaitSec);   // Wartezeit auf die finale KI-Rückmeldung (ältere Worker: Vorgabe 30 s)
     $("ai-prov").value = PROVIDERS[r.provider] ? r.provider : DEFAULT_PROV;
     $("ai-model").value = r.model || "";
     $("ai-base").value = r.baseUrl || "";
@@ -9843,9 +9788,30 @@ async function openAi() {
     aiDirty = false; ai2Dirty = false;
     setStatus(st, "", ""); setStatus($("ai2-status"), "", "");
   } catch (e) { if (handleAuthError(e)) return; setStatus(st, errMsg(e, "t"), "bad"); }
-  finally { ["ai-save", "ai-test"].forEach((id) => { $(id).disabled = false; }); aiSyncForm(); ai2SyncForm(); }
+  finally { ["ai-save", "ai-test", "fw-save"].forEach((id) => { $(id).disabled = false; }); aiSyncForm(); ai2SyncForm(); }
 }
 $("t-ai").addEventListener("click", openAi);
+/* Wartezeit auf die finale KI-Rückmeldung (30, 60 oder 90 s): so lange ist der Download der Lösungen nach der Abgabe höchstens gesperrt
+   (doneGate) – gilt für alle Feibeitsblätter ab dem nächsten Öffnen durch die Schüler:innen. */
+function fwFill(sec) {
+  const v = finalWaitOf(sec);
+  FINAL_WAIT_OPTIONS.forEach((x) => { $("fw-" + x).checked = x === v; });
+}
+$("fw-save").addEventListener("click", async () => {
+  const b = $("fw-save"), st = $("fw-status");
+  const sel = FINAL_WAIT_OPTIONS.find((x) => $("fw-" + x).checked);
+  if (!sel) { setStatus(st, "Bitte wählen Sie eine Wartezeit aus.", "bad"); return; }
+  busy(b, true, "Wird gespeichert …");
+  setStatus(st, "Wird gespeichert …", "busy");
+  try {
+    const r = await TA("/api/teacher/final-wait", { method: "PUT", body: { waitSec: sel } });
+    const v = FINAL_WAIT_OPTIONS.includes(r.finalWaitSec) ? r.finalWaitSec : sel;
+    if (T.ai) T.ai.finalWaitSec = v;
+    fwFill(v);
+    setStatus(st, `Gespeichert: Nach der Abgabe warten die Schüler:innen höchstens ${v} Sekunden auf die finale KI-Rückmeldung. Das gilt ab dem nächsten Öffnen eines Feibeitsblattes.`, "ok");
+  } catch (e) { if (!handleAuthError(e)) setStatus(st, errMsg(e, "t"), "bad"); }
+  finally { busy(b, false); }
+});
 $("ai-back").addEventListener("click", () => { teacherView("tv-overview"); loadAiState(); });
 $("ai-prov").addEventListener("change", () => {
   aiDirty = true;
