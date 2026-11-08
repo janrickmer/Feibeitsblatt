@@ -1139,14 +1139,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   was die KI bekommt, nach dem Bestätigen öffentlich) und `ckEditorOpen(code, {title, tasks: die eben gesendeten Texte}, "create")` schlägt
   parallel zu den Uploads einmal vor; die Lehrkraft prüft, ändert und bestätigt (`#ck-save` „Checkliste bestätigen“, PUT ohne PDF, „Checkliste
   bestätigt.“ bzw. „Gespeichert – ohne Checklistenpunkte.“; Fokus bleibt beim Code). Bestätigt dient sie **zwei Zwecken**: der Lösungs-PDF der
-  Schüler:innen, wenn die finale KI-Rückmeldung fehlt (siehe Finale KI-Rückmeldung; geholt über die öffentliche Route), und dem QR-Code des
+  Schüler:innen unter jeder Antwort ohne KI-Rückmeldung (siehe Finale KI-Rückmeldung; geholt über die öffentliche Route; Texte `B_CK_WHERE`,
+  `B_CK_INTRO`/`B_CK_INTRO_ESC`), und dem QR-Code des
   analogen Arbeitsblattes – **öffentlich ab dem Bestätigen** (`#checkliste=CODE`), also womöglich schon während die Schüler:innen schreiben
   (README, „Weiter vom Betreiber zu prüfen“). „Zur Übersicht“ (`#b-res-back`) und der obere Rücklink `#b-back`
   fragen über `ckCreateLeaveOk()` nur bei geänderten, nicht bestätigten Punkten („Checkliste nicht bestätigt“, `safeFirst`; nicht während das
   Bestätigen läuft); unbestätigt bleibt nur der Entwurf – dann steht in den Lösungs-PDFs keine Checkliste, und `ckCreateNote` sagt es nach
-  `#b-res-back` in `#t-export-status`. Escape-Blätter (`CK.esc`, aus `sheet.escape`): `#b-ck-intro` = `B_CK_INTRO_ESC`, Zustandstexte und
+  `#b-res-back` in `#t-export-status` (`leaveBuilderResult`, auch für `#b-back`, solange `#b-result` zu sehen ist; nur, wenn die Übersicht seitdem nicht verlassen wurde). Escape-Blätter (`CK.esc`, aus `sheet.escape`): `#b-ck-intro` = `B_CK_INTRO_ESC`, Zustandstexte und
   die Rückfrage zu „Neu von der KI vorschlagen lassen“ ohne QR-Code, `#ck-open` verborgen; `h2#ck-h2` „Checkliste zum QR-Code“ nur im Modus
-  `"analog"`, sonst „Punkte der Checkliste“. Schlägt die KI noch vor (`T.ckPending` aus `ckSuggest`), wartet ein neu geöffneter Editor desselben
+  `"analog"`, sonst „Punkte der Checkliste“. Schlägt die KI noch vor (`T.ckPending`, eine Map je Code, aus `ckSuggest`), wartet ein neu geöffneter Editor desselben
   Blattes darauf statt erneut zu fragen; ein Ladefehler beim Anlegen verweist auf „Checkliste bearbeiten“. Ein Editor `#ck-box` für
   drei Lagen (`CK.mode`, `ckMount` verschiebt ihn zwischen `#b-ck-slot` und `#ck-home` in `#tv-analog`; `CK_SAVE_LABEL`): `"create"` (s. o.),
   `"edit"` – `#t-ck-edit` „Checkliste bearbeiten“ in den Blattdetails (auch bei Escape-Blättern) → `#tv-analog` mit `h1#ck-h1` „Checkliste“,
@@ -1181,7 +1182,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   sofort `POST` („Die KI schlägt eine Checkliste vor …“, ohne Auftrag „Die Checkliste wird angelegt …“; bei `aiFeedback && !aiReady`
   kein `POST`, leerer Editor), Entwurf → `#ck-state` „Vorschlag der KI – noch nicht gespeichert. … erst mit „<`CK_SAVE_LABEL`>“ gilt die
   Checkliste (Lösungs-PDF der Schüler:innen, QR-Code).“, gespeichert „Gespeicherte Checkliste vom … – sie steht in der Lösungs-PDF der
-  Schüler:innen, wenn die finale KI-Rückmeldung fehlt, und ist über den QR-Code sichtbar.“; je Aufgabe `#ck-n` (Label „Punkte
+  Schüler:innen unter jeder Antwort ohne KI-Rückmeldung, und ist über den QR-Code sichtbar.“ (Escape-Room-Finale: ohne QR-Satz); `#ck-aiwarn`
+  außerhalb des Modus `"analog"` ohne die PDF-Sätze (`CK_NO_AI_SHEET_CK`); nach dem Bestätigen trägt `ckSave` `final` auch in das gemerkte
+  `CK`-Objekt ein und leert den Hinweis `T.ckNote` in der Übersicht; je Aufgabe `#ck-n` (Label „Punkte
   der Checkliste zu Aufgabe n – …“, eine Zeile = ein Punkt, `ckParse` mit den Regeln des Servers, `aria-invalid`), `#ck-save` (PUT –
   währenddessen Felder readOnly (`ckFields`), danach baut sich der Editor aus dem Gespeicherten neu, gesperrt bis das PDF fertig ist
   (frei im `finally` desselben `CK.run`) –, nur im Modus `"analog"` dann PDF; dort ohne Punkte Rückfrage
@@ -1423,7 +1426,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `show("screen-done")` (E2E 7j: `/api/submit` angehalten; dort auch: Nachsehen der Empfänger hinter offenem Abgabe-Dialog,
   erstes Feedback ohne Empfänger nach Weiterschreiben).
   Lehrkraft (`noAiNote`, neutral): „Ohne KI-Feedback zum Überarbeiten abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“
-  (alte Abgaben ohne `noAi` = nicht möglich), eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“ (`table.cmp.one`); Liste, Legende, Zähler unverändert. Lösungs-PDF: derselbe Satz im Kopf (nicht
+  (alte Abgaben ohne `noAi` = nicht möglich), eine Spalte „Abgegebene Fassung (ohne KI-Feedback zum Überarbeiten)“ (Blatt ohne Auftrag an die KI: „(ohne KI-Feedback)“; `.dmeta` „ohne KI-Feedback zum Überarbeiten“) (`table.cmp.one`); Liste, Legende, Zähler unverändert. Lösungs-PDF: derselbe Satz im Kopf (nicht
   bei `none`); Zwischenstand-PDF „Stand: … KI-Feedback schon erhalten / angefordert, beim Sichern noch nicht erhalten
   (`fbPending`) / bisher nicht geklappt (Grund) / nicht angefordert“, ohne KI-Hinweise bei Blättern ohne KI. E2E 3b, 4
   und 7f (G–P, u. a. Tab zu während der Anfrage, Scheitern hinter dem Dialog, abgebrochene wartende Anfrage, alte

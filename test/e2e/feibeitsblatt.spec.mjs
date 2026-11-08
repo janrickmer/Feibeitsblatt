@@ -3779,7 +3779,8 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   expect(sheetGets).toBe(3);
   await expect(p6.locator("#fb-fallback")).toBeHidden();   // „KI nicht eingerichtet“ gilt nicht mehr …
   await expect(p6.locator("#ed-steps-list li")).toHaveText(STEPS_AI);
-  await expect(p6.locator("#submit-hint")).toHaveText(SUBMIT_HINT_NO_FB);
+  // … die Abgabe bietet aber keine finale Rückmeldung an (der Grund „nicht eingerichtet“ bleibt bis zu einem KI-Feedback): nicht ankündigen
+  await expect(p6.locator("#submit-hint")).toHaveText("Du kannst auch ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.");
   await expect(p6.locator("#privacy")).toContainText("an den KI-Dienst „127.0.0.1:");
   expect(await s6.calls((r) => r.path === "/api/feedback")).toEqual([]);   // nichts gesendet
   await p6.click("#submit-btn");   // … die Abgabe trägt aber den Grund des gescheiterten Versuchs
@@ -5022,7 +5023,7 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste beim Anlegen einmal v
   expect(ckRow.draft).toBeNull();
   expect(JSON.parse(ckRow.final).tasks.map((x) => x.points)).toEqual([final1, draft2, [], final4]);
   await expect(tp.locator("#ck-2")).toHaveValue(draft2.join("\n"));   // so, wie gespeichert (ohne Doppeltes)
-  await expect(tp.locator("#ck-state")).toHaveText(/^Gespeicherte Checkliste vom \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr – sie steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung fehlt, und ist über den QR-Code sichtbar\.$/);
+  await expect(tp.locator("#ck-state")).toHaveText(/^Gespeicherte Checkliste vom \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr – sie steht in der Lösungs-PDF der Schüler:innen unter jeder Antwort ohne KI-Rückmeldung, und ist über den QR-Code sichtbar\.$/);
   await expect(tp.locator("#ck-open")).toBeVisible();
   await expect(tp.locator("#ck-open")).toHaveAttribute("href", CHECK_URL);   // genau das Ziel des QR-Codes
   await expect(tp.locator("#ck-open")).toHaveAttribute("rel", "noopener noreferrer");
@@ -5253,7 +5254,8 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste beim Anlegen einmal v
   await expect(tp.locator("#t-sel-tasks .si")).toHaveCount(4);
   await tp.click("#t-ck-edit");
   await expect(tp.locator("#ck-1")).toHaveValue("Während des Speicherns zurück");
-  await expect(tp.locator("#ck-aiwarn")).toHaveText("Zu keiner Aufgabe dieses Blattes gibt es einen Auftrag an die KI. Deshalb steht im PDF kein Satz zur KI-Rückmeldung (digital gibt es zu diesem Blatt keine), und die KI schlägt keine Checkliste vor – tragen Sie die Punkte selbst ein.");
+  // „Checkliste bearbeiten“ macht kein PDF: der Hinweis nennt nur, dass die KI nichts vorschlägt
+  await expect(tp.locator("#ck-aiwarn")).toHaveText("Zu keiner Aufgabe dieses Blattes gibt es einen Auftrag an die KI – die KI schlägt deshalb keine Checkliste vor; tragen Sie die Punkte selbst ein.");
   await expect(tp.locator("#ck-regen")).toBeHidden();
   expect(lateDownload).toBe(false);   // nach dem Verlassen kam kein PDF
   tp.off("download", onDownload);
@@ -7537,7 +7539,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   await expect(tp.locator("#b-result")).toBeVisible();
   const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
   await expect(tp.locator("#b-ck")).toBeVisible();
-  await expect(tp.locator("#b-ck-intro")).toContainText("Die Checkliste steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung nicht rechtzeitig kommt oder abgewählt wurde, und hinter dem QR-Code des analogen Arbeitsblattes.");
+  await expect(tp.locator("#b-ck-intro")).toContainText("Die Checkliste steht in der Lösungs-PDF der Schüler:innen unter jeder Antwort ohne KI-Rückmeldung (wenn die finale KI-Rückmeldung nicht rechtzeitig kommt oder abgewählt wurde und bei Aufgaben ohne Auftrag an die KI) und hinter dem QR-Code des analogen Arbeitsblattes.");
   const draft1 = expectedChecklist(TASKS[0].solution), draft2 = expectedChecklist(TASKS[1].solution);
   await expect(tp.locator("#b-ck-slot #ck-1")).toHaveValue(draft1.join("\n"));
   await expect(tp.locator("#ck-2")).toHaveValue(draft2.join("\n"));
@@ -7556,7 +7558,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   await expect(tp.locator("#b-result")).toBeVisible();
   await tp.click("#ck-save");
   await expect(tp.locator("#ck-status")).toHaveText("Checkliste bestätigt.");
-  await expect(tp.locator("#ck-state")).toHaveText(/^Gespeicherte Checkliste vom \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr – sie steht in der Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung fehlt, und ist über den QR-Code sichtbar\.$/);
+  await expect(tp.locator("#ck-state")).toHaveText(/^Gespeicherte Checkliste vom \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr – sie steht in der Lösungs-PDF der Schüler:innen unter jeder Antwort ohne KI-Rückmeldung, und ist über den QR-Code sichtbar\.$/);
   const [ckRow] = await d1Query(`SELECT draft, final FROM sheet_checklists WHERE sheet_code='${code}'`);
   expect(ckRow.draft).toBeNull();
   expect(JSON.parse(ckRow.final).tasks.map((x) => x.points)).toEqual([CK1, draft2, CK3]);

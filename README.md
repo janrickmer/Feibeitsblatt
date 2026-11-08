@@ -243,7 +243,8 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    nicht rechtzeitig, nicht möglich), steht im Kopf der Grund (z. B. „Die finale KI-Rückmeldung lag beim Herunterladen nicht
    vor.“) und unter jeder Antwort „Checkliste – prüfe selbst, ob deine Antwort das enthält:“ mit den Punkten Ihrer
    Checkliste und leeren Kästchen zum Abhaken (siehe [Lehrkraft, Schritt 4](#so-arbeiten-sie-als-lehrkraft)); haben Sie
-   keine Checkliste bestätigt, steht nur der Grund darin. Die Datei entsteht im Browser und enthält keinen Geburtstag. Stehen
+   keine Checkliste bestätigt, steht nur der Grund darin. Auch wenn die finale Rückmeldung da ist, steht bei Aufgaben ohne
+   Auftrag an die KI (also ohne KI-Rückmeldung) Ihre Checkliste, sofern Sie dort Punkte eingetragen haben. Die Datei entsteht im Browser und enthält keinen Geburtstag. Stehen
    KI-Rückmeldungen darin, sagt die erste Seite das („Die Rückmeldungen in dieser Datei hat eine KI erzeugt …“), und die
    Metadaten der Datei kennzeichnen sie maschinenlesbar (siehe [Sicherheit](#sicherheit), KI-Kennzeichnung). Der
    Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
@@ -425,8 +426,9 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    „Code generieren“ (während die Dateien hochgeladen werden) aus Ihren Aufträgen an die KI kurze, prüfbare Punkte vor –
    sie bekommt nur Aufgabenstellungen, Material (als reinen Text) und die Aufträge, keine Daten der Schüler:innen (zu den
    Regeln siehe Schritt 7). Prüfen und ändern Sie die Punkte (eine Zeile je Punkt) und klicken Sie **„Checkliste
-   bestätigen“**. Die Checkliste dient zweierlei: Sie steht in der Lösungs-PDF der Schüler:innen, wenn die finale
-   KI-Rückmeldung nicht innerhalb von 30 Sekunden kommt oder abgewählt wurde, und hinter dem QR-Code des analogen
+   bestätigen“**. Die Checkliste dient zweierlei: Sie steht in der Lösungs-PDF der Schüler:innen unter jeder Antwort
+   ohne KI-Rückmeldung (wenn die finale KI-Rückmeldung nicht innerhalb von 30 Sekunden kommt oder abgewählt wurde und bei
+   Aufgaben ohne Auftrag an die KI), und hinter dem QR-Code des analogen
    Arbeitsblattes (Schritt 7). **Ab dem Bestätigen ist sie öffentlich** – für alle, die den Code kennen (Adresse mit
    `#checkliste=`), also auch schon, während die Klasse schreibt; schreiben Sie nichts hinein, was die Schüler:innen vor
    der Abgabe nicht sehen sollen. Gehen Sie mit geänderten, nicht bestätigten Punkten „Zur Übersicht“, fragt die Seite
@@ -456,7 +458,8 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    herunterladen“** dieselbe PDF-Datei herunter, die die Schülerin bzw. der Schüler nach der Abgabe bekommt (Aufgaben,
    abgegebene Lösungen und die finale KI-Rückmeldung dazu; im Dateinamen Code, Klasse, Kürzel und Abgabedatum, nie der
    Geburtstag) – erzeugt in Ihrem Browser, nichts geht dafür an den Server außer der Abfrage Ihrer gespeicherten
-   Checkliste: Fehlt die finale Rückmeldung, steht wie bei den Schüler:innen der Grund und Ihre Checkliste darin. Tippzeiten stehen nie
+   Checkliste: Unter Antworten ohne KI-Rückmeldung steht wie bei den Schüler:innen Ihre Checkliste, fehlt die finale
+   Rückmeldung, auch der Grund. Tippzeiten stehen nie
    darin; bei einem Escape-Room-Finale enthält sie nur die Lösungsseiten (den Überblick aus dem Raum gibt es dort über
    „Überblick als PDF herunterladen“). Eine Tabelle
    erscheint dort als Tabelle, eine Weltkarten-Zuordnung als Liste („Kaffee → Brasilien“) mit „Zugeordnet: x von n“.
@@ -467,7 +470,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    neuen Start ab, bleibt der ältere Erstversuch gespeichert, wird aber ausgeblendet (die Zusammenfassung nennt
    die Zahl; in den Details der Abgabe lässt er sich unter „… älterer Erstversuch dieser Person“ aufklappen). Bei einer
    Gruppe gilt dasselbe für dieselbe Klasse und dieselben Kürzel – in welcher Reihenfolge sie eingetragen wurden, spielt
-   keine Rolle („… dieser Gruppe“). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback)“
+   keine Rolle („… dieser Gruppe“). Abgaben ohne KI-Feedback (siehe oben) zeigen nur eine Spalte „Abgegebene Fassung (ohne KI-Feedback zum Überarbeiten)“ (bei Blättern ohne Auftrag an die KI „(ohne KI-Feedback)“)
    und den Hinweis „Ohne KI-Feedback zum Überarbeiten abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“; Liste,
    Farben und Zähler unterscheiden sie nicht. „Alle aufklappen“ öffnet
    alle Zeilen, „Aktualisieren“ lädt neu eingegangene Abgaben. Entschlüsselt wird ausschließlich in Ihrem Browser.
@@ -544,7 +547,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    **Erst das Bestätigen bzw. Speichern macht die Checkliste öffentlich:** Über den QR-Code (und die Adresse mit
    `#checkliste=` und dem Code) sieht sie jede Person, die den Link kennt – schreiben Sie nichts Geheimes hinein und keine
    fertige Lösung, die die Schüler:innen nicht sehen sollen. Dieselbe Checkliste steht in den Lösungs-PDFs der
-   Schüler:innen, wenn die finale KI-Rückmeldung fehlt. „Checkliste ansehen“ öffnet genau die Adresse des QR-Codes und zeigt die Checkliste so, wie die Schüler:innen
+   Schüler:innen unter jeder Antwort ohne KI-Rückmeldung. „Checkliste ansehen“ öffnet genau die Adresse des QR-Codes und zeigt die Checkliste so, wie die Schüler:innen
    sie sehen. Gehen Sie zurück, während noch gespeichert wird, läuft das Speichern weiter – nur das PDF wird dann nicht
    heruntergeladen (die Seite sagt das vorher; scheitert das Speichern, während die Frage offen ist, fragt sie neu, ob Sie
    die Änderungen verwerfen wollen). Während das PDF entsteht, lassen sich die Punkte nicht ändern. Ohne Checklistenpunkte enthält das PDF keinen QR-Code zur Checkliste (die
@@ -564,7 +567,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    „Escape-Room“ mit dem Namen; den Code zeigen die Blattdetails als „Code für den Quelltext des Escape-Rooms“. Ein analoges
    Arbeitsblatt gibt es dazu nicht, Partner- und Gruppenarbeit auch nicht. Eine Checkliste schon: Sie bestätigen sie wie
    bei jedem Blatt nach „Code generieren“ (bzw. mit „Checkliste bearbeiten“); sie steht nur in der Abschluss-PDF der
-   Schüler:innen, wenn die finale KI-Rückmeldung fehlt. „Als Vorlage verwenden“, die Sicherung als
+   Schüler:innen, unter jeder Antwort ohne KI-Rückmeldung. „Als Vorlage verwenden“, die Sicherung als
    PDF-Datei und deren Import übernehmen Name und Kennung; das neue Blatt bekommt einen neuen Code, den Sie im Escape-Room
    austauschen. Löschen Sie das Blatt, meldet das Finale „kein Feibeitsblatt (mehr)“, bis ein neuer Code im Quelltext steht
    (der Lösch-Dialog sagt das).
