@@ -1343,7 +1343,7 @@
         </div>
         <div class="provinfo note hidden" data-prov="groq">
           <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
-          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8.000 Token pro Minute und 200.000 pro Tag). Jede Feedback-Anfrage einer Schülerin bzw. eines Schülers ist eine Anfrage; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Groq eignet sich deshalb auch als Reserve-KI.</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8.000 Token pro Minute und 200.000 pro Tag). Jede Feedback-Anfrage ist eine Anfrage – je Schülerin bzw. Schüler das freiwillige KI-Feedback und die finale KI-Rückmeldung nach der Abgabe, also meist zwei; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage derselben Art zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Groq eignet sich deshalb auch als Reserve-KI.</p>
           <p><b>Datenschutz:</b> Rechtsträger ist Groq LLC (USA); Vertragspartner für Kund:innen im EWR ist Groq UK Limited (London). Kundendaten liegen laut Groq in Rechenzentren in den USA; verarbeitet wird auch in anderen Ländern. Prüfen Sie die Bedingungen, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="openrouter">
@@ -1433,7 +1433,7 @@
         </div>
         <p class="status" id="ai2-status" aria-live="polite"></p>
       </div>
-      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits. Bei Cloudflare Workers AI zählen alle Token – für Gemma 4 gibt es keinen Rabatt für gecachte Eingaben.</p>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage derselben Art (KI-Feedback bzw. finale KI-Rückmeldung) zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits. Je Schülerin bzw. Schüler sind es meist zwei Anfragen (KI-Feedback und finale KI-Rückmeldung), dazu eine je neuem Feibeitsblatt für den Vorschlag der Checkliste. Bei Cloudflare Workers AI zählen alle Token – für Gemma 4 gibt es keinen Rabatt für gecachte Eingaben.</p>
     </div>
 
     <!-- Datenschutz: Betreiber (fest eingetragen) und Löschfrist -->
@@ -3469,7 +3469,8 @@ const CHECK_HOST = !PAGES_HOST && PUBLIC_HOST && PUBLIC_HOST !== location.host ?
 const CHECK_PAGE = CHECK_HOST ? `die Checklisten-Seite (${CHECK_HOST})` : "diese Seite";
 const CHECK_PURPOSE = " Bekommst du ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste deiner Lehrkraft führen: Dort hakst du ab, " +
   `was deine Antwort schon erfüllt. Dafür lädt ${CHECK_PAGE} nur die Checkliste vom Server – ohne Angaben zu dir; die Internetadresse deines Geräts wird dabei ` +
-  "wie beim Laden der Seite verarbeitet. Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet.";
+  "wie beim Laden der Seite verarbeitet. Deine Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Dieselbe Checkliste lädt diese Seite nach " +
+  "der Abgabe vom Server – ohne Angaben zu dir –, damit sie in deiner Lösungs-PDF stehen kann, falls die finale KI-Rückmeldung nicht rechtzeitig kommt.";
 const CHECK_STAY = ` Die Häkchen einer solchen Checkliste löscht ${CHECK_PAGE} beim nächsten Aufruf in diesem Browser, wenn du sie ${DRAFT_DAYS} Tage nicht geändert ` +
   "hast; früher geht es mit „Alle Häkchen entfernen“.";
 const CHECK_GITHUB_ITEM = `Nur wenn du eine Checkliste über den QR-Code öffnest: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
@@ -3534,7 +3535,8 @@ const PRIV_IHR = {
     `Auf einem geteilten Gerät gebt deshalb ab oder löscht ihn („Abbrechen und Zwischenstand löschen“).`,
   checkPurpose: " Bekommt ihr ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste eurer Lehrkraft führen: Dort hakt ihr ab, " +
     `was eure Antwort schon erfüllt. Dafür lädt ${CHECK_PAGE} nur die Checkliste vom Server – ohne Angaben zu euch; die Internetadresse eures Geräts wird dabei ` +
-    "wie beim Laden der Seite verarbeitet. Eure Häkchen bleiben auf diesem Gerät und werden nicht gesendet.",
+    "wie beim Laden der Seite verarbeitet. Eure Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Dieselbe Checkliste lädt diese Seite nach " +
+    "der Abgabe vom Server – ohne Angaben zu euch –, damit sie in eurer Lösungs-PDF stehen kann, falls die finale KI-Rückmeldung nicht rechtzeitig kommt.",
   checkStay: ` Die Häkchen einer solchen Checkliste löscht ${CHECK_PAGE} beim nächsten Aufruf in diesem Browser, wenn ihr sie ${DRAFT_DAYS} Tage nicht geändert ` +
     "habt; früher geht es mit „Alle Häkchen entfernen“.",
   checkGithub: `Nur wenn ihr eine Checkliste über den QR-Code öffnet: GitHub, Inc. (USA) liefert die Checklisten-Seite (${CHECK_HOST}) aus (GitHub Pages) ` +
@@ -6685,6 +6687,8 @@ function finalFeedbackFailed(e) {
     : code === "final_gone" || code === "final_done" ? "Zu deiner Abgabe ist keine finale KI-Rückmeldung (mehr) möglich."
     : code === "ai_busy" ? "Die KI ist gerade sehr stark ausgelastet – auch nach mehreren Versuchen hat es nicht geklappt."
     : code === "bad_result" ? "Die Antwort der KI war unvollständig."
+    // Abgegeben ist schon: kein „kürze sie“, „lade neu“ oder „ohne KI-Feedback abgeben“ wie im Schreibbereich
+    : code === "too_long" || code === "bad_answers" || code === "bad_request" || code === "bad_json" ? "Deine abgegebenen Antworten konnte die KI diesmal nicht beurteilen."
     : errMsg(e, "s");
   const canRetry = transient && (sub.fb2Manual || 0) < FB2_MANUAL && !fb2Expired(sub);
   $("done-fb").classList.remove("hidden");
