@@ -1,8 +1,8 @@
 // ai.js – KI-Anbieterschicht für den Feibeitsblatt-Worker (ES-Modul, keine Abhängigkeiten).
 // Portiert aus janrickmer/check-des-feind-t-es/index.html (PROVIDERS, callOpenAI, callGemini,
 // openAIText, extractJsonObject, anonymize/safeData, Modell-Rangliste) – serverseitig, ohne CORS-Themen.
-// Dazu: Feedback-Prompt (Auftrag der Lehrkraft ↔ Schülerantwort; vor der Abgabe und final danach), Normalisierung, globaler Mindestabstand (ai_gate)
-// und Ausweich-Liste erschöpfter Modelle (ai_skip) in D1.
+// Dazu: Feedback-Prompt (Auftrag der Lehrkraft ↔ Schülerantwort; vor der Abgabe und final danach), Normalisierung, globaler
+// Mindestabstand (ai_gate) und Ausweich-Liste erschöpfter Modelle (ai_skip) in D1.
 // Cloudflare Workers AI (Anbieter „cloudflare“) läuft über das Binding env.AI (wrangler.jsonc "ai") ohne API-Schlüssel und
 // ohne AI Gateway; unter `wrangler dev --local` (Entwicklung, Tests) ist das Binding da, jeder Aufruf scheitert aber.
 import { isAllowedBase, materialText, cleanLine, LIMITS } from "./lib.js";

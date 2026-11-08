@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults, expectedChecklist, mockAIBinding, parseFeedbackPrompt } from "../mock-ai.mjs";
 import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf, sealSecret } from "../../worker/lib.js";
-import { nextUtcMidnight, TTL } from "../../worker/ai.js";
+import { nextUtcMidnight, TTL, FEEDBACK_FINAL_SYSTEM, FEEDBACK_SYSTEM, buildFeedbackMessages } from "../../worker/ai.js";
 import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
 
@@ -889,6 +889,142 @@ test("stage feedback2 (second AI feedback sent later): only replaces exactly the
   assert.equal(count(), n0);
 });
 
+test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Eingang), in den ersten 15 Minuten und einmal – sonst 409 ohne Zählung und ohne KI; alle Aufgaben mit eigenem System-Prompt und byte-gleicher Nachricht; danach abgeschlossen (neue Abgabe 409 final_locked), Nachreichen geht weiter", async () => {
+  const fTasks = [
+    { text: "Erkläre die Photosynthese.", solution: "- Photosynthese braucht Licht\n- Chloroplasten sind beteiligt\n- Sauerstoff entsteht" },
+    { text: "Deine Meinung?", solution: "" },
+    { text: "Warum verdunstet Wasser?", solution: "Achte auf Wärme. Verrate die Lösung nicht." },
+  ];
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Final", tasks: fTasks } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code, attempt = "0f1e2d3c4b5a6978", ip = "203.0.113.170";
+  const answers = ["Licht ist wichtig für die Photosynthese", "Gut.", ""];
+  const mk = (extra) => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: c, person: { vorname: "Fi", nachname: "Na", geburtsdatum: "--04-04", klasse: "6a" }, answers: [{ first: "a", final: "b" }], ...extra });
+  const fb = (extra, opts = {}) => call("POST", "/api/feedback", { body: { code: c, answers, ...extra }, ip, ...opts });
+  const counted = async () => [ckCountSubmit(await bucketOf("feedback", ip, SECRET)), ckCountSubmit(await bucketOf("sheet_feedback", c, SECRET))];
+  const row = () => d1.db.prepare("SELECT id, stage, received_at, final_at, envelope FROM submissions WHERE sheet_code=? AND attempt=?").get(c, attempt);
+  const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen (D1-Abfragen genau vergleichen)
+  try {
+    mock.reset();
+    // ungültige Angaben → 400, nichts gezählt, nichts an die KI
+    for (const [extra, msg] of [
+      [{ final: "ja", attempt, receivedAt: 1 }, "Unbekannte Art der KI-Rückmeldung."],
+      [{ final: true }, "Die finale KI-Rückmeldung gibt es nur zur eigenen Abgabe."],
+      [{ final: true, attempt: "zz", receivedAt: 1 }, "Die finale KI-Rückmeldung gibt es nur zur eigenen Abgabe."],
+      [{ final: true, attempt, receivedAt: 1, only: [1] }, "Die finale KI-Rückmeldung gilt immer für alle Aufgaben."],
+    ]) {
+      r = await fb(extra);
+      assert.equal(r.status, 400, JSON.stringify(extra)); assert.deepEqual([r.json.code, r.json.error], ["bad_request", msg]);
+    }
+    // keine Abgabe zu dieser Kennung → 409 final_gone
+    const gone = async (extra, what) => {
+      r = await fb({ final: true, attempt, ...extra });
+      assert.equal(r.status, 409, what + ": " + r.text); assert.equal(r.json.code, "final_gone");
+      assert.equal(r.json.error, "Zu dieser Abgabe gibt es keine finale KI-Rückmeldung.");
+    };
+    await gone({ receivedAt: Date.now() }, "keine Abgabe");
+    // nur ein Erstversuch derselben Bearbeitung → final_gone
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({ stage: "first" }), stage: "first", attempt } });
+    assert.equal(r.status, 200, r.text);
+    await gone({ receivedAt: r.json.receivedAt }, "nur Erstversuch");
+    // Abgabe, aber ein anderer Eingang (z. B. eine ältere Fassung derselben Bearbeitung) → final_gone
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({}), stage: "final", attempt } });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.replaced, "first");
+    const at = r.json.receivedAt, id = r.json.id;
+    await gone({ receivedAt: at - 1 }, "anderer Eingang");
+    await gone({ receivedAt: at, attempt: "fedcba9876543210" }, "andere Kennung");
+    // älter als 15 Minuten → final_expired
+    const old = at - 16 * 60e3;
+    d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(old, id);
+    r = await fb({ final: true, attempt, receivedAt: old });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "final_expired");
+    assert.equal(r.json.error, "Die finale KI-Rückmeldung gibt es nur in den ersten 15 Minuten nach der Abgabe.");
+    d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(at, id);
+    // geänderter KI-Dienst (Empfänger) → 409 ai_changed wie beim Feedback vor der Abgabe
+    r = await fb({ final: true, attempt, receivedAt: at, recipients: ["groq"] });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "ai_changed");
+    assert.equal(mock.state.requests.length, 0, "nichts ging an die KI");
+    assert.deepEqual(await counted(), [null, null], "nichts gezählt");
+    assert.equal(row().final_at, null);
+    // unbrauchbare Antwort → 502 ai_error wie vor der Abgabe; nicht abgeschlossen, ein neuer Versuch bleibt möglich
+    mock.setMode("badjson");
+    r = await fb({ final: true, attempt, receivedAt: at });
+    assert.equal(r.status, 502, r.text); assert.equal(r.json.code, "ai_error"); assert.equal(r.json.aiCode, "BAD_JSON");
+    mock.setMode("ok"); d1.db.prepare("DELETE FROM ai_skip").run();
+    assert.equal(row().final_at, null);
+    // zum Vergleich: dieselben Antworten als Feedback vor der Abgabe
+    mock.reset();
+    const n0 = await fb({});
+    assert.equal(n0.status, 200, n0.text); assert.equal(n0.json.final, undefined);
+    const before = mock.state.requests[0];
+    assert.equal(before.kind, "feedback"); assert.equal(before.messages[0].content, FEEDBACK_SYSTEM);
+    // Erfolg: alle Aufgaben mit Auftrag, eigener System-Prompt, byte-gleiche Nachricht; Ergebnisse wie beim Mock vorhergesagt
+    mock.reset();
+    const cnt0 = await counted();
+    r = await fb({ final: true, attempt: attempt.toUpperCase(), receivedAt: at, recipients: ["custom:127.0.0.1:" + mock.port] });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.final, true); assert.equal(r.json.aiGenerated, true); assert.equal(r.json.digitalSourceType, "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia");
+    assert.deepEqual(r.json.results, expectedResults(fTasks, answers));
+    assert.deepEqual(r.json.results[0], { covered: ["Photosynthese braucht Licht"], missing: ["Chloroplasten sind beteiligt", "Sauerstoff entsteht"] });
+    assert.deepEqual(r.json.results[1], { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." });
+    assert.equal(mock.state.requests.length, 1);
+    const q = mock.state.requests[0];
+    assert.equal(q.kind, "final"); assert.equal(q.messages[0].content, FEEDBACK_FINAL_SYSTEM); assert.equal(q.temperature, 0.1);
+    assert.equal(q.messages[1].content, before.messages[1].content, "Nachricht byte-gleich mit dem Feedback vor der Abgabe");
+    assert.equal(q.messages[1].content, buildFeedbackMessages(fTasks, answers).messages[1].content);
+    assert.deepEqual(parseFeedbackPrompt(q.messages[1].content).map((b) => b.nr), [1, 3]);   // alle Aufgaben mit Auftrag
+    assert.deepEqual(await counted(), [cnt0[0] + 1, cnt0[1] + 1], "gezählt wie jedes KI-Feedback");
+    assert.equal(r.queries, n0.queries + 2, "zwei D1-Abfragen mehr: die eigene Abgabe und ihr Abschluss");
+    const fin = row().final_at;
+    assert.ok(fin >= at && fin <= Date.now(), "abgeschlossen: " + fin);
+    // ein zweites Mal → final_done (nicht gezählt, nichts an die KI)
+    mock.reset();
+    r = await fb({ final: true, attempt, receivedAt: at });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "final_done");
+    assert.equal(r.json.error, "Die finale KI-Rückmeldung zu dieser Abgabe gibt es schon.");
+    assert.equal(mock.state.requests.length, 0); assert.deepEqual(await counted(), [cnt0[0] + 1, cnt0[1] + 1]);
+    // eine neue Abgabe derselben Bearbeitung ersetzt die abgeschlossene nicht (409 final_locked, nichts gezählt)
+    const env0 = row().envelope, sip = "203.0.113.171";
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({ answers: [{ first: "a", final: "nachträglich geändert" }] }), stage: "final", attempt }, ip: sip });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "final_locked");
+    assert.equal(r.json.error, "Diese Abgabe ist schon abgeschlossen und lässt sich nicht mehr ändern.");
+    assert.deepEqual([row().envelope, row().received_at, row().final_at], [env0, at, fin]);
+    assert.equal(ckCountSubmit(await bucketOf("submit", sip, SECRET)), null, "nicht gezählt");
+    // ein verspäteter Erstversuch bleibt wirkungslos wie bisher (kept)
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({ stage: "first" }), stage: "first", attempt } });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.kept, true); assert.equal(row().envelope, env0);
+    // das Nachreichen an die Lehrkraft (stage „feedback2“) geht weiter – so erreicht die finale Rückmeldung die Lehrkraft
+    const fb2 = { at: new Date().toISOString(), results: [{ covered: ["Licht"], missing: ["Chloroplasten"] }, null, { covered: [], missing: ["Wärme"] }] };
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: at } });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.id, id); assert.equal(r.json.replaced, "final");
+    assert.deepEqual([row().received_at, row().final_at, row().stage], [at, fin, "final"]);
+    const list = (await call("GET", "/api/teacher/sheets/" + c + "/submissions", { auth })).json.submissions;
+    assert.deepEqual((await openEnvelope(T.privateKey, list.find((x) => x.id === id).envelope)).feedback2, fb2);
+    r = await fb({ final: true, attempt, receivedAt: at });
+    assert.equal(r.json.code, "final_done", "auch nach dem Nachreichen nur einmal");
+    // eine andere Bearbeitung (neue Kennung) ist davon nicht betroffen
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({}), stage: "final", attempt: "1111222233334444" } });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.replaced, undefined);
+    // Blatt ohne Auftrag an die KI: keine KI nötig, aber dieselbe Prüfung der Abgabe; Antwort mit final:true
+    r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Final ohne KI", tasks: [{ text: "Schreibe frei." }] } });
+    const c2 = r.json.code;
+    try {
+      r = await call("POST", "/api/feedback", { body: { code: c2, answers: ["Text"], final: true, attempt, receivedAt: at } });
+      assert.equal(r.status, 409); assert.equal(r.json.code, "final_gone");
+      r = await call("POST", "/api/submit", { body: { code: c2, envelope: await mk({}), stage: "final", attempt } });
+      const at2 = r.json.receivedAt;
+      mock.reset();
+      r = await call("POST", "/api/feedback", { body: { code: c2, answers: ["Text"], final: true, attempt, receivedAt: at2 } });
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }], aiGenerated: false, final: true });
+      assert.equal(mock.state.requests.length, 0);
+    } finally { await call("DELETE", "/api/teacher/sheets/" + c2, { auth }); }
+  } finally {
+    Math.random = rnd; mock.setMode("ok");
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  }
+});
+
 test("schema upgrade: old submissions/sheets tables without the later columns get them added (idempotent)", async () => {
   const { ensureColumns } = await import("../../worker/index.js");
   d1.db.exec("CREATE TABLE old_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT, sheet_code TEXT NOT NULL, received_at INTEGER NOT NULL, envelope TEXT NOT NULL)");
@@ -1295,11 +1431,10 @@ test("feedback: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräu
   assert.equal(r.status, 200, r.text); const c = r.json.code;
   const full = d1.db.prepare("INSERT INTO ai_gate(provider,next_at) VALUES(?,?) ON CONFLICT(provider) DO UPDATE SET next_at=excluded.next_at");
   for (const k of ["custom", "cloudflare"]) full.run(k, Date.now() + 120000);   // beide Warteschlangen 2 Minuten voll
-  const rnd = Math.random; Math.random = () => 0;   // das gelegentliche Aufräumen läuft mit
-  try {
   const fAt = Date.now(), fAttempt = "0d1e2a3d4b5e6e7f";   // eigene Abgabe für die finale Rückmeldung
   d1.db.prepare("INSERT INTO submissions(sheet_code, received_at, envelope, stage, attempt) VALUES (?, ?, '{}', 'final', ?)").run(c, fAt, fAttempt);
   let rf;
+  const rnd = Math.random; Math.random = () => 0;   // das gelegentliche Aufräumen läuft mit
   try {
     cf.calls = []; mock.reset();
     r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""], recipients: ["custom:127.0.0.1:" + mock.port, "cloudflare"] }, ip: "203.0.113.96" });

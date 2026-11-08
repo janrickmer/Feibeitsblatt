@@ -576,10 +576,17 @@ async function main() {
       assert.deepEqual(r.json.sheets.find((x) => x.code === ec).escape, esc);
       assert.equal(r.json.sheets.find((x) => x.code === code).escape, null);
       assert.deepEqual((await api("GET", "/api/teacher/sheets/" + ec, undefined, { auth })).json.sheet.escape, esc);
-      // kein analoges Arbeitsblatt
-      expectErr(await api("POST", "/api/teacher/sheets/" + ec + "/checklist", {}, { auth }), 400, "escape_sheet");
-      expectErr(await api("PUT", "/api/teacher/sheets/" + ec + "/checklist", { ai: false, tasks: [{ n: 1, points: ["Du nennst Fakten."] }] }, { auth }), 400, "escape_sheet");
+      // Checkliste wie bei jedem Blatt (die Lehrkraft legt sie beim Anlegen jedes Blattes an): Vorschlag der KI, Speichern, öffentlich
       expectErr(await api("GET", "/api/sheet/" + ec + "/checklist"), 404, "no_checklist");
+      mock.reset();
+      r = await api("POST", "/api/teacher/sheets/" + ec + "/checklist", {}, { auth });
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.generated, true);
+      assert.deepEqual(r.json.draft.tasks.map((t) => t.points), [expectedChecklist(escTasks[0].solution)]);
+      assert.deepEqual(mock.state.requests.map((q) => q.kind), ["checklist"]);
+      r = await api("PUT", "/api/teacher/sheets/" + ec + "/checklist", { ai: true, tasks: [{ n: 1, points: ["Du nennst Fakten."] }] }, { auth });
+      assert.equal(r.status, 200, r.text);
+      r = await api("GET", "/api/sheet/" + ec + "/checklist");
+      assert.equal(r.status, 200, r.text); assert.deepEqual(r.json.tasks.map((t) => t.points), [["Du nennst Fakten."]]);
       // KI-Feedback wie bei jedem Blatt: der Server baut den Prompt selbst – mitgeschickte Daten aus dem Raum (ein Browser schickt nie
       // welche) gehen nie an die KI und landen nirgends in der Datenbank
       mock.reset();
@@ -624,7 +631,7 @@ async function main() {
       assert.equal((await api("DELETE", "/api/teacher/sheets/" + ec, undefined, { auth })).status, 200);
       r = await api("GET", "/api/sheet/" + ec); misses++; expectErr(r, 404, "not_found", UNKNOWN_CODE_MSG);   // gelöscht: das Finale findet kein Blatt mehr
     }
-    ok("Escape-Room-Blatt: escape {id, name} beim Anlegen geprüft, öffentlich und für die Lehrkraft geliefert (normale Blätter null), kein analoges Arbeitsblatt, KI-Feedback ohne Daten aus dem Raum, Daten aus dem Raum nur im verschlüsselten Umschlag (auch nach dem Nachreichen der zweiten Rückmeldung samt Tippzeiten), mit dem Blatt gelöscht");
+    ok("Escape-Room-Blatt: escape {id, name} beim Anlegen geprüft, öffentlich und für die Lehrkraft geliefert (normale Blätter null), Checkliste wie bei jedem Blatt, KI-Feedback ohne Daten aus dem Raum, Daten aus dem Raum nur im verschlüsselten Umschlag (auch nach dem Nachreichen der zweiten Rückmeldung samt Tippzeiten), mit dem Blatt gelöscht");
 
     step = "Abgabe";
     const sheetPub = (await api("GET", "/api/sheet/" + code)).json.sheet;
@@ -683,6 +690,49 @@ async function main() {
     assert.deepEqual(r.json.submissions.map((s) => s.stage), ["final", "final"]);
     assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[1].envelope), fb2Payload);
     ok("Erstversuch: stage first mit Kennung; die Abgabe derselben Bearbeitung ersetzt ihn; ein späterer Erstversuch bleibt wirkungslos; „feedback2“ ergänzt nur genau die eigene Abgabe");
+
+    step = "Finale KI-Rückmeldung";
+    {
+      let r;   // eigenes r (siehe Checkliste)
+      r = await api("POST", "/api/teacher/sheets", { title: "Smoke: Finale Rückmeldung", tasks }, { auth });
+      assert.equal(r.status, 200, r.text);
+      const fc = r.json.code, fAttempt = "00ff11ee22dd33cc", fAnswers = ["Die Photosynthese braucht Licht.", "Die Pause.", ""];
+      const fPayload = { v: 1, sheetCode: fc, sheetTitle: "Smoke: Finale Rückmeldung", person: { vorname: "Fin", nachname: "Al", geburtsdatum: "--06-07", klasse: "9a" },
+        answers: fAnswers.map((a) => ({ first: a, final: a })), feedback: null, noAi: "declined", submittedAt: new Date().toISOString() };
+      const fEnv = await makeEnvelope(T.publicKey, fPayload);
+      const finalReq = (extra) => api("POST", "/api/feedback", { code: fc, answers: fAnswers, final: true, attempt: fAttempt, ...extra });
+      mock.reset();
+      expectErr(await finalReq({}), 400, "bad_request", "Die finale KI-Rückmeldung gibt es nur zur eigenen Abgabe."); feedbackCount++;
+      expectErr(await finalReq({ receivedAt: Date.now() }), 409, "final_gone", "Zu dieser Abgabe gibt es keine finale KI-Rückmeldung."); feedbackCount++;   // noch keine Abgabe
+      r = await api("POST", "/api/submit", { code: fc, envelope: fEnv, stage: "final", attempt: fAttempt }); submitCount++;
+      assert.equal(r.status, 200, r.text);
+      const fId = r.json.id, fAt = r.json.receivedAt;
+      expectErr(await finalReq({ receivedAt: fAt - 1 }), 409, "final_gone"); feedbackCount++;   // eine andere Fassung
+      assert.equal(mock.state.requests.length, 0, "abgelehnt, bevor etwas an die KI ging");
+      r = await finalReq({ receivedAt: fAt, recipients: ["custom:127.0.0.1:" + MOCK_PORT] }); feedbackCount++;
+      assert.equal(r.status, 200, r.text);
+      assert.equal(r.json.final, true); assert.equal(r.json.aiGenerated, true); assert.match(r.json.digitalSourceType, /\/trainedAlgorithmicMedia$/);
+      assert.deepEqual(r.json.results, expectedResults(tasks, fAnswers));   // die Mock-KI antwortet mit gut/fehlt – dieselben Stichpunkte
+      assert.deepEqual(mock.state.requests.map((q) => q.kind), ["final"]);
+      const fSys = mock.state.requests[0].messages[0].content, fUser = mock.state.requests[0].messages[1].content;
+      assert.match(fSys, /finale Rückmeldung nach der Abgabe/); assert.match(fSys, /"gut":\[.*"fehlt":\[/); assert.doesNotMatch(fSys, /Checkliste/);
+      assert.ok(fUser.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 1, 3):\n\n### Aufgabe 1\n"), fUser);   // alle Aufgaben mit Auftrag, Format wie immer
+      assert.ok(fUser.endsWith("\n\nGib für jede der 2 Aufgaben (Nummern: 1, 3) dein Feedback als JSON zurück."), fUser);
+      const finalResults = r.json.results;
+      expectErr(await finalReq({ receivedAt: fAt }), 409, "final_done", "Die finale KI-Rückmeldung zu dieser Abgabe gibt es schon."); feedbackCount++;
+      expectErr(await api("POST", "/api/submit", { code: fc, envelope: fEnv, stage: "final", attempt: fAttempt }), 409, "final_locked",
+        "Diese Abgabe ist schon abgeschlossen und lässt sich nicht mehr ändern.");   // zählt nicht
+      assert.equal(mock.state.requests.length, 1);
+      // so erreicht die finale Rückmeldung die Lehrkraft: Nachreichen (stage „feedback2“) ersetzt die abgeschlossene Abgabe weiterhin
+      const fFb2 = { ...fPayload, feedback2: { at: new Date().toISOString(), results: finalResults } };
+      r = await api("POST", "/api/submit", { code: fc, envelope: await makeEnvelope(T.publicKey, fFb2), stage: "feedback2", attempt: fAttempt, receivedAt: fAt }); submitCount++;
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.id, fId); assert.equal(r.json.replaced, "final");
+      r = await api("GET", "/api/teacher/sheets/" + fc + "/submissions", undefined, { auth });
+      assert.equal(r.json.submissions.length, 1);
+      assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[0].envelope), fFb2);
+      assert.equal((await api("DELETE", "/api/teacher/sheets/" + fc, undefined, { auth })).status, 200);
+    }
+    ok("Finale KI-Rückmeldung: nur zur eigenen Abgabe (sonst 409 final_gone, nichts an die KI), alle Aufgaben mit eigenem System-Prompt (gut/fehlt) und unveränderter Nachricht, nur einmal (409 final_done), danach abgeschlossen (409 final_locked), Nachreichen an die Lehrkraft geht weiter");
 
     step = "Datenbank ohne Klartext";
     await sleep(500);
