@@ -11,10 +11,14 @@
 // Checklisten-Regel (Anfrage erkannt am System-Prompt, der „Checkliste“ enthält): je Zeile des Auftrags (einzeilig: je Satz, ≤ 8)
 // ein Punkt „Du beachtest: <Zeile>“ – einzeilig, auf 160 Zeichen gekürzt, Doppelte entfallen (expectedChecklist sagt sie voraus).
 //
+// Finale Rückmeldung nach der Abgabe (erkannt am System-Prompt mit FINAL_MARK = FEEDBACK_FINAL_MARK aus worker/ai.js, isFinalPrompt):
+// dieselben Stichpunkte wie beim Feedback, nur unter „fehlt“ statt „tipps“ – expectedResults gilt deshalb auch für finale Anfragen.
+// Jede aufgezeichnete Anfrage trägt kind: "feedback" | "final" | "checklist" | "test" (so prüfen Tests, welcher System-Prompt ankam).
+//
 // Modi (MOCK_AI_MODE, POST /__mock/mode {"mode","delayMs"}):
 //   ok (Vorgabe) · fenced (<think> + ```json-Zaun) · badjson · 429 (Tageslimit, hart) · 429soft (RPM, Retry-After 1 s)
 //   500 · 401 · slow (Verzögerung delayMs, Vorgabe 5000) · reasoning400 (400, wenn reasoning_effort/reasoning gesendet)
-// Hilfsrouten: GET /__mock/state → {mode, delayMs, count, requests:[{model, messages, …}]}, POST /__mock/reset
+// Hilfsrouten: GET /__mock/state → {mode, delayMs, count, requests:[{model, kind, messages, …}]}, POST /__mock/reset
 // Workers AI: mockAIBinding(mock) ist ein gefälschtes Binding env.AI für Unit-Tests (lokal ist Workers AI nie erreichbar).
 import http from "node:http";
 import { pathToFileURL } from "node:url";
@@ -79,8 +83,14 @@ export function expectedChecklist(solution) {
   return out;
 }
 export const mockChecklist = (blocks) => ({ aufgaben: blocks.map((b) => ({ nr: b.nr, punkte: expectedChecklist(b.solution) })) });
+// Finale Rückmeldung nach der Abgabe: am System-Prompt erkannt (die Wendung steht wörtlich in FEEDBACK_FINAL_SYSTEM, worker/ai.js)
+export const FINAL_MARK = "finale Rückmeldung nach der Abgabe";
+export const isFinalPrompt = (system) => String(system || "").includes(FINAL_MARK) && !/Checkliste/.test(String(system));
+export const mockFinalFeedback = (blocks) => ({ aufgaben: mockFeedback(blocks).aufgaben.map(({ nr, gut, tipps }) => ({ nr, gut, fehlt: tipps })) });
+// Art einer Anfrage nach System-Prompt und Nachricht (Verbindungstest: keine Aufgabenblöcke)
+export const requestKind = (system, blocks) => (!blocks.length ? "test" : /Checkliste/.test(String(system)) ? "checklist" : isFinalPrompt(system) ? "final" : "feedback");
 // Erwartetes Ergebnis für Tests: tasks [{text, solution (= Auftrag an die KI)}], answers [string] → results wie /api/feedback
-// (covered = „gut“, missing = „tipps“)
+// (covered = „gut“, missing = „tipps“ bzw. bei der finalen Rückmeldung „fehlt“ – dieselben Stichpunkte)
 export function expectedResults(tasks, answers) {
   return tasks.map((t, i) => {
     if (!String(t.solution || "").trim()) return { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." };
@@ -123,7 +133,10 @@ export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs 
       if (path === "/v1/chat/completions" && req.method === "POST") {
         const body = JSON.parse((await readBody(req)) || "{}");
         const messages = Array.isArray(body.messages) ? body.messages : [];
-        state.requests.push({ model: body.model, messages, response_format: body.response_format, temperature: body.temperature,
+        const user = messages.filter((m) => m && m.role === "user").map((m) => String(m.content || "")).join("\n");
+        const system = messages.filter((m) => m && m.role === "system").map((m) => String(m.content || "")).join("\n");
+        const blocks = parseFeedbackPrompt(user), kind = requestKind(system, blocks);
+        state.requests.push({ model: body.model, kind, messages, response_format: body.response_format, temperature: body.temperature,
           reasoning_effort: body.reasoning_effort, reasoning: body.reasoning, chat_template_kwargs: body.chat_template_kwargs,
           max_tokens: body.max_tokens, max_completion_tokens: body.max_completion_tokens, at: Date.now() });
         if (state.mode === "slow") await sleep(state.delayMs || 5000);
@@ -139,11 +152,8 @@ export function createMockAI({ mode = process.env.MOCK_AI_MODE || "ok", delayMs 
         if (state.mode === "500") return send(res, 500, { error: { message: "Internal server error" } });
         if (state.mode === "reasoning400" && (body.reasoning_effort != null || body.reasoning != null))
           return send(res, 400, { error: { message: "property 'reasoning_effort' is unsupported for this model", type: "invalid_request_error" } });
-        const user = messages.filter((m) => m && m.role === "user").map((m) => String(m.content || "")).join("\n");
-        const system = messages.filter((m) => m && m.role === "system").map((m) => String(m.content || "")).join("\n");
-        const blocks = parseFeedbackPrompt(user);
-        let content = !blocks.length ? JSON.stringify({ ok: true, antwort: "Verbindung steht." })
-          : JSON.stringify(/Checkliste/.test(system) ? mockChecklist(blocks) : mockFeedback(blocks));
+        let content = JSON.stringify(kind === "test" ? { ok: true, antwort: "Verbindung steht." }
+          : kind === "checklist" ? mockChecklist(blocks) : kind === "final" ? mockFinalFeedback(blocks) : mockFeedback(blocks));
         if (state.mode === "fenced") content = "<think>Ich lese den Auftrag der Lehrkraft.</think>\n```json\n" + content + "\n```";
         if (state.mode === "badjson") content = "Das ist leider kein JSON.";
         // Token grob wie echte Dienste (etwa 4 Zeichen je Token) – für die Verbrauchsschätzung von Workers AI in Tests

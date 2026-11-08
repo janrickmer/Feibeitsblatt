@@ -843,7 +843,7 @@ test("typing: Datenschutzhinweis – Wirkung und Geltungsbereich des Schalters f
     "Bei deiner Abgabe sieht deine Lehrkraft dann „ohne Messung (widersprochen)“ – das ist dein Recht und für deine Lehrkraft kein Anlass für einen Verdacht. Nimmst du den Haken wieder weg, misst die Seite erst ab dann wieder.");
 });
 
-test("typing: nach der Abgabe – die angenommene Nutzlast (mit Tippzeiten) nur getrennt von S.lastSubmission und nur, bis die zweite Rückmeldung nachgereicht ist", () => {
+test("typing: nach der Abgabe – die angenommene Nutzlast (mit Tippzeiten) nur getrennt von S.lastSubmission und nur, bis die finale Rückmeldung nachgereicht ist", () => {
   const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
   // höchstens so lange, wie der Server ein Nachreichen annimmt
   assert.match(html, /const FB2_HOLD_MS = 15 \* 60e3;/);
@@ -855,9 +855,9 @@ test("typing: nach der Abgabe – die angenommene Nutzlast (mit Tippzeiten) nur 
     const src = body(f, "\n}\n");
     for (const x of ["fb2Base", "typing", ".payload"]) assert.ok(!src.includes(x), f + " " + x);
   }
-  // gemerkt nur mit erstem Feedback, nach der Annahme (sendSealed hat die Rückfälle schon angewandt); die Tippzeiten der ersten Fassung weg
+  // gemerkt nur mit gewählter finaler Rückmeldung, nach der Annahme (sendSealed hat die Rückfälle schon angewandt); die Tippzeiten der ersten Fassung weg
   const submit = body("async function submitAll()", "\n}\n");
-  const kSent = submit.indexOf("await sendSealed(payload"), kHold = submit.indexOf("if (withFb) fb2Hold(S.lastSubmission, payload, r, sentAt);");
+  const kSent = submit.indexOf("await sendSealed(payload"), kHold = submit.indexOf("if (wantFinal) fb2Hold(S.lastSubmission, payload, r, sentAt);");
   assert.ok(kSent > 0 && kHold > kSent);
   assert.ok(submit.indexOf("const sentAt = Date.now();") > 0 && submit.indexOf("const sentAt = Date.now();") < kSent);   // Frist ab dem Absenden: nie länger als beim Server
   assert.ok(submit.indexOf("S.firstTyping = null;") > kSent);
@@ -869,8 +869,8 @@ test("typing: nach der Abgabe – die angenommene Nutzlast (mit Tippzeiten) nur 
   // freigegeben, sobald nichts mehr nachgereicht wird
   assert.ok(body("function finalFeedbackGone(sub)", "\n}\n").includes("fb2Release(sub);"));
   const req = body("async function requestFinalFeedback()", "\n}\n");
-  assert.ok(req.includes("if (!sub || !Array.isArray(sub.feedback)) { fb2Release(sub); return; }"));
-  assert.ok(req.indexOf("fb2Release(sub);   // nichts nachzureichen") > req.indexOf("same: true"));
+  assert.ok(req.includes("if (!sub || !sub.fb2Want) { fb2Release(sub); return; }"));   // abgewählt bzw. nicht angeboten
+  assert.ok(body("function fb2Drop(sub)", "\n}\n").includes("fb2Release(sub);"));   // heruntergeladen, ohne zu warten
   assert.ok(body("function resetStudent()", "\n}\n").includes("fb2Release();"));
   const hold = body("function fb2Hold(", "\n}\n");
   assert.ok(hold.includes("sub.fb2Until = (Number.isFinite(sentAt) && sentAt > 0 ? sentAt : Date.now()) + FB2_HOLD_MS;"));
@@ -924,20 +924,21 @@ test("typing: Widerspruch aus einem anderen Tab nach der Abgabe – die gehalten
   assert.ok(body("function fb2Hold(", "\n}\n").includes("key: S.draftKey"));
 });
 
-test("zweite Rückmeldung: Hinweise, wenn sie die Lehrkraft nicht erreicht – Ergebnis → Text (ruhig, ohne Tippzeiten), nichts bei „gesendet“ und „unverändert“", () => {
+test("finale Rückmeldung: Hinweise, wenn sie die Lehrkraft nicht erreicht – Ergebnis → Text (ruhig, ohne Tippzeiten), nichts bei „gesendet“ und „nichts nachzureichen“", () => {
   const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
   const X = new Function(body("const FB2_HOLD_MS = ", "/* Die angenommene Nutzlast") + "\nreturn { FB2_MIN, fb2TeacherText, fb2RetryText };")();
   assert.equal(X.FB2_MIN, REPLACE_WINDOW_MS / 60e3);
   const ok = " Deine Abgabe ist davon nicht betroffen.";
-  // „Die neue Rückmeldung“ wie im Abgabe-Dialog; nie behaupten, was die Lehrkraft jetzt hat (Abgabe bzw. Blatt womöglich gelöscht)
-  assert.equal(X.fb2TeacherText("expired"), "Die neue Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln." + ok);
-  assert.equal(X.fb2TeacherText("gone"), "Die neue Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + ok);
-  for (const r of ["failed", "skipped"]) assert.equal(X.fb2TeacherText(r), "Die neue Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln." + ok);
-  assert.match(html, /„Die neue Rückmeldung geht danach verschlüsselt auch an deine Lehrkraft\.“/);   // so kündigt es der Abgabe-Dialog an
+  // „Die finale KI-Rückmeldung“ wie im Abgabe-Dialog; nie behaupten, was die Lehrkraft jetzt hat (Abgabe bzw. Blatt womöglich gelöscht)
+  assert.equal(X.fb2TeacherText("expired"), "Die finale KI-Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln." + ok);
+  assert.equal(X.fb2TeacherText("gone"), "Die finale KI-Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln." + ok);
+  for (const r of ["failed", "skipped"]) assert.equal(X.fb2TeacherText(r), "Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln." + ok);
+  assert.match(html, /und geht verschlüsselt auch an deine Lehrkraft\. " \+ recipientSentence\(\)/);   // so kündigt es der Abgabe-Dialog an (fb2DialogLine)
   for (const r of ["expired", "gone", "failed", "skipped"]) assert.doesNotMatch(X.fb2TeacherText(r), /sie hat|hat deine Abgabe|bekommt deine Abgabe/);
-  for (const r of ["sent", "same", "", undefined]) assert.equal(X.fb2TeacherText(r), "");
-  assert.equal(X.fb2RetryText("expired"), "Seit deiner Abgabe sind mehr als 15 Minuten vergangen: Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht mehr übermitteln.");
-  assert.equal(X.fb2RetryText("skipped"), "Eine neue Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht übermitteln.");
+  for (const r of ["sent", "none", "", undefined]) assert.equal(X.fb2TeacherText(r), "");
+  // nach Ablauf der Frist nimmt der Server keine finale Anfrage mehr an (final_expired) – der Text sagt es, der Knopf verschwindet
+  assert.equal(X.fb2RetryText("expired"), "Seit deiner Abgabe sind mehr als 15 Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.");
+  assert.equal(X.fb2RetryText("skipped"), "Eine neue finale KI-Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich nicht übermitteln.");
   assert.equal(X.fb2RetryText("ok"), "");
   // keine weiteren Tippzeit-Sätze an sichtbaren Stellen (wie NO_TT in den E2E-Tests)
   const NO_TT = /Tippzeit|misst|Messung|gemessen|Zeitmess|Schreibprozess|widersprech|Widerspruch|Schalter|Haken/i;
@@ -951,14 +952,14 @@ test("zweite Rückmeldung: Hinweise, wenn sie die Lehrkraft nicht erreicht – E
   assert.match(html, /<button type="button" class="btn ghost small hidden" id="done-fb-retry" aria-describedby="done-fb-retry-note">Rückmeldung erneut anfordern<\/button>\s*<p class="donefb-note hidden" id="done-fb-retry-note" role="status"><\/p>/);
 });
 
-test("zweite Rückmeldung: sendFeedback2 liefert ein Ergebnis – nur „sent“ zählt als gesendet (gone, Frist vorbei, gescheitert, nie gehalten nicht)", async () => {
+test("finale Rückmeldung: sendFeedback2 liefert ein Ergebnis – nur „sent“ zählt als gesendet (gone, Frist vorbei, gescheitert, nie gehalten nicht)", async () => {
   const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
   const src = [body("class ApiError extends Error {", "\n}\n") + "\n}\n", body("function fb2Release(sub)", "/* Unter „Rückmeldung erneut anfordern“"),
     body("const fb2OptedOut = ", "\n}\n") + "\n}\n", body("async function sendFeedback2(sub)", "\n}\n") + "\n}\n"].join("\n");
   const VALUES = { v: 1, answers: [{ first: "=", final: "R0dH" }] };
   // replies: je Aufruf von sendSealed eine Antwort (Objekt) oder ein Fehler (Funktion, die wirft); before(n, S, sub) läuft vor der Antwort
-  const run = async ({ replies = [], held = true, until = Date.now() + 60e3, same = false, before } = {}) => {
-    const sub = { code: "K7QM4X", fb2Sent: false, fb2Until: until, feedback2: { at: "2026-10-28T10:00:00.000Z", same, kept: [false, true], results: [{ covered: ["a"], missing: [] }, { covered: ["b"], missing: [] }] } };
+  const run = async ({ replies = [], held = true, until = Date.now() + 60e3, none = false, before } = {}) => {
+    const sub = { code: "K7QM4X", fb2Sent: false, fb2Until: until, feedback2: none ? null : { at: "2026-10-28T10:00:00.000Z", final: true, results: [{ covered: ["a"], missing: [] }, { covered: ["b"], missing: ["c"] }] } };
     const S = { lastSubmission: sub, ttOptOut: false, ttLastRaw: null, fb2Base: null };
     if (held) S.fb2Base = { sub, payload: { v: 1, stage: "final", typing: VALUES }, pub: "PUB", attempt: "0123456789abcdef", submitAt: 1761645600000, key: "k1", timer: 0 };
     const calls = [];
@@ -978,11 +979,11 @@ test("zweite Rückmeldung: sendFeedback2 liefert ein Ergebnis – nur „sent“
     return { res, calls, sub, S, reachBefore };
   };
   const err = (code, status) => (E) => { throw new E(code, "", status); };
-  // angekommen: genau die gehaltene Nutzlast + feedback2 (nur neu beurteilte Aufgaben), als stage „feedback2“ mit Kennung und Eingang
+  // angekommen: genau die gehaltene Nutzlast + feedback2 (final: alle Aufgaben), als stage „feedback2“ mit Kennung und Eingang
   let r = await run();
   assert.deepEqual([r.res, r.sub.fb2Sent, r.S.fb2Base, r.calls.length, r.reachBefore], ["sent", true, null, 1, "ok"]);
   assert.deepEqual(r.calls[0].body, { code: "K7QM4X", envelope: "ENV", stage: "feedback2", attempt: "0123456789abcdef", receivedAt: 1761645600000 });
-  assert.deepEqual(r.calls[0].payload.feedback2, { at: "2026-10-28T10:00:00.000Z", results: [{ covered: ["a"], missing: [] }, null] });
+  assert.deepEqual(r.calls[0].payload.feedback2, { at: "2026-10-28T10:00:00.000Z", final: true, results: [{ covered: ["a"], missing: [] }, { covered: ["b"], missing: ["c"] }] });
   // {ok:true, gone:true}: nichts ersetzt – nicht gesendet, kein weiterer Versuch
   r = await run({ replies: [{ ok: true, gone: true }] });
   assert.deepEqual([r.res, r.sub.fb2Sent, r.S.fb2Base, r.calls.length], ["gone", false, null, 1]);
@@ -1013,9 +1014,9 @@ test("zweite Rückmeldung: sendFeedback2 liefert ein Ergebnis – nur „sent“
   // Frist läuft zwischen zwei Versuchen ab → „expired“, kein weiterer Versuch
   r = await run({ replies: [err("server_error", 503)], before: (n, S, sub) => { sub.fb2Until = Date.now() - 1; } });
   assert.deepEqual([r.res, r.calls.length], ["expired", 1]);
-  // unverändert: nichts nachzureichen
-  r = await run({ same: true });
-  assert.deepEqual([r.res, r.calls.length, r.S.fb2Base], ["same", 0, null]);
+  // keine finale Rückmeldung: nichts nachzureichen
+  r = await run({ none: true });
+  assert.deepEqual([r.res, r.calls.length, r.S.fb2Base], ["none", 0, null]);
   // Widerspruch, während die Werte unterwegs waren: einmal angekommen bleibt angekommen, auch wenn das Senden ohne Werte danach scheitert
   r = await run({ replies: [null, err("bad_request", 400)], before: (n, S) => { if (n === 1) S.fb2Base.payload.typing = { v: 1, optOut: true }; } });   // wie fb2FollowOptOut
   assert.deepEqual([r.res, r.sub.fb2Sent, r.calls.length], ["sent", true, 2]);

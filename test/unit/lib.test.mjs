@@ -8,7 +8,7 @@ import {
   bucketOf, ipKey, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
   validateAnswerSpec, withMapChecks, publicAnswer, teacherAnswer, mapCheck,
   validatePrivacyInput, privacyOut, cleanLine, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
-  validateEscapeSpec, escapeOut, ESCAPE_ID_RE,
+  validateEscapeSpec, escapeOut, ESCAPE_ID_RE, validateFinalMeta, REPLACE_WINDOW_MS,
 } from "../../worker/lib.js";
 import { DatabaseSync } from "node:sqlite";
 import { PROVIDERS } from "../../worker/ai.js";
@@ -123,6 +123,21 @@ test("validateOnly: null = all tasks; otherwise unique 1-based task numbers, sor
   assert.deepEqual(validateOnly([2], 3), [2]);
   for (const bad of [[], [0], [4], [1, 1], ["1"], [1.5], [NaN], "1", 1, {}, [1, 2, 3, 4]]) rejectsWith(() => validateOnly(bad, 3), "bad_answers");
 });
+test("validateFinalMeta: final fehlt/null/false = Feedback vor der Abgabe; final:true nur mit Kennung (16 Hex) und Eingang (Ganzzahl > 0), nie mit only", () => {
+  const no = { final: false, attempt: null, receivedAt: null };
+  for (const body of [{}, { final: null }, { final: false }, { final: false, only: [1], attempt: "x" }]) assert.deepEqual(validateFinalMeta(body), no, JSON.stringify(body));
+  assert.deepEqual(validateFinalMeta({ final: true, attempt: "0123456789ABCDEF", receivedAt: 1730000000000 }),
+    { final: true, attempt: "0123456789abcdef", receivedAt: 1730000000000 });   // Kennung klein wie beim Speichern der Abgabe
+  assert.deepEqual(validateFinalMeta({ final: true, attempt: "0123456789abcdef", receivedAt: 1, only: null }), { final: true, attempt: "0123456789abcdef", receivedAt: 1 });
+  const msg = (body) => { try { validateFinalMeta(body); } catch (e) { assert.ok(e instanceof InputError); assert.equal(e.code, "bad_request"); assert.equal(e.status, 400); return e.message; } assert.fail("keine Ablehnung: " + JSON.stringify(body)); };
+  for (const final of ["true", 1, 0, "", [], {}]) assert.equal(msg({ final, attempt: "0123456789abcdef", receivedAt: 1 }), "Unbekannte Art der KI-Rückmeldung.");
+  for (const extra of [{}, { attempt: "0123456789abcdef" }, { receivedAt: 1 }, { attempt: "0123456789abcde", receivedAt: 1 }, { attempt: "0123456789abcdeg", receivedAt: 1 },
+    { attempt: 1234567890123456, receivedAt: 1 }, { attempt: "0123456789abcdef", receivedAt: 0 }, { attempt: "0123456789abcdef", receivedAt: -5 },
+    { attempt: "0123456789abcdef", receivedAt: 1.5 }, { attempt: "0123456789abcdef", receivedAt: "1730000000000" }, { attempt: "0123456789abcdef", receivedAt: 2 ** 53 }])
+    assert.equal(msg({ final: true, ...extra }), "Die finale KI-Rückmeldung gibt es nur zur eigenen Abgabe.", JSON.stringify(extra));
+  for (const only of [[1], [], "1"]) assert.equal(msg({ final: true, attempt: "0123456789abcdef", receivedAt: 1, only }), "Die finale KI-Rückmeldung gilt immer für alle Aufgaben.");
+  assert.equal(REPLACE_WINDOW_MS, 15 * 60e3);   // so lange gibt es die finale Rückmeldung (und das Nachreichen an die Lehrkraft)
+});
 test("validateAnswers: count, per-answer and total limits", () => {
   assert.deepEqual(validateAnswers(["a", null, "c\r\nd"], 3), ["a", "", "c\nd"]);
   rejectsWith(() => validateAnswers(["a"], 2), "bad_answers");
@@ -167,7 +182,7 @@ test("rate-limit buckets never contain the IP; messages in German", async () => 
   assert.notEqual(await bucketOf("auth", "203.0.113.7"), b.replace("door", "auth"));
   assert.deepEqual(Object.fromEntries(Object.entries(RATE).map(([k, v]) => [k, [v.max, v.windowMs / 60000]])),
     { door: [10, 15], auth: [10, 15], auth_all: [200, 60], lookup_miss: [30, 10], feedback: [240, 60], feedback_chars: [800000, 60],
-      sheet_feedback: [600, 1440], submit: [360, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [30, 60] });
+      sheet_feedback: [600, 1440], submit: [360, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [60, 60] });
   assert.match(rateMessage("auth", 61), /^Zu viele falsche Passwörter\. Mit dem richtigen Passwort .* in etwa 2 Minuten möglich\.$/);
   assert.equal(rateMessage("door", 30), "Zu viele Fehlversuche. Ein neuer Versuch ist in etwa 1 Minute möglich.");
   assert.match(rateMessage("lookup_miss", 120), /richtigen Code geht es weiter/);

@@ -157,7 +157,7 @@ export function validateEnvelope(env) {
 /* Erstversuch oder Abgabe: stage "first" = erste Fassung samt KI-Feedback (noch nicht abgegeben), "final" = Abgabe.
    attempt = vom Browser erzeugte Kennung je Bearbeitung; die Abgabe ersetzt damit den Erstversuch derselben Bearbeitung. */
 export const ATTEMPT_RE = /^[0-9a-f]{16}$/;
-export const REPLACE_WINDOW_MS = 15 * 60e3;   // zweite KI-Rückmeldung nachreichen: nur so lange nach dem Eingang der Abgabe
+export const REPLACE_WINDOW_MS = 15 * 60e3;   // finale KI-Rückmeldung anfordern und nachreichen: nur so lange nach dem Eingang der Abgabe
 export function validateSubmitMeta(body) {
   let stage = body.stage == null ? "final" : body.stage;
   // „feedback2“: die schon angekommene Abgabe derselben Bearbeitung um die zweite KI-Rückmeldung ergänzen (ersetzen, nie neu
@@ -176,6 +176,20 @@ export function validateSubmitMeta(body) {
   const receivedAt = body.receivedAt;
   if (!attempt || !Number.isSafeInteger(receivedAt) || receivedAt <= 0) throw new InputError("Ergänzen geht nur für die eigene Abgabe.", "bad_request");
   return { stage, attempt, replace, receivedAt };
+}
+
+/* Finale KI-Rückmeldung nach der Abgabe (POST /api/feedback mit final:true): nur zur eigenen Abgabe – Kennung der Bearbeitung und
+   der Eingangszeitpunkt, den der Server bei der Abgabe gemeldet hat (routeFeedback prüft beides gegen D1) – und immer für alle
+   Aufgaben mit Auftrag an die KI (kein `only`). final fehlt, null oder false → das Feedback vor der Abgabe wie bisher. */
+export function validateFinalMeta(body) {
+  const fin = body.final;
+  if (fin == null || fin === false) return { final: false, attempt: null, receivedAt: null };
+  if (fin !== true) throw new InputError("Unbekannte Art der KI-Rückmeldung.", "bad_request");
+  if (body.only != null) throw new InputError("Die finale KI-Rückmeldung gilt immer für alle Aufgaben.", "bad_request");
+  const attempt = typeof body.attempt === "string" ? body.attempt.toLowerCase() : "", receivedAt = body.receivedAt;
+  if (!ATTEMPT_RE.test(attempt) || !Number.isSafeInteger(receivedAt) || receivedAt <= 0)
+    throw new InputError("Die finale KI-Rückmeldung gibt es nur zur eigenen Abgabe.", "bad_request");
+  return { final: true, attempt, receivedAt };
 }
 
 /* Einzelne Einträge löschen (Lösch- oder Einschränkungswunsch einer Person): {ids: [1–50 positive Ganzzahlen]} → ids ohne
@@ -764,7 +778,7 @@ export const RATE = {
                                                        // Tageskontingent von Workers AI ist kleiner und bleibt aufbrauchbar – dafür gibt es die Reserve)
   submit: { max: 360, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu drei Aufrufe: Erstversuch, Abgabe, zweite Rückmeldung)
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
-  checklist: { max: 30, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste zum analogen Arbeitsblatt je IP (Lehrkraft)
+  checklist: { max: 60, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste je IP (Lehrkraft; jedes neue Blatt fragt einmal)
 };
 const minutes = (s) => { const m = Math.max(1, Math.ceil(s / 60)); return m + (m === 1 ? " Minute" : " Minuten"); };
 export function rateMessage(kind, retryAfter) {

@@ -8,11 +8,11 @@ import {
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer, videosOut,
   validatePrivacyInput, privacyOut, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
-  validateChecklist, checklistOut, escapeOut, REPLACE_WINDOW_MS,
+  validateChecklist, checklistOut, escapeOut, REPLACE_WINDOW_MS, validateFinalMeta,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
-  buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI,
+  buildFeedbackMessages, normalizeFeedback, feedbackResults, feedbackAcceptor, FEEDBACK_SCHEMA_GEMINI, FEEDBACK_FINAL_SCHEMA_GEMINI,
   TEST_MESSAGES, reserveSlot, skipQuery, skipStatements, gateKey, recipientLabel, wantsFeedback,
   CF_NO_BINDING, CF_DAILY_NEURONS, utcDay, nextUtcMidnight, recipientTransfer,
   buildChecklistMessages, normalizeChecklist, checklistAcceptor, CHECKLIST_SCHEMA_GEMINI,
@@ -51,7 +51,11 @@ const MSG = {
   noChecklist: "Zu diesem Feibeitsblatt gibt es noch keine Checkliste.",
   ckNoAi: "Es ist kein KI-Dienst eingerichtet, der gerade genutzt werden kann. Bitte prüfen Sie die KI-Einstellungen – die Punkte der Checkliste können Sie auch selbst eintragen.",
   ckQuota: "Das kostenlose Tageskontingent von Cloudflare Workers AI ist aufgebraucht (es gilt für das ganze Cloudflare-Konto). Ab 0:00 Uhr UTC (1:00 Uhr MEZ bzw. 2:00 Uhr MESZ) geht es wieder.",
-  ckEscape: "Zu einem Feibeitsblatt für einen Escape-Room gibt es kein analoges Arbeitsblatt.",
+  // Finale KI-Rückmeldung nach der Abgabe (POST /api/feedback mit final:true) und die damit abgeschlossene Abgabe
+  finalGone: "Zu dieser Abgabe gibt es keine finale KI-Rückmeldung.",
+  finalExpired: "Die finale KI-Rückmeldung gibt es nur in den ersten " + Math.round(REPLACE_WINDOW_MS / 60000) + " Minuten nach der Abgabe.",
+  finalDone: "Die finale KI-Rückmeldung zu dieser Abgabe gibt es schon.",
+  finalLocked: "Diese Abgabe ist schon abgeschlossen und lässt sich nicht mehr ändern.",
 };
 
 /* ---------- Antworten ---------- */
@@ -116,13 +120,15 @@ async function ensureSchema(db) {
   await ensureColumns(db);
   schemaReady = true;
 }
-// Nachträgliche Spalten: Erstversuche (submissions.stage, .attempt), Escape-Room-Blätter (sheets.escape_id, .escape_name; NULL =
-// normales Blatt) und der Verbrauch je KI (ai_usage.tokens, .req_limits). ALTER TABLE ist nicht idempotent, deshalb vorher nachsehen
-// (alle drei Tabellen in einem Batch). Kommt ein paralleler Isolate zuvor, schlägt das ALTER fehl – dann genügt es, dass die Spalten
+// Nachträgliche Spalten: Erstversuche (submissions.stage, .attempt), finale KI-Rückmeldung (submissions.final_at: wann sie zu dieser
+// Abgabe geliefert wurde; NULL = noch nicht – danach ist die Abgabe abgeschlossen), Escape-Room-Blätter (sheets.escape_id,
+// .escape_name; NULL = normales Blatt) und der Verbrauch je KI (ai_usage.tokens, .req_limits). ALTER TABLE ist nicht idempotent,
+// deshalb vorher nachsehen (alle drei Tabellen in einem Batch). Kommt ein paralleler Isolate zuvor, schlägt das ALTER fehl – dann genügt es, dass die Spalten
 // jetzt da sind.
 const LATER_COLUMNS = [
   ["submissions", "stage", "ALTER TABLE submissions ADD COLUMN stage TEXT NOT NULL DEFAULT 'final'"],
   ["submissions", "attempt", "ALTER TABLE submissions ADD COLUMN attempt TEXT"],
+  ["submissions", "final_at", "ALTER TABLE submissions ADD COLUMN final_at INTEGER"],
   ["sheets", "escape_id", "ALTER TABLE sheets ADD COLUMN escape_id TEXT"],
   ["sheets", "escape_name", "ALTER TABLE sheets ADD COLUMN escape_name TEXT"],
   ["ai_usage", "tokens", "ALTER TABLE ai_usage ADD COLUMN tokens INTEGER NOT NULL DEFAULT 0"],
@@ -938,8 +944,9 @@ const quotaErr = () => new AIError("DAILY_LIMIT", "Tageskontingent aufgebraucht.
 // „Tageskontingent aufgebraucht“ gehen per waitUntil in D1. Zeitbudget: insgesamt 100 s (der Browser wartet bis 150 s); mit Reserve
 // bekommt der erste Anbieter 45 s, die Reserve den Rest – aber nur, wenn noch ≥ 35 s bleiben (sonst ein nutzloser Abbruch). Langes
 // Warten erledigt der Browser (Wiederholung). Wurde der erste Anbieter gar nicht gefragt (nur wegen "*" übersprungen), bekommt die
-// Reserve das volle Budget.
-async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, accept, outTokens }) {
+// Reserve das volle Budget. done() liefert Anweisungen, die nur nach einer brauchbaren Antwort mit in diesen Batch gehen (finale
+// Rückmeldung: die Abgabe als abgeschlossen markieren).
+async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, accept, outTokens, done = null }) {
   const t0 = Date.now(), BUDGET = 100000, startAt = Math.floor(Math.random() * 64);
   let out = null, err = null, called = false;
   const usage = [];   // Verbrauch je Eintrag und Aufruf (auch gescheiterter), Workers AI mit geschätzten Neurons
@@ -965,17 +972,37 @@ async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, 
       if (!err || !(x.code === "NO_KEY" || x.code === "CONFIG" || x.code === "NO_MODEL")) err = x;
     }
   }
+  if (out && done) usage.push(...done());
   if (usage.length) c.waitUntil(c.db.batch(usage).catch(() => {}));
   return { out, err };
 }
+
+// Finale KI-Rückmeldung nach der Abgabe (final:true): nur zur eigenen, gerade angekommenen Abgabe – dieselbe Kennung und derselbe
+// Eingang (eine inzwischen neuere Abgabe derselben Bearbeitung oder ein Erstversuch zählt nicht), nur in den ersten 15 Minuten
+// (REPLACE_WINDOW_MS, so lange lässt sie sich auch an die Lehrkraft nachreichen) und nur einmal (final_at). Geprüft, bevor gezählt
+// wird oder etwas zu einer KI geht.
+const finalStmt = (db, code, attempt) =>
+  db.prepare("SELECT stage, received_at, final_at FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt);
+function checkFinal(c, row, fin) {
+  if (!row || row.stage !== "final" || Number(row.received_at) !== fin.receivedAt) throw new HttpError(409, "final_gone", MSG.finalGone);
+  if (fin.receivedAt <= c.now - REPLACE_WINDOW_MS) throw new HttpError(409, "final_expired", MSG.finalExpired);
+  if (row.final_at != null) throw new HttpError(409, "final_done", MSG.finalDone);
+}
+// Nach einer brauchbaren finalen Antwort: die Abgabe ist abgeschlossen (eine neue Abgabe derselben Bearbeitung ersetzt sie nicht
+// mehr, eine zweite finale Rückmeldung gibt es nicht); das Nachreichen an die Lehrkraft (stage „feedback2“) bleibt möglich
+const finalDoneStmt = (db, code, fin) => db.prepare(
+  "UPDATE submissions SET final_at=?1 WHERE sheet_code=?2 AND attempt=?3 AND received_at=?4 AND stage='final' AND final_at IS NULL")
+  .bind(Date.now(), code, fin.attempt, fin.receivedAt);
 
 async function routeFeedback(c) {
   const body = await readJson(c.request);
   const code = normalizeCode(body.code);
   if (!isValidCode(code)) throw sheetNotFound();
-  const [sh, st] = await c.db.batch([
+  const fin = validateFinalMeta(body);   // final:true → finale Rückmeldung nach der Abgabe (alle Aufgaben, eigener System-Prompt)
+  const [sh, st, sub] = await c.db.batch([
     c.db.prepare("SELECT tasks FROM sheets WHERE code=?1").bind(code),
     settingStmt(c.db, "ai"),
+    ...(fin.final ? [finalStmt(c.db, code, fin.attempt)] : []),   // nur bei der finalen Rückmeldung: die eigene Abgabe
   ]);
   const s = firstRow(sh);
   if (!s) throw sheetNotFound();
@@ -983,8 +1010,10 @@ async function routeFeedback(c) {
   const answers = validateAnswers(body.answers, tasks.length);
   // Zweite Rückmeldung nach der Abgabe: nur die nach dem ersten Feedback geänderten Aufgaben (spart Token und Kontingent)
   const only = validateOnly(body.only, tasks.length);
-  const { messages, nrs } = buildFeedbackMessages(tasks, answers, only);
-  if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map(), only), aiGenerated: false });   // kein Auftrag an die KI: keine KI nötig
+  if (fin.final) checkFinal(c, firstRow(sub), fin);
+  const marked = fin.final ? { final: true } : {};
+  const { messages, nrs } = buildFeedbackMessages(tasks, answers, only, { final: fin.final });
+  if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map(), only), aiGenerated: false, ...marked });   // kein Auftrag an die KI: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
   let entries = activeEntries(ai);   // erster Anbieter, danach die Reserve-KI (falls eingerichtet)
   if (!entries.length) throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
@@ -1004,8 +1033,10 @@ async function routeFeedback(c) {
   // Erst zählen, wenn die Anfrage gültig ist und wirklich zur KI geht: je IP (Anzahl und Zeichen) und je Blatt und Tag
   const chars = answers.reduce((n, a) => n + a.length, 0);
   const refund = await countAll(c, [{ kind: "feedback" }, { kind: "feedback_chars", weight: Math.max(1, chars) }, { kind: "sheet_feedback", key: code }]);
-  const { out, err } = await askAI(c, entries, skipOf, messages,
-    { temperature: 0.1, geminiSchema: FEEDBACK_SCHEMA_GEMINI, accept: feedbackAcceptor(nrs), outTokens: Math.min(8192, 800 + 300 * nrs.length) });
+  // Die finale Rückmeldung nennt auch, was gefehlt hat – etwas mehr Ausgabe je Aufgabe
+  const { out, err } = await askAI(c, entries, skipOf, messages, {
+    temperature: 0.1, geminiSchema: fin.final ? FEEDBACK_FINAL_SCHEMA_GEMINI : FEEDBACK_SCHEMA_GEMINI, accept: feedbackAcceptor(nrs, { final: fin.final }),
+    outTokens: Math.min(8192, 800 + (fin.final ? 400 : 300) * nrs.length), done: fin.final ? () => [finalDoneStmt(c.db, code, fin)] : null });
   if (!out) {
     if (AI_REFUND.has(err.code)) refund();
     if (err.code === "NO_KEY" || err.code === "CONFIG" || err.code === "NO_MODEL") throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
@@ -1015,11 +1046,12 @@ async function routeFeedback(c) {
     throw new HttpError(502, "ai_error", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code });
   }
   // Maschinenlesbar gekennzeichnet (Art. 50 Abs. 2 KI-VO): die Stichpunkte hat eine KI erzeugt (IPTC Digital Source Type)
-  return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs), only), aiGenerated: true, digitalSourceType: AI_SOURCE_TYPE });
+  return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs, { final: fin.final }), only), aiGenerated: true, digitalSourceType: AI_SOURCE_TYPE, ...marked });
 }
 
 // Abgabe (stage "final") oder Erstversuch (stage "first", nach dem KI-Feedback). Mit derselben attempt-Kennung ersetzt die
-// Abgabe den Erstversuch derselben Bearbeitung; ein Erstversuch überschreibt nie eine Abgabe. Der Server sieht nur den Umschlag.
+// Abgabe den Erstversuch derselben Bearbeitung; ein Erstversuch überschreibt nie eine Abgabe, und nach der finalen KI-Rückmeldung
+// (final_at) ersetzt auch eine neue Abgabe sie nicht mehr. Der Server sieht nur den Umschlag.
 async function routeSubmit(c) {
   const body = await readJson(c.request);
   const code = normalizeCode(body.code);
@@ -1029,7 +1061,7 @@ async function routeSubmit(c) {
   const [sh, cnt, ex, pv] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
-    attempt ? c.db.prepare("SELECT id, stage, received_at FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
+    attempt ? c.db.prepare("SELECT id, stage, received_at, final_at FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
       : c.db.prepare("SELECT 1 AS x WHERE 0"),
     settingStmt(c.db, "privacy"),   // Löschfrist jetzt (nicht beim Öffnen des Blattes): die Bestätigungsseite nennt das Löschdatum
   ]);
@@ -1040,6 +1072,9 @@ async function routeSubmit(c) {
   const old = attempt ? firstRow(ex) : null;
   if (replace && (!old || old.stage !== "final" || Number(old.received_at) !== receivedAt || receivedAt <= c.now - REPLACE_WINDOW_MS))
     return json({ ok: true, gone: true });
+  // Zu dieser Abgabe gibt es schon die finale KI-Rückmeldung (sie nennt, was gefehlt hat): abgeschlossen – eine neue Abgabe derselben
+  // Bearbeitung ersetzt sie nicht mehr (nichts gezählt). Das Nachreichen („feedback2“ oben) und ein verspäteter Erstversuch (kept) bleiben.
+  if (!replace && stage === "final" && old && old.stage === "final" && old.final_at != null) throw new HttpError(409, "final_locked", MSG.finalLocked);
   await countAll(c, [{ kind: "submit" }, { kind: "submit_bytes", weight: envelope.length }]);   // nur gültige Abgaben zählen
   const retentionDays = (privacyOut(parseSetting(firstRow(pv))) || {}).retentionDays || null;   // null = keine automatische Löschung
   const prev = old;
@@ -1060,10 +1095,11 @@ async function routeSubmit(c) {
   return json({ ok: true, id: r.meta ? r.meta.last_row_id : null, receivedAt: c.now, retentionDays });
 }
 
-/* ---------- Checkliste zum analogen Arbeitsblatt ----------
- * Die KI schlägt aus den Aufträgen an die KI einmal je Blatt Punkte vor (draft, nur für die Lehrkraft); erst was die Lehrkraft
- * speichert (final), ist über den QR-Code des gedruckten Arbeitsblattes öffentlich. Die KI bekommt nur Aufgaben, Material und
- * Aufträge – keine Antworten, keine Daten von Schüler:innen (deshalb auch kein Abgleich der Empfänger wie beim Feedback). */
+/* ---------- Checkliste (zu jedem Feibeitsblatt, auch zum Finale eines Escape-Rooms) ----------
+ * Die KI schlägt aus den Aufträgen an die KI einmal je Blatt Punkte vor (draft, nur für die Lehrkraft – die Seite fragt beim Anlegen
+ * jedes Blattes danach); erst was die Lehrkraft speichert (final), ist öffentlich (z. B. über den QR-Code des analogen
+ * Arbeitsblattes). Die KI bekommt nur Aufgaben, Material und Aufträge – keine Antworten, keine Daten von Schüler:innen (deshalb auch
+ * kein Abgleich der Empfänger wie beim Feedback). */
 const checklistStmt = (db, code) => db.prepare("SELECT draft, final, updated_at FROM sheet_checklists WHERE sheet_code=?1").bind(code);
 // Speichern nur, solange das Blatt existiert (sonst bliebe eine verwaiste Zeile, wenn es inzwischen gelöscht wurde)
 const saveDraftStmt = (db, code, draft, now) => db.prepare(
@@ -1097,10 +1133,9 @@ async function routeChecklistPost(c, codeRaw) {
   if (!isValidCode(code)) throw sheetGone();
   const body = (await readJson(c.request, true)) || {};
   if (body.force != null && typeof body.force !== "boolean") throw new InputError("Ungültige Anfrage.");
-  const [sh, ck, st] = await c.db.batch([c.db.prepare("SELECT tasks, escape_id, escape_name FROM sheets WHERE code=?1").bind(code), checklistStmt(c.db, code), settingStmt(c.db, "ai")]);
+  const [sh, ck, st] = await c.db.batch([c.db.prepare("SELECT tasks FROM sheets WHERE code=?1").bind(code), checklistStmt(c.db, code), settingStmt(c.db, "ai")]);
   const s = firstRow(sh);
   if (!s) throw sheetGone();
-  if (escapeOut(s.escape_id, s.escape_name)) throw new HttpError(400, "escape_sheet", MSG.ckEscape);   // kein analoges Arbeitsblatt
   const tasks = parseTasks(s.tasks), row = firstRow(ck) || {};
   const draft = checklistOut(row.draft, tasks.length), final = checklistOut(row.final, tasks.length);
   if (!body.force && (draft || final)) return json({ ok: true, draft, final, generated: false, ...(tasks.some(wantsFeedback) ? {} : { noAi: true }) });
@@ -1132,9 +1167,8 @@ async function routeChecklistPut(c, codeRaw) {
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
   const body = await readJson(c.request);
-  const sh = await c.db.prepare("SELECT json_array_length(tasks) AS n, escape_id, escape_name FROM sheets WHERE code=?1").bind(code).first();
+  const sh = await c.db.prepare("SELECT json_array_length(tasks) AS n FROM sheets WHERE code=?1").bind(code).first();
   if (!sh) throw sheetGone();
-  if (escapeOut(sh.escape_id, sh.escape_name)) throw new HttpError(400, "escape_sheet", MSG.ckEscape);
   const { ai, tasks } = validateChecklist(body, Number(sh.n) || 0), final = { v: 1, ai, tasks };
   const r = await saveFinalStmt(c.db, code, final, c.now).run();
   if (!r.meta || !r.meta.changes) throw sheetGone();
