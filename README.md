@@ -1435,7 +1435,12 @@ ersten 15 Minuten nach der Abgabe nach und ersetzte dabei den ganzen verschlüss
 Browser hätte so Antworten unterschieben können, die erst die finale Rückmeldung verraten hat, oder die Rückmeldung fälschen.
 Seitdem speichert der Server die Rückmeldung selbst – verschlüsselt mit Ihrem öffentlichen Schlüssel, getrennt neben der
 Abgabe –, und eine Abgabe wird nachträglich nie mehr ersetzt (ältere, noch zwischengespeicherte Seiten, die weiter
-nachreichen wollen, ändern nichts mehr). **Folge (Entscheidung des Betreibers vom 08.11.2026):** Widerspricht eine Schülerin
+nachreichen wollen, ändern nichts mehr). Die gespeicherte Rückmeldung trägt außerdem einen Prüfwert der Antworten, die die KI
+beurteilt hat: Passt er nicht zur Abgabe, zeigt Ihre Übersicht sie nicht an, sondern den Hinweis „Eine gespeicherte finale
+KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten …“. Wer während der Anfrage aus einem zweiten Tab neu abgibt, kann
+die Abgabe danach trotzdem nicht mehr ändern. Bleibt: Das KI-Feedback **vor** der Abgabe (erste Fassung, Erstversuch) stammt weiter
+aus dem Browser und ließe sich mit einem manipulierten Browser fälschen – es dient nur zum Überarbeiten.
+**Folge (Entscheidung des Betreibers vom 08.11.2026):** Widerspricht eine Schülerin
 bzw. ein Schüler der Tippzeit-Messung in einem zweiten Tab mit demselben Stand, nachdem in einem Tab abgegeben wurde (oder
 während die Abgabe noch gesendet wird), entfernt das die Tippzeiten nicht mehr aus der Abgabe; nach der Abgabe lassen sie
 sich nur zusammen mit der ganzen Abgabe löschen – so sagt es der Datenschutzhinweis schon (siehe [Tippzeiten](#tippzeiten)).

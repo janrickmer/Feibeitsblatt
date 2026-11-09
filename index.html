@@ -5570,7 +5570,8 @@ function makeSolutionsPdf(sub) {
     para(sub.feedbackError ? "Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (" + sub.feedbackError + ")." : "Ohne KI-Feedback zum Überarbeiten abgegeben.", 10.5, false, GREY);
   }
   // finale Rückmeldung fehlt: abgewählt, nicht an die Lehrkraft übermittelt (aus ihrer Übersicht) oder beim Herunterladen nicht da
-  const fbNote = failed || fb2 ? "" : sub.finalWanted === false ? "Die finale KI-Rückmeldung wurde beim Abgeben abgewählt."
+  const fbNote = failed || fb2 ? "" : sub.finalMismatch ? "Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten."
+    : sub.finalWanted === false ? "Die finale KI-Rückmeldung wurde beim Abgeben abgewählt."
     : sub.fb2Missing ? "Eine finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt."
     : sub.finalWanted === true ? "Die finale KI-Rückmeldung lag beim Herunterladen nicht vor." : "";
   if (fbNote) { gap(4); para(fbNote, 10.5, false, GREY); }
@@ -7323,6 +7324,9 @@ async function loadSubs() {
           // in der Abgabe selbst: die von einer früheren Seite nachgereichte finale KI-Rückmeldung (final: alle Aufgaben) bzw. bei älteren
           // Abgaben die zweite (nur geänderte Aufgaben, die übrigen null); ein Fehler kostet nur sie, nie den Eintrag.
           // finalWanted: im Abgabe-Dialog gewählt (true) bzw. abgewählt (false)
+          // Seit FINAL_SERVER_SINCE legt nur noch der Server die finale Rückmeldung ab (finalEnv) – ein feedback2 im Umschlag einer neueren
+          // Abgabe kann nur ein manipulierter Browser hineingelegt haben und gilt nicht (received_at setzt der Server)
+          if (!(Number(s.receivedAt) < FINAL_SERVER_SINCE)) p.feedback2 = null;
           try {
             p.feedback2 = p.feedback2 && typeof p.feedback2 === "object" && Array.isArray(p.feedback2.results)
               ? { at: cut(p.feedback2.at, 40), final: p.feedback2.final === true, results: p.feedback2.results.slice(0, 30).map((f) => (f && typeof f === "object" ? normFb(f) : null)) } : null;
@@ -7342,7 +7346,9 @@ async function loadSubs() {
             } catch (e) { /* bleibt bei der Rückmeldung aus der Abgabe (bzw. keiner) */ }
           }
           p.finalWanted = typeof p.finalWanted === "boolean" ? p.finalWanted : undefined;
-          p.finalMode = p.finalMode === true || p.finalWanted !== undefined;   // Abgabe mit finaler KI-Rückmeldung (fb2Of)
+          // Abgabe mit finaler KI-Rückmeldung (fb2Of): vermerkt, mit Angebot im Dialog oder seit FINAL_SERVER_SINCE angekommen (dann gilt
+          // nie die alte Regel „unverändert → erstes Feedback“, auch wenn ein manipulierter Browser den Vermerk weglässt)
+          p.finalMode = p.finalMode === true || p.finalWanted !== undefined || !(Number(s.receivedAt) < FINAL_SERVER_SINCE);
           p.noAi = NO_AI_MODES.has(p.noAi) ? p.noAi : "";   // ohne KI-Feedback: ohne Anfrage / nicht möglich / Blatt ohne KI
           p.feedbackError = cut(p.feedbackError, 100);
           // Daten aus einem Escape-Room (Finale): geprüft und gekappt; ein Fehler kostet nur diese Daten, nie den Eintrag
@@ -7454,6 +7460,9 @@ async function finalAnswersDigest(finals) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(clean)));
   return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
 }
+// Ab hier (Ausrollen am 09.11.2026) legt der Server die finale KI-Rückmeldung selbst ab; ältere Abgaben trugen sie (bzw. die zweite
+// Rückmeldung) im Umschlag, nachgereicht vom Browser
+const FINAL_SERVER_SINCE = Date.UTC(2026, 10, 9, 0, 0, 0);
 const FINAL_MISMATCH_NOTE = "Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten und wird deshalb nicht angezeigt.";
 function fb2Of(p) {
   if (p && p.feedback2 && p.feedback2.final) return { results: p.feedback2.results.map((f) => (f ? normFb(f) : null)), final: true, at: p.feedback2.at };
@@ -7474,7 +7483,8 @@ function teacherSolutionsSub(s, checklist) {
     // ältere Abgaben ohne noAi: wie in den Details „nicht möglich“ (noAiNote)
     feedback: withFb ? p.feedback : null, feedbackError: p.feedbackError || "", noAi: p.noAi || (withFb ? "" : "unavailable"), receivedAt: s.receivedAt,
     // nicht übermittelt: gewählt (bzw. bei älteren Abgaben: mit erstem Feedback), aber keine gespeichert; abgewählt sagt die PDF selbst
-    feedback2: fb2, fb2Missing: !fb2 && (p.finalWanted === true || (!p.finalMode && withFb)), finalWanted: p.finalWanted === false ? false : undefined,
+    feedback2: fb2, fb2Missing: !fb2 && !p.finalMismatch && (p.finalWanted === true || (!p.finalMode && withFb)), finalWanted: p.finalWanted === false ? false : undefined,
+    finalMismatch: !!p.finalMismatch,
     checklist: checklist || false };   // statt der fehlenden Rückmeldung die Checkliste (beim Klick geladen, teacherChecklistLoad)
 }
 // Gespeicherte Checkliste des ausgewählten Blattes für die Lösungs-PDF aus der Übersicht (wie bei den Schüler:innen) → {ai, points} | false

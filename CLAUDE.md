@@ -328,7 +328,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `feedback2` (≤ 30, `normFb`, `at` ≤ 40) → `p.feedback2 = {at, final: true, results}`, **nur wenn `ah` gleich `finalAnswersDigest` der
   abgegebenen Antworten ist** (SHA-256 über JSON der `answers[].final`, bereinigt wie `cleanText` – `FINAL_CTRL_RE`), sonst `p.finalMismatch`
   und in den Details `.dfinal` `FINAL_MISMATCH_NOTE` „Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen
-  Antworten und wird deshalb nicht angezeigt.“ (ein manipulierter Browser könnte sonst zu anderen Antworten eine Rückmeldung ablegen lassen); die vom Server abgelegte gilt vor einer im Umschlag, ein
+  Antworten und wird deshalb nicht angezeigt.“ (ein manipulierter Browser könnte sonst zu anderen Antworten eine Rückmeldung ablegen lassen;
+  die Lösungs-PDF aus der Übersicht sagt dann „Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten.“
+  statt „nicht übermittelt“). Ein `feedback2` **im Umschlag** gilt nur noch bei Abgaben, die vor `FINAL_SERVER_SINCE` (09.11.2026 0:00 UTC,
+  Ausrollen der serverseitigen Ablage; `received_at` setzt der Server) angekommen sind – später kann es nur ein manipulierter Browser
+  hineingelegt haben; ebenso gilt für spätere Abgaben immer `finalMode` (nie die alte Regel „unverändert → erstes Feedback gilt“); die vom Server abgelegte gilt vor einer im Umschlag, ein
   Fehler kostet nur sie, nie den Eintrag. Es liest `finalWanted` nur als Boolean (sonst `undefined` = ältere Abgabe bzw. nicht angeboten)
   und `finalMode` (gesetzt oder `finalWanted` vorhanden), `fb2Of(p)`: mit `feedback2.final` diese Ergebnisse (alle Aufgaben, auch ohne
   erstes Feedback); neue Abgaben (`finalMode`) ohne sie → `null`; ältere Abgaben wie damals im Browser
