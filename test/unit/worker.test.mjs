@@ -3,6 +3,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults, expectedChecklist, mockAIBinding, parseFeedbackPrompt } from "../mock-ai.mjs";
 import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf, sealSecret } from "../../worker/lib.js";
@@ -828,6 +829,8 @@ test("first attempt (stage first) is replaced by the final submission of the sam
   d1.db.prepare("DELETE FROM submissions WHERE id >= ?").run(id);
 });
 
+// Prüfwert der finalen KI-Rückmeldung (final_env.ah): SHA-256 hex über JSON der Antworten – unabhängig vom Worker berechnet
+const answersDigest = (list) => createHash("sha256").update(JSON.stringify(list), "utf8").digest("hex");
 const ckCountSubmit = (b) => { const row = d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(b); return row ? row.count : null; };
 test("stage feedback2 (nur noch ältere, gecachte Seiten): ersetzt nie eine Abgabe, legt nie eine an, zählt nicht – kept, wenn zu genau dieser Abgabe die finale Rückmeldung schon beim Server liegt, sonst gone", async () => {
   const mk = (extra) => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: code, person: { vorname: "Ida", nachname: "Re", geburtsdatum: "--03-03", klasse: "7a" }, answers: [{ first: "a", final: "b" }], ...extra });
@@ -975,7 +978,9 @@ test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Ein
     const envFin = JSON.parse(row().final_env);
     assert.deepEqual(Object.keys(envFin), ["v", "ek", "iv", "ct"]); assert.equal(envFin.v, 1);
     const recFin = await openEnvelope(T.privateKey, envFin);
-    assert.deepEqual(recFin, { kind: "feibeitsblatt-final", v: 1, at: new Date(fin).toISOString(), results: r.json.results });
+    // ah = SHA-256 (hex) über JSON der beurteilten Antworten (wie validateAnswers sie bereinigt hat) – die Lehrkraft-Ansicht vergleicht ihn
+    assert.deepEqual(Object.keys(recFin), ["kind", "v", "at", "ah", "results"]);
+    assert.deepEqual(recFin, { kind: "feibeitsblatt-final", v: 1, at: new Date(fin).toISOString(), ah: answersDigest(answers), results: r.json.results });
     assert.equal(/Chloroplasten|Photosynthese|Licht/.test(row().final_env), false, "nur verschlüsselt");
     let list = (await call("GET", "/api/teacher/sheets/" + c + "/submissions", { auth })).json.submissions;
     const entry = list.find((x) => x.id === id);
@@ -1059,7 +1064,7 @@ test("finale KI-Rückmeldung: Schlüssel der Lehrkraft unbrauchbar → stored:fa
     d1.db.prepare("UPDATE settings SET value=? WHERE key='teacher'").run(teacherRaw);
     // Ablegen scheitert in D1 (z. B. Tageslimit geschriebener Zeilen) → stored:false, die Antwort kommt trotzdem
     const a3 = "0303030303030303", at3 = await submit(a3);
-    d1.failIf = (sql) => /SET final_at=\?1, final_env=\?2/.test(sql);
+    d1.failIf = (sql) => /SET final_at=\?1, final_env=CASE WHEN received_at=\?2 THEN \?3 END/.test(sql);
     try { r = await call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a3, receivedAt: at3 }, ip: "203.0.113.180" }); }
     finally { d1.failIf = null; }
     assert.equal(r.status, 200, r.text); assert.equal(r.json.stored, false); assert.deepEqual(r.json.results, expectedResults(tasks, answers));
@@ -1074,8 +1079,91 @@ test("finale KI-Rückmeldung: Schlüssel der Lehrkraft unbrauchbar → stored:fa
     const x2 = row(a2), rec = await openEnvelope(T.privateKey, JSON.parse(x2.final_env));
     assert.equal(rec.at, new Date(x2.final_at).toISOString());
     assert.deepEqual(rec.results, both.find((x) => x.json.stored).json.results);
+    assert.equal(rec.ah, answersDigest(answers));
   } finally {
     d1.db.prepare("UPDATE settings SET value=? WHERE key='teacher'").run(teacherRaw);
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  }
+});
+
+test("finale KI-Rückmeldung: Prüfwert ah = SHA-256 der bereinigten Antworten (wie validateAnswers); wird die Abgabe während der KI-Anfrage ersetzt (zweiter Tab, neuer Eingang), ist sie danach trotzdem abgeschlossen – ohne abgelegte Rückmeldung (stored:false, final_env NULL), eine weitere Abgabe → 409 final_locked", async () => {
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Final ersetzt", tasks } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  const mk = (final) => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: c, person: { vorname: "Er", nachname: "Se", geburtsdatum: "--06-06", klasse: "8c" }, answers: [{ first: "a", final }, { first: "b", final: "b" }] });
+  const row = (attempt) => ({ ...d1.db.prepare("SELECT id, stage, envelope, received_at, final_at, final_env FROM submissions WHERE sheet_code=? AND attempt=?").get(c, attempt) });
+  const submit = async (attempt, final, opts = {}) => {
+    const x = await call("POST", "/api/submit", { body: { code: c, envelope: await mk(final), stage: "final", attempt }, ...opts });
+    assert.equal(x.status, 200, x.text); return x.json;
+  };
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+  const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen
+  try {
+    /* (1) Prüfwert: Windows-Zeilenenden, ein einzelnes \r und Steuerzeichen (außer Tab) – ah gilt den bereinigten Antworten, nie den rohen */
+    const dirty = ["Pflanzen brauchen\u0000 Licht.\r\nUnd\rWasser.\u0007\tEnde", "Meine\u001F Meinung\r\n"];
+    const clean = ["Pflanzen brauchen Licht.\nUnd\nWasser.\tEnde", "Meine Meinung\n"];
+    const a1 = "0a0a0a0a0a0a0a0a", s1 = await submit(a1, dirty[0]);
+    mock.reset();
+    r = await call("POST", "/api/feedback", { body: { code: c, answers: dirty, final: true, attempt: a1, receivedAt: s1.receivedAt }, ip: "203.0.113.190" });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.stored, true);
+    assert.deepEqual(r.json.results, expectedResults(tasks, clean));
+    const prompt1 = mock.state.requests[0].messages[1].content;
+    assert.ok(prompt1.includes(clean[0]) && !/[\r\u0000\u0007]/.test(prompt1), "die KI bekommt die bereinigte Antwort");
+    const rec1 = await openEnvelope(T.privateKey, JSON.parse(row(a1).final_env));
+    assert.match(rec1.ah, /^[0-9a-f]{64}$/);
+    assert.equal(rec1.ah, answersDigest(clean));
+    assert.notEqual(rec1.ah, answersDigest(dirty));
+    assert.equal(rec1.ah, await sha256Hex(JSON.stringify(clean)));
+    // ohne Antwort (null) zählt die leere Zeichenkette – wie im Browser (finalAnswersDigest)
+    const a0 = "0b0b0b0b0b0b0b0b", s0 = await submit(a0, "");
+    r = await call("POST", "/api/feedback", { body: { code: c, answers: [null, "x"], final: true, attempt: a0, receivedAt: s0.receivedAt }, ip: "203.0.113.190" });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.stored, true);
+    assert.equal((await openEnvelope(T.privateKey, JSON.parse(row(a0).final_env))).ah, answersDigest(["", "x"]));
+
+    /* (2) die KI-Anfrage läuft (Mock antwortet verzögert), währenddessen gibt ein zweiter Tab dieselbe Bearbeitung neu ab */
+    const answers = ["Pflanzen brauchen Licht.", "x"];
+    const a2 = "0c0c0c0c0c0c0c0c", s2 = await submit(a2, "erste Fassung");
+    const env1 = row(a2).envelope;
+    mock.reset(); mock.setMode("ok", 1500);
+    const pending = call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a2, receivedAt: s2.receivedAt }, ip: "203.0.113.191", nocount: true });
+    for (let k = 0; k < 300 && mock.state.requests.length < 1; k++) await sleep(10);
+    assert.equal(mock.state.requests.length, 1, "die finale Anfrage ist bei der KI");
+    assert.equal(mock.state.requests[0].kind, "final");
+    assert.equal(row(a2).final_at, null, "noch nicht abgeschlossen");
+    await sleep(5);   // ein neuer Eingang (Millisekunden)
+    const re = await call("POST", "/api/submit", { body: { code: c, envelope: await mk("zweite Fassung aus dem anderen Tab"), stage: "final", attempt: a2 }, ip: "203.0.113.192", nocount: true });
+    assert.equal(re.status, 200, re.text);
+    assert.deepEqual([re.json.id, re.json.replaced], [s2.id, "final"]);
+    assert.ok(re.json.receivedAt > s2.receivedAt, "neuer Eingang");
+    const env2 = row(a2).envelope;
+    assert.notEqual(env2, env1);
+    r = await pending;
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.final, true); assert.equal(r.json.stored, false, "die Rückmeldung gehört zur ersetzten Fassung – nicht abgelegt");
+    assert.deepEqual(r.json.results, expectedResults(tasks, answers), "die Schüler:innen bekommen sie trotzdem");
+    mock.setMode("ok", 0);
+    const x2 = row(a2);
+    assert.ok(x2.final_at >= re.json.receivedAt, "abgeschlossen: " + x2.final_at);
+    assert.deepEqual([x2.id, x2.stage, x2.envelope, x2.received_at, x2.final_env], [s2.id, "final", env2, re.json.receivedAt, null]);
+    let list = (await call("GET", "/api/teacher/sheets/" + c + "/submissions", { auth })).json.submissions;
+    assert.equal(list.find((x) => x.id === s2.id).finalEnv, null);
+    // mit dem Wissen aus dieser Rückmeldung lässt sie sich nicht verbessert neu abgeben (nichts gezählt, nichts geändert)
+    const lip = "203.0.113.193";
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk("dritte, verbesserte Fassung"), stage: "final", attempt: a2 }, ip: lip });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "final_locked");
+    assert.equal(r.json.error, "Diese Abgabe ist schon abgeschlossen und lässt sich nicht mehr ändern.");
+    assert.equal(ckCountSubmit(await bucketOf("submit", lip, SECRET)), null, "nicht gezählt");
+    assert.deepEqual({ ...row(a2) }, x2);
+    // auch zur neuen Fassung gibt es keine (zweite) finale Rückmeldung mehr; ein „Nachreichen“ einer älteren Seite findet nichts
+    mock.reset();
+    r = await call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a2, receivedAt: re.json.receivedAt }, ip: "203.0.113.191" });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "final_done");
+    assert.equal(mock.state.requests.length, 0);
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk("nachgereicht"), stage: "feedback2", attempt: a2, receivedAt: re.json.receivedAt } });
+    assert.deepEqual(r.json, { ok: true, gone: true });
+    assert.deepEqual({ ...row(a2) }, x2);
+  } finally {
+    Math.random = rnd; mock.setMode("ok", 0);
     await call("DELETE", "/api/teacher/sheets/" + c, { auth });
   }
 });

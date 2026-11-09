@@ -706,7 +706,7 @@ async function main() {
       let r;   // eigenes r (siehe Checkliste)
       r = await api("POST", "/api/teacher/sheets", { title: "Smoke: Finale Rückmeldung", tasks }, { auth });
       assert.equal(r.status, 200, r.text);
-      const fc = r.json.code, fAttempt = "00ff11ee22dd33cc", fAnswers = ["Die Photosynthese braucht Licht.", "Die Pause.", ""];
+      const fc = r.json.code, fAttempt = "00ff11ee22dd33cc", fAnswers = ["Die Photosynthese braucht Licht.", "Die Pause.\r\nUnd\u0007 das Essen.", ""];   // Aufgabe 2 mit Zeilenende und Steuerzeichen (Prüfwert ah)
       const fPayload = { v: 1, sheetCode: fc, sheetTitle: "Smoke: Finale Rückmeldung", person: { vorname: "Fin", nachname: "Al", geburtsdatum: "--06-07", klasse: "9a" },
         answers: fAnswers.map((a) => ({ first: a, final: a })), feedback: null, noAi: "declined", submittedAt: new Date().toISOString() };
       const fEnv = await makeEnvelope(T.publicKey, fPayload);
@@ -744,7 +744,12 @@ async function main() {
       assert.deepEqual(Object.keys(fEnvStored), ["v", "ek", "iv", "ct"]);
       assert.equal(fRow.finalEnv.includes(finalResults[0].covered[0]), false, "nur verschlüsselt");
       const fRec = await openEnvelope(privateKey, fEnvStored);
-      assert.deepEqual(Object.keys(fRec), ["kind", "v", "at", "results"]);
+      assert.deepEqual(Object.keys(fRec), ["kind", "v", "at", "ah", "results"]);
+      // ah = SHA-256 (hex) über JSON der beurteilten Antworten – aller Aufgaben, bereinigt wie validateAnswers (\r\n → \n, Steuerzeichen weg)
+      const ahOf = (list) => createHash("sha256").update(JSON.stringify(list), "utf8").digest("hex");
+      assert.equal(fRec.ah, ahOf(fAnswers.map((a) => a.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ""))));
+      assert.equal(fRec.ah, ahOf(["Die Photosynthese braucht Licht.", "Die Pause.\nUnd das Essen.", ""]));
+      assert.notEqual(fRec.ah, ahOf(fAnswers), "nicht die rohen Antworten");
       assert.deepEqual([fRec.kind, fRec.v, fRec.results], ["feibeitsblatt-final", 1, finalResults]);
       assert.ok(Math.abs(Date.parse(fRec.at) - Date.now()) < 120000 && new Date(fRec.at).toISOString() === fRec.at, fRec.at);
       // ein „Nachreichen“ einer älteren Seite (stage „feedback2“) ersetzt nichts – auch keine erfundene Rückmeldung oder unterschobene

@@ -309,16 +309,27 @@ async function teacherPriv(pw = PW) {
   const teacher = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value);
   return openPrivateKey((await deriveTeacherKeys(pw, teacher.kdf)).encKey, teacher.encPrivateKey);
 }
-// final_env entschlüsselt: genau {kind:"feibeitsblatt-final", v:1, at (ISO), results} – nichts sonst (keine Antworten, Angaben, Tippzeiten)
-async function finalEnvOf(priv, finalEnv) {
+// Prüfwert ah der finalen Rückmeldung: SHA-256 (hex) über JSON der beurteilten Antworten, bereinigt wie validateAnswers im Worker
+// (Zeilenenden \n, Steuerzeichen außer Tab und Zeilenumbruch weg, null → "") – so vergleicht ihn auch die Lehrkraft-Ansicht
+const finalAh = (finals) => createHash("sha256").update(JSON.stringify(finals.map((a) => String(a == null ? "" : a)
+  .replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ""))), "utf8").digest("hex");
+const FINAL_MISMATCH_NOTE = "Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten und wird deshalb nicht angezeigt.";
+// final_env entschlüsselt: genau {kind:"feibeitsblatt-final", v:1, at (ISO), ah, results} – nichts sonst (keine Antworten, Angaben,
+// Tippzeiten); envelope (Umschlag der Abgabe derselben Zeile, Text oder Objekt): ah passt genau zu ihren abgegebenen Antworten
+async function finalEnvOf(priv, finalEnv, envelope) {
   expect(typeof finalEnv, "final_env gespeichert").toBe("string");
   const env = JSON.parse(finalEnv);
   expect(Object.keys(env).sort()).toEqual(["ct", "ek", "iv", "v"]);
   const rec = await openEnvelope(priv, env);
-  expect(Object.keys(rec).sort()).toEqual(["at", "kind", "results", "v"]);
+  expect(Object.keys(rec).sort()).toEqual(["ah", "at", "kind", "results", "v"]);
   expect([rec.kind, rec.v]).toEqual(["feibeitsblatt-final", 1]);
   expect(rec.at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+  expect(rec.ah).toMatch(/^[0-9a-f]{64}$/);
   expect(Array.isArray(rec.results)).toBe(true);
+  if (envelope !== undefined) {
+    const p = await openEnvelope(priv, typeof envelope === "string" ? JSON.parse(envelope) : envelope);
+    expect(rec.ah, "Prüfwert ah = SHA-256 der abgegebenen (bereinigten) Antworten").toBe(finalAh(p.answers.map((a) => a.final)));
+  }
   return rec;
 }
 // Zeile(n) einer Bearbeitung in D1 (Kennung attempt): Umschlag, gespeicherte finale Rückmeldung, Zeitpunkt
@@ -1982,7 +1993,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(rowsA.map((r) => r.stage)).toEqual(["final"]);
   expect(JSON.parse(rowsA[0].envelope)).toEqual(sb.envelope);
   expect(rowsA[0].final_at).toBeGreaterThan(0);
-  expect((await finalEnvOf(await teacherPriv(), rowsA[0].final_env)).results).toEqual(JSON.parse(fb2Reqs[1].body).results);
+  expect((await finalEnvOf(await teacherPriv(), rowsA[0].final_env, rowsA[0].envelope)).results).toEqual(JSON.parse(fb2Reqs[1].body).results);
   for (const p of ["Gewissn", "Schwester", A.person.geburtsdatum, "Instanz", "gelingt", "Gewissen"]) expect(rowsA[0].final_env).not.toContain(p);
   expect(Object.keys(sb).sort()).toEqual(["attempt", "code", "envelope", "stage"]);
   expect(sb.stage).toBe("final");
@@ -3329,7 +3340,7 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   const fb2Body = JSON.parse(fbCalls[1].reqBody);
   const codeF = shownF.replace("-", ""), subBodyF = JSON.parse(subF[1].reqBody), [rowF] = await subRowsOf(codeF, fb2Body.attempt);
   expect(JSON.parse(rowF.envelope)).toEqual(subBodyF.envelope);
-  const recF = await finalEnvOf(await teacherPriv(), rowF.final_env);
+  const recF = await finalEnvOf(await teacherPriv(), rowF.final_env, rowF.envelope);
   expect(recF.results).toEqual(JSON.parse(fbCalls[1].body).results);
   expect(recF.results.map((f) => f.missing)).toEqual(exp2.map((e) => e.missing));   // was gefehlt hat – so, wie die Schülerin es sah
   // Eine ältere, noch gecachte Seite (bzw. ein manipulierter Browser) mit stage „feedback2“: der Server ersetzt nichts mehr – auch keine
@@ -3422,7 +3433,7 @@ test("7p Finale KI-Rückmeldung für die Lehrkraft: der Server speichert sie sel
   const f0 = await finals(p0);
   expect(f0.map((e) => [e.status, JSON.parse(e.body).stored])).toEqual([[200, true]]);
   const row0 = await rowOf(p0);
-  expect((await finalEnvOf(priv, row0.final_env)).results).toEqual(JSON.parse(f0[0].body).results);
+  expect((await finalEnvOf(priv, row0.final_env, row0.envelope)).results).toEqual(JSON.parse(f0[0].body).results);
   expect(await fb2Posts(p0)).toEqual([]);
   await closePage(p0);
 
@@ -3478,7 +3489,7 @@ test("7p Finale KI-Rückmeldung für die Lehrkraft: der Server speichert sie sel
     expect(JSON.parse(f1c[0].body).results).toEqual(dupBody.results);
     // in D1 genau eine Rückmeldung – die der ersten Anfrage; die Abgabe unverändert
     const row1c = await rowOf(p1c);
-    expect((await finalEnvOf(priv, row1c.final_env)).results).toEqual(dupBody.results);
+    expect((await finalEnvOf(priv, row1c.final_env, row1c.envelope)).results).toEqual(dupBody.results);
     expect(await fb2Posts(p1c)).toEqual([]);
     await neutral(p1c.page, "#done-fb-teacher");
   } finally { await mockMode("ok"); }
@@ -6192,7 +6203,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   const [row3] = await subRowsOf(code, row1.attempt);
   expect(row3.id).toBe(row1.id);
   expect(await openEnvelope(priv, JSON.parse(row3.envelope))).toEqual(fin);   // unverändert, samt Tippzeiten
-  const rec3 = await finalEnvOf(priv, row3.final_env);
+  const rec3 = await finalEnvOf(priv, row3.final_env, row3.envelope);
   expect(rec3.results).toEqual(JSON.parse(fb2.body).results);
   expect(rec3.results[0].covered.length + rec3.results[0].missing.length).toBeGreaterThan(0);
   expect(rec3.results[1]).toBeTruthy();   // auch die unveränderte Tabelle wird final beurteilt
@@ -6443,7 +6454,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   const rows4 = await subRowsOf(code, bodies4[0].attempt);
   expect(rows4.map((r) => r.stage)).toEqual(["final"]);
   expect(await openEnvelope(priv, JSON.parse(rows4[0].envelope))).toEqual(s4b);   // genau die angenommene Abgabe
-  const rec4 = await finalEnvOf(priv, rows4[0].final_env);
+  const rec4 = await finalEnvOf(priv, rows4[0].final_env, rows4[0].envelope);
   expect(rec4.results).toEqual(JSON.parse(fb4[0].body).results);
   expect(JSON.stringify(rec4)).not.toMatch(/typing|und mehr|"vi"/);   // keine Tippzeiten, keine Antworten, keine Angaben
   expect(await fb2Posts(x4)).toEqual([]);
@@ -6623,7 +6634,7 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
   await expect(page.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 30_000 });
   const [rowW] = await subRowsOf(code, r1.attempt);
   expect(await openEnvelope(priv, JSON.parse(rowW.envelope))).toEqual(fin);
-  expect(JSON.stringify(await finalEnvOf(priv, rowW.final_env))).not.toMatch(/typing|optOut/);
+  expect(JSON.stringify(await finalEnvOf(priv, rowW.final_env, rowW.envelope))).not.toMatch(/typing|optOut/);
   expect(await fb2Posts(s)).toEqual([]);
   await closePage(s);
 
@@ -6887,7 +6898,7 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
     expect(rows5.map((r) => r.stage)).toEqual(["final"]);
     expect(rows5[0].p).toEqual(fin5);   // unverändert – nichts nachgereicht, nichts ersetzt
     const [raw5] = await subRowsOf(code, rows5[0].attempt);
-    expect(JSON.stringify(await finalEnvOf(priv, raw5.final_env))).not.toMatch(/typing|optOut/);
+    expect(JSON.stringify(await finalEnvOf(priv, raw5.final_env, raw5.envelope))).not.toMatch(/typing|optOut/);
     expect(await fb2Posts(x)).toEqual([]);
     await expect(xa.locator("#done-fb-teacher")).toBeHidden();
     expect(xbErrors).toEqual([]);
@@ -7330,7 +7341,7 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   const keptP = await openEnvelope(priv, JSON.parse(rowsFb2[0].envelope));
   expect(keptP).toEqual(finalP);
   expect(keptP.typing.answers.some((a) => typeof a.final === "string" && a.final.length > 1)).toBe(true);
-  const recEsc = await finalEnvOf(priv, rowsFb2[0].final_env);
+  const recEsc = await finalEnvOf(priv, rowsFb2[0].final_env, rowsFb2[0].envelope);
   expect(recEsc.results).toEqual(JSON.parse(finEsc[0].body).results);
   expect(recEsc.results.map((x) => x.covered.length + x.missing.length > 0)).toEqual([true, true]);   // final: alle Aufgaben mit Auftrag (nicht nur die geänderte Aufgabe 2)
   for (const x of [...SECRET, "GLOBUS", "typing", "escape", "Station"]) expect(JSON.stringify(recEsc), x).not.toContain(x);
@@ -7737,7 +7748,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
     expect(rows.map((r) => r.stage)).toEqual(["final"]);
     expect(JSON.parse(rows[0].envelope)).toEqual(sent[0].envelope);
     expect(await fb2Posts(x)).toEqual([]);   // nichts nachgereicht
-    return rows[0].final_env === null ? null : finalEnvOf(priv, rows[0].final_env);
+    return rows[0].final_env === null ? null : finalEnvOf(priv, rows[0].final_env, rows[0].envelope);
   };
 
   /* ---------- (a) ohne erstes KI-Feedback abgegeben, finale Rückmeldung gewählt (vorausgewählt) ---------- */
@@ -7913,6 +7924,65 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
     expect(pdfShownText(Buffer.from(sol, "latin1"))).toContain(who === "Ben" ? "Die finale KI-Rückmeldung wurde beim Abgeben abgewählt." : "Eine finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.");
   }
   await expect(tp.locator("#t-subs-status")).toHaveText("");
+
+  /* ---------- (e2) Prüfwert ah: Eine gespeicherte finale Rückmeldung, die sich nicht auf die abgegebenen Antworten bezieht (z. B. hat ein
+     manipulierter Browser sie zu untergeschobenen Antworten erfragt), zeigt die Lehrkraft-Ansicht nicht – nur den Vermerk; die Lösungs-PDF
+     enthält sie ebenso wenig. Ana: Datensatz mit fremdem ah (verschlüsselt mit dem öffentlichen Schlüssel aus D1 wie Crypto.seal), Dan: Datensatz
+     ohne ah. Danach wiederhergestellt ---------- */
+  const rowsE = await d1Query(`SELECT id, envelope, final_env FROM submissions WHERE sheet_code='${code}' ORDER BY id`);
+  const rowByAnswers = async (answers) => {
+    const hit = [];
+    for (const r of rowsE) if (JSON.stringify((await openEnvelope(priv, JSON.parse(r.envelope))).answers.map((x) => x.final)) === JSON.stringify(answers)) hit.push(r);
+    expect(hit).toHaveLength(1);
+    return hit[0];
+  };
+  const rowAna = await rowByAnswers(ANA), rowDan = await rowByAnswers(DAN);
+  const recAna = await finalEnvOf(priv, rowAna.final_env, rowAna.envelope), recDan = await finalEnvOf(priv, rowDan.final_env, rowDan.envelope);
+  const pubT = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value).publicKey;
+  const FORGED = "Erfundener Stichpunkt zu untergeschobenen Antworten";
+  const forgedAna = JSON.stringify(await makeEnvelope(pubT, { kind: "feibeitsblatt-final", v: 1, at: new Date().toISOString(),
+    ah: finalAh(["Untergeschoben 1", "Untergeschoben 2", "Untergeschoben 3"]), results: recAna.results.map(() => ({ covered: [FORGED], missing: [FORGED] })) }));
+  const { ah: _ahDan, ...noAhDan } = recDan;
+  const forgedDan = JSON.stringify(await makeEnvelope(pubT, noAhDan));
+  for (const env of [forgedAna, forgedDan]) expect(env).toMatch(/^\{"v":1,"ek":"[A-Za-z0-9+/=]+","iv":"[A-Za-z0-9+/=]+","ct":"[A-Za-z0-9+/=]+"\}$/);   // kein ' im SQL
+  // Gegenprobe: der Datensatz von Ana ließe sich öffnen, nur ah passt nicht zu ihren Antworten
+  expect((await openEnvelope(priv, JSON.parse(forgedAna))).ah).not.toBe(finalAh(ANA));
+  const setFinalEnv = (row, env) => d1Query(`UPDATE submissions SET final_env='${env}' WHERE id=${Number(row.id)}`);
+  await setFinalEnv(rowAna, forgedAna);
+  await setFinalEnv(rowDan, forgedDan);
+  try {
+    await tp.click("#t-refresh");
+    await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(4);
+    await tp.click("#t-expand-all");
+    for (const who of ["Ana", "Dan"]) {
+      await expect(det(who).locator(".dfinal")).toHaveText(FINAL_MISMATCH_NOTE);
+      await expect(det(who).locator(".dfb2")).toHaveCount(0);
+      await expect(det(who).locator('[data-ai-content="feedback-final"]')).toHaveCount(0);
+    }
+    await expect(det("Ana")).not.toContainText(FORGED);
+    // die übrigen Einträge unberührt
+    await expect(det("Ben").locator(".dfinal")).toHaveText("Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.");
+    await expect(det("Cem").locator(".dfinal")).toHaveText("Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.");
+    // Lösungs-PDF der Lehrkraft: ohne die gespeicherte Rückmeldung (statt ihrer die Checkliste), ohne KI-Kennzeichnung der Rückmeldung
+    const solAnaForged = await teacherPdf("Ana");
+    expect(solAnaForged).not.toContain(FORGED);
+    expect(solAnaForged).not.toContain("(Finale KI-R\\374ckmeldung:) Tj");
+    expectChecklistInPdf(solAnaForged, CKS);
+    await expect(tp.locator("#t-subs-status")).toHaveText("");
+  } finally {
+    await setFinalEnv(rowAna, rowAna.final_env);
+    await setFinalEnv(rowDan, rowDan.final_env);
+  }
+  expect((await d1Query(`SELECT id, final_env FROM submissions WHERE id IN (${Number(rowAna.id)}, ${Number(rowDan.id)}) ORDER BY id`)).map((r) => r.final_env))
+    .toEqual([rowAna, rowDan].sort((x, y) => x.id - y.id).map((r) => r.final_env));
+  // wiederhergestellt: wieder die echte finale Rückmeldung, ohne Vermerk
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(4);
+  await tp.click("#t-expand-all");
+  for (const [who, exp] of [["Ana", expA], ["Dan", expD]]) {
+    await expect(det(who).locator(".dfinal")).toHaveCount(0);
+    await expect(det(who).locator(".dfb2 .fb-head")).toHaveText(exp.filter((e) => e.covered.length || e.missing.length).map(() => "Finale KI-Rückmeldung"));
+  }
 
   /* ---------- (f) Wartezeit als Einstellung der Lehrkraft (30, 60 oder 90 s, Vorgabe 30): 60 s → das Blatt liefert sie, der Countdown
      beginnt bei 60 s, nach 31 s ist der Download noch gesperrt, nach 61 s frei; danach wieder 30 s (die übrigen Tests rechnen damit) ---------- */

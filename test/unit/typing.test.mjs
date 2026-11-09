@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { LIMITS, REPLACE_WINDOW_MS } from "../../worker/lib.js";
+import { LIMITS, REPLACE_WINDOW_MS, validateAnswers, cleanText, sha256Hex } from "../../worker/lib.js";
 
 const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
 const i = html.indexOf("/* TYPING:BEGIN"), j = html.indexOf("/* TYPING:END */");
@@ -998,4 +998,44 @@ test("finale Rückmeldung: Wartezeit der Lehrkraft (30/60/90 s) steuert die Sper
   assert.ok(part.includes("await Crypto.open(T.priv, s.finalEnv)"));
   assert.ok(part.includes('f.kind === "feibeitsblatt-final" && f.v === 1 && Array.isArray(f.results)'));
   assert.ok(part.includes("f.results.slice(0, 30).map((x) => (x && typeof x === \"object\" ? normFb(x) : null))"));
+});
+
+test("finale Rückmeldung (Lehrkraft): Prüfwert ah – der Browser rechnet ihn genau wie der Worker (bereinigt wie validateAnswers, SHA-256 über JSON); passt er nicht, zeigt die Ansicht die gespeicherte Rückmeldung nicht, nur FINAL_MISMATCH_NOTE", async () => {
+  const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
+  const D = new Function(body("const FINAL_CTRL_RE = ", "const FINAL_MISMATCH_NOTE = ") + "\nreturn { FINAL_CTRL_RE, finalAnswersDigest };")();
+  // dieselben Zeichen fallen weg wie bei cleanText im Worker (alle Zeichen bis U+00A0 einzeln, dazu Zeilenenden)
+  for (let cp = 0; cp <= 0xa0; cp++) {
+    const ch = String.fromCharCode(cp);
+    assert.equal(("a" + ch + "b").replace(/\r\n?/g, "\n").replace(D.FINAL_CTRL_RE, ""), cleanText("a" + ch + "b"), "U+" + cp.toString(16));
+  }
+  // Prüfwert wie im Worker: ah = sha256Hex(JSON.stringify(validateAnswers(answers))) – auch mit null, \r\n, \r, Steuerzeichen, Tabs, Emoji
+  const r = rng(4711), pool = ["a", "Ä", "ß", " ", "\t", "\n", "\r", "\r\n", "\u0000", "\u0007", "\u001f", "\u007f", "\u0085", "\u2028", "\u00a0", "„", "“", "😀", "\\", '"', "|", "→"];
+  const cases = [[], [null], [""], ["Licht\r\nund\rWasser\u0007"], [null, "x", ""]];
+  for (let k = 0; k < 60; k++) cases.push(Array.from({ length: 1 + Math.floor(r() * 4) }, () => (r() < 0.1 ? null : Array.from({ length: Math.floor(r() * 30) }, () => pick(r, pool)).join(""))));
+  for (const list of cases) {
+    const server = await sha256Hex(JSON.stringify(validateAnswers(list, list.length)));
+    assert.equal(await D.finalAnswersDigest(list), server, JSON.stringify(list));
+    assert.match(server, /^[0-9a-f]{64}$/);
+  }
+  assert.notEqual(await D.finalAnswersDigest(["a", "b"]), await D.finalAnswersDigest(["b", "a"]));   // Reihenfolge zählt
+  // loadSubs: nur bei passendem ah als finale Rückmeldung übernommen, sonst keine (auch nicht die aus der Abgabe) und der Vermerk
+  const subs = body("async function loadSubs()", "\n}\n");
+  const k = subs.indexOf('if (s.finalEnv && (typeof s.finalEnv === "string" || typeof s.finalEnv === "object")) {');
+  const part = subs.slice(k, subs.indexOf("} catch (e) { /* bleibt", k));
+  assert.ok(part.includes('if (typeof f.ah === "string" && f.ah === await finalAnswersDigest(p.answers.map((a) => a.final)))'));
+  assert.ok(part.includes("else { p.feedback2 = null; p.finalMismatch = true; }"));
+  assert.ok(subs.indexOf("p.answers = p.answers.slice(0, 30)") < k, "verglichen mit den gekappten, angezeigten Antworten");
+  assert.ok(html.includes('const FINAL_MISMATCH_NOTE = "Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten und wird deshalb nicht angezeigt.";'));
+  assert.ok(body("function buildDetail(", "\n}\n").includes("const finalNote = p.finalMismatch ? FINAL_MISMATCH_NOTE"));
+  assert.doesNotMatch(body("const FINAL_MISMATCH_NOTE = ", ";\n"), /Tippzeit|misst|Schalter|Haken/);
+  // Widerspruch aus einem anderen Tab, während dieser Tab die Abgabe sendet: eigener Hinweis in der Farbe von TT_OPT_LATE (Klasse late)
+  const fs = body("function ttFollowStored(", "\n}\n");
+  assert.ok(fs.includes("const late = !!S.submitting;"));
+  assert.ok(fs.includes('st.classList.toggle("late", late); st.textContent = late ? TT_OPT_TAB_LATE : TT_OPT_TAB;'));
+  const TL = new Function(body("const TT_OPT_TAB_LATE = ", "const TT_OPT_LATE_OFF = ") + "\nreturn TT_OPT_TAB_LATE;")();
+  assert.equal(TL, "Widerspruch eingetragen (in einem anderen Tab mit diesem Feibeitsblatt): Für die Abgabe, die gerade gesendet wird, gilt er nicht mehr. " +
+    "Scheitert das Senden, misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr. Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner " +
+    "ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.");
+  // scheitert das Senden, räumt submitAll die Meldung wieder ab (ttClearLate entfernt Text und Klasse)
+  assert.ok(html.includes('function ttClearLate() { document.querySelectorAll(".ttopt-st.late").forEach((st) => { st.textContent = ""; st.classList.remove("late"); }); }'));
 });
