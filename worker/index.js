@@ -1,6 +1,7 @@
 // index.js – Cloudflare Worker für Feibeitsblatt (ES-Modul): API unter /api/*, sonst statische Seite aus ./dist.
 // Der Server sieht nie Klartext-Abgaben oder das Lehrkraft-Passwort (Ende-zu-Ende, siehe SPEC §2). Free-Plan:
-// nur SHA-256/AES-GCM im Worker (kein PBKDF2, keine RSA-Erzeugung), D1-Abfragen gebündelt (batch).
+// nur SHA-256/AES-GCM im Worker, dazu RSA-OAEP-Verschlüsseln mit dem öffentlichen Schlüssel der Lehrkraft (finale KI-Rückmeldung) –
+// kein PBKDF2, keine RSA-Erzeugung; D1-Abfragen gebündelt (batch).
 import {
   normalizeCode, isValidCode, generateCode, sha256Hex, timingSafeEqualStr, decodeAuthKey, importPublicKey,
   validateKdf, validateEncPrivateKey, validateEnvelope, validateSheetInput, validateAnswers, validateOnly, validateAiInput,
@@ -8,7 +9,7 @@ import {
   validateImageUpload, imagesForTask, generateImageId, IMAGE_ID_RE, validateSubmitMeta, validateDeleteIds, validateFileUpload, filesForTask, cleanFileName, FILE_ID_RE, FILE_MIME,
   withMapChecks, teacherAnswer, publicAnswer, videosOut,
   validatePrivacyInput, privacyOut, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
-  validateChecklist, checklistOut, escapeOut, REPLACE_WINDOW_MS, validateFinalMeta,
+  validateChecklist, checklistOut, escapeOut, REPLACE_WINDOW_MS, validateFinalMeta, sealForTeacher, validateFinalWait, finalWaitOut,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -121,7 +122,8 @@ async function ensureSchema(db) {
   schemaReady = true;
 }
 // Nachträgliche Spalten: Erstversuche (submissions.stage, .attempt), finale KI-Rückmeldung (submissions.final_at: wann sie zu dieser
-// Abgabe geliefert wurde; NULL = noch nicht – danach ist die Abgabe abgeschlossen), Escape-Room-Blätter (sheets.escape_id,
+// Abgabe geliefert wurde; NULL = noch nicht – danach ist die Abgabe abgeschlossen; submissions.final_env: die Rückmeldung selbst,
+// verschlüsselt für die Lehrkraft wie eine Abgabe – NULL = keine), Escape-Room-Blätter (sheets.escape_id,
 // .escape_name; NULL = normales Blatt) und der Verbrauch je KI (ai_usage.tokens, .req_limits). ALTER TABLE ist nicht idempotent,
 // deshalb vorher nachsehen (alle drei Tabellen in einem Batch). Kommt ein paralleler Isolate zuvor, schlägt das ALTER fehl – dann genügt es, dass die Spalten
 // jetzt da sind.
@@ -129,6 +131,7 @@ const LATER_COLUMNS = [
   ["submissions", "stage", "ALTER TABLE submissions ADD COLUMN stage TEXT NOT NULL DEFAULT 'final'"],
   ["submissions", "attempt", "ALTER TABLE submissions ADD COLUMN attempt TEXT"],
   ["submissions", "final_at", "ALTER TABLE submissions ADD COLUMN final_at INTEGER"],
+  ["submissions", "final_env", "ALTER TABLE submissions ADD COLUMN final_env TEXT"],
   ["sheets", "escape_id", "ALTER TABLE sheets ADD COLUMN escape_id TEXT"],
   ["sheets", "escape_name", "ALTER TABLE sheets ADD COLUMN escape_name TEXT"],
   ["ai_usage", "tokens", "ALTER TABLE ai_usage ADD COLUMN tokens INTEGER NOT NULL DEFAULT 0"],
@@ -600,7 +603,8 @@ async function routePublicFile(c, codeRaw, idRaw) {
 }
 
 // Seitenweise (?after=<id>): je Seite höchstens LIMITS.submissionsPage Abgaben bzw. LIMITS.pageBytes – eine Flut von
-// Abgaben darf weder den Arbeitsspeicher des Workers sprengen noch die echten Abgaben unlesbar machen
+// Abgaben darf weder den Arbeitsspeicher des Workers sprengen noch die echten Abgaben unlesbar machen. finalEnv = die vom Server
+// gespeicherte finale KI-Rückmeldung (Umschlag als JSON-Text, verschlüsselt für die Lehrkraft wie die Abgabe) oder null
 async function routeSubmissionsList(c, codeRaw) {
   await requireTeacher(c);
   const code = codeParam(codeRaw);
@@ -608,7 +612,7 @@ async function routeSubmissionsList(c, codeRaw) {
   const after = Math.max(0, parseInt(new URL(c.request.url).searchParams.get("after") || "0", 10) || 0);
   const [sh, subs] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("SELECT id, received_at, envelope, stage FROM submissions WHERE sheet_code=?1 AND id>?2 ORDER BY id LIMIT ?3")
+    c.db.prepare("SELECT id, received_at, envelope, stage, final_env FROM submissions WHERE sheet_code=?1 AND id>?2 ORDER BY id LIMIT ?3")
       .bind(code, after, LIMITS.submissionsPage + 1),
   ]);
   if (!firstRow(sh)) throw sheetGone();
@@ -616,9 +620,10 @@ async function routeSubmissionsList(c, codeRaw) {
   // Umschläge liegen als von uns normalisiertes JSON vor → ohne erneutes Parsen einsetzen (spart CPU-Zeit)
   const items = []; let bytes = 0, next = null;
   for (const r of rows) {
-    if (items.length >= LIMITS.submissionsPage || (items.length && bytes + r.envelope.length > LIMITS.pageBytes)) { next = items.length ? Number(rows[items.length - 1].id) : after; break; }
-    items.push('{"id":' + Number(r.id) + ',"receivedAt":' + Number(r.received_at) + ',"stage":"' + (r.stage === "first" ? "first" : "final") + '","envelope":' + r.envelope + "}");
-    bytes += r.envelope.length;
+    const fin = typeof r.final_env === "string" && r.final_env ? JSON.stringify(r.final_env) : "null", size = r.envelope.length + fin.length;
+    if (items.length >= LIMITS.submissionsPage || (items.length && bytes + size > LIMITS.pageBytes)) { next = items.length ? Number(rows[items.length - 1].id) : after; break; }
+    items.push('{"id":' + Number(r.id) + ',"receivedAt":' + Number(r.received_at) + ',"stage":"' + (r.stage === "first" ? "first" : "final") + '","envelope":' + r.envelope + ',"finalEnv":' + fin + "}");
+    bytes += size;
   }
   return respond('{"ok":true,"submissions":[' + items.join(",") + '],"next":' + (next == null ? "null" : next) + "}");
 }
@@ -692,11 +697,22 @@ function cfStatusView(c, q, u, ai) {
     consumption: { main: entryUsage(c, ai, rows), reserve: entryUsage(c, ai && ai.reserve, rows),
       cloudflare: entryUsage(c, { provider: "cloudflare", key: "cloudflare" }, rows) } };
 }
+// KI-Einstellungen und Wartezeit auf die finale KI-Rückmeldung (settings `final`) in einer Abfrage
+const aiFinalStmt = (db) => db.prepare("SELECT key, value FROM settings WHERE key IN ('ai','final')");
+const rowsByKey = (res) => Object.fromEntries(((res && res.results) || []).map((r) => [r.key, r]));
 async function routeAiGet(c) {
   await requireTeacher(c);
-  const [st, q, u] = await c.db.batch([settingStmt(c.db, "ai"), ...cfStatusStmts(c)]);
-  const ai = await aiConfig(c.env, firstRow(st));
-  return json({ ok: true, ...aiPublicView(ai), ...cfStatusView(c, q, u, ai) });
+  const [st, q, u] = await c.db.batch([aiFinalStmt(c.db), ...cfStatusStmts(c)]);
+  const rows = rowsByKey(st), ai = await aiConfig(c.env, rows.ai || null);
+  return json({ ok: true, ...aiPublicView(ai), ...cfStatusView(c, q, u, ai), finalWaitSec: finalWaitOut(parseSetting(rows.final)) });
+}
+// PUT /api/teacher/final-wait {waitSec: 30|60|90}: so lange wartet die Bestätigungsseite höchstens auf die finale KI-Rückmeldung, bevor
+// der Download frei wird (danach mit der Checkliste; im Hintergrund wartet die Seite weiter)
+async function routeFinalWaitPut(c) {
+  await requireTeacher(c);
+  const waitSec = validateFinalWait(await readJson(c.request));
+  await c.db.prepare("INSERT INTO settings(key,value) VALUES('final',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({ v: 1, waitSec })).run();
+  return json({ ok: true, finalWaitSec: waitSec });
 }
 
 // Einen Anbieter-Eintrag (erster Anbieter oder Reserve) aus der Eingabe prüfen, Modell-Rangliste holen und den
@@ -771,16 +787,17 @@ async function routeAiPut(c) {
   if (reserve && main.provider === reserve.provider && PROVIDERS[main.provider] && PROVIDERS[main.provider].accountDaily)
     throw new InputError(MSG.aiSameAccount);
   const value = JSON.stringify(reserve ? { ...main, reserve } : main);
-  const [, , , ...rest] = await c.db.batch([
+  const [, , , fw, ...rest] = await c.db.batch([
     c.db.prepare("INSERT INTO settings(key,value) VALUES('ai',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(value),
     // neuer Schlüssel/Modell: Sperren aufheben – außer „Tageskontingent aufgebraucht“ (gilt für das Konto, nicht die Einstellung)
     c.db.prepare("DELETE FROM ai_skip WHERE provider IN (SELECT value FROM json_each(?1)) AND model<>'*'").bind(JSON.stringify([...new Set(clear)])),
     // gemeldete Grenzen gehören zum bisherigen Schlüssel bzw. Konto: bis zur nächsten Antwort keine (die eigene Zählung bleibt)
     c.db.prepare("UPDATE ai_usage SET req_limits=NULL WHERE provider IN (SELECT value FROM json_each(?1)) AND req_limits IS NOT NULL").bind(JSON.stringify([...new Set(clear)])),
+    settingStmt(c.db, "final"),   // die Seite zeigt nach dem Speichern alles neu – auch die Wartezeit
     ...cfStatusStmts(c),
   ]);
   const saved = await aiConfig(c.env, { value });
-  Object.assign(out, aiPublicView(saved), cfStatusView(c, rest[0], rest[1], saved));
+  Object.assign(out, aiPublicView(saved), cfStatusView(c, rest[0], rest[1], saved), { finalWaitSec: finalWaitOut(parseSetting(firstRow(fw))) });
   return json(out);
 }
 
@@ -884,7 +901,7 @@ async function routePublicSheet(c, codeRaw) {
   if (!isValidCode(code)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
   const [sh, st, im, fi] = await c.db.batch([
     c.db.prepare("SELECT code, title, tasks, escape_id, escape_name FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("SELECT key, value FROM settings WHERE key IN ('teacher','ai','privacy')"),   // eine Abfrage für alle drei
+    c.db.prepare("SELECT key, value FROM settings WHERE key IN ('teacher','ai','privacy','final')"),   // eine Abfrage für alle vier
     imagesStmt(c.db, code),
     filesStmt(c.db, code),
   ]);
@@ -914,7 +931,9 @@ async function routePublicSheet(c, codeRaw) {
   return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}),
     privacy: pv ? { retentionDays: pv.retentionDays } : null,
     // Finale eines Escape-Rooms: nur Kennung und Name des Raums (die Seite sperrt dann die Code-Eingabe), sonst null
-    escape: escapeOut(s.escape_id, s.escape_name) } });
+    escape: escapeOut(s.escape_id, s.escape_name),
+    // so lange (Sekunden) wartet die Bestätigungsseite höchstens auf die finale KI-Rückmeldung (Einstellung der Lehrkraft)
+    finalWaitSec: finalWaitOut(parseSetting(rows.final)) } });
 }
 
 const AI_SOURCE_TYPE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
@@ -944,9 +963,8 @@ const quotaErr = () => new AIError("DAILY_LIMIT", "Tageskontingent aufgebraucht.
 // „Tageskontingent aufgebraucht“ gehen per waitUntil in D1. Zeitbudget: insgesamt 100 s (der Browser wartet bis 150 s); mit Reserve
 // bekommt der erste Anbieter 45 s, die Reserve den Rest – aber nur, wenn noch ≥ 35 s bleiben (sonst ein nutzloser Abbruch). Langes
 // Warten erledigt der Browser (Wiederholung). Wurde der erste Anbieter gar nicht gefragt (nur wegen "*" übersprungen), bekommt die
-// Reserve das volle Budget. done() liefert Anweisungen, die nur nach einer brauchbaren Antwort mit in diesen Batch gehen (finale
-// Rückmeldung: die Abgabe als abgeschlossen markieren).
-async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, accept, outTokens, done = null }) {
+// Reserve das volle Budget.
+async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, accept, outTokens }) {
   const t0 = Date.now(), BUDGET = 100000, startAt = Math.floor(Math.random() * 64);
   let out = null, err = null, called = false;
   const usage = [];   // Verbrauch je Eintrag und Aufruf (auch gescheiterter), Workers AI mit geschätzten Neurons
@@ -972,37 +990,58 @@ async function askAI(c, entries, skipOf, messages, { temperature, geminiSchema, 
       if (!err || !(x.code === "NO_KEY" || x.code === "CONFIG" || x.code === "NO_MODEL")) err = x;
     }
   }
-  if (out && done) usage.push(...done());
   if (usage.length) c.waitUntil(c.db.batch(usage).catch(() => {}));
   return { out, err };
 }
 
 // Finale KI-Rückmeldung nach der Abgabe (final:true): nur zur eigenen, gerade angekommenen Abgabe – dieselbe Kennung und derselbe
 // Eingang (eine inzwischen neuere Abgabe derselben Bearbeitung oder ein Erstversuch zählt nicht), nur in den ersten 15 Minuten
-// (REPLACE_WINDOW_MS, so lange lässt sie sich auch an die Lehrkraft nachreichen) und nur einmal (final_at). Geprüft, bevor gezählt
-// wird oder etwas zu einer KI geht.
+// (REPLACE_WINDOW_MS) und nur einmal (final_at). Geprüft, bevor gezählt wird oder etwas zu einer KI geht.
 const finalStmt = (db, code, attempt) =>
-  db.prepare("SELECT stage, received_at, final_at FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt);
+  db.prepare("SELECT id, stage, received_at, final_at FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt);
 function checkFinal(c, row, fin) {
   if (!row || row.stage !== "final" || Number(row.received_at) !== fin.receivedAt) throw new HttpError(409, "final_gone", MSG.finalGone);
   if (fin.receivedAt <= c.now - REPLACE_WINDOW_MS) throw new HttpError(409, "final_expired", MSG.finalExpired);
   if (row.final_at != null) throw new HttpError(409, "final_done", MSG.finalDone);
 }
-// Nach einer brauchbaren finalen Antwort: die Abgabe ist abgeschlossen (eine neue Abgabe derselben Bearbeitung ersetzt sie nicht
-// mehr, eine zweite finale Rückmeldung gibt es nicht); das Nachreichen an die Lehrkraft (stage „feedback2“) bleibt möglich
-const finalDoneStmt = (db, code, fin) => db.prepare(
-  "UPDATE submissions SET final_at=?1 WHERE sheet_code=?2 AND attempt=?3 AND received_at=?4 AND stage='final' AND final_at IS NULL")
-  .bind(Date.now(), code, fin.attempt, fin.receivedAt);
+// Nach einer brauchbaren finalen Antwort speichert der Server sie selbst – verschlüsselt für die Lehrkraft wie eine Abgabe (der Browser
+// ersetzt nie mehr eine Abgabe nachträglich: ein manipulierter Browser könnte sonst Antworten unterschieben, die die finale Rückmeldung
+// verraten hat, oder die Rückmeldung fälschen) – und schließt die Abgabe ab (final_at: eine neue Abgabe derselben Bearbeitung ersetzt sie
+// nicht mehr, eine zweite finale Rückmeldung gibt es nicht). Eine Anweisung, atomar, auf genau die Zeile, die checkFinal geprüft hat (id),
+// und nur, wenn sie noch keine hat (zwei gleichzeitige Anfragen: die erste gewinnt). Abgeschlossen wird die Zeile in jedem Fall – auch
+// wenn sie während der KI-Anfrage durch eine neue Abgabe derselben Bearbeitung (zweiter Tab) ersetzt wurde: Sonst ließe sie sich mit dem
+// Wissen aus dieser Rückmeldung verbessert neu abgeben. Die Rückmeldung selbst liegt nur bei der Abgabe, zu der sie gehört (derselbe
+// Eingang), sonst final_env NULL. Ist der Schlüssel der Lehrkraft unbrauchbar, ebenso. Der Datensatz trägt den Prüfwert ah = SHA-256 der
+// beurteilten Antworten (wie validateAnswers sie bereinigt hat): Die Ansicht der Lehrkraft zeigt die Rückmeldung nur, wenn er zu den
+// abgegebenen Antworten passt – ein manipulierter Browser kann so keine Rückmeldung zu anderen Antworten unterschieben.
+// → stored: true nur, wenn die Rückmeldung jetzt verschlüsselt bei der Abgabe liegt. Nie loggen (Kennung, Eingang, Inhalte).
+const finalStoreStmt = (db, id, fin, at, env) => db.prepare(
+  "UPDATE submissions SET final_at=?1, final_env=CASE WHEN received_at=?2 THEN ?3 END WHERE id=?4 AND stage='final' AND final_at IS NULL " +
+  "RETURNING final_env IS NOT NULL AS has_env").bind(at, fin.receivedAt, env, id);
+async function storeFinal(c, row, fin, teacher, results, answers) {
+  const at = Date.now();
+  let env = null;
+  try {
+    const ah = await sha256Hex(JSON.stringify(answers));
+    env = await sealForTeacher(teacher && teacher.publicKey, { kind: "feibeitsblatt-final", v: 1, at: new Date(at).toISOString(), ah, results });
+  } catch { env = null; }
+  try {
+    const r = await finalStoreStmt(c.db, row.id, fin, at, env).all();
+    const hit = r && Array.isArray(r.results) ? r.results[0] : null;
+    return !!env && !!hit && !!hit.has_env;
+  } catch { return false; }   // die Rückmeldung bekommen die Schüler:innen trotzdem (stored:false)
+}
 
 async function routeFeedback(c) {
   const body = await readJson(c.request);
   const code = normalizeCode(body.code);
   if (!isValidCode(code)) throw sheetNotFound();
   const fin = validateFinalMeta(body);   // final:true → finale Rückmeldung nach der Abgabe (alle Aufgaben, eigener System-Prompt)
-  const [sh, st, sub] = await c.db.batch([
+  const [sh, st, sub, tch] = await c.db.batch([
     c.db.prepare("SELECT tasks FROM sheets WHERE code=?1").bind(code),
     settingStmt(c.db, "ai"),
-    ...(fin.final ? [finalStmt(c.db, code, fin.attempt)] : []),   // nur bei der finalen Rückmeldung: die eigene Abgabe
+    // nur bei der finalen Rückmeldung: die eigene Abgabe und der öffentliche Schlüssel der Lehrkraft (der Server verschlüsselt sie)
+    ...(fin.final ? [finalStmt(c.db, code, fin.attempt), settingStmt(c.db, "teacher")] : []),
   ]);
   const s = firstRow(sh);
   if (!s) throw sheetNotFound();
@@ -1011,7 +1050,9 @@ async function routeFeedback(c) {
   // Zweite Rückmeldung nach der Abgabe: nur die nach dem ersten Feedback geänderten Aufgaben (spart Token und Kontingent)
   const only = validateOnly(body.only, tasks.length);
   if (fin.final) checkFinal(c, firstRow(sub), fin);
-  const marked = fin.final ? { final: true } : {};
+  // stored: im Final-Modus, ob die Rückmeldung jetzt verschlüsselt bei der Abgabe liegt (sonst sagt die Bestätigungsseite, dass sie die
+  // Lehrkraft nicht erreicht hat)
+  const marked = fin.final ? { final: true, stored: false } : {};
   const { messages, nrs } = buildFeedbackMessages(tasks, answers, only, { final: fin.final });
   if (!nrs.length) return json({ ok: true, results: feedbackResults(tasks, new Map(), only), aiGenerated: false, ...marked });   // kein Auftrag an die KI: keine KI nötig
   const ai = await aiConfig(c.env, firstRow(st));
@@ -1036,7 +1077,7 @@ async function routeFeedback(c) {
   // Die finale Rückmeldung nennt auch, was gefehlt hat – etwas mehr Ausgabe je Aufgabe
   const { out, err } = await askAI(c, entries, skipOf, messages, {
     temperature: 0.1, geminiSchema: fin.final ? FEEDBACK_FINAL_SCHEMA_GEMINI : FEEDBACK_SCHEMA_GEMINI, accept: feedbackAcceptor(nrs, { final: fin.final }),
-    outTokens: Math.min(8192, 800 + (fin.final ? 400 : 300) * nrs.length), done: fin.final ? () => [finalDoneStmt(c.db, code, fin)] : null });
+    outTokens: Math.min(8192, 800 + (fin.final ? 400 : 300) * nrs.length) });
   if (!out) {
     if (AI_REFUND.has(err.code)) refund();
     if (err.code === "NO_KEY" || err.code === "CONFIG" || err.code === "NO_MODEL") throw new HttpError(503, "ai_not_configured", MSG.aiNotConfigured);
@@ -1045,13 +1086,16 @@ async function routeFeedback(c) {
     if (err.code === "DAILY_LIMIT" && err.accountWide) throw new HttpError(503, "ai_quota", PUBLIC_MSG.DAILY_LIMIT, { aiCode: err.code });
     throw new HttpError(502, "ai_error", PUBLIC_MSG[err.code] || PUBLIC_MSG._, { aiCode: err.code });
   }
+  const results = feedbackResults(tasks, normalizeFeedback(out.json, nrs, { final: fin.final }), only);
+  if (fin.final) marked.stored = await storeFinal(c, firstRow(sub), fin, parseSetting(firstRow(tch)), results, answers);
   // Maschinenlesbar gekennzeichnet (Art. 50 Abs. 2 KI-VO): die Stichpunkte hat eine KI erzeugt (IPTC Digital Source Type)
-  return json({ ok: true, results: feedbackResults(tasks, normalizeFeedback(out.json, nrs, { final: fin.final }), only), aiGenerated: true, digitalSourceType: AI_SOURCE_TYPE, ...marked });
+  return json({ ok: true, results, aiGenerated: true, digitalSourceType: AI_SOURCE_TYPE, ...marked });
 }
 
 // Abgabe (stage "final") oder Erstversuch (stage "first", nach dem KI-Feedback). Mit derselben attempt-Kennung ersetzt die
 // Abgabe den Erstversuch derselben Bearbeitung; ein Erstversuch überschreibt nie eine Abgabe, und nach der finalen KI-Rückmeldung
-// (final_at) ersetzt auch eine neue Abgabe sie nicht mehr. Der Server sieht nur den Umschlag.
+// (final_at) ersetzt auch eine neue Abgabe sie nicht mehr. Der Server sieht nur den Umschlag. stage „feedback2“ (ältere, noch gecachte
+// Seiten reichten damit die finale Rückmeldung nach) ersetzt nichts mehr – die Rückmeldung speichert der Server selbst (final_env).
 async function routeSubmit(c) {
   const body = await readJson(c.request);
   const code = normalizeCode(body.code);
@@ -1060,32 +1104,28 @@ async function routeSubmit(c) {
   const { stage, attempt, replace, receivedAt } = validateSubmitMeta(body);
   const [sh, cnt, ex, pv] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
-    attempt ? c.db.prepare("SELECT id, stage, received_at, final_at FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
+    // Umfang je Blatt samt der gespeicherten finalen Rückmeldungen
+    c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)+COALESCE(length(final_env),0)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
+    attempt ? c.db.prepare("SELECT id, stage, received_at, final_at, final_env IS NOT NULL AS has_final FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
       : c.db.prepare("SELECT 1 AS x WHERE 0"),
     settingStmt(c.db, "privacy"),   // Löschfrist jetzt (nicht beim Öffnen des Blattes): die Bestätigungsseite nennt das Löschdatum
   ]);
   if (!firstRow(sh)) throw sheetNotFound();
-  // Nachgereichte zweite KI-Rückmeldung (stage „feedback2“): nur genau die eigene Abgabe ersetzen – dieselbe Kennung, derselbe
-  // Eingang (eine inzwischen neuere Abgabe derselben Bearbeitung bleibt) und nur kurz danach (der Eingang bleibt stehen, also darf
-  // so keine Abgabe Stunden später ausgetauscht werden). Gelöscht, ersetzt oder zu spät → nichts angelegt, nichts gezählt
+  // „feedback2“ einer älteren, noch gecachten Seite: nie ersetzen, nie anlegen, nicht zählen. kept = zu genau dieser Abgabe (Kennung,
+  // Eingang) liegt die finale Rückmeldung schon beim Server (die ältere Seite sagt dann nichts weiter), sonst gone
   const old = attempt ? firstRow(ex) : null;
-  if (replace && (!old || old.stage !== "final" || Number(old.received_at) !== receivedAt || receivedAt <= c.now - REPLACE_WINDOW_MS))
-    return json({ ok: true, gone: true });
+  if (replace) return json(old && old.stage === "final" && Number(old.received_at) === receivedAt && Number(old.has_final) ? { ok: true, kept: true } : { ok: true, gone: true });
   // Zu dieser Abgabe gibt es schon die finale KI-Rückmeldung (sie nennt, was gefehlt hat): abgeschlossen – eine neue Abgabe derselben
-  // Bearbeitung ersetzt sie nicht mehr (nichts gezählt). Das Nachreichen („feedback2“ oben) und ein verspäteter Erstversuch (kept) bleiben.
-  if (!replace && stage === "final" && old && old.stage === "final" && old.final_at != null) throw new HttpError(409, "final_locked", MSG.finalLocked);
+  // Bearbeitung ersetzt sie nicht mehr (nichts gezählt). Ein verspäteter Erstversuch bleibt wirkungslos (kept).
+  if (stage === "final" && old && old.stage === "final" && old.final_at != null) throw new HttpError(409, "final_locked", MSG.finalLocked);
   await countAll(c, [{ kind: "submit" }, { kind: "submit_bytes", weight: envelope.length }]);   // nur gültige Abgaben zählen
   const retentionDays = (privacyOut(parseSetting(firstRow(pv))) || {}).retentionDays || null;   // null = keine automatische Löschung
   const prev = old;
-  if (replace) {   // Eingang (received_at) bleibt der Zeitpunkt der Abgabe – auch für die Löschfrist; dieselben Bedingungen atomar
-    const u = await c.db.prepare("UPDATE submissions SET envelope=?1 WHERE id=?2 AND stage='final' AND received_at=?3").bind(envelope, prev.id, receivedAt).run();
-    if (!u.meta || !u.meta.changes) return json({ ok: true, gone: true });
-    return json({ ok: true, id: Number(prev.id), replaced: "final", retentionDays });
-  }
   if (prev) {
     if (prev.stage === "final" && stage === "first") return json({ ok: true, id: Number(prev.id), receivedAt: c.now, kept: true, retentionDays });   // Abgabe bleibt
-    await c.db.prepare("UPDATE submissions SET envelope=?1, received_at=?2, stage=?3 WHERE id=?4").bind(envelope, c.now, stage, prev.id).run();
+    // atomar nur, solange sie nicht abgeschlossen ist: kam die finale Rückmeldung gerade dazwischen, gehört sie zu diesem Umschlag
+    const u = await c.db.prepare("UPDATE submissions SET envelope=?1, received_at=?2, stage=?3 WHERE id=?4 AND final_at IS NULL").bind(envelope, c.now, stage, prev.id).run();
+    if (!u.meta || !u.meta.changes) throw new HttpError(409, "final_locked", MSG.finalLocked);
     return json({ ok: true, id: Number(prev.id), receivedAt: c.now, replaced: prev.stage, retentionDays });
   }
   const use = firstRow(cnt) || {};
@@ -1213,6 +1253,7 @@ const ROUTES = [
   [/^\/api\/teacher\/sheets\/([^/]+)\/checklist$/, { GET: routeChecklistGet, POST: routeChecklistPost, PUT: routeChecklistPut }],
   ["/api/teacher/ai", { GET: routeAiGet, PUT: routeAiPut }],
   ["/api/teacher/ai/test", { POST: routeAiTest }],
+  ["/api/teacher/final-wait", { PUT: routeFinalWaitPut }],
   ["/api/teacher/privacy", { GET: routePrivacyGet, PUT: routePrivacyPut }],
 ];
 function match(path) {

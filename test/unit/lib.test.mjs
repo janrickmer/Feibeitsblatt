@@ -8,7 +8,8 @@ import {
   bucketOf, ipKey, rateMessage, RATE, sealSecret, openSecret, InputError, LIMITS,
   validateAnswerSpec, withMapChecks, publicAnswer, teacherAnswer, mapCheck,
   validatePrivacyInput, privacyOut, cleanLine, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
-  validateEscapeSpec, escapeOut, ESCAPE_ID_RE, validateFinalMeta, REPLACE_WINDOW_MS,
+  validateEscapeSpec, escapeOut, ESCAPE_ID_RE, validateFinalMeta, REPLACE_WINDOW_MS, validateSubmitMeta,
+  sealForTeacher, FINAL_WAIT_OPTIONS, FINAL_WAIT_DEFAULT, validateFinalWait, finalWaitOut,
 } from "../../worker/lib.js";
 import { DatabaseSync } from "node:sqlite";
 import { PROVIDERS } from "../../worker/ai.js";
@@ -136,7 +137,44 @@ test("validateFinalMeta: final fehlt/null/false = Feedback vor der Abgabe; final
     { attempt: "0123456789abcdef", receivedAt: 1.5 }, { attempt: "0123456789abcdef", receivedAt: "1730000000000" }, { attempt: "0123456789abcdef", receivedAt: 2 ** 53 }])
     assert.equal(msg({ final: true, ...extra }), "Die finale KI-Rückmeldung gibt es nur zur eigenen Abgabe.", JSON.stringify(extra));
   for (const only of [[1], [], "1"]) assert.equal(msg({ final: true, attempt: "0123456789abcdef", receivedAt: 1, only }), "Die finale KI-Rückmeldung gilt immer für alle Aufgaben.");
-  assert.equal(REPLACE_WINDOW_MS, 15 * 60e3);   // so lange gibt es die finale Rückmeldung (und das Nachreichen an die Lehrkraft)
+  assert.equal(REPLACE_WINDOW_MS, 15 * 60e3);   // so lange gibt es die finale Rückmeldung
+});
+test("validateSubmitMeta: „feedback2“ (ältere Seiten) wird weiter geprüft – nur mit Kennung und Eingang", () => {
+  assert.deepEqual(validateSubmitMeta({}), { stage: "final", attempt: null, replace: false, receivedAt: null });
+  assert.deepEqual(validateSubmitMeta({ stage: "feedback2", attempt: "0123456789ABCDEF", receivedAt: 5 }), { stage: "final", attempt: "0123456789abcdef", replace: true, receivedAt: 5 });
+  for (const body of [{ stage: "feedback2" }, { stage: "feedback2", attempt: "0123456789abcdef" }, { stage: "feedback2", attempt: "0123456789abcdef", receivedAt: "5" }])
+    rejectsWith(() => validateSubmitMeta(body), "bad_request");
+});
+test("sealForTeacher: Umschlag wie Crypto.seal im Browser (AES-GCM-256 + RSA-OAEP/SHA-256, Standard-Base64), nur mit dem Privatschlüssel lesbar; unbrauchbarer Schlüssel oder zu groß → wirft", async () => {
+  const pair = await crypto.subtle.generateKey({ name: "RSA-OAEP", modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["encrypt", "decrypt"]);
+  const pub = bytesToB64(new Uint8Array(await crypto.subtle.exportKey("spki", pair.publicKey)));
+  const rec = { kind: "feibeitsblatt-final", v: 1, at: "2026-11-08T10:00:00.000Z", results: [{ covered: ["Größe – „gut“"], missing: ["Wärme"] }, null, { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }] };
+  const text = await sealForTeacher(pub, rec);
+  assert.equal(typeof text, "string");
+  const env = JSON.parse(text);
+  assert.deepEqual(Object.keys(env), ["v", "ek", "iv", "ct"]); assert.equal(env.v, 1);
+  assert.equal(validateEnvelope(env), text, "dieselbe Form wie eine Abgabe");
+  assert.equal(b64Bytes(env.ek), 384); assert.equal(b64Bytes(env.iv), 12);
+  assert.equal(text.includes("Wärme"), false);
+  // öffnen wie Crypto.open im Browser
+  const raw = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, pair.privateKey, b64ToBytes(env.ek));
+  assert.equal(raw.byteLength, 32);
+  const k = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64ToBytes(env.iv) }, k, b64ToBytes(env.ct));
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(pt)), rec);
+  assert.notEqual(JSON.parse(await sealForTeacher(pub, rec)).iv, env.iv, "jedes Mal neu");
+  for (const bad of [undefined, null, "", "QUJD", 42]) await assert.rejects(sealForTeacher(bad, rec), InputError);
+  await assert.rejects(sealForTeacher(pub, { results: ["x".repeat(LIMITS.envelopeBytes)] }), (e) => e instanceof InputError && e.code === "too_large");
+});
+test("Wartezeit auf die finale KI-Rückmeldung: nur 30, 60 oder 90 Sekunden (Vorgabe 30); gespeicherte Werte erneut geprüft", () => {
+  assert.deepEqual(FINAL_WAIT_OPTIONS, [30, 60, 90]); assert.equal(FINAL_WAIT_DEFAULT, 30);
+  for (const w of [30, 60, 90]) assert.equal(validateFinalWait({ waitSec: w }), w);
+  for (const body of [{ waitSec: 45 }, { waitSec: "60" }, { waitSec: 60.5 }, { waitSec: 0 }, { waitSec: -30 }, { waitSec: null }, {}, null, [60], "60"]) {
+    assert.throws(() => validateFinalWait(body), (e) => e instanceof InputError && e.code === "bad_request" && e.status === 400 &&
+      e.message === "Bitte wählen Sie eine Wartezeit von 30, 60 oder 90 Sekunden.", JSON.stringify(body));
+  }
+  assert.equal(finalWaitOut({ v: 1, waitSec: 90 }), 90); assert.equal(finalWaitOut('{"v":1,"waitSec":60}'), 60);
+  for (const raw of [null, undefined, {}, { waitSec: 45 }, { waitSec: "90" }, "kein JSON", "[90]", 90]) assert.equal(finalWaitOut(raw), 30, JSON.stringify(raw));
 });
 test("validateAnswers: count, per-answer and total limits", () => {
   assert.deepEqual(validateAnswers(["a", null, "c\r\nd"], 3), ["a", "", "c\nd"]);
@@ -181,7 +219,7 @@ test("rate-limit buckets never contain the IP; messages in German", async () => 
   assert.notEqual(await bucketOf("door", "203.0.113.7", "pfeffer"), b);
   assert.notEqual(await bucketOf("auth", "203.0.113.7"), b.replace("door", "auth"));
   assert.deepEqual(Object.fromEntries(Object.entries(RATE).map(([k, v]) => [k, [v.max, v.windowMs / 60000]])),
-    { door: [10, 15], auth: [10, 15], auth_all: [200, 60], lookup_miss: [30, 10], feedback: [240, 60], feedback_chars: [800000, 60],
+    { door: [10, 15], auth: [10, 15], auth_all: [200, 60], lookup_miss: [30, 10], feedback: [480, 60], feedback_chars: [1600000, 60],
       sheet_feedback: [600, 1440], submit: [360, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [60, 60] });
   assert.match(rateMessage("auth", 61), /^Zu viele falsche Passwörter\. Mit dem richtigen Passwort .* in etwa 2 Minuten möglich\.$/);
   assert.equal(rateMessage("door", 30), "Zu viele Fehlversuche. Ein neuer Versuch ist in etwa 1 Minute möglich.");

@@ -108,12 +108,12 @@ const QUOTA_REASON = "KI-Kontingent für heute aufgebraucht";
 const FB_VOLUNTARY = "Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.";
 const FIN_TEXT = "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
 const SUBMIT_HINT_NO_FB = "Du kannst auch ohne KI-Feedback abgeben. Nach der Abgabe bekommst du eine finale KI-Rückmeldung (beim Abgeben abwählbar). Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
-// Bestätigungsseite: Warten auf die finale KI-Rückmeldung (Download höchstens 30 s gesperrt)
+// Bestätigungsseite: Warten auf die finale KI-Rückmeldung (Download höchstens so lange gesperrt, wie die Lehrkraft eingestellt hat – Vorgabe 30 s)
 const DONE_WAIT_TEXT = "Deine finale KI-Rückmeldung wird gerade erstellt – bitte gedulde dich kurz.";
 const doneWaitLate = (ck) => "Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei " +
   (ck ? "statt der KI-Rückmeldung die Checkliste deiner Lehrkraft" : "keine KI-Rückmeldung") + ". Wenn du noch wartest, kommt die Rückmeldung vielleicht noch.";
 // Abgabe-Dialog: Satz über dem vorausgewählten Kästchen (nach ihm die Empfänger und „Möchtest du das nicht, …“)
-const FINAL_DLG = "Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI beurteilt, was dir gelungen ist und was gefehlt hat, und geht verschlüsselt auch an deine Lehrkraft. ";
+const FINAL_DLG = "Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI beurteilt, was dir gelungen ist und was gefehlt hat; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen. ";
 const FINAL_DLG_END = " Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.";
 // Abgabe-Dialog ohne KI-Feedback, wenn das KI-Feedback nicht möglich war (Grund) bzw. noch nie versucht wurde
 // (offer: die finale KI-Rückmeldung wird angeboten – dann folgt der Satz dazu mit den Empfängern rs, sonst geht nichts an die KI)
@@ -220,20 +220,18 @@ const TT_SCOPE_G = "Der Haken gilt für eure Bearbeitung auf diesem Gerät und f
   (TT_KEEP ? "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – löscht sie und sichert den Zwischenstand bei Bedarf neu. " : "") +
   "Einen Erstversuch, den ihr auf einem anderen Gerät gesendet habt, kann diese Seite nicht ersetzen – wendet euch dafür an eure Lehrkraft (sie kann ihn löschen). " +
   "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit eurer ganzen Abgabe löschen – wendet euch für einen Widerspruch dann an eure Lehrkraft oder an den Betreiber.";
-// „Welche Daten?“: Zugriff auf das Gerät im Sinne von § 25 TDDDG – nur die Tatsache (Zwischenstand nur mit TT_KEEP_IN_DRAFT); bei Blättern
-// mit KI-Feedback (alle Prüfungen hier) hält die Seite sie nach der Abgabe, bis die zweite Rückmeldung nachgereicht ist (TT_HELD)
-const TT_HELD = " (und, wenn die KI-Rückmeldung zu deiner abgegebenen Fassung noch nachgereicht wird, bis dahin)";
-const TT_HELD_G = " (und, wenn die KI-Rückmeldung zu eurer abgegebenen Fassung noch nachgereicht wird, bis dahin)";
+// „Welche Daten?“: Zugriff auf das Gerät im Sinne von § 25 TDDDG – nur die Tatsache (Zwischenstand nur mit TT_KEEP_IN_DRAFT); nach der
+// Abgabe hält die Seite keine Tippzeiten mehr (die finale KI-Rückmeldung speichert der Server selbst – nichts wird nachgereicht)
 const TT_ACCESS = "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus" +
-  (TT_KEEP ? ", hält sie bis zur Abgabe" + TT_HELD + " im Arbeitsspeicher und speichert die Tippzeiten bis zur Abgabe auch in deinem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe" + TT_HELD + " im Arbeitsspeicher") +
+  (TT_KEEP ? ", hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis zur Abgabe auch in deinem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
   " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.";
 const TT_ACCESS_G = "Für die Tippzeiten liest diese Seite beim Schreiben in eurem Browser die Zeitpunkte eurer Eingaben aus" +
-  (TT_KEEP ? ", hält sie bis zur Abgabe" + TT_HELD_G + " im Arbeitsspeicher und speichert die Tippzeiten bis zur Abgabe auch in eurem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe" + TT_HELD_G + " im Arbeitsspeicher") +
+  (TT_KEEP ? ", hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis zur Abgabe auch in eurem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
   " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf euer Gerät im Sinne von § 25 TDDDG.";
 // „Wie lange …?“: Tippzeiten im Zwischenstand und in einer Zwischenstand-PDF (die bleibt, bis sie gelöscht wird) – nur mit TT_KEEP_IN_DRAFT
 const TT_STAY = "Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; " + (TT_KEEP
   ? "bis zur Abgabe stehen sie auch in deinem Zwischenstand – und in jeder Zwischenstand-PDF-Datei, die du sicherst, bis du sie löschst."
-  : "bis zur Abgabe" + TT_HELD + " hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.");
+  : "bis zur Abgabe hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.");
 // Rechtsgrundlagen: Tippzeiten eigene Grundlage (Buchst. f); Buchst. b und § 25 TDDDG nehmen sie ausdrücklich aus
 const ttWhere = (your, withAi) => [TT_KEEP && "in " + your + " Zwischenstand", withAi && "im Erstversuch", "in der Abgabe"].filter(Boolean).join(", ").replace(/, (?=[^,]*$)/, " und ");
 // Buchst. b nimmt die Tippzeiten aus – ohne TT_KEEP nur bei Erstversuch und Abgabe (im Zwischenstand stehen dann keine)
@@ -304,6 +302,40 @@ function pdfStructure(buf, info = 5) {
   }
   return { s, count, objAt: (n) => s.slice(offs[n], s.indexOf("endobj", offs[n])) };
 }
+
+/* Finale KI-Rückmeldung, wie sie der Server selbst speichert (submissions.final_env): verschlüsselt für die Lehrkraft wie eine Abgabe
+   ({v, ek, iv, ct} – RSA-OAEP mit ihrem öffentlichen Schlüssel); der Browser ersetzt die Abgabe nie nachträglich */
+async function teacherPriv(pw = PW) {
+  const teacher = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value);
+  return openPrivateKey((await deriveTeacherKeys(pw, teacher.kdf)).encKey, teacher.encPrivateKey);
+}
+// Prüfwert ah der finalen Rückmeldung: SHA-256 (hex) über JSON der beurteilten Antworten, bereinigt wie validateAnswers im Worker
+// (Zeilenenden \n, Steuerzeichen außer Tab und Zeilenumbruch weg, null → "") – so vergleicht ihn auch die Lehrkraft-Ansicht
+const finalAh = (finals) => createHash("sha256").update(JSON.stringify(finals.map((a) => String(a == null ? "" : a)
+  .replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ""))), "utf8").digest("hex");
+const FINAL_MISMATCH_NOTE = "Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten und wird deshalb nicht angezeigt.";
+// final_env entschlüsselt: genau {kind:"feibeitsblatt-final", v:1, at (ISO), ah, results} – nichts sonst (keine Antworten, Angaben,
+// Tippzeiten); envelope (Umschlag der Abgabe derselben Zeile, Text oder Objekt): ah passt genau zu ihren abgegebenen Antworten
+async function finalEnvOf(priv, finalEnv, envelope) {
+  expect(typeof finalEnv, "final_env gespeichert").toBe("string");
+  const env = JSON.parse(finalEnv);
+  expect(Object.keys(env).sort()).toEqual(["ct", "ek", "iv", "v"]);
+  const rec = await openEnvelope(priv, env);
+  expect(Object.keys(rec).sort()).toEqual(["ah", "at", "kind", "results", "v"]);
+  expect([rec.kind, rec.v]).toEqual(["feibeitsblatt-final", 1]);
+  expect(rec.at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+  expect(rec.ah).toMatch(/^[0-9a-f]{64}$/);
+  expect(Array.isArray(rec.results)).toBe(true);
+  if (envelope !== undefined) {
+    const p = await openEnvelope(priv, typeof envelope === "string" ? JSON.parse(envelope) : envelope);
+    expect(rec.ah, "Prüfwert ah = SHA-256 der abgegebenen (bereinigten) Antworten").toBe(finalAh(p.answers.map((a) => a.final)));
+  }
+  return rec;
+}
+// Zeile(n) einer Bearbeitung in D1 (Kennung attempt): Umschlag, gespeicherte finale Rückmeldung, Zeitpunkt
+const subRowsOf = (code, attempt) => d1Query(`SELECT id, stage, envelope, final_env, final_at FROM submissions WHERE sheet_code='${code}' AND attempt='${attempt}' ORDER BY id`);
+// stage „feedback2“ (Nachreichen älterer Seiten) sendet diese Seite nie
+const fb2Posts = async (x) => (await x.calls((e) => e.path === "/api/submit")).map((e) => JSON.parse(e.reqBody || "{}")).filter((b) => b.stage === "feedback2");
 
 const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [], pdf: null };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe, pdf: PDF-Datei zu Aufgabe 2)
 // PDF-Datei der Lehrkraft zu Aufgabe 2 (600 KB → zwei Teile beim Hochladen und Herunterladen)
@@ -501,6 +533,14 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   await expect(page.locator("#tv-ai")).toBeVisible();
   await expect(page.locator("#ai-save")).toBeEnabled();
   await expect(page.locator("#ai-prov")).toHaveValue("cloudflare");
+  // Wartezeit auf die finale KI-Rückmeldung (30, 60 oder 90 s; Neuinstallation: Vorgabe 30) – Speichern und Wirkung prüft 7r
+  await expect(page.locator("fieldset.fwset > legend")).toHaveText("Wartezeit auf die finale KI-Rückmeldung");
+  await expect(page.getByRole("group", { name: "Wartezeit auf die finale KI-Rückmeldung" })).toHaveAccessibleDescription(/^Nach der Abgabe warten die Schüler:innen höchstens so lange auf die finale KI-Rückmeldung, bevor sie ihre Lösungen herunterladen können\. /);
+  await expect(page.getByRole("radio", { name: "30 Sekunden (Vorgabe)" })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "60 Sekunden" })).not.toBeChecked();
+  await expect(page.getByRole("radio", { name: "90 Sekunden" })).not.toBeChecked();
+  await expect(page.locator("#fw-save")).toHaveText("Wartezeit speichern");
+  expect(JSON.parse((await t.calls((e) => e.path === "/api/teacher/ai" && e.method === "GET")).at(-1).body).finalWaitSec).toBe(30);
   await expect(page.locator("#ai-prov option:checked")).toHaveText("Cloudflare Workers AI – Empfehlung (ohne API-Schlüssel)");
   const cfInfo = page.locator('.provinfo[data-prov="cloudflare"]');
   await expect(cfInfo).toBeVisible();
@@ -1152,7 +1192,11 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await expect(full).toContainText("wird 30 Tage nach dem Eingang auf dem Server automatisch gelöscht");
   await expect(full).toContainText("bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)");
   // nie behaupten, der Server sehe die Antworten nur verschlüsselt: für das KI-Feedback verarbeitet er sie kurz unverschlüsselt
-  await expect(full).toContainText("Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht.");
+  // … und die finale KI-Rückmeldung speichert er selbst – nur verschlüsselt für die Lehrkraft, zur Abgabe (nie „speichert nichts davon“)
+  await expect(full).toContainText("Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht. " +
+    "Die finale KI-Rückmeldung verschlüsselt der Server für deine Lehrkraft und speichert sie nur verschlüsselt zu deiner Abgabe.");
+  await expect(full).toContainText("und die der Server danach verschlüsselt zu deiner Abgabe speichert – dort kann sie nur deine Lehrkraft lesen (beim Abgeben kannst du sie abwählen).");
+  await expect(full).not.toContainText("nachgereicht");
   await expect(full).toContainText("Grundlage einer Übermittlung außerhalb der EU: vom Betreiber dieser Seite beim Anbieter zu prüfen.");
   await expect(full).toContainText("Learneo ist nach dem EU-US Data Privacy Framework zertifiziert");
   await expect(full).toContainText("in Zählern, die Missbrauch und Überlastung verhindern (z. B. zu viele Abgaben aus einem Netz) – höchstens etwa einen Tag lang.");
@@ -1512,8 +1556,10 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await expect(privacy).toContainText("speichert selbst nichts davon");
   await expect(privacy).toContainText("Nach der Abgabe gehen deine Antworten außerdem für die finale KI-Rückmeldung an die KI – auch ohne vorheriges KI-Feedback, außer du wählst sie beim Abgeben ab.");
   await expect(privacy).toContainText("Beim Klick auf „KI um ein Feedback bitten“ und für die finale KI-Rückmeldung werden nur deine Antworten – ");
-  await expect(privacy).toContainText("Die finale KI-Rückmeldung nennt zu jeder Aufgabe, die die KI beurteilt, was gelungen ist und was gefehlt hat; sie geht danach verschlüsselt auch an deine Lehrkraft.");
-  await expect(privacy).toContainText("Die finale KI-Rückmeldung kommt – wenn sie in den ersten 15 Minuten nach der Abgabe da ist – verschlüsselt zu deiner Abgabe dazu.");
+  await expect(privacy).toContainText("Die finale KI-Rückmeldung nennt zu jeder Aufgabe, die die KI beurteilt, was gelungen ist und was gefehlt hat; auch deine Lehrkraft bekommt sie.");
+  // … sie speichert der Server selbst – verschlüsselt zur Abgabe, nur für die Lehrkraft lesbar (nichts wird nachgereicht)
+  await expect(privacy).toContainText("Die finale KI-Rückmeldung speichert der Server verschlüsselt zu deiner Abgabe; dort kann sie nur deine Lehrkraft lesen.");
+  await expect(privacy).not.toContainText("15 Minuten");
   await expect(privacy).toContainText("LanguageTool");
   await expect(privacy).toContainText("(Cloudflare, Inc., USA; Datenbank in der EU)");
   await expect(privacy).toContainText("Erstversuch und Abgabe werden " + DAYS + " Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen.");
@@ -1783,7 +1829,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   const submitText = await confirmDialog(page, "Jetzt abgeben?", true, { state: dlgCheck });
   // die finale KI-Rückmeldung ist vorausgewählt (abwählbar); der Dialog nennt die Empfänger im Entscheidungsmoment
   expect(dlgCheck).toEqual({ visible: true, checked: true, label: FINAL_CHECK_LABEL });
-  expect(submitText).toContain("Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\nDanach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI beurteilt, was dir gelungen ist und was gefehlt hat, und geht verschlüsselt auch an deine Lehrkraft. Deine Antworten gehen");
+  expect(submitText).toContain("Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\nDanach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI beurteilt, was dir gelungen ist und was gefehlt hat; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen. Deine Antworten gehen");
   expect(submitText).toContain("„" + aiProvider + RECIPIENT_SUFFIX + "“");
   expect(submitText).toMatch(/ Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab\.$/);
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
@@ -1897,7 +1943,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   const fb2Reqs = (await s.calls((r) => r.path === "/api/feedback")).slice(1);
   expect(fb2Reqs.map((r) => r.status)).toEqual([502, 200]);
   for (const r of fb2Reqs) expect(JSON.parse(r.reqBody)).toEqual({ code: S.code, answers: A.final, recipients: ["custom:" + aiProvider], final: true, attempt: fp.attempt, receivedAt: subRes.receivedAt });
-  expect(JSON.parse(fb2Reqs[1].body)).toMatchObject({ ok: true, final: true, aiGenerated: true });
+  expect(JSON.parse(fb2Reqs[1].body)).toMatchObject({ ok: true, final: true, aiGenerated: true, stored: true });   // der Server hat sie für die Lehrkraft gespeichert
   const ms2 = await mockState();
   expect(ms2.requests.map((r) => r.kind)).toEqual(["feedback", "final"]);   // der gescheiterte Versuch kam nicht bei der KI an
   const prompt2 = JSON.stringify(ms2.requests[1].messages);
@@ -1933,16 +1979,22 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(firstOnly.length).toBeGreaterThan(0);
   for (const m of firstOnly) expect(exp2[0].covered).toContain(m);
   for (const w of ["Kernpunkt", "ngesprochen", "fehlt:", "Weiterlernen"]) expect(sol2).not.toContain(w);
-  // Erstversuch (beim Feedback) + Abgabe + danach die finale Rückmeldung verschlüsselt an die Lehrkraft (ersetzt nur die Abgabe)
-  await expect.poll(async () => (await s.calls((r) => r.path === "/api/submit")).length).toBe(3);
+  // Erstversuch (beim Feedback) + Abgabe – mehr nicht: die finale Rückmeldung speichert der Server selbst (verschlüsselt für die Lehrkraft),
+  // der Browser reicht nichts nach und ersetzt die Abgabe nie
+  await page.waitForTimeout(500);
   const sub = await s.calls((r) => r.path === "/api/submit");
-  expect(sub.map((r) => r.status)).toEqual([200, 200, 200]);
-  const rb = JSON.parse(sub[2].reqBody);
-  expect(Object.keys(rb).sort()).toEqual(["attempt", "code", "envelope", "receivedAt", "stage"]);
-  expect([rb.stage, rb.attempt, rb.receivedAt]).toEqual(["feedback2", fp.attempt, JSON.parse(sub[1].body).receivedAt]);   // genau die eigene Abgabe
-  expect(JSON.parse(sub[2].body)).toMatchObject({ ok: true, replaced: "final" });
-  for (const p of ["Gewissn", "Schwester", "Max", A.person.geburtsdatum, "vorname", "Gelingt"]) expect(sub[2].reqBody).not.toContain(p);
+  expect(sub.map((r) => r.status)).toEqual([200, 200]);
+  expect(await fb2Posts(s)).toEqual([]);
+  await expect(page.locator("#done-fb-teacher")).toBeHidden();   // gespeichert: kein Hinweis unter der Rückmeldung
   const sb = JSON.parse(sub[1].reqBody);
+  // in D1: eine Zeile (die Abgabe hat den Erstversuch ersetzt), der Umschlag genau wie abgegeben, daneben die finale Rückmeldung –
+  // entschlüsselt genau die Ergebnisse aus der Antwort, ohne Klartext daneben
+  const rowsA = await subRowsOf(S.code, fp.attempt);
+  expect(rowsA.map((r) => r.stage)).toEqual(["final"]);
+  expect(JSON.parse(rowsA[0].envelope)).toEqual(sb.envelope);
+  expect(rowsA[0].final_at).toBeGreaterThan(0);
+  expect((await finalEnvOf(await teacherPriv(), rowsA[0].final_env, rowsA[0].envelope)).results).toEqual(JSON.parse(fb2Reqs[1].body).results);
+  for (const p of ["Gewissn", "Schwester", A.person.geburtsdatum, "Instanz", "gelingt", "Gewissen"]) expect(rowsA[0].final_env).not.toContain(p);
   expect(Object.keys(sb).sort()).toEqual(["attempt", "code", "envelope", "stage"]);
   expect(sb.stage).toBe("final");
   expect(sb.attempt).toBe(fp.attempt);                           // ersetzt den Erstversuch auf dem Server
@@ -2449,8 +2501,10 @@ test("3 Schüler:in B (andere Angaben) gibt ebenfalls ab – vorher schlägt ein
   expectFinalInPdf(bsol, bexp);
   for (const x of ["gilt auch f", "(KI-Feedback zur ersten Fassung", "(Erste Fassung"]) expect(bsol, x).not.toContain(x);
   expect(bsol).not.toContain("lag beim Herunterladen nicht vor");
-  // Erstversuch, Abgabe und die nachgereichte finale Rückmeldung (bevor die Seite schließt)
-  await expect.poll(async () => (await s.calls((r) => r.path === "/api/submit")).map((r) => r.status)).toEqual([200, 200, 200]);
+  // Erstversuch und Abgabe – die finale Rückmeldung speichert der Server selbst zur Abgabe (stored), nichts wird nachgereicht
+  expect(JSON.parse((await s.calls((r) => r.path === "/api/feedback"))[3].body)).toMatchObject({ ok: true, final: true, stored: true });
+  expect((await s.calls((r) => r.path === "/api/submit")).map((r) => r.status)).toEqual([200, 200]);
+  expect(await fb2Posts(s)).toEqual([]);
   S.sheetBodies.push(...(await s.calls((r) => r.path.startsWith("/api/sheet/"))).map((r) => r.body));
   await closePage(s);
 });
@@ -2729,6 +2783,15 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   expect(await row.locator("td").nth(4).locator(".st-first").evaluate((e) => getComputedStyle(e).color)).toBe(ORANGE);
   await row.click();
   await expect(page.locator("#t-subs-sum")).toHaveText("3 Abgaben · 1 Erstversuch ohne Überarbeitung");
+  // die Abgabenliste liefert je Eintrag finalEnv: die vom Server selbst gespeicherte finale KI-Rückmeldung (A und B – verschlüsselt, ein
+  // Umschlag wie die Abgabe), sonst null (C hat sie abgewählt, D hat nicht abgegeben)
+  const listed = (await t.calls((e) => e.path === "/api/teacher/sheets/" + S.code + "/submissions" && e.method === "GET")).flatMap((e) => JSON.parse(e.body).submissions);
+  expect(listed).toHaveLength(4);
+  for (const x of listed) {
+    expect(Object.keys(x).sort()).toEqual(["envelope", "finalEnv", "id", "receivedAt", "stage"]);
+    if (x.finalEnv !== null) expect(Object.keys(JSON.parse(x.finalEnv)).sort()).toEqual(["ct", "ek", "iv", "v"]);
+  }
+  expect(listed.filter((x) => x.finalEnv !== null).map((x) => x.stage)).toEqual(["final", "final"]);
   await expect(page.locator("#t-subs-legend")).toBeVisible();
   await expect(page.locator("#t-subs-legend")).toHaveText("Grün = Abgabe nach der Überarbeitung · Orange = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)");
 
@@ -2802,7 +2865,7 @@ test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Au
   await expect(fb1(0).locator("p.fb-ok")).toHaveText("Gelingt schon:");
   await expect(fb1(0).locator("p.fb-miss")).toHaveText("Tipps zum Überarbeiten:");
   await expect(det).not.toContainText("ngesprochen");
-  // die nachgereichte finale KI-Rückmeldung: bei allen Aufgaben mit Auftrag (Aufgabe 3 ohne Auftrag: keine)
+  // die finale KI-Rückmeldung (vom Server verschlüsselt zur Abgabe gespeichert, finalEnv): bei allen Aufgaben mit Auftrag (Aufgabe 3 ohne Auftrag: keine)
   const expA2 = expectedResults(TASKS, A.final);
   await expect(det.locator(".dfinal")).toHaveCount(0);   // gewählt und angekommen: kein Vermerk
   for (let i = 0; i < 3; i++) {
@@ -3085,6 +3148,15 @@ test("4b Lehrkraft: Feibeitsblatt als PDF-Datei sichern → wieder hochladen →
 test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie die Aufträge an die KI", async ({ request }) => {
   // gespeicherte Umschläge (wrangler d1 execute auf derselben lokalen D1)
   const rows = await d1Query("SELECT id, sheet_code, received_at, envelope, stage, attempt FROM submissions ORDER BY id");
+  // die vom Server gespeicherte finale KI-Rückmeldung (A und B): nur als Umschlag wie eine Abgabe – kein Klartext der Stichpunkte
+  const fins = await d1Query("SELECT id, final_env FROM submissions ORDER BY id");
+  expect(fins.map((r) => r.final_env !== null)).toEqual([true, true, false, false]);   // A, B; C hat sie abgewählt, D nicht abgegeben
+  for (const r of fins.filter((x) => x.final_env !== null)) {
+    const env = JSON.parse(r.final_env);
+    expect(Object.keys(env).sort()).toEqual(["ct", "ek", "iv", "v"]);
+    for (const k of ["ct", "ek", "iv"]) expect(env[k]).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+    for (const f of [...SOLUTION_LINES, "covered", "missing", "feibeitsblatt-final"]) expect(r.final_env, "Klartext „" + f + "“").not.toContain(f);
+  }
   expect(rows).toHaveLength(4);
   expect(rows.map((r) => r.stage)).toEqual(["final", "final", "final", "first"]);   // A (Erstversuch → Abgabe, eine Zeile), B, C, D
   for (const r of rows) expect(r.attempt).toMatch(ATTEMPT);
@@ -3129,7 +3201,8 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     expect(res.status()).toBe(200);
     const body = await res.text();
     const j = JSON.parse(body);
-    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "escape", "privacy", "publicKey", "tasks", "title"]);
+    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "escape", "finalWaitSec", "privacy", "publicKey", "tasks", "title"]);
+    expect(j.sheet.finalWaitSec).toBe(30);   // Wartezeit auf die finale KI-Rückmeldung (Vorgabe; Einstellung der Lehrkraft, siehe 7r)
     expect(j.sheet.aiFeedback).toBe(true);
     expect(j.sheet.escape).toBe(null);   // kein Finale eines Escape-Rooms
     expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX, transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }]);
@@ -3252,17 +3325,37 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   expect(exp2[1].covered.length).toBeGreaterThan(exp1[1].covered.length);   // Plausibilität: die Begründung bringt einen „gut“-Stichpunkt mehr
   await expect(page.locator("#done-fb-2 .fb-sub.fb-ok")).toHaveText("Das gelingt dir schon");
   await expect(page.locator("#done-fb-1 .fb-sub.fb-miss")).toHaveText("Das hat gefehlt");
-  // die finale Rückmeldung geht verschlüsselt auch an die Lehrkraft und kommt an (ersetzt die Abgabe) – dann kein Hinweis darunter
-  const fb2Sub = async () => (await s.calls((r) => r.path === "/api/submit")).filter((r) => JSON.parse(r.reqBody).stage === "feedback2");
-  await expect.poll(async () => (await fb2Sub()).length, { timeout: 30_000 }).toBe(1);
-  expect((await fb2Sub()).map((r) => [r.status, JSON.parse(r.body).replaced])).toEqual([[200, "final"]]);
+  // die finale Rückmeldung speichert der Server selbst – verschlüsselt für die Lehrkraft zur Abgabe (stored) – dann kein Hinweis darunter;
+  // der Browser reicht nichts nach (kein stage „feedback2“), die Abgabe bleibt, wie sie angekommen ist
   await page.waitForTimeout(300);
   await expect(page.locator("#done-fb-teacher")).toBeHidden();
   await expect(page.locator("#done-fb-retry-note")).toBeHidden();
+  expect(await fb2Posts(s)).toEqual([]);
+  const subF = await s.calls((r) => r.path === "/api/submit");
+  expect(subF.map((r) => [r.status, JSON.parse(r.reqBody).stage])).toEqual([[200, "first"], [200, "final"]]);
   // genau eine weitere Anfrage an die KI – mit allen abgegebenen Antworten (kein „only“), im Final-Modus
   const fbCalls = await s.calls((r) => r.path === "/api/feedback");
   expect(fbCalls.map((r) => r.status)).toEqual([200, 200]);
+  expect(JSON.parse(fbCalls[1].body)).toMatchObject({ ok: true, final: true, stored: true });
   const fb2Body = JSON.parse(fbCalls[1].reqBody);
+  const codeF = shownF.replace("-", ""), subBodyF = JSON.parse(subF[1].reqBody), [rowF] = await subRowsOf(codeF, fb2Body.attempt);
+  expect(JSON.parse(rowF.envelope)).toEqual(subBodyF.envelope);
+  const recF = await finalEnvOf(await teacherPriv(), rowF.final_env, rowF.envelope);
+  expect(recF.results).toEqual(JSON.parse(fbCalls[1].body).results);
+  expect(recF.results.map((f) => f.missing)).toEqual(exp2.map((e) => e.missing));   // was gefehlt hat – so, wie die Schülerin es sah
+  // Eine ältere, noch gecachte Seite (bzw. ein manipulierter Browser) mit stage „feedback2“: der Server ersetzt nichts mehr – auch keine
+  // untergeschobenen Antworten – und zählt nichts (kept: die Rückmeldung liegt schon bei der Abgabe)
+  const pubF = JSON.parse((await s.calls((r) => r.path === "/api/sheet/" + codeF))[0].body).sheet.publicKey;
+  const forged = await makeEnvelope(pubF, { v: 1, answers: [{ first: "untergeschoben", final: "untergeschoben" }] });
+  const fake = await page.evaluate(async (b) => { const r = await fetch("/api/submit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }); return [r.status, await r.json()]; },
+    { code: codeF, envelope: forged, stage: "feedback2", attempt: fb2Body.attempt, receivedAt: fb2Body.receivedAt });
+  expect(fake).toEqual([200, { ok: true, kept: true }]);
+  // eine neue Abgabe derselben Bearbeitung ersetzt die abgeschlossene Abgabe ebenso wenig
+  const relock = await page.evaluate(async (b) => { const r = await fetch("/api/submit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }); return [r.status, (await r.json()).code]; },
+    { code: codeF, envelope: forged, stage: "final", attempt: fb2Body.attempt });
+  expect(relock).toEqual([409, "final_locked"]);
+  const rowsF = await subRowsOf(codeF, fb2Body.attempt);
+  expect(rowsF.map((r) => [r.envelope, r.final_env])).toEqual([[rowF.envelope, rowF.final_env]]);   // unverändert
   expect(Object.keys(fb2Body).sort()).toEqual(["answers", "attempt", "code", "final", "receivedAt", "recipients"]);
   expect(fb2Body).toMatchObject({ answers: finals, final: true });
   const msF = (await mockRequests()).filter((r) => r.kind !== "checklist");
@@ -3292,54 +3385,74 @@ test("7b Schüler:in F: nur Aufgabe 2 überarbeitet, Aufgabe 1 nur ein Leerzeich
   await closePage(t);
 });
 
-test("7p Finale KI-Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nichts („gone“), Frist von 15 Minuten abgelaufen während der KI-Anfrage → ruhiger Hinweis unter der Rückmeldung, nichts als gesendet gezählt, die PDF-Datei enthält die Rückmeldung trotzdem; nach einem Fehlschlag ist „Rückmeldung erneut anfordern“ nach Ablauf der Frist weg (auch nach dem Ruhezustand des Geräts, beim Zurückkehren bzw. durch die regelmäßige Prüfung) – ein Hinweis sagt es", async ({ browser }) => {
+test("7p Finale KI-Rückmeldung für die Lehrkraft: der Server speichert sie selbst (verschlüsselt zur Abgabe) – hat er sie nicht gespeichert (stored:false, z. B. eine zweite gleichzeitige Anfrage derselben Abgabe), ein ruhiger Hinweis unter der Rückmeldung, die PDF-Datei enthält sie trotzdem; die Uhr des Geräts spielt dafür keine Rolle; nach einem Fehlschlag ist „Rückmeldung erneut anfordern“ nach Ablauf der Frist weg (auch nach dem Ruhezustand des Geräts, beim Zurückkehren bzw. durch die regelmäßige Prüfung) – ein Hinweis sagt es", async ({ browser }) => {
   // eigenes Blatt mit einer Aufgabe mit Auftrag an die KI; am Ende wieder löschen
   const t = await openPage(browser);
   await teacherLogin(t.page, PW);
   await t.page.click("#t-new");
-  await t.page.fill("#b-title", "Nachreichen");
+  await t.page.fill("#b-title", "Rückmeldung speichern");
   await t.page.fill("#bq-1", TASKS[0].text);
   await t.page.fill("#bs-1", TASKS[0].solution);
   await t.page.click("#b-gen");
   await expect(t.page.locator("#b-result")).toBeVisible();
-  const shownP = (await t.page.locator("#b-res-code").textContent()).trim();
-  const EXPIRED = "Die finale KI-Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe übermitteln. Deine Abgabe ist davon nicht betroffen.";
-  const GONE = "Die finale KI-Rückmeldung ließ sich nicht mehr an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.";
+  const shownP = (await t.page.locator("#b-res-code").textContent()).trim(), codeP = shownP.replace("-", "");
+  const NOT_STORED = "Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.";
   const RETRY_LATE = "Seit deiner Abgabe sind mehr als 15 Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.";
+  const priv = await teacherPriv();
   // Schüler:in bis zur Bestätigungsseite: Feedback holen, überarbeiten, abgeben. clock: Uhr der Seite per page.clock steuerbar (läuft sonst
-  // normal weiter); routes(xp, posted): eigene Routen vor der Abgabe; posted sammelt die nachgereichten Rückmeldungen (stage „feedback2“)
+  // normal weiter); routes(xp): eigene Routen vor der Abgabe
   const toDone = async (who, { clock = false, routes } = {}) => {
-    const x = await openPage(browser), xp = x.page, posted = [];
+    const x = await openPage(browser), xp = x.page;
     if (clock) { await xp.clock.install(); await xp.reload(); await expect(xp.locator("#screen-start")).toHaveClass(/active/); }
     await enterCode(xp, shownP);
     await fillPerson(xp, who);
     await typeAt(xp, "#a-1", "Das Gewissen ist eine innere Instanz.");
     await requestFeedback(xp);
     await typeAt(xp, "#a-1", " Es meldet sich, wenn ich lüge.");
-    if (routes) await routes(xp, posted);
-    await xp.route("**/api/submit", (route) => {
-      const b = JSON.parse(route.request().postData());
-      if (b.stage === "feedback2") posted.push(b);
-      return route.fallback();
-    });
+    if (routes) await routes(xp);
     await submit(xp, { waitFinal: false });
-    return { ...x, posted };
+    return x;
+  };
+  // die finalen Anfragen einer Seite (Antworten als JSON) und ihre Abgabe in D1
+  const finals = async (x) => (await x.calls((e) => e.path === "/api/feedback")).filter((e) => JSON.parse(e.reqBody).final === true);
+  const rowOf = async (x) => {
+    const at = JSON.parse((await finals(x))[0].reqBody).attempt, rows = await subRowsOf(codeP, at);
+    expect(rows.map((r) => r.stage)).toEqual(["final"]);
+    const sent = JSON.parse((await x.calls((e) => e.path === "/api/submit" && JSON.parse(e.reqBody).stage === "final"))[0].reqBody);
+    expect(JSON.parse(rows[0].envelope)).toEqual(sent.envelope);   // die Abgabe selbst bleibt, wie sie angekommen ist
+    return rows[0];
   };
   const neutral = async (xp, sel) => expect(await xp.locator(sel).evaluate((e) => getComputedStyle(e).color))
     .toBe(await xp.locator("#done-pdf-note").evaluate((e) => getComputedStyle(e).color));   // keine Erfolgs-, keine Alarmfarbe
 
-  /* P1: der Server ersetzt nichts ({ok:true, gone:true} – z. B. Abgabe gelöscht oder inzwischen neu abgegeben) → nicht gesendet, kein
-     weiterer Versuch, Hinweis; die PDF-Datei enthält die Rückmeldung trotzdem */
+  /* P1: gespeichert (stored:true) → kein Hinweis; in D1 liegt sie verschlüsselt neben der unveränderten Abgabe; nichts nachgereicht */
+  const p0 = await toDone({ vorname: "pat", nachname: "pr", geb: "--11-12", klasse: "9a" });
+  await expect(p0.page.locator("#done-fb-list .fbbox")).toHaveCount(1, { timeout: 60_000 });
+  await p0.page.waitForTimeout(500);
+  await expect(p0.page.locator("#done-fb-teacher")).toBeHidden();
+  const f0 = await finals(p0);
+  expect(f0.map((e) => [e.status, JSON.parse(e.body).stored])).toEqual([[200, true]]);
+  const row0 = await rowOf(p0);
+  expect((await finalEnvOf(priv, row0.final_env, row0.envelope)).results).toEqual(JSON.parse(f0[0].body).results);
+  expect(await fb2Posts(p0)).toEqual([]);
+  await closePage(p0);
+
+  /* P1b: die Antwort sagt stored:false (Attrappe per page.route – die Antwort des Servers sonst unverändert) → ruhiger Hinweis unter der
+     Rückmeldung, kein weiterer Versuch, nichts nachgereicht; die PDF-Datei enthält die Rückmeldung trotzdem */
   const p1 = await toDone({ vorname: "pia", nachname: "pe", geb: "--01-02", klasse: "9a" }, {
-    routes: (xp) => xp.route("**/api/submit", (route) => (JSON.parse(route.request().postData()).stage === "feedback2"
-      ? route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, gone: true }) }) : route.fallback())),
+    routes: (xp) => xp.route("**/api/feedback", async (route) => {
+      if (JSON.parse(route.request().postData() || "{}").final !== true) return route.fallback();
+      const res = await route.fetch();
+      return route.fulfill({ response: res, json: { ...(await res.json()), stored: false } });
+    }),
   });
   await expect(p1.page.locator("#done-fb-list .fbbox")).toHaveCount(1, { timeout: 60_000 });
   await expect(p1.page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");
-  await expect(p1.page.locator("#done-fb-teacher")).toHaveText(GONE);
+  await expect(p1.page.locator("#done-fb-teacher")).toHaveText(NOT_STORED);
   await expect(p1.page.locator("#done-fb-teacher")).toHaveAttribute("role", "status");
   await p1.page.waitForTimeout(2500);
-  expect(p1.posted.length).toBe(1);   // „gone“ ist endgültig
+  expect((await finals(p1)).length).toBe(1);   // kein weiterer Versuch
+  expect(await fb2Posts(p1)).toEqual([]);
   await expect(p1.page.locator("#done-fb-retry")).toBeHidden();
   await expect(p1.page.locator("#done-fb-retry-note")).toBeHidden();
   await neutral(p1.page, "#done-fb-teacher");
@@ -3350,8 +3463,41 @@ test("7p Finale KI-Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nic
   expect((await readFile(await dl1.path())).toString("latin1")).toContain("(Finale KI-R\\374ckmeldung:) Tj");
   await closePage(p1);
 
-  /* P2: die KI braucht länger, als die Frist reicht (z. B. Tab im Hintergrund, Zeitgeber gedrosselt): Während die Anfrage angehalten ist,
-     springt die Uhr der Seite 16 Minuten weiter, ohne Zeitgeber auszulösen (setSystemTime) → nichts nachgereicht, Hinweis auf die Frist */
+  /* P1c: echt beim Server – zwei gleichzeitige finale Anfragen derselben Abgabe (z. B. aus einem zweiten Tab): Die KI antwortet beiden,
+     gespeichert wird nur die erste (eine Anweisung, atomar), die zweite bekommt stored:false → derselbe Hinweis. Die Mock-KI antwortet
+     dafür erst nach 4 s; die Anfrage des „zweiten Tabs“ geht 1 s vor der der Seite los */
+  let dup = null;
+  const p1c = await toDone({ vorname: "pep", nachname: "pk", geb: "--02-03", klasse: "9a" }, {
+    routes: async (xp) => {
+      await fetch(MOCK_URL + "/__mock/mode", { method: "POST", body: JSON.stringify({ mode: "ok", delayMs: 4000 }) });
+      await xp.route("**/api/feedback", async (route) => {
+        const body = route.request().postData() || "{}";
+        if (JSON.parse(body).final !== true || dup) return route.fallback();
+        dup = xp.request.post("/api/feedback", { data: JSON.parse(body) }).then(async (r) => [r.status(), await r.json()]);
+        await new Promise((r) => setTimeout(r, 1000));
+        return route.fallback();
+      });
+    },
+  });
+  try {
+    await expect(p1c.page.locator("#done-fb-list .fbbox")).toHaveCount(1, { timeout: 60_000 });
+    await expect(p1c.page.locator("#done-fb-teacher")).toHaveText(NOT_STORED);
+    const [dupStatus, dupBody] = await dup;
+    expect([dupStatus, dupBody.ok, dupBody.final, dupBody.stored]).toEqual([200, true, true, true]);   // die erste speichert
+    const f1c = await finals(p1c);
+    expect(f1c.map((e) => [e.status, JSON.parse(e.body).stored])).toEqual([[200, false]]);
+    expect(JSON.parse(f1c[0].body).results).toEqual(dupBody.results);
+    // in D1 genau eine Rückmeldung – die der ersten Anfrage; die Abgabe unverändert
+    const row1c = await rowOf(p1c);
+    expect((await finalEnvOf(priv, row1c.final_env, row1c.envelope)).results).toEqual(dupBody.results);
+    expect(await fb2Posts(p1c)).toEqual([]);
+    await neutral(p1c.page, "#done-fb-teacher");
+  } finally { await mockMode("ok"); }
+  await closePage(p1c);
+
+  /* P2: die KI braucht länger, und die Uhr des Geräts springt währenddessen 16 Minuten weiter, ohne Zeitgeber auszulösen (z. B. Tab im
+     Hintergrund, setSystemTime): Der Download wird frei (im Hintergrund wird weiter gewartet); was zählt, ist die Uhr des Servers – die
+     Rückmeldung kommt, wird gespeichert, kein Hinweis */
   let releaseAi, aiHeld = 0;
   const aiGate = new Promise((r) => { releaseAi = r; });
   const p2 = await toDone({ vorname: "pit", nachname: "po", geb: "--03-04", klasse: "9a" }, {
@@ -3366,11 +3512,12 @@ test("7p Finale KI-Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nic
   await expect(p2.page.locator("#done-pdf")).toBeEnabled();
   releaseAi();
   await expect(p2.page.locator("#done-fb-list .fbbox")).toHaveCount(1, { timeout: 60_000 });
-  await expect(p2.page.locator("#done-fb-teacher")).toHaveText(EXPIRED);
   await p2.page.waitForTimeout(1000);
-  expect(p2.posted).toEqual([]);   // nichts gesendet – der Server nähme es nicht mehr an
+  await expect(p2.page.locator("#done-fb-teacher")).toBeHidden();
   await expect(p2.page.locator("#done-fb-retry-note")).toBeHidden();
-  await neutral(p2.page, "#done-fb-teacher");
+  expect((await finals(p2)).map((e) => JSON.parse(e.body).stored)).toEqual([true]);
+  expect((await rowOf(p2)).final_env).not.toBeNull();
+  expect(await fb2Posts(p2)).toEqual([]);
   await closePage(p2);
 
   /* P3/P4: die finale Rückmeldung scheitert zuerst (502) → „Rückmeldung erneut anfordern“, innerhalb der Frist ohne Hinweis am Knopf. Dann
@@ -3414,8 +3561,9 @@ test("7p Finale KI-Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nic
   await expect(p3.page.locator("#dlg.open")).toHaveCount(0);   // kein Dialog
   await p3.page.waitForTimeout(1000);
   await expect(p3.page.locator("#done-fb-list .fbbox")).toHaveCount(0);
-  expect(p3.posted).toEqual([]);
+  expect(await fb2Posts(p3)).toEqual([]);
   expect(p3.ai()).toBe(1);
+  expect((await rowOf(p3)).final_env).toBeNull();   // beim Server liegt keine Rückmeldung (der Versuch erreichte ihn nie)
   // die PDF-Datei gibt es trotzdem – ohne Rückmeldung (keine Checkliste hinterlegt)
   const [dl3] = await Promise.all([p3.page.waitForEvent("download"), p3.page.click("#done-pdf")]);
   expect(pdfShownText(await readFile(await dl3.path()))).toContain("Die finale KI-Rückmeldung lag beim Herunterladen nicht vor.");
@@ -3428,7 +3576,7 @@ test("7p Finale KI-Rückmeldung erreicht die Lehrkraft nicht: Server ersetzt nic
   await expect(p4.retry).toBeHidden();
   await expect(p4.page.locator("#done-fb-status")).not.toContainText("noch einmal anfordern");
   await expect(p4.page.locator("#dlg.open")).toHaveCount(0);
-  expect(p4.posted).toEqual([]);
+  expect(await fb2Posts(p4)).toEqual([]);
   expect(p4.ai()).toBe(1);
   await closePage(p4);
 
@@ -6031,13 +6179,11 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   releaseSub();
   await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect(page.locator("#ed-steps-list li")).toHaveCount(0);   // Schreibfläche geleert (gemeinsam genutzte Geräte)
-  // die Abgabe ersetzt den Erstversuch (gleiche Kennung, dieselbe Zeile); gespeichert ist genau das Gesendete (die zweite Rückmeldung
-  // kann im Hintergrund schon nachgereicht sein – unten genauer)
+  // die Abgabe ersetzt den Erstversuch (gleiche Kennung, dieselbe Zeile); gespeichert ist genau das Gesendete
   const rows2 = await rowsOf();
   expect(rows2.map((x) => [x.id, x.stage, x.attempt])).toEqual([[row1.id, "final", row1.attempt]]);
-  const noFb2 = (x) => { const y = { ...x }; delete y.feedback2; return y; };
   const fin = await sealed("final");
-  expect(noFb2(await openEnvelope(priv, JSON.parse(rows2[0].envelope)))).toEqual(fin);
+  expect(await openEnvelope(priv, JSON.parse(rows2[0].envelope))).toEqual(fin);
   expect(fin.answers).toEqual([{ first: A1b, final: A1c }, { first: A2, final: A2 }]);
   expect(fin.answers.every((a) => typeof a.first === "string" && typeof a.final === "string")).toBe(true);
   expect(fin.typing.v).toBe(1);
@@ -6050,20 +6196,20 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   const fb2 = (await s.calls((e) => e.path === "/api/feedback"))[1];
   expect(Object.keys(JSON.parse(fb2.reqBody)).sort()).toEqual(["answers", "attempt", "code", "final", "receivedAt", "recipients"]);
   expect(fb2.reqBody).not.toContain("typing");
-  // … und geht danach verschlüsselt an die Lehrkraft: genau die angenommene Abgabe + feedback2 (alle Aufgaben mit Auftrag) –
-  // die Tippzeiten bleiben dabei erhalten
-  await expect.poll(async () => !!(await sealed("feedback2")), { timeout: 30_000 }).toBe(true);
-  const fb2Sent = await sealed("feedback2");
-  expect(noFb2(fb2Sent)).toEqual(fin);
-  expect(fb2Sent.typing).toEqual(fin.typing);
-  expect(fb2Sent.feedback2.results[0].covered.length + fb2Sent.feedback2.results[0].missing.length).toBeGreaterThan(0);
-  expect(fb2Sent.feedback2.final).toBe(true);
-  expect(fb2Sent.feedback2.results[1]).toBeTruthy();   // auch die unveränderte Tabelle wird final beurteilt
-  const fb2Body = (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).find((b) => b.stage === "feedback2");
-  expect([fb2Body.attempt, Object.keys(fb2Body).sort()]).toEqual([row1.attempt, ["attempt", "code", "envelope", "receivedAt", "stage"]]);
-  const rows3 = await rowsOf();
-  expect(rows3.map((x) => [x.id, x.stage, x.attempt])).toEqual([[row1.id, "final", row1.attempt]]);
-  expect(await openEnvelope(priv, JSON.parse(rows3[0].envelope))).toEqual(fb2Sent);
+  // … und der Server speichert sie selbst verschlüsselt zur Abgabe (final_env): nur {kind, v, at, results} – keine Tippzeiten, keine
+  // Antworten, keine Angaben; die Abgabe (samt Tippzeiten) bleibt genau, wie sie angekommen ist, nichts wird nachgereicht
+  await expect(page.locator("#done-fb-list .fbbox")).not.toHaveCount(0, { timeout: 30_000 });
+  expect(JSON.parse(fb2.body)).toMatchObject({ ok: true, final: true, stored: true });
+  const [row3] = await subRowsOf(code, row1.attempt);
+  expect(row3.id).toBe(row1.id);
+  expect(await openEnvelope(priv, JSON.parse(row3.envelope))).toEqual(fin);   // unverändert, samt Tippzeiten
+  const rec3 = await finalEnvOf(priv, row3.final_env, row3.envelope);
+  expect(rec3.results).toEqual(JSON.parse(fb2.body).results);
+  expect(rec3.results[0].covered.length + rec3.results[0].missing.length).toBeGreaterThan(0);
+  expect(rec3.results[1]).toBeTruthy();   // auch die unveränderte Tabelle wird final beurteilt
+  expect(JSON.stringify(rec3)).not.toContain("typing");
+  expect(await fb2Posts(s)).toEqual([]);
+  expect((await s.calls((e) => e.path === "/api/submit")).map((e) => JSON.parse(e.reqBody).stage).filter((x) => x !== "first")).toEqual(["final"]);
   // die Lösungs-PDF (aus dem Arbeitsspeicher der Bestätigungsseite) enthält Texte, nie Tippzeiten
   await expect(page.locator("#done-fb-list .fbbox")).not.toHaveCount(0, { timeout: 30_000 });
   const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
@@ -6275,64 +6421,44 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await expect(mfull.locator("input")).toHaveCount(0);
   await closePage(m);
 
-  /* ---------- Schüler:in 4 und 5: die finale Rückmeldung nachreichen – mit feedback2 zu groß bzw. es kommt nichts an ---------- */
-  // fb2: Antwort des Servers je Nachreichen (n = 1, 2, …): eine Antwort per route.fulfill oder null = weiter zum Server;
-  // posts: so viele Versuche, dann ist die Seite fertig (geklappt bzw. aufgegeben); hint: Hinweis unter der Rückmeldung (null = keiner)
-  const fb2Case = async (who, fb2, posts, hint) => {
-    const x = await openPage(browser), xp = x.page, posted = [];
-    await enterCode(xp, shown);
-    await fillPerson(xp, who);
-    await typeAt(xp, "#a-1", "Ein Satz von " + who.vorname, { delay: 30 });
-    await xp.click("#fb-btn");
-    await confirmDialog(xp, "Noch nicht alles beantwortet");   // die Tabelle bleibt leer
-    await expect(xp.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
-    await typeAt(xp, "#a-1", " und mehr", { delay: 30 });
-    await xp.route("**/api/submit", (route) => {
-      const b = JSON.parse(route.request().postData());
-      if (b.stage !== "feedback2") return route.continue();
-      posted.push(b);
-      const res = fb2(posted.length);
-      return res ? route.fulfill({ status: res.status, contentType: "application/json", body: JSON.stringify(res.body) }) : route.continue();
-    });
-    await submit(xp);
-    await expect(xp.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 60_000 });
-    await expect.poll(() => posted.length, { timeout: 30_000 }).toBe(posts);
-    await xp.waitForTimeout(2500);   // danach kein weiterer Versuch mehr (der nächste käme nach höchstens 2 s Pause)
-    expect(posted.length).toBe(posts);
-    // erreicht die Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig unter der Rückmeldung (ohne Tippzeiten)
-    if (hint) {
-      await expect(xp.locator("#done-fb-teacher")).toHaveText(hint);
-      await expect(xp.locator("#done-fb-teacher")).toHaveAttribute("role", "status");
-    } else await expect(xp.locator("#done-fb-teacher")).toBeHidden();
-    const fin = await openEnvelope(priv, JSON.parse((await x.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => e.reqBody).find((b) => JSON.parse(b).stage === "final")).envelope);
-    const sent = await Promise.all(posted.map((b) => openEnvelope(priv, b.envelope)));
-    const row = (await rowsOf()).filter((x) => x.attempt === posted[0].attempt);
-    expect(row.length).toBe(1);
-    await closePage(x);
-    return { fin, sent, posted, got: await openEnvelope(priv, JSON.parse(row[0].envelope)) };
-  };
-  const noTyping = (x) => { const y = { ...x }; delete y.typing; return y; };
+  /* ---------- Schüler:in 4: die Abgabe kommt erst ohne Tippzeit-Werte an (413) – die finale Rückmeldung speichert der Server trotzdem
+     selbst (verschlüsselt zur Abgabe, nur {kind, v, at, results} – nie Tippzeiten); nichts wird nachgereicht, die Abgabe bleibt, wie sie
+     angekommen ist ---------- */
   const ttHasValues = (t) => !!t && Array.isArray(t.answers) && t.answers.some((a) => [a.first, a.final].some((b) => typeof b === "string" && b.length > 1));
-  // 4: der Umschlag mit feedback2 ist zu groß (413) → dieselbe Nutzlast ohne Tippzeit-Werte; Antworten, Feedback und Angaben bleiben
-  const TOO_LARGE = { status: 413, body: { ok: false, error: "Die Abgabe ist zu groß.", code: "too_large" } };
-  const c4 = await fb2Case({ vorname: "via", nachname: "vi", geb: "--04-04", klasse: "7a" }, (n) => (n === 1 ? TOO_LARGE : null), 2, null);
-  expect(c4.sent.length).toBe(2);
-  expect(ttHasValues(c4.fin.typing)).toBe(true);
-  expect(c4.sent[0].typing).toEqual(c4.fin.typing);   // erst die angenommene Nutzlast unverändert + feedback2
-  expect(noFb2(c4.sent[0])).toEqual(c4.fin);
-  expect(c4.sent[1].typing).toEqual({ v: 1, omitted: "too_large" });   // dann ohne die Tippzeit-Werte – sonst nichts geändert
-  expect(noTyping(c4.sent[1])).toEqual(noTyping(c4.sent[0]));
-  expect(c4.sent[1].feedback2.results[0]).toBeTruthy();
-  expect(c4.got).toEqual(c4.sent[1]);   // angekommen: mit der zweiten Rückmeldung, die Tippzeiten als „nicht übermittelt“
-  // 5: das Nachreichen scheitert jedes Mal (503) → nach drei Versuchen aufgegeben; die Abgabe beim Server bleibt genau, wie sie war,
-  // und die Bestätigungsseite sagt, dass die Rückmeldung die Lehrkraft nicht erreicht hat
-  const DOWN = { status: 503, body: { ok: false, error: "Der Server ist gerade nicht erreichbar.", code: "server_error" } };
-  const c5 = await fb2Case({ vorname: "wim", nachname: "wi", geb: "--05-05", klasse: "7a" }, () => DOWN, 3,
-    "Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.");
-  expect(c5.sent.length).toBe(3);
-  for (const x of c5.sent) expect(noFb2(x)).toEqual(c5.fin);
-  expect(c5.got).toEqual(c5.fin);
-  expect(ttHasValues(c5.got.typing)).toBe(true);
+  const x4 = await openPage(browser), p4 = x4.page, bodies4 = [];
+  await enterCode(p4, shown);
+  await fillPerson(p4, { vorname: "via", nachname: "vi", geb: "--04-04", klasse: "7a" });
+  await typeAt(p4, "#a-1", "Ein Satz von via", { delay: 30 });
+  await p4.click("#fb-btn");
+  await confirmDialog(p4, "Noch nicht alles beantwortet");   // die Tabelle bleibt leer
+  await expect(p4.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await typeAt(p4, "#a-1", " und mehr", { delay: 30 });
+  await p4.route("**/api/submit", async (route) => {
+    const b = JSON.parse(route.request().postData());
+    if (b.stage !== "final") return route.continue();
+    bodies4.push(b);
+    if (bodies4.length === 1) return route.fulfill({ status: 413, contentType: "application/json", body: JSON.stringify({ ok: false, code: "too_large", error: "Die Abgabe ist zu groß." }) });
+    return route.continue();
+  });
+  await submit(p4);
+  await expect(p4.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 60_000 });
+  await p4.waitForTimeout(1000);
+  await expect(p4.locator("#done-fb-teacher")).toBeHidden();
+  expect(bodies4).toHaveLength(2);
+  const [s4a, s4b] = await Promise.all(bodies4.map((b) => openEnvelope(priv, b.envelope)));
+  expect(ttHasValues(s4a.typing)).toBe(true);
+  expect(s4b.typing).toEqual({ v: 1, omitted: "too_large" });
+  const fb4 = (await x4.calls((e) => e.path === "/api/feedback")).filter((e) => JSON.parse(e.reqBody).final === true);
+  expect(fb4.map((e) => [e.status, JSON.parse(e.body).stored])).toEqual([[200, true]]);
+  expect(fb4[0].reqBody).not.toContain("typing");
+  const rows4 = await subRowsOf(code, bodies4[0].attempt);
+  expect(rows4.map((r) => r.stage)).toEqual(["final"]);
+  expect(await openEnvelope(priv, JSON.parse(rows4[0].envelope))).toEqual(s4b);   // genau die angenommene Abgabe
+  const rec4 = await finalEnvOf(priv, rows4[0].final_env, rows4[0].envelope);
+  expect(rec4.results).toEqual(JSON.parse(fb4[0].body).results);
+  expect(JSON.stringify(rec4)).not.toMatch(/typing|und mehr|"vi"/);   // keine Tippzeiten, keine Antworten, keine Angaben
+  expect(await fb2Posts(x4)).toEqual([]);
+  await closePage(x4);
   // aufräumen
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
@@ -6340,7 +6466,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await closePage(t);
 });
 
-test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis (Schreibbereich; Angaben-Bildschirm, auch einer Gruppe in der „ihr“-Form) → keine Tippzeiten mehr im Zwischenstand und in der Zwischenstand-PDF, ein schon gesendeter Erstversuch wird mit derselben Kennung ohne sie ersetzt (scheitert das, beim nächsten Öffnen; auch beim Öffnen über „Deine Angaben“), Zurücknehmen misst nur ab dann, auch während einer laufenden KI-Anfrage; gilt sofort im zweiten Tab (auch nach der Abgabe im ersten: die zweite Rückmeldung wird dann ohne Tippzeiten nachgereicht), bleibt beim Neuladen ohne Eingabe und beim Hochladen einer älteren Zwischenstand-PDF; während des Sendens abgelehnt; Abgabe trägt optOut, die Lehrkraft sieht „ohne Messung (widersprochen)“ – auch beim Erstversuch und beim ausgeblendeten älteren Erstversuch", async ({ browser }) => {
+test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis (Schreibbereich; Angaben-Bildschirm, auch einer Gruppe in der „ihr“-Form) → keine Tippzeiten mehr im Zwischenstand und in der Zwischenstand-PDF, ein schon gesendeter Erstversuch wird mit derselben Kennung ohne sie ersetzt (scheitert das, beim nächsten Öffnen; auch beim Öffnen über „Deine Angaben“), Zurücknehmen misst nur ab dann, auch während einer laufenden KI-Anfrage; gilt sofort im zweiten Tab (nach der Abgabe im ersten bleibt die Abgabe, wie sie ist – nichts wird nachgereicht, die finale Rückmeldung speichert der Server ohne Tippzeiten), bleibt beim Neuladen ohne Eingabe und beim Hochladen einer älteren Zwischenstand-PDF; während des Sendens abgelehnt; Abgabe trägt optOut, die Lehrkraft sieht „ohne Messung (widersprochen)“ – auch beim Erstversuch und beim ausgeblendeten älteren Erstversuch", async ({ browser }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -6501,14 +6627,15 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
   const fin = (await rows())[0].p;
   expect(fin.typing).toEqual({ v: 1, optOut: true });
   expect(fin.answers).toEqual([{ first: "Ich tippe", final: "Ich tippe neu ja" }, { first: A2, final: A2 }]);
-  // an die KI gingen nie Tippzeiten (erstes Feedback und zweite Rückmeldung)
+  // an die KI gingen nie Tippzeiten (erstes Feedback und finale Rückmeldung)
   await expect.poll(async () => (await s.calls((e) => e.path === "/api/feedback")).length, { timeout: 30_000 }).toBe(2);
   for (const c of await s.calls((e) => e.path === "/api/feedback")) expect(c.reqBody).not.toMatch(/typing|ttOptOut|optOut/);
-  // die nachgereichte zweite Rückmeldung ersetzt die Abgabe – der Widerspruch bleibt dabei erhalten
-  await expect.poll(async () => !!(await rows())[0].p.feedback2, { timeout: 30_000 }).toBe(true);
-  const fin2 = (await rows())[0].p;
-  expect(fin2.typing).toEqual({ v: 1, optOut: true });
-  expect(fin2.answers).toEqual(fin.answers);
+  // die finale Rückmeldung speichert der Server selbst daneben (final_env) – die Abgabe mit dem Widerspruch bleibt, wie sie ist
+  await expect(page.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 30_000 });
+  const [rowW] = await subRowsOf(code, r1.attempt);
+  expect(await openEnvelope(priv, JSON.parse(rowW.envelope))).toEqual(fin);
+  expect(JSON.stringify(await finalEnvOf(priv, rowW.final_env, rowW.envelope))).not.toMatch(/typing|optOut/);
+  expect(await fb2Posts(s)).toEqual([]);
   await closePage(s);
 
   /* ---------- Schüler:in 2, Gerät 1: Erstversuch mit Tippzeiten → neu über „Deine Angaben“ geöffnet, Haken schon dort ---------- */
@@ -6728,16 +6855,15 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
   await expect(older.locator(".detbox.older > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (widersprochen).");
   await expect(older.locator(".dtt, .tt-r, .tt-y, .tt-g")).toHaveCount(0);
 
-  /* ---------- Schüler:in 5 und 6: zwei Tabs – der erste gibt ab, der zweite widerspricht, während die finale Rückmeldung noch aussteht ----------
-   * Der zweite Tab weiß nichts von der Abgabe; sein Widerspruch steht im Zwischenstand (den der erste bei der Abgabe gelöscht hat). Der erste
-   * reicht danach keine Tippzeit-Werte mehr nach – die Abgabe wird mit {optOut} ersetzt: a) eingefroren (storage-Ereignis verpasst), der
-   * Widerspruch kommt, während die KI noch arbeitet → er sieht vor dem Nachreichen nach; b) der Widerspruch kommt, während das Nachreichen mit
-   * den Werten unterwegs ist → angekommen, dann gleich noch einmal ohne sie */
-  const stripFb2 = (p) => { const y = { ...p }; delete y.typing; delete y.feedback2; return y; };
-  const lateOptOut = async (who, name, frozen) => {
+  /* ---------- Schüler:in 5: zwei Tabs – der erste gibt ab, der zweite widerspricht danach, während die finale Rückmeldung noch aussteht ----------
+   * Nach der Abgabe hält die Seite keine Tippzeiten mehr (TT_ACCESS „bis zur Abgabe“) und reicht nichts nach: Die Abgabe bleibt beim Server,
+   * wie sie angekommen ist – mit ihren Tippzeit-Werten (bewusst, Entscheidung des Betreibers vom 08.11.2026: löschen lässt sich danach nur die
+   * ganze Abgabe, TT_SWITCH_SCOPE); die finale Rückmeldung speichert der Server selbst daneben, ohne Tippzeiten. Der zweite Tab (eingefroren:
+   * storage-Ereignis verpasst) und der erste bleiben dabei ohne Fehler. */
+  {
     const x = await openPage(browser), xa = x.page;
     await enterCode(xa, shown);
-    await fillPerson(xa, who);
+    await fillPerson(xa, { vorname: "fue", nachname: "fu", geb: "--02-03", klasse: "7a" });
     await typeAt(xa, "#a-1", "Fünf", { delay: 120 });
     await xa.click("#fb-btn");
     await confirmDialog(xa, "Noch nicht alles beantwortet");   // Aufgabe 2 bleibt leer
@@ -6751,21 +6877,13 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
     await xb.click("#resume-btn");
     await expect(xb.locator("#screen-editor")).toHaveClass(/active/);
     await expect(xb.locator("#a-1")).toHaveValue("Fünf und mehr");
-    if (frozen) await xa.evaluate(() => window.addEventListener("storage", (e) => e.stopImmediatePropagation(), true));
     let release; const held = new Promise((r) => { release = r; });
-    const posted = [];
-    if (frozen) await xa.route("**/api/feedback", async (route) => { await held; await route.continue(); });   // die KI arbeitet noch
-    await xa.route("**/api/submit", async (route) => {
-      const b = JSON.parse(route.request().postData());
-      if (b.stage === "feedback2") { posted.push(b); if (!frozen && posted.length === 1) await held; }   // das erste Nachreichen unterwegs
-      await route.continue();
-    });
-    await submit(xa, { waitFinal: !frozen });   // eingefroren: die KI-Anfrage der finalen Rückmeldung ist angehalten
-    const finalOf = async () => (await rowsOf(name)).find((r) => r.stage === "final");
+    await xa.route("**/api/feedback", async (route) => { await held; await route.continue(); });   // die KI arbeitet noch
+    await submit(xa, { waitFinal: false });
+    const finalOf = async () => (await rowsOf("Fue")).find((r) => r.stage === "final");
     await expect.poll(async () => !!(await finalOf()), { timeout: 30_000 }).toBe(true);
-    const fin = (await finalOf()).p;
-    expect(fin.typing.answers.some((a) => typeof a.final === "string" && a.final.length > 1)).toBe(true);   // die Abgabe trägt Tippzeit-Werte
-    if (!frozen) await expect.poll(() => posted.length, { timeout: 60_000 }).toBe(1);
+    const fin5 = (await finalOf()).p;
+    expect(fin5.typing.answers.some((a) => typeof a.final === "string" && a.final.length > 1)).toBe(true);   // die Abgabe trägt Tippzeit-Werte
     // der zweite Tab widerspricht (er zeigt noch den Schreibbereich)
     await xb.locator("#privfull-ed summary").click();
     const sb = xb.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH });
@@ -6775,20 +6893,17 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
     await draftWhen(xb, (y) => y.ttOptOut === true);
     release();
     await expect(xa.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 60_000 });
-    await expect.poll(async () => { const r = await finalOf(); return r && r.p.feedback2 ? r.p.typing : null; }, { timeout: 30_000 }).toEqual({ v: 1, optOut: true });
-    await xa.waitForTimeout(2500);   // danach nichts mehr
-    const sent = await Promise.all(posted.map((b) => openEnvelope(priv, b.envelope)));
-    expect(sent.map((p) => p.typing.optOut === true)).toEqual(frozen ? [true] : [false, true]);
-    for (const p of sent) expect(stripFb2(p)).toEqual(stripFb2(fin));   // sonst genau die angenommene Abgabe
-    const got = await finalOf();
-    expect((await rowsOf(name)).map((r) => r.stage)).toEqual(["final"]);
-    expect(got.p).toEqual(sent.at(-1));
-    expect(got.p.feedback2.results[0]).toBeTruthy();
+    await xa.waitForTimeout(1500);   // danach nichts mehr
+    const rows5 = await rowsOf("Fue");
+    expect(rows5.map((r) => r.stage)).toEqual(["final"]);
+    expect(rows5[0].p).toEqual(fin5);   // unverändert – nichts nachgereicht, nichts ersetzt
+    const [raw5] = await subRowsOf(code, rows5[0].attempt);
+    expect(JSON.stringify(await finalEnvOf(priv, raw5.final_env, raw5.envelope))).not.toMatch(/typing|optOut/);
+    expect(await fb2Posts(x)).toEqual([]);
+    await expect(xa.locator("#done-fb-teacher")).toBeHidden();
     expect(xbErrors).toEqual([]);
     await closePage(x);
-  };
-  await lateOptOut({ vorname: "fue", nachname: "fu", geb: "--02-03", klasse: "7a" }, "Fue", true);
-  await lateOptOut({ vorname: "sec", nachname: "se", geb: "--03-04", klasse: "7a" }, "Sec", false);
+  }
   // aufräumen
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
@@ -7195,7 +7310,8 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   for (const c of fbCalls) for (const x of [...SECRET, "Rohstoff für Polyester", "GLOBUS", "escape"]) expect(c.reqBody, x).not.toContain(x);
   for (const r of (await mockState()).requests.slice(mock0)) for (const x of [...SECRET, "Rohstoff für Polyester", "GLOBUS"]) expect(JSON.stringify(r.messages), x).not.toContain(x);
   const subCalls = (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody));
-  for (const b of subCalls.filter((x) => x.stage !== "feedback2")) expect(Object.keys(b).sort()).toEqual(["attempt", "code", "envelope", "stage"]);   // das Nachreichen (unten) mit receivedAt
+  expect(subCalls.map((b) => b.stage)).toEqual(["first", "final"]);   // nichts nachgereicht (die finale Rückmeldung speichert der Server selbst)
+  for (const b of subCalls) expect(Object.keys(b).sort()).toEqual(["attempt", "code", "envelope", "stage"]);
   const firstP = await openEnvelope(priv, subCalls.find((b) => b.stage === "first").envelope);
   const finalP = await openEnvelope(priv, subCalls.find((b) => b.stage === "final").envelope);
   for (const p of [firstP, finalP]) {
@@ -7208,8 +7324,7 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   }
   const rows = await d1Query(`SELECT stage, envelope FROM submissions WHERE sheet_code='${ESCT.code}'`);
   expect(rows.map((r) => r.stage)).toEqual(["final"]);   // die Abgabe ersetzt den Erstversuch
-  const noFb2 = (x) => { const y = { ...x }; delete y.feedback2; return y; };
-  expect(noFb2(await openEnvelope(priv, JSON.parse(rows[0].envelope)))).toEqual(finalP);   // (die zweite Rückmeldung kann schon nachgereicht sein)
+  expect(await openEnvelope(priv, JSON.parse(rows[0].envelope))).toEqual(finalP);
   const scan = await scanState(SECRET.slice(0, 4).concat(["Rohstoff für Polyester"]));
   expect(Object.values(scan.count)).toEqual([0, 0, 0, 0, 0]);   // beim Server nur verschlüsselt
 
@@ -7217,22 +7332,20 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   await expect(page.locator("#done-pdf")).toHaveText(DONE_PDF_ESC);
   await expect(page.locator("#done-pdf-note")).toHaveText("Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.");
   await expect(page.locator("#done-fb-list .fbbox").first()).toBeVisible({ timeout: 60_000 });   // finale Rückmeldung abwarten (steht dann in der Datei)
-  // … sie geht danach verschlüsselt an die Lehrkraft: genau die angenommene Abgabe + feedback2 – die Daten aus dem Raum (ohne vollen
-  // Namen und Bestätigungscode) und die Tippzeiten bleiben dabei erhalten, nie an die KI
-  const fb2Call = async () => (await s.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).find((b) => b.stage === "feedback2");
-  await expect.poll(async () => !!(await fb2Call()), { timeout: 30_000 }).toBe(true);
-  const fb2Body = await fb2Call();
-  expect(Object.keys(fb2Body).sort()).toEqual(["attempt", "code", "envelope", "receivedAt", "stage"]);
-  const fb2P = await openEnvelope(priv, fb2Body.envelope);
-  expect(noFb2(fb2P)).toEqual(finalP);
-  expect([fb2P.escape, fb2P.typing]).toEqual([finalP.escape, finalP.typing]);
-  expect(fb2P.typing.answers.some((a) => typeof a.final === "string" && a.final.length > 1)).toBe(true);
-  expect(fb2P.feedback2.final).toBe(true);
-  expect(fb2P.feedback2.results.map((x) => !!x)).toEqual([true, true]);   // final: alle Aufgaben mit Auftrag (nicht nur die geänderte Aufgabe 2)
-  for (const x of SECRET) expect(JSON.stringify(fb2P), x).not.toContain(x);
-  const rowsFb2 = await d1Query(`SELECT stage, envelope FROM submissions WHERE sheet_code='${ESCT.code}'`);
+  // … der Server speichert sie selbst verschlüsselt zur Abgabe (final_env: nur die Ergebnisse – keine Daten aus dem Raum, keine
+  // Tippzeiten); die Abgabe samt Daten aus dem Raum (ohne vollen Namen und Bestätigungscode) und Tippzeiten bleibt, wie sie angekommen ist
+  const finEsc = (await s.calls((e) => e.path === "/api/feedback")).filter((e) => JSON.parse(e.reqBody).final === true);
+  expect(finEsc.map((e) => [e.status, JSON.parse(e.body).stored])).toEqual([[200, true]]);
+  const rowsFb2 = await d1Query(`SELECT stage, envelope, final_env FROM submissions WHERE sheet_code='${ESCT.code}'`);
   expect(rowsFb2.map((r) => r.stage)).toEqual(["final"]);
-  expect(await openEnvelope(priv, JSON.parse(rowsFb2[0].envelope))).toEqual(fb2P);
+  const keptP = await openEnvelope(priv, JSON.parse(rowsFb2[0].envelope));
+  expect(keptP).toEqual(finalP);
+  expect(keptP.typing.answers.some((a) => typeof a.final === "string" && a.final.length > 1)).toBe(true);
+  const recEsc = await finalEnvOf(priv, rowsFb2[0].final_env, rowsFb2[0].envelope);
+  expect(recEsc.results).toEqual(JSON.parse(finEsc[0].body).results);
+  expect(recEsc.results.map((x) => x.covered.length + x.missing.length > 0)).toEqual([true, true]);   // final: alle Aufgaben mit Auftrag (nicht nur die geänderte Aufgabe 2)
+  for (const x of [...SECRET, "GLOBUS", "typing", "escape", "Station"]) expect(JSON.stringify(recEsc), x).not.toContain(x);
+  expect(await fb2Posts(s)).toEqual([]);
   const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
   expect(sdl.suggestedFilename()).toBe(`Escape-Room-FastFashion-Test-Abschluss-${ymd()}.pdf`);
   expect((await page.evaluate(() => window.__blobTypes)).at(-1)).toBe("application/octet-stream");
@@ -7358,7 +7471,7 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
     return sent.length <= 2 ? r.fulfill({ status: 413, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Die Abgabe ist zu groß.", code: "too_large" }) }) : r.continue();
   });
   await lp.click("#submit-btn");
-  await confirmDialog(lp, "Ohne KI-Feedback abgeben?", true, { check: false });   // nur die Abgabe (sonst zählte das Nachreichen mit)
+  await confirmDialog(lp, "Ohne KI-Feedback abgeben?", true, { check: false });   // nur die Abgabe (ohne finale Rückmeldung im Hintergrund)
   await expect(lp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   expect(sent.length).toBe(3);
   const [l1, l2, l3] = await Promise.all(sent.map((b) => openEnvelope(priv, b.envelope)));
@@ -7426,12 +7539,12 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
   expect(ttext).toContain("Mu · Max · Geburtstag 04.05. · Klasse 10b");
   expect(ttext).toContain("Prüfsumme des Datensatzes: stimmt – ein Indiz, kein Beweis.");
   for (const x of ["Maximilian", "Mustermann", "31415926", "Bestätigungscode:", "Genaue Daten"]) expect(ttext).not.toContain(x);
-  // Lösungs-PDF der Abgabe (wie bei jedem Blatt): nur die Lösungsseiten samt nachgereichter finaler Rückmeldung – ohne die Seiten aus dem
+  // Lösungs-PDF der Abgabe (wie bei jedem Blatt): nur die Lösungsseiten samt der vom Server gespeicherten finalen Rückmeldung – ohne die Seiten aus dem
   // Escape-Room (dafür „Überblick als PDF herunterladen“), ohne Tippzeiten, ohne vollen Namen und Bestätigungscode
   const detMax = tp.locator("#t-subs-body tr.details", { hasText: "Kaya hat gelernt" });
   await expect(detMax.locator(".dtask").nth(1).locator(".dfb2 .fb-head")).toHaveText("Finale KI-Rückmeldung");
   await expect(detMax.locator(".dtask").nth(0).locator(".dfb2 .fb-head")).toHaveText("Finale KI-Rückmeldung");   // auch die unveränderte Aufgabe 1
-  await expect(detMax.locator(".dtt-sum")).toHaveCount(1);   // die Tippzeiten sind nach dem Nachreichen noch da
+  await expect(detMax.locator(".dtt-sum")).toHaveCount(1);   // die Tippzeiten der Abgabe stehen daneben (die Abgabe bleibt, wie sie ist)
   const [ldl] = await Promise.all([tp.waitForEvent("download"), detMax.locator("button.dpdf").click()]);
   // Datum im Dateinamen = Tag des Eingangs (Ortszeit des Browsers, wie „Abgegeben am …“) – nicht der Tag des Downloads
   const [, gd, gm, gy] = /^Abgegeben am (\d\d)\.(\d\d)\.(\d{4}), /.exec(await detMax.locator(".dmeta").textContent()) || [];
@@ -7525,7 +7638,7 @@ test("7o Escape-Room-Finale (2): Abgabe mit den Ergebnissen aus dem Raum (versch
  * FINAL_SHOTS_OUT=<Ordner> npm run test:e2e speichert Bildschirmfotos (375 und 1280 px): Checkliste beim Anlegen, Bestätigungsseite
  * während des Wartens (Countdown) und mit der finalen KI-Rückmeldung samt Download-Knopf */
 const FINAL_SHOTS = process.env.FINAL_SHOTS_OUT || "";
-test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern, bestätigen; analoges Arbeitsblatt danach direkt) → ohne erstes KI-Feedback abgegeben: Countdown, alle Aufgaben mit Auftrag an die KI, grün/rot auf der Seite, schwarz in der PDF; abgewählt: keine Anfrage, Checkliste in der PDF; nach 30 s ohne Rückmeldung: Download mit Checkliste bricht die Anfrage ab bzw. wer wartet, bekommt sie doch; Lehrkraft-Ansicht", async ({ browser }) => {
+test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern, bestätigen; analoges Arbeitsblatt danach direkt) → ohne erstes KI-Feedback abgegeben: Countdown, alle Aufgaben mit Auftrag an die KI, grün/rot auf der Seite, schwarz in der PDF; abgewählt: keine Anfrage, Checkliste in der PDF; nach 30 s ohne Rückmeldung: Download mit Checkliste bricht die Anfrage ab bzw. wer wartet, bekommt sie doch; der Server speichert sie selbst verschlüsselt zur Abgabe; Lehrkraft-Ansicht; Wartezeit 60 s als Einstellung der Lehrkraft", async ({ browser }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -7626,7 +7739,17 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
     const [dl] = await Promise.all([xp.waitForEvent("download"), xp.click("#done-pdf")]);
     return (await readFile(await dl.path())).toString("latin1");
   };
-  const fb2Posted = async (x) => (await x.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).filter((b) => b.stage === "feedback2");
+  // die Abgabe einer Seite in D1 (Kennung aus ihrer Abgabe): Umschlag unverändert; final_env = die vom Server gespeicherte finale Rückmeldung
+  const priv = await teacherPriv();
+  const storedOf = async (x) => {
+    const sent = (await x.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody)).filter((b) => b.stage === "final");
+    expect(sent).toHaveLength(1);
+    const rows = await subRowsOf(code, sent[0].attempt);
+    expect(rows.map((r) => r.stage)).toEqual(["final"]);
+    expect(JSON.parse(rows[0].envelope)).toEqual(sent[0].envelope);
+    expect(await fb2Posts(x)).toEqual([]);   // nichts nachgereicht
+    return rows[0].final_env === null ? null : finalEnvOf(priv, rows[0].final_env, rows[0].envelope);
+  };
 
   /* ---------- (a) ohne erstes KI-Feedback abgegeben, finale Rückmeldung gewählt (vorausgewählt) ---------- */
   const ANA = ["Das Gewissen ist eine innere Instanz.", "Ich habe gelogen.", "Ana fühlt sich dann schlecht."];
@@ -7688,8 +7811,10 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   expectFinalInPdf(solA, expA);
   expect(pdfShownText(Buffer.from(solA, "latin1"))).toContain("Die Rückmeldungen in dieser Datei hat eine KI erzeugt (KI-Feedback). Sie können Fehler enthalten.");
   onlyCk3(solA);
-  // … und verschlüsselt an die Lehrkraft nachgereicht
-  await expect.poll(async () => (await fb2Posted(a)).length, { timeout: 30_000 }).toBe(1);
+  // … und der Server hat sie selbst verschlüsselt zur Abgabe gespeichert (für die Lehrkraft), genau die angezeigten Ergebnisse
+  const finRespA = JSON.parse((await a.calls((e) => e.path === "/api/feedback" && e.status === 200)).at(-1).body);
+  expect(finRespA).toMatchObject({ ok: true, final: true, stored: true });
+  expect((await storedOf(a)).results).toEqual(finRespA.results);
   await closePage(a);
 
   /* ---------- (b) abgewählt: keine Anfrage an die KI, kein Warten; die PDF-Datei enthält die Checkliste ---------- */
@@ -7740,7 +7865,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   await cp.clock.runFor(2000);
   await cp.waitForTimeout(500);
   await expect(cp.locator("#done-fb .fbbox")).toHaveCount(0);
-  expect(await fb2Posted(c)).toEqual([]);
+  expect(await storedOf(c)).toBeNull();   // beim Server liegt keine Rückmeldung (die Anfrage erreichte ihn nie)
   expect(await mockRequests("final")).toHaveLength(1);   // die angehaltene Anfrage erreichte die KI nie
   await closePage(c);
 
@@ -7764,7 +7889,7 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   expectFinalInPdf(solD, expD);
   onlyCk3(solD);
   expect(pdfShownText(Buffer.from(solD, "latin1"))).not.toContain("lag beim Herunterladen nicht vor");
-  await expect.poll(async () => (await fb2Posted(d)).length, { timeout: 30_000 }).toBe(1);
+  expect((await storedOf(d)).results.map((f) => ({ covered: f.covered, missing: f.missing, ...(f.note ? { note: f.note } : {}) }))).toEqual(expD);
   expect(await mockRequests("final")).toHaveLength(2);
   await closePage(d);
 
@@ -7800,7 +7925,116 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
   }
   await expect(tp.locator("#t-subs-status")).toHaveText("");
 
+  /* ---------- (e2) Prüfwert ah: Eine gespeicherte finale Rückmeldung, die sich nicht auf die abgegebenen Antworten bezieht (z. B. hat ein
+     manipulierter Browser sie zu untergeschobenen Antworten erfragt), zeigt die Lehrkraft-Ansicht nicht – nur den Vermerk; die Lösungs-PDF
+     enthält sie ebenso wenig. Ana: Datensatz mit fremdem ah (verschlüsselt mit dem öffentlichen Schlüssel aus D1 wie Crypto.seal), Dan: Datensatz
+     ohne ah. Danach wiederhergestellt ---------- */
+  const rowsE = await d1Query(`SELECT id, envelope, final_env FROM submissions WHERE sheet_code='${code}' ORDER BY id`);
+  const rowByAnswers = async (answers) => {
+    const hit = [];
+    for (const r of rowsE) if (JSON.stringify((await openEnvelope(priv, JSON.parse(r.envelope))).answers.map((x) => x.final)) === JSON.stringify(answers)) hit.push(r);
+    expect(hit).toHaveLength(1);
+    return hit[0];
+  };
+  const rowAna = await rowByAnswers(ANA), rowDan = await rowByAnswers(DAN);
+  const recAna = await finalEnvOf(priv, rowAna.final_env, rowAna.envelope), recDan = await finalEnvOf(priv, rowDan.final_env, rowDan.envelope);
+  const pubT = JSON.parse((await d1Query("SELECT value FROM settings WHERE key='teacher'"))[0].value).publicKey;
+  const FORGED = "Erfundener Stichpunkt zu untergeschobenen Antworten";
+  const forgedAna = JSON.stringify(await makeEnvelope(pubT, { kind: "feibeitsblatt-final", v: 1, at: new Date().toISOString(),
+    ah: finalAh(["Untergeschoben 1", "Untergeschoben 2", "Untergeschoben 3"]), results: recAna.results.map(() => ({ covered: [FORGED], missing: [FORGED] })) }));
+  const { ah: _ahDan, ...noAhDan } = recDan;
+  const forgedDan = JSON.stringify(await makeEnvelope(pubT, noAhDan));
+  for (const env of [forgedAna, forgedDan]) expect(env).toMatch(/^\{"v":1,"ek":"[A-Za-z0-9+/=]+","iv":"[A-Za-z0-9+/=]+","ct":"[A-Za-z0-9+/=]+"\}$/);   // kein ' im SQL
+  // Gegenprobe: der Datensatz von Ana ließe sich öffnen, nur ah passt nicht zu ihren Antworten
+  expect((await openEnvelope(priv, JSON.parse(forgedAna))).ah).not.toBe(finalAh(ANA));
+  const setFinalEnv = (row, env) => d1Query(`UPDATE submissions SET final_env='${env}' WHERE id=${Number(row.id)}`);
+  await setFinalEnv(rowAna, forgedAna);
+  await setFinalEnv(rowDan, forgedDan);
+  try {
+    await tp.click("#t-refresh");
+    await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(4);
+    await tp.click("#t-expand-all");
+    for (const who of ["Ana", "Dan"]) {
+      await expect(det(who).locator(".dfinal")).toHaveText(FINAL_MISMATCH_NOTE);
+      await expect(det(who).locator(".dfb2")).toHaveCount(0);
+      await expect(det(who).locator('[data-ai-content="feedback-final"]')).toHaveCount(0);
+    }
+    await expect(det("Ana")).not.toContainText(FORGED);
+    // die übrigen Einträge unberührt
+    await expect(det("Ben").locator(".dfinal")).toHaveText("Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.");
+    await expect(det("Cem").locator(".dfinal")).toHaveText("Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.");
+    // Lösungs-PDF der Lehrkraft: ohne die gespeicherte Rückmeldung (statt ihrer die Checkliste), ohne KI-Kennzeichnung der Rückmeldung
+    const solAnaForged = await teacherPdf("Ana");
+    expect(solAnaForged).not.toContain(FORGED);
+    expect(solAnaForged).not.toContain("(Finale KI-R\\374ckmeldung:) Tj");
+    expectChecklistInPdf(solAnaForged, CKS);
+    await expect(tp.locator("#t-subs-status")).toHaveText("");
+  } finally {
+    await setFinalEnv(rowAna, rowAna.final_env);
+    await setFinalEnv(rowDan, rowDan.final_env);
+  }
+  expect((await d1Query(`SELECT id, final_env FROM submissions WHERE id IN (${Number(rowAna.id)}, ${Number(rowDan.id)}) ORDER BY id`)).map((r) => r.final_env))
+    .toEqual([rowAna, rowDan].sort((x, y) => x.id - y.id).map((r) => r.final_env));
+  // wiederhergestellt: wieder die echte finale Rückmeldung, ohne Vermerk
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-subs-body tr.main")).toHaveCount(4);
+  await tp.click("#t-expand-all");
+  for (const [who, exp] of [["Ana", expA], ["Dan", expD]]) {
+    await expect(det(who).locator(".dfinal")).toHaveCount(0);
+    await expect(det(who).locator(".dfb2 .fb-head")).toHaveText(exp.filter((e) => e.covered.length || e.missing.length).map(() => "Finale KI-Rückmeldung"));
+  }
+
+  /* ---------- (f) Wartezeit als Einstellung der Lehrkraft (30, 60 oder 90 s, Vorgabe 30): 60 s → das Blatt liefert sie, der Countdown
+     beginnt bei 60 s, nach 31 s ist der Download noch gesperrt, nach 61 s frei; danach wieder 30 s (die übrigen Tests rechnen damit) ---------- */
+  const sheetWait = async () => (await (await tp.request.get("/api/sheet/" + code)).json()).sheet.finalWaitSec;
+  expect(await sheetWait()).toBe(30);
+  const setWait = async (sec) => {
+    await tp.click("#t-ai");
+    await expect(tp.locator("#fw-save")).toBeEnabled();   // openAi hat die Einstellungen geladen
+    await tp.check("#fw-" + sec);
+    await tp.click("#fw-save");
+    await expect(tp.locator("#fw-status")).toHaveText(`Gespeichert: Nach der Abgabe warten die Schüler:innen höchstens ${sec} Sekunden auf die finale KI-Rückmeldung. Das gilt ab dem nächsten Öffnen eines Feibeitsblattes.`);
+    await expect(tp.locator("#fw-status")).toHaveAttribute("role", "status");
+    const put = (await t.calls((e) => e.path === "/api/teacher/final-wait")).at(-1);
+    expect([put.method, put.status, JSON.parse(put.reqBody), JSON.parse(put.body)]).toEqual(["PUT", 200, { waitSec: sec }, { ok: true, finalWaitSec: sec }]);
+    await tp.click("#ai-back");
+    await expect(tp.locator("#tv-overview")).toBeVisible();
+    // erneut geöffnet: die gespeicherte Wahl ist ausgewählt (aus GET /api/teacher/ai)
+    await tp.click("#t-ai");
+    await expect(tp.locator("#fw-save")).toBeEnabled();
+    for (const x of [30, 60, 90]) await expect(tp.locator("#fw-" + x)).toBeChecked({ checked: x === sec });
+    await expect(tp.locator("#fw-status")).toHaveText("");
+    await tp.click("#ai-back");
+    await expect(tp.locator("#tv-overview")).toBeVisible();
+    expect(await sheetWait()).toBe(sec);
+  };
+  await setWait(60);
+  try {
+    const ELA = ["Das Gewissen ist eine innere Instanz.", "Ela hat gelogen.", "Ela fühlt sich dann schlecht."];
+    const f = await toDialog({ vorname: "ela", nachname: "er", geb: "--09-10", klasse: "9r" }, ELA, { clock: true });
+    const fp = f.page, hf = await holdFinal(fp);
+    await confirmDialog(fp, "Ohne KI-Feedback abgeben?", true, { check: true });
+    await expect(fp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+    await expect.poll(() => hf.held, { timeout: 30_000 }).toBe(1);
+    await expect.poll(async () => (await f.calls((e) => e.path === "/api/sheet/" + code + "/checklist")).length, { timeout: 10_000 }).toBe(1);
+    await expect(fp.locator("#done-wait-count")).toHaveText(/^(60|5\d) s$/);   // der Countdown beginnt bei 60 s
+    await expect(fp.locator("#done-pdf")).toBeDisabled();
+    await fp.clock.runFor(31_000);   // die frühere feste Wartezeit (30 s) ist vorbei – hier wird weiter gewartet
+    await expect(fp.locator("#done-wait-text")).toHaveText(DONE_WAIT_TEXT);
+    await expect(fp.locator("#done-wait-count")).toHaveText(/^([12]\d|30|[1-9]) s$/);
+    await expect(fp.locator("#done-pdf")).toBeDisabled();
+    await fp.clock.runFor(30_000);   // 61 s: frei, im Hintergrund wird weiter gewartet
+    await expect(fp.locator("#done-wait-text")).toHaveText(doneWaitLate(true));
+    await expect(fp.locator("#done-pdf")).toBeEnabled();
+    hf.release();
+    await expect(fp.locator("#done-fb .fbbox")).toHaveCount(3, { timeout: 60_000 });
+    await expect(fp.locator("#done-wait")).toBeHidden();
+    expect((await storedOf(f)).results.map((x) => x.missing)).toEqual(expectedResults(TASKS, ELA).map((x) => x.missing));
+    await closePage(f);
+  } finally { await setWait(30); }
+
   // aufräumen: das Blatt samt Abgaben und Checkliste löschen
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");

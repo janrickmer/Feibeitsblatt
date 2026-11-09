@@ -3,6 +3,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
 import worker from "../../worker/index.js";
 import { startMockAI, expectedResults, expectedChecklist, mockAIBinding, parseFeedbackPrompt } from "../mock-ai.mjs";
 import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf, sealSecret } from "../../worker/lib.js";
@@ -142,7 +143,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], videos: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
     aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)", transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }],
     // die Neuinstallation (Setup ohne Blätter) löscht nach 30 Tagen (updatedAt/auto bleiben intern)
-    privacy: { retentionDays: 30 }, escape: null });
+    privacy: { retentionDays: 30 }, escape: null, finalWaitSec: 30 });   // Wartezeit auf die finale KI-Rückmeldung: Vorgabe 30 s
   assert.equal(/Chloroplasten|Sauerstoff|solution/.test(r.text), false);
   r = await call("GET", "/api/teacher/sheets", { auth });
   assert.deepEqual(r.json.sheets.map((s) => [s.code, s.title, s.taskCount, s.submissionCount]), [[code, "Bio", 2, 0]]);
@@ -758,9 +759,11 @@ test("submit and list submissions (decryptable), counts", async () => {
   assert.equal(r.json.submissions.length, 1); assert.equal(r.json.next, null);
   assert.deepEqual(await openEnvelope(T.privateKey, r.json.submissions[0].envelope), payload);
   assert.equal(typeof r.json.submissions[0].receivedAt, "number");
+  assert.equal(r.json.submissions[0].finalEnv, null);   // keine finale KI-Rückmeldung gespeichert
   const rows = d1.db.prepare("SELECT * FROM submissions").all();
-  assert.deepEqual(Object.keys(rows[0]).sort(), ["attempt", "envelope", "final_at", "id", "received_at", "sheet_code", "stage"]);
+  assert.deepEqual(Object.keys(rows[0]).sort(), ["attempt", "envelope", "final_at", "final_env", "id", "received_at", "sheet_code", "stage"]);
   assert.equal(rows[0].final_at, null);   // erst die finale KI-Rückmeldung schließt eine Abgabe ab
+  assert.equal(rows[0].final_env, null);
   assert.equal(rows[0].stage, "final"); assert.equal(rows[0].attempt, null);   // ohne Angabe: Abgabe ohne Kennung
   assert.equal(rows[0].envelope.includes("Max"), false);
   // Seitenweise: 52 weitere Abgaben → Seite 1 hat 50 + next, Seite 2 den Rest; Kappung je Blatt (Anzahl und Bytes)
@@ -826,70 +829,63 @@ test("first attempt (stage first) is replaced by the final submission of the sam
   d1.db.prepare("DELETE FROM submissions WHERE id >= ?").run(id);
 });
 
+// Prüfwert der finalen KI-Rückmeldung (final_env.ah): SHA-256 hex über JSON der Antworten – unabhängig vom Worker berechnet
+const answersDigest = (list) => createHash("sha256").update(JSON.stringify(list), "utf8").digest("hex");
 const ckCountSubmit = (b) => { const row = d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(b); return row ? row.count : null; };
-test("stage feedback2 (second AI feedback sent later): only replaces exactly the own final submission (same attempt and receivedAt) within 15 minutes, keeps received_at, never inserts", async () => {
+test("stage feedback2 (nur noch ältere, gecachte Seiten): ersetzt nie eine Abgabe, legt nie eine an, zählt nicht – kept, wenn zu genau dieser Abgabe die finale Rückmeldung schon beim Server liegt, sonst gone", async () => {
   const mk = (extra) => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: code, person: { vorname: "Ida", nachname: "Re", geburtsdatum: "--03-03", klasse: "7a" }, answers: [{ first: "a", final: "b" }], ...extra });
-  const attempt = "00112233445566aa";
+  const attempt = "00112233445566aa", ip = "203.0.113.90";
   const count = () => d1.db.prepare("SELECT COUNT(*) AS n FROM submissions WHERE sheet_code=?").get(code).n;
   const envOf = (id) => d1.db.prepare("SELECT envelope FROM submissions WHERE id=?").get(id).envelope;
+  const fb2 = { at: "2026-10-27T10:00:00.000Z", final: true, results: [{ covered: ["x"], missing: [] }] };
+  const send = async (receivedAt, extra = {}) => (await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2, ...extra }), stage: "feedback2", attempt, receivedAt }, ip }));
   const n0 = count();
-  // ungültig: nur mit Kennung und Eingangszeitpunkt
+  // ungültig: nur mit Kennung und Eingangszeitpunkt (die Prüfung bleibt)
   for (const body of [{}, { attempt }, { attempt, receivedAt: "1" }, { attempt, receivedAt: 0 }, { receivedAt: 1 }]) {
-    const r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "feedback2", ...body } });
+    const r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "feedback2", ...body }, ip });
     assert.equal(r.status, 400, JSON.stringify(body)); assert.equal(r.json.code, "bad_request");
   }
-  // ohne vorhandene Abgabe: nichts angelegt, nichts gezählt
-  let r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "feedback2", attempt, receivedAt: Date.now() }, ip: "203.0.113.90" });
+  // ohne vorhandene Abgabe: nichts angelegt
+  let r = await send(Date.now());
   assert.equal(r.status, 200, r.text); assert.deepEqual(r.json, { ok: true, gone: true });
   assert.equal(count(), n0);
-  assert.equal(ckCountSubmit(await bucketOf("submit", "203.0.113.90", SECRET)), null, "nicht gezählt");
-  // ein Erstversuch wird nicht ersetzt (erst die Abgabe)
+  // ein Erstversuch wird nicht ersetzt
   r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ stage: "first" }), stage: "first", attempt } });
   assert.equal(r.status, 200); const id = r.json.id;
-  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "feedback2", attempt, receivedAt: r.json.receivedAt } });
+  const firstEnv = envOf(id);
+  r = await send(r.json.receivedAt);
   assert.deepEqual(r.json, { ok: true, gone: true });
-  assert.equal(d1.db.prepare("SELECT stage FROM submissions WHERE id=?").get(id).stage, "first");
-  // Abgabe, dann nachgereicht: dieselbe Zeile, Eingang unverändert, Inhalt ersetzt
+  assert.deepEqual([d1.db.prepare("SELECT stage FROM submissions WHERE id=?").get(id).stage, envOf(id)], ["first", firstEnv]);
+  // Abgabe ohne finale Rückmeldung beim Server → gone, der Umschlag bleibt, wie er angekommen ist
   r = await call("POST", "/api/submit", { body: { code, envelope: await mk({}), stage: "final", attempt } });
   assert.equal(r.json.id, id); assert.equal(r.json.replaced, "first");
-  const got = r.json.receivedAt;
-  assert.equal(d1.db.prepare("SELECT received_at FROM submissions WHERE id=?").get(id).received_at, got);
-  const fb2 = { at: "2026-10-27T10:00:00.000Z", results: [{ covered: ["x"], missing: [] }] };
-  // ein anderer Eingangszeitpunkt (eine andere Fassung derselben Bearbeitung) → nichts
-  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: got - 1 } });
+  const got = r.json.receivedAt, env0 = envOf(id);
+  r = await send(got, { answers: [{ first: "a", final: "ganz anders" }] });
   assert.deepEqual(r.json, { ok: true, gone: true });
-  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: got } });
-  assert.equal(r.status, 200, r.text); assert.equal(r.json.id, id); assert.equal(r.json.replaced, "final"); assert.equal(r.json.receivedAt, undefined);
-  const row = d1.db.prepare("SELECT received_at, stage FROM submissions WHERE id=?").get(id);
-  assert.deepEqual([row.received_at, row.stage], [got, "final"]);
-  const list = (await call("GET", "/api/teacher/sheets/" + code + "/submissions", { auth })).json.submissions;
-  assert.deepEqual((await openEnvelope(T.privateKey, list.find((x) => x.id === id).envelope)).feedback2, fb2);
-  assert.equal(count(), n0 + 1);
-  // später als 15 Minuten nach dem Eingang → nichts (sonst ließe sich eine Abgabe unter altem Zeitpunkt austauschen)
-  const old = got - 16 * 60e3;
-  d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(old, id);
-  const before = envOf(id);
-  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2, answers: [{ first: "a", final: "ganz anders" }] }), stage: "feedback2", attempt, receivedAt: old } });
+  assert.equal(envOf(id), env0);
+  // liegt die finale Rückmeldung schon beim Server (final_env), sagt der Server „kept“ – ersetzt wird trotzdem nichts
+  d1.db.prepare("UPDATE submissions SET final_at=?, final_env=? WHERE id=?").run(got + 1, '{"v":1,"ek":"x","iv":"y","ct":"z"}', id);
+  r = await send(got, { answers: [{ first: "a", final: "ganz anders" }] });
+  assert.equal(r.status, 200, r.text); assert.deepEqual(r.json, { ok: true, kept: true });
+  assert.deepEqual({ ...d1.db.prepare("SELECT envelope, received_at, stage, final_env FROM submissions WHERE id=?").get(id) },
+    { envelope: env0, received_at: got, stage: "final", final_env: '{"v":1,"ek":"x","iv":"y","ct":"z"}' });
+  r = await send(got - 1);   // ein anderer Eingang (eine andere Fassung derselben Bearbeitung)
   assert.deepEqual(r.json, { ok: true, gone: true });
-  assert.equal(envOf(id), before);
-  // eine neuere Abgabe derselben Bearbeitung (z. B. ein zweites Gerät) wird von einem verspäteten Nachreichen nicht überschrieben
-  d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(got, id);
-  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ answers: [{ first: "a", final: "neuer" }] }), stage: "final", attempt } });
-  assert.equal(r.json.id, id); assert.equal(r.json.replaced, "final");
-  d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(got + 1, id);   // eindeutig neuer als die erste Abgabe
-  const newer = envOf(id);
-  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: got } });
-  assert.deepEqual(r.json, { ok: true, gone: true });
-  assert.equal(envOf(id), newer);
-  // von der Lehrkraft gelöscht → ein später nachgereichtes feedback2 legt sie nicht wieder an
+  // auch nach 15 Minuten nie ersetzt
+  d1.db.prepare("UPDATE submissions SET received_at=? WHERE id=?").run(got - 16 * 60e3, id);
+  r = await send(got - 16 * 60e3);
+  assert.deepEqual(r.json, { ok: true, kept: true }); assert.equal(envOf(id), env0);
+  // von der Lehrkraft gelöscht → nichts wieder angelegt
   r = await call("DELETE", "/api/teacher/sheets/" + code + "/submissions", { auth, body: { ids: [id] } });
   assert.equal(r.json.deleted, 1);
-  r = await call("POST", "/api/submit", { body: { code, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: got } });
+  r = await send(got);
   assert.deepEqual(r.json, { ok: true, gone: true });
   assert.equal(count(), n0);
+  assert.equal(ckCountSubmit(await bucketOf("submit", ip, SECRET)), null, "feedback2 zählt nie");
+  assert.equal(ckCountSubmit(await bucketOf("submit_bytes", ip, SECRET)), null);
 });
 
-test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Eingang), in den ersten 15 Minuten und einmal – sonst 409 ohne Zählung und ohne KI; alle Aufgaben mit eigenem System-Prompt und byte-gleicher Nachricht; danach abgeschlossen (neue Abgabe 409 final_locked), Nachreichen geht weiter", async () => {
+test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Eingang), in den ersten 15 Minuten und einmal – sonst 409 ohne Zählung und ohne KI; alle Aufgaben mit eigenem System-Prompt und byte-gleicher Nachricht; der Server legt sie verschlüsselt für die Lehrkraft bei der Abgabe ab (stored), danach abgeschlossen (neue Abgabe 409 final_locked), feedback2 ersetzt nichts", async () => {
   const fTasks = [
     { text: "Erkläre die Photosynthese.", solution: "- Photosynthese braucht Licht\n- Chloroplasten sind beteiligt\n- Sauerstoff entsteht" },
     { text: "Deine Meinung?", solution: "" },
@@ -902,7 +898,7 @@ test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Ein
   const mk = (extra) => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: c, person: { vorname: "Fi", nachname: "Na", geburtsdatum: "--04-04", klasse: "6a" }, answers: [{ first: "a", final: "b" }], ...extra });
   const fb = (extra, opts = {}) => call("POST", "/api/feedback", { body: { code: c, answers, ...extra }, ip, ...opts });
   const counted = async () => [ckCountSubmit(await bucketOf("feedback", ip, SECRET)), ckCountSubmit(await bucketOf("sheet_feedback", c, SECRET))];
-  const row = () => d1.db.prepare("SELECT id, stage, received_at, final_at, envelope FROM submissions WHERE sheet_code=? AND attempt=?").get(c, attempt);
+  const row = () => d1.db.prepare("SELECT id, stage, received_at, final_at, envelope, final_env FROM submissions WHERE sheet_code=? AND attempt=?").get(c, attempt);
   const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen (D1-Abfragen genau vergleichen)
   try {
     mock.reset();
@@ -951,7 +947,7 @@ test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Ein
     r = await fb({ final: true, attempt, receivedAt: at });
     assert.equal(r.status, 502, r.text); assert.equal(r.json.code, "ai_error"); assert.equal(r.json.aiCode, "BAD_JSON");
     mock.setMode("ok"); d1.db.prepare("DELETE FROM ai_skip").run();
-    assert.equal(row().final_at, null);
+    assert.deepEqual([row().final_at, row().final_env], [null, null]);
     // zum Vergleich: dieselben Antworten als Feedback vor der Abgabe
     mock.reset();
     const n0 = await fb({});
@@ -960,10 +956,10 @@ test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Ein
     assert.equal(before.kind, "feedback"); assert.equal(before.messages[0].content, FEEDBACK_SYSTEM);
     // Erfolg: alle Aufgaben mit Auftrag, eigener System-Prompt, byte-gleiche Nachricht; Ergebnisse wie beim Mock vorhergesagt
     mock.reset();
-    const cnt0 = await counted();
+    const cnt0 = await counted(), envSubmitted = row().envelope, t0 = Date.now();
     r = await fb({ final: true, attempt: attempt.toUpperCase(), receivedAt: at, recipients: ["custom:127.0.0.1:" + mock.port] });
     assert.equal(r.status, 200, r.text);
-    assert.equal(r.json.final, true); assert.equal(r.json.aiGenerated, true); assert.equal(r.json.digitalSourceType, "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia");
+    assert.equal(r.json.final, true); assert.equal(r.json.stored, true); assert.equal(r.json.aiGenerated, true); assert.equal(r.json.digitalSourceType, "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia");
     assert.deepEqual(r.json.results, expectedResults(fTasks, answers));
     assert.deepEqual(r.json.results[0], { covered: ["Photosynthese braucht Licht"], missing: ["Chloroplasten sind beteiligt", "Sauerstoff entsteht"] });
     assert.deepEqual(r.json.results[1], { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." });
@@ -974,9 +970,23 @@ test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Ein
     assert.equal(q.messages[1].content, buildFeedbackMessages(fTasks, answers).messages[1].content);
     assert.deepEqual(parseFeedbackPrompt(q.messages[1].content).map((b) => b.nr), [1, 3]);   // alle Aufgaben mit Auftrag
     assert.deepEqual(await counted(), [cnt0[0] + 1, cnt0[1] + 1], "gezählt wie jedes KI-Feedback");
-    assert.equal(r.queries, n0.queries + 2, "zwei D1-Abfragen mehr: die eigene Abgabe und ihr Abschluss");
+    assert.equal(r.queries, n0.queries + 3, "drei D1-Abfragen mehr: die eigene Abgabe, der Schlüssel der Lehrkraft und das Ablegen samt Abschluss");
     const fin = row().final_at;
-    assert.ok(fin >= at && fin <= Date.now(), "abgeschlossen: " + fin);
+    assert.ok(fin >= t0 && fin <= Date.now(), "abgeschlossen: " + fin);
+    // verschlüsselt für die Lehrkraft (Umschlag wie eine Abgabe) – entschlüsselt genau die Ergebnisse der Antwort; die Abgabe unverändert
+    assert.equal(row().envelope, envSubmitted, "der Umschlag der Abgabe bleibt, wie er angekommen ist");
+    const envFin = JSON.parse(row().final_env);
+    assert.deepEqual(Object.keys(envFin), ["v", "ek", "iv", "ct"]); assert.equal(envFin.v, 1);
+    const recFin = await openEnvelope(T.privateKey, envFin);
+    // ah = SHA-256 (hex) über JSON der beurteilten Antworten (wie validateAnswers sie bereinigt hat) – die Lehrkraft-Ansicht vergleicht ihn
+    assert.deepEqual(Object.keys(recFin), ["kind", "v", "at", "ah", "results"]);
+    assert.deepEqual(recFin, { kind: "feibeitsblatt-final", v: 1, at: new Date(fin).toISOString(), ah: answersDigest(answers), results: r.json.results });
+    assert.equal(/Chloroplasten|Photosynthese|Licht/.test(row().final_env), false, "nur verschlüsselt");
+    let list = (await call("GET", "/api/teacher/sheets/" + c + "/submissions", { auth })).json.submissions;
+    const entry = list.find((x) => x.id === id);
+    assert.equal(typeof entry.finalEnv, "string"); assert.equal(entry.finalEnv, row().final_env);   // als JSON-Text, wie gespeichert
+    assert.deepEqual(await openEnvelope(T.privateKey, JSON.parse(entry.finalEnv)), recFin);
+    assert.deepEqual(await openEnvelope(T.privateKey, entry.envelope), await openEnvelope(T.privateKey, JSON.parse(envSubmitted)));
     // ein zweites Mal → final_done (nicht gezählt, nichts an die KI)
     mock.reset();
     r = await fb({ final: true, attempt, receivedAt: at });
@@ -993,15 +1003,16 @@ test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Ein
     // ein verspäteter Erstversuch bleibt wirkungslos wie bisher (kept)
     r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({ stage: "first" }), stage: "first", attempt } });
     assert.equal(r.status, 200, r.text); assert.equal(r.json.kept, true); assert.equal(row().envelope, env0);
-    // das Nachreichen an die Lehrkraft (stage „feedback2“) geht weiter – so erreicht die finale Rückmeldung die Lehrkraft
-    const fb2 = { at: new Date().toISOString(), results: [{ covered: ["Licht"], missing: ["Chloroplasten"] }, null, { covered: [], missing: ["Wärme"] }] };
-    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({ feedback2: fb2 }), stage: "feedback2", attempt, receivedAt: at } });
-    assert.equal(r.status, 200, r.text); assert.equal(r.json.id, id); assert.equal(r.json.replaced, "final");
-    assert.deepEqual([row().received_at, row().final_at, row().stage], [at, fin, "final"]);
-    const list = (await call("GET", "/api/teacher/sheets/" + c + "/submissions", { auth })).json.submissions;
-    assert.deepEqual((await openEnvelope(T.privateKey, list.find((x) => x.id === id).envelope)).feedback2, fb2);
+    // ein „Nachreichen“ einer älteren Seite (stage „feedback2“) ersetzt nichts – auch keine erfundene Rückmeldung oder andere Antworten
+    const fb2 = { at: new Date().toISOString(), final: true, results: [{ covered: ["Alles richtig"], missing: [] }, null, { covered: ["Alles richtig"], missing: [] }] };
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({ feedback2: fb2, answers: [{ first: "a", final: "nachträglich geändert" }] }), stage: "feedback2", attempt, receivedAt: at }, ip: sip });
+    assert.equal(r.status, 200, r.text); assert.deepEqual(r.json, { ok: true, kept: true });
+    assert.deepEqual([row().envelope, row().received_at, row().final_at, row().stage], [env0, at, fin, "final"]);
+    assert.equal(ckCountSubmit(await bucketOf("submit", sip, SECRET)), null, "nicht gezählt");
+    list = (await call("GET", "/api/teacher/sheets/" + c + "/submissions", { auth })).json.submissions;
+    assert.equal((await openEnvelope(T.privateKey, list.find((x) => x.id === id).envelope)).feedback2, undefined);
     r = await fb({ final: true, attempt, receivedAt: at });
-    assert.equal(r.json.code, "final_done", "auch nach dem Nachreichen nur einmal");
+    assert.equal(r.json.code, "final_done", "auch danach nur einmal");
     // eine andere Bearbeitung (neue Kennung) ist davon nicht betroffen
     r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk({}), stage: "final", attempt: "1111222233334444" } });
     assert.equal(r.status, 200, r.text); assert.equal(r.json.replaced, undefined);
@@ -1016,12 +1027,183 @@ test("finale KI-Rückmeldung (final:true): nur zur eigenen Abgabe (Kennung + Ein
       mock.reset();
       r = await call("POST", "/api/feedback", { body: { code: c2, answers: ["Text"], final: true, attempt, receivedAt: at2 } });
       assert.equal(r.status, 200, r.text);
-      assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }], aiGenerated: false, final: true });
+      assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }], aiGenerated: false, final: true, stored: false });
       assert.equal(mock.state.requests.length, 0);
+      assert.deepEqual({ ...d1.db.prepare("SELECT final_at, final_env FROM submissions WHERE sheet_code=? AND attempt=?").get(c2, attempt) }, { final_at: null, final_env: null });
     } finally { await call("DELETE", "/api/teacher/sheets/" + c2, { auth }); }
   } finally {
     Math.random = rnd; mock.setMode("ok");
     await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  }
+});
+
+test("finale KI-Rückmeldung: Schlüssel der Lehrkraft unbrauchbar → stored:false, die Antwort kommt trotzdem und die Abgabe ist abgeschlossen; zwei gleichzeitige Anfragen → nur eine legt ab (final_at IS NULL)", async () => {
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Final ablegen", tasks } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code, answers = ["Pflanzen brauchen Licht.", "x"];
+  const mk = () => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: c, person: { vorname: "Ab", nachname: "Le", geburtsdatum: "--05-05", klasse: "7b" }, answers: [{ first: "a", final: "b" }] });
+  const row = (attempt) => ({ ...d1.db.prepare("SELECT envelope, final_at, final_env FROM submissions WHERE sheet_code=? AND attempt=?").get(c, attempt) });
+  const submit = async (attempt) => { const x = await call("POST", "/api/submit", { body: { code: c, envelope: await mk(), stage: "final", attempt } }); assert.equal(x.status, 200, x.text); return x.json.receivedAt; };
+  const teacherRaw = d1.db.prepare("SELECT value FROM settings WHERE key='teacher'").get().value;
+  try {
+    // unbrauchbarer öffentlicher Schlüssel (z. B. von Hand verdorben): Rückmeldung für die Schüler:innen, nichts abgelegt, aber abgeschlossen
+    const a1 = "0101010101010101", at1 = await submit(a1), env1 = row(a1).envelope;
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='teacher'").run(JSON.stringify({ ...JSON.parse(teacherRaw), publicKey: "QUJD" }));
+    mock.reset();
+    r = await call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a1, receivedAt: at1 }, ip: "203.0.113.180" });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.final, true); assert.equal(r.json.stored, false);
+    assert.deepEqual(r.json.results, expectedResults(tasks, answers));
+    const x1 = row(a1);
+    assert.ok(x1.final_at > 0, "abgeschlossen"); assert.equal(x1.final_env, null); assert.equal(x1.envelope, env1);
+    r = await call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a1, receivedAt: at1 }, ip: "203.0.113.180" });
+    assert.equal(r.json.code, "final_done");
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk(), stage: "final", attempt: a1 } });
+    assert.equal(r.json.code, "final_locked");
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk(), stage: "feedback2", attempt: a1, receivedAt: at1 } });
+    assert.deepEqual(r.json, { ok: true, gone: true });   // nichts beim Server – eine ältere Seite sagt dann, dass die Lehrkraft sie nicht bekommt
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='teacher'").run(teacherRaw);
+    // Ablegen scheitert in D1 (z. B. Tageslimit geschriebener Zeilen) → stored:false, die Antwort kommt trotzdem
+    const a3 = "0303030303030303", at3 = await submit(a3);
+    d1.failIf = (sql) => /SET final_at=\?1, final_env=CASE WHEN received_at=\?2 THEN \?3 END/.test(sql);
+    try { r = await call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a3, receivedAt: at3 }, ip: "203.0.113.180" }); }
+    finally { d1.failIf = null; }
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.stored, false); assert.deepEqual(r.json.results, expectedResults(tasks, answers));
+    assert.deepEqual([row(a3).final_at, row(a3).final_env], [null, null]);
+    // zwei gleichzeitige Anfragen zur selben Abgabe (z. B. zwei Tabs): beide bestehen die Prüfung, nur die erste Antwort wird abgelegt
+    const a2 = "0202020202020202", at2 = await submit(a2);
+    mock.reset();
+    const both = await Promise.all([1, 2].map((k) => call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a2, receivedAt: at2 }, ip: "203.0.113.18" + k, nocount: true })));
+    assert.deepEqual(both.map((x) => x.status), [200, 200], both.map((x) => x.text).join("\n"));
+    assert.equal(mock.state.requests.length, 2, "beide gingen an die KI (die Prüfung lag vor der Antwort)");
+    assert.deepEqual(both.map((x) => x.json.stored).sort(), [false, true]);
+    const x2 = row(a2), rec = await openEnvelope(T.privateKey, JSON.parse(x2.final_env));
+    assert.equal(rec.at, new Date(x2.final_at).toISOString());
+    assert.deepEqual(rec.results, both.find((x) => x.json.stored).json.results);
+    assert.equal(rec.ah, answersDigest(answers));
+  } finally {
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='teacher'").run(teacherRaw);
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  }
+});
+
+test("finale KI-Rückmeldung: Prüfwert ah = SHA-256 der bereinigten Antworten (wie validateAnswers); wird die Abgabe während der KI-Anfrage ersetzt (zweiter Tab, neuer Eingang), ist sie danach trotzdem abgeschlossen – ohne abgelegte Rückmeldung (stored:false, final_env NULL), eine weitere Abgabe → 409 final_locked", async () => {
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Final ersetzt", tasks } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  const mk = (final) => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: c, person: { vorname: "Er", nachname: "Se", geburtsdatum: "--06-06", klasse: "8c" }, answers: [{ first: "a", final }, { first: "b", final: "b" }] });
+  const row = (attempt) => ({ ...d1.db.prepare("SELECT id, stage, envelope, received_at, final_at, final_env FROM submissions WHERE sheet_code=? AND attempt=?").get(c, attempt) });
+  const submit = async (attempt, final, opts = {}) => {
+    const x = await call("POST", "/api/submit", { body: { code: c, envelope: await mk(final), stage: "final", attempt }, ...opts });
+    assert.equal(x.status, 200, x.text); return x.json;
+  };
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+  const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen
+  try {
+    /* (1) Prüfwert: Windows-Zeilenenden, ein einzelnes \r und Steuerzeichen (außer Tab) – ah gilt den bereinigten Antworten, nie den rohen */
+    const dirty = ["Pflanzen brauchen\u0000 Licht.\r\nUnd\rWasser.\u0007\tEnde", "Meine\u001F Meinung\r\n"];
+    const clean = ["Pflanzen brauchen Licht.\nUnd\nWasser.\tEnde", "Meine Meinung\n"];
+    const a1 = "0a0a0a0a0a0a0a0a", s1 = await submit(a1, dirty[0]);
+    mock.reset();
+    r = await call("POST", "/api/feedback", { body: { code: c, answers: dirty, final: true, attempt: a1, receivedAt: s1.receivedAt }, ip: "203.0.113.190" });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.stored, true);
+    assert.deepEqual(r.json.results, expectedResults(tasks, clean));
+    const prompt1 = mock.state.requests[0].messages[1].content;
+    assert.ok(prompt1.includes(clean[0]) && !/[\r\u0000\u0007]/.test(prompt1), "die KI bekommt die bereinigte Antwort");
+    const rec1 = await openEnvelope(T.privateKey, JSON.parse(row(a1).final_env));
+    assert.match(rec1.ah, /^[0-9a-f]{64}$/);
+    assert.equal(rec1.ah, answersDigest(clean));
+    assert.notEqual(rec1.ah, answersDigest(dirty));
+    assert.equal(rec1.ah, await sha256Hex(JSON.stringify(clean)));
+    // ohne Antwort (null) zählt die leere Zeichenkette – wie im Browser (finalAnswersDigest)
+    const a0 = "0b0b0b0b0b0b0b0b", s0 = await submit(a0, "");
+    r = await call("POST", "/api/feedback", { body: { code: c, answers: [null, "x"], final: true, attempt: a0, receivedAt: s0.receivedAt }, ip: "203.0.113.190" });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.stored, true);
+    assert.equal((await openEnvelope(T.privateKey, JSON.parse(row(a0).final_env))).ah, answersDigest(["", "x"]));
+
+    /* (2) die KI-Anfrage läuft (Mock antwortet verzögert), währenddessen gibt ein zweiter Tab dieselbe Bearbeitung neu ab */
+    const answers = ["Pflanzen brauchen Licht.", "x"];
+    const a2 = "0c0c0c0c0c0c0c0c", s2 = await submit(a2, "erste Fassung");
+    const env1 = row(a2).envelope;
+    mock.reset(); mock.setMode("ok", 1500);
+    const pending = call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a2, receivedAt: s2.receivedAt }, ip: "203.0.113.191", nocount: true });
+    for (let k = 0; k < 300 && mock.state.requests.length < 1; k++) await sleep(10);
+    assert.equal(mock.state.requests.length, 1, "die finale Anfrage ist bei der KI");
+    assert.equal(mock.state.requests[0].kind, "final");
+    assert.equal(row(a2).final_at, null, "noch nicht abgeschlossen");
+    await sleep(5);   // ein neuer Eingang (Millisekunden)
+    const re = await call("POST", "/api/submit", { body: { code: c, envelope: await mk("zweite Fassung aus dem anderen Tab"), stage: "final", attempt: a2 }, ip: "203.0.113.192", nocount: true });
+    assert.equal(re.status, 200, re.text);
+    assert.deepEqual([re.json.id, re.json.replaced], [s2.id, "final"]);
+    assert.ok(re.json.receivedAt > s2.receivedAt, "neuer Eingang");
+    const env2 = row(a2).envelope;
+    assert.notEqual(env2, env1);
+    r = await pending;
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.final, true); assert.equal(r.json.stored, false, "die Rückmeldung gehört zur ersetzten Fassung – nicht abgelegt");
+    assert.deepEqual(r.json.results, expectedResults(tasks, answers), "die Schüler:innen bekommen sie trotzdem");
+    mock.setMode("ok", 0);
+    const x2 = row(a2);
+    assert.ok(x2.final_at >= re.json.receivedAt, "abgeschlossen: " + x2.final_at);
+    assert.deepEqual([x2.id, x2.stage, x2.envelope, x2.received_at, x2.final_env], [s2.id, "final", env2, re.json.receivedAt, null]);
+    let list = (await call("GET", "/api/teacher/sheets/" + c + "/submissions", { auth })).json.submissions;
+    assert.equal(list.find((x) => x.id === s2.id).finalEnv, null);
+    // mit dem Wissen aus dieser Rückmeldung lässt sie sich nicht verbessert neu abgeben (nichts gezählt, nichts geändert)
+    const lip = "203.0.113.193";
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk("dritte, verbesserte Fassung"), stage: "final", attempt: a2 }, ip: lip });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "final_locked");
+    assert.equal(r.json.error, "Diese Abgabe ist schon abgeschlossen und lässt sich nicht mehr ändern.");
+    assert.equal(ckCountSubmit(await bucketOf("submit", lip, SECRET)), null, "nicht gezählt");
+    assert.deepEqual({ ...row(a2) }, x2);
+    // auch zur neuen Fassung gibt es keine (zweite) finale Rückmeldung mehr; ein „Nachreichen“ einer älteren Seite findet nichts
+    mock.reset();
+    r = await call("POST", "/api/feedback", { body: { code: c, answers, final: true, attempt: a2, receivedAt: re.json.receivedAt }, ip: "203.0.113.191" });
+    assert.equal(r.status, 409, r.text); assert.equal(r.json.code, "final_done");
+    assert.equal(mock.state.requests.length, 0);
+    r = await call("POST", "/api/submit", { body: { code: c, envelope: await mk("nachgereicht"), stage: "feedback2", attempt: a2, receivedAt: re.json.receivedAt } });
+    assert.deepEqual(r.json, { ok: true, gone: true });
+    assert.deepEqual({ ...row(a2) }, x2);
+  } finally {
+    Math.random = rnd; mock.setMode("ok", 0);
+    await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  }
+});
+
+test("Wartezeit auf die finale KI-Rückmeldung: PUT /api/teacher/final-wait nur angemeldet und nur 30/60/90 s; GET /api/teacher/ai, PUT /api/teacher/ai und GET /api/sheet liefern finalWaitSec (Vorgabe 30) ohne zusätzliche D1-Abfrage", async () => {
+  const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen (D1-Abfragen genau vergleichen)
+  try {
+    let r = await call("GET", "/api/teacher/ai", { auth });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.finalWaitSec, 30);
+    const qAi = r.queries;
+    r = await call("GET", "/api/sheet/" + code);
+    assert.equal(r.json.sheet.finalWaitSec, 30);
+    const qSheet = r.queries;
+    assert.equal(qSheet, 4, "Blatt, Einstellungen (eine Abfrage), Bilder, Dateien");
+    assert.equal((await call("PUT", "/api/teacher/final-wait", { body: { waitSec: 60 } })).status, 401);
+    for (const body of [{ waitSec: 45 }, { waitSec: "60" }, { waitSec: 30.5 }, { waitSec: 120 }, { waitSec: 0 }, { waitSec: null }, {}]) {
+      r = await call("PUT", "/api/teacher/final-wait", { auth, body });
+      assert.equal(r.status, 400, JSON.stringify(body)); assert.equal(r.json.code, "bad_request");
+      assert.equal(r.json.error, "Bitte wählen Sie eine Wartezeit von 30, 60 oder 90 Sekunden.");
+    }
+    assert.equal(settingsRow("final"), null, "nichts gespeichert");
+    for (const w of [90, 60]) {
+      r = await call("PUT", "/api/teacher/final-wait", { auth, body: { waitSec: w } });
+      assert.equal(r.status, 200, r.text); assert.deepEqual(r.json, { ok: true, finalWaitSec: w });
+      assert.deepEqual(settingsRow("final"), { v: 1, waitSec: w });
+    }
+    r = await call("GET", "/api/teacher/ai", { auth });
+    assert.equal(r.json.finalWaitSec, 60); assert.equal(r.queries, qAi, "keine zusätzliche D1-Abfrage");
+    r = await call("GET", "/api/sheet/" + code);
+    assert.equal(r.json.sheet.finalWaitSec, 60); assert.equal(r.queries, qSheet, "keine zusätzliche D1-Abfrage");
+    r = await call("PUT", "/api/teacher/ai", { auth, body: { provider: "custom", model: "", baseUrl: mock.url } });
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.finalWaitSec, 60);
+    // eine von Hand verdorbene Einstellung gilt als Vorgabe
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='final'").run(JSON.stringify({ v: 1, waitSec: 45 }));
+    assert.equal((await call("GET", "/api/sheet/" + code)).json.sheet.finalWaitSec, 30);
+    d1.db.prepare("UPDATE settings SET value='kein JSON' WHERE key='final'").run();
+    assert.equal((await call("GET", "/api/teacher/ai", { auth })).json.finalWaitSec, 30);
+  } finally {
+    Math.random = rnd;
+    d1.db.prepare("DELETE FROM settings WHERE key='final'").run();
   }
 });
 
@@ -1039,12 +1221,12 @@ test("schema upgrade: old submissions/sheets tables without the later columns ge
     d1.db.prepare("INSERT INTO sheets(code, title, tasks, created_at) VALUES (?, ?, ?, ?)").run("AXT2KM", "Altes Blatt", JSON.stringify(tasks), 1);
     d1.queries = 0;
     await ensureColumns(d1);
-    assert.ok(d1.queries <= 11, "D1-Abfragen: " + d1.queries);   // drei PRAGMAs (ein Batch), sieben ALTERs (ein Batch), Index
+    assert.ok(d1.queries <= 12, "D1-Abfragen: " + d1.queries);   // drei PRAGMAs (ein Batch), acht ALTERs (ein Batch), Index
     await ensureColumns(d1);   // zweimal: nichts doppelt
     const cols = d1.db.prepare("PRAGMA table_info(submissions)").all().map((c) => c.name);
-    assert.deepEqual(cols, ["id", "sheet_code", "received_at", "envelope", "stage", "attempt", "final_at"]);
-    const row = d1.db.prepare("SELECT stage, attempt, final_at FROM submissions").get();
-    assert.deepEqual({ ...row }, { stage: "final", attempt: null, final_at: null });   // alte Zeilen gelten als Abgaben, nicht abgeschlossen
+    assert.deepEqual(cols, ["id", "sheet_code", "received_at", "envelope", "stage", "attempt", "final_at", "final_env"]);
+    const row = d1.db.prepare("SELECT stage, attempt, final_at, final_env FROM submissions").get();
+    assert.deepEqual({ ...row }, { stage: "final", attempt: null, final_at: null, final_env: null });   // alte Zeilen gelten als Abgaben, nicht abgeschlossen
     assert.ok(d1.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_submissions_attempt'").get());
     assert.deepEqual(d1.db.prepare("PRAGMA table_info(sheets)").all().map((c) => c.name), ["code", "title", "tasks", "created_at", "escape_id", "escape_name"]);
     assert.deepEqual({ ...d1.db.prepare("SELECT escape_id, escape_name FROM sheets").get() }, { escape_id: null, escape_name: null });   // alte Blätter: normale Blätter
@@ -1228,6 +1410,7 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     assert.deepEqual(mock.state.requests[0].chat_template_kwargs, { enable_thinking: false }); assert.equal(mock.state.requests[0].max_completion_tokens, 1100);
     assert.deepEqual(Object.keys(cf.calls[0].opts).sort(), ["returnRawResponse", "signal"]);
     assert.ok(r.queries <= 18, "D1-Abfragen: " + r.queries);
+    const qFb = r.queries;
     assert.equal(usageRow().requests, 2); assert.ok(usageRow().neurons > 0);
     r = await call("GET", "/api/teacher/ai", { auth, env: CFENV });
     assert.equal(r.json.usage.requests, 2); assert.equal(r.json.usage.limit, 10000); assert.equal(r.json.quotaUntil, null);
@@ -1237,7 +1420,7 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
       { p: "cloudflare", req: 2, lim: "neurons", nl: 10000, n: r.json.usage.neurons, reset: nextMid, day: new Date().toISOString().slice(0, 10) });
     assert.ok(cu.tokens > 0); assert.equal(cu.rate, undefined); assert.equal(r.json.consumption.reserve, null);
     assert.deepEqual(r.json.consumption.cloudflare, cu);   // Workers AI auch unter seinem festen Schlüssel (Kontingent des Kontos)
-    // finale Rückmeldung nach der Abgabe über das Binding: eigener System-Prompt, Ausgabegrenze 800 + 400 je Aufgabe, zwei D1-Abfragen mehr
+    // finale Rückmeldung nach der Abgabe über das Binding: eigener System-Prompt, Ausgabegrenze 800 + 400 je Aufgabe, drei D1-Abfragen mehr
     const fAt = Date.now(), fAttempt = "00aa11bb22cc33dd";
     d1.db.prepare("INSERT INTO submissions(sheet_code, received_at, envelope, stage, attempt) VALUES (?, ?, '{}', 'final', ?)").run(c, fAt, fAttempt);
     cf.calls = []; mock.reset();
@@ -1245,8 +1428,12 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     assert.equal(r.status, 200, r.text); assert.equal(r.json.final, true);
     assert.deepEqual(r.json.results, expectedResults(tasks, ["Pflanzen brauchen Licht.", "x"]));
     assert.equal(cf.calls.length, 1); assert.equal(mock.state.requests[0].kind, "final"); assert.equal(mock.state.requests[0].max_completion_tokens, 1200);
-    assert.ok(r.queries <= 20, "D1-Abfragen: " + r.queries);
-    assert.ok(d1.db.prepare("SELECT final_at FROM submissions WHERE sheet_code=? AND attempt=?").get(c, fAttempt).final_at > 0);
+    assert.ok(r.queries <= 21, "D1-Abfragen: " + r.queries);
+    console.log("# D1-Abfragen bei Erfolg im ersten Versuch (Workers AI): Feedback " + qFb + ", finale Rückmeldung " + r.queries);
+    assert.equal(r.json.stored, true);
+    const fRow = d1.db.prepare("SELECT final_at, final_env FROM submissions WHERE sheet_code=? AND attempt=?").get(c, fAttempt);
+    assert.ok(fRow.final_at > 0);
+    assert.deepEqual((await openEnvelope(T.privateKey, JSON.parse(fRow.final_env))).results, r.json.results);
     // Lokal (wrangler dev --local): Binding da, Aufruf scheitert → Feedback 503 ai_not_configured, Test 502 mit Hinweis
     cf.mode = "local";
     r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });
@@ -1419,11 +1606,12 @@ test("KI-Einstellungen: Verbrauch heute je KI – erste KI und Reserve getrennt 
 });
 
 // D1-Abfragen je Feedback (Anweisungen eines Batches einzeln gezählt, Schema schon angelegt): Aufräumen 5 + Blatt/Einstellungen 2
-// (finale Rückmeldung 3: dazu die eigene Abgabe) + Sperren je Eintrag 1 + Zählung 3 + je Versuch ≤ 3 (Warteschlange voll:
-// Reservierung + Nachfrage 2; sonst Reservierung + Sperre) + Verbrauch je Eintrag/Sperre 2 (mit Reserve 3) + Erstattung 3 (nach einer
-// Antwort stattdessen höchstens 1: die finale Rückmeldung schließt die Abgabe ab) → ohne Reserve (6 Versuche) ≤ 34 (final 35), mit
-// Reserve (6 + 3 Versuche) ≤ 45 (final 46) – unter der Grenze 50 (hier gehen keine Anfragen raus: kein Verbrauch, ≤ 42 bzw. ≤ 43)
-test("feedback: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräumen, Erstattung) bleibt unter der Grenze von 42 D1-Abfragen, die finale Rückmeldung braucht genau eine mehr", async () => {
+// (finale Rückmeldung 4: dazu die eigene Abgabe und der Schlüssel der Lehrkraft) + Sperren je Eintrag 1 + Zählung 3 + je Versuch ≤ 3
+// (Warteschlange voll: Reservierung + Nachfrage 2; sonst Reservierung + Sperre) + Verbrauch je Eintrag/Sperre 2 (mit Reserve 3) +
+// Erstattung 3 (nach einer Antwort stattdessen höchstens 1: die finale Rückmeldung wird abgelegt und schließt die Abgabe ab) → ohne
+// Reserve (6 Versuche) ≤ 34 (final 36), mit Reserve (6 + 3 Versuche) ≤ 45 (final 47) – unter der Grenze 50 (hier gehen keine Anfragen
+// raus: kein Verbrauch, ≤ 42 bzw. ≤ 44)
+test("feedback: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräumen, Erstattung) bleibt unter der Grenze von 42 D1-Abfragen, die finale Rückmeldung braucht genau zwei mehr", async () => {
   const cf = mockAIBinding(mock), CFENV = { ...ENV, AI: cf };
   let r = await call("PUT", "/api/teacher/ai", { auth, env: CFENV, body: { provider: "custom", model: "", baseUrl: mock.url, apiKey: "sk-unit-again", reserve: { provider: "cloudflare", model: "" } } });
   assert.equal(r.status, 200, r.text);
@@ -1446,8 +1634,8 @@ test("feedback: ungünstiger Fall mit Reserve (alle Warteschlangen voll, Aufräu
   assert.equal(cf.calls.length, 0); assert.equal(mock.state.requests.length, 0);   // nichts ging an eine KI
   console.log("# D1-Abfragen im ungünstigen Fall mit Reserve: " + r.queries + ", finale Rückmeldung: " + rf.queries);
   assert.ok(r.queries >= 30 && r.queries <= 42, "D1-Abfragen: " + r.queries);
-  assert.equal(rf.queries, r.queries + 1, "finale Rückmeldung: nur die eigene Abgabe zusätzlich (im ersten Batch)");
-  assert.equal(d1.db.prepare("SELECT final_at FROM submissions WHERE sheet_code=? AND attempt=?").get(c, fAttempt).final_at, null, "ohne Antwort nicht abgeschlossen");
+  assert.equal(rf.queries, r.queries + 2, "finale Rückmeldung: nur die eigene Abgabe und der Schlüssel der Lehrkraft zusätzlich (im ersten Batch)");
+  assert.deepEqual({ ...d1.db.prepare("SELECT final_at, final_env FROM submissions WHERE sheet_code=? AND attempt=?").get(c, fAttempt) }, { final_at: null, final_env: null }, "ohne Antwort nichts abgelegt, nicht abgeschlossen");
   assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
   assert.equal((await call("PUT", "/api/teacher/ai", { auth, body: { reserve: null } })).status, 200);
 });

@@ -3,8 +3,9 @@
 Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft; die Kurzfassung
 des Datenschutzhinweises nennt die Messung in einem Satz, Widerspruch per Schalter im eigenen Abschnitt des ausführlichen Hinweises): Lehrkraft legt Aufgaben +
 Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; bis zu 3 YouTube-Videos je Aufgabe unter dem Material, geladen erst nach Klick; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
-überarbeiten, verschlüsselt abgeben (danach finale KI-Rückmeldung zur abgegebenen Fassung – abwählbar, Download höchstens 30 s
-gesperrt, sonst steht die Checkliste in der Lösungs-PDF) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); nach „Code generieren“
+überarbeiten, verschlüsselt abgeben (danach finale KI-Rückmeldung zur abgegebenen Fassung – abwählbar, der Server legt sie verschlüsselt
+für die Lehrkraft zur Abgabe, Download höchstens 30/60/90 s gesperrt (Einstellung der Lehrkraft), sonst steht die Checkliste in der
+Lösungs-PDF) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); nach „Code generieren“
 schlägt die KI eine Checkliste vor, die die Lehrkraft bestätigt; Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu dieser
 Checkliste drucken; ein Blatt kann auch das Finale eines Escape-Rooms sein (Ankunft per Link oder Überblick-PDF, siehe
@@ -37,7 +38,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **API:** JSON, `{ok:true, …}` bzw. `{ok:false, error:"deutsche Meldung", code}`; CORS `*`, keine Cookies, Auth nur
   per `Authorization: Bearer <authKey>`. Öffentlich: `GET /api/sheet/:code` (**nie `solution`**, d. h. die Aufträge an die KI),
   `POST /api/feedback`, `POST /api/submit`. Lehrkraft: `/api/teacher/door`, `/setup`, `/login`, `/password`,
-  `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/sheets/:code/checklist`, `/ai`, `/ai/test`, `/privacy` (Pfade
+  `/sheets`, `/sheets/:code`, `/sheets/:code/submissions`, `/sheets/:code/checklist`, `/ai`, `/ai/test`, `/final-wait`, `/privacy` (Pfade
   unter `/api/teacher`); öffentlich außerdem `GET /api/sheet/:code/checklist` (siehe Analoges Arbeitsblatt) und `GET /api/privacy`
   (siehe Datenschutz-Angaben).
   `DELETE …/sheets/:code/submissions` ohne Body löscht alle Einträge des Blattes, mit JSON `{ids:[…]}` (1–`LIMITS.deleteIds`
@@ -51,20 +52,37 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   und `files` (PDF-Dateien, siehe unten) und immer `videos: [{id, start?, title?}]` (`videosOut`, `[]` ohne Videos; nie eine URL – siehe
   YouTube-Videos; `POST /api/teacher/sheets` nimmt je Aufgabe optional `videos` und antwortet zusätzlich mit `videoCount`). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
   Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
-  `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr).
+  `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr) und `finalWaitSec`
+  (in `sheet`; Wartezeit auf die finale KI-Rückmeldung 30 | 60 | 90, `finalWaitOut`; ebenfalls aus dem `IN`-Batch – `key IN
+  ('teacher','ai','privacy','final')`, weiter 4 Abfragen, siehe Finale KI-Rückmeldung, „Wartezeit“).
   `GET /api/sheet/:code`, `GET /api/teacher/sheets` (je Blatt) und `GET /api/teacher/sheets/:code` liefern `escape: {id, name} |
   null` (Finale eines Escape-Rooms; öffentlich nie mehr als Kennung und Name), `POST /api/teacher/sheets` nimmt optional `escape`
   (siehe Escape-Room-Anbindung).
   `POST /api/feedback` nimmt `{code, answers, recipients?, only?, final?, attempt?, receivedAt?}`. **Final-Modus** (finale
   KI-Rückmeldung nach der Abgabe): `final: true` + `attempt` (16 Hex) + `receivedAt` (aus der Antwort von `/api/submit`)
   (`validateFinalMeta` in lib.js: `final` fehlt/`null`/`false` = Feedback vor der Abgabe; ein anderer Wert, `only` dazu oder
-  fehlende bzw. ungültige Kennung/Eingang → 400 `bad_request`); im ersten Batch eine Abfrage mehr (`finalStmt`: neueste Zeile mit
-  dieser `attempt`), `checkFinal` nach `validateAnswers`, aber **vor** dem Zählen und vor jeder KI: keine Zeile, kein `stage`
+  fehlende bzw. ungültige Kennung/Eingang → 400 `bad_request`); im ersten Batch zwei Abfragen mehr (`finalStmt`: neueste Zeile mit
+  dieser `attempt`; `settingStmt(db, "teacher")`: der öffentliche Schlüssel der Lehrkraft), `checkFinal` nach `validateAnswers`, aber
+  **vor** dem Zählen und vor jeder KI: keine Zeile, kein `stage`
   final oder anderer `received_at` → 409 `final_gone`, `receivedAt` ≤ jetzt − `REPLACE_WINDOW_MS` (15 min) → 409 `final_expired`,
   `final_at` schon gesetzt → 409 `final_done` (`MSG.finalGone`/`finalExpired`/`finalDone`); dann alle Aufgaben mit Auftrag
-  (eigener System-Prompt, siehe KI), Antwort zusätzlich `final: true`; nach einer brauchbaren Antwort setzt `finalDoneStmt`
-  `submissions.final_at` (über `askAI({done})` im `waitUntil`-Batch – geht die Antwort danach verloren, bleibt es bei
-  `final_done`; der Server speichert die Rückmeldung nicht). Ohne Aufgabe mit Auftrag: `results` ohne KI, `final_at` bleibt NULL.
+  (eigener System-Prompt, siehe KI), Antwort zusätzlich `final: true` und `stored: true|false`. **Der Server legt die Rückmeldung selbst
+  ab** (Entscheidung des Betreibers vom 08.11.2026, siehe Finale KI-Rückmeldung): nach einer brauchbaren Antwort baut `storeFinal`
+  den Datensatz `{kind:"feibeitsblatt-final", v:1, at: ISO-Zeitpunkt (derselbe Millisekundenwert wie final_at), ah, results}` (`results` =
+  genau das Array der Antwort, `feedbackResults` → `{covered, missing, note?}` je Aufgabe; `ah` = `sha256Hex(JSON.stringify(answers))` der
+  beurteilten, von `validateAnswers` bereinigten Antworten), verschlüsselt ihn per `sealForTeacher` (lib.js, siehe Krypto) und schreibt
+  **eine abgewartete Anweisung** `finalStoreStmt` (nicht im `waitUntil`-Batch) auf genau die Zeile, die `checkFinal` geprüft hat (`finalStmt`
+  liest `id`): `UPDATE submissions SET final_at=?, final_env=CASE WHEN received_at=? THEN ? END WHERE id=? AND stage='final' AND final_at IS
+  NULL RETURNING final_env IS NOT NULL AS has_env` → `stored` = Umschlag da und `has_env`. **Abgeschlossen wird die Zeile in jedem Fall**, auch
+  wenn sie während der KI-Anfrage durch eine neue Abgabe derselben Bearbeitung (zweiter Tab) ersetzt wurde – sonst ließe sie sich mit dem
+  Wissen aus dieser Rückmeldung verbessert neu abgeben (Prüfbefund vom 08.11.2026); die Rückmeldung selbst liegt nur bei der Abgabe, zu der
+  sie gehört (derselbe Eingang), sonst `final_env` NULL. Zwei gleichzeitige Anfragen derselben Abgabe: die erste gewinnt, die zweite bekommt
+  ihre Antwort mit `stored:false`.
+  Ist der Schlüssel der Lehrkraft unbrauchbar, wird die Abgabe trotzdem abgeschlossen (`final_at` gesetzt, `final_env` NULL,
+  `stored:false` – sonst ließe sie sich nach dem „Das hat gefehlt“ verbessert neu abgeben); scheitert die Anweisung in D1, bleibt beides
+  NULL (`stored:false`). Ein Fehler beim Verschlüsseln oder Speichern lässt die Antwort nie scheitern. Geht die Antwort danach verloren,
+  bleibt es bei `final_done`. `finalDoneStmt` und der `done`-Haken von `askAI` sind entfallen. Ohne Aufgabe mit Auftrag: `results` ohne KI,
+  `stored:false`, `final_at` bleibt NULL.
   `only: [n…]` (1-basierte Aufgabennummern, `validateOnly`: Ganzzahlen 1…Aufgabenzahl,
   ohne Doppelte, nicht leer, sonst 400 `bad_answers` – nie stillschweigend „alle“; fehlt/`null` = alle) bleibt nur für ältere,
   gecachte Seiten (zweite Rückmeldung zu geänderten Aufgaben): dann gehen nur diese Aufgaben (mit Auftrag) an die KI, `results`
@@ -73,7 +91,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   wenn die KI gefragt wurde, sonst `false`); `POST /api/submit` liefert `retentionDays` (Frist jetzt, `null` = keine).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
   `/door`, Blatt-Codes enthalten immer Buchstaben. `GET …/submissions?after=<id>` liefert seitenweise (≤ 50 bzw.
-  ≤ 8 MB je Seite, `next` = letzte id oder `null`); das Frontend schleift über `next`. `GET /api/health` ohne
+  ≤ 8 MB je Seite – gezählt Umschlag + `finalEnv` –, `next` = letzte id oder `null`) je Eintrag `{id, receivedAt, stage, envelope,
+  finalEnv}` (`finalEnv` = die vom Server abgelegte finale KI-Rückmeldung als JSON-Text des Umschlags, sonst `null`); das Frontend
+  schleift über `next`. `GET /api/health` ohne
   Datenbank. KI-Fehler, bei denen Warten hilft (BUSY, RATE_LIMIT, TIMEOUT) → 429 `ai_busy` mit `retryAfter`,
   Tageskontingent von Workers AI (kontoweit) → 503 `ai_quota` ohne `retryAfter`, sonst 502 `ai_error`; ohne
   `SETTINGS_SECRET` → 503 `server_not_configured` (nur beim Speichern eines API-Schlüssels). `GET`/`PUT /api/teacher/ai`
@@ -81,11 +101,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   oder `null`), `usage: {day, requests, neurons, limit}` (Workers AI heute, UTC – Form für gecachte Seiten) und `consumption:
   {main, reserve, cloudflare}` (je Eintrag `entryUsage`, `null` ohne Eintrag: `{provider, day, requests, tokens, resetAt (nächstes
   0:00 UTC), limits: "neurons"|"requests"|null}`, Workers AI dazu `neurons`/`neuronLimit`, Groq `rate: [{model, limit, left, resetAt,
-  at}]` – siehe Verbrauch je KI); `/ai/test` bei Workers AI `usage` (prompt/completion/reasoning_tokens, nie Inhalt).
+  at}]` – siehe Verbrauch je KI) und `finalWaitSec` (30 | 60 | 90; GET liest `ai` und `final` in einer Abfrage `aiFinalStmt`, PUT eine
+  Anweisung mehr im Batch – GET bleibt bei 4 Abfragen); `/ai/test` bei Workers AI `usage` (prompt/completion/reasoning_tokens, nie Inhalt).
+  `PUT /api/teacher/final-wait` `{waitSec}` (nur angemeldet; `validateFinalWait`: nur die Zahl 30, 60 oder 90, sonst 400 `bad_request`
+  „Bitte wählen Sie eine Wartezeit von 30, 60 oder 90 Sekunden.“) → speichert settings `final` = `{v:1, waitSec}` → `{ok, finalWaitSec}`.
 - **Codes:** 6 Zeichen aus `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (≥ 1 Buchstabe, ≥ 1 Ziffer), Anzeige `K7Q-M4X`,
   Eingabe normalisieren (Großbuchstaben, nur `A–Z0–9`), Erzeugung mit `crypto.getRandomValues` ohne Modulo-Bias.
-- **D1-Schema:** `settings(key, value)` (`teacher` = `{authHash, kdf, publicKey, encPrivateKey}`, `ai`, `privacy`), `sheets`,
-  `submissions(id, sheet_code, received_at, envelope, stage TEXT DEFAULT 'final', attempt TEXT, final_at INTEGER)` + Indizes
+- **D1-Schema:** `settings(key, value)` (`teacher` = `{authHash, kdf, publicKey, encPrivateKey}`, `ai`, `privacy`, `final` = `{v:1,
+  waitSec}`), `sheets`,
+  `submissions(id, sheet_code, received_at, envelope, stage TEXT DEFAULT 'final', attempt TEXT, final_at INTEGER, final_env TEXT)` + Indizes
   (`sheet_code, id`, `sheet_code, attempt` und `received_at` für die Löschfrist), `sheet_images(id, sheet_code, task, pos, mode, mime,
   w, h, bytes, data TEXT = Base64, created_at)` + Index (`sheet_code, task, pos`), `rate_limits`, `ai_gate`,
   `ai_skip`, `ai_usage(day 'YYYY-MM-DD' UTC, provider = Schlüssel des Eintrags (`e.key`: erster Anbieter bzw. `provider#r`,
@@ -93,9 +117,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `sheet_checklists(sheet_code PK, draft, final, updated_at)`. Angelegt per
   `CREATE TABLE IF NOT EXISTS` beim ersten Request je Isolate (ein `batch`), keine Migrationen → Schemaänderungen
   nur additiv und idempotent im `SCHEMA`-Array; nachträgliche Spalten wie `stage`/`attempt`, `submissions.final_at` (Zeitpunkt der
-  finalen KI-Rückmeldung zu dieser Abgabe, NULL = noch keine – danach ist die Abgabe abgeschlossen, siehe Erstversuch ↔ Abgabe) und
+  finalen KI-Rückmeldung zu dieser Abgabe, NULL = noch keine – danach ist die Abgabe abgeschlossen, siehe Erstversuch ↔ Abgabe),
+  `submissions.final_env` (die finale KI-Rückmeldung selbst, vom Server für die Lehrkraft verschlüsselt – Umschlag `{v:1, ek, iv, ct}` als
+  JSON-Text wie `envelope`; NULL = keine) und
   `sheets.escape_id`/`escape_name`
-  (Escape-Room-Blatt, NULL = normales Blatt) und `ai_usage.tokens`/`req_limits` per `ensureColumns` (`LATER_COLUMNS`, 7 Spalten; die drei
+  (Escape-Room-Blatt, NULL = normales Blatt) und `ai_usage.tokens`/`req_limits` per `ensureColumns` (`LATER_COLUMNS`, 8 Spalten; die drei
   `PRAGMA table_info` (submissions, sheets, ai_usage) in einem Batch →
   fehlende `ALTER TABLE … ADD COLUMN` in einem Batch, Fehler bei Wettlauf zweier Isolates werden durch erneutes Nachsehen abgefangen).
 - **Erstversuch ↔ Abgabe:** `POST /api/submit` nimmt `{code, envelope, stage?: "first"|"final"|"feedback2", attempt?: 16 Hex, receivedAt?}`
@@ -106,10 +132,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   derselben Zeile (`replaced`), ein Erstversuch überschreibt nie eine Abgabe (`kept:true`); ohne `attempt` wird
   eingefügt. Widerspricht jemand nach dem Senden der Tippzeit-Messung, ersetzt der Browser den Erstversuch mit derselben
   `attempt` ohne Tippzeiten (`S.ttResend`, siehe Tippzeit-Messung). `stage: "feedback2"` (mit `attempt` und `receivedAt` der Abgabe-Antwort,
-  `validateSubmitMeta` → `replace`) ersetzt nur genau die eigene Abgabe, legt nie eine an und zählt ohne passende Abgabe nicht (siehe Finale
-  KI-Rückmeldung). Hat die Abgabe schon eine finale KI-Rückmeldung bekommen (`final_at` gesetzt), ist sie abgeschlossen: eine neue Abgabe
+  `validateSubmitMeta` → `replace`; schicken nur noch ältere, gecachte Seiten – früher reichten sie damit die finale KI-Rückmeldung nach)
+  **ersetzt nie etwas, legt nie etwas an und zählt nie** (der Rumpf wird weiter geprüft, ein unbekanntes Blatt → 404): `{ok:true, kept:true}`,
+  wenn zu genau dieser Abgabe (dieselbe Kennung, `stage` final, `received_at` = `receivedAt`) schon `final_env` liegt – eine ältere Seite
+  wertet das als „angekommen“ –, sonst `{ok:true, gone:true}` (siehe Finale KI-Rückmeldung). Hat die Abgabe schon eine finale
+  KI-Rückmeldung bekommen (`final_at` gesetzt), ist sie abgeschlossen: eine neue Abgabe
   (`stage` final) mit derselben `attempt` → 409 `final_locked` (`MSG.finalLocked`, vor dem Zählen) – sonst ließe sich nach dem „Das hat
-  gefehlt“ verbessert neu abgeben und erneut fragen; das Nachreichen (`feedback2`) und ein verspäteter Erstversuch (`kept`) gehen weiter.
+  gefehlt“ verbessert neu abgeben und erneut fragen; ein verspäteter Erstversuch bleibt wirkungslos (`kept`). Das Ersetzen einer Zeile
+  derselben Bearbeitung (`UPDATE … WHERE id=? AND final_at IS NULL`) ist atomar: kam die finale Rückmeldung dazwischen, ändert sich nichts,
+  Antwort 409 `final_locked` – so liegt `final_env` nie neben einem anderen Umschlag. Die Grenze je Blatt (40 MB) zählt `envelope` + `final_env`.
   `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
   `#p-klasse-hint` sagt es den Schüler:innen so: Angaben gehen mit dem KI-Feedback (Erstversuch), ohne KI-Feedback erst
   bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
@@ -174,7 +205,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `AI_PDF_NOTE` unter dem Kopf, `/Subject` + `/Keywords` im Info-Dict, XMP-Stream (`xmpPacket`, UTF-8, `/Length` in Bytes,
   letztes Objekt `6 + 2·Seiten`, `/Metadata` im Katalog) mit `Iptc4xmpExt:DigitalSourceType` `compositeSynthetic` – eine PDF nur mit Checkliste hat
   davon nichts, nur den sichtbaren Satz zum KI-Vorschlag (siehe KI-Kennzeichnung); Dateiname `Feibeitsblatt-Loesungen-<Code>-<Datum>.pdf`, ohne
-  Geburtstag. Die Quelltexte von `makeSolutionsPdf` und `escPdfPages` enthalten nie `fb2Base`, `typing` oder `.payload` (Unit-Test).
+  Geburtstag. Die Quelltexte von `makeSolutionsPdf` und `escPdfPages` enthalten nie `typing` oder `.payload` (Unit-Test).
 - **Finale KI-Rückmeldung zur abgegebenen Fassung (Wunsch der Lehrkraft vom 08.11.2026; ersetzt die frühere „zweite Rückmeldung“ nur zu
   geänderten Aufgaben):** `submitAll` gibt **zuerst** ab (die Abgabe hängt nie von der KI ab). **Angebot im Abgabe-Dialog** – auch **ohne erstes
   KI-Feedback**: `fb2Offer(finals, na)` (eingefroren beim Öffnen wie der Text des Dialogs) nur bei `S.sheet.aiFeedback`, mit Empfänger
@@ -183,8 +214,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   **vorausgewählte, abwählbare** Kästchen `#dlg-check` (`label#dlg-check-row.checkrow.dlg-check`, `#dlg-check-label` = `FB2_CHECK_LABEL` „Nach der
   Abgabe eine finale KI-Rückmeldung erhalten“; erstes Element der Tab-Falle; ohne `check` verborgen, Zustand bis zum nächsten Aufruf in
   `$("dlg-check").checked`) und im Text `fb2DialogLine()` „Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI
-  beurteilt, was dir gelungen ist und was gefehlt hat, und geht verschlüsselt auch an deine Lehrkraft. <`recipientSentence()`> Möchtest du das
-  nicht, wähle die finale KI-Rückmeldung unten ab.“ (ohne Angebot mit erstem Feedback `FB2_NO_AI` „…; an die KI wird nichts gesendet.“ bzw.
+  beurteilt, was dir gelungen ist und was gefehlt hat; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine
+  Lehrkraft lesen. <`recipientSentence()`> Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.“ (ohne Angebot mit erstem Feedback `FB2_NO_AI` „…; an die KI wird nichts gesendet.“ bzw.
   „Deine Antworten sind zusammen zu lang für eine finale KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet.“; ohne erstes Feedback
   und ohne Angebot die bisherigen Sätze „An die KI wird nichts gesendet.“ u. ä.). `wantFinal = offer && ok === true && $("dlg-check").checked`;
   angeboten → `payload.finalWanted = wantFinal` (verschlüsselt; die Lehrkraft sieht „abgewählt“); **jede** neue Abgabe trägt `payload.finalMode = true`
@@ -193,16 +224,20 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   einmal“, nie der E-Mail-Weg (`ESC_NOT_TECHNICAL`). Kästchen und Satz nennen nie Tippzeiten
   (`expectOnlyTtShort`: Abgabe-Dialog 1, Bestätigung 0).
   **Nach der Abgabe:** `S.lastSubmission` bekommt `fb2Want`, `finalWanted`, `attempt` (`S.attempt`), `serverAt` (`receivedAt` der Antwort von
-  `/api/submit`), `gateOpen`, `checklist`. `fb2LoadChecklist(sub)` holt **bei jeder Abgabe** sofort `GET /api/sheet/:code/checklist` (öffentlich,
+  `/api/submit`), `gateOpen`, `checklist`, `waitSec` (`finalWaitOf(S.sheet.finalWaitSec)`, siehe „Wartezeit“) und die Frist für „Rückmeldung
+  erneut anfordern“ als reine Zeitpunkte: `fb2Until` = `sentAt` + `FB2_WINDOW_MS` (Wanduhr) und `fb2Mono` = `sentMono` + `FB2_WINDOW_MS`
+  (`performance.now`; beide in `submitAll` direkt vor `sendSealed` genommen – auf dem Gerät nie länger als beim Server, dort ab dem Eingang).
+  Die angenommene Nutzlast merkt sich die Seite nicht, `S.firstTyping` wird `null` – nach der Abgabe hält sie keine Tippzeiten mehr.
+  `fb2LoadChecklist(sub)` holt **bei jeder Abgabe** sofort `GET /api/sheet/:code/checklist` (öffentlich,
   ohne Angaben, Timeout 20 s; `sub.checklist`: `undefined` = lädt, `false` = keine oder Fehler, sonst `{ai, points}` gekappt auf 30 Aufgaben ×
-  `CHECK_POINTS` × `CHECK_POINT_MAX`; Versprechen in `sub.checklistP`). Nur mit `wantFinal`: `fb2Hold` (siehe unten), `doneGate(sub)` und
+  `CHECK_POINTS` × `CHECK_POINT_MAX`; Versprechen in `sub.checklistP`). Nur mit `wantFinal`: `doneGate(sub)` und
   `requestFinalFeedback()`; abgewählt oder nicht angeboten → keine Anfrage, `#done-fb` bleibt verborgen, Download sofort frei. Live-Regionen werden
   erst eingeblendet, dann gefüllt (`doneWaitShow` per `liveFill` mit `#done-wait._txt`, `doneFbReveal(sub, fill)` für `#done-fb-status` mit
   `_seq` – auch `fb2StatusWithChecklist` erhöht ihn). „Rückmeldung erneut anfordern“ per Tastatur: `sub.retryFocus`, der Fokus geht beim
   Ausblenden auf `#done-pdf` und nach einem erneuten Fehlschlag zurück auf den Knopf. Ohne eingerichteten KI-Dienst (`!recipientParts().any`)
   kündigen `renderPrivacy` und `#submit-hint` keine finale Rückmeldung an.
-  **Sperre mit Countdown:** `doneGate` setzt `sub.gateOpen = false` und `sub.gateUntil = Date.now() + FB2_GATE_MS` (30 s, absoluter Zeitpunkt – auch
-  nach dem Ruhezustand richtig), `#done-pdf` `aria-disabled="true"` (bleibt fokussierbar; der Klick-Handler prüft `gateOpen` selbst und sagt in
+  **Sperre mit Countdown:** `doneGate` setzt `sub.gateOpen = false` und `sub.gateUntil = Date.now() + finalWaitOf(sub.waitSec) * 1000` (30, 60
+  oder 90 s – die Wartezeit der Lehrkraft, siehe unten; absoluter Zeitpunkt – auch nach dem Ruhezustand richtig; `FB2_GATE_MS` ist entfallen), `#done-pdf` `aria-disabled="true"` (bleibt fokussierbar; der Klick-Handler prüft `gateOpen` selbst und sagt in
   `#done-status` „Einen Moment noch – deine finale KI-Rückmeldung wird gerade erstellt. Danach kannst du deine Lösungen herunterladen.“),
   `aria-describedby` = `[done-group] done-wait-text done-pdf-note`; `p#done-wait` = `.spinner` + `#done-wait-count` (aria-hidden, „N s“, Zeitgeber
   `doneWaitTimer` alle 250 ms) + `#done-wait-text` (`role="status"`) `DONE_WAIT_TEXT` „Deine finale KI-Rückmeldung wird gerade erstellt – bitte
@@ -212,18 +247,19 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   in der PDF-Datei statt der KI-Rückmeldung die Checkliste deiner Lehrkraft (bei `checklist === false` „… steht in der PDF-Datei keine KI-Rückmeldung“). Wenn du noch
   wartest, kommt die Rückmeldung vielleicht noch.“ – **im Hintergrund wird weiter gewartet, bis heruntergeladen wird**: Kommt sie vorher, steht sie
   auf der Seite und in der PDF. Klick auf den Download, während sie noch lädt → `fb2Drop(sub)` (`S.fbRun++`, `S.fbAbort.abort()`, `fb2State`
-  `"dropped"`, `fb2Release`, `#done-wait` und „Rückmeldung erneut anfordern“ weg – danach nichts mehr, auch kein Nachreichen), höchstens 4 s
+  `"dropped"`, `#done-wait` und „Rückmeldung erneut anfordern“ weg, `fb2Check` – danach nichts mehr; mit dem Abbruch endet in der Regel auch
+  die Anfrage beim Server, sodass bei der Lehrkraft keine Rückmeldung liegt – hatte der Server sie da schon abgelegt, bleibt sie dort), höchstens 4 s
   Warten auf `sub.checklistP`, PDF mit Checkliste; `#done-status` „Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.“
   (+ „ Statt einer finalen KI-Rückmeldung steht darin die Checkliste deiner Lehrkraft.“). Der Abbruch darf keine unbehandelte Ablehnung
   hinterlassen (`closePage` prüft `pageerror`). `resetFinalFeedback` (aus `submitAll` und `resetStudent`) räumt `#done-fb`, `#done-wait`
-  (`doneWaitHide`, Zeitgeber) und `aria-disabled` ab. Kein `beforeunload` auf `#screen-done`.
+  (`doneWaitHide`, Zeitgeber), den Zeitgeber `fb2Check.timer` und `aria-disabled` ab. Kein `beforeunload` auf `#screen-done`.
   **Anfrage** (`requestFinalFeedback`, nur bei `sub.fb2Want`): ohne Empfänger `FB2_NO_AI` + `fb2PdfInstead`, `finalFeedbackGone`, nichts gesendet
   (auch nicht an den Server); sonst `POST /api/feedback` mit `{code, answers: alle abgegebenen Antworten, recipients, final: true, attempt:
   sub.attempt, receivedAt: sub.serverAt}` (Final-Modus, siehe API und KI; nie `only`; ohne Personendaten; Timeout 150 s, `signal`; 409
   `ai_changed` → nichts gesendet, Hinweis), Lauf-Kennung `S.fbRun`/`S.fbAbort` (`resetStudent` → `stopFeedbackRun` bricht ab), bei `ai_busy`
   automatische Wiederholung wie beim ersten Feedback (`FB_TRIES`, `FB_MAX_MS`, Zufallsanteil, `waitFinalFeedback` still – den Stand zeigt
   `#done-wait`); eine Antwort ohne `final: true` (älterer Server) oder mit anderer Zahl Ergebnisse → `bad_result`. Erfolg → `sub.feedback2 =
-  {results, final: true, at}`, `fb2State` `"done"`, `doneGateOpen(sub, "done")`, `#done-fb` mit `h2` „Deine finale KI-Rückmeldung“,
+  {results, final: true, at}`, `fb2State` `"done"`, `doneGateOpen(sub, "done")`, `fb2TeacherShow(sub, r.stored)` (siehe unten), `#done-fb` mit `h2` „Deine finale KI-Rückmeldung“,
   `#done-fb-status` „So sieht die KI deine abgegebene Fassung:“ und `renderFinalFeedback` in `#done-fb-list`: je Aufgabe (nie Weltkarte)
   `.fbbox#done-fb-n` **ohne Zählung** (der Auftrag ist keine Liste zum Abhaken) mit denselben Listen wie im Editor (`appendFbLists(box, f,
   FB2_MISS_LABEL)`: „Das gelingt dir schon“ `.fb-sub.fb-ok` grün / „Das hat gefehlt“ `.fb-sub.fb-miss` rot – im Editor „Tipps zum Überarbeiten“),
@@ -236,64 +272,73 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   nichts); `#done-fb-retry` „Rückmeldung erneut anfordern“ (höchstens `FB2_MANUAL` 3, nur bei vorübergehenden Fehlern `FB2_TRANSIENT`/429/5xx, nie
   bei `ai_quota` oder `final_*`, nie nach 15 min (`fb2Expired`); Klick wirkungslos bei `"loading"`/`"dropped"`; ein neuer Versuch bei schon freiem
   Download leert `#done-fb-status`, blendet `#done-fb` aus und zeigt gleich `doneWaitLate`), sonst `finalFeedbackGone` (`fb2Final`,
-  `fb2Release`, `doneGateOpen(sub, "failed")`). `fb2Changes` bleibt nur für ältere Abgaben (Lehrkraft, `fb2Of`); `fb2Sent`/`fb2Nums`/`fb2Which`
+  `doneGateOpen(sub, "failed")`). `fb2Changes` bleibt nur für ältere Abgaben (Lehrkraft, `fb2Of`); `fb2Sent`/`fb2Nums`/`fb2Which`
   und der Zähler `#done-fb-wait` gibt es nicht mehr.
-  **An die Lehrkraft nachgereicht:** Ist sie da, reicht `sendFeedback2(sub)` sie verschlüsselt nach: **genau die Nutzlast, die
-  der Server bei der Abgabe angenommen hat** (nach den Rückfällen von `sealPayload`/`sendSealed`, die `payload` dabei selbst kürzen –
-  also auch `typing` `{optOut}`/`{omitted}`, `finalWanted` und ein per `escTrim` gekürztes `escape`; nichts neu gelesen) + `feedback2: {at, final: true,
-  results}` (alle Aufgaben) – so bleiben Tippzeiten und Daten aus dem Escape-Room beim Ersetzen erhalten. Gemerkt in
-  **`S.fb2Base`** = `{sub, payload, pub, attempt, submitAt = receivedAt der Abgabe-Antwort, key = S.draftKey, timer, until}` (`fb2Hold`, nur mit
-  gewählter finaler Rückmeldung), **getrennt von `S.lastSubmission`** (daraus entstehen die PDF-Dateien der Schüler:innen – nie Tippzeiten) und nur, solange
-  noch nachgereicht werden kann: `fb2Release` nach dem Nachreichen (geklappt, `gone` oder endgültig gescheitert – `finally` in
-  `sendFeedback2`), ohne `feedback2`, bei abgewählter Rückmeldung, in `finalFeedbackGone`, in `fb2Drop`, in `resetStudent` und spätestens nach `FB2_HOLD_MS`
-  (= `REPLACE_WINDOW_MS`, Unit-Test vergleicht; `fb2Check`, siehe unten), die Tippzeit-Werte darin schon bei einem Widerspruch aus einem anderen Tab
-  (`fb2FollowOptOut`, siehe Tippzeit-Messung, „Zweiter Tab“); `submitAll` setzt außerdem `S.firstTyping` nach der Abgabe auf `null` (`TT_ACCESS` sagt
-  „bis zur Abgabe (und, wenn … nachgereicht wird, bis dahin)“). Wird der Umschlag erst mit `feedback2` zu groß (`ttEnvelopeFits` bzw. 413/409),
-  gilt dieselbe Reihenfolge wie bei der Abgabe (`sendSealed(payload, bodyOf, base.pub)`): erst ohne Tippzeit-Werte (`omitted:"too_large"`),
-  dann `escTrim` – **Entscheidung:** die finale Rückmeldung scheitert wie die Abgabe nie an den Tippzeiten oder den Daten aus dem Raum,
-  dafür können in diesem seltenen Fall deren Werte bzw. Fehler-Einzelheiten aus der gespeicherten Abgabe verschwinden (die Lehrkraft sieht
-  „nicht übermittelt …“); „nie schlechter“ gilt für alles andere – Antworten, Feedback, Angaben, Vermerke, Kern der Escape-Daten bleiben
-  genau wie angenommen, und kommt nichts an (Netz, 5xx, 413 trotz Rückfällen, Frist vorbei), bleibt die Abgabe beim Server, wie sie ist
-  (der Server ersetzt atomar). Gesendet per `POST /api/submit` mit `stage: "feedback2"` (ein eigener Wert, den ein älterer
-  Server mit 400 ablehnt, statt daraus eine Abgabe zu machen), `attempt` und `receivedAt` (`validateSubmitMeta` → `replace`) –
-  der Server ersetzt nur genau diese Abgabe: `stage` final, dieselbe Kennung, `received_at` gleich `receivedAt` (eine inzwischen
-  neuere Abgabe derselben Bearbeitung bleibt) und höchstens `REPLACE_WINDOW_MS` (15 min) nach dem Eingang (der Eingang bleibt
-  stehen – ohne Frist ließe sich eine Abgabe Tage später austauschen); `UPDATE … SET envelope … AND received_at=?` atomar, sonst
-  `{gone:true}` ohne Zählung und ohne Einfügen (eine gelöschte Abgabe kommt nie zurück); `final_at` hindert das Nachreichen nicht; bis zu 3
-  Versuche, 4xx außer 408/429 endgültig; bei Escape-Blättern genauso. Der Server sieht nicht in den Umschlag: Ein manipulierter Browser könnte
-  so in den 15 Minuten auch andere Antworten unterschieben (README, „Weiter vom Betreiber zu prüfen“). `sendFeedback2` liefert ein Ergebnis:
-  `"sent"` (nur das setzt `sub.fb2Sent`; einmal angekommen
-  bleibt angekommen, auch wenn das erneute Senden ohne Tippzeit-Werte danach scheitert), `"gone"` (Antwort `{gone:true}` – zählt **nie**
-  als gesendet; ebenso 404 `not_found`, wenn das Blatt samt Abgaben inzwischen gelöscht ist), `"expired"` (Frist vorbei: nichts gesendet
-  bzw. `gone` nach Ablauf), `"failed"` (endgültig oder dreimal vorübergehend), `"skipped"` (nie gehalten bzw. „Neues Feibeitsblatt
-  öffnen“), `"none"` (keine Rückmeldung, nichts nachzureichen). Die Frist zählt auf dem Gerät ab dem Absenden der Abgabe (`sentAt` in `submitAll`
-  → `fb2Hold` → `sub.fb2Until`, nur ein Zeitpunkt in `S.lastSubmission`) – nie länger als beim Server – und wird nachgerechnet (`fb2Expired`,
-  `fb2Reach` → `"ok"`/`"expired"`/`"skipped"`): Ein einzelner Zeitgeber käme im Hintergrund oder nach dem Ruhezustand des Geräts zu spät (er
-  zählt die Schlafzeit nicht). Deshalb prüft `fb2Check`, solange `S.fb2Base` gehalten wird, alle `FB2_TICK_MS` (15 s), beim Zurückkehren
-  (`visibilitychange` sichtbar, `pageshow`, `focus` des Fensters) und wenn „Rückmeldung erneut anfordern“ Fokus oder Mauszeiger bekommt:
-  abgelaufen auf der Wanduhr oder seit dem Halten (`base.until` per `performance.now` – falls die Wanduhr zurückgestellt wird) → freigegeben
-  und `fb2RetryNote`. Der Countdown der Sperre steckt bewusst nicht in `fb2Check` (eigener Zeitgeber, Unit-Tests werten `fb2Check` mit fester
+  **Für die Lehrkraft legt der Server sie selbst ab** (Entscheidung des Betreibers vom 08.11.2026): verschlüsselt mit ihrem öffentlichen
+  Schlüssel als `submissions.final_env` zu genau dieser Abgabe – in derselben Anfrage, nur in den ersten 15 Minuten nach dem Eingang und nur
+  einmal (siehe API, Final-Modus). **Der Browser ersetzt nie mehr eine Abgabe nachträglich.** Vorher reichte er die Rückmeldung per
+  `POST /api/submit` mit `stage: "feedback2"` nach und ersetzte dabei den ganzen Umschlag; der Server sieht nicht hinein – ein manipulierter
+  Browser hätte so Antworten unterschieben können, die erst die finale Rückmeldung verraten hat, oder die Rückmeldung selbst fälschen.
+  Entfallen sind deshalb `sendFeedback2`, `S.fb2Base` (die gehaltene, angenommene Nutzlast samt Tippzeiten), `fb2Hold`/`fb2Release`,
+  `fb2FollowOptOut`/`fb2OptedOut`, `fb2Reach`, `fb2TeacherText`, `FB2_HOLD_MS` (jetzt `FB2_WINDOW_MS`), `TT_HELD` und die Rückfälle bei 413/409
+  fürs Nachreichen (ohne Tippzeit-Werte, `escTrim`); `sealPayload`/`sendSealed` gelten nur noch für Erstversuch und Abgabe. Ältere, gecachte
+  Seiten schicken `feedback2` weiter – der Server antwortet nur `kept`/`gone` und ändert nichts (siehe Erstversuch ↔ Abgabe).
+  **Frist für „Rückmeldung erneut anfordern“:** `FB2_WINDOW_MS` = `REPLACE_WINDOW_MS` (15 min, Unit-Test vergleicht; `FB2_MIN`), auf dem Gerät
+  gezählt ab dem Absenden der Abgabe (`sub.fb2Until`/`sub.fb2Mono`, siehe „Nach der Abgabe“) – nie länger als beim Server – und nachgerechnet:
+  `fb2Expired` = Wanduhr ≥ `fb2Until` oder `performance.now()` ≥ `fb2Mono` (falls die Wanduhr zurückgestellt wird). Ein einzelner Zeitgeber
+  käme im Hintergrund oder nach dem Ruhezustand des Geräts zu spät (er zählt die Schlafzeit nicht). Deshalb prüft `fb2Check`, **solange
+  „Rückmeldung erneut anfordern“ dasteht**, alle `FB2_TICK_MS` (15 s, Zeitgeber `fb2Check.timer`, höchstens bis zur Frist; ohne sichtbaren
+  Knopf läuft keiner), beim Zurückkehren (`visibilitychange` sichtbar, `pageshow`, `focus` des Fensters), wenn der Knopf Fokus oder
+  Mauszeiger bekommt und wenn er erscheint oder verschwindet (`finalFeedbackFailed`, `requestFinalFeedback`, `fb2Drop`); abgelaufen →
+  `fb2RetryNote`. Der Countdown der Sperre steckt bewusst nicht in `fb2Check` (eigener Zeitgeber, Unit-Tests werten `fb2Check` mit fester
   Umgebung aus).
   **Entscheidung des Betreibers:** Erreicht die Rückmeldung die Lehrkraft nicht, sagt die Bestätigungsseite das ruhig und sachlich (der
-  Abgabe-Dialog hatte es angekündigt): `requestFinalFeedback` → `sendFeedback2(sub).then(…fb2TeacherShow)` nur bei derselben
-  `S.lastSubmission`, außer bei `"sent"`/`"none"` in `p#done-fb-teacher` (`role="status"`, unter `#done-fb-list`, per `liveFill` erst
-  eingeblendet, dann gefüllt; `.donefb-note` in `--muted` wie `.donenote`, keine Erfolgs- oder Alarmfarbe), Texte aus `fb2TeacherText`:
-  `"expired"` „Die finale KI-Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe
-  übermitteln. Deine Abgabe ist davon nicht betroffen.“, `"gone"` „Die finale KI-Rückmeldung ließ sich nicht mehr an deine Lehrkraft
-  übermitteln. …“, `"failed"`/`"skipped"` „Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. …“ – wie die Ankündigung im
-  Abgabe-Dialog, und nie eine Aussage darüber, was die Lehrkraft jetzt hat (Abgabe bzw. Blatt womöglich gelöscht oder neu abgegeben). Vorher,
-  ohne Dialog: Ist die Frist vorbei, während „Rückmeldung erneut anfordern“ dasteht, verschwindet der Knopf (`sub.fb2RetryLate`, der Server nähme
-  nichts mehr an), und `p#done-fb-retry-note` (`role="status"`, per `aria-describedby` am Knopf; `fb2RetryNote` aus `finalFeedbackFailed`, beim
-  Ausblenden des Knopfes und aus `fb2Check`) sagt `fb2RetryText`: „Seit deiner Abgabe sind mehr als 15 Minuten vergangen – eine finale
-  KI-Rückmeldung ist jetzt nicht mehr möglich.“ (nie gehalten: „Eine neue finale KI-Rückmeldung siehst nur du – an deine Lehrkraft lässt sie sich
-  nicht übermitteln.“). Die Hinweise nennen nie Tippzeiten; eine schon geladene PDF enthält die Rückmeldung trotzdem; die Lehrkraft-Seite sagt per
-  `fb2Missing` „… wurde nicht an die Lehrkraft übermittelt.“ **Lehrkraft:** `loadSubs` kappt `feedback2` samt `final` (eigenes
-  try/catch, wie `ttCleanPayload` und `escCleanPayload`) und liest `finalWanted` nur als Boolean (sonst `undefined` = ältere Abgabe bzw. nicht
-  angeboten) und `finalMode` (gesetzt oder `finalWanted` vorhanden), `fb2Of(p)`: mit `feedback2.final` diese Ergebnisse (alle Aufgaben, auch ohne
+  Abgabe-Dialog hatte angekündigt, dass der Server sie für die Lehrkraft speichert): `fb2TeacherShow(sub, r.stored)` nur bei `stored !== true`
+  (auch bei einem älteren Worker ohne das Feld) und derselben `S.lastSubmission` in `p#done-fb-teacher` (`role="status"`, unter
+  `#done-fb-list`, per `liveFill` erst eingeblendet, dann gefüllt; `.donefb-note` in `--muted` wie `.donenote`, keine Erfolgs- oder Alarmfarbe)
+  `FB2_TEACHER_FAILED` „Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.“ –
+  wie die Ankündigung im Abgabe-Dialog, und nie eine Aussage darüber, was die Lehrkraft jetzt hat (Abgabe bzw. Blatt womöglich gelöscht
+  oder neu abgegeben). Die früheren Hinweise „… siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten …“, „… ließ sich
+  nicht mehr …“ und „Eine neue finale KI-Rückmeldung siehst nur du …“ gibt es nicht mehr. Vorher, ohne Dialog: Ist die Frist vorbei, während
+  „Rückmeldung erneut anfordern“ dasteht, verschwindet der Knopf (`sub.fb2RetryLate`, der Server nähme nichts mehr an), und
+  `p#done-fb-retry-note` (`role="status"`, per `aria-describedby` am Knopf; `fb2RetryNote` aus `fb2Check`) sagt `fb2RetryText(true)`: „Seit
+  deiner Abgabe sind mehr als 15 Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.“ (sonst nichts). Die Hinweise
+  nennen nie Tippzeiten; eine schon geladene PDF enthält die Rückmeldung trotzdem; die Lehrkraft-Seite sagt per `fb2Missing` „… wurde nicht
+  an die Lehrkraft übermittelt.“
+  **Wartezeit (Einstellung der Lehrkraft, Entscheidung des Betreibers vom 08.11.2026):** Wie lange `doneGate` den Download höchstens sperrt,
+  wählt die Lehrkraft in „KI-Einstellungen“: 30 (Vorgabe), 60 oder 90 Sekunden, für alle Blätter. Server: settings `final` = `{v:1, waitSec}`,
+  lib.js `FINAL_WAIT_OPTIONS` [30, 60, 90], `FINAL_WAIT_DEFAULT` 30, `validateFinalWait`, `finalWaitOut` (Objekt oder JSON-Text; fehlt oder
+  ungültig → 30), Routen siehe API (`PUT /api/teacher/final-wait`, `finalWaitSec` in `GET`/`PUT /api/teacher/ai` und in `GET /api/sheet/:code`
+  ohne zusätzliche D1-Abfrage). Browser: `FINAL_WAIT_OPTIONS`/`FINAL_WAIT_DEFAULT`/`finalWaitOf` vor `fetchSheet` (= lib.js; alles außer den
+  Zahlen 30, 60, 90 → 30, auch Text oder ein älterer Worker ohne Feld), `fetchSheet` → `S.sheet.finalWaitSec` (aus `sheet`, Rückfall oberste
+  Ebene), `submitAll` → `sub.waitSec` – eine schon geöffnete Seite behält den Wert, den sie beim Öffnen geladen hat. `#tv-ai`: `div.pbox` mit
+  `fieldset.fwset` (`aria-describedby="fw-hint"`), `legend` „Wartezeit auf die finale KI-Rückmeldung“, `p#fw-hint` (Sie-Form: so lange warten
+  die Schüler:innen nach der Abgabe höchstens; danach Lösungs-PDF mit der bestätigten Checkliste, im Hintergrund wird weiter gewartet; länger
+  = öfter die echte Rückmeldung, besonders wenn viele gleichzeitig abgeben), `label.checkrow.fwopt` (≥ 44 px) mit Radios `name="fw"` `#fw-30`
+  „30 Sekunden (Vorgabe)“/`#fw-60`/`#fw-90`, `#fw-save` „Wartezeit speichern“ (`busy`; gesperrt, während `openAi` lädt), `#fw-status`
+  (`role="status"`): „Gespeichert: Nach der Abgabe warten die Schüler:innen höchstens N Sekunden auf die finale KI-Rückmeldung. Das gilt ab
+  dem nächsten Öffnen eines Feibeitsblattes.“, ohne Auswahl „Bitte wählen Sie eine Wartezeit aus.“; `openAi` → `fwFill(r.finalWaitSec)`. Der
+  Hinweis unter den KI-Einstellungen sagt dazu: „Der Server speichert davon nichts; nur die finale KI-Rückmeldung legt er – mit Ihrem
+  Schlüssel verschlüsselt, also nur für Sie lesbar – zur jeweiligen Abgabe.“ Der Server hat kein eigenes Zeitbudget für die Wartezeit (siehe
+  KI). Tests: E2E 1 (Fieldset, Vorgabe 30 s im Formular und in `GET /api/teacher/ai`), 7r (f) (60 s gespeichert → das Blatt liefert 60, der
+  Countdown beginnt bei 60 s, nach 31 s noch gesperrt, nach 61 s frei; danach wieder 30 s), Unit, worker, Smoke.
+  **Lehrkraft:** `loadSubs` kappt `feedback2` samt `final` aus dem Umschlag (von älteren Seiten nachgereicht; eigenes try/catch, wie
+  `ttCleanPayload` und `escCleanPayload`) und entschlüsselt danach `finalEnv` der Zeile (JSON-Text, so liefert ihn der Server; auch ein Objekt)
+  mit demselben `Crypto.open(T.priv, …)` in eigenem try/catch – nur `kind: "feibeitsblatt-final"`, `v: 1` und `results` als Array, gekappt wie
+  `feedback2` (≤ 30, `normFb`, `at` ≤ 40) → `p.feedback2 = {at, final: true, results}`, **nur wenn `ah` gleich `finalAnswersDigest` der
+  abgegebenen Antworten ist** (SHA-256 über JSON der `answers[].final`, bereinigt wie `cleanText` – `FINAL_CTRL_RE`), sonst `p.finalMismatch`
+  und in den Details `.dfinal` `FINAL_MISMATCH_NOTE` „Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen
+  Antworten und wird deshalb nicht angezeigt.“ (ein manipulierter Browser könnte sonst zu anderen Antworten eine Rückmeldung ablegen lassen;
+  die Lösungs-PDF aus der Übersicht sagt dann „Eine gespeicherte finale KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten.“
+  statt „nicht übermittelt“). Ein `feedback2` **im Umschlag** gilt nur noch bei Abgaben, die vor `FINAL_SERVER_SINCE` (09.11.2026 0:00 UTC,
+  Ausrollen der serverseitigen Ablage; `received_at` setzt der Server) angekommen sind – später kann es nur ein manipulierter Browser
+  hineingelegt haben; ebenso gilt für spätere Abgaben immer `finalMode` (nie die alte Regel „unverändert → erstes Feedback gilt“); die vom Server abgelegte gilt vor einer im Umschlag, ein
+  Fehler kostet nur sie, nie den Eintrag. Es liest `finalWanted` nur als Boolean (sonst `undefined` = ältere Abgabe bzw. nicht angeboten)
+  und `finalMode` (gesetzt oder `finalWanted` vorhanden), `fb2Of(p)`: mit `feedback2.final` diese Ergebnisse (alle Aufgaben, auch ohne
   erstes Feedback); neue Abgaben (`finalMode`) ohne sie → `null`; ältere Abgaben wie damals im Browser
   (`fb2Changes`: keine Änderung → `same`, die erste Rückmeldung gilt; sonst nur mit nachgereichtem `feedback2`), sonst `null`. `buildDetail` zeigt bei
   Abgaben (nicht Erstversuchen, nicht ausgeblendeten älteren) `p.moodle-hint.dfinal` „Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.“
-  bzw. – gewählt, aber nicht nachgereicht – „Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“, je Aufgabe `.dfb.dfb2` „Finale
+  bzw. – gewählt, aber keine gespeichert – „Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“, je Aufgabe `.dfb.dfb2` „Finale
   KI-Rückmeldung“ mit „Gelingt schon:“ / „Hat gefehlt:“ (ältere: „KI-Rückmeldung zur abgegebenen Fassung“, nur geänderte Aufgaben, „Tipps zum
   Weiterlernen:“; `markAi` `feedback-final`) und für Abgaben `.dpdf` „Lösungs-PDF herunterladen“ → immer erst `teacherChecklistLoad()`
   (gespeicherte Checkliste des Blattes per Lehrkraft-Route, wie bei den Schüler:innen; abgemeldet bzw. anderes Blatt gewählt → nichts) →
@@ -303,37 +348,57 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   selbst; bei Escape-Blättern nur die
   Lösungsseiten – `teacherSolutionsSub` setzt kein `escape`, den Überblick gibt es über „Überblick als PDF herunterladen“ –, nie
   Tippzeiten, nie ein voller Name), daneben in den Details weiter `p.dtt`/`p.dtt-sum` und `escDetailDom`, Dateiname `teacherSolutionsName`
-  `Feibeitsblatt-Loesungen-<Code>-<Klasse>-<Kürzel bzw. Gruppe-…>-<Abgabedatum>.pdf` (ASCII, nie Geburtstag). `.dmeta` sagt weiter „ohne
-  KI-Feedback“ (gemeint: zum Überarbeiten). Datenschutzhinweis, Feedback-Dialog und `#submit-hint` nennen die finale Rückmeldung (auch ohne
-  vorheriges KI-Feedback, beim Abgeben abwählbar) und dass die Lehrkraft sie bekommt. Je Schüler:in also bis zu zwei KI-Anfragen (KI-Feedback +
-  finale; ohne erstes Feedback eine) → Rate-Limits verdoppelt (der Vorschlag der Checkliste, einer je neuem Blatt, zählt unter `checklist`); bis zu drei Aufrufe von
-  `/api/submit` (Erstversuch, Abgabe, Nachreichen; ohne erstes Feedback zwei) → `submit` 360/h.
+  `Feibeitsblatt-Loesungen-<Code>-<Klasse>-<Kürzel bzw. Gruppe-…>-<Abgabedatum>.pdf` (ASCII, nie Geburtstag). `.dmeta` sagt „ohne
+  KI-Feedback zum Überarbeiten“ (Blatt ohne Auftrag an die KI: „ohne KI-Feedback“). Datenschutzhinweis und beide Feedback-Dialoge nennen die
+  finale Rückmeldung (auch ohne vorheriges KI-Feedback, beim Abgeben abwählbar) und dass der Server sie verschlüsselt zur Abgabe speichert, nur
+  für die Lehrkraft lesbar (`FB2_SEND`/`PRIV_IHR.fb2Send`, Cloudflare-Punkt, `renderPrivacy`, `fb2DialogLine`); `#submit-hint` kündigt sie nur
+  an (beim Abgeben abwählbar). Je Schüler:in also bis zu zwei KI-Anfragen (KI-Feedback +
+  finale; ohne erstes Feedback eine) → Rate-Limits verdoppelt (der Vorschlag der Checkliste, einer je neuem Blatt, zählt unter `checklist`); bis zu zwei Aufrufe von
+  `/api/submit` (Erstversuch, Abgabe; ohne erstes Feedback einer – ein `feedback2` älterer Seiten zählt nicht) → `submit` 360/h.
   **Tests:** E2E 7r (eigenes Blatt, wird gelöscht; `FINAL_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos): Checkliste beim Anlegen (Vorschlag
   nach „Code generieren“, prüfen, bestätigen), Abgabe ohne erstes Feedback mit vorausgewähltem Kästchen → Anfrage mit `final: true`,
   Countdown neben dem Spinner, Download gesperrt bis zur Rückmeldung, Boxen grün/rot, PDF schwarz mit „Das hat gefehlt:“; abgewählt → keine
-  Anfrage, PDF mit Checkliste und „abgewählt“; KI länger als 30 s angehalten → Download frei, PDF mit Checkliste, Anfrage abgebrochen, nichts
-  nachgereicht; kommt die Rückmeldung nach 30 s, aber vor dem Download → sie steht in der PDF; Lehrkraft-Ansicht („Finale KI-Rückmeldung“,
-  „abgewählt“, „nicht übermittelt“, Lösungs-PDF mit Checkliste). E2E 7b (eigenes Blatt, wird gelöscht): nach dem ersten Feedback nur eine
-  Aufgabe überarbeitet → die finale Anfrage trägt `final: true`, `attempt` und `receivedAt`, nie `only`, und alle Aufgaben mit Auftrag; nachgereicht
-  mit `replaced:"final"`, ohne Hinweis darunter. E2E 7p (eigenes Blatt, wird gelöscht; Hinweis wörtlich, neutrale Farbe): `{gone:true}` per
-  `page.route` → ein Versuch, „gone“-Hinweis, PDF mit der Rückmeldung; Uhr der Seite per `page.clock` – `install` + `reload`, während die
-  KI-Anfrage angehalten ist `setSystemTime` +16 min (Zeitgeber gedrosselt) → „expired“, nichts nachgereicht; erste Anfrage 502 → Knopf ohne
-  Hinweis, dann Ruhezustand (`pauseAt` + `setSystemTime` +16 min, kein Zeitgeber läuft ab): `visibilitychange` bzw. die regelmäßige Prüfung
-  (`runFor(16 s)`) → Knopf weg, Hinweis, nichts nachgereicht. Unit (`typing.test.mjs`): Texte je Ergebnis, `sendFeedback2` mit gestubbtem
-  `sendSealed` (gone/404/expired/failed/skipped/none, Widerspruch unterwegs) und `fb2Check` mit getrennt gesteuerter Wand- und Zeitgeber-Uhr;
-  worker/ai/lib/Smoke: siehe API und KI (Final-Modus, `final_*`, `final_locked`, D1-Abfragen).
-- **Krypto (nur im Browser; Server sieht nie Passwort oder Klartext-Abgaben):** PBKDF2-HMAC-SHA256, 600 000
+  Anfrage, PDF mit Checkliste und „abgewählt“; KI länger als die Wartezeit (Vorgabe 30 s) angehalten → Download frei, PDF mit Checkliste,
+  Anfrage abgebrochen; kommt die Rückmeldung nach 30 s, aber vor dem Download → sie steht in der PDF; Lehrkraft-Ansicht („Finale
+  KI-Rückmeldung“ aus `finalEnv`, „abgewählt“, „nicht übermittelt“, Lösungs-PDF mit Checkliste). E2E 7b (eigenes Blatt, wird gelöscht): nach dem
+  ersten Feedback nur eine Aufgabe überarbeitet → die finale Anfrage trägt `final: true`, `attempt` und `receivedAt`, nie `only`, und alle
+  Aufgaben mit Auftrag; Antwort `stored: true`, `final_env` in D1 entschlüsselt, kein `feedback2` von der Seite; ein gefälschtes `feedback2`
+  per Request → `kept`, D1 unverändert. E2E 7p (eigenes Blatt, wird gelöscht; Hinweis wörtlich, neutrale Farbe): P1 `stored:true` → kein
+  Hinweis, `final_env` neben der unveränderten Abgabe; P1b `stored:false` per `page.route` → Hinweis `FB2_TEACHER_FAILED`, PDF mit der
+  Rückmeldung; P1c zwei gleichzeitige echte finale Anfragen derselben Abgabe → nur die erste abgelegt, die zweite `stored:false` mit Hinweis;
+  P2 Uhr der Seite per `page.clock` während der angehaltenen KI-Anfrage +16 min → Download frei, die Rückmeldung kommt und wird gespeichert
+  (es zählt die Uhr des Servers), kein Hinweis; P3/P4 erste Anfrage 502 → Knopf ohne Hinweis, dann Ruhezustand (`pauseAt` +
+  `setSystemTime` +16 min, kein Zeitgeber läuft ab): `visibilitychange` bzw. die regelmäßige Prüfung (`runFor(16 s)`) → Knopf weg, Hinweis,
+  `final_env` bleibt NULL. Unit (`typing.test.mjs`): nach der Abgabe nichts
+  gehalten und nichts nachgereicht (weder `fb2Base` noch `sendFeedback2`, `TT_HELD` oder `stage: "feedback2"` im Quelltext, `S.lastSubmission`
+  ohne Nutzlast und Tippzeiten, nach dem Senden wird `payload` nur gelesen, kein `fb2` im `storage`-Listener), `FB2_TEACHER_FAILED` und
+  `fb2RetryText` wörtlich und ohne Tippzeit-Wörter, `fb2TeacherShow` nur bei `stored !== true` und derselben Abgabe, `fb2Check` mit getrennt
+  gesteuerter Wand- und `performance.now`-Uhr nur bei sichtbarem Knopf, `finalWaitOf`/`doneGate`/`#fw-*`, `finalEnv` in `loadSubs`;
+  worker/lib/Smoke: Final-Modus (`final_*`, `final_locked`, `final_env` entschlüsselt = `results` der Antwort samt `kind`/`v`/`at`, Umschlag
+  der Abgabe unverändert, nur verschlüsselt, `stored:false` bei unbrauchbarem Schlüssel und scheiterndem D1, zwei gleichzeitige Anfragen →
+  nur eine legt ab), `feedback2` → `kept`/`gone` ohne Ersetzen und Zählung (auch mit unterschobenen Antworten und bei Escape-Blättern),
+  `final-wait` samt `finalWaitSec`, D1-Abfragen (siehe KI); ai unverändert.
+- **Krypto (im Browser – Ausnahme unten; Server sieht nie Passwort oder Klartext-Abgaben):** PBKDF2-HMAC-SHA256, 600 000
   Iterationen, Salt 16 Byte → `master`; HKDF-SHA256 mit `info` `feibeitsblatt/enc/v1` (AES-GCM-256-Schlüssel) und
   `feibeitsblatt/auth/v1` (`authKey`; Server speichert nur SHA-256 hex, Vergleich in konstanter Zeit).
   Schlüsselpaar RSA-OAEP 3072/SHA-256; privater Schlüssel (PKCS8) AES-GCM-verschlüsselt unter `encKey`.
   Abgabe-Umschlag `{v:1, ek, iv, ct}` (AES-GCM-256 mit Zufallsschlüssel, `ek` = RSA-OAEP); die Personendaten stehen
   nur im verschlüsselten payload. KDF-Parameter und `info`-Strings nie ändern ohne Versionswechsel – sonst sind
-  Zugang und alle Abgaben verloren. `authKey`/privater Schlüssel nur im Arbeitsspeicher. **Bewusst:** Für KI-Feedback und finale
-  KI-Rückmeldung sieht der Server die Antworten kurz im Klartext (nie gespeichert, nie geloggt); im Final-Modus kommen `attempt` und
+  Zugang und alle Abgaben verloren. `authKey`/privater Schlüssel nur im Arbeitsspeicher. **Ausnahme – der Server verschlüsselt die finale
+  KI-Rückmeldung selbst** (seit dem 08.11.2026, siehe Finale KI-Rückmeldung): `sealForTeacher(publicKeyB64, payload)` in lib.js genau wie
+  `Crypto.seal` – zufälliger AES-GCM-256-Schlüssel, 12 Byte IV, AES-GCM über das UTF-8-JSON, der Schlüssel per RSA-OAEP/SHA-256 unter
+  `teacher.publicKey` (SPKI, Standard-Base64, `importPublicKey`) eingepackt, Umschlag `{v:1, ek, iv, ct}` per `validateEnvelope` (nur bekannte
+  Felder, ≤ `LIMITS.envelopeBytes`); nur mit dem öffentlichen Schlüssel, nie Entschlüsseln – danach kann auch der Server sie nicht mehr lesen;
+  der Browser der Lehrkraft öffnet sie mit `Crypto.open` wie eine Abgabe. Nach „Passwort vergessen“ (neues Schlüsselpaar) sind auch diese
+  Umschläge unlesbar. **Bewusst:** Für KI-Feedback und finale
+  KI-Rückmeldung sieht der Server die Antworten kurz im Klartext (nie gespeichert, nie geloggt) und die Rückmeldung der KI, bevor er sie
+  verschlüsselt; im Final-Modus kommen `attempt` und
   `receivedAt` mit, die genau eine gespeicherte (verschlüsselte) Abgabe bezeichnen – der Server kann diese Klartext-Antworten also der Zeile
-  zuordnen, nicht aber einer Person (die Personendaten stehen nur im Umschlag). Die Kennung nie loggen oder mit den Antworten speichern.
-- **Free-Plan:** 10 ms CPU je Request → **kein PBKDF2 und keine RSA-Erzeugung im Worker**, dort nur SHA-256 und
-  AES-GCM (Warten auf fetch/D1 zählt nicht; workerd begrenzt PBKDF2 ohnehin). ≤ 50 D1-Abfragen und ≤ 50
+  zuordnen, nicht aber einer Person (die Personendaten stehen nur im Umschlag). Die Kennung nie loggen; die Antworten nie speichern (in
+  `final_env` stehen nur die Ergebnisse der KI, verschlüsselt).
+- **Free-Plan:** 10 ms CPU je Request → **kein PBKDF2 und keine RSA-Erzeugung im Worker**, dort nur SHA-256, AES-GCM und – für die
+  finale KI-Rückmeldung – RSA-OAEP-Verschlüsseln mit dem öffentlichen Schlüssel der Lehrkraft (günstig; Warten auf fetch/D1 zählt nicht;
+  workerd begrenzt PBKDF2 ohnehin). ≤ 50 D1-Abfragen und ≤ 50
   Subrequests je Aufruf → `db.batch()`. D1: 5 Mio. gelesene / 100 000 geschriebene Zeilen pro Tag (seit 1.9.2026
   hart) → Indizes, `COUNT` über Index. Lange KI-Anfragen sind ok (keine Wall-Time-Grenze bei verbundenem Client).
 - **KI:** Nie Personendaten an die KI – `/api/feedback` bekommt nur `{code, answers}`, dazu `recipients` (ids der Empfänger) und im
@@ -353,7 +418,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `apiKeyEnc`, `fallbacks`); `PUT /api/teacher/ai` mit `reserve:{…}` bzw. `reserve:null` (ohne `provider` bleibt der
   erste Anbieter unberührt), `POST …/ai/test?which=reserve`; `routeFeedback` versucht erst den ersten Anbieter (mit
   Reserve: `deadlineMs` 45 s), dann die Reserve (eigenes `ai_gate`/`ai_skip` je Anbieter), Gesamtbudget 100 s – im Final-Modus genauso (kein
-  eigenes Budget für die 30 s der Bestätigungsseite: der Browser wartet im Hintergrund weiter);
+  eigenes Budget für die Wartezeit der Bestätigungsseite, 30/60/90 s: der Browser wartet im Hintergrund weiter);
   `GET /api/sheet/:code` liefert `aiRecipients: [{id, label, transfer}]` (`recipientsFor`; transfer = Grundlage der
   Übermittlung aus `PROVIDERS[].transfer` – cloudflare DPF + SCC, groq SCC, sonst `TRANSFER_UNKNOWN`; `activeEntries`: nur nutzbare Einträge, `usable`, die Reserve
   nur bei nutzbarem ersten Anbieter – eine Reserve ohne gespeicherten ersten lehnt `PUT` mit 400 `aiMainFirst` ab; id =
@@ -374,11 +439,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Zeitüberschreitung, kein Versuch unter `minLeftMs` 15 s, am Ende einmal bis zur frühesten Sperre warten, Fehler
   tragen `retryAfterMs` → `retryAfterOfErr` (5–60 s) im 429 `ai_busy`. routeFeedback: Budget 100 s, erster Anbieter
   45 s (mit Reserve) und 6 Versuche, Reserve ≤ 40 s/3 Versuche nur bei ≥ 35 s Rest. D1-Abfragen je Feedback (Anweisungen
-  eines Batches einzeln, Schema schon angelegt): Erfolg im ersten Versuch ≤ 18 (final ≤ 20); je Versuch ≤ 3, dazu Aufräumen (5 Anweisungen),
-  Blatt/Einstellungen 2 (final 3: die eigene Abgabe), Sperren 1 je Eintrag, Zählung 3, Verbrauch (ein Upsert je Eintrag), Erstattung 3 (nach einer
-  brauchbaren finalen Antwort stattdessen `finalDoneStmt`) → höchstens 34 ohne, 45 mit Reserve (final 35 bzw. 46); gemessen im ungünstigsten Fall
-  mit Reserve 33 bzw. final 34 (Unit-Tests: Erfolg über Workers AI ≤ 18 bzw. final ≤ 20, volle Warteschlangen mit Reserve ≤ 42, final genau eine
-  mehr; jeder Aufruf ≤ 50; Schema-Aufrüstung `ensureColumns` ≤ 11 – drei PRAGMAs, sieben ALTERs, Index). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
+  eines Batches einzeln, Schema schon angelegt): Erfolg im ersten Versuch ≤ 18 (final ≤ 21; gemessen über Workers AI ohne Aufräumen 8 bzw. 11 –
+  final drei mehr: die eigene Abgabe, der Schlüssel der Lehrkraft und `finalStoreStmt`); je Versuch ≤ 3, dazu Aufräumen (5 Anweisungen),
+  Blatt/Einstellungen 2 (final 4: dazu die eigene Abgabe und der Schlüssel der Lehrkraft), Sperren 1 je Eintrag, Zählung 3, Verbrauch (ein
+  Upsert je Eintrag), Erstattung 3 (nach einer brauchbaren finalen Antwort stattdessen die eine Anweisung `finalStoreStmt`) → höchstens 34 ohne,
+  45 mit Reserve (final 36 bzw. 47); gemessen im ungünstigsten Fall mit Reserve 33 bzw. final 35 (Unit-Tests: Erfolg über Workers AI ≤ 18 bzw.
+  final ≤ 21, volle Warteschlangen mit Reserve ≤ 42, final genau zwei mehr; jeder Aufruf ≤ 50, der höchste in den Unit-Tests 35;
+  Schema-Aufrüstung `ensureColumns` ≤ 12 – drei PRAGMAs, acht ALTERs, Index; `GET /api/sheet/:code` und `GET /api/teacher/ai` je 4). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
   `FB_MAX_MS` 4 min, Wartezeit = retryAfter × (1 + 0–30 %) + 0–3 s, ein `setTimeout` auf einen absoluten Zeitpunkt +
   `visibilitychange`, Sekundenzähler in `#fb-wait` (aria-hidden) außerhalb der Live-Region `#fb-status` (beide und `#fb-fallback` direkt unter `#fb-btn`, vor dem
   Datenschutzhinweis `#privacy`/`#privacy-esc`/`#privfull-ed` – E2E 7f prüft die Lage), Felder nur
@@ -532,7 +599,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   kostenloses Angebot.“, nennt den KI-Dienst – „… wenn du das KI-Feedback anforderst, und nach der Abgabe für die finale KI-Rückmeldung – außer
   du wählst sie beim Abgeben ab.“; mit `typing` (`ttMeasured`) am Ende **genau der eine Satz `TT_SHORT`**, siehe unten; die finale
   KI-Rückmeldung nennen außerdem `FB2_SEND`/`PRIV_IHR.fb2Send` beim ersten KI-Dienst, `renderPrivacy`, „Wozu“, „Welche Daten“ (ob abgewählt),
-  „Musst du“ (abwählbar) und „Entscheidet die KI“ – nie mit Tippzeit-Wörtern), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
+  „Musst du“ (abwählbar) und „Entscheidet die KI“ – nie mit Tippzeit-Wörtern; `FB2_SEND`, `renderPrivacy` und der Cloudflare-Punkt sagen, dass
+  der Server sie verschlüsselt zur Abgabe speichert und nur die Lehrkraft sie lesen kann – nie „er speichert davon nichts“ für die finale
+  KI-Rückmeldung), `privacyNoticeDom(p, list, {h, withAi, pages, open, id, group, noBday, site,
   general, flat, summary, typing, ttSwitch, escape, videos})` = `details.privfull` „Alle Informationen zum Datenschutz“ mit bis zu 10 Abschnitten (`.privh`: Wer ist
   verantwortlich? – Betreiber mit Anschrift und E-Mail, „privates, nicht kommerzielles und kostenloses Angebot – kein Angebot
   einer Schule“, die Lehrkraft liest; Wozu (mit `TT_PURPOSE`: Tippzeiten machen den Schreibprozess sichtbar, die Lehrkraft sieht
@@ -553,18 +622,18 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `TT_KEEP_IN_DRAFT` „– außer den Tippzeiten darin –“; **nie stillschweigend auf die Tippzeiten ausdehnen** – nach Annahme des
   Betreibers bräuchte ihr Speichern im Zwischenstand eine Einwilligung nach § 25 Abs. 1 TDDDG) – Schreibweise „Buchst.“,
   nie „lit.“; Welche Daten („Außerdem deine Antworten mit ihren Tippzeiten (je eingegebenem Zeichen … keine Uhrzeiten; nach einem
-  Widerspruch keine)“, darunter als eigener Absatz im Fließtext `TT_ACCESS(g, keep)`: „Für die Tippzeiten liest diese Seite beim
-  Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe (und, wenn die KI-Rückmeldung zu deiner
-  abgegebenen Fassung noch nachgereicht wird, bis dahin) im Arbeitsspeicher (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf
-  dein Gerät im Sinne von § 25 TDDDG.“ – die Klammer `TT_HELD(g, ai)` nur bei Blättern mit KI-Feedback (`TT_ACCESS(g, keep, ai)`, Aufruf mit
-  `withAi`; sonst wie bisher), denn bis dahin hält `S.fb2Base` die angenommene Nutzlast; mit `TT_KEEP_IN_DRAFT` „…, hält sie … und speichert die
+  Widerspruch keine)“, darunter als eigener Absatz im Fließtext `TT_ACCESS(g, keep, ai)`: „Für die Tippzeiten liest diese Seite beim
+  Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus und hält sie bis zur Abgabe im Arbeitsspeicher (nach einem Widerspruch
+  nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.“ – mit und ohne KI-Feedback gleich (die frühere Klammer
+  `TT_HELD` „(und, wenn die KI-Rückmeldung zu deiner abgegebenen Fassung noch nachgereicht wird, bis dahin)“ ist entfallen: nach der Abgabe
+  hält die Seite keine Tippzeiten mehr); `ai` (Aufruf mit `withAi`) wirkt nur mit `TT_KEEP_IN_DRAFT` „…, hält sie … und speichert die
   Tippzeiten bis zur Abgabe (ohne KI-Feedback: bis dahin) auch in deinem Zwischenstand …“; **nur die Tatsache – nie eine Ausnahme („unbedingt erforderlich“) oder eine
   Einwilligung behaupten** (Entscheidung des Betreibers nach Rechtsprüfung; offen – README „Weiter vom Betreiber zu prüfen“ –, ob schon
   das Erfassen samt Senden eine Einwilligung nach § 25 Abs. 1 TDDDG braucht); damit der Satz stimmt, merkt der Capture-Listener `input`
   nach einem Widerspruch keinen Zeitpunkt (`performance.now()` nur ohne `S.ttOptOut`)); Wer bekommt (Lehrkraft „Sie sieht auch die Tippzeiten – als Färbung …; an einen KI-Dienst oder an die
   Rechtschreibprüfung gehen die Tippzeiten nie.“, Cloudflare „(samt Tippzeiten)“);
-  Wie lange („Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; bis zur Abgabe (und, wenn die
-  KI-Rückmeldung zu deiner abgegebenen Fassung noch nachgereicht wird, bis dahin) hält diese Seite sie nur im Arbeitsspeicher – …“, ohne
+  Wie lange („Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; bis zur Abgabe hält diese Seite sie nur im
+  Arbeitsspeicher – …“, ohne
   KI-Feedback wie bisher „… und werden mit ihr gelöscht; bis dahin hält …“, mit `TT_KEEP_IN_DRAFT` stattdessen „bis zur Abgabe stehen sie
   auch in deinem Zwischenstand – …“);
   Musst du („… solange du nicht widersprichst (siehe „Widerspruch gegen die Tippzeit-Messung“)“); Entscheidet die KI (nur mit KI);
@@ -575,8 +644,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   siehe „Widerspruch gegen die Tippzeit-Messung“.“) und Widerruf, Kontakt Betreiber per E-Mail (die Lehrkraft liest/löscht die
   verschlüsselten Abgaben), Beschwerde bei der Aufsichtsbehörde mit Anschrift und Link. Die Rechtsgrundlage der Tippzeiten verweist
   ebenfalls auf den Abschnitt („(siehe „Widerspruch gegen die Tippzeit-Messung“)“). **Was zum Zwischenstand und zur Zwischenstand-PDF gesagt wird, hängt an `TT_KEEP_IN_DRAFT`** (`ttInDraft`
-  in `privacyNoticeDom`, Parameter `keep` von `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE`; ohne – eingecheckt –: „bis zur Abgabe (und, wenn …,
-  bis dahin) hält diese Seite sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.“, kein „außer den
+  in `privacyNoticeDom`, Parameter `keep` von `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE`; ohne – eingecheckt –: „bis zur Abgabe hält diese Seite
+  sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.“, kein „außer den
   Tippzeiten darin“ beim § 25) – nie fest verdrahten. Alle Tippzeit-Sätze entfallen bei Blättern nur mit Weltkarten (`typing:
   ttMeasured(sh)` – dort wird nichts gemessen; dann auch kein `TT_SHORT` und kein Abschnitt zum Widerspruch). **Kurzfassungen:
   genau ein neutraler Satz** – Entscheidung des Betreibers vom 27.10.2026, zweite Fassung nach Rechtsprüfung (die erste Fassung „gar
@@ -615,7 +684,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   ausgeblendet per `body.on-legal`). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
   Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
   nächstgelegenen Cloudflare-Rechenzentrum; gespeichert nur verschlüsselt, für das KI-Feedback **kurz unverschlüsselt im
-  Server, nicht gespeichert** – nie behaupten, Cloudflare sehe die Antworten nur verschlüsselt; mit Workers AI im selben
+  Server, nicht gespeichert** – nie behaupten, Cloudflare sehe die Antworten nur verschlüsselt; die finale KI-Rückmeldung verschlüsselt der
+  Server für die Lehrkraft und speichert sie nur verschlüsselt zur Abgabe; mit Workers AI im selben
   Eintrag als KI-Dienst, Verarbeitung auch außerhalb der EU); GitHub, Inc. nur bei `PAGES_HOST` (`API !== ""`, GitHub
   Pages); weitere KI-Dienste mit `transfer`; ohne Empfänger (keine KI eingerichtet) `NO_AI_SET` „Ein KI-Dienst ist … gerade
   nicht eingerichtet – deine Antworten gehen an keine KI.“ – auch in `recipientSentence`/`renderPrivacy`, nie ein
@@ -855,9 +925,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Erstversuch `final:null`), nach Widerspruch `ttOptOutPayload()` = `{v:1, optOut:true}`, zu groß `{v:1, omitted:"too_large"}`
   (`sealPayload`: `ttEnvelopeFits` = `validateEnvelope`; `sendSealed`: 413 bzw. 409 → einmal genau dieselbe Nutzlast ohne Werte,
   nichts neu lesen), Rechenfehler `{v:1, omitted:"error"}` – **eine Abgabe scheitert nie an den Tippzeiten**; **nie** in
-  `/api/feedback`, `S.lastSubmission`, Lösungs-PDF, keine Anzeige für Schüler:innen. Nach der Abgabe nur noch in der angenommenen
-  Nutzlast `S.fb2Base` für das Nachreichen der finalen KI-Rückmeldung (siehe dort; nur wenn sie gewählt wurde; dieselben Rückfälle, freigegeben, sobald nichts mehr
-  nachgereicht wird, spätestens nach 15 Minuten), `S.firstTyping` wird nach der Abgabe `null`. **Lehrkraft:** `loadSubs` → `ttCleanPayload`
+  `/api/feedback`, `S.lastSubmission`, Lösungs-PDF, `final_env`, keine Anzeige für Schüler:innen. Nach der Abgabe hält die Seite keine
+  Tippzeiten mehr: Die angenommene Nutzlast wird nicht gemerkt (die finale KI-Rückmeldung legt der Server selbst ab, nichts wird nachgereicht),
+  `S.firstTyping` wird `null`. **Lehrkraft:** `loadSubs` → `ttCleanPayload`
   (eigenes try/catch; → `null` | `{optOut}` | `{omitted}` | `{list}`, nur Base64-Form, `"="` nur bei gleichem Text), dekodiert
   erst beim Aufklappen: `buildDetail` → `ttDetail(p, types, n, isFirst, noFb)` (`{sum, per:[{first, fin, line}]}`, Zeilen als
   Stücke aus `ttSummary`/`ttPctText`/`ttShareParts` – bei Tabellen nur die Zellen), `ttDom`/`answerDom(…, codes, info)` (Spans
@@ -923,13 +993,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bei gesendetem Erstversuch `S.ttResend`); was der Tab selbst zuletzt geschrieben bzw. beim Öffnen gelesen hat (`S.ttLastRaw`,
   gesetzt in `saveDraft`/`openEditor`), zählt nicht – sonst ließe er sich nie zurücknehmen. **Der Widerspruch gewinnt:**
   Zurücknehmen gilt nur in dem Tab, in dem es geschieht (speichert ein anderer Tab danach mit Widerspruch, gilt er wieder).
-  **Nach der Abgabe** (Bestätigungsseite, `S.fb2Base` gehalten; `ttFollowStored` endet bei `S.submitted`): Ein zweiter Tab weiß nichts
-  von der Abgabe und trägt den Widerspruch unter demselben Schlüssel ein (`S.fb2Base.key`; der abgebende Tab hat ihn bei der Abgabe
-  gelöscht, `S.ttLastRaw` zählt nicht) bzw. er kam schon während des Sendens (`S.ttOptOut`) → `fb2FollowOptOut` (beim `storage`-Ereignis
-  und vor jedem Versuch in `sendFeedback2`) ersetzt `typing` der gehaltenen Nutzlast durch `{optOut}` – nachgereicht wird ohne Werte, die
-  Lehrkraft sieht „ohne Messung (widersprochen)“; war das Nachreichen mit Werten schon unterwegs, gleich danach noch einmal ohne sie. So
-  stimmt „(nach einem Widerspruch nicht mehr)“ in `TT_ACCESS`; kommt keine finale Rückmeldung (abgewählt, nicht abgewartet, gescheitert), bleibt die Abgabe beim
-  Server, wie sie ist (`TT_SWITCH_SCOPE`).
+  **Nach der Abgabe** (`ttFollowStored` endet bei `S.submitted`; der `storage`-Listener kennt nur noch `S.draftKey` im Schreibbereich):
+  **Entscheidung des Betreibers vom 08.11.2026** – Folge davon, dass der Browser nie mehr eine Abgabe ersetzt: Trägt ein zweiter Tab, der
+  nichts von der Abgabe weiß, danach den Widerspruch ein – oder schon, während dieser Tab die Abgabe sendet (die Werte sind dann schon
+  versiegelt; `ttFollowStored` übernimmt ihn hier für einen etwaigen neuen Versuch und zeigt dann `.ttopt-st.late` `TT_OPT_TAB_LATE` „… Für die
+  Abgabe, die gerade gesendet wird, gilt er nicht mehr. …“ statt `TT_OPT_TAB`) –, bleiben die Tippzeiten in der angekommenen Abgabe
+  (früher reichte `fb2FollowOptOut` die finale Rückmeldung dann ohne Werte nach). Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit
+  der ganzen Abgabe löschen – so sagt es `TT_SWITCH_SCOPE` schon; „(nach einem Widerspruch nicht mehr)“ in `TT_ACCESS` stimmt weiter, denn
+  diese Seite hält nach der Abgabe ohnehin keine Tippzeiten mehr.
   `startGo` und `resetStudent` setzen zurück, `syncTtBoxes` gleicht alle Schalter an. Reine Helfer zwischen `/* TYPING:BEGIN` und
   `/* TYPING:END */` (dort auch `cellText`/`tableText`/`tableRows` und ihre Spiegel `ttCellText`/`ttTableText`/`ttTableCells`/
   `ttTableLines`; nur `btoa`/`atob`/`Intl`, kein `$`/`S`/`h`/`document`), `test/unit/typing.test.mjs`, E2E 7l und 7m.
@@ -1311,11 +1382,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Finale, der Dialog „Abbrechen und Zwischenstand löschen“ auch die Daten aus dem Raum. Erstversuch und Abgabe: `payload.escape =
   escPayload(rec, escCheck(hull))` – nur verschlüsselt, ohne vollen Namen, ohne volles Datum, ohne Bestätigungscode, ohne `notes`; nie in
   `/api/feedback`; passt der Umschlag nicht, erst ohne Tippzeiten, dann `escTrim` (`sealPayload`, `sendSealed` bei 413/409) – eine
-  Abgabe scheitert nie an den Daten aus dem Raum. Die nachgereichte finale KI-Rückmeldung (`sendFeedback2`, stage „feedback2“) trägt
-  `escape` genau so, wie es mit der Abgabe angekommen ist (`S.fb2Base`); die Lösungs-PDF der Lehrkraft („Lösungs-PDF herunterladen“)
+  Abgabe scheitert nie an den Daten aus dem Raum. Die finale KI-Rückmeldung legt der Server getrennt ab (`final_env`, ohne Daten aus dem
+  Raum); der Umschlag der Abgabe samt `escape` bleibt, wie er angekommen ist (ein `feedback2` älterer Seiten ersetzt ihn nicht); die Lösungs-PDF der Lehrkraft („Lösungs-PDF herunterladen“)
   enthält bei Escape-Blättern nur die Lösungsseiten (ohne `escPdfPages`). Ablauf-Kasten: letzter Punkt „Lösungen, finale KI-Rückmeldung und Escape-Room-Überblick
-  herunterladen“ (ohne KI „Lösungen und Escape-Room-Überblick herunterladen“) + `STEP_LATE`. `#screen-done`: Gesamt-PDF (Download wie sonst bis zu
-  30 s gesperrt, ohne Rückmeldung mit der Checkliste) =
+  herunterladen“ (ohne KI „Lösungen und Escape-Room-Überblick herunterladen“) + `STEP_LATE`. `#screen-done`: Gesamt-PDF (Download wie sonst höchstens
+  die Wartezeit der Lehrkraft gesperrt, ohne Rückmeldung mit der Checkliste) =
   `makeSolutionsPdf` (Lösungsseiten) + `escPdfPages(pg, esc, {mode:"student"})` (Name, Geburtsdatum, Klasse, Bestätigungscode, Codewort,
   je Station Versuche und Fehler im ersten Versuch, neue Seite „Lösungserläuterungen“ mit „Genaue Daten: …“ 9 pt grau, „Verwendung von
   Zwischenstand-Dateien des Escape-Rooms“) über `pdfPager`/`pdfAssemble` (gemeinsam mit der Lösungs-PDF, Objektnummern unverändert),
@@ -1349,8 +1420,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Raum-Daten, D1 ohne Klartext), E2E 7n/7o (eigene Fixtures: unkomprimiert, FlateDecode ohne Kennzeichen, manipulierte Prüfsumme;
   Wettlauf langsames Escape-Blatt gegen hochgeladenen Zwischenstand eines normalen Blattes – Abgabe an dessen Code; Hash weg auch bei
   einem Syntaxfehler im großen Skript; Fokus nach erneut gescheitertem „Erneut versuchen“; `#esc-updated`; E-Mail-Weg bei 404 sofort,
-  bei 409/429 erst später; zweimal 413 → ohne Tippzeiten, dann ohne Fehler-Einzelheiten samt Lehrkraft-Kurzfassung; die nachgereichte
-  finale KI-Rückmeldung in D1 entschlüsselt samt `escape` und `typing`, Lösungs-PDF der Lehrkraft nur mit den Lösungsseiten; `#b-import` folgt
+  bei 409/429 erst später; zweimal 413 → ohne Tippzeiten, dann ohne Fehler-Einzelheiten samt Lehrkraft-Kurzfassung; die finale
+  KI-Rückmeldung in D1 als `final_env` entschlüsselt, der Umschlag der Abgabe samt `escape` und `typing` unverändert, Lösungs-PDF der Lehrkraft
+  (Rückmeldung aus `finalEnv`) nur mit den Lösungsseiten; `#b-import` folgt
   dem Haken; `ESCAPE_PDF_OUT=<Ordner>` speichert die PDF-Dateien und Bildschirmfotos). Testdaten frei erfunden, `confirm` in Tests eine beliebige
   Ziffernfolge; keine Datei aus einem echten Escape-Room als Fixture.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
@@ -1434,14 +1506,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Rate-Limits** (`rate_limits`, festes Fenster, `rlHit` atomar per Upsert … RETURNING): `door`, `auth`
   10/15 min und `auth_all` 200/h (nur Fehlversuche – richtige Codes/Passwörter gehen **immer** durch, laufende
   Sitzungen ebenso; über dem Limit bremst `requireTeacher` Fehlversuche um 2 s), `lookup_miss` 30/10 min (gültige
-  Codes immer), `feedback` 240/h + `feedback_chars` 800 000/h je IP + `sheet_feedback` 600/Tag je Blatt (je Schüler:in bis zu zwei
+  Codes immer), `feedback` 480/h + `feedback_chars` 1 600 000/h je IP (verdoppelt am 08.11.2026, Entscheidung des Betreibers: die finale KI-Rückmeldung kommt nach fast jeder Abgabe, im Schulnetz teilen sich alle eine IP) + `sheet_feedback` 600/Tag je Blatt (je Schüler:in bis zu zwei
   KI-Anfragen: KI-Feedback und finale KI-Rückmeldung, die nach der Abgabe fast immer kommt) (gezählt
   erst, wenn die Anfrage gültig ist und zur KI geht – eine finale Anfrage, die `checkFinal` ablehnt (`final_*`), zählt nie; bei
   BUSY/RATE_LIMIT/TIMEOUT/SERVER/NETWORK/DAILY_LIMIT
   Rückerstattung), `submit` 360/h + `submit_bytes` 60 MB/h (nur gültige Abgaben/Erstversuche zu existierenden
-  Blättern; je Schüler:in bis zu drei Aufrufe, ohne erstes Feedback zwei; ein `feedback2` ohne passende Abgabe und ein `final_locked` zählen
-  nicht), `checklist` 60/h je IP (KI-Vorschlag der Checkliste – jedes neue Blatt fragt nach „Code generieren“ einmal –, Erstattung wie beim Feedback).
-  Je Blatt höchstens 400 Abgaben / 40 MB. Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
+  Blättern; je Schüler:in bis zu zwei Aufrufe – Erstversuch und Abgabe –, ohne erstes Feedback einer; ein `feedback2` älterer Seiten und ein
+  `final_locked` zählen nie), `checklist` 60/h je IP (KI-Vorschlag der Checkliste – jedes neue Blatt fragt nach „Code generieren“ einmal –, Erstattung wie beim Feedback).
+  Je Blatt höchstens 400 Abgaben / 40 MB (Umschläge samt `final_env`). Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
   als Pfeffer), IPv6 vorher auf /64 gekürzt (`ipKey`) – nie Klartext-IPs speichern. Schulnetz = eine IP für viele.
 - **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`); `node test/smoke.mjs` (API gegen echten
   `wrangler dev --local` + `test/mock-ai.mjs`, Ports 8811/8812, am Ende auch der Zeitplan); `npm run test:e2e` (Playwright 1.56.1, Ports
@@ -1460,25 +1532,26 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Rückfall ohne `Intl.Segmenter`, Schalter `TT_KEEP_IN_DRAFT` beider Stellungen, Widerspruch `ttOptOutPayload`/`ttDraftFlags`/
   `ttCleanPayload`/`ttDetail`, `ttStoredFlags`/`ttKeepOptOut`, `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE` in beiden Stellungen von
   `TT_KEEP_IN_DRAFT`, `TT_USE` im Hinweis, Kurzfassungen mit genau dem Satz `TT_SHORT`, `TT_ACCESS` ohne behauptete Ausnahme oder
-  Einwilligung und mit/ohne `TT_HELD`, eigener Abschnitt vor „Deine Rechte“; `S.fb2Base` getrennt von `S.lastSubmission`, freigegeben,
-  `FB2_HOLD_MS` = `REPLACE_WINDOW_MS`), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
+  Einwilligung und ohne die frühere Klammer `TT_HELD` (auch nicht in „Wie lange …?“), eigener Abschnitt vor „Deine Rechte“; nach der Abgabe
+  keine gehaltene Nutzlast (siehe Finale KI-Rückmeldung, „Tests“), `FB2_WINDOW_MS` = `REPLACE_WINDOW_MS`), E2E 7l (eigenes Blatt; mit `delay:120` getippt, `insertText` als Wortvorschlag,
   eingecheckt (`TT_KEEP_IN_DRAFT` aus): kein `typing` im Zwischenstand, ein alter Stand mit Tippzeiten wird beim Laden bereinigt
   (`ttDraftStrip`), Text von vor dem Neuladen geht als 255 („ohne Messung“) in die Abgabe; nur mit umgelegtem Schalter Werte je
   Zeichen im Zwischenstand vor und nach dem Feedback samt Neuladen; nie an die KI, Erstversuch/Abgabe aus D1
   entschlüsselt – `openPrivateKey`/`openEnvelope` aus smoke.mjs –, Ablauf-Kasten, 413 → einmal ohne, Lehrkraft-Färbung, „Färbung
-  aus“, lange Antworten, nur Weltkarten – auch bei den Schüler:innen ohne `TT_SHORT` und ohne Abschnitt; die nachgereichte finale
-  KI-Rückmeldung = angenommene Abgabe + `feedback2` samt Tippzeiten in D1; Schüler:in 4: mit `feedback2` 413 → einmal
-  ohne Tippzeit-Werte, angekommen, kein Hinweis; Schüler:in 5: Nachreichen scheitert dreimal → D1 unverändert, danach kein weiterer
-  Versuch, Hinweis `#done-fb-teacher` wörtlich; dass `S.fb2Base` freigegeben wird, prüft nur `typing.test.mjs` über den Quelltext) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
+  aus“, lange Antworten, nur Weltkarten – auch bei den Schüler:innen ohne `TT_SHORT` und ohne Abschnitt; die finale KI-Rückmeldung in D1
+  als `final_env` (entschlüsselt nur `kind`, `v`, `at`, `results` – keine Tippzeiten), der Umschlag der Abgabe samt Tippzeiten unverändert,
+  kein `feedback2`-Aufruf von `/api/submit`; Schüler:in 4: Abgabe erst nach 413 ohne Tippzeit-Werte angekommen – `final_env` trotzdem
+  gespeichert, die Abgabe bleibt, wie sie angekommen ist; dass nach der Abgabe nichts gehalten wird, prüft nur `typing.test.mjs` über den
+  Quelltext) und 7m (Widerspruch: Schalter per Tastatur, Zwischenstand und -PDF, Ersetzen des
   Erstversuchs scheitert erst und wird beim nächsten Öffnen nachgeholt, PDF auf einem anderen Gerät, Zurücknehmen, Ablehnung
   während des Sendens (angehaltenes bzw. scheiterndes `/api/submit`, Farbe), Abgabe `optOut`; Haken auf „Deine Angaben“ bei
   getipptem Stand mit Erstversuch → sofort gespeichert und ersetzt; anderes Gerät ohne Widerspruch; zweiter Tab übernimmt ihn
   sofort; an und aus während einer angehaltenen KI-Anfrage → erste Fassung ohne Werte; ältere Zwischenstand-PDF auf demselben
   Gerät → Widerspruch bleibt; Gruppe in der „ihr“-Form, Neuladen ohne Eingabe, `_tt` aller Felder; Lehrkraft „ohne Messung
-  (widersprochen)“ bei Abgaben, Erstversuch und ausgeblendetem älterem Erstversuch; nach dem Nachreichen der finalen KI-Rückmeldung
-  bleibt `{optOut:true}` in D1; zweiter Tab widerspricht, nachdem der erste abgegeben hat und die finale Rückmeldung noch aussteht – der
-  erste eingefroren (storage-Ereignis per `stopImmediatePropagation` verpasst, KI-Anfrage angehalten) bzw. mit angehaltenem Nachreichen
-  unterwegs → in D1 `{optOut:true}`, nachgereicht einmal ohne bzw. erst mit, dann ohne Werte); die wörtlichen Hinweise prüfen 1b
+  (widersprochen)“ bei Abgaben, Erstversuch und ausgeblendetem älterem Erstversuch; nach der finalen KI-Rückmeldung bleibt `{optOut:true}`
+  im Umschlag in D1 (die Rückmeldung liegt getrennt in `final_env`, ohne Tippzeiten); Schüler:in 5: zwei Tabs, der erste gibt ab, der zweite
+  widerspricht danach, während die finale Rückmeldung noch aussteht → die Abgabe in D1 bleibt samt Tippzeit-Werten unverändert, `final_env`
+  ohne Tippzeiten (Entscheidung des Betreibers vom 08.11.2026, siehe Tippzeit-Messung, „Nach der Abgabe“)); die wörtlichen Hinweise prüfen 1b
   (`TT_PURPOSE`, `TT_EFFECT`/`TT_SCOPE`, `TT_STAY`, `TT_ACCESS`, Kurzfassung und Vorschau mit genau `TT_SHORT`, Abschnitt
   `TT_OBJ_HEAD` vor „Deine Rechte“, auf „Impressum & Datenschutz“ nur als Absatz, Vorschau gesperrt), 2 (`renderPrivacy` mit
   `TT_SHORT`, `#privfull-ed` mit Abschnitt), 2b (Kurzfassung der Gruppe mit `TT_SHORT_G`, `TT_ACCESS_G`) und `privBases` – die Erwartungen folgen `TT_KEEP` (aus index.html gelesen); beim Umlegen von
@@ -1493,7 +1566,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `page.route("https://api.languagetool.org/**")`, YouTube/Google per Attrappe (siehe YouTube-Videos: nie echte Anfragen). In der
   Sandbox: echte KI-Anbieter, LanguageTool und YouTube nicht erreichbar, Browser unter `/opt/pw-browsers` – **nie `playwright
   install`**. Gestartete Server immer beenden. **Finale KI-Rückmeldung in E2E-Tests:** Nach jeder Abgabe mit KI startet sie im Hintergrund
-  (vorausgewählt) und sperrt den Download bis zu 30 s – länger als `expect.timeout` (20 s); der Mock-Modus ist global, eine finale Anfrage kann
+  (vorausgewählt) und sperrt den Download bis zur Wartezeit – in den Tests die Vorgabe 30 s, länger als `expect.timeout` (20 s); der Mock-Modus ist global, eine finale Anfrage kann
   in den Modus eines späteren Schritts oder Tests fallen. Tests, die das nicht prüfen, wählen sie im Abgabe-Dialog ab (`confirmDialog(page, title,
   true, {check: false})` in `helpers.mjs`), warten auf sie oder halten `/api/feedback` per `page.route` an; nach 30 s gedrückte Downloads
   brauchen ein eigenes Timeout bzw. `page.clock`. E2E 7r: siehe Finale KI-Rückmeldung.

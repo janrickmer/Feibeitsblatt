@@ -4,8 +4,9 @@ Feibeitsblatt ist ein Schreibeditor für Arbeitsblätter im Stil des Feiditors. 
 an – je Aufgabe mit einem Auftrag an die KI, worauf sie beim Feedback achten soll – und erhalten dafür einen kurzen Code. Mit diesem Code öffnen die Schüler:innen das
 Arbeitsblatt, tippen ihre Antworten selbst (Einfügen ist gesperrt), lassen Rechtschreibung und Grammatik prüfen,
 holen sich (freiwillig) einmal ein KI-Feedback zum Inhalt, überarbeiten ihre Antworten und geben ab; nach der Abgabe bekommen
-sie eine **finale KI-Rückmeldung**, die je Aufgabe nennt, was gelungen ist und was gefehlt hat (beim Abgeben abwählbar). Kommt sie
-nicht innerhalb von 30 Sekunden, steht in ihrer Lösungs-PDF stattdessen Ihre Checkliste zum Selbstprüfen. Diese Checkliste schlägt
+sie eine **finale KI-Rückmeldung**, die je Aufgabe nennt, was gelungen ist und was gefehlt hat (beim Abgeben abwählbar); der Server
+legt sie verschlüsselt für Sie zur Abgabe. Kommt sie nicht innerhalb der Wartezeit, die Sie in den KI-Einstellungen festlegen (30, 60 oder
+90 Sekunden), steht in ihrer Lösungs-PDF stattdessen Ihre Checkliste zum Selbstprüfen. Diese Checkliste schlägt
 die KI gleich nach dem Anlegen eines Feibeitsblattes vor; Sie prüfen und bestätigen sie. In der
 Lehrkräfte-Übersicht sehen Sie alle Abgaben – die erste Fassung und die überarbeitete Fassung nebeneinander (bei
 einer Abgabe ohne KI-Feedback nur die abgegebene Fassung), dazu die finale KI-Rückmeldung. Jedes Feibeitsblatt lässt sich auch als analoges
@@ -198,7 +199,7 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.“
    **Finale KI-Rückmeldung:** Der Abgabe-Dialog bietet sie an – auch wer vorher kein KI-Feedback angefordert hat – mit dem
    **vorausgewählten** Kästchen „Nach der Abgabe eine finale KI-Rückmeldung erhalten“; der Dialog sagt, was sie enthält, nennt
-   die Empfänger und dass sie verschlüsselt auch an Sie geht. Wer das Kästchen abwählt, bekommt keine (die Abgabe vermerkt
+   die Empfänger und dass der Server sie verschlüsselt zur Abgabe speichert, wo nur Sie sie lesen können. Wer das Kästchen abwählt, bekommt keine (die Abgabe vermerkt
    verschlüsselt „abgewählt“). Nicht angeboten wird sie bei Blättern ohne Auftrag an die KI, wenn kein KI-Dienst eingerichtet
    ist (auch, wenn er beim Weiterschreiben inzwischen fehlt), wenn die Seite das Tageskontingent schon als aufgebraucht
    kennt und wenn alle Antworten zusammen zu lang sind. Direkt nach der Abgabe gehen dann **alle** abgegebenen Antworten auf demselben Weg wie beim ersten
@@ -209,34 +210,32 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    [KI-Anbieter, „Was die KI tut“](#ki-anbieter)). Ohne Zählung, denn der Auftrag ist keine Liste zum Abhaken. Eine unverändert
    abgegebene Antwort kann dabei anders beurteilt werden als beim ersten Feedback. Die Abgabe ist zu diesem Zeitpunkt
    schon angekommen und hängt nie von der KI ab.
-   **Höchstens 30 Sekunden Warten:** Solange die Rückmeldung entsteht, ist der Download-Button gesperrt (blass); darunter
-   stehen ein Ladesymbol, ein kleiner Countdown („30 s“, „29 s“ …) und „Deine finale KI-Rückmeldung wird gerade erstellt –
+   **Höchstens 30, 60 oder 90 Sekunden Warten** (Ihre Einstellung in den KI-Einstellungen, Vorgabe 30 – siehe
+   [Schritt 8](#schritt-8-ki-feedback-einrichten)): Solange die Rückmeldung entsteht, ist der Download-Button gesperrt (blass); darunter
+   stehen ein Ladesymbol, ein kleiner Countdown (z. B. „30 s“, „29 s“ …) und „Deine finale KI-Rückmeldung wird gerade erstellt –
    bitte gedulde dich kurz.“ Kommt sie rechtzeitig, erscheint sie unter „Deine finale KI-Rückmeldung“, und der Button wird
-   frei. Nach 30 Sekunden wird er in jedem Fall frei; die Seite sagt dann „Das dauert länger als gedacht. Du kannst deine
+   frei. Nach Ablauf der Wartezeit wird er in jedem Fall frei; die Seite sagt dann „Das dauert länger als gedacht. Du kannst deine
    Lösungen jetzt herunterladen – dann steht in der PDF-Datei statt der KI-Rückmeldung die Checkliste deiner Lehrkraft.
    Wenn du noch wartest, kommt die Rückmeldung vielleicht noch.“ Im Hintergrund wartet die Seite weiter: Wer nicht gleich
    herunterlädt, bekommt die Rückmeldung oft noch (auf der Seite und in der PDF). Ein Klick auf den Download beendet das
-   Warten – die PDF-Datei enthält dann Ihre Checkliste, und an Sie geht keine Rückmeldung. Ist die KI ausgelastet,
+   Warten und bricht die Anfrage ab – die PDF-Datei enthält dann Ihre Checkliste, und bei Ihnen liegt in der Regel keine
+   Rückmeldung. Ist die KI ausgelastet,
    wiederholt die Seite automatisch wie beim ersten Feedback; klappt es vorübergehend nicht, gibt es „Rückmeldung erneut
    anfordern“ (der Download wartet darauf nicht). Die finale Rückmeldung gibt es nur in den ersten 15 Minuten nach der
    Abgabe und zu jeder Abgabe nur einmal; danach lässt sich diese Abgabe nicht mehr durch eine neue derselben Bearbeitung
    ersetzen (das prüft der Server).
-   **An Sie nachgereicht:** Ist die Rückmeldung da, schickt die Seite sie verschlüsselt auch an Sie: Sie ergänzt genau diese
-   Abgabe (ein zusätzlicher Aufruf) – nur bis 15 Minuten nach der Abgabe, und der Eingangszeitpunkt bleibt der der Abgabe.
-   Haben Sie die Abgabe inzwischen gelöscht, ändert der Server nichts. Klappt das Nachreichen nicht (Seite vorher
-   geschlossen, nicht abgewartet, keine Verbindung), bleibt die Abgabe ohne sie, und Sie sehen in den Details „Die finale
-   KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“ Erreicht sie Sie nicht (Frist vorbei, Abgabe oder Blatt
-   gelöscht, Fehler beim Senden), sagt die Bestätigungsseite das den Schüler:innen ruhig unter der Rückmeldung (z. B. „Die
-   finale KI-Rückmeldung siehst nur du: An deine Lehrkraft lässt sie sich nur in den ersten 15 Minuten nach der Abgabe
-   übermitteln. Deine Abgabe ist davon nicht betroffen.“); sind beim erneuten Anfordern schon mehr als 15 Minuten
-   vergangen (auch nach dem Ruhezustand des Geräts), verschwindet der Knopf, und ein Satz sagt das. Nachgereicht wird
-   genau die Abgabe, die beim Server angekommen ist, um die Rückmeldung ergänzt – mit den Tippzeiten (bzw. dem Vermerk eines
-   Widerspruchs) und bei einem Escape-Room-Finale den Daten aus dem Raum, so wie sie angekommen sind. Wäre der Umschlag
-   mit der Rückmeldung zu groß, geht er wie bei der Abgabe erst ohne die Tippzeit-Werte, dann ohne die
-   Fehler-Einzelheiten aus dem Escape-Room (Sie sehen dann
-   „nicht übermittelt – die Abgabe wäre sonst zu groß gewesen“); Antworten, KI-Feedback und Angaben bleiben immer, und
-   kommt nichts an, bleibt die Abgabe, wie sie ist. Dafür hält die Seite die angekommene Abgabe getrennt von den Lösungen
-   im Arbeitsspeicher, bis die Rückmeldung nachgereicht ist oder feststeht, dass keine mehr kommt – höchstens 15 Minuten.
+   **Für Sie gespeichert:** Ist die Rückmeldung fertig, verschlüsselt der Server sie selbst mit Ihrem öffentlichen Schlüssel
+   (so wie der Browser eine Abgabe) und legt sie zu genau dieser Abgabe ab – in derselben Anfrage, nur in den ersten 15 Minuten
+   nach der Abgabe und nur einmal; lesen kann sie danach nur Sie. Die Abgabe selbst bleibt dabei, wie sie angekommen ist: Seit
+   dem 08.11.2026 ersetzt der Browser eine Abgabe nie mehr nachträglich (vorher reichte er die Rückmeldung nach und ersetzte
+   dabei den ganzen verschlüsselten Umschlag; siehe [Finale KI-Rückmeldung und Checkliste](#finale-ki-rückmeldung-und-checkliste)).
+   Konnte der Server sie nicht ablegen (Abgabe inzwischen gelöscht oder durch eine neuere derselben Bearbeitung ersetzt,
+   Fehler beim Speichern), sagt die Bestätigungsseite das den Schüler:innen ruhig unter der Rückmeldung: „Die finale
+   KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.“ In den Details sehen
+   Sie dann – ebenso, wenn sie gar nicht kam (z. B. vorher heruntergeladen, Seite geschlossen, KI nicht erreichbar) – „Die
+   finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“ Sind beim erneuten Anfordern schon mehr als 15 Minuten
+   vergangen (auch nach dem Ruhezustand des Geräts), verschwindet der Knopf, und ein Satz sagt das. Nach der Abgabe hält die
+   Seite keine Tippzeiten mehr im Arbeitsspeicher.
    **Die PDF-Datei** enthält je Aufgabe die Aufgabenstellung, die abgegebene Lösung und darunter die finale KI-Rückmeldung
    („Das gelingt dir schon:“, „Das hat gefehlt:“; mehrere Seiten, falls nötig) – **ganz in Schwarz**, auf der Seite bleibt
    sie grün/rot; die erste Fassung und das Feedback zu ihr stehen nicht darin. Fehlt die finale Rückmeldung (abgewählt,
@@ -303,8 +302,8 @@ tragen den Datensatz mit, damit **eine** Datei zum Fortsetzen genügt. Den Code 
 einzutippen führt nicht weiter – die Seite verweist auf den Arena-Tunnel und die Überblick-PDF. Ist das Finale noch nicht
 freigeschaltet (im Escape-Room steht noch kein Code), gehört der Datensatz zu einem anderen Escape-Room oder gibt es das
 Blatt nicht mehr, sagt die Startseite das; bricht nur die Verbindung ab, holt „Erneut versuchen“ das Blatt nach. Nach der
-Abgabe lädt der Button „Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter …“ (wie sonst bis zu 30 Sekunden
-gesperrt, solange die finale KI-Rückmeldung entsteht) eine **Abschluss-PDF**
+Abgabe lädt der Button „Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter …“ (wie sonst höchstens für die
+eingestellte Wartezeit gesperrt, solange die finale KI-Rückmeldung entsteht) eine **Abschluss-PDF**
 herunter (`Escape-Room-<Raum>-Abschluss-<Datum>.pdf`, nur zum Speichern): erst die Lösungen wie sonst (mit der finalen
 KI-Rückmeldung oder Ihrer Checkliste), dann der Überblick
 aus dem Escape-Room mit Name, Geburtsdatum, Klasse, Bestätigungscode, den Ergebnissen je Station, den
@@ -427,7 +426,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    sie bekommt nur Aufgabenstellungen, Material (als reinen Text) und die Aufträge, keine Daten der Schüler:innen (zu den
    Regeln siehe Schritt 7). Prüfen und ändern Sie die Punkte (eine Zeile je Punkt) und klicken Sie **„Checkliste
    bestätigen“**. Die Checkliste dient zweierlei: Sie steht in der Lösungs-PDF der Schüler:innen unter jeder Antwort
-   ohne KI-Rückmeldung (wenn die finale KI-Rückmeldung nicht innerhalb von 30 Sekunden kommt oder abgewählt wurde und bei
+   ohne KI-Rückmeldung (wenn die finale KI-Rückmeldung nicht innerhalb der Wartezeit kommt oder abgewählt wurde und bei
    Aufgaben ohne Auftrag an die KI), und hinter dem QR-Code des analogen
    Arbeitsblattes (Schritt 7). **Ab dem Bestätigen ist sie öffentlich** – für alle, die den Code kennen (Adresse mit
    `#checkliste=`), also auch schon, während die Klasse schreibt; schreiben Sie nichts hinein, was die Schüler:innen vor
@@ -450,10 +449,11 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“ (bei einem Erstversuch steht dort „(noch
    nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat, und bei
    jeder Aufgabe mit Auftrag an die KI die **„Finale KI-Rückmeldung“** („Gelingt schon:“, „Hat gefehlt:“ – auch bei
-   Abgaben ohne erstes KI-Feedback), sobald die Seite der Schülerin bzw. des Schülers sie nachgereicht hat. Wurde sie beim
+   Abgaben ohne erstes KI-Feedback), sobald der Server sie zur Abgabe abgelegt hat – verschlüsselt mit Ihrem Schlüssel, die
+   Abgabe selbst bleibt dabei unverändert. Wurde sie beim
    Abgeben abgewählt, steht oben „Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.“; wurde sie gewählt, kam aber
    nicht an, „Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“ (z. B. weil vor dem Eintreffen
-   heruntergeladen oder die Seite geschlossen wurde). Ältere Abgaben zeigen weiter die frühere „KI-Rückmeldung zur
+   heruntergeladen oder die Seite geschlossen wurde oder der Server sie nicht ablegen konnte). Ältere Abgaben zeigen weiter die frühere „KI-Rückmeldung zur
    abgegebenen Fassung“ (nur zu geänderten Aufgaben, „Tipps zum Weiterlernen“). Am Ende der Details lädt **„Lösungs-PDF
    herunterladen“** dieselbe PDF-Datei herunter, die die Schülerin bzw. der Schüler nach der Abgabe bekommt (Aufgaben,
    abgegebene Lösungen und die finale KI-Rückmeldung dazu; im Dateinamen Code, Klasse, Kürzel und Abgabedatum, nie der
@@ -603,7 +603,8 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6). Mit dem Blatt wird auch seine Checkliste gelöscht.
 9. **Weitere Schaltflächen** oben: „Datenschutz und Löschfrist“ (der Betreiber zum Ansehen und die automatische
    Löschung, siehe [Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)),
-   „KI-Einstellungen“, „Passwort ändern“ (die Abgaben bleiben lesbar) und „Abmelden“. Fehlt eine Löschfrist, warnt die
+   „KI-Einstellungen“ (Anbieter, Reserve-KI, Verbrauch und die Wartezeit auf die finale KI-Rückmeldung, siehe
+   [Schritt 8](#schritt-8-ki-feedback-einrichten)), „Passwort ändern“ (die Abgaben bleiben lesbar) und „Abmelden“. Fehlt eine Löschfrist, warnt die
    Übersicht in Rot; sonst nennt sie den Betreiber und die Frist. Unter der Tabelle zeigt die Übersicht, wie viel Speicher Bilder und PDF-Dateien aller
    Feibeitsblätter zusammen belegen (höchstens 200 MB).
 
@@ -739,8 +740,16 @@ Lehrkräfte-Übersicht übernehmen. Ist das passiert, setzen Sie den Zugang wie 
    [Verbrauch des Tages](#verbrauch-je-ki) samt Zeitpunkt, an dem das Kontingent zurückgesetzt wird.
 5. Optional eine [Reserve-KI](#reserve-ki-zweiter-anbieter) eintragen, z. B. Groq mit einem kostenlosen API-Schlüssel
    (<https://console.groq.com/keys>) – sie springt ein, wenn das Tageskontingent von Workers AI aufgebraucht ist. Das ist
-   besonders am Stundenende hilfreich, wenn viele gleichzeitig abgeben und die finale KI-Rückmeldung innerhalb von
-   30 Sekunden kommen soll (siehe [Kapazität](#kapazität-und-grenzen)).
+   besonders am Stundenende hilfreich, wenn viele gleichzeitig abgeben und die finale KI-Rückmeldung innerhalb der Wartezeit
+   kommen soll (siehe [Kapazität](#kapazität-und-grenzen)).
+6. **Wartezeit auf die finale KI-Rückmeldung** wählen: 30 Sekunden (Vorgabe), 60 oder 90 Sekunden, dann „Wartezeit speichern“.
+   So lange ist nach der Abgabe der Download der Lösungen höchstens gesperrt. Danach können die Schüler:innen herunterladen und
+   bekommen in der Lösungs-PDF statt der Rückmeldung Ihre bestätigte Checkliste; im Hintergrund wartet die Seite weiter – kommt
+   die Rückmeldung noch vor dem Herunterladen, steht sie darin. Eine längere Wartezeit bringt öfter die echte Rückmeldung,
+   dafür warten die Schüler:innen länger. **Stellen Sie 60 oder 90 Sekunden ein, wenn viele gleichzeitig abgeben** (z. B. die
+   ganze Klasse am Stundenende, mehrere Klassen parallel – dann ist die KI am ehesten ausgelastet) oder ein Blatt viele Aufgaben
+   mit Auftrag an die KI hat (dann braucht die Antwort länger). Die Einstellung gilt für alle Feibeitsblätter, und zwar ab dem
+   nächsten Öffnen eines Blattes (eine schon geöffnete Seite behält die bisherige).
 
 Für einen anderen Anbieter: Anbieter wählen, beim Anbieter einen API-Schlüssel erstellen und in das Feld
 „API-Schlüssel“ einfügen, „Speichern“ (der Server prüft den Schlüssel, ermittelt die verfügbaren Modelle und merkt sich
@@ -812,8 +821,8 @@ automatisch gelöscht, wenn Sie eine Frist gespeichert haben; bis dahin warnt di
 1. „Neues Feibeitsblatt erstellen“ → Titel, Aufgaben und Aufträge an die KI eintragen → „Code generieren“ → den
    Vorschlag der KI für die Checkliste prüfen, ändern und „Checkliste bestätigen“.
 2. Den Code in einem privaten Browserfenster (oder auf einem zweiten Gerät) selbst als Schüler:in ausprobieren:
-   Angaben, Schreiben, Rechtschreibprüfung, KI-Feedback, Abgeben – danach auf der Bestätigungsseite bis zu 30 Sekunden
-   auf die finale KI-Rückmeldung warten (Countdown) und die Lösungs-PDF herunterladen; einmal auch mit abgewählter
+   Angaben, Schreiben, Rechtschreibprüfung, KI-Feedback, Abgeben – danach auf der Bestätigungsseite höchstens die eingestellte
+   Wartezeit (Vorgabe 30 Sekunden) auf die finale KI-Rückmeldung warten (Countdown) und die Lösungs-PDF herunterladen; einmal auch mit abgewählter
    finaler Rückmeldung abgeben, um die Checkliste in der PDF zu sehen.
 3. Zurück in der Lehrkräfte-Übersicht das Blatt auswählen, „Aktualisieren“ klicken und die Testabgabe aufklappen.
 4. Die Testabgabe mit „Alle Abgaben dieses Feibeitsblattes löschen“ entfernen und den Code an die Klasse geben.
@@ -963,10 +972,15 @@ Passwortfeld. Der Server prüft ihn; falsche Codes zählen als Fehlversuche.
   verschlüsselten Umschlag – **einschließlich Kürzeln, Geburtstag (Tag und Monat), Klasse und der Tippzeiten** (bei
   Partner- oder Gruppenarbeit der Kürzel aller Mitglieder und der Klasse; nach einem Widerspruch nur der Vermerk statt
   der Tippzeiten).
+- Die finale KI-Rückmeldung nach der Abgabe verschlüsselt der Server selbst, auf dieselbe Weise mit Ihrem öffentlichen
+  Schlüssel, und speichert sie nur verschlüsselt zur Abgabe; im Klartext sieht er sie nur kurz, wenn sie von der KI kommt.
+  Danach kann auch der Server sie nicht mehr lesen – nur Sie, wie die Abgabe.
 - Technisch: PBKDF2-SHA-256 mit 600 000 Durchläufen und zufälligem Salt, daraus per HKDF-SHA-256 der
   Anmeldeschlüssel und ein AES-GCM-256-Schlüssel; Schlüsselpaar RSA-OAEP mit 3072 Bit (SHA-256); Abgaben mit
   AES-GCM-256 verschlüsselt, der Abgabeschlüssel mit RSA-OAEP. Alle Verfahren stammen aus der eingebauten Web
-  Crypto API des Browsers.
+  Crypto API des Browsers; die finale KI-Rückmeldung verschlüsselt der Server mit denselben Verfahren (Web Crypto im Worker,
+  mit einem Zufallsschlüssel je Rückmeldung und Ihrem öffentlichen Schlüssel – ein Schlüsselpaar erzeugt der Server nie, und
+  Abgaben oder Rückmeldungen entschlüsseln kann er nicht).
 - Nach der Anmeldung liegen die Schlüssel nur im Arbeitsspeicher der geöffneten Seite. Nach dem Neuladen oder
   „Abmelden“ ist eine neue Anmeldung nötig.
 - „Passwort ändern“ verschlüsselt nur den privaten Schlüssel neu; alle bisherigen Abgaben bleiben lesbar.
@@ -1047,7 +1061,7 @@ kleine Lücke zwischen Veröffentlichung und Passwort-Festlegung (siehe Schritt 
 
 ### Passwort vergessen oder Zugang zurücksetzen
 
-Damit setzen Sie das Passwort zurück. Bisherige Abgaben bleiben danach unlesbar; Feibeitsblätter,
+Damit setzen Sie das Passwort zurück. Bisherige Abgaben (samt den finalen KI-Rückmeldungen dazu) bleiben danach unlesbar; Feibeitsblätter,
 KI-Einstellungen sowie Datenschutz-Angaben und Löschfrist bleiben erhalten. War noch keine Löschfrist gespeichert, legt
 das neue Passwort keine fest, solange es noch Feibeitsblätter gibt (nur eine leere Installation startet mit 30 Tagen).
 
@@ -1116,8 +1130,7 @@ Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
 - **Speichern im Browser** (Zwischenstand, Häkchen der Checkliste): § 25 Abs. 2 Nr. 2 TDDDG (für die gewünschte Funktion
   unbedingt erforderlich). Die Tippzeiten stehen nicht im Zwischenstand: Der Betreiber geht davon aus, dass ihr Speichern
   auf dem Gerät eine Einwilligung nach § 25 Abs. 1 TDDDG bräuchte, und verzichtet darauf (`TT_KEEP_IN_DRAFT = false`,
-  kein Einwilligungsdialog); bis zur Abgabe (und, wenn die finale KI-Rückmeldung zur abgegebenen Fassung noch nachgereicht wird,
-  bis dahin, höchstens 15 Minuten) hält die Seite sie nur im Arbeitsspeicher. Für die Messung liest die Seite
+  kein Einwilligungsdialog); bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher, danach gar nicht mehr. Für die Messung liest die Seite
   beim Schreiben die Zeitpunkte der Eingaben im Browser aus; das nennt der Hinweis unter „Welche Daten?“ sachlich als
   Zugriff auf das Gerät im Sinne von § 25 TDDDG – als Tatsache, ohne eine Ausnahme oder eine Einwilligung zu behaupten.
 
@@ -1135,17 +1148,18 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI**, ggf. YouTube-Videos (Kennung, Startzeit, Titel – nie ein Link) und Name und Kennung eines Escape-Rooms | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback; Videos, Name und Kennung des Escape-Rooms sind öffentlich abrufbar) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten **mit ihren Tippzeiten** (nach einem Widerspruch nur der Vermerk `optOut`), KI-Feedback und – nachgereicht – die finale KI-Rückmeldung (bzw. bei älteren Abgaben die Rückmeldung zur abgegebenen Fassung), ob die finale KI-Rückmeldung abgewählt wurde (`finalWanted`), Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“); bei einem Escape-Room-Finale außerdem die Ergebnisse aus dem Escape-Room (Name und Kennung des Raums, Codewort, Abschlusszeitpunkt, je Station Versuche und Fehler im ersten Versuch, genutzte Zwischenstand-Dateien des Escape-Rooms mit Stelle und Zeitpunkten, ob die Prüfsumme stimmt) – ohne vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe), eine zufällige Kennung der Bearbeitung und der Zeitpunkt, zu dem die finale KI-Rückmeldung geliefert wurde (danach ist die Abgabe abgeschlossen) | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten **mit ihren Tippzeiten** (nach einem Widerspruch nur der Vermerk `optOut`), KI-Feedback (bei Abgaben von vor dem 08.11.2026 auch die damals vom Browser nachgereichte finale KI-Rückmeldung bzw. bei noch älteren die Rückmeldung zur abgegebenen Fassung), ob die finale KI-Rückmeldung abgewählt wurde (`finalWanted`), Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“); bei einem Escape-Room-Finale außerdem die Ergebnisse aus dem Escape-Room (Name und Kennung des Raums, Codewort, Abschlusszeitpunkt, je Station Versuche und Fehler im ersten Versuch, genutzte Zwischenstand-Dateien des Escape-Rooms mit Stelle und Zeitpunkten, ob die Prüfsumme stimmt) – ohne vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe), eine zufällige Kennung der Bearbeitung und der Zeitpunkt, zu dem die finale KI-Rückmeldung geliefert wurde (danach ist die Abgabe abgeschlossen) | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
+| Finale KI-Rückmeldung zu einer Abgabe (je Aufgabe „Das gelingt dir schon“ und „Das hat gefehlt“, Zeitpunkt; keine Antworten, keine Angaben zur Person) | Cloudflare D1 (EU), bei der Abgabe (Spalte `final_env`) | **nur verschlüsselt** – der Server verschlüsselt sie selbst mit Ihrem öffentlichen Schlüssel, bevor er sie speichert; lesen können sie nur Sie (die Abgabe selbst ändert er dabei nicht) | mit der Abgabe (Löschfrist, einzelner Eintrag, alle Abgaben, Blatt) |
 | Erstversuche: dieselben Angaben mit der ersten Fassung (samt Tippzeiten) und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt; nach einem Widerspruch mit derselben Kennung ohne Tippzeiten ersetzt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
 | Checkliste je Feibeitsblatt (Lösungs-PDF der Schüler:innen ohne finale KI-Rückmeldung, analoges Arbeitsblatt): Vorschlag der KI (Entwurf, entsteht nach „Code generieren“) und die von Ihnen bestätigten bzw. gespeicherten Punkte | Cloudflare D1 (EU), Tabelle `sheet_checklists` | unverschlüsselt; die bestätigte Fassung (nie der Entwurf) ist ab dem Bestätigen für alle abrufbar, die den Code bzw. den QR-Code kennen – auch während die Klasse noch schreibt; die Bestätigungsseite lädt sie nach jeder Abgabe für die Lösungs-PDF | bis Sie das Blatt löschen |
 | Löschfrist (früher gespeicherte Angaben einer Schule entfernt der Server beim Aufräumen) | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; öffentlich abrufbar (Datenschutzhinweis eines Blattes, Seite „Impressum & Datenschutz“ über `GET /api/privacy`) | bis Sie sie ändern |
 | Angaben des Betreibers (Name, Anschrift, E-Mail, Aufsichtsbehörde) | in `index.html` (`window.FEIBEITSBLATT_OPERATOR`), nicht in der Datenbank | öffentlich (Impressum, Datenschutzhinweis) | bis sie in `index.html` geändert werden |
 | Lehrkraft-Zugang: Hash des Anmeldeschlüssels, Salt, öffentlicher Schlüssel, verschlüsselter privater Schlüssel | Cloudflare D1 (EU) | wie beschrieben unter [Sicherheit](#sicherheit) | bis zum Zurücksetzen |
-| KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert; Workers AI hat keinen) | bis Sie sie ändern |
+| KI-Einstellungen: Anbieter, Modell, API-Schlüssel – für den ersten Anbieter und ggf. die Reserve-KI –, dazu die Wartezeit auf die finale KI-Rückmeldung (Tabelle `settings`, `final`) | Cloudflare D1 (EU) | Schlüssel nur verschlüsselt (ohne `SETTINGS_SECRET` wird kein Schlüssel gespeichert; Workers AI hat keinen) | bis Sie sie ändern |
 | Verbrauch je KI und Tag (Zahl der Anfragen und Token, bei Workers AI geschätzte Neurons, bei Groq die zuletzt gemeldete Grenze für Anfragen pro Tag je Modell; keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach beim täglichen Aufräumen gelöscht (ohne Zeitplan: beim Öffnen der Übersicht) |
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
-| Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe (und, wenn die KI-Rückmeldung zur abgegebenen Fassung noch nachgereicht wird, bis dahin) hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 | Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale samt Datensatz aus dem Escape-Room), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | Cookies und ähnliche Daten von YouTube – nur nach einem Klick auf „Video von YouTube laden“ | im Browser des benutzten Geräts, gesetzt und gelesen von Google (YouTube), nicht von Feibeitsblatt | nach den Bedingungen von Google; Feibeitsblatt speichert weder die Einwilligung noch, welche Videos geladen wurden | bis sie ablaufen oder im Browser gelöscht werden |
@@ -1153,9 +1167,10 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | Lösungs-PDF einer Abgabe aus Ihrer Übersicht („Lösungs-PDF herunterladen“; dieselben Inhalte wie „Meine Lösungen“: Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, abgegebene Fassung, finale KI-Rückmeldung oder – ohne sie – Ihre Checkliste; kein Geburtstag, keine Tippzeiten; bei einem Escape-Room-Finale nur die Lösungsseiten, ohne den Überblick aus dem Raum), nur auf Klick | auf Ihrem Gerät, dort, wo Sie die Datei speichern (im Dateinamen Code, Klasse, Kürzel und Abgabedatum); im Browser erzeugt, der Server sieht sie nie | unverschlüsselt und lesbar | bis Sie die Datei löschen – die Löschfrist gilt dafür nicht |
 | Abschluss-PDF eines Escape-Room-Finales (statt „Meine Lösungen“; dazu der Überblick aus dem Escape-Room mit vollem Namen, Geburtsdatum, Klasse, Bestätigungscode, Ergebnissen und Lösungserläuterungen – keine Tippzeiten), nur auf Klick nach der Abgabe oder nach einer technisch gescheiterten Abgabe (dann mit dem Vermerk „Noch nicht abgegeben …“) | dort, wo die Schülerin bzw. der Schüler die Datei speichert; nur wenn sie bzw. er sie nach einer gescheiterten Abgabe per E-Mail schickt, auch im Postfach des Betreibers (`window.FEIBEITSBLATT_OPERATOR`) | unverschlüsselt, lesbar; per E-Mail unverschlüsselt über die beteiligten E-Mail-Anbieter | bis die Datei gelöscht wird; eine E-Mail laut Datenschutzhinweis, bis die Lehrkraft sie übernommen hat (siehe [Was wohin gesendet wird](#was-wohin-gesendet-wird)) |
 
-Der Server speichert weder die Anfragen an die KI noch deren Antworten zum Feedback und zur finalen KI-Rückmeldung (bei der
-finalen nur den Zeitpunkt, zu dem sie geliefert wurde) – nur den Vorschlag der KI für die
-Checkliste (aus Ihren Aufgaben, ohne Daten der Schüler:innen) als Entwurf beim Blatt –, und er protokolliert keine
+Der Server speichert weder die Anfragen an die KI noch deren Antworten zum Feedback zum Überarbeiten. Die finale
+KI-Rückmeldung (nur das Ergebnis der KI, nicht die Antworten der Schüler:innen) speichert er verschlüsselt mit Ihrem
+öffentlichen Schlüssel bei der Abgabe, im Klartext nur den Zeitpunkt, zu dem sie geliefert wurde. Außerdem speichert er den
+Vorschlag der KI für die Checkliste (aus Ihren Aufgaben, ohne Daten der Schüler:innen) als Entwurf beim Blatt. Er protokolliert keine
 Schülertexte und keine Schlüssel; die gespeicherten Protokolle von Cloudflare (Workers Logs, Aufrufprotokolle, Traces)
 sind in `wrangler.jsonc` abgeschaltet. Gespeichert werden Angaben und Antworten nur verschlüsselt; für das KI-Feedback
 und die finale KI-Rückmeldung verarbeitet der Server die Antworten (ohne Angaben zur Person) kurz unverschlüsselt, um sie
@@ -1202,9 +1217,10 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   gerade angekommene Abgabe ist (höchstens 15 Minuten alt, nur einmal je Abgabe). Beides bezeichnet genau eine
   gespeicherte, verschlüsselte Abgabe – der Server kann die Klartext-Antworten dieser Anfrage also der Zeile zuordnen,
   nicht aber einer Person (Kürzel, Geburtstag und Klasse stehen nur im verschlüsselten Umschlag). Er speichert die
-  Antworten nicht, protokolliert die Kennung nicht und gibt beides nicht an die KI weiter; er vermerkt nur den
-  Zeitpunkt der Lieferung bei der Abgabe. Die Rückmeldung selbst schickt danach der Browser verschlüsselt an Sie (sie
-  ergänzt die Abgabe). Ist die KI
+  Antworten nicht, protokolliert die Kennung nicht und gibt beides nicht an die KI weiter. Die Rückmeldung der KI
+  verschlüsselt er mit Ihrem öffentlichen Schlüssel und legt sie zu genau dieser Abgabe ab, dazu den Zeitpunkt der
+  Lieferung; den verschlüsselten Umschlag der Abgabe ändert er nicht, und lesen kann er die Rückmeldung danach selbst nicht
+  mehr. Der Browser schickt nach der Abgabe nichts mehr an Sie nach. Ist die KI
   ausgelastet, wiederholt der Browser die Anfrage bis zu viermal automatisch (jeweils mit dem aktuellen Text); im
   ungünstigsten Fall erhalten also beide Dienste dieselben Antworten mehrfach. **Nie** gesendet werden Kürzel,
   Geburtstag, Klasse und die Tippzeiten; der Server bekommt sie dabei gar nicht. Mit **Cloudflare Workers AI** ist Cloudflare
@@ -1266,7 +1282,7 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   Link daran. Abhilfe ginge nur mit einer neuen Version der Schnittstelle (ein Link ohne vollen Namen, Geburtsdatum und
   Bestätigungscode – diese Angaben dann nur über die Überblick-PDF oder per Eingabe). Auch eine hochgeladene
   Überblick-PDF liest nur der Browser. Der Server sieht beim Öffnen nur den Blatt-Code wie sonst. Mit Erstversuch und Abgabe
-  (und mit der Abgabe, die die nachgereichte KI-Rückmeldung ergänzt) gehen nur die Ergebnisse aus dem Escape-Room an Sie –
+  gehen nur die Ergebnisse aus dem Escape-Room an Sie –
   verschlüsselt, ohne vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen; an einen KI-Dienst gehen die
   Daten aus dem Escape-Room nie. **E-Mail nach einer technisch
   gescheiterten Abgabe:** Nur wenn die Schülerin bzw. der Schüler es selbst tut, geht die Abschluss-PDF (mit vollem Namen,
@@ -1296,11 +1312,8 @@ tippen die Schüler:innen, sie werden normal gemessen.
   Die Schüler:innen erfahren im Hinweis auch, dass Sie je Aufgabe und für die ganze Abgabe den Anteil roter Zeichen sehen.
 - **Wo die Tippzeiten liegen:** bis zur Abgabe nur im Arbeitsspeicher der geöffneten Seite – nicht im Zwischenstand auf
   dem Gerät und nicht in der Zwischenstand-PDF –, dann im Erstversuch und in der Abgabe (nur verschlüsselt, lesbar nur für
-  Sie). Ist die finale KI-Rückmeldung gewählt, hält die Seite die angekommene Abgabe samt Tippzeiten danach noch im
-  Arbeitsspeicher, bis die Rückmeldung nachgereicht ist oder keine mehr kommt (höchstens 15 Minuten; wird vorher
-  heruntergeladen, sofort freigegeben); das Nachreichen
-  ersetzt die Abgabe mit denselben Tippzeiten (widerspricht die Schülerin oder der Schüler in dieser Zeit in einem anderen
-  Tab mit demselben Stand, verwirft die Seite sie und reicht die Abgabe nur mit dem Vermerk des Widerspruchs nach). Wird die Seite neu geladen oder mit einer Zwischenstand-PDF weitergeschrieben, gilt der bis dahin geschriebene
+  Sie). Nach der Abgabe hält die Seite sie nicht mehr: Die finale KI-Rückmeldung legt der Server selbst ab, die Abgabe wird
+  nicht mehr ersetzt. Wird die Seite neu geladen oder mit einer Zwischenstand-PDF weitergeschrieben, gilt der bis dahin geschriebene
   Text deshalb als „ohne Messung“ (ohne Färbung); gemessen wird ab dann neu. Sie gehen nie an einen KI-Dienst oder an
   LanguageTool, stehen nie in der Lösungs-PDF der Schüler:innen, und beim Schreiben zeigt die Seite sie nicht an.
   Gelöscht werden sie mit dem Eintrag (Löschfrist). Das gilt mit der eingecheckten Einstellung
@@ -1329,21 +1342,21 @@ tippen die Schüler:innen, sie werden normal gemessen.
   Gerät gesendet wurde, lässt sich vom Browser nicht ersetzen (Sie können ihn löschen). Während die Abgabe gesendet wird,
   wirkt der Schalter nicht (die Seite sagt das; scheitert das Senden, gilt er wieder). Nach der Abgabe lassen sich die
   Tippzeiten nur zusammen mit der ganzen Abgabe löschen: den Eintrag löschen und – wenn gewünscht – mit gesetztem Haken
-  neu abgeben lassen. All das sagen die Hinweistexte den Schüler:innen.
+  neu abgeben lassen. Das gilt auch, wenn in einem zweiten Tab mit demselben Stand widersprochen wird, nachdem in einem Tab
+  abgegeben wurde oder während die Abgabe noch gesendet wird: Die angekommene Abgabe behält die Tippzeiten (Entscheidung des
+  Betreibers vom 08.11.2026, siehe [Finale KI-Rückmeldung und Checkliste](#finale-ki-rückmeldung-und-checkliste)). All das
+  sagen die Hinweistexte den Schüler:innen (den Fall mit dem zweiten Tab deckt der Satz zum Löschen nach der Abgabe ab).
 - **Größe:** Die Tippzeiten machen eine Abgabe ungefähr doppelt so groß. Wäre der verschlüsselte
   Umschlag größer als 400 KB oder lehnt der Server die Abgabe als zu groß ab, geht sie einmal ohne Tippzeiten
-  („nicht übermittelt – die Abgabe wäre sonst zu groß gewesen“) – eine Abgabe scheitert nie an den Tippzeiten. Dasselbe
-  gilt, wenn erst die nachgereichte finale KI-Rückmeldung den Umschlag zu groß macht: Dann ersetzt die
-  Abgabe mit der Rückmeldung, aber ohne Tippzeit-Werte, die bisherige (Entscheidung: die Rückmeldung scheitert wie die Abgabe
-  nie an den Tippzeiten; kommt sie gar nicht an, bleibt die Abgabe samt Tippzeiten unverändert). (Mit
+  („nicht übermittelt – die Abgabe wäre sonst zu groß gewesen“) – eine Abgabe scheitert nie an den Tippzeiten. Die finale
+  KI-Rückmeldung liegt getrennt bei der Abgabe und macht ihren Umschlag nicht größer. (Mit
   `TT_KEEP_IN_DRAFT = true` gilt das Doppelte auch für den Zwischenstand; passt er dann nicht mehr in den Speicher des
   Browsers, wird er ohne Tippzeiten gespeichert.)
 - **Entscheidungen des Betreibers (27.10.2026, nach Rechtsprüfung):** Die erste Ebene – die Kurzfassungen auf dem
   Angaben-Bildschirm und im Schreibbereich – nennt die Messung in einem neutralen Satz, ohne Hervorhebung und ohne
   Aufforderung, und sagt, wo man widerspricht; der Widerspruch hat im ausführlichen Hinweis einen eigenen Abschnitt,
   getrennt von den übrigen Informationen (Art. 21 Abs. 4 DSGVO). Unter „Welche Daten?“ steht sachlich, dass die Seite
-  beim Schreiben die Zeitpunkte der Eingaben im Browser ausliest und bis zur Abgabe (und, wenn die KI-Rückmeldung zur
-  abgegebenen Fassung noch nachgereicht wird, bis dahin) im Arbeitsspeicher hält – ein Zugriff
+  beim Schreiben die Zeitpunkte der Eingaben im Browser ausliest und bis zur Abgabe im Arbeitsspeicher hält – ein Zugriff
   auf das Gerät im Sinne von § 25 TDDDG; der Hinweis nennt das als Tatsache und behauptet weder eine Ausnahme nach § 25
   Abs. 2 TDDDG noch eine Einwilligung. Das Speichern der Tippzeiten im Zwischenstand auf dem Gerät bräuchte nach Annahme
   des Betreibers eine Einwilligung nach § 25 Abs. 1 TDDDG – deshalb speichert die Seite sie dort nicht und fragt keine
@@ -1393,10 +1406,12 @@ Worker-Adresse und über GitHub Pages), ob es abspielt: Die Tests ersetzen YouTu
 
 Seit dem 08.11.2026 (Wunsch der Lehrkraft) bekommen die Schüler:innen nach der Abgabe eine **finale KI-Rückmeldung**, die je
 Aufgabe konkret nennt, was gefehlt hat – auch ohne vorheriges KI-Feedback, vorausgewählt und im Abgabe-Dialog abwählbar
-(siehe [So arbeiten Schüler:innen, Schritt 7](#so-arbeiten-schülerinnen)). Kommt sie nicht innerhalb von 30 Sekunden oder
-wurde sie abgewählt, steht in der Lösungs-PDF die Checkliste, die Sie nach „Code generieren“ bestätigt haben. Der
-Datenschutzhinweis nennt beides: das Senden nach der Abgabe (Empfänger, Abwählen, Rechtsgrundlage Art. 6 Abs. 1 Buchst. b
-DSGVO) und das Laden der Checkliste auf der Bestätigungsseite.
+(siehe [So arbeiten Schüler:innen, Schritt 7](#so-arbeiten-schülerinnen)). Kommt sie nicht innerhalb der Wartezeit (30, 60
+oder 90 Sekunden, Ihre Einstellung in den KI-Einstellungen) oder wurde sie abgewählt, steht in der Lösungs-PDF die Checkliste,
+die Sie nach „Code generieren“ bestätigt haben. Für Sie speichert der Server die Rückmeldung verschlüsselt mit Ihrem
+öffentlichen Schlüssel bei der Abgabe. Der Datenschutzhinweis nennt das alles: das Senden nach der Abgabe (Empfänger,
+Abwählen, Rechtsgrundlage Art. 6 Abs. 1 Buchst. b DSGVO), dass der Server die Rückmeldung verschlüsselt zur Abgabe speichert
+und nur Sie sie lesen können, und das Laden der Checkliste auf der Bestätigungsseite.
 
 **Weiter vom Betreiber zu prüfen** (Stand 08.11.2026; der Hinweis behauptet dazu nichts):
 
@@ -1414,12 +1429,21 @@ DSGVO) und das Laden der Checkliste auf der Bestätigungsseite.
 - **Öffentlicher Code eines Escape-Rooms:** Steht der Code im öffentlichen Quelltext eines Escape-Rooms, kann jede:r mit
   einer erfundenen Abgabe die finale KI-Rückmeldung auslösen und so konkret erfahren, was gefehlt hat, also Inhalte der
   Aufträge an die KI.
-- **Nachreichen mit anderen Antworten:** Die finale Rückmeldung reicht der Browser in den ersten 15 Minuten nach der
-  Abgabe nach (`stage: "feedback2"`) und ersetzt dabei den ganzen verschlüsselten Umschlag der Abgabe. Der Server kann
-  nicht hineinsehen: Ein manipulierter Browser könnte so die Antworten durch solche ersetzen, die erst die finale
-  Rückmeldung verraten hat, und Sie sähen nur die verbesserte Fassung (eine neue Abgabe derselben Bearbeitung lehnt der
-  Server nach der finalen Rückmeldung zwar ab, das Nachreichen aber nicht). Mögliche Abhilfe: die nachgereichte
-  Rückmeldung getrennt speichern, statt den Umschlag zu ersetzen.
+
+**Behoben am 08.11.2026 – Nachreichen mit anderen Antworten:** Bis dahin reichte der Browser die finale Rückmeldung in den
+ersten 15 Minuten nach der Abgabe nach und ersetzte dabei den ganzen verschlüsselten Umschlag der Abgabe; ein manipulierter
+Browser hätte so Antworten unterschieben können, die erst die finale Rückmeldung verraten hat, oder die Rückmeldung fälschen.
+Seitdem speichert der Server die Rückmeldung selbst – verschlüsselt mit Ihrem öffentlichen Schlüssel, getrennt neben der
+Abgabe –, und eine Abgabe wird nachträglich nie mehr ersetzt (ältere, noch zwischengespeicherte Seiten, die weiter
+nachreichen wollen, ändern nichts mehr). Die gespeicherte Rückmeldung trägt außerdem einen Prüfwert der Antworten, die die KI
+beurteilt hat: Passt er nicht zur Abgabe, zeigt Ihre Übersicht sie nicht an, sondern den Hinweis „Eine gespeicherte finale
+KI-Rückmeldung bezieht sich nicht auf die abgegebenen Antworten …“. Wer während der Anfrage aus einem zweiten Tab neu abgibt, kann
+die Abgabe danach trotzdem nicht mehr ändern. Bleibt: Das KI-Feedback **vor** der Abgabe (erste Fassung, Erstversuch) stammt weiter
+aus dem Browser und ließe sich mit einem manipulierten Browser fälschen – es dient nur zum Überarbeiten.
+**Folge (Entscheidung des Betreibers vom 08.11.2026):** Widerspricht eine Schülerin
+bzw. ein Schüler der Tippzeit-Messung in einem zweiten Tab mit demselben Stand, nachdem in einem Tab abgegeben wurde (oder
+während die Abgabe noch gesendet wird), entfernt das die Tippzeiten nicht mehr aus der Abgabe; nach der Abgabe lassen sie
+sich nur zusammen mit der ganzen Abgabe löschen – so sagt es der Datenschutzhinweis schon (siehe [Tippzeiten](#tippzeiten)).
 
 ### Empfehlungen
 
@@ -1523,16 +1547,15 @@ Schüler:innen.
 > [Reserve-Dienst mit Sitz, z. B. Groq LLC, USA]. Diese Dienste haben ihren Sitz in den USA; [bei Cloudflare Workers AI:
 > die Datenbank liegt in der EU, die KI-Verarbeitung kann auch außerhalb der EU stattfinden;] die Übermittlung stützt
 > sich auf [EU-US Data Privacy Framework / Standardvertragsklauseln]. Die KI gibt nur Hinweise – nach der Abgabe auch,
-> was gefehlt hat –, keine Noten; über die Arbeit entscheidet die Lehrkraft. Die finale KI-Rückmeldung geht verschlüsselt
-> auch an die Lehrkraft. Beim Schreiben misst Feibeitsblatt die Tippzeiten: für jedes eingegebene Zeichen,
+> was gefehlt hat –, keine Noten; über die Arbeit entscheidet die Lehrkraft. Die finale KI-Rückmeldung speichert der Server
+> verschlüsselt zur Abgabe; lesen kann sie nur die Lehrkraft. Beim Schreiben misst Feibeitsblatt die Tippzeiten: für jedes eingegebene Zeichen,
 > wie viele Millisekunden seit dem vorangehenden Zeichen vergangen sind (längere Pausen nur als „mehr als 70
 > Millisekunden“, keine Uhrzeiten). Die Lehrkraft sieht die Antworten dadurch farbig markiert und je Aufgabe und für die
 > ganze Abgabe den Anteil roter Zeichen in Prozent – rot, wenn Zeichen sehr schnell oder in einem Zug entstanden sind
 > (z. B. durch Wortvorschläge, Autokorrektur, Diktat oder einen übernommenen Korrekturvorschlag des Browsers). Das ist kein
 > Beweis: Die Färbung dient nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem
 > Täuschungsverdacht. Für die Messung liest die Seite beim Schreiben im Browser die Zeitpunkte der Eingaben aus (ein
-> Zugriff auf das Gerät im Sinne von § 25 TDDDG); bis zur Abgabe (und, wenn die finale KI-Rückmeldung zur abgegebenen
-> Fassung noch nachgereicht wird, bis dahin) hält sie die Tippzeiten nur im Arbeitsspeicher (nicht im Zwischenstand auf
+> Zugriff auf das Gerät im Sinne von § 25 TDDDG); bis zur Abgabe hält sie die Tippzeiten nur im Arbeitsspeicher (nicht im Zwischenstand auf
 > dem Gerät und nicht in einer Zwischenstand-PDF-Datei); sie gehen nur verschlüsselt mit Erstversuch und Abgabe an die
 > Lehrkraft, nie an einen KI-Dienst; beim Schreiben zeigt die Seite sie nicht an. Der Messung kann man jederzeit bis zur
 > Abgabe selbst widersprechen – mit dem Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“ im ausführlichen
@@ -1569,9 +1592,9 @@ es nur, wenn mehr als 20 Personen **in derselben Minute** aus demselben Schulnet
 zwischen Anfragen ein (Workers AI 0,2 s, Groq 2,5 s, OpenRouter 3,5 s, Gemini 4 s, Cerebras 2 s, andere 1 s) und lässt höchstens etwa
 eine Minute Wartezeit zu. Fordern viele Schüler:innen gleichzeitig ein Feedback an, erhalten einige „Gerade fragen
 sehr viele gleichzeitig. Bitte versuche es in einer Minute noch einmal.“ In Stoßzeiten kann eine einzelne Anfrage
-bis zu etwa 100 Sekunden dauern. Die finale KI-Rückmeldung nach der Abgabe wartet für den Download aber nur
-30 Sekunden (danach steht Ihre Checkliste in der Lösungs-PDF; im Hintergrund wird weiter gewartet, bis heruntergeladen
-wird).
+bis zu etwa 100 Sekunden dauern. Auf die finale KI-Rückmeldung nach der Abgabe wartet der Download aber nur so lange, wie
+Sie es in den KI-Einstellungen festlegen – 30 (Vorgabe), 60 oder 90 Sekunden (danach steht Ihre Checkliste in der
+Lösungs-PDF; im Hintergrund wird weiter gewartet, bis heruntergeladen wird).
 
 **Cloudflare Workers AI** rechnet in „Neurons“ (kostenlos 10 000 pro Tag für das ganze Konto, Neustart 0:00 Uhr UTC).
 Laut Preisliste (Stand 20.10.2026) kostet das Vorgabemodell Gemma 4 je Million Token 9 091 Neurons Eingabe und
@@ -1636,17 +1659,18 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
      zufällig versetzt, damit nicht alle Browser einer Klasse in derselben Sekunde wiederkommen); weiterschreiben
      ist währenddessen möglich. Erst danach – oder nach „Nicht länger warten“ – zählt ein Fehlversuch. Bei der finalen
      KI-Rückmeldung wiederholt die Bestätigungsseite genauso, still im Hintergrund; der Download wartet darauf aber
-     höchstens 30 Sekunden.
+     höchstens die eingestellte Wartezeit (30, 60 oder 90 Sekunden).
   4. **Reserve-KI.** Erst wenn der erste Anbieter mit allen Modellen ausgelastet ist oder ausfällt, geht die Anfrage
      an die [Reserve-KI](#reserve-ki-zweiter-anbieter), falls eingerichtet.
 - **Fazit:** 60 Schüler:innen am Tag mit je 600 Wörtern (bis zu 120 Anfragen) sind mit einem kostenlosen
   Groq-Schlüssel machbar, weil der Server über mehrere Modelle ausweicht. **Einschränkung:** Die finalen
   KI-Rückmeldungen kommen fast alle auf einmal, wenn am Ende der Stunde die ganze Klasse abgibt – und jede enthält
   alle Aufgaben. Sind dann alle Modelle ausgelastet, nennt der Server eine Wartezeit von 5 bis 60 Sekunden, und viele
-  Schüler:innen warten länger als die 30 Sekunden, nach denen der Download frei wird; wer dann gleich herunterlädt,
-  bekommt Ihre Checkliste statt der Rückmeldung (wer wartet, oft doch noch die Rückmeldung). Richten Sie deshalb eine
-  [Reserve-KI](#reserve-ki-zweiter-anbieter) ein, und lassen Sie bei großen Gruppen gestaffelt abgeben, wenn die
-  Rückmeldung wichtig ist. Auch
+  Schüler:innen warten länger als die eingestellte Wartezeit (Vorgabe 30 Sekunden), nach der der Download frei wird; wer
+  dann gleich herunterlädt, bekommt Ihre Checkliste statt der Rückmeldung (wer wartet, oft doch noch die Rückmeldung).
+  Richten Sie deshalb eine [Reserve-KI](#reserve-ki-zweiter-anbieter) ein, **stellen Sie die Wartezeit in den
+  KI-Einstellungen auf 60 oder 90 Sekunden** ([Schritt 8](#schritt-8-ki-feedback-einrichten)), und lassen Sie bei großen
+  Gruppen gestaffelt abgeben, wenn die Rückmeldung wichtig ist. Auch
   **30 Anfragen in derselben Minute** gehen durch: Bei grob 2 500–3 500 Token je Anfrage und 60 000–100 000 Token
   pro Minute über alle Groq-Modelle sind etwa 20–30 Anfragen in der ersten Minute möglich, der Rest folgt
   automatisch in der zweiten – ohne dass jemand klicken muss. Eine Reserve-KI macht das Ganze unabhängig von einem
@@ -1689,11 +1713,11 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Tabelle (Antwortart) | 1–8 Spalten mit je 60 Zeichen Überschrift, 1–30 Zeilen; die ganze Tabelle als Text höchstens 8000 Zeichen |
 | Weltkarten-Zuordnung (Antwortart) | 1–40 Karten je Aufgabe (Bezeichnung 120, Hinweis 400 Zeichen, ein Bild – zählt nicht zu den 5 Bildern), je Karte 1–10 richtige Länder, je Blatt höchstens 400 richtige Länder zusammen |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
-| Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB (eine Klasse braucht weit weniger) |
-| KI-Anfragen je Netzwerk (IP-Adresse) | 240 pro Stunde bzw. 800 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und finale KI-Rückmeldung nach der Abgabe); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht, ebenso wenig eine finale Anfrage, die der Server ablehnt |
+| Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB samt den gespeicherten finalen KI-Rückmeldungen (eine Klasse braucht weit weniger) |
+| KI-Anfragen je Netzwerk (IP-Adresse) | 480 pro Stunde bzw. 1 600 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und finale KI-Rückmeldung nach der Abgabe; am 08.11.2026 verdoppelt, weil sich im Schulnetz meist alle Klassen eine IP-Adresse teilen – das reicht für etwa 200–240 Schüler:innen pro Stunde und Netzwerk); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht, ebenso wenig eine finale Anfrage, die der Server ablehnt |
 | KI-Anfragen je Feibeitsblatt | 600 pro Tag (bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
-| Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 360 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu drei Übermittlungen: Erstversuch beim KI-Feedback, Abgabe und die nachgereichte finale KI-Rückmeldung) |
-| Finale KI-Rückmeldung | der Download wartet höchstens 30 Sekunden auf sie (danach mit Ihrer Checkliste); anfordern und an Sie nachreichen nur in den ersten 15 Minuten nach der Abgabe; einmal je Abgabe – danach lässt sich die Abgabe nicht mehr durch eine neue derselben Bearbeitung ersetzen |
+| Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 360 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe; die finale KI-Rückmeldung legt der Server selbst ab) |
+| Finale KI-Rückmeldung | der Download wartet höchstens 30, 60 oder 90 Sekunden auf sie (Ihre Einstellung, Vorgabe 30; danach mit Ihrer Checkliste); anfordern – und damit für Sie gespeichert – nur in den ersten 15 Minuten nach der Abgabe; einmal je Abgabe – danach lässt sich die Abgabe nicht mehr durch eine neue derselben Bearbeitung ersetzen |
 | Checkliste (Lösungs-PDF, analoges Arbeitsblatt) | höchstens 8 Punkte je Aufgabe, je 160 Zeichen; KI-Vorschläge 60 pro Stunde je Netzwerk (IP-Adresse) – jedes neue Feibeitsblatt fragt einmal |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner); dasselbe gilt für die Überblick-PDF eines Escape-Rooms |
 | Datensatz aus einem Escape-Room (Link oder Überblick-PDF) | höchstens 96 KB (ein größerer wird abgelehnt); darin Texte je 2000 Zeichen, Lösungserläuterungen je 4000, höchstens 20 Stationen mit je 30 Fehlern, 20 Lösungserläuterungen und 20 Zwischenstand-Dateien – mehr wird gekappt. Passt eine Abgabe sonst nicht in den Umschlag, geht sie erst ohne Tippzeiten, dann ohne die Einzelheiten der Fehler („nicht übermittelt“) – sie scheitert nie an diesen Daten |
@@ -1739,8 +1763,9 @@ gespeichert.
 | „konnte nicht geladen werden – erneut versuchen“ an einer PDF-Datei | Die Verbindung ist beim Herunterladen abgerissen. Noch einmal auf die Datei klicken. |
 | „Bild konnte nicht geladen werden – erneut versuchen“ (statt einer Miniatur) | Die Verbindung ist abgerissen, während das Blatt geöffnet wurde. Auf den Hinweis klicken, dann lädt das Bild erneut. |
 | „Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in …“ | Kein Fehler: Die Minutenlimits aller Modelle sind gerade ausgeschöpft; die Seite wiederholt von selbst (bis zu fünf Versuche in etwa vier Minuten). Weiterschreiben ist möglich; „Nicht länger warten“ bricht ab. Kommt das ständig vor, Feedback gestaffelt anfordern lassen oder eine Reserve-KI eintragen. |
-| „Deine finale KI-Rückmeldung wird gerade erstellt – bitte gedulde dich kurz.“ (mit Countdown, der Download-Button ist blass) | Kein Fehler: Nach der Abgabe wartet der Download höchstens 30 Sekunden auf die finale KI-Rückmeldung. Danach wird der Button frei. |
-| „Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei statt der KI-Rückmeldung die Checkliste deiner Lehrkraft. …“ – bzw. eine Lösungs-PDF mit „Die finale KI-Rückmeldung lag beim Herunterladen nicht vor.“ und der Checkliste | Die KI war nach 30 Sekunden noch nicht fertig, meist weil am Stundenende viele gleichzeitig abgeben. Wer noch wartet, bekommt die Rückmeldung oft doch (dann einfach herunterladen, sobald sie erscheint); wer sofort herunterlädt, bekommt Ihre Checkliste, und an Sie geht keine Rückmeldung („Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“). Abhilfe: eine [Reserve-KI](#reserve-ki-zweiter-anbieter), gestaffelt abgeben lassen. |
+| „Deine finale KI-Rückmeldung wird gerade erstellt – bitte gedulde dich kurz.“ (mit Countdown, der Download-Button ist blass) | Kein Fehler: Nach der Abgabe wartet der Download höchstens die in den KI-Einstellungen gewählte Wartezeit (30, 60 oder 90 Sekunden) auf die finale KI-Rückmeldung. Danach wird der Button frei. |
+| „Das dauert länger als gedacht. Du kannst deine Lösungen jetzt herunterladen – dann steht in der PDF-Datei statt der KI-Rückmeldung die Checkliste deiner Lehrkraft. …“ – bzw. eine Lösungs-PDF mit „Die finale KI-Rückmeldung lag beim Herunterladen nicht vor.“ und der Checkliste | Die KI war nach Ablauf der Wartezeit noch nicht fertig, meist weil am Stundenende viele gleichzeitig abgeben. Wer noch wartet, bekommt die Rückmeldung oft doch (dann einfach herunterladen, sobald sie erscheint); wer sofort herunterlädt, bekommt Ihre Checkliste, und bei Ihnen liegt in der Regel keine Rückmeldung („Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“). Abhilfe: die Wartezeit in den KI-Einstellungen auf 60 oder 90 Sekunden stellen ([Schritt 8](#schritt-8-ki-feedback-einrichten)), eine [Reserve-KI](#reserve-ki-zweiter-anbieter), gestaffelt abgeben lassen. |
+| „Die finale KI-Rückmeldung ließ sich nicht an deine Lehrkraft übermitteln. Deine Abgabe ist davon nicht betroffen.“ (unter der finalen KI-Rückmeldung auf der Bestätigungsseite) | Der Server konnte die Rückmeldung nicht zur Abgabe ablegen – z. B. weil die Abgabe inzwischen gelöscht oder durch eine neuere derselben Bearbeitung ersetzt wurde, weil sie in zwei Tabs gleichzeitig angefordert wurde (abgelegt wird nur die erste) oder wegen eines Fehlers beim Speichern (etwa nach dem Tageslimit der Datenbank). Die Abgabe ist angekommen; die Schülerin bzw. der Schüler sieht die Rückmeldung trotzdem, auch in der PDF-Datei. Bei Ihnen steht in den Details „Die finale KI-Rückmeldung wurde nicht an die Lehrkraft übermittelt.“ (bzw. bei zwei Tabs die zuerst abgelegte). |
 | Lösungs-PDF ohne Rückmeldung und ohne Checkliste (nur der Grund im Kopf) | Für dieses Blatt ist keine Checkliste bestätigt (z. B. nach „Code generieren“ nicht bestätigt oder ein älteres Blatt). In den Blattdetails „Checkliste bearbeiten“ → speichern; das gilt für alle danach eingehenden Abgaben und für Ihre „Lösungs-PDF herunterladen“. |
 | „Die finale KI-Rückmeldung wurde beim Abgeben abgewählt.“ (in den Details einer Abgabe und in der Lösungs-PDF) | Kein Fehler: Die Schülerin bzw. der Schüler hat das Kästchen im Abgabe-Dialog abgewählt. Bitte nicht anders werten. |
 | „Seit deiner Abgabe sind mehr als 15 Minuten vergangen – eine finale KI-Rückmeldung ist jetzt nicht mehr möglich.“ / „Zu deiner Abgabe ist keine finale KI-Rückmeldung (mehr) möglich.“ | Der Server gibt die finale KI-Rückmeldung nur in den ersten 15 Minuten nach der Abgabe und nur einmal je Abgabe; ist die Abgabe inzwischen gelöscht oder durch eine neuere derselben Bearbeitung ersetzt, gibt es keine. Die Abgabe selbst ist angekommen; die PDF-Datei enthält dann Ihre Checkliste. |
@@ -1866,8 +1891,11 @@ ein KI-Feedback, eine finale KI-Rückmeldung (Kennzeichen „finale Rückmeldung
 Checklisten-Vorschlag angefragt wird, und antwortet passend (je Anfrage `kind` in `/__mock/state`).
 
 **Finale KI-Rückmeldung in den Tests:** Nach jeder Abgabe mit KI startet sie im Hintergrund und sperrt den Download bis
-zu 30 Sekunden. Browser-Tests, die das nicht prüfen, wählen sie im Abgabe-Dialog ab oder warten auf sie; Test 7r prüft
-den Ablauf (Checkliste beim Anlegen, Countdown, Abwählen, Checkliste in der PDF nach 30 Sekunden, Lehrkraft-Ansicht).
+zur eingestellten Wartezeit (in den Tests die Vorgabe 30 Sekunden). Der Server legt sie verschlüsselt als `final_env` bei der
+Abgabe ab (Unit-, Smoke- und Browser-Tests entschlüsseln sie aus der Datenbank); ein `stage: "feedback2"` älterer Seiten ändert
+nichts mehr. Browser-Tests, die das nicht prüfen, wählen sie im Abgabe-Dialog ab oder warten auf sie; Test 7r prüft
+den Ablauf (Checkliste beim Anlegen, Countdown, Abwählen, Checkliste in der PDF nach 30 Sekunden, Lehrkraft-Ansicht, Wartezeit
+60 Sekunden als Einstellung), Test 7p, was passiert, wenn der Server die Rückmeldung nicht für Sie ablegen kann.
 `FINAL_SHOTS_OUT=<Ordner> npm run test:e2e` speichert dabei Bildschirmfotos.
 
 **Zeitplan lokal auslösen:** Unter `wrangler dev` startet
@@ -1923,7 +1951,7 @@ Ausrollen einmal von Hand prüfen.
 | `index.html` | die ganze Oberfläche für Schüler:innen und Lehrkraft in einer Datei, ohne externe Bibliotheken und Schriften; Verschlüsselung im Browser |
 | `_headers` | Sicherheits-Header der Seite (Content-Security-Policy u. a.) |
 | `worker/index.js` | Cloudflare Worker: API unter `/api/…`, Datenbank, Sperren, Lehrkraft-Anmeldung |
-| `worker/lib.js` | Hilfsfunktionen: Prüfung der Eingaben, Codes, Lastbegrenzung, Verschlüsselung des API-Schlüssels |
+| `worker/lib.js` | Hilfsfunktionen: Prüfung der Eingaben, Codes, Lastbegrenzung, Verschlüsselung des API-Schlüssels und der finalen KI-Rückmeldung für die Lehrkraft, Wartezeit |
 | `worker/ai.js` | KI-Anbieter, Prompt für das Feedback, Auswertung der Antworten, Ausweichmodelle |
 | `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, Workers AI ohne AI Gateway, statische Seite aus `dist/`, täglicher Zeitplan für die Löschfrist, Protokolle aus) |
 | `scripts/build.mjs` | Build-Skript für `dist/` |
