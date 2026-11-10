@@ -4498,6 +4498,183 @@ test("7c Antwortarten: Lehrkraft legt Weltkarten-Zuordnung (mit Kartenbild) und 
   await closePage(t);
 });
 
+/* ---------- Antwortart Foto ---------- */
+test("7s Antwortart Foto: Lehrkraft legt eine Foto-Aufgabe an (ohne Auftrag an die KI) → Schüler:in nimmt ein Foto auf (verkleinert, JPEG), lädt neu, ersetzt es, holt KI-Feedback (das Foto geht nie an die KI) und gibt ab (verschlüsselt, Lösungs-PDF mit Foto) → Lehrkraft sieht, vergrößert und lädt das Foto", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Plakat-Galerie");
+  await tp.fill("#bq-1", "Fotografiere dein Kunstwerk so, dass alles zu sehen ist.");
+  await tp.fill("#bs-1", "wird nicht gespeichert");
+  expect(await tp.$$eval("#bt-1 option", (l) => l.map((o) => [o.value, o.textContent]))).toEqual([["text", "Textfeld (Vorgabe)"], ["table", "Tabelle"], ["map", "Weltkarten-Zuordnung"], ["photo", "Foto"]]);
+  await tp.selectOption("#bt-1", "photo");
+  await expect(tp.locator("#bs-1")).toBeHidden();   // kein Auftrag an die KI bei einer Foto-Aufgabe
+  await expect(tp.locator("#b-rows > tr").nth(0).locator(".nosol")).toHaveText("Für eine Foto-Aufgabe gibt es keinen Auftrag an die KI: Das Foto geht nie an die KI – nur Sie sehen es (in der Übersicht und in der Lösungs-PDF).");
+  await expect(tp.locator("#b-rows > tr").nth(0).locator(".bans-photo")).toContainText("Höchstens 3 Foto-Aufgaben je Feibeitsblatt.");
+  await tp.fill("#bq-2", "Erkläre, was dein Kunstwerk zeigt.");
+  await tp.fill("#bs-2", "- Farben\n- Licht");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const pub = await (await request.get("/api/sheet/" + code)).json();
+  expect(pub.sheet.tasks.map((x) => x.answer)).toEqual([{ type: "photo" }, { type: "text" }]);
+  expect(JSON.stringify(pub)).not.toContain("wird nicht gespeichert");
+
+  // Schüler:in: Foto aufnehmen (die Kamera-Auswahl mit capture="environment"), Vorschau, Größe
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "fo", nachname: "to", geb: "--06-07", klasse: "9a" });
+  await expect(page.locator("#sheet-meta")).toContainText("Bei einer Foto-Aufgabe nimmst du ein Foto auf oder wählst ein Bild aus.");
+  await expect(page.locator("#privacy-photo")).toBeVisible();
+  await expect(page.locator("#privfull-ed")).toContainText("Bei einer Foto-Aufgabe gehört das Foto, das du aufnimmst oder auswählst, zu deinen Antworten");
+  const w = page.locator("#a-1");
+  await expect(w.locator(".photo-none")).toHaveText("Noch kein Foto.");
+  await expect(w.locator(".photo-cam")).toHaveText("Foto aufnehmen");
+  await expect(w.locator(".photo-pick")).toHaveText("Bild auswählen");
+  await expect(w.locator(".photo-del")).toBeHidden();
+  await expect(page.locator("#t-1 .ltbtn, #t-1 .charcount")).toHaveCount(0);   // keine Rechtschreibprüfung, kein Zähler
+  expect(await w.locator("input.photo-file").evaluateAll((l) => l.map((x) => [x.accept, x.getAttribute("capture")]))).toEqual([["image/*", "environment"], ["image/*", null]]);
+  await w.locator("input.photo-file").nth(0).setInputFiles({ name: "kunstwerk.png", mimeType: "image/png", buffer: makePng(1600, 1200, [40, 120, 200]) });
+  await expect(w.locator(".photo-stat")).toHaveText("Foto übernommen.");
+  await expect(w.locator(".photo-view img")).toHaveAttribute("src", /^data:image\/jpeg;base64,\/9j\//);
+  await expect(w.locator(".photo-meta")).toHaveText(/^1280 × 960 Pixel · \d+ KB$/);   // längste Seite 1280 px
+  await expect(w.locator(".photo-cam")).toHaveText("Neues Foto aufnehmen");
+  await expect(w.locator(".photo-pick")).toHaveText("Anderes Bild auswählen");
+  await expect(w.locator(".photo-del")).toBeVisible();
+  const shots = process.env.PHOTO_SHOTS_OUT;   // PHOTO_SHOTS_OUT=<Ordner>: Bildschirmfotos der Foto-Aufgabe (Schreibbereich, Lehrkraft) und die Lösungs-PDF
+  if (shots) { await mkdir(shots, { recursive: true }); await page.locator("#t-1").screenshot({ path: join(shots, "7s-schueler.png") }); }
+  // Vergrößern (eigene Vergrößerung der Seite), Esc schließt
+  await w.locator(".photo-view").click();
+  await expect(page.locator("#lightbox")).toBeVisible();
+  expect(await page.locator("#lb-img").getAttribute("src")).toBe(await w.locator(".photo-view img").getAttribute("src"));
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#lightbox")).toBeHidden();
+  // Zwischenstand: Textform „[Foto]“, das Foto in photos (JPEG als data:-URL)
+  const draftOf = () => page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
+  await expect.poll(async () => ((await draftOf()) || {}).answers).toEqual(["[Foto]", ""]);
+  const photo1 = (await draftOf()).photos[0];
+  expect(photo1).toMatch(/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/);
+  expect((await draftOf()).photos[1]).toBeNull();
+  await typeAt(page, "#a-2", "Es zeigt den Himmel mit Licht.");
+  // Neu laden → „Weiterschreiben“: das Foto ist wieder da
+  await page.waitForTimeout(700);
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(w.locator(".photo-view img")).toHaveAttribute("src", photo1);
+  await expect(w.locator(".photo-meta")).toHaveText(/^1280 × 960 Pixel · \d+ KB$/);
+  // Ersetzen mit „Bild auswählen“ (kleiner als 1280 px: Größe bleibt), Entfernen abgebrochen
+  await w.locator("input.photo-file").nth(1).setInputFiles({ name: "kunstwerk2.png", mimeType: "image/png", buffer: makePng(400, 300, [200, 60, 30]) });
+  await expect(w.locator(".photo-meta")).toHaveText(/^400 × 300 Pixel · \d+ KB$/);
+  const photo2 = await w.locator(".photo-view img").getAttribute("src");
+  expect(photo2).not.toBe(photo1);
+  await w.locator(".photo-del").click();
+  await confirmDialog(page, "Foto entfernen?", false);
+  await expect(w.locator(".photo-view img")).toHaveAttribute("src", photo2);
+  // kein Bild → Fehlermeldung, das Foto bleibt
+  await w.locator("input.photo-file").nth(1).setInputFiles({ name: "notiz.txt", mimeType: "text/plain", buffer: Buffer.from("kein Bild") });
+  await expect(w.locator(".photo-stat")).toHaveText("Das ist kein Bild. Bitte nimm ein Foto auf oder wähle ein Bild aus.");
+  await expect(w.locator(".photo-view img")).toHaveAttribute("src", photo2);
+  // KI-Feedback: das Foto geht nie an den Server oder die KI – nur die Textform „[Foto]“, und die Foto-Aufgabe nicht in den Prompt
+  await mockReset();
+  await page.click("#fb-btn");
+  await confirmDialog(page, "KI-Feedback anfordern?");
+  await expect(page.locator("#t-2 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#t-1 .fbbox")).toBeHidden();   // kein KI-Feedback zum Foto
+  const fbCall = (await s.calls((r) => r.path === "/api/feedback"))[0];
+  expect(JSON.parse(fbCall.reqBody).answers).toEqual(["[Foto]", "Es zeigt den Himmel mit Licht."]);
+  const prompt = (await mockRequests("feedback"))[0].messages.map((m) => m.content).join("\n");
+  expect(prompt).not.toMatch(/Kunstwerk so|\[Foto\]|### Aufgabe 1\b|base64/);
+  // Erstversuch (nach dem KI-Feedback): erste Fassung ohne Foto – das Foto kommt erst mit der Abgabe
+  await expect.poll(async () => (await s.calls((e) => e.path === "/api/submit" && JSON.parse(e.reqBody || "{}").stage === "first" && e.status === 200)).length, { timeout: 30_000 }).toBe(1);
+  const priv = await teacherPriv();
+  const firstRow = (await d1Query(`SELECT stage, envelope FROM submissions WHERE sheet_code='${code}'`))[0];
+  expect(firstRow.stage).toBe("first");
+  const firstP = await openEnvelope(priv, JSON.parse(firstRow.envelope));
+  expect(firstP.answers).toEqual([{ first: "[Foto]", final: null }, { first: "Es zeigt den Himmel mit Licht.", final: null }]);
+  await submit(page);
+  // Abgabe in D1: verschlüsselt (kein Base64 des Fotos im Klartext), entschlüsselt mit dem Foto in answers[0].photo; final_env passt (ah)
+  const row = (await d1Query(`SELECT stage, envelope, final_env FROM submissions WHERE sheet_code='${code}'`))[0];
+  expect(row.stage).toBe("final");
+  expect(row.envelope).not.toContain(photo2.slice(23, 120));
+  const fin = await openEnvelope(priv, JSON.parse(row.envelope));
+  expect(fin.answers[0]).toEqual({ first: "[Foto]", final: "[Foto]", photo: photo2 });
+  expect(fin.answers[1]).toEqual({ first: "Es zeigt den Himmel mit Licht.", final: "Es zeigt den Himmel mit Licht." });
+  await finalEnvOf(priv, row.final_env, row.envelope);
+  // Lösungs-PDF: das Foto ist eingebettet (JPEG, /DCTDecode), Aufbau gültig, XMP zuletzt
+  const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const sol = await readFile(await sdl.path());
+  if (shots) await writeFile(join(shots, "7s-loesungen.pdf"), sol);
+  const st = pdfStructure(sol);
+  expect(st.s).toMatch(/\/Type \/XObject \/Subtype \/Image \/Width 400 \/Height 300 \/ColorSpace \/DeviceRGB \/BitsPerComponent 8 \/Filter \/DCTDecode \/Length \d+ >>\nstream\n\xFF\xD8/);
+  expect(st.s).toMatch(/\/XObject << \/Im1 \d+ 0 R >>/);
+  const xmp = /\/Metadata (\d+) 0 R/.exec(st.objAt(1));
+  if (xmp) expect(Number(xmp[1])).toBe(st.count - 1);
+  const solTask = pdfTaskText(sol.toString("latin1"), 1).text;
+  expect(solTask).toContain("Meine Lösung (abgegebene Fassung):");
+  expect(solTask).not.toMatch(/\[Foto|\(kein Foto\)|KI-Rückmeldung|kein KI-Feedback/);   // statt der Textform das Foto, keine KI-Hinweise
+  expect(await draftOf()).toBeNull();   // nach der Abgabe kein Zwischenstand (samt Foto) mehr auf dem Gerät
+  await closePage(s);
+
+  // Lehrkraft: Antwortart in den Blattdetails, Foto in den Details (vergrößern, herunterladen), Lösungs-PDF mit Foto
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-sel-tasks .ansinfo").nth(0)).toContainText("Antwortart: Foto");
+  await expect(tp.locator("#t-sel-tasks .si").nth(0).locator(".sol")).toHaveCount(0);   // kein „Auftrag an die KI“
+  await tp.locator("#t-subs-body tr.main").first().click();
+  const det = tp.locator("#t-subs-body tr.details").first();
+  await expect(det.locator(".dtask").nth(0).locator(".task-label").first()).toHaveText("Aufgabe 1 · Foto");
+  await expect(det.locator(".dtask").nth(0).locator("table.cmp th")).toHaveText(["Abgegebenes Foto"]);
+  await expect(det.locator(".dtask").nth(0).locator(".dphoto img")).toHaveAttribute("src", photo2);
+  await expect(det.locator(".dtask").nth(0).locator(".dphoto .photo-meta")).toHaveText(/^400 × 300 Pixel · \d+ KB$/);
+  await expect(det.locator(".dtask").nth(0).locator(".dfb")).toHaveCount(0);   // kein KI-Feedback zum Foto
+  if (shots) await det.locator(".dtask").nth(0).screenshot({ path: join(shots, "7s-lehrkraft.png") });
+  await det.locator(".dtask").nth(0).locator(".dphoto-view").click();
+  await expect(tp.locator("#lightbox")).toBeVisible();
+  expect(await tp.locator("#lb-img").getAttribute("src")).toBe(photo2);
+  await tp.click("#lb-close");
+  await expect(tp.locator("#lightbox")).toBeHidden();
+  const [pdl] = await Promise.all([tp.waitForEvent("download"), det.locator(".dphoto-dl").click()]);
+  expect(pdl.suggestedFilename()).toBe(`Feibeitsblatt-Foto-${shown}-9a-FoTo-Aufgabe-1.jpg`);
+  const jpg = await readFile(await pdl.path());
+  expect(jpg.toString("base64")).toBe(photo2.slice(23));
+  const [adl] = await Promise.all([tp.waitForEvent("download"), det.locator("button.dpdf").click()]);
+  expect(pdfStructure(await readFile(await adl.path())).s).toContain("/Filter /DCTDecode");
+  // analoges Arbeitsblatt: bei der Foto-Aufgabe ein Rahmen zum Zeichnen oder Einkleben statt Schreiblinien
+  await tp.click("#t-analog");
+  await expect(tp.locator("#tv-analog")).toBeVisible();
+  await expect(tp.locator("#ck-intro1")).toContainText("bei einer Foto-Aufgabe einen Rahmen zum Zeichnen oder Einkleben");
+  await expect(tp.locator("#ck-save")).toHaveText("Speichern und PDF herunterladen");
+  const [ndl] = await Promise.all([tp.waitForEvent("download"), tp.click("#ck-save")]);
+  const analog = pdfStreams(await readFile(await ndl.path())).map((x) => pdfPieces(x.data.toString("latin1")).map((q) => q.t).join(" ")).join(" ");
+  expect(analog).toContain("Hier kannst du zeichnen oder ein Foto einkleben.");
+  expect(analog.match(/Hier kannst du zeichnen/g)).toHaveLength(1);   // nur bei der Foto-Aufgabe
+  await tp.click("#ck-back");
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  // Sichern und wieder laden: die Antwortart reist mit (ohne Auftrag an die KI)
+  const [xdl] = await Promise.all([tp.waitForEvent("download"), tp.click("#t-export")]);
+  const xpdf = await readFile(await xdl.path());
+  const rec = sheetRecordOf(xpdf);
+  expect(rec.tasks.map((x) => [x.answer || { type: "text" }, x.solution])).toEqual([[{ type: "photo" }, ""], [{ type: "text" }, "- Farben\n- Licht"]]);
+  expect(pdfShownText(xpdf)).toContain("Antwortart: Foto – die Schüler:innen nehmen ein Foto auf oder wählen ein Bild aus (kein Auftrag an die KI)");
+  await tp.setInputFiles("#t-import-file", { name: "p.pdf", mimeType: "application/pdf", buffer: xpdf });
+  await expect(tp.locator("#tv-builder")).toBeVisible({ timeout: 30_000 });
+  expect(await tp.$$eval(".bans-type", (l) => l.map((x) => x.value))).toEqual(["photo", "text"]);
+  await expect(tp.locator("#bs-1")).toBeHidden();
+  await expect(tp.locator("#b-err")).toHaveText("");
+  await tp.click("#b-back");   // frisch geladen, nichts geändert → ohne Rückfrage
+  await expect(tp.locator("#tv-overview")).toBeVisible();
+  await tp.locator("#t-sheets-body tr", { hasText: shown }).click();
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
 test("7d Testdatei „Ein Auto – eine Welt“: Import übernimmt alles (Weltkarte mit Kartenbildern, Tabelle, Textaufgaben) → neues Blatt erscheint bei den Schüler:innen richtig", async ({ browser }) => {
   const pdf = await readFile(FIXTURE), rec = sheetRecordOf(pdf);
   const types = rec.tasks.map((x) => (x.answer && x.answer.type) || "text");

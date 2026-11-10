@@ -497,6 +497,10 @@ test("typing: Umschlag passt genau wie validateEnvelope", () => {
   assert.equal(ttEnvelopeFits(env(TT_ENV_MAX - base)), true);
   assert.equal(ttEnvelopeFits(env(TT_ENV_MAX - base + 1)), false);
   assert.equal(ttEnvelopeFits(null), false);
+  // Blatt mit Foto-Aufgabe: die Grenze des Blattes (LIMITS.photoEnvelopeBytes) statt TT_ENV_MAX
+  assert.equal(ttEnvelopeFits(env(LIMITS.photoEnvelopeBytes - base), LIMITS.photoEnvelopeBytes), true);
+  assert.equal(ttEnvelopeFits(env(LIMITS.photoEnvelopeBytes - base + 1), LIMITS.photoEnvelopeBytes), false);
+  assert.equal(ttEnvelopeFits(env(TT_ENV_MAX - base + 1)), false);   // ohne Angabe wie bisher
 });
 
 test("typing: Zwischenstand – nur passende Werte, Schalter TT_KEEP_IN_DRAFT", () => {
@@ -606,6 +610,13 @@ test("typing: Lehrkraft-Details – Abgabe, Erstversuch, ohne KI-Feedback, Weltk
   assert.equal(tdet.per[1].line, null);
   assert.equal(join(tdet.sum), "Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 33 % (von 3 Zeichen) · abgegebene Fassung 33 % (von 3 Zeichen)");
   assert.deepEqual(ttDetail(tp, ["map", "map"], 2, false, false), { sum: null, per: [{ first: null, fin: null, line: null }, { first: null, fin: null, line: null }] });
+  // Foto: wie die Weltkarte nie gemessen – keine Zeile, nur Fotos und Weltkarten → gar keine Tippzeiten
+  const pp = { answers: [{ first: tab.text, final: tab.text }, { first: "[Foto]", final: "[Foto]", photo: "data:image/jpeg;base64,/9j/AAAA" }],
+    typing: { list: [{ first: "=", final: ttEncode(tab.codes) }, { first: null, final: ttEncode(Uint8Array.from([0, 0, 0, 0, 0, 0])) }] } };
+  const pdet = ttDetail(pp, ["table", "photo"], 2, false, false);
+  assert.equal(pdet.per[1].line, null); assert.equal(pdet.per[1].fin, null);
+  assert.equal(join(pdet.sum), "Tippzeiten – Rot-Anteil über alle Aufgaben: erste Fassung 33 % (von 3 Zeichen) · abgegebene Fassung 33 % (von 3 Zeichen)");
+  assert.deepEqual(ttDetail(pp, ["photo", "map"], 2, false, false).sum, null);
   // ohne Messung (ältere Stände), weggelassen, fehlende Antworten und Arten
   assert.equal(join(ttDetail({ answers: [{ first: "a", final: "a" }], typing: null }, ["text"], 1, false, false).sum), "Tippzeiten: ohne Messung (älterer Stand).");
   assert.equal(join(ttDetail({ answers: [], typing: { omitted: "too_large" } }, [], 1, false, false).sum), "Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen.");
