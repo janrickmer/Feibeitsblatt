@@ -537,11 +537,11 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    PDF-Material an eine Aufgabe hängen – sonst bekämen Schüler:innen die Aufträge an die KI bzw. fremde Angaben. Sichtbar in
    der PDF sind nur Zeichen des Zeichensatzes Windows-1252; andere Zeichen, z. B. griechische Buchstaben oder Emoji,
    erscheinen dort als „?“. In den Hintergrunddaten bleiben sie erhalten.
-7. **Analoges Arbeitsblatt als PDF.** Bei einem ausgewählten Feibeitsblatt lädt „Analoges Arbeitsblatt als PDF
-   herunterladen“ das PDF direkt herunter, wenn Sie die Checkliste schon bestätigt haben (Schritt 4) – ohne noch einmal
+7. **Notfall-Feibeitsblatt (analog) als PDF.** Bei einem ausgewählten Feibeitsblatt lädt „Notfall-Feibeitsblatt (analog)
+   als PDF herunterladen“ das PDF direkt herunter, wenn Sie die Checkliste schon bestätigt haben (Schritt 4) – ohne noch einmal
    zu fragen („… – mit der Checkliste, die Sie bestätigt haben.“). Bei älteren Blättern ohne bestätigte Checkliste öffnet
    sich wie bisher eine eigene Seite, auf der Sie die Checkliste prüfen und mit „Speichern und PDF herunterladen“
-   bestätigen. Das PDF zum Ausdrucken (`Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`) enthält
+   bestätigen. Das PDF zum Ausdrucken (`Notfall-Feibeitsblatt-<Titel>-<Code>.pdf`, ohne Titel `Notfall-Feibeitsblatt-<Code>.pdf`) enthält
    den Titel, direkt darunter einen Hinweis, dass sich das Arbeitsblatt mit dem Code auch digital auf
    `https://feibeitsblatt.janrickmer.de/` aufrufen lässt (die Adresse aus `window.FEIBEITSBLATT_PUBLIC` ganz oben in
    `index.html`, siehe [GitHub Pages](#optional-github-pages-oder-eigene-domain)) – und, wenn das Blatt Aufträge an die
