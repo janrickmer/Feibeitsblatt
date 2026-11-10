@@ -610,10 +610,18 @@ async function routeSubmissionsList(c, codeRaw) {
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
   const after = Math.max(0, parseInt(new URL(c.request.url).searchParams.get("after") || "0", 10) || 0);
+  // D1 liefert nur die Zeilen, die die Seite braucht: von den nächsten submissionsPage + 1 Zeilen die ersten beiden und jede weitere, vor
+  // der zusammen höchstens pageBytes liegen (before = Summe der Längen davor). Große Umschläge (Fotos, bis zu ~1 MB) kämen sonst alle 51
+  // in den Worker (Arbeitsspeicher, CPU-Zeit im Free-Plan). Die Schleife unten entscheidet wie bisher genau (sie zählt finalEnv als
+  // JSON-Text, also nie weniger als D1) – so fehlt ihr nie die Zeile, an der sie abbricht und `next` setzt (die zweite, wenn schon die
+  // erste allein größer ist als pageBytes, sonst eine mit before ≤ pageBytes).
   const [sh, subs] = await c.db.batch([
     c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
-    c.db.prepare("SELECT id, received_at, envelope, stage, final_env FROM submissions WHERE sheet_code=?1 AND id>?2 ORDER BY id LIMIT ?3")
-      .bind(code, after, LIMITS.submissionsPage + 1),
+    c.db.prepare("SELECT s.id, s.received_at, s.envelope, s.stage, s.final_env FROM submissions s JOIN (" +
+      "SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn, SUM(sz) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS before FROM (" +
+      "SELECT id, length(envelope)+COALESCE(length(final_env),0) AS sz FROM submissions WHERE sheet_code=?1 AND id>?2 ORDER BY id LIMIT ?3)" +
+      ") w ON s.id=w.id WHERE w.rn<=2 OR w.before<=?4 ORDER BY s.id")
+      .bind(code, after, LIMITS.submissionsPage + 1, LIMITS.pageBytes),
   ]);
   if (!firstRow(sh)) throw sheetGone();
   const rows = subs.results || [];
@@ -1100,17 +1108,22 @@ async function routeSubmit(c) {
   const body = await readJson(c.request);
   const code = normalizeCode(body.code);
   if (!isValidCode(code)) throw sheetNotFound();
-  const envelope = validateEnvelope(body.envelope);
+  // Umschläge über LIMITS.envelopeBytes (bis LIMITS.photoEnvelopeBytes) nur für Blätter mit Foto-Aufgabe – die Fotos stecken in der
+  // verschlüsselten Abgabe. Ob das Blatt eine hat, sieht D1 nur bei einem so großen Umschlag nach (CASE: sonst kein JSON-Parsen).
+  const envelope = validateEnvelope(body.envelope, LIMITS.photoEnvelopeBytes), big = envelope.length > LIMITS.envelopeBytes;
   const { stage, attempt, replace, receivedAt } = validateSubmitMeta(body);
   const [sh, cnt, ex, pv] = await c.db.batch([
-    c.db.prepare("SELECT 1 AS x FROM sheets WHERE code=?1").bind(code),
+    c.db.prepare("SELECT CASE WHEN ?2 AND json_valid(tasks) THEN EXISTS(SELECT 1 FROM json_each(sheets.tasks) WHERE json_extract(value,'$.answer.type')='photo') ELSE 0 END AS photo FROM sheets WHERE code=?1")
+      .bind(code, big ? 1 : 0),
     // Umfang je Blatt samt der gespeicherten finalen Rückmeldungen
     c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(length(envelope)+COALESCE(length(final_env),0)),0) AS bytes FROM submissions WHERE sheet_code=?1").bind(code),
     attempt ? c.db.prepare("SELECT id, stage, received_at, final_at, final_env IS NOT NULL AS has_final FROM submissions WHERE sheet_code=?1 AND attempt=?2 ORDER BY id DESC LIMIT 1").bind(code, attempt)
       : c.db.prepare("SELECT 1 AS x WHERE 0"),
     settingStmt(c.db, "privacy"),   // Löschfrist jetzt (nicht beim Öffnen des Blattes): die Bestätigungsseite nennt das Löschdatum
   ]);
-  if (!firstRow(sh)) throw sheetNotFound();
+  const sheetRow = firstRow(sh);
+  if (!sheetRow) throw sheetNotFound();
+  if (big && !Number(sheetRow.photo)) throw new InputError("Die Abgabe ist zu groß.", "too_large", 413);   // wie validateEnvelope, nichts gezählt
   // „feedback2“ einer älteren, noch gecachten Seite: nie ersetzen, nie anlegen, nicht zählen. kept = zu genau dieser Abgabe (Kennung,
   // Eingang) liegt die finale Rückmeldung schon beim Server (die ältere Seite sagt dann nichts weiter), sonst gone
   const old = attempt ? firstRow(ex) : null;

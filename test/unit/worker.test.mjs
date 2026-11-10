@@ -782,6 +782,85 @@ test("submit and list submissions (decryptable), counts", async () => {
   d1.db.prepare("DELETE FROM submissions WHERE id > ?").run(rows[0].id);
 });
 
+test("Antwortart Foto: ohne Auftrag an die KI gespeichert (höchstens 3 je Blatt), nie an die KI; große Umschläge nur bei Blättern mit Foto-Aufgabe; Liste seitenweise nach Bytes", async () => {
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Plakat", tasks: [
+    { text: "Fotografiere dein Kunstwerk.", solution: "Auftrag-Marker", answer: { type: "photo", hint: "weg", maxBytes: 9 } },
+    { text: "Erkläre die Photosynthese.", solution: "- Licht" }] } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  const stored = JSON.parse(d1.db.prepare("SELECT tasks FROM sheets WHERE code=?").get(c).tasks);
+  assert.deepEqual(stored[0], { text: "Fotografiere dein Kunstwerk.", solution: "", answer: { type: "photo" } });
+  r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+  assert.deepEqual(r.json.sheet.tasks.map((t) => [t.answer, t.solution]), [[{ type: "photo" }, ""], [{ type: "text" }, "- Licht"]]);
+  r = await call("GET", "/api/sheet/" + c);
+  assert.deepEqual(r.json.sheet.tasks.map((t) => t.answer), [{ type: "photo" }, { type: "text" }]);
+  assert.equal(r.json.sheet.aiFeedback, true);   // Aufgabe 2 hat einen Auftrag an die KI
+  assert.equal(/Auftrag-Marker|maxBytes|"hint"/.test(r.text), false);
+  // KI: die Foto-Aufgabe geht nie an die KI (der Browser schickt nur die Textform „[Foto]“, auch die steht nicht im Prompt)
+  const before = mock.state.requests.length;
+  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["[Foto]", "Licht"], recipients: ["custom:127.0.0.1:" + mock.port] } });
+  assert.equal(r.status, 200, r.text);
+  const prompt = mock.state.requests.slice(before).map((q) => JSON.stringify(q.body || q)).join("\n");
+  assert.equal(/Kunstwerk|\[Foto\]|### Aufgabe 1/.test(prompt), false);
+  assert.equal(r.json.results[0].note, "Zu dieser Aufgabe gibt es kein KI-Feedback.");
+  // Blatt nur mit Foto-Aufgaben: kein KI-Feedback; mehr als 3 Foto-Aufgaben → 400
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { tasks: [{ text: "Nur ein Foto", solution: "x", answer: { type: "photo" } }] } });
+  assert.equal(r.status, 200, r.text);
+  const onlyPhoto = r.json.code;
+  assert.equal((await call("GET", "/api/sheet/" + onlyPhoto)).json.sheet.aiFeedback, false);
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { tasks: Array.from({ length: 4 }, (_, i) => ({ text: "Foto " + i, answer: { type: "photo" } })) } });
+  assert.equal(r.status, 400); assert.equal(r.json.error, "Höchstens 3 Aufgaben mit der Antwortart Foto je Feibeitsblatt.");
+  // Abgabe mit Foto: Umschlag größer als LIMITS.envelopeBytes – angenommen nur beim Blatt mit Foto-Aufgabe, entschlüsselt unverändert
+  const photo = "data:image/jpeg;base64,/9j/" + "A".repeat(4 * 100000);   // ≈ 300 KB Foto als data:-URL
+  const payload = { v: 1, stage: "final", sheetCode: c, person: { vorname: "Ida", nachname: "Fo", geburtsdatum: "--03-04", klasse: "7a" },
+    answers: [{ first: "[Foto]", final: "[Foto]", photo }, { first: "Licht", final: "Licht" }] };
+  const envelope = await makeEnvelope(T.publicKey, payload), size = JSON.stringify(envelope).length;
+  assert.ok(size > LIMITS.envelopeBytes && size <= LIMITS.photoEnvelopeBytes, "Umschlag " + size);
+  const ip = "198.51.100.77", rows = (k) => d1.db.prepare("SELECT COUNT(*) AS n FROM submissions WHERE sheet_code=?").get(k).n;
+  const n0 = rows(code);
+  r = await call("POST", "/api/submit", { body: { code, envelope }, ip });   // Blatt ohne Foto-Aufgabe → 413, nichts gespeichert
+  assert.equal(r.status, 413); assert.deepEqual([r.json.code, r.json.error], ["too_large", "Die Abgabe ist zu groß."]);
+  assert.equal(rows(code), n0);
+  r = await call("POST", "/api/submit", { body: { code: c, envelope }, ip });
+  assert.equal(r.status, 200, r.text);
+  const tooBig = { ...envelope, ct: "A".repeat(4 * Math.ceil((LIMITS.photoEnvelopeBytes - 500) / 4)) };   // gültiges Base64, Umschlag knapp über der Grenze
+  assert.ok(JSON.stringify(tooBig).length > LIMITS.photoEnvelopeBytes && JSON.stringify({ code: c, envelope: tooBig }).length < LIMITS.bodyBytes);
+  r = await call("POST", "/api/submit", { body: { code: c, envelope: tooBig }, ip });
+  assert.equal(r.status, 413); assert.equal(r.json.code, "too_large");   // auch beim Foto-Blatt höchstens LIMITS.photoEnvelopeBytes
+  r = await call("GET", "/api/teacher/sheets/" + c + "/submissions", { auth });
+  assert.equal(r.json.submissions.length, 1);
+  const got = await openEnvelope(T.privateKey, r.json.submissions[0].envelope);
+  assert.deepEqual(got.answers[0], { first: "[Foto]", final: "[Foto]", photo });
+  // Liste seitenweise nach Bytes: D1 liefert nur die Zeilen, die die Seite braucht (die ersten beiden und jede, vor der ≤ pageBytes liegen)
+  const big = JSON.stringify(envelope), ins = d1.db.prepare("INSERT INTO submissions(sheet_code,received_at,envelope,stage) VALUES(?,?,?,'final')");
+  for (let i = 0; i < 6; i++) ins.run(c, Date.now(), big);   // zusammen 7 große Abgaben
+  const seen = [], prep = d1.db.prepare.bind(d1.db), savedPage = LIMITS.pageBytes;
+  d1.db.prepare = (sql) => {
+    const st = prep(sql);
+    if (sql.includes("FROM submissions s JOIN")) { const all = st.all.bind(st); st.all = (...a) => { const out = all(...a); seen.push(out.length); return out; }; }
+    return st;
+  };
+  try {
+    for (const [page, sizes, fetched] of [[Math.round(2.5 * (size + 4)), [2, 2, 2, 1], [3, 3, 3, 1]], [Math.round(0.5 * size), [1, 1, 1, 1, 1, 1, 1], [2, 2, 2, 2, 2, 2, 1]]]) {
+      LIMITS.pageBytes = page; seen.length = 0;
+      const ids = [], counts = [];
+      let after = 0;
+      for (let k = 0; k < 10; k++) {
+        r = await call("GET", "/api/teacher/sheets/" + c + "/submissions" + (after ? "?after=" + after : ""), { auth });
+        assert.equal(r.status, 200, r.text);
+        counts.push(r.json.submissions.length); ids.push(...r.json.submissions.map((x) => x.id));
+        if (r.json.next == null) break;
+        assert.equal(r.json.next, ids[ids.length - 1]);
+        after = r.json.next;
+      }
+      assert.deepEqual(counts, sizes);
+      assert.deepEqual(seen, fetched);   // nie alle 51 großen Zeilen auf einmal in den Worker
+      assert.equal(new Set(ids).size, 7);
+    }
+  } finally { d1.db.prepare = prep; LIMITS.pageBytes = savedPage; }
+  for (const k of [c, onlyPhoto]) await call("DELETE", "/api/teacher/sheets/" + k, { auth });
+});
+
 test("first attempt (stage first) is replaced by the final submission of the same attempt; never the other way round", async () => {
   const mk = (stage) => makeEnvelope(T.publicKey, { v: 1, stage, sheetCode: code, person: { vorname: "Tom", nachname: "Ze", geburtsdatum: "2010-02-02", klasse: "9c" }, answers: [{ first: "a", final: stage === "first" ? null : "b" }] });
   const attempt = "0123456789ABCDEF";   // wird klein geschrieben gespeichert

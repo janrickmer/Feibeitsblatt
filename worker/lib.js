@@ -104,6 +104,11 @@ export const LIMITS = {
   mapItems: 40, itemId: 40, itemLabel: 120, itemHint: 400, itemCountries: 10, countryName: 80,
   mapChecks: 400,                  // Prüfwerte (Länder aller Karten) je Blatt – der Worker hasht sie beim Anlegen
   cardsPerTask: 40,                // Kartenbilder (mode "card") je Aufgabe – zählen nicht zu imagesPerTask
+  // Antwortart Foto: höchstens photoTasks Foto-Aufgaben je Blatt. Die Fotos (JPEG, im Browser verkleinert, je ≤ 200 KB, zusammen
+  // ≤ 400 KB) stecken im verschlüsselten Umschlag der Abgabe – nur bei Blättern mit Foto-Aufgabe darf er bis photoEnvelopeBytes groß
+  // sein (sonst envelopeBytes). Passt in den Request-Body (bodyBytes) und mit final_env in eine D1-Zeile (≤ 2 MB).
+  photoTasks: 3,
+  photoEnvelopeBytes: 1000 * 1024,
   // Automatische Löschfrist für Abgaben und Erstversuche in Tagen (settings `privacy`)
   retentionMin: 7, retentionMax: 365, retentionDefault: 30,
   // Checkliste zum analogen Arbeitsblatt (über den QR-Code öffentlich): Punkte je Aufgabe, Zeichen je Punkt
@@ -144,13 +149,16 @@ export async function importPublicKey(b64) {   // SPKI prüfen (nur Import – k
   return key;
 }
 
-export function validateEnvelope(env) {
+// max = höchstens so viele Zeichen (Vorgabe LIMITS.envelopeBytes; routeSubmit lässt bei Blättern mit Foto-Aufgabe bis
+// LIMITS.photoEnvelopeBytes zu). Ein offensichtlich zu langes ct scheitert vor dem Base64-Muster (spart CPU-Zeit).
+export function validateEnvelope(env, max = LIMITS.envelopeBytes) {
   if (!isObj(env)) throw new InputError("Die Abgabe ist unvollständig (Umschlag fehlt).", "bad_envelope");
   if (env.v !== 1) throw new InputError("Unbekanntes Abgabeformat.", "bad_envelope");
+  if (typeof env.ct === "string" && env.ct.length > max) throw new InputError("Die Abgabe ist zu groß.", "too_large", 413);
   if (!isB64(env.ek, 128, 1024) || !isB64(env.iv, 12, 12) || !isB64(env.ct, 17, Infinity))
     throw new InputError("Die Abgabe ist beschädigt (Verschlüsselung ungültig).", "bad_envelope");
   const json = JSON.stringify({ v: 1, ek: env.ek, iv: env.iv, ct: env.ct });   // nur bekannte Felder speichern
-  if (json.length > LIMITS.envelopeBytes) throw new InputError("Die Abgabe ist zu groß.", "too_large", 413);
+  if (json.length > max) throw new InputError("Die Abgabe ist zu groß.", "too_large", 413);
   return json;
 }
 
@@ -257,11 +265,11 @@ export function validateSheetInput(body, now = Date.now()) {
     const n = i + 1;
     if (!isObj(t) || (typeof t.text !== "string" && t.textFmt == null)) throw new InputError("Aufgabe " + n + ": Aufgabenstellung fehlt.");
     if (t.solution != null && typeof t.solution !== "string") throw new InputError("Aufgabe " + n + ": Der Auftrag an die KI muss ein Text sein.");
-    const answer = validateAnswerSpec(t.answer, n), isMap = !!answer && answer.type === "map";
+    const answer = validateAnswerSpec(t.answer, n), noAi = !!answer && NO_AI_ANSWER_TYPES.has(answer.type);
     // textFmt = formatierte Aufgabenstellung (Läufe wie beim Material); der reine Text wird daraus abgeleitet – er geht an die KI
     // (ohne Link-Adressen), in die PDF-Dateien und an ältere Seiten. Gespeichert wird textFmt nur, wenn etwas formatiert oder verlinkt ist.
     const textFmt = validateTextFmt(t.textFmt, n);
-    const text = (textFmt.length ? materialText(textFmt) : cleanText(typeof t.text === "string" ? t.text : "")).trim(), solution = isMap ? "" : cleanText(t.solution || "").trim();   // solution = Auftrag an die KI; Weltkarte: keiner, kein KI-Feedback
+    const text = (textFmt.length ? materialText(textFmt) : cleanText(typeof t.text === "string" ? t.text : "")).trim(), solution = noAi ? "" : cleanText(t.solution || "").trim();   // solution = Auftrag an die KI; Weltkarte und Foto: keiner, kein KI-Feedback
     if (!text) throw new InputError("Aufgabe " + n + ": Bitte eine Aufgabenstellung eintragen.");
     if (text.length > LIMITS.taskText) throw new InputError("Aufgabe " + n + ": Die Aufgabenstellung ist zu lang (höchstens " + LIMITS.taskText + " Zeichen).");
     if (solution.length > LIMITS.solution) throw new InputError("Aufgabe " + n + ": Der Auftrag an die KI ist zu lang (höchstens " + LIMITS.solution + " Zeichen).");
@@ -276,6 +284,9 @@ export function validateSheetInput(body, now = Date.now()) {
   });
   const checks = tasks.reduce((k, t) => k + (t.answer && t.answer.type === "map" ? t.answer.items.reduce((m, it) => m + it.countries.length, 0) : 0), 0);
   if (checks > LIMITS.mapChecks) throw new InputError("Zu viele Länder in den Weltkarten-Aufgaben (höchstens " + LIMITS.mapChecks + " Zuordnungen je Feibeitsblatt zusammen).");
+  // Fotos stecken in der verschlüsselten Abgabe: mehr Foto-Aufgaben passten nicht in einen Umschlag (LIMITS.photoEnvelopeBytes)
+  if (tasks.filter((t) => t.answer && t.answer.type === "photo").length > LIMITS.photoTasks)
+    throw new InputError("Höchstens " + LIMITS.photoTasks + " Aufgaben mit der Antwortart Foto je Feibeitsblatt.");
   return { title, tasks, escape: validateEscapeSpec(body.escape) };
 }
 
@@ -302,9 +313,13 @@ export const escapeOut = (id, name) => (typeof id === "string" && ESCAPE_ID_RE.t
 /* ---------- Antwortarten: answer je Aufgabe (fehlt = Textfeld). Unbekannte Felder entfallen, Fehlerhaftes → 400. ----------
  * {type:"table", columns:[1–8 Überschriften], rows:1–30}
  * {type:"map", map:"world", items:[1–40 × {id, label, hint?, image? (16 Hex, Kartenbild mode "card"), countries:[1–10 × {id (ISO 3166-1
- *   numerisch, 3 Ziffern), name}]}]} – eine richtige Zuordnung genügt; Schüler:innen bekommen die Länder nur als Prüfwerte. */
+ *   numerisch, 3 Ziffern), name}]}]} – eine richtige Zuordnung genügt; Schüler:innen bekommen die Länder nur als Prüfwerte.
+ * {type:"photo"} – die Antwort ist ein Foto (im Browser verkleinert, als JPEG nur im verschlüsselten Umschlag der Abgabe; höchstens
+ *   LIMITS.photoTasks je Blatt). Keine weiteren Felder (die Aufgabenstellung sagt, was fotografiert werden soll). */
 export const ITEM_ID_RE = /^[a-z0-9-]{1,40}$/;
 export const COUNTRY_ID_RE = /^\d{3}$/;
+// Antwortarten, die nie an die KI gehen: kein Auftrag an die KI (solution wird ""), kein KI-Feedback, kein Checklisten-Vorschlag
+export const NO_AI_ANSWER_TYPES = new Set(["map", "photo"]);
 const oneLine = (v) => cleanText(v).replace(/\s+/g, " ").trim();   // einzeilig: Leerraum und Zeilenumbrüche → ein Leerzeichen
 export function validateAnswerSpec(raw, n) {
   if (raw == null) return null;
@@ -312,6 +327,7 @@ export function validateAnswerSpec(raw, n) {
   const bad = (msg) => new InputError(where + (msg || "Die Antwortart hat ein ungültiges Format."));
   if (!isObj(raw)) throw bad();
   if (raw.type === "text") return null;
+  if (raw.type === "photo") return { type: "photo" };   // unbekannte Felder entfallen
   if (raw.type === "table") {
     const cols = raw.columns;
     if (!Array.isArray(cols) || cols.length < 1) throw bad("Die Tabelle braucht mindestens eine Spalte.");
@@ -370,7 +386,7 @@ export function validateAnswerSpec(raw, n) {
     });
     return { type: "map", map: "world", items };
   }
-  throw bad("Unbekannte Antwortart (möglich: Textfeld, Tabelle, Weltkarten-Zuordnung).");
+  throw bad("Unbekannte Antwortart (möglich: Textfeld, Tabelle, Weltkarten-Zuordnung, Foto).");
 }
 // Prüfwert einer Zuordnung: SHA-256 (hex) von „Code|Karten-Kennung|Länder-Kennung“ – der Browser vergleicht den angeklickten Staat
 export const mapCheck = (code, itemId, countryId) => sha256Hex(code + "|" + itemId + "|" + countryId);
@@ -385,6 +401,7 @@ export async function withMapChecks(tasks, code) {
 // Antwortart aus D1 für die Lehrkraft (ganz, ohne Prüfwerte) bzw. für Schüler:innen (Länder NIE im Klartext, nur Prüfwerte;
 // ein Kartenbild nur, wenn es als Kartenbild dieser Aufgabe gespeichert ist)
 export function teacherAnswer(a) {
+  if (isObj(a) && a.type === "photo") return { type: "photo" };
   if (!isObj(a) || (a.type !== "table" && a.type !== "map")) return { type: "text" };
   if (a.type === "table") return { type: "table", columns: Array.isArray(a.columns) ? a.columns.map(String) : [], rows: Number(a.rows) || 1 };
   return { type: "map", map: "world", items: (Array.isArray(a.items) ? a.items : []).filter(isObj).map((it) => {
@@ -396,6 +413,7 @@ export function teacherAnswer(a) {
   }) };
 }
 export async function publicAnswer(a, code, cardIds) {
+  if (isObj(a) && a.type === "photo") return { type: "photo" };
   if (!isObj(a) || (a.type !== "table" && a.type !== "map")) return { type: "text" };
   if (a.type === "table") return teacherAnswer(a);
   const items = await Promise.all((Array.isArray(a.items) ? a.items : []).filter(isObj).map(async (it) => {
