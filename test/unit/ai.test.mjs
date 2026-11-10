@@ -827,3 +827,23 @@ test("callAI zählt für alle Anbieter beantwortete Anfragen und Token; Groq: Gr
   await assert.rejects(callAI({ provider: "gemini", apiKey: "k", model: "gemini-flash-latest" }, msgs, { maxAttempts: 1 }),
     (e) => e instanceof AIError && e.cost.requests === 1 && e.cost.tokens === 42);
 });
+
+/* ---------- Antwortart Foto: nie an die KI ---------- */
+import { wantsFeedback } from "../../worker/ai.js";
+test("Antwortart Foto: nie an die KI – weder Feedback (vor und nach der Abgabe) noch Checklisten-Vorschlag, auch mit einem (älteren) Auftrag", () => {
+  const tasks = [
+    { text: "Fotografiere dein Kunstwerk.", solution: "Auftrag-Marker", answer: { type: "photo" } },
+    { text: "Erkläre die Photosynthese.", solution: "- Licht" },
+  ];
+  assert.deepEqual(tasks.map(wantsFeedback), [false, true]);
+  for (const final of [false, true]) {
+    const { messages, nrs } = buildFeedbackMessages(tasks, ["[Foto]", "Licht"], null, { final });
+    assert.deepEqual(nrs, [2]);
+    assert.equal(/Kunstwerk|Auftrag-Marker|\[Foto\]|### Aufgabe 1|Antwort zu Aufgabe 1/.test(messages[1].content), false, messages[1].content);
+  }
+  const res = feedbackResults(tasks, new Map([[2, { covered: ["Licht"], missing: [] }]]), null);
+  assert.deepEqual(res, [{ covered: [], missing: [], note: NO_SOLUTION_NOTE }, { covered: ["Licht"], missing: [] }]);
+  const ck = buildChecklistMessages(tasks);
+  assert.deepEqual(ck.nrs, [2]);
+  assert.equal(/Kunstwerk|Auftrag-Marker/.test(ck.messages[1].content), false);
+});

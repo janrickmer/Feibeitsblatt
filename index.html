@@ -464,6 +464,19 @@
   textarea.tcell:focus{background:#fff; box-shadow:inset 0 0 0 2px var(--accent2)}
   textarea.tcell[readonly]{background:var(--soft)}
   .tablew-bar{margin:6px 0 0}
+  /* Antwortart Foto (Schreibbereich: Vorschau, Knöpfe, Hinweis; Lehrkraft: Vorschau in den Details) */
+  .photow{font-family:var(--sans)}
+  .photo-pic{margin:0 0 8px}
+  .photo-view{display:block; padding:0; margin:0; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:zoom-in; overflow:hidden; line-height:0; max-width:100%; font:inherit; color:inherit}
+  .photo-view:hover{border-color:var(--accent2)}
+  .photo-view img{display:block; max-width:100%; width:auto; height:auto; max-height:360px; object-fit:contain}
+  .photo-meta{margin:4px 0 0; font-family:var(--sans); font-size:12.5px; color:var(--muted)}
+  .photo-none{margin:0 0 8px; padding:18px 14px; border:1.5px dashed var(--line); border-radius:8px; background:var(--paper2); color:var(--muted); font-size:14px; text-align:center}
+  .photow-bar{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+  .photo-hint{margin-top:8px}
+  .dphoto{font-family:var(--sans); white-space:normal}
+  .dphoto-view img{max-height:240px}
+  .dphoto-dl{margin-top:8px}
   /* Antwortart Weltkarten-Zuordnung */
   .mapw{position:relative; font-family:var(--sans)}
   .mapw-help{font-size:13.5px; line-height:1.5; color:var(--muted); margin:0 0 8px}
@@ -1031,6 +1044,7 @@
         <p class="privacy" id="privacy"></p>
         <p class="privacy hidden" id="privacy-esc"></p>
         <p class="privacy hidden" id="privacy-yt"></p>
+        <p class="privacy hidden" id="privacy-photo"></p>
         <div id="privfull-ed"></div>
         <div class="moodle-hint hidden" id="revise-hint" role="status" tabindex="-1"></div>
         <div class="submitrow">
@@ -1118,6 +1132,7 @@
       <p class="fhint legal-other" id="legal-other">Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. Bei Partner- oder Gruppenarbeit gilt alles ebenso für alle in der Gruppe; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.</p>
       <section class="legal-esc" id="legal-escape" aria-labelledby="legal-escape-h"></section>
       <section class="legal-esc" id="legal-video" aria-labelledby="legal-video-h"></section>
+      <section class="legal-esc" id="legal-photo" aria-labelledby="legal-photo-h"></section>
       <button type="button" class="backlink" id="legal-home2">← zur Startseite</button>
     </div>
   </div>
@@ -1494,7 +1509,7 @@
       <button type="button" class="backlink" id="ck-back">← zurück zur Übersicht</button>
       <h1 id="ck-h1">Analoges Arbeitsblatt</h1>
       <p class="selmeta" id="ck-sheet"></p>
-      <p class="sub" id="ck-intro1" style="max-width:760px; margin-bottom:10px">Das PDF zum Ausdrucken enthält den Titel, einen Hinweis auf die digitale Fassung mit dem Code, alle Aufgabenstellungen mit Material (Links als Adresse) und Bildern sowie Platz für die Antworten: 8 Schreiblinien je Textaufgabe, Tabellen mit zwei Schreibzeilen je Zeile und bei der Weltkarten-Zuordnung eine Umrisskarte mit einer Liste zum Eintragen der Länder. PDF-Dateien zu den Aufgaben stehen nur mit ihrem Namen darauf. Am Ende steht ein QR-Code, der zur Checkliste unten führt: Dort haken die Schüler:innen je Aufgabe ab, ob ihre Antwort die Erwartungen erfüllt.</p>
+      <p class="sub" id="ck-intro1" style="max-width:760px; margin-bottom:10px">Das PDF zum Ausdrucken enthält den Titel, einen Hinweis auf die digitale Fassung mit dem Code, alle Aufgabenstellungen mit Material (Links als Adresse) und Bildern sowie Platz für die Antworten: 8 Schreiblinien je Textaufgabe, Tabellen mit zwei Schreibzeilen je Zeile, bei der Weltkarten-Zuordnung eine Umrisskarte mit einer Liste zum Eintragen der Länder und bei einer Foto-Aufgabe einen Rahmen zum Zeichnen oder Einkleben. PDF-Dateien zu den Aufgaben stehen nur mit ihrem Namen darauf. Am Ende steht ein QR-Code, der zur Checkliste unten führt: Dort haken die Schüler:innen je Aufgabe ab, ob ihre Antwort die Erwartungen erfüllt.</p>
       <p class="sub" style="max-width:760px">Die Punkte schlägt eine KI aus Ihren Aufträgen an die KI vor – bitte prüfen und ändern Sie sie. Für den Vorschlag bekommt die KI nur die Aufgabenstellungen, das Material und Ihre Aufträge an die KI, keine Abgaben und keine Daten der Schüler:innen. Die Checkliste steht außerdem in der Lösungs-PDF der Schüler:innen unter jeder Antwort ohne KI-Rückmeldung (wenn die finale KI-Rückmeldung nicht rechtzeitig kommt oder abgewählt wurde und bei Aufgaben ohne Auftrag an die KI). Nach dem Speichern ist sie für alle sichtbar, die den Link kennen: Schreiben Sie deshalb nichts Geheimes hinein und keine fertige Lösung, wenn die Schüler:innen sie nicht sehen sollen.</p>
       <div id="ck-home"><div id="ck-box">
       <div class="moodle-hint aiwarn hidden" id="ck-aiwarn" style="max-width:760px"></div>
@@ -2234,8 +2249,8 @@ function ttTableLines(text, codes) {
   const ok = codes && codes.length === text.length ? codes : null;
   return ttLines(text).filter(([a, b]) => text.slice(a, b).trim()).map(([a, b]) => ttSplitCells(text, ok, a, b));
 }
-/* Passt der Umschlag auf den Server? Genau wie validateEnvelope (worker/lib.js) */
-const ttEnvelopeFits = (env) => !!env && JSON.stringify({ v: 1, ek: env.ek, iv: env.iv, ct: env.ct }).length <= TT_ENV_MAX;
+/* Passt der Umschlag auf den Server? Genau wie validateEnvelope (worker/lib.js); max = Grenze des Blattes (mit Foto-Aufgabe größer) */
+const ttEnvelopeFits = (env, max = TT_ENV_MAX) => !!env && JSON.stringify({ v: 1, ek: env.ek, iv: env.iv, ct: env.ct }).length <= max;
 /* Nutzlast-Teil typing mit Werten (dann lohnt bei „zu groß“ ein Versuch ohne) */
 const ttHasData = (t) => !!(t && Array.isArray(t.answers) && t.answers.some((a) => a && (typeof a.first === "string" || typeof a.final === "string")));
 /* Teil „typing“ des Zwischenstands (an answers bzw. first ausgerichtete Base64 | null) – null, wenn Tippzeiten dort nicht
@@ -2342,14 +2357,15 @@ function ttSummary(head, parts) {
   return out;
 }
 /* Tippzeiten einer Abgabe für die Details der Lehrkraft (erst beim Aufklappen dekodiert): p = gekappte Nutzlast (typing aus
-   ttCleanPayload), types = Antwortart je Aufgabe ("text" | "table" | "map"), n Aufgaben. → {sum, per: [{first, fin, line}]}: je Aufgabe
-   die Werte beider Fassungen (null = ohne Messung) und die Zeile zum Rot-Anteil (Stücke wie ttSummary, null bei leerer Antwort), dazu
-   die Zeile über alle Aufgaben – keine bei Blättern nur mit Weltkarten (dort wird nichts gemessen). Ohne KI-Feedback (noFb) eine
-   Fassung ohne Bezeichnung (die abgegebene), beim Erstversuch nur die erste. Der Rot-Anteil steht nie in der Liste. */
+   ttCleanPayload), types = Antwortart je Aufgabe ("text" | "table" | "map" | "photo"), n Aufgaben. → {sum, per: [{first, fin, line}]}: je
+   Aufgabe die Werte beider Fassungen (null = ohne Messung) und die Zeile zum Rot-Anteil (Stücke wie ttSummary, null bei leerer Antwort),
+   dazu die Zeile über alle Aufgaben – keine bei Blättern nur mit Weltkarten und Fotos (dort wird nichts gemessen). Ohne KI-Feedback (noFb)
+   eine Fassung ohne Bezeichnung (die abgegebene), beim Erstversuch nur die erste. Der Rot-Anteil steht nie in der Liste. */
+const TT_UNTYPED = ["map", "photo"];          // Antwortarten ohne Tippzeiten (= NO_TYPING_KINDS außerhalb des Blocks)
 function ttDetail(p, types, n, isFirst, noFb) {
   const specs = Array.from({ length: n }, (_, i) => (types && types[i]) || "text");
   const out = { sum: null, per: specs.map(() => ({ first: null, fin: null, line: null })) };
-  if (!specs.some((t) => t !== "map")) return out;
+  if (!specs.some((t) => !TT_UNTYPED.includes(t))) return out;
   const ty = p.typing, one = (t) => [{ t, high: false }];
   if (!ty) { out.sum = one("Tippzeiten: ohne Messung (älterer Stand)."); return out; }
   if (ty.optOut) { out.sum = one(TT_OPTOUT_NOTE); return out; }   // widersprochen: keine Werte, keine Zeilen je Aufgabe
@@ -2358,7 +2374,7 @@ function ttDetail(p, types, n, isFirst, noFb) {
   const both = (l, sF, sE) => l.map((label, k) => ({ label, share: noFb || k ? sE : sF }));
   const allF = [], allE = [];
   specs.forEach((type, i) => {
-    if (type === "map") return;
+    if (TT_UNTYPED.includes(type)) return;
     const a = (Array.isArray(p.answers) && p.answers[i]) || {}, first = typeof a.first === "string" ? a.first : "", fin = typeof a.final === "string" ? a.final : "";
     const L = ty.list && ty.list[i], tab = type === "table";
     const finC = L ? ttDecode(L.final, fin) : null;
@@ -3172,14 +3188,16 @@ function cleanImages(list, cards) {   // Metadaten vom Server prüfen (fremde Da
     .map((m) => ({ id: m.id, mode: cards ? "card" : m.mode === "inline" ? "inline" : "thumb", w: Number.isInteger(m.w) && m.w > 0 ? m.w : 0, h: Number.isInteger(m.h) && m.h > 0 ? m.h : 0,
       alt: typeof m.alt === "string" ? m.alt.slice(0, 200) : "" }));
 }
-/* ---------- Antwortarten je Aufgabe: Textfeld (Vorgabe), Tabelle, Weltkarten-Zuordnung ----------
+/* ---------- Antwortarten je Aufgabe: Textfeld (Vorgabe), Tabelle, Weltkarten-Zuordnung, Foto ----------
  * Daten vom Server prüfen und kappen wie im Worker (ANS_LIMITS = LIMITS). Schüler:innen bekommen bei der Weltkarte statt der
- * Länder nur Prüfwerte (SHA-256 von „Code|Karten-Kennung|Länder-Kennung“); full = Lehrkraft-Ansicht mit Ländern. */
-const ANS_LIMITS = { columns: 8, columnName: 60, rows: 30, items: 40, itemId: 40, label: 120, hint: 400, countries: 10, countryName: 80, checks: 400, cards: 40 };   // wie LIMITS im Worker
+ * Länder nur Prüfwerte (SHA-256 von „Code|Karten-Kennung|Länder-Kennung“); full = Lehrkraft-Ansicht mit Ländern. Foto: {type:"photo"}
+ * ohne weitere Felder (siehe Block PHOTO). */
+const ANS_LIMITS = { columns: 8, columnName: 60, rows: 30, items: 40, itemId: 40, label: 120, hint: 400, countries: 10, countryName: 80, checks: 400, cards: 40, photoTasks: 3 };   // wie LIMITS im Worker
 const ITEM_ID_RE = /^[a-z0-9-]{1,40}$/, COUNTRY_ID_RE = /^\d{3}$/, CHECK_RE = /^[0-9a-f]{64}$/;
 const oneLine = (v, n) => String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, n);
 function cleanAnswer(a, full, imageRe) {   // imageRe: Kennung eines Kartenbildes (Server: 16 Hex, Sicherung: Ref „<exportId>-<k>“)
   if (!a || typeof a !== "object") return { type: "text" };
+  if (a.type === "photo") return { type: "photo" };
   if (a.type === "table") {
     const columns = (Array.isArray(a.columns) ? a.columns : []).slice(0, ANS_LIMITS.columns).map((c) => oneLine(c, ANS_LIMITS.columnName).replace(/\|/g, "/")).filter(Boolean);
     return columns.length ? { type: "table", columns, rows: Math.max(1, Math.min(ANS_LIMITS.rows, Number.isInteger(a.rows) ? a.rows : 1)) } : { type: "text" };
@@ -3203,7 +3221,78 @@ function cleanAnswer(a, full, imageRe) {   // imageRe: Kennung eines Kartenbilde
   }
   return items.length ? { type: "map", map: "world", items } : { type: "text" };
 }
-const ANSWER_TYPE_LABEL = { text: "Textfeld", table: "Tabelle", map: "Weltkarten-Zuordnung" };
+const ANSWER_TYPE_LABEL = { text: "Textfeld", table: "Tabelle", map: "Weltkarten-Zuordnung", photo: "Foto" };
+// Antwortarten ohne KI (kein Auftrag an die KI, kein KI-Feedback, keine KI-Rückmeldung) – wie NO_AI_ANSWER_TYPES im Worker
+const NO_AI_KINDS = new Set(["map", "photo"]);
+// … und ohne Tippen: keine Tippzeiten, keine Einfügesperre, keine Rechtschreibprüfung
+const NO_TYPING_KINDS = new Set(["map", "photo"]);
+/* PHOTO:BEGIN – Antwortart Foto, reine Funktionen ohne Abhängigkeiten (test/unit/photo.test.mjs liest diesen Block)
+ * Ein Foto ist ein JPEG, das der Browser verkleinert und neu kodiert hat (längste Seite ≤ PHOTO_MAX_SIDE px, ≤ photoBudget(n) Bytes bei
+ * n Foto-Aufgaben – zusammen ≤ PHOTO_TOTAL_BYTES), als data:-URL (PHOTO_PREFIX + Standard-Base64). Die Textform der Antwort ist
+ * PHOTO_TEXT mit Foto, sonst "" – sie steht wie jede Antwort in answers (Zwischenstand) bzw. answers[i].first/final (Erstversuch, Abgabe),
+ * geht in KI-Anfragen und den Prüfwert ah ein (die Aufgabe selbst nie an die KI). Das Foto steht nur im Zwischenstand auf dem Gerät
+ * (photos[i]) und in der Abgabe (answers[i].photo, verschlüsselt wie alle Antworten) – nie im Erstversuch, nie im Klartext beim Server. */
+const PHOTO_TEXT = "[Foto]";
+const PHOTO_PREFIX = "data:image/jpeg;base64,";
+const PHOTO_MAX_SIDE = 1280;                  // px, längste Seite (Plakat, Heftseite: Schrift bleibt lesbar)
+const PHOTO_MAX_BYTES = 200 * 1024;           // je Foto (ein typisches Handyfoto landet bei 100–200 KB)
+const PHOTO_TOTAL_BYTES = 400 * 1024;         // alle Fotos einer Abgabe zusammen (passt mit den Texten in PHOTO_ENV_MAX)
+const PHOTO_TASKS = 3;                        // = LIMITS.photoTasks (worker/lib.js) – der Unit-Test vergleicht
+const PHOTO_ENV_MAX = 1000 * 1024;            // = LIMITS.photoEnvelopeBytes: größter Umschlag eines Blattes mit Foto-Aufgabe
+const PHOTO_DATA_MAX = PHOTO_PREFIX.length + 4 * Math.ceil(PHOTO_MAX_BYTES / 3);   // längste data:-URL eines Fotos
+// Verkleinern: [längste Seite, JPEG-Qualität] der Reihe nach, bis das Foto ins Budget passt
+const PHOTO_STEPS = [[1280, 0.72], [1280, 0.6], [1024, 0.62], [1024, 0.5], [800, 0.55], [640, 0.5], [480, 0.45]];
+// Bytes je Foto bei n Foto-Aufgaben des Blattes: je höchstens PHOTO_MAX_BYTES, zusammen höchstens PHOTO_TOTAL_BYTES
+const photoBudget = (n) => Math.min(PHOTO_MAX_BYTES, Math.floor(PHOTO_TOTAL_BYTES / Math.max(1, Math.min(PHOTO_TASKS, Number(n) || 1))));
+// Gespeicherte oder fremde Daten prüfen (Zwischenstand, Zwischenstand-PDF, entschlüsselte Abgabe): nur eine data:-URL eines JPEG
+// (Standard-Base64 ohne Leerraum, beginnt mit FF D8 FF = „/9j/“), höchstens PHOTO_DATA_MAX Zeichen – sonst "" (kein Foto)
+function cleanPhoto(v) {
+  if (typeof v !== "string" || v.length > PHOTO_DATA_MAX || v.indexOf(PHOTO_PREFIX) !== 0) return "";
+  const d = v.slice(PHOTO_PREFIX.length);
+  return d.length >= 8 && d.length % 4 === 0 && d.indexOf("/9j/") === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(d) ? v : "";
+}
+// Bytes eines geprüften Fotos (cleanPhoto) – für die PDF-Dateien; head: nur so viele Base64-Zeichen vom Anfang (Kopf lesen)
+function photoBytes(v, head) {
+  let d = String(v).slice(PHOTO_PREFIX.length);
+  if (head) d = d.slice(0, head - (head % 4));
+  const bin = atob(d), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+// Größe eines geprüften Fotos ohne es ganz zu dekodieren: {w, h, bytes} (w/h aus dem Kopf, 0 wenn unlesbar)
+function photoInfo(v) {
+  const d = String(v).slice(PHOTO_PREFIX.length), bytes = Math.floor(d.length / 4) * 3 - (d.endsWith("==") ? 2 : d.endsWith("=") ? 1 : 0);
+  let x = null;
+  try { x = jpegInfo(photoBytes(v, 8192)); } catch (e) { x = null; }
+  return { w: x ? x.w : 0, h: x ? x.h : 0, bytes };
+}
+// Kopf eines JPEG lesen: Breite, Höhe, Farbkanäle und Art (SOF-Marker) → {w, h, comps, sof} oder null. Eine PDF-Datei bettet ein Foto
+// nur ein (/DCTDecode), wenn pdfPhotoOk es erlaubt – sonst steht dort nur eine Zeile, dass es das Foto gibt
+function jpegInfo(u) {
+  if (!u || u.length < 4 || u[0] !== 0xFF || u[1] !== 0xD8) return null;
+  let i = 2;
+  while (i + 3 < u.length) {
+    if (u[i] !== 0xFF) return null;
+    const m = u[i + 1];
+    if (m === 0xFF) { i++; continue; }                          // Füllbyte
+    if (m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }   // Marker ohne Länge
+    if (m === 0xD9 || m === 0xDA) return null;                  // Ende bzw. Bilddaten vor dem Kopf
+    const len = (u[i + 2] << 8) | u[i + 3];
+    if (len < 2 || i + 2 + len > u.length) return null;
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {   // SOF0–SOF15 (C4 = DHT, C8 = JPG, CC = DAC)
+      if (len < 8) return null;
+      const h = (u[i + 5] << 8) | u[i + 6], w = (u[i + 7] << 8) | u[i + 8];
+      return w > 0 && h > 0 ? { w, h, comps: u[i + 9], sof: m } : null;
+    }
+    i += 2 + len;
+  }
+  return null;
+}
+// PDF (/DCTDecode): nur Baseline, erweitert oder progressiv, Graustufen oder RGB/YCbCr, höchstens 4096 px je Seite
+const pdfPhotoOk = (x) => !!x && (x.sof === 0xC0 || x.sof === 0xC1 || x.sof === 0xC2) && (x.comps === 1 || x.comps === 3) && x.w <= 4096 && x.h <= 4096;
+/* PHOTO:END */
+// Zahl der Foto-Aufgaben eines Blattes (S.sheet: answers = je Aufgabe die geprüfte Antwortart)
+const sheetPhotoCount = (sh) => (sh && Array.isArray(sh.answers) ? sh.answers.filter((a) => a && a.type === "photo").length : 0);
 /* Tabelle ↔ Text (cellText, tableText, tableRows): im Block TYPING oben, damit der Unit-Test die Tippzeit-Spiegel gegen sie prüft */
 /* Weltkarte ↔ Text: je zugeordneter Karte „Bezeichnung → Land“ in der Reihenfolge der Zuordnung, zuletzt „Zugeordnet: x von n“ */
 const MAP_ARROW = " → ";
@@ -3550,6 +3639,27 @@ const YT_PRIV_IHR = {
   ytRights: "Eure Einwilligung zum Laden von Videos könnt ihr jederzeit für die Zukunft widerrufen – ladet dann einfach keine weiteren Videos; Ladevorgänge, die schon stattgefunden haben, " +
     "bleiben davon unberührt. Die eigenen Rechte zu den Daten, die Google beim Laden eines Videos erhält, kann jede und jeder von euch auch direkt bei Google geltend machen.",
 };
+/* Antwortart Foto (nur bei Blättern mit Foto-Aufgabe – sheetPhotoCount): ein eigener Absatz unter „Welche Daten?“ (privacyNoticeDom mit der
+   Option photos) und ein eigener Absatz neben der Kurzfassung (photoShort in #p-privacy-photo bzw. #privacy-photo – die Kurzfassung selbst
+   bleibt unverändert). Die Sätze stimmen nur, solange das Foto nie an den Server geht außer verschlüsselt in der Abgabe (KI-Anfragen tragen
+   nur die Textform PHOTO_TEXT, die Aufgabe selbst geht nie an die KI) und der Browser es neu kodiert (preparePhoto: ohne EXIF). */
+const photoShort = (g) => (g
+  ? "Zu eurem Feibeitsblatt gehört eine Foto-Aufgabe: Euer Foto wird auf eurem Gerät verkleinert (ohne Angaben wie den Aufnahmeort), steht bis zur Abgabe in eurem Zwischenstand auf diesem Gerät " +
+    "und geht nur verschlüsselt mit eurer Abgabe an eure Lehrkraft – nie an eine KI und nie an die Rechtschreibprüfung."
+  : "Zu diesem Feibeitsblatt gehört eine Foto-Aufgabe: Dein Foto wird auf deinem Gerät verkleinert (ohne Angaben wie den Aufnahmeort), steht bis zur Abgabe in deinem Zwischenstand auf diesem Gerät " +
+    "und geht nur verschlüsselt mit deiner Abgabe an deine Lehrkraft – nie an eine KI und nie an die Rechtschreibprüfung.");
+const PHOTO_PRIV_DU = {
+  photoData: "Bei einer Foto-Aufgabe gehört das Foto, das du aufnimmst oder auswählst, zu deinen Antworten – fotografiere nur deine eigene Arbeit, möglichst ohne Personen. " +
+    "Diese Seite verkleinert es in deinem Browser und entfernt dabei Zusatzangaben wie Aufnahmeort und Kamera. Bis zur Abgabe steht das Foto in deinem Zwischenstand auf diesem Gerät " +
+    `(und in jeder Zwischenstand-PDF-Datei, die du sicherst); an deine Lehrkraft geht es nur verschlüsselt mit deiner Abgabe. An eine KI geht es nie – für das KI-Feedback und die finale ` +
+    `KI-Rückmeldung bekommt der Server statt des Fotos nur den Vermerk „${PHOTO_TEXT}“, und die Foto-Aufgabe selbst geht nicht an die KI.`,
+};
+const PHOTO_PRIV_IHR = {
+  photoData: "Bei einer Foto-Aufgabe gehört das Foto, das ihr aufnehmt oder auswählt, zu euren Antworten – fotografiert nur eure eigene Arbeit, möglichst ohne Personen. " +
+    "Diese Seite verkleinert es in eurem Browser und entfernt dabei Zusatzangaben wie Aufnahmeort und Kamera. Bis zur Abgabe steht das Foto in eurem Zwischenstand auf diesem Gerät " +
+    `(und in jeder Zwischenstand-PDF-Datei, die ihr sichert); an eure Lehrkraft geht es nur verschlüsselt mit eurer Abgabe. An eine KI geht es nie – für das KI-Feedback und die finale ` +
+    `KI-Rückmeldung bekommt der Server statt des Fotos nur den Vermerk „${PHOTO_TEXT}“, und die Foto-Aufgabe selbst geht nicht an die KI.`,
+};
 // Dieselben Bausteine in der „ihr“-Form – nur für den ausführlichen Hinweis auf dem Angaben-Bildschirm einer Gruppe (privacyNoticeDom
 // mit group); inhaltlich gleich, im Schreibbereich bleibt es beim „du“
 const PRIV_IHR = {
@@ -3568,9 +3678,9 @@ const PRIV_IHR = {
   fb2Send: " Nach der Abgabe gehen eure Antworten – auch ohne vorheriges KI-Feedback – auf demselben Weg an die KI: für die finale KI-Rückmeldung, die zu jeder Aufgabe nennt, " +
     "was gelungen ist und was gefehlt hat, und die der Server danach verschlüsselt zu eurer Abgabe speichert – dort kann sie nur eure Lehrkraft lesen (beim Abgeben könnt ihr sie abwählen).",
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
-  ...YT_PRIV_IHR,
+  ...YT_PRIV_IHR, ...PHOTO_PRIV_IHR,
 };
-const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET, ...YT_PRIV_DU };
+const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET, ...YT_PRIV_DU, ...PHOTO_PRIV_DU };
 /* Feibeitsblatt als Finale eines Escape-Rooms (nur Einzelarbeit, also nur die du-Form): eigene Absätze bzw. Listenpunkte neben den
    übrigen – nie in deren Sätze gemischt. Voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät (Zwischenstand,
    Zwischenstand-PDF, Abschluss-PDF); an die Lehrkraft gehen nur die Ergebnisse, verschlüsselt, nie an eine KI. Ausnahme auf Wunsch der
@@ -3629,7 +3739,8 @@ const TT_ACCESS = (g, keep = TT_KEEP_IN_DRAFT, ai = true) => (g
   : "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus" +
     (keep ? `, hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis ${ai ? "zur Abgabe" : "dahin"} auch in deinem Zwischenstand in diesem Browser` : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
     " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");
-const ttMeasured = (sh) => !(sh && Array.isArray(sh.answers) && sh.tasks && sh.tasks.length && sh.tasks.every((_, i) => sh.answers[i] && sh.answers[i].type === "map"));
+// gemessen wird in Textfeldern und Tabellen – nie bei der Weltkarte und beim Foto (dort wird nichts getippt)
+const ttMeasured = (sh) => !(sh && Array.isArray(sh.answers) && sh.tasks && sh.tasks.length && sh.tasks.every((_, i) => sh.answers[i] && NO_TYPING_KINDS.has(sh.answers[i].type)));
 const TT_PURPOSE = (g) => (g
   ? " Beim Schreiben misst diese Seite außerdem die Tippzeiten – wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht –, um den Schreibprozess sichtbar zu machen: " +
     "Eure Lehrkraft sieht eure Antworten farbig markiert und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe); rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
@@ -3695,6 +3806,7 @@ function privacyNoticeDom(p, list, opts) {
   const g = !!o.group, t = (du, ihr) => (g ? ihr : du), B = g ? PRIV_IHR : PRIV_DU, tt = o.typing !== false;
   const esc = o.escape && !g ? String(o.escape) : "";   // Finale eines Escape-Rooms (Name; nur Einzelarbeit): eigene Absätze und Listenpunkte
   const yt = !!o.videos;   // YouTube-Videos (Einzelarbeit und Gruppe): eigene Absätze und Listenpunkte, keine eigene Überschrift
+  const ph = !!o.photos;   // Foto-Aufgabe (Einzelarbeit und Gruppe): ein eigener Absatz unter „Welche Daten?“
   const head = (x) => h(H, { class: "privh", text: x }), para = (x) => h("p", { text: x }), paraN = (...k) => h("p", null, k);
   const ai = withAi && !o.general ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
   const cfAt = ai.findIndex((x) => x.id === "cloudflare");
@@ -3812,6 +3924,7 @@ function privacyNoticeDom(p, list, opts) {
     tt ? para(TT_ACCESS(g, TT_KEEP_IN_DRAFT, withAi)) : null,   // Zugriff auf das Gerät (§ 25 TDDDG) – sachlich, im Fließtext
     esc ? para(ESC_PRIV.data(esc)) : null,   // Daten aus dem Escape-Room samt Rechtsgrundlage (die Liste der Rechtsgrundlagen bleibt überall gleich)
     yt ? para(B.ytData) : null,   // was Google beim Laden eines Videos bekommt (diese Seite speichert dazu nichts)
+    ph ? para(B.photoData) : null,   // Foto-Aufgabe: verkleinert, im Zwischenstand, nur verschlüsselt an die Lehrkraft, nie an eine KI
     head("Wer bekommt die Daten?"),
     h("ul", null, items),
     head("Wie lange werden die Daten gespeichert?"),
@@ -3880,10 +3993,12 @@ function renderPersonPrivacy() {
   box.textContent = "";
   const esc = !g && sh.escape ? sh.escape.name : "";   // Finale eines Escape-Rooms: ein eigener Absatz unter der Kurzfassung
   const yt = sheetHasVideos(sh);   // YouTube-Videos (auch bei Gruppen, dann in der „ihr“-Form): ebenso ein eigener Absatz
+  const ph = sheetPhotoCount(sh) > 0;   // Foto-Aufgabe: ebenso ein eigener Absatz
   box.append(...[h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))]),
     esc ? h("p", { class: "privacy", id: "p-privacy-esc", text: escPrivacyShort(esc) }) : null,
     yt ? h("p", { class: "privacy", id: "p-privacy-yt", text: ytShort(g) }) : null,
-    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live", escape: esc, videos: yt })].filter(Boolean));
+    ph ? h("p", { class: "privacy", id: "p-privacy-photo", text: photoShort(g) }) : null,
+    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live", escape: esc, videos: yt, photos: ph })].filter(Boolean));
   $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
 }
 function renderPrivacy() {
@@ -3927,8 +4042,9 @@ function renderPrivacy() {
   // im Schreibbereich bleibt es beim „du“; eine Gruppe hat aber keinen Geburtstag angegeben (noBday, wie noPersonData)
   const esc = S.sheet.escape && !isGroup(S.person) ? S.sheet.escape.name : "";
   const yt = sheetHasVideos(S.sheet);   // YouTube-Videos: eigene Absätze bzw. Listenpunkte (im Schreibbereich immer „du“)
+  const ph = sheetPhotoCount(S.sheet) > 0;   // Foto-Aufgabe: ein eigener Absatz
   full.appendChild(privacyNoticeDom(S.sheet.privacy, S.sheet.aiRecipients || [], { h: "h3", withAi, pages: PAGES_HOST, id: "privfull-ed-d", noBday: isGroup(S.person),
-    typing: ttMeasured(S.sheet), ttSwitch: "live", escape: esc, videos: yt }));   // Schalter für den Widerspruch gegen die Tippzeit-Messung (an S.ttOptOut gebunden)
+    typing: ttMeasured(S.sheet), ttSwitch: "live", escape: esc, videos: yt, photos: ph }));   // Schalter für den Widerspruch gegen die Tippzeit-Messung (an S.ttOptOut gebunden)
   // Finale eines Escape-Rooms: ein eigener Absatz direkt unter dem Hinweis (#privacy)
   const pe = $("privacy-esc");
   pe.textContent = esc ? escPrivacyEditor(esc) : "";
@@ -3937,6 +4053,10 @@ function renderPrivacy() {
   const py = $("privacy-yt");
   py.textContent = yt ? ytShort(false) : "";
   py.classList.toggle("hidden", !yt);
+  // Foto-Aufgabe: ebenso ein eigener Absatz
+  const pp = $("privacy-photo");
+  pp.textContent = ph ? photoShort(false) : "";
+  pp.classList.toggle("hidden", !ph);
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -4404,7 +4524,7 @@ async function openEditor(fromPerson) {
   $("ed-title").textContent = sh.title;
   $("sheet-title").textContent = sh.title;
   $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"}` + (esc ? ` · Finale des Escape-Rooms „${sh.escape.name}“` : "") +
-    " · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.";
+    " · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe." + (sheetPhotoCount(sh) ? " Bei einer Foto-Aufgabe nimmst du ein Foto auf oder wählst ein Bild aus." : "");
   $("submit-esc").classList.add("hidden");
   const upd = $("esc-updated"); upd.textContent = ""; upd.classList.add("hidden");
   renderPrivacy();
@@ -4416,6 +4536,13 @@ async function openEditor(fromPerson) {
   try {
     if (d && d.v === 1 && Array.isArray(d.answers) && d.answers.length === sh.tasks.length) {
       d.answers.forEach((a, i) => { S.tas[i].value = String(a || "").slice(0, MAX_ANSWER); S.tas[i]._ok = S.tas[i].value; });
+      // Fotos aus photos[i] (geprüft wie fremde Daten); steht die Textform „[Foto]“ da, fehlt aber das Foto (der Speicher war voll), sagt
+      // das Feld es – die Abgabe trägt dann kein Foto, bis es neu aufgenommen ist
+      S.tas.forEach((t, i) => {
+        if (t._kind !== "photo") return;
+        t.photo = Array.isArray(d.photos) ? cleanPhoto(d.photos[i]) : "";
+        if (!t.photo && String(d.answers[i] || "") === PHOTO_TEXT) t._lost();
+      });
       if (Array.isArray(d.first) && d.first.length === sh.tasks.length && Array.isArray(d.feedback) && d.feedback.length === sh.tasks.length) {
         S.first = d.first.map((x) => String(x || ""));
         S.feedback = d.feedback.map(normFb);
@@ -4493,6 +4620,7 @@ function buildTasks() {
     let ta;
     if (spec.type === "table") ta = tableWidget(i, spec, pe);
     else if (spec.type === "map") ta = mapWidget(i, spec, pe);
+    else if (spec.type === "photo") ta = photoWidget(i, photoBudget(sheetPhotoCount(S.sheet)));
     else ta = h("textarea", { class: "answer", id: "a-" + n, rows: "3", maxlength: String(MAX_ANSWER), autocomplete: "off", autocapitalize: "sentences",
       spellcheck: "true", writingsuggestions: "false", "aria-describedby": "q-" + n, placeholder: "Deine Antwort …" });
     const cnt = isText ? h("p", { class: "charcount", id: "cc-" + n, "aria-live": "polite" }) : null;
@@ -4524,12 +4652,117 @@ function buildTasks() {
       ])
     ]);
     ta._idx = i; ta._pe = pe; ta._cnt = cnt; ta._ltStat = isText ? ltStat : null; ta._ltBtn = ltBtn; ta._kind = spec.type;
-    if (isText) ta._tt = ttNew("", null);   // Tippzeiten (Tabellen: je Zelle, Weltkarte: keine)
+    if (isText) ta._tt = ttNew("", null);   // Tippzeiten (Tabellen: je Zelle, Weltkarte und Foto: keine)
     if (isText) ta.addEventListener("input", () => answerChanged(ta));
     if (ltBtn) ltBtn.addEventListener("click", () => ltRun(i, ltBtn, ltStat));
     S.tas.push(ta); S.outs.push(out); S.fbs.push(fb);
     box.appendChild(sec);
   });
+}
+/* ---------- Antwortart Foto: aufnehmen oder auswählen, im Browser verkleinern, Vorschau, ersetzen, entfernen (Block PHOTO) ----------
+ * Zwei Dateiauswahlen: „Foto aufnehmen“ (capture="environment" – auf Handy und Tablet direkt die Kamera) und „Bild auswählen“ (Galerie
+ * bzw. Datei; am Computer öffnen beide die Dateiauswahl), dazu Ablegen per Ziehen. Der Browser zeichnet das Bild neu (canvas) und
+ * speichert es als JPEG – Zusatzangaben wie Aufnahmeort und Kamera (EXIF) entfallen dabei, die Drehung aus EXIF wird übernommen. Keine
+ * Einfügesperre, keine Tippzeiten, keine Rechtschreibprüfung. value = Textform (PHOTO_TEXT mit Foto, sonst ""); photo = data:-URL oder "". */
+const PHOTO_HINT = "Fotografiere nur deine eigene Arbeit, möglichst ohne Personen. Das Foto wird auf deinem Gerät verkleinert (ohne Angaben wie den Aufnahmeort) " +
+  "und geht nur verschlüsselt mit deiner Abgabe an deine Lehrkraft – nie an eine KI.";
+const PHOTO_LOST = "Dein Foto zu dieser Aufgabe passte nicht in den Speicher dieses Geräts und ist nach dem Neuladen nicht mehr da – bitte nimm es noch einmal auf oder wähle es erneut aus.";
+const photoKB = (n) => Math.max(1, Math.round(n / 1024)).toLocaleString("de-DE") + " KB";
+async function preparePhoto(file, maxBytes) {
+  if (!file || !(file.size > 0)) throw new Error("Die Datei ist leer.");
+  if (file.size > 40 * 1024 * 1024) throw new Error("Die Datei ist zu groß (höchstens 40 MB).");
+  if (file.type && !/^image\//i.test(file.type)) throw new Error("Das ist kein Bild. Bitte nimm ein Foto auf oder wähle ein Bild aus.");
+  let src;
+  try { src = await decodeImage(file); } catch (e) { throw new Error("Dieses Bild kann dein Browser nicht lesen (z. B. HEIC). Nimm das Foto mit „Foto aufnehmen“ auf oder speichere es als JPG."); }
+  try {
+    const sw = src.naturalWidth || src.width, sh = src.naturalHeight || src.height;
+    if (!(sw > 0 && sh > 0)) throw new Error("Dieses Bild kann dein Browser nicht lesen.");
+    for (const [side, q] of PHOTO_STEPS) {
+      const sc = Math.min(1, side / Math.max(sw, sh)), w = Math.max(1, Math.round(sw * sc)), hh = Math.max(1, Math.round(sh * sc));
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = hh;
+      const ctx = cv.getContext("2d");
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";   // starkes Verkleinern ohne Treppen (Schrift auf dem Plakat)
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh);   // Transparenz wird weiß
+      ctx.drawImage(src, 0, 0, w, hh);
+      const blob = await new Promise((res) => cv.toBlob(res, "image/jpeg", q));
+      cv.width = cv.height = 0;   // Speicher sofort freigeben (Handys)
+      if (blob && blob.type === "image/jpeg" && blob.size <= maxBytes) {
+        const data = PHOTO_PREFIX + await blobToB64(blob);
+        if (cleanPhoto(data)) return { data, w, h: hh, bytes: blob.size };
+      }
+    }
+    throw new Error("Das Foto lässt sich nicht klein genug verkleinern. Bitte nimm es noch einmal auf.");
+  } finally {
+    if (src.close) { try { src.close(); } catch (e) { /* egal */ } }
+    if (src._url) URL.revokeObjectURL(src._url);
+  }
+}
+function photoWidget(i, budget) {
+  const n = i + 1, file = (capture) => h("input", { type: "file", accept: "image/*", capture: capture || null, class: "sr-only photo-file", tabindex: "-1", "aria-hidden": "true" });
+  const camIn = file("environment"), pickIn = file(null);
+  const camBtn = h("button", { type: "button", class: "btn small photo-cam" }), pickBtn = h("button", { type: "button", class: "btn ghost small photo-pick" });
+  const delBtn = h("button", { type: "button", class: "btn ghost small photo-del", text: "Foto entfernen", "aria-label": `Foto zu Aufgabe ${n} entfernen` });
+  const img = h("img", { class: "photo-img", alt: "" });
+  const view = h("button", { type: "button", class: "photo-view", "aria-label": `Dein Foto zu Aufgabe ${n} – vergrößern` }, [img]);
+  const meta = h("p", { class: "photo-meta" }), none = h("p", { class: "photo-none", text: "Noch kein Foto." });
+  const stat = h("p", { class: "status photo-stat", id: "ph-st-" + n, role: "status", "aria-live": "polite" });
+  const pic = h("div", { class: "photo-pic" }, [view, meta]);
+  const el = h("div", { class: "photow", id: "a-" + n, role: "group", "aria-labelledby": "l-" + n, "aria-describedby": `q-${n} ph-hint-${n}` }, [
+    pic, none, h("div", { class: "photow-bar" }, [camBtn, pickBtn, delBtn, camIn, pickIn]),
+    h("p", { class: "fhint photo-hint", id: "ph-hint-" + n, text: PHOTO_HINT }), stat]);
+  let photo = "", dims = null, ro = false, working = 0;
+  const w = { el };
+  const render = () => {
+    const has = !!photo;
+    pic.classList.toggle("hidden", !has); none.classList.toggle("hidden", has); delBtn.classList.toggle("hidden", !has);
+    if (has) { if (img.getAttribute("src") !== photo) img.src = photo; } else img.removeAttribute("src");
+    meta.textContent = has && dims ? (dims.w && dims.h ? `${dims.w} × ${dims.h} Pixel · ` : "") + photoKB(dims.bytes) : "";
+    camBtn.textContent = has ? "Neues Foto aufnehmen" : "Foto aufnehmen";
+    pickBtn.textContent = has ? "Anderes Bild auswählen" : "Bild auswählen";
+    camBtn.setAttribute("aria-label", `${camBtn.textContent} – Aufgabe ${n}`); pickBtn.setAttribute("aria-label", `${pickBtn.textContent} – Aufgabe ${n}`);
+    for (const b of [camBtn, pickBtn, delBtn]) b.disabled = ro || working > 0;
+  };
+  const set = (v, d) => { photo = cleanPhoto(v); dims = photo ? d || photoInfo(photo) : null; render(); };
+  async function take(f) {
+    if (!f || ro || working) return;
+    const run = ++take.run;
+    working++; render(); setStatus(stat, "Das Foto wird verkleinert …", "busy");
+    try {
+      const p = await preparePhoto(f, budget);
+      if (run !== take.run || !el.isConnected) return;   // inzwischen entfernt bzw. abgegeben (Schreibbereich geleert)
+      set(p.data, p);
+      setStatus(stat, "Foto übernommen.", "ok");
+      answerChanged(w);   // Zwischenstand speichern
+    } catch (e) {
+      if (run === take.run && el.isConnected) setStatus(stat, (e && e.message) || "Das Foto konnte nicht gelesen werden.", "bad");
+    } finally { working--; render(); }
+  }
+  take.run = 0;
+  const pick = (input) => { if (ro || working) return; input.value = ""; input.click(); };
+  camBtn.addEventListener("click", () => pick(camIn));
+  pickBtn.addEventListener("click", () => pick(pickIn));
+  for (const input of [camIn, pickIn]) input.addEventListener("change", () => take(input.files && input.files[0]));
+  // Ablegen einer Bilddatei (am Computer); Text- und Tabellenfelder sperren das Ablegen weiter (Einfügesperre)
+  el.addEventListener("dragover", (e) => { if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files")) { e.preventDefault(); e.dataTransfer.dropEffect = ro ? "none" : "copy"; } });
+  el.addEventListener("drop", (e) => { if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return; e.preventDefault(); take(e.dataTransfer.files[0]); });
+  view.addEventListener("click", () => { if (photo) openLightbox(photo, `Dein Foto zu Aufgabe ${n}`, view); });
+  delBtn.addEventListener("click", async () => {
+    if (!photo || ro || working) return;
+    const ok = await askConfirm({ title: "Foto entfernen?", text: `Dein Foto zu Aufgabe ${n} wird entfernt. Danach kannst du ein neues aufnehmen oder auswählen.`, ok: "Entfernen", cancel: "Behalten", danger: true });
+    if (!ok || ro || !el.isConnected) return;
+    take.run++; set(""); setStatus(stat, "Foto entfernt.", "");
+    answerChanged(w);
+    camBtn.focus();
+  });
+  Object.defineProperties(w, {
+    value: { get: () => (photo ? PHOTO_TEXT : ""), set: (v) => { if (!v) set(""); } },   // die Textform allein bringt kein Foto zurück (photo)
+    photo: { get: () => photo, set: (v) => set(v, null) },
+    readOnly: { get: () => ro, set: (b) => { ro = !!b; render(); } }
+  });
+  w.focus = (o) => { try { camBtn.focus(o); } catch (e) { /* egal */ } };
+  w._lost = () => setStatus(stat, PHOTO_LOST, "bad");   // beim Wiederherstellen: Textform „[Foto]“, aber kein Foto im Zwischenstand
+  render();
+  return w;
 }
 /* ---------- Antwortart Tabelle: Kopf aus den Spalten, Zellen als einzeilig mitwachsende Felder (Einfügesperre wie im Textfeld).
  * Tab/Umschalt+Tab wandern durch die Zellen, Enter springt in die Zeile darunter (am Ende kommt eine Zeile dazu, höchstens 30). */
@@ -4932,10 +5165,10 @@ function ttSync(el) {   // Textfeld oder Tabellenzelle: Messung an den aktuellen
 function ttSyncSafe(el) {
   try { ttSync(el); } catch (e) { try { if (el && el.tagName === "TEXTAREA") el._tt = ttNew(el.value, null); } catch (x) { /* egal */ } }
 }
-/* S.tas[i] → Werte an t.value ausgerichtet (Uint8Array) oder null (Weltkarte, Fehler) – immer im selben Moment wie der Text lesen */
+/* S.tas[i] → Werte an t.value ausgerichtet (Uint8Array) oder null (Weltkarte, Foto, Fehler) – immer im selben Moment wie der Text lesen */
 function ttCodesOf(t) {
   try {
-    if (!t || t._kind === "map") return null;
+    if (!t || NO_TYPING_KINDS.has(t._kind)) return null;
     if (t._kind === "table") return t._ttTable();
     ttSync(t);
     return t._tt && t._tt.text === t.value ? ttCodes(t._tt) : null;
@@ -4943,7 +5176,7 @@ function ttCodesOf(t) {
 }
 function ttB64Of(t) {   // dasselbe als Base64, gemerkt je Stand des Feldes (scheduleSave bleibt billig)
   try {
-    if (!t || t._kind === "map") return null;
+    if (!t || NO_TYPING_KINDS.has(t._kind)) return null;
     let key;
     if (t._kind === "table") key = t._ttKey();
     else { ttSync(t); key = t._tt ? t._tt.ver : 0; }
@@ -4972,7 +5205,7 @@ function ttResetAll(fresh) {   // alle Messungen verwerfen (fresh: neu ab dem je
   if (!fresh) S.firstTyping = null;
   for (const t of S.tas || []) {
     try {
-      if (!t || t._kind === "map") continue;
+      if (!t || NO_TYPING_KINDS.has(t._kind)) continue;
       t._ttMemo = null;
       for (const el of t._kind === "table" ? [].concat(...(t._rows || [])) : [t]) { el._evTs = el._evType = undefined; el._tt = fresh ? ttNew(el.value, null) : null; }
     } catch (e) { /* egal: höchstens „ohne Messung“ */ }
@@ -5051,7 +5284,7 @@ document.addEventListener("change", (e) => {
 /* Nach dem Wiederherstellen (openEditor): gespeicherte Werte eingefroren übernehmen, wenn sie genau zum Text passen – sonst ohne
    Messung (255), nie rot. Ein neues Zeichen direkt dahinter gilt als Pause (71), wie im Feiditor. */
 function ttRestore(t, text, b64) {
-  if (!t || t._kind === "map") return;
+  if (!t || NO_TYPING_KINDS.has(t._kind)) return;
   const codes = b64 == null ? null : ttDecode(b64, text);
   if (t._kind === "table") { t._ttRestore(text, codes); return; }
   t._tt = ttNew(t.value, codes && t.value === text ? codes : null);   // z. B. \r-Normalisierung → ohne Messung
@@ -5084,25 +5317,31 @@ function draftRecord() {
   let typing = null;
   // nach einem Widerspruch keine – der Datensatz merkt sich den Widerspruch (ttOptOut) und einen noch zu ersetzenden Erstversuch (ttResend)
   try { typing = S.ttOptOut ? null : ttDraftOut(now.typing, S.first ? S.first.map((_, i) => (S.firstTyping && S.firstTyping[i]) || null) : null); } catch (e) { typing = null; }
-  return { v: 1, t: Date.now(), answers: now.texts, first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt,
+  // Fotos (Antwortart Foto) an answers ausgerichtet (data:-URL | null) – nur, wenn es mindestens eines gibt
+  const photos = S.tas.map((t) => (t && t._kind === "photo" && t.photo) || null);
+  return { v: 1, t: Date.now(), answers: now.texts, ...(photos.some(Boolean) ? { photos } : {}), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt,
     ...(S.feedback ? { feedbackAi: { aiGenerated: true, digitalSourceType: AI_SOURCE } } : {}),   // KI-Kennzeichnung (cleanDraft liest das Feld nicht)
     fbUnavailable: S.fbUnavailable || "", fbUnavailableDay: S.fbUnavailable ? S.fbUnavailableDay || "" : "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent,
     ...(typing ? { typing } : {}), ...(S.ttOptOut ? { ttOptOut: true } : {}), ...(S.ttResend ? { ttResend: true } : {}),
     ...(S.escape ? { escape: S.escape.hull } : {}) };   // Escape-Room-Finale: die Hülle unverändert (die Prüfsumme lässt sich so jederzeit neu rechnen)
 }
 const SAVE_FAILED = "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden";
+const SAVE_NO_PHOTOS = "Zwischenstand ohne Foto gespeichert – der Speicher dieses Geräts ist voll (das Foto bleibt nur, bis du die Seite schließt oder neu lädst)";
 function saveDraft() {
   clearTimeout(saveTimer);
   if (!S.draftKey || S.submitted) return false;
   // Widerspruch aus einem anderen Tab mit demselben Stand: erst übernehmen, dann speichern (nie mit Tippzeiten überschreiben)
   if (ttFollowStored() && S.ttResend) setTimeout(sendFirstAttempt, 0);
   const d = draftRecord(), rec = JSON.stringify(d);
-  let ok = store.set(S.draftKey, rec), stored = rec;
+  let ok = store.set(S.draftKey, rec), stored = rec, noPhotos = false;
   // Speicher voll: lieber den Text ohne Tippzeiten auf dem Gerät als nur im Arbeitsspeicher (nach Neuladen „ohne Messung“)
   if (!ok && d.typing) { const lean = Object.assign({}, d); delete lean.typing; stored = JSON.stringify(lean); ok = store.set(S.draftKey, stored); }
+  // … und notfalls ohne die Fotos (je bis zu ~270 000 Zeichen): die Texte bleiben auf dem Gerät, die Fotos nur im Arbeitsspeicher (heldDrafts,
+  // „Weiterschreiben“ ohne Neuladen) und in einer Zwischenstand-PDF-Datei; nach dem Neuladen meldet das Foto-Feld, dass es fehlt (PHOTO_LOST)
+  if (!ok && d.photos) { const lean = Object.assign({}, d); delete lean.typing; delete lean.photos; stored = JSON.stringify(lean); ok = noPhotos = store.set(S.draftKey, stored); }
   if (ok) S.ttLastRaw = stored;   // so steht er jetzt im Speicher (ttFollowStored: das ist kein Widerspruch eines anderen Tabs)
-  if (ok) heldDrafts.delete(S.draftKey); else heldDrafts.set(S.draftKey, rec);   // nicht gespeichert: für „Weiterschreiben“ im Arbeitsspeicher (mit TT_KEEP_IN_DRAFT samt Tippzeiten)
-  setSaveState(ok ? "Zwischenstand auf diesem Gerät gespeichert" : SAVE_FAILED, !ok);
+  if (ok && !noPhotos) heldDrafts.delete(S.draftKey); else heldDrafts.set(S.draftKey, rec);   // nicht (ganz) gespeichert: für „Weiterschreiben“ im Arbeitsspeicher (mit TT_KEEP_IN_DRAFT samt Tippzeiten)
+  setSaveState(noPhotos ? SAVE_NO_PHOTOS : ok ? "Zwischenstand auf diesem Gerät gespeichert" : SAVE_FAILED, !ok || noPhotos);
   return ok;
 }
 function setSaveState(text, bad) {   // nur bei Änderung schreiben (sonst würde ein Screenreader es bei jeder Pause erneut vorlesen)
@@ -5194,6 +5433,7 @@ function makeDraftPdf(d, withAi = true, escName = "") {
   const para = (x, yTop, str, size, bold, maxW, lh, color) => { const ls = pdfWrap(str, size, bold, maxW); ls.forEach((l, i) => put(x, yTop + i * lh, l, size, bold, color)); return yTop + ls.length * lh; };
   const p = d.person || {}, answers = Array.isArray(d.answers) ? d.answers : [];
   const done = answers.filter((a) => String(a || "").trim()).length;
+  const nPhotos = Array.isArray(d.photos) ? d.photos.filter(Boolean).length : 0;   // Antwortart Foto: die Fotos stecken mit im Datensatz
   const when = toDate(d.t) || new Date();
   let y = 96;
   put(M, y, "Zwischenstand für ein Feibeitsblatt", 21, true, "0.1 0.1 0.1"); y += 24;
@@ -5207,7 +5447,7 @@ function makeDraftPdf(d, withAi = true, escName = "") {
   const fbState = Array.isArray(d.feedback) ? "schon erhalten"
     : d.fbPending ? "angefordert, beim Sichern noch nicht erhalten"   // beim Öffnen dieser Datei zählt das als Fehlversuch
     : d.fbUnavailable || d.fbFails > 0 ? `bisher nicht geklappt (${d.fbUnavailable || FB_NOT_DONE})` : "nicht angefordert";
-  row("Stand:", `${done} von ${answers.length} ${answers.length === 1 ? "Aufgabe" : "Aufgaben"} mit Text` + (withAi ? " · KI-Feedback " + fbState : ""));
+  row("Stand:", `${done} von ${answers.length} ${answers.length === 1 ? "Aufgabe" : "Aufgaben"} ${nPhotos ? `bearbeitet (${nPhotos} mit Foto)` : "mit Text"}` + (withAi ? " · KI-Feedback " + fbState : ""));
   y += 14;
   // Orangener Hinweiskasten: erst die Zeilen setzen, dann Höhe, Rahmen und Text
   const pad = 16, bsz = 11.5, lh = 16, url = PUBLIC_URL, items = [];
@@ -5224,7 +5464,7 @@ function makeDraftPdf(d, withAi = true, escName = "") {
   const linkRect = [M + pad - 2, H - y - urlDy - 5, M + pad + uw + 2, H - y - urlDy + 12];
   y += bh + 28;
   put(M, y, "Bitte beachte", 12.5, true); y += 18;
-  ["Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
+  [nPhotos ? "Die Datei enthält deine Antworten lesbar – auch deine Fotos. Gib sie nicht weiter und lade sie nirgendwo sonst hoch." : "Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
     "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
     withAi ? "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites KI-Feedback zum Überarbeiten gibt es nicht." : "",
     esc ? "Die Datei enthält auch deine Daten aus dem Escape-Room (voller Name, Geburtsdatum, Bestätigungscode und Ergebnisse) – damit kannst du hier weitermachen." : ""
@@ -5396,6 +5636,8 @@ function cleanDraft(o) {
   }
   if (!Array.isArray(o.answers) || !o.answers.length || o.answers.length > 30) return null;
   const answers = o.answers.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER));
+  // Fotos (Antwortart Foto): nur geprüfte JPEG-data:-URLs an answers ausgerichtet; ob die Aufgabe eine Foto-Aufgabe ist, klärt openEditor
+  const photos = Array.isArray(o.photos) && o.photos.length === answers.length ? o.photos.map((x) => cleanPhoto(x) || null) : null;
   let first = null, feedback = null;
   if (Array.isArray(o.first) && Array.isArray(o.feedback) && o.first.length === answers.length && o.feedback.length === answers.length) {
     first = o.first.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER)); feedback = o.feedback.map(normFb);
@@ -5403,7 +5645,7 @@ function cleanDraft(o) {
   const fl = ttDraftFlags(o);
   return {
     v: 1, code, sheetTitle: String(o.sheetTitle || "").slice(0, 200), t: Number.isFinite(o.t) ? o.t : 0,
-    person, answers, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
+    person, answers, photos: photos && photos.some(Boolean) ? photos : null, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
     fbUnavailableDay: typeof o.fbUnavailableDay === "string" && DAY_RE.test(o.fbUnavailableDay) ? o.fbUnavailableDay : "",
     fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0, fbPending: o.fbPending === true && !feedback,
@@ -5472,6 +5714,20 @@ function pdfPager() {
   };
   pg.gap = (n) => { pg.y += n; if (pg.y > H - BOTTOM) pg.newPage(); };
   pg.room = (n) => { if (pg.y > H - BOTTOM - n) pg.newPage(); };   // ein Kopf beginnt nicht ganz unten auf der Seite
+  // Fotos (JPEG, /DCTDecode – Antwortart Foto): addImage merkt Bytes und Kopf (jpegInfo) für pdfAssemble (meta.images), image zeichnet
+  // eines höchstens maxW × maxH pt groß (96 dpi) mit dünnem Rahmen; passt es nicht mehr auf die Seite, beginnt eine neue. Welche Bilder
+  // eine Seite zeigt, steht an ihrem Array (ops.ims).
+  pg.images = [];
+  pg.addImage = (data, info) => { const im = { name: "Im" + (pg.images.length + 1), data, w: info.w, h: info.h, comps: info.comps }; pg.images.push(im); return im; };
+  pg.image = (im, maxW, maxH) => {
+    const pw = im.w * 0.75, ph = im.h * 0.75, sc = Math.min(1, maxW / pw, maxH / ph), dw = pw * sc, dh = ph * sc;
+    if (pg.y + 6 + dh > H - BOTTOM) pg.newPage();
+    const top = pg.y + 6, yb = (H - top - dh).toFixed(2), ops = pg.pages[pg.pages.length - 1];
+    pg.op(`q ${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${M.toFixed(2)} ${yb} cm /${im.name} Do Q`);
+    pg.op(`q 0.78 0.78 0.78 RG 0.5 w ${M.toFixed(2)} ${yb} ${dw.toFixed(2)} ${dh.toFixed(2)} re S Q`);
+    (ops.ims || (ops.ims = new Set())).add(im.name);
+    pg.y = top + dh;
+  };
   // Kasten mit Fläche und Rahmen um Zeilen [{str, size, bold, color}] – passt er nicht mehr auf die Seite, beginnt eine neue
   pg.box = (items, o = {}) => {
     const pad = o.pad || 12, rows = [];
@@ -5497,8 +5753,9 @@ function pdfPager() {
   };
   return pg;
 }
-/* Seiten → PDF-Bytes. Objekte: 1 Katalog, 2 Seitenbaum, 3/4 Schriften, 5 Info, je Seite 6+2i Seite und 7+2i Inhalt, XMP zuletzt.
-   meta = {title, subject?, keywords?, xmp?} – xmp: KI-Kennzeichnung als XMP-Datenstrom (/Metadata im Katalog) */
+/* Seiten → PDF-Bytes. Objekte: 1 Katalog, 2 Seitenbaum, 3/4 Schriften, 5 Info, je Seite 6+2i Seite und 7+2i Inhalt, dann die Fotos
+   (6+2·Seiten+k), XMP zuletzt. meta = {title, subject?, keywords?, xmp?, images?} – xmp: KI-Kennzeichnung als XMP-Datenstrom (/Metadata im
+   Katalog); images: Fotos aus pdfPager (pg.images, je Seite in ops.ims verwendet) */
 function pdfAssemble(pages, meta) {
   const W = 595.28, H = 841.89, total = pages.length, parts = [], offsets = [];
   let pos = 0;
@@ -5506,7 +5763,8 @@ function pdfAssemble(pages, meta) {
   const obj = (num, body) => { offsets[num] = pos; push(`${num} 0 obj\n`); push(body); push("\nendobj\n"); };
   const kids = pages.map((_, i) => `${6 + 2 * i} 0 R`).join(" ");
   const t = new Date(), stamp = `${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}${pad2(t.getHours())}${pad2(t.getMinutes())}${pad2(t.getSeconds())}`;
-  const xmpNo = 6 + 2 * total;   // XMP als letztes Objekt
+  const ims = (meta.images || []).map((im, k) => Object.assign({ obj: 6 + 2 * total + k }, im)), imNo = new Map(ims.map((im) => [im.name, im.obj]));
+  const xmpNo = 6 + 2 * total + ims.length;   // XMP als letztes Objekt
   push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
   obj(1, meta.xmp ? `<< /Type /Catalog /Pages 2 0 R /Metadata ${xmpNo} 0 R >>` : "<< /Type /Catalog /Pages 2 0 R >>");
   obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${total} >>`);
@@ -5514,16 +5772,21 @@ function pdfAssemble(pages, meta) {
   obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
   obj(5, `<< /Title ${pdfUtf16(meta.title)}` + (meta.subject ? ` /Subject ${pdfUtf16(meta.subject)}` : "") + (meta.keywords ? ` /Keywords ${pdfUtf16(meta.keywords)}` : "") + ` /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
   pages.forEach((ops, i) => {
-    const content = ops.join("\n");
-    obj(6 + 2 * i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${7 + 2 * i} 0 R >>`);
+    const content = ops.join("\n"), xs = ops.ims ? [...ops.ims].filter((n) => imNo.has(n)).map((n) => `/${n} ${imNo.get(n)} 0 R`).join(" ") : "";
+    obj(6 + 2 * i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xs ? ` /XObject << ${xs} >>` : ""} >> /Contents ${7 + 2 * i} 0 R >>`);
     obj(7 + 2 * i, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
   });
+  for (const im of ims) {   // JPEG unverändert (/DCTDecode): Graustufen oder RGB
+    offsets[im.obj] = pos;
+    push(`${im.obj} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /${im.comps === 1 ? "DeviceGray" : "DeviceRGB"} /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`);
+    push(im.data); push("\nendstream\nendobj\n");
+  }
   if (meta.xmp) {   // XMP: UTF-8, /Length in Bytes (der Titel kann Zeichen außerhalb von Latin-1 enthalten)
     const xmp = te.encode(xmpPacket(meta.title, t));
     offsets[xmpNo] = pos;
     push(`${xmpNo} 0 obj\n<< /Type /Metadata /Subtype /XML /Length ${xmp.length} >>\nstream\n`); push(xmp); push("\nendstream\nendobj\n");
   }
-  const count = 6 + 2 * total + (meta.xmp ? 1 : 0), xref = pos;
+  const count = 6 + 2 * total + ims.length + (meta.xmp ? 1 : 0), xref = pos;
   let x = `xref\n0 ${count}\n0000000000 65535 f \n`;
   for (let i = 1; i < count; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
   push(x + `trailer\n<< /Size ${count} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
@@ -5558,11 +5821,14 @@ function makeSolutionsPdf(sub) {
   // zeigt wie bisher die erste Fassung mit Feedback.
   const items = Array.from({ length: Math.max(tasks.length, answers.length) }, (_, i) => {
     const a = answers[i] || {}, fin = typeof a.final === "string" ? a.final : "", first = typeof a.first === "string" ? a.first : "";
-    const isMap = !!(sub.kinds && sub.kinds[i] === "map");   // Weltkarte: kein KI-Feedback, also auch keine Notiz dazu
-    const fb = failed && !isMap && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
-    const rf = !failed && fb2 && !isMap && fb2.results[i] ? normFb(fb2.results[i]) : null;
+    const kind = sub.kinds && sub.kinds[i], isMap = kind === "map";   // Weltkarte: kein KI-Feedback, also auch keine Notiz dazu
+    const noAi = NO_AI_KINDS.has(kind);   // … ebenso das Foto (die Checkliste der Lehrkraft gilt dort aber, z. B. für ein Plakat)
+    const fb = failed && !noAi && Array.isArray(sub.feedback) && sub.feedback[i] ? normFb(sub.feedback[i]) : null;
+    const rf = !failed && fb2 && !noAi && fb2.results[i] ? normFb(fb2.results[i]) : null;
     const pts = ck && !isMap && !hasAiPoints(rf) && Array.isArray(ck.points[i]) ? ck.points[i] : [];
-    return { fin, first, fb, rf: rf && (hasAiPoints(rf) || rf.note) ? rf : null, showFb: !!fb && (hasAiPoints(fb) || !!fb.note), pts };
+    // Antwortart Foto: das Foto selbst (eingebettet, wenn der JPEG-Kopf passt) statt der Textform
+    const photo = kind === "photo" ? cleanPhoto(a.photo) : null;
+    return { fin, first, fb, rf: rf && (hasAiPoints(rf) || rf.note) ? rf : null, showFb: !!fb && (hasAiPoints(fb) || !!fb.note), pts, isPhoto: kind === "photo", photo };
   });
   const hasAi = items.some((it) => hasAiPoints(it.rf) || (it.showFb && hasAiPoints(it.fb)));
   if (!failed && !Array.isArray(sub.feedback) && sub.noAi && sub.noAi !== "none") {   // einmal im Kopf statt bei Aufgabe 1; ohne Wertung
@@ -5607,14 +5873,23 @@ function makeSolutionsPdf(sub) {
       pg.line(pg.M + 26, l, size, false);
     });
   };
-  items.forEach(({ fin, first, fb, rf, showFb, pts }, i) => {
+  // Foto einbetten (JPEG unverändert, höchstens Satzspiegel × 330 pt); ist der Kopf unlesbar, steht dort nur eine Zeile
+  const photoLines = (photo, fin) => {
+    let info = null, bytes = null;
+    if (photo) { try { bytes = photoBytes(photo); info = jpegInfo(bytes); } catch (e) { info = null; } }
+    if (photo && pdfPhotoOk(info)) pg.image(pg.addImage(bytes, info), pg.TW, 330);
+    else if (photo) para("[Foto – kann in dieser Datei nicht angezeigt werden]", 11, false, GREY);
+    else para(fin.trim() && fin !== PHOTO_TEXT ? fin : "(kein Foto)", 11, false);   // ältere Seiten zeigten bei einer Foto-Aufgabe ein Textfeld
+  };
+  items.forEach(({ fin, first, fb, rf, showFb, pts, isPhoto, photo }, i) => {
     pg.room(80);   // Aufgabenkopf nicht ganz unten beginnen
     para("Aufgabe " + (i + 1), 13, true);
     gap(2);
     if (tasks[i]) para(String(tasks[i]), 11, false, { color: "0.25 0.25 0.25" });
     gap(6);
     para(failed ? "Meine Lösung (Stand beim Herunterladen):" : "Meine Lösung (abgegebene Fassung):", 10.5, true);
-    para(fin.trim() ? fin : "(leer)", 11, false);
+    if (isPhoto) photoLines(photo, fin);
+    else para(fin.trim() ? fin : "(leer)", 11, false);
     if (hasAiPoints(rf)) {
       gap(6);
       para(finalFb ? "Finale KI-Rückmeldung:" : "KI-Rückmeldung zur abgegebenen Fassung:", 10.5, true);
@@ -5647,7 +5922,7 @@ function makeSolutionsPdf(sub) {
   // Fußzeile je Seite (bei einer Gruppe mit vielen Kürzeln notfalls „Gruppe (n)“), dann Objekte zusammensetzen
   pg.footer(sub.title || "", grp ? "Gruppe " + p.gruppe.join(", ") : p.vorname + " " + p.nachname, grp ? `Gruppe (${p.gruppe.length})` : null);
   const title = "Meine Lösungen – " + (sub.title || "Feibeitsblatt");
-  return pdfAssemble(pg.pages, hasAi ? { title, subject: AI_PDF_SUBJECT, keywords: AI_PDF_KEYWORDS, xmp: true } : { title });
+  return pdfAssemble(pg.pages, hasAi ? { title, subject: AI_PDF_SUBJECT, keywords: AI_PDF_KEYWORDS, xmp: true, images: pg.images } : { title, images: pg.images });
 }
 /* ---------- Überblick aus einem Escape-Room als PDF-Seiten (Feibeitsblatt als Finale eines Escape-Rooms) ----------
  * Kopf, Angaben, Zahlen (fehlerfrei im ersten Versuch, Fehler zusammen), je Station die Versuche und die Fehler im ersten Versuch,
@@ -6131,9 +6406,9 @@ function renderFeedbackState() {
   const has = !!S.feedback;
   S.fbs.forEach((box, i) => {
     box.textContent = "";
-    const isMap = S.tas[i] && S.tas[i]._kind === "map";   // Weltkarte: kein KI-Feedback, die Karte zeigt sofort, was stimmt
-    box.classList.toggle("hidden", !has || isMap);
-    const f = has && !isMap ? S.feedback[i] || { covered: [], missing: [] } : null;
+    const noAi = S.tas[i] && NO_AI_KINDS.has(S.tas[i]._kind);   // Weltkarte (die Karte zeigt sofort, was stimmt) und Foto: kein KI-Feedback
+    box.classList.toggle("hidden", !has || noAi);
+    const f = has && !noAi ? S.feedback[i] || { covered: [], missing: [] } : null;
     markAi(box, "feedback", hasAiPoints(f));
     if (!f) return;
     box.appendChild(h("p", { class: "fb-head", text: "KI-Feedback zu Aufgabe " + (i + 1) }));
@@ -6384,14 +6659,20 @@ async function sendFirstAttempt() {
 
 /* Nutzlast verschlüsseln; wäre der Umschlag für den Server zu groß, erst ohne Tippzeiten ({v:1, omitted:"too_large"}), dann – bei einem
    Escape-Room-Finale – ohne die Fehler-Einzelheiten aus dem Raum (escTrim): eine Abgabe scheitert nie an den Tippzeiten oder den Daten aus
-   dem Raum. Fehler beim Verschlüsseln → ApiError("crypto"). pub: der öffentliche Schlüssel der Lehrkraft (vom Blatt). */
+   dem Raum. Fehler beim Verschlüsseln → ApiError("crypto"). pub: der öffentliche Schlüssel der Lehrkraft (vom Blatt). Grenze wie beim
+   Server: bei einem Blatt mit Foto-Aufgabe PHOTO_ENV_MAX (die Fotos stecken in der Abgabe), sonst TT_ENV_MAX. Ist eine Abgabe mit Fotos
+   danach noch zu groß (sehr lange Texte), geht sie gar nicht erst los (ApiError too_large – die Meldung bittet ums Kürzen). */
 async function sealPayload(payload, pub = S.pub) {
+  const max = sheetPhotoCount(S.sheet) ? PHOTO_ENV_MAX : TT_ENV_MAX;
+  let env;
   try {
-    let env = await Crypto.seal(pub, payload);
-    if (!ttEnvelopeFits(env) && ttHasData(payload.typing)) { payload.typing = { v: 1, omitted: "too_large" }; env = await Crypto.seal(pub, payload); }
-    if (!ttEnvelopeFits(env) && escHasDetails(payload.escape)) { payload.escape = escTrim(payload.escape); env = await Crypto.seal(pub, payload); }
-    return env;
+    env = await Crypto.seal(pub, payload);
+    if (!ttEnvelopeFits(env, max) && ttHasData(payload.typing)) { payload.typing = { v: 1, omitted: "too_large" }; env = await Crypto.seal(pub, payload); }
+    if (!ttEnvelopeFits(env, max) && escHasDetails(payload.escape)) { payload.escape = escTrim(payload.escape); env = await Crypto.seal(pub, payload); }
   } catch (e) { throw new ApiError("crypto"); }
+  const photos = Array.isArray(payload.answers) && payload.answers.some((a) => a && a.photo);
+  if (photos && !ttEnvelopeFits(env, max)) throw new ApiError("too_large", "", 413);
+  return env;
 }
 /* Erstversuch bzw. Abgabe senden. Lehnt der Server sie als zu groß ab (413; 409 = Blatt voll, auch nach
    Bytes), folgt genau dieselbe Nutzlast erst ohne Tippzeiten, dann ohne die Fehler-Einzelheiten aus dem Escape-Room – je einmal, nichts neu
@@ -6545,7 +6826,7 @@ function renderFinalFeedback() {
   list.textContent = "";
   if (!sub || !sub.feedback2) return;
   sub.feedback2.results.forEach((f, i) => {
-    if (sub.kinds && sub.kinds[i] === "map") return;   // Weltkarte: kein KI-Feedback
+    if (sub.kinds && NO_AI_KINDS.has(sub.kinds[i])) return;   // Weltkarte und Foto: kein KI-Feedback
     const box = markAi(h("div", { class: "fbbox", id: "done-fb-" + (i + 1) }, [h("p", { class: "fb-head", text: "Aufgabe " + (i + 1) })]), "feedback-final", hasAiPoints(f));
     appendFbLists(box, f, FB2_MISS_LABEL);   // nach der Abgabe wird nichts mehr überarbeitet: was gefehlt hat, keine Tipps
     list.appendChild(box);
@@ -6833,7 +7114,9 @@ async function submitAll() {
     const payload = {
       v: 1, stage: "final", sheetCode: S.code, sheetTitle: S.sheet.title,
       person: personOut(S.person),
-      answers: now.texts.map((fin, i) => ({ first: withFb ? S.first[i] : fin, final: fin })),
+      // Antwortart Foto: final = PHOTO_TEXT, dazu photo = das Foto (JPEG als data:-URL) – nur in der Abgabe, nie im Erstversuch
+      answers: now.texts.map((fin, i) => Object.assign({ first: withFb ? S.first[i] : fin, final: fin },
+        S.tas[i] && S.tas[i]._kind === "photo" && S.tas[i].photo ? { photo: S.tas[i].photo } : null)),
       feedback: withFb ? S.feedback.map(fbOut) : null,
       feedbackAt: withFb ? S.feedbackAt : null, submittedAt: new Date().toISOString()
     };
@@ -6866,7 +7149,8 @@ async function submitAll() {
     $("done-del").textContent = days ? `Bei deiner Lehrkraft wird deine Abgabe nach ${days} Tagen automatisch gelöscht (am ${fmtD(d.getTime() + days * 864e5)} oder kurz danach). Wenn du deine Lösungen behalten möchtest, lade sie dir herunter.` : "";
     $("done-del").classList.toggle("hidden", !days);
     // Für den Download-Button (#done-pdf) auf der Bestätigungsseite (nur im Arbeitsspeicher, bis die Seite verlassen wird)
-    S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person, answers: payload.answers.map((a) => ({ first: a.first, final: a.final })),
+    S.lastSubmission = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: payload.person,
+      answers: payload.answers.map((a) => Object.assign({ first: a.first, final: a.final }, a.photo ? { photo: a.photo } : null)),   // Fotos für die Lösungs-PDF
       feedback: payload.feedback, feedbackError: payload.feedbackError || "", noAi: payload.noAi || "", receivedAt: d.getTime(),
       recipients: (S.sheet.aiRecipients || []).map((x) => x.id), feedback2: null, fb2State: "", fb2Manual: 0, fb2Final: false,
       fb2Until: sentAt + FB2_WINDOW_MS, fb2Mono: sentMono + FB2_WINDOW_MS,   // Frist für „Rückmeldung erneut anfordern“ (fb2Expired) – nur Zeitpunkte
@@ -6958,8 +7242,8 @@ $("submit-esc-pdf").addEventListener("click", () => {
   try {
     const texts = S.tas.map((t) => t.value), withFb = !!S.feedback;   // nur die Texte – nie Tippzeiten
     const sub = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: personOut(S.person),
-      answers: texts.map((fin, i) => ({ first: withFb && S.first ? S.first[i] : fin, final: fin })), feedback: withFb ? S.feedback.map(fbOut) : null,
-      receivedAt: Date.now(), feedback2: null, failed: true, escape: { rec: S.escape.rec, name: S.sheet.escape.name } };
+      answers: texts.map((fin, i) => Object.assign({ first: withFb && S.first ? S.first[i] : fin, final: fin }, S.tas[i]._kind === "photo" && S.tas[i].photo ? { photo: S.tas[i].photo } : null)),
+      feedback: withFb ? S.feedback.map(fbOut) : null, receivedAt: Date.now(), feedback2: null, failed: true, escape: { rec: S.escape.rec, name: S.sheet.escape.name } };
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
     downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/octet-stream" }), `Escape-Room-${escFileRoom(S.sheet.escape.name)}-Abschluss-${stamp}-nicht-abgegeben.pdf`);
     setStatus(st, "Die PDF-Datei wird heruntergeladen.", "ok");
@@ -7012,10 +7296,12 @@ function teacherImgs(code, metas, n) {
     return b;
   }));
 }
-/* Antwortart in der Lehrkraft-Ansicht: Tabelle mit Spalten, Weltkarte mit allen Karten und ihren richtigen Ländern */
+/* Antwortart in der Lehrkraft-Ansicht: Tabelle mit Spalten, Weltkarte mit allen Karten und ihren richtigen Ländern, Foto */
+const PHOTO_SPEC_TEXT = "Die Schüler:innen nehmen ein Foto auf oder wählen ein Bild aus (z. B. ihr Plakat). Es wird auf ihrem Gerät verkleinert und geht nur verschlüsselt mit der Abgabe an Sie – nie an die KI; deshalb gibt es zu dieser Aufgabe weder einen Auftrag an die KI noch KI-Feedback.";
 function answerSpecDom(code, spec, cards) {
   if (spec.type === "table") return h("div", { class: "ansinfo" }, [h("span", { class: "task-label", text: "Antwortart: Tabelle" }),
     h("p", { text: `Spalten: ${spec.columns.join(" · ")} – ${spec.rows} ${spec.rows === 1 ? "Zeile" : "Zeilen"} vorgegeben` })]);
+  if (spec.type === "photo") return h("div", { class: "ansinfo" }, [h("span", { class: "task-label", text: "Antwortart: Foto" }), h("p", { text: PHOTO_SPEC_TEXT })]);
   if (spec.type !== "map") return null;
   const known = new Set((cards || []).map((m) => m.id));
   return h("div", { class: "ansinfo" }, [h("span", { class: "task-label", text: `Antwortart: Weltkarten-Zuordnung (${spec.items.length} ${spec.items.length === 1 ? "Karte" : "Karten"})` }),
@@ -7281,8 +7567,8 @@ async function selectSheet(code) {
       teacherImgs(code, t.images, i + 1),
       teacherFiles(code, t.files, i + 1),
       answerSpecDom(code, cleanAnswer(t.answer, true), cleanImages(t.images, true)),
-      cleanAnswer(t.answer).type === "map" ? null : h("span", { class: "task-label", style: "margin-top:6px", text: "Auftrag an die KI" }),
-      cleanAnswer(t.answer).type === "map" ? null : h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keiner (kein KI-Feedback) –" })
+      NO_AI_KINDS.has(cleanAnswer(t.answer).type) ? null : h("span", { class: "task-label", style: "margin-top:6px", text: "Auftrag an die KI" }),
+      NO_AI_KINDS.has(cleanAnswer(t.answer).type) ? null : h("p", { class: "sol", text: t.solution ? String(t.solution) : "– keiner (kein KI-Feedback) –" })
     ])));
     await loadSubs();
   } catch (e) { if (!handleAuthError(e)) setStatus($("t-subs-status"), errMsg(e, "t"), "bad"); }
@@ -7317,7 +7603,9 @@ async function loadSubs() {
           p.person = isGroup(p.person)   // Partner- / Gruppenarbeit: höchstens GROUP_MAX Kürzel
             ? { gruppe: p.person.gruppe.slice(0, GROUP_MAX).map((k) => cut(k, 20)), klasse: cut(p.person.klasse, 20) }
             : { vorname: cut(p.person.vorname, 20), nachname: cut(p.person.nachname, 20), geburtsdatum: cut(p.person.geburtsdatum, 10), klasse: cut(p.person.klasse, 20) };
-          p.answers = p.answers.slice(0, 30).map((a) => ({ first: cut(a && a.first, MAX_ANSWER + 100), final: cut(a && a.final, MAX_ANSWER + 100) }));
+          // Antwortart Foto: photo nur als geprüftes JPEG (data:-URL, höchstens PHOTO_DATA_MAX Zeichen) – sonst entfällt es
+          p.answers = p.answers.slice(0, 30).map((a) => Object.assign({ first: cut(a && a.first, MAX_ANSWER + 100), final: cut(a && a.final, MAX_ANSWER + 100) },
+            a && cleanPhoto(a.photo) ? { photo: a.photo } : null));
           // Tippzeiten: nur geprüfte Base64-Form (dekodiert wird erst beim Aufklappen); ein Fehler kostet nur die Messung, nie den Eintrag
           try { p.typing = ttCleanPayload(p.typing, p.answers); } catch (e) { p.typing = null; }
           if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
@@ -7388,9 +7676,9 @@ function renderSubs() {
   $("t-subs-sum").textContent = n === 0 ? "Noch keine Abgaben." : subsSummary(finals, firsts) +
     (hn ? ` · ${hn === 1 ? "1 älterer Erstversuch" : hn + " ältere Erstversuche"} von Schüler:innen, die inzwischen abgegeben haben, ${hn === 1 ? "wird" : "werden"} nicht angezeigt` : "");
   $("t-subs-legend").classList.toggle("hidden", n === 0);
-  // Tippzeiten-Kasten nur, wenn es etwas zu färben gibt: lesbare Einträge und eine Aufgabe, bei der gemessen wird (nicht nur Weltkarten)
+  // Tippzeiten-Kasten nur, wenn es etwas zu färben gibt: lesbare Einträge und eine Aufgabe, bei der gemessen wird (nicht nur Weltkarten und Fotos)
   const selTasks = (T.selSheet && T.selSheet.tasks) || [];
-  $("t-tt").classList.toggle("hidden", !T.subs.some((s) => s.p) || !(!selTasks.length || selTasks.some((t) => cleanAnswer(t.answer).type !== "map")));
+  $("t-tt").classList.toggle("hidden", !T.subs.some((s) => s.p) || !(!selTasks.length || selTasks.some((t) => !NO_TYPING_KINDS.has(cleanAnswer(t.answer).type))));
   applyTtOff();
   renderRetentionHint();
   $("t-expand-all").textContent = "Alle aufklappen";
@@ -7479,7 +7767,8 @@ function teacherSolutionsSub(s, checklist) {
   const fb2 = fb2Of(p), withFb = Array.isArray(p.feedback);
   return { code: T.sel, title: (T.selSheet && T.selSheet.title) || "", tasks: Array.from({ length: n }, (_, i) => (tasks[i] ? String(tasks[i].text || "") : "")),
     kinds: Array.from({ length: n }, (_, i) => (tasks[i] ? cleanAnswer(tasks[i].answer).type : "text")), person: p.person,
-    answers: Array.from({ length: n }, (_, i) => ({ first: (p.answers[i] || {}).first || "", final: (p.answers[i] || {}).final || "" })),
+    answers: Array.from({ length: n }, (_, i) => Object.assign({ first: (p.answers[i] || {}).first || "", final: (p.answers[i] || {}).final || "" },
+      (p.answers[i] || {}).photo ? { photo: p.answers[i].photo } : null)),   // Antwortart Foto: das Foto für die Lösungs-PDF
     // ältere Abgaben ohne noAi: wie in den Details „nicht möglich“ (noAiNote)
     feedback: withFb ? p.feedback : null, feedbackError: p.feedbackError || "", noAi: p.noAi || (withFb ? "" : "unavailable"), receivedAt: s.receivedAt,
     // nicht übermittelt: gewählt (bzw. bei älteren Abgaben: mit erstem Feedback), aber keine gespeichert; abgewählt sagt die PDF selbst
@@ -7503,6 +7792,20 @@ function teacherSolutionsName(s) {
   const part = (v, n) => pdfAscii(v).replace(/[\\/:*?"<>|\s]+/g, "-").slice(0, n).replace(/^[-.]+|-+$/g, "");
   const mid = [part(pr.klasse || "", 20), part(who, 60)].filter(Boolean).join("-");
   return `Feibeitsblatt-Loesungen-${fmtCode(T.sel)}${mid ? "-" + mid : ""}-${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}.pdf`;
+}
+/* Antwortart Foto in den Details: Vorschau (Klick vergrößert), Größe und „Foto herunterladen“ – Datei „Feibeitsblatt-Foto-K7Q-M4X-8b-MaxMu-
+   Aufgabe-2.jpg“ (wie teacherSolutionsName: Klasse und Kürzel, nie der Geburtstag). photo ist in loadSubs geprüft (cleanPhoto); nur DOM-APIs. */
+function teacherPhotoName(s, n) {
+  return teacherSolutionsName(s).replace(/^Feibeitsblatt-Loesungen-/, "Feibeitsblatt-Foto-").replace(/-\d{4}-\d{2}-\d{2}\.pdf$/, `-Aufgabe-${n}.jpg`);
+}
+function photoDetailDom(s, photo, n) {
+  const inf = photoInfo(photo);
+  const img = h("img", { class: "dphoto-img", alt: "", src: photo, width: inf.w || null, height: inf.h || null, decoding: "async" });
+  const view = h("button", { type: "button", class: "photo-view dphoto-view", "aria-label": `Foto zu Aufgabe ${n} – vergrößern` }, [img]);
+  view.addEventListener("click", () => openLightbox(photo, `Foto zu Aufgabe ${n}`, view));
+  const dl = h("button", { type: "button", class: "btn ghost small dphoto-dl", text: "Foto herunterladen", "aria-label": `Foto zu Aufgabe ${n} herunterladen` });
+  dl.addEventListener("click", () => { const b = dataUrlToBlob(photo); if (b) downloadBlob(b, teacherPhotoName(s, n)); });
+  return h("div", { class: "dphoto" }, [view, h("p", { class: "photo-meta", text: (inf.w && inf.h ? `${inf.w} × ${inf.h} Pixel · ` : "") + photoKB(inf.bytes) }), dl]);
 }
 // older: ein in der Liste ausgeblendeter älterer Erstversuch derselben Person (in den Details ihrer Abgabe, ohne eigenen Löschknopf)
 function buildDetail(s, older) {
@@ -7566,7 +7869,19 @@ function buildDetail(s, older) {
     const fb2El = f2 ? markAi(h("div", { class: "dfb dfb2" }, [h("p", { class: "fb-head", text: fb2.final ? "Finale KI-Rückmeldung" : "KI-Rückmeldung zur abgegebenen Fassung" }),
       f2.covered.length ? h("p", { class: "fb-ok", text: "Gelingt schon:" }) : null, f2.covered.length ? h("ul", { class: "fb-ok" }, f2.covered.map((x) => h("li", { text: x }))) : null,
       f2.missing.length ? h("p", { class: "fb-miss", text: fb2.final ? "Hat gefehlt:" : "Tipps zum Weiterlernen:" }) : null, f2.missing.length ? h("ul", { class: "fb-miss" }, f2.missing.map((x) => h("li", { text: x }))) : null]), "feedback-final", true) : null;
-    const cmp = noFb ? h("table", { class: "cmp one" }, [   // zuerst die Zellen (sie melden info.cut), dann die Zeile zum Rot-Anteil
+    // Antwortart Foto: eine Spalte mit dem abgegebenen Foto (ein Erstversuch trägt keines; eine ältere Seite zeigte ein Textfeld – dann der Text)
+    const isPhoto = spec.type === "photo", LP = "Abgegebenes Foto";
+    const photoCell = () => {
+      const td = h("td", { "data-label": LP, class: "dphoto-cell" });
+      if (isFirst) td.appendChild(h("span", { class: "empty", text: "(ein Foto kommt erst mit der Abgabe)" }));
+      else if (a.photo) td.appendChild(photoDetailDom(s, a.photo, i + 1));
+      else td.appendChild(fin.trim() && fin !== PHOTO_TEXT ? document.createTextNode(fin) : h("span", { class: "empty", text: "(kein Foto)" }));
+      return td;
+    };
+    const cmp = isPhoto ? h("table", { class: "cmp one" }, [
+      h("thead", null, [h("tr", null, [h("th", { scope: "col", text: LP })])]),
+      h("tbody", null, [h("tr", null, [photoCell()])])
+    ]) : noFb ? h("table", { class: "cmp one" }, [   // zuerst die Zellen (sie melden info.cut), dann die Zeile zum Rot-Anteil
       h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L0 })])]),
       h("tbody", null, [h("tr", null, [cell(fin, L0, null, false, ty.fin)])])
     ]) : h("table", { class: "cmp" }, [
@@ -7581,7 +7896,7 @@ function buildDetail(s, older) {
       tasks[i] ? teacherFiles(T.sel, tasks[i].files, i + 1) : null,
       cmp,
       ty.line ? ttLineDom("dtt", ttCutNote(ty.line, info.cut)) : null,
-      f ? fbEl : null,
+      f && !isPhoto ? fbEl : null,   // Foto: die Schüler:innen sahen dazu kein KI-Feedback
       fb2El
     ]));
   }
@@ -7835,6 +8150,7 @@ async function sheetPdfData(code, sheet, onStep) {
     const videos = cleanVideos(t.videos);
     const task = { text: String(t.text || ""), ...(textFmt.length ? { textFmt } : null), solution: String(t.solution || ""), material, ...(videos.length ? { videos } : null), images, files };
     if (spec.type === "table") task.answer = { type: "table", columns: spec.columns, rows: spec.rows };
+    if (spec.type === "photo") task.answer = { type: "photo" };
     if (spec.type === "map") task.answer = { type: "map", map: "world", items: spec.items.map((it) => Object.assign({ id: it.id, label: it.label }, it.hint ? { hint: it.hint } : null,
       refOf.has(it.image) ? { image: refOf.get(it.image) } : null, { countries: it.countries })) };
     tasks.push(task);
@@ -7916,8 +8232,11 @@ async function makeSheetPdf(rec, blobs, shows) {
       para(t.files.length === 1 ? "PDF-Datei zum Herunterladen (als Anhang in dieser Datei):" : "PDF-Dateien zum Herunterladen (als Anhänge in dieser Datei):", 10.5, true, { color: "0.35 0.35 0.35" });
       t.files.forEach((f) => para(`• ${f.name} (${fmtKB(f.bytes)})`, 10.5, false, { indent: 10, color: "0.2 0.2 0.2" }));
     }
-    const an = t.answer;   // Antwortart: Tabelle mit Spalten, Weltkarte mit allen Karten und ihren richtigen Ländern
-    if (an && an.type === "table") {
+    const an = t.answer;   // Antwortart: Tabelle mit Spalten, Weltkarte mit allen Karten und ihren richtigen Ländern, Foto
+    if (an && an.type === "photo") {
+      gap(8);
+      para("Antwortart: Foto – die Schüler:innen nehmen ein Foto auf oder wählen ein Bild aus (kein Auftrag an die KI)", 10.5, true, { color: "0.35 0.35 0.35" });
+    } else if (an && an.type === "table") {
       gap(8);
       para(`Antwortart: Tabelle mit den Spalten ${an.columns.map((c) => "„" + c + "“").join(", ")} (${an.rows} ${an.rows === 1 ? "Zeile" : "Zeilen"} vorgegeben)`, 10.5, true, { color: "0.35 0.35 0.35" });
     } else if (an && an.type === "map") {
@@ -8218,7 +8537,7 @@ const CK_FAIL_TAIL = "Sie können die Punkte selbst eintragen oder es später er
 const CK_NO_AI_SHEET_CK = "Zu keiner Aufgabe dieses Blattes gibt es einen Auftrag an die KI – die KI schlägt deshalb keine Checkliste vor; tragen Sie die Punkte selbst ein.";
 const CK_NO_AI_SHEET = "Zu keiner Aufgabe dieses Blattes gibt es einen Auftrag an die KI. Deshalb steht im PDF kein Satz zur KI-Rückmeldung (digital gibt es zu diesem Blatt keine), und die KI schlägt keine Checkliste vor – tragen Sie die Punkte selbst ein.";
 const checkUrlOf = (code) => PUBLIC_URL.replace(/#.*$/, "") + "#checkliste=" + normCode(code);   // Ziel des QR-Codes (Code ohne Bindestrich)
-const ckWants = (t) => !!String((t && t.solution) || "").trim() && cleanAnswer(t && t.answer).type !== "map";   // wie wantsFeedback im Worker
+const ckWants = (t) => !!String((t && t.solution) || "").trim() && !NO_AI_KINDS.has(cleanAnswer(t && t.answer).type);   // wie wantsFeedback im Worker
 let ckDirty = false, CK = null;   // CK: {code, sheet, run, mode, view, ai, final, updatedAt, aiFeedback, aiReady, loaded, saving ("put"|"pdf"|""), leaving (offene Rückfrage)}
 const analogStillWanted = (run) => !!CK && run === T.analogRun && run === CK.run && !!T.authKey && !$(CK.view).classList.contains("hidden") &&
   (CK.mode !== "create" || !$("b-result").classList.contains("hidden")) && $("screen-teacher").classList.contains("active");
@@ -8568,6 +8887,7 @@ $("ck-save").addEventListener("click", async () => {
  * Umrisskarte aus WORLD_MAP mit nummerierter Liste der Karten. Am Ende der QR-Code zur Checkliste (nur mit gespeicherten Punkten).
  * Keine Abgaben, keine Aufträge an die KI, keine Checkliste selbst. */
 const ANALOG_LINES = 8, ANALOG_LINE_PT = 24;   // Schreiblinien je Textaufgabe: Abstand 24 pt ≈ 8,5 mm (Handschrift etwa in Schriftgröße 14)
+const ANALOG_PHOTO_PT = 220;   // Foto-Aufgabe: Rahmen zum Zeichnen oder Einkleben (≈ 7,8 cm hoch)
 const ANALOG_ROW_PT = 2 * ANALOG_LINE_PT;      // Tabellenzeile: Platz für zwei Zeilen Handschrift
 const ANALOG_QR_PT = 90;                       // Kantenlänge des QR-Codes samt Ruhezone (4 Module) – Checkliste und Videos
 const ANALOG_URL_PT = 10;                      // Adresse eines Videos unter seinem QR-Code (Courier: 52 Zeichen ≈ 312 pt)
@@ -8784,7 +9104,7 @@ async function makeAnalogPdf(o) {
     let firstRow = 0;
     for (const [k, sh] of thumbs.entries()) { const [dw, dh] = sizeOf(sh, Math.min(TW, 220), 190); if (k && thumbs.slice(0, k).reduce((x, s2) => x + sizeOf(s2, Math.min(TW, 220), 190)[0] + 10, 0) + dw > TW) break; firstRow = Math.max(firstRow, dh); }
     const firstBlock = thumbs.length ? 10 + firstRow : figs.length ? 10 + sizeOf(figs[0], TW, 330)[1] : mat.length ? 12 + 13 + 14.5
-      : vids.length ? 12 + vids[0].need : files.length ? 10 + 13.5 : spec.type === "table" ? 10 + tableHead(spec).hh + ANALOG_ROW_PT : spec.type === "map" ? 10 + TW * WORLD_MAP.h / WORLD_MAP.w : 6 + 3 * ANALOG_LINE_PT + 4;
+      : vids.length ? 12 + vids[0].need : files.length ? 10 + 13.5 : spec.type === "table" ? 10 + tableHead(spec).hh + ANALOG_ROW_PT : spec.type === "map" ? 10 + TW * WORLD_MAP.h / WORLD_MAP.w : spec.type === "photo" ? 10 + ANALOG_PHOTO_PT : 6 + 3 * ANALOG_LINE_PT + 4;
     const est = 20 + parasH(paras, 11, 15.2, TW) + firstBlock;
     y += 18;
     if (y + est > MAXY && TOP + est <= MAXY) newPage();
@@ -8834,6 +9154,7 @@ async function makeAnalogPdf(o) {
     // Platz für die Antwort
     if (spec.type === "table") analogTable(spec);
     else if (spec.type === "map") analogMap(spec, t);
+    else if (spec.type === "photo") analogPhoto();
     else {
       y += 6;
       if (!fits(3 * ANALOG_LINE_PT + 4)) newPage();   // mindestens 3 Linien auf dieser Seite, die übrigen dürfen weitergehen
@@ -8899,6 +9220,14 @@ async function makeAnalogPdf(o) {
       y += ANALOG_ROW_PT; bottoms.push(y);
     }
     grid();
+  }
+  // Foto: auf Papier ein Rahmen über die volle Breite – digital nehmen die Schüler:innen ein Foto auf
+  function analogPhoto() {
+    y += 10;
+    if (!fits(ANALOG_PHOTO_PT)) newPage();
+    pg.ops.push(`q 0.35 G 0.6 w ${f2(ML)} ${f2(H - y - ANALOG_PHOTO_PT)} ${f2(TW)} ${f2(ANALOG_PHOTO_PT)} re S Q`);
+    text(ML + 8, y + 15, "Hier kannst du zeichnen oder ein Foto einkleben.", 9.5, {}, "0.42 0.42 0.42");
+    y += ANALOG_PHOTO_PT;
   }
   // Weltkarte: Umrisskarte (alle Gebiete, ohne Beschriftung) über die volle Breite, darunter die Karten mit Linie für das Land
   function analogMap(spec, t) {
@@ -9209,14 +9538,16 @@ const countryKnown = (id) => worldIndex().byId.has(id);
 // Antwortart vom Server (Lehrkraft-Form) bzw. aus der Sicherung → Form des Blatt-Editors; cards = Bild-Kennung/Ref → Bild-Eintrag
 function builderAnswer(spec, cards) {
   if (!spec || spec.type === "text") return { type: "text" };
+  if (spec.type === "photo") return { type: "photo" };
   if (spec.type === "table") return { type: "table", columns: spec.columns.slice(), rows: spec.rows };
   return { type: "map", items: spec.items.map((it) => ({ label: it.label, hint: it.hint || "", img: (it.image && cards && cards.get(it.image)) || null, countries: (it.countries || []).slice(0, ANS_LIMITS.countries) })) };
 }
 function answerEditor(tr, init) {
-  const a = tr._ans = { type: init && (init.type === "table" || init.type === "map") ? init.type : "text", columns: init && init.columns ? init.columns.slice(0, ANS_LIMITS.columns) : [],
+  const a = tr._ans = { type: init && (init.type === "table" || init.type === "map" || init.type === "photo") ? init.type : "text", columns: init && init.columns ? init.columns.slice(0, ANS_LIMITS.columns) : [],
     rows: init && Number.isInteger(init.rows) ? init.rows : 3, items: ((init && init.items) || []).slice(0, ANS_LIMITS.items).map((it) => ({ label: it.label || "", hint: it.hint || "", img: it.img || null, countries: (it.countries || []).slice() })) };
   const dirty = () => { T.builderDirty = true; };
-  const sel = h("select", { class: "bans-type" }, [h("option", { value: "text", text: "Textfeld (Vorgabe)" }), h("option", { value: "table", text: "Tabelle" }), h("option", { value: "map", text: "Weltkarten-Zuordnung" })]);
+  const sel = h("select", { class: "bans-type" }, [h("option", { value: "text", text: "Textfeld (Vorgabe)" }), h("option", { value: "table", text: "Tabelle" }), h("option", { value: "map", text: "Weltkarten-Zuordnung" }),
+    h("option", { value: "photo", text: "Foto" })]);
   sel.value = a.type;
   const lbl = h("label", { class: "anslbl" });
   // Tabelle
@@ -9233,7 +9564,11 @@ function answerEditor(tr, init) {
   const map = h("div", { class: "bans-map" }, [
     h("p", { class: "fhint", text: `Jede Karte bekommt eine Bezeichnung, auf Wunsch einen Hinweis und ein Bild, dazu ein oder mehrere richtige Länder (eines genügt). Höchstens ${ANS_LIMITS.items} Karten mit je ${ANS_LIMITS.countries} Ländern. Die Seite zeigt den Schüler:innen die Länder nicht (wer sich technisch auskennt, kann sie aber herausfinden) – nur, ob ihre Zuordnung stimmt. Diese Aufgabe geht nicht an die KI und braucht deshalb keinen Auftrag an die KI.` }),
     list, h("div", { class: "bimg-row" }, [addItem, stat])]);
-  const box = h("div", { class: "bans" }, [lbl, sel, tbl, map]);
+  // Foto: keine weiteren Angaben – was fotografiert werden soll, steht in der Aufgabenstellung
+  const photo = h("div", { class: "bans-photo" }, [h("p", { class: "fhint", text: `Die Schüler:innen nehmen ein Foto auf (auf Handy und Tablet direkt mit der Kamera) oder wählen ein Bild aus – z. B. ihr Plakat. Schreiben Sie in die Aufgabenstellung, was auf dem Foto zu sehen sein soll. ` +
+    `Der Browser verkleinert das Foto (längste Seite ${PHOTO_MAX_SIDE} Pixel, höchstens ${Math.round(PHOTO_MAX_BYTES / 1024)} KB) und gibt es nur verschlüsselt mit der Abgabe an Sie; Sie sehen es in der Übersicht und in der Lösungs-PDF. ` +
+    `Höchstens ${ANS_LIMITS.photoTasks} Foto-Aufgaben je Feibeitsblatt. Diese Aufgabe geht nicht an die KI und braucht deshalb keinen Auftrag an die KI.` })]);
+  const box = h("div", { class: "bans" }, [lbl, sel, tbl, map, photo]);
   tr._ansSel = sel; tr._ansLbl = lbl; tr._colsLbl = colsLbl; tr._rowsLbl = rowsLbl; tr._colsIn = cols; tr._rowsIn = rowsIn;
   const renderPrev = () => {
     prev.textContent = "";
@@ -9244,8 +9579,8 @@ function answerEditor(tr, init) {
     if (bad) prev.appendChild(h("p", { class: "fhint bad", text: bad }));
   };
   const sync = () => {
-    tbl.classList.toggle("hidden", a.type !== "table"); map.classList.toggle("hidden", a.type !== "map");
-    if (tr._solSync) tr._solSync(a.type === "map");
+    tbl.classList.toggle("hidden", a.type !== "table"); map.classList.toggle("hidden", a.type !== "map"); photo.classList.toggle("hidden", a.type !== "photo");
+    if (tr._solSync) tr._solSync(NO_AI_KINDS.has(a.type) ? a.type : "");
     if (a.type === "table") renderPrev();
     if (a.type === "map") renderItems();
     growAll();
@@ -9327,6 +9662,10 @@ function answerEditor(tr, init) {
   return box;
 }
 const renumberOf = (tr) => Array.prototype.indexOf.call($("b-rows").children, tr) + 1 || $("b-rows").children.length + 1;
+const NO_SOL_TEXT = {
+  map: "Für die Weltkarten-Zuordnung gibt es keinen Auftrag an die KI: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI.",
+  photo: "Für eine Foto-Aufgabe gibt es keinen Auftrag an die KI: Das Foto geht nie an die KI – nur Sie sehen es (in der Übersicht und in der Lösungs-PDF).",
+};
 function addRow(text, solution, images, material, files, answer, textFmt, videos) {
   const tb = $("b-rows");
   const dirty = () => { T.builderDirty = true; };
@@ -9360,7 +9699,7 @@ function addRow(text, solution, images, material, files, answer, textFmt, videos
   const vidList = h("ul", { class: "bvids" });
   const vidAdd = h("button", { type: "button", class: "btn ghost small bvid-add", text: "YouTube-Video im Feibeitsblatt einbetten" });
   const vidStat = h("span", { class: "fhint bvid-stat", role: "status" });
-  const noSol = h("p", { class: "fhint nosol hidden", text: "Für die Weltkarten-Zuordnung gibt es keinen Auftrag an die KI: Die richtigen Länder stehen bei den Karten links, und diese Aufgabe geht nicht an die KI." });
+  const noSol = h("p", { class: "fhint nosol hidden" });
   const tr = h("tr", null, [
     h("td", { class: "c1" }, [h("div", { class: "bq" }, [l1, q.bar, qEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab. Die KI bekommt nur den reinen Text." })]),
       h("div", { class: "bmat" }, [matLbl, matBar, matEd, h("p", { class: "fhint", text: "Fett, kursiv, unterstrichen und Links; Links öffnen sich bei den Schüler:innen in einem neuen Tab." }),
@@ -9371,7 +9710,12 @@ function addRow(text, solution, images, material, files, answer, textFmt, videos
     h("td", { class: "act" }, [h("div", { class: "acts" }, [up, down, del])])
   ]);
   tr._l1 = l1; tr._l2 = l2;
-  tr._solSync = (isMap) => { ta2.classList.toggle("hidden", isMap); noSol.classList.toggle("hidden", !isMap); };
+  // Weltkarte und Foto: kein Auftrag an die KI (das Feld ist verborgen, b-gen sendet "") – stattdessen der Grund
+  tr._solSync = (kind) => {
+    const why = NO_SOL_TEXT[kind] || "";
+    ta2.classList.toggle("hidden", !!why); noSol.classList.toggle("hidden", !why);
+    if (why && noSol.textContent !== why) noSol.textContent = why;
+  };
   tr.querySelector("td.c1").appendChild(answerEditor(tr, answer));
   tr._images = []; tr._imgList = imgList; tr._imgAdd = imgAdd; tr._imgStat = imgStat; tr._matEd = matEd; tr._matLbl = matLbl; tr._qEd = qEd;
   tr._files = []; tr._fileList = fileList; tr._fileAdd = pdfAdd; tr._fileStat = pdfStat;
@@ -9492,12 +9836,12 @@ $("b-gen").addEventListener("click", async () => {
   if (T.preparing > 0) { err.textContent = "Einen Moment bitte – ein Bild wird noch verkleinert. Danach erneut auf „Code generieren“ klicken."; return; }
   const tasks = [], uploads = [], cardUps = [];
   let bad = null;
-  let checks = 0;
+  let checks = 0, photos = 0;
   Array.from($("b-rows").children).forEach((tr, i) => {
     const q = tr._qEd, s = tr.querySelector("textarea.s:not(.measure)"), ans = tr._ans;
     const qModel = serializeMaterial(q, { keepIndent: true }), text = fmtPlain(qModel), imgs = tr._images || [], pdfs = tr._files || [], material = serializeMaterial(tr._matEd);
     const vids = cleanVideos(tr._videos);   // YouTube-Videos: nur Kennung, Startzeit und Titel
-    const solution = ans.type === "map" ? "" : s.value.trim();   // Auftrag an die KI (Weltkarte: keiner)
+    const solution = NO_AI_KINDS.has(ans.type) ? "" : s.value.trim();   // Auftrag an die KI (Weltkarte und Foto: keiner)
     if (!text && !solution && !imgs.length && !pdfs.length && !vids.length && !material.length && ans.type === "text") return;     // leere Zeilen weglassen
     if (!text && !bad) { bad = q; err.textContent = `Zeile ${i + 1}: Bitte eine Aufgabenstellung eintragen.`; q.classList.add("invalid"); }
     // Antwortart prüfen (dieselben Grenzen wie der Server)
@@ -9509,6 +9853,10 @@ $("b-gen").addEventListener("click", async () => {
       else if (columns.length > ANS_LIMITS.columns) fail(tr._colsIn, `Die Tabelle hat zu viele Spalten (höchstens ${ANS_LIMITS.columns}).`);
       else if (columns.some((c) => c.length > ANS_LIMITS.columnName)) fail(tr._colsIn, `Eine Spaltenüberschrift ist zu lang (höchstens ${ANS_LIMITS.columnName} Zeichen).`);
       answer = { type: "table", columns, rows: ans.rows };
+    } else if (ans.type === "photo") {
+      photos++;
+      if (photos > ANS_LIMITS.photoTasks) fail(tr._ansSel, `Höchstens ${ANS_LIMITS.photoTasks} Aufgaben mit der Antwortart Foto je Feibeitsblatt – die Fotos gehen zusammen mit der Abgabe an Sie.`);
+      answer = { type: "photo" };
     } else if (ans.type === "map") {
       const items = ans.items, ids = itemIds(items), nodes = tr.querySelectorAll(".bitem");
       if (!items.length) fail(tr._ansSel, "Bitte mindestens eine Karte für die Weltkarten-Zuordnung anlegen.");
@@ -10417,6 +10765,14 @@ const legalHash = () => /^#impressum$/i.test(location.hash || "");
     ...[PRIV_DU.ytPurpose, PRIV_DU.ytData, PRIV_DU.ytBasis, PRIV_DU.ytItem, PRIV_DU.ytStay, PRIV_DU.ytChoice.trim(), PRIV_DU.ytRights].map((x) => h("p", { text: x })),
     h("p", { text: "Auf einem ausgedruckten Feibeitsblatt führt zu jedem Video ein QR-Code mit der ausgeschriebenen Adresse direkt zu YouTube: Scannst du ihn oder gibst du die " +
       "Adresse ein, rufst du YouTube direkt auf; dort gelten die Bedingungen von YouTube." }));
+})();
+// Feibeitsblätter mit Foto-Aufgaben: eigener Abschnitt in allgemeiner Form (welches Blatt eine hat, weiß diese Seite ohne Code nicht)
+(function renderLegalPhoto() {
+  $("legal-photo").append(h("h2", { class: "legal-h2", id: "legal-photo-h", text: "Feibeitsblätter mit Foto-Aufgaben" }),
+    h("p", { text: "Bei manchen Aufgaben ist die Antwort ein Foto, zum Beispiel von deinem Plakat. Zusätzlich zu den Angaben oben gilt dann:" }),
+    h("p", { text: PRIV_DU.photoData }),
+    h("p", { text: "Gespeichert wird das Foto wie deine übrigen Antworten nur verschlüsselt mit deiner Abgabe und mit ihr gelöscht; in deiner Lösungs-PDF steht es mit, " +
+      "wenn du sie herunterlädst." }));
 })();
 async function openLegal() {
   escDrop();   // angekommene Daten aus einem Escape-Room gelten nicht mehr

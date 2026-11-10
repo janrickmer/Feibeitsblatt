@@ -5,7 +5,7 @@
 // Mindestabstand (ai_gate) und Ausweich-Liste erschöpfter Modelle (ai_skip) in D1.
 // Cloudflare Workers AI (Anbieter „cloudflare“) läuft über das Binding env.AI (wrangler.jsonc "ai") ohne API-Schlüssel und
 // ohne AI Gateway; unter `wrangler dev --local` (Entwicklung, Tests) ist das Binding da, jeder Aufruf scheitert aber.
-import { isAllowedBase, materialText, cleanLine, LIMITS } from "./lib.js";
+import { isAllowedBase, materialText, cleanLine, LIMITS, NO_AI_ANSWER_TYPES } from "./lib.js";
 
 // reasoning: "effort" = reasoning_effort (Groq/Cerebras), "object" = reasoning:{effort} (OpenRouter) – nur gpt-oss
 export const PROVIDERS = {
@@ -801,7 +801,8 @@ export const FEEDBACK_FINAL_SCHEMA_GEMINI = {
  */
 const MATERIAL_CAP = 4000;   // Zeichen Material je Aufgabe im Prompt
 const answerType = (t) => (t && t.answer && typeof t.answer === "object" ? t.answer.type : "text");
-export const wantsFeedback = (t) => !!str(t.solution).trim() && answerType(t) !== "map";   // Weltkarten-Zuordnung: nie an die KI
+// Weltkarten-Zuordnung und Foto: nie an die KI (NO_AI_ANSWER_TYPES; auch nicht, wenn eine ältere Zeile doch einen Auftrag trägt)
+export const wantsFeedback = (t) => !!str(t.solution).trim() && !NO_AI_ANSWER_TYPES.has(answerType(t));
 export function buildFeedbackMessages(tasks, answers, only, { final = false } = {}) {
   const nrs = [], blocks = [], replies = [], pick = Array.isArray(only) ? new Set(only) : null;
   tasks.forEach((t, i) => {

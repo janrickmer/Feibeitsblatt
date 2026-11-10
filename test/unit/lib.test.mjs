@@ -9,7 +9,7 @@ import {
   validateAnswerSpec, withMapChecks, publicAnswer, teacherAnswer, mapCheck,
   validatePrivacyInput, privacyOut, cleanLine, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS,
   validateEscapeSpec, escapeOut, ESCAPE_ID_RE, validateFinalMeta, REPLACE_WINDOW_MS, validateSubmitMeta,
-  sealForTeacher, FINAL_WAIT_OPTIONS, FINAL_WAIT_DEFAULT, validateFinalWait, finalWaitOut,
+  sealForTeacher, FINAL_WAIT_OPTIONS, FINAL_WAIT_DEFAULT, validateFinalWait, finalWaitOut, NO_AI_ANSWER_TYPES,
 } from "../../worker/lib.js";
 import { DatabaseSync } from "node:sqlite";
 import { PROVIDERS } from "../../worker/ai.js";
@@ -503,6 +503,43 @@ test("map checks: SHA-256 of code|item|country, never countries in public answer
   assert.deepEqual((await publicAnswer(a, "K7QM4X", null)).items[1].checks, [await sha256Hex("K7QM4X|kakao|384")]);
   assert.deepEqual(teacherAnswer(t.answer).items[0], { id: "kaffee", label: "Kaffee", hint: "Bohnen aus Übersee", image: "0123456789abcdef", countries: [{ id: "076", name: "Brasilien" }, { id: "704", name: "Vietnam" }] });
   assert.deepEqual([teacherAnswer(undefined), await publicAnswer({ type: "evil" }, "K7QM4X")], [{ type: "text" }, { type: "text" }]);
+});
+
+/* ---------- Antwortart Foto ---------- */
+test("Antwortart Foto: {type:\"photo\"} ohne weitere Felder, kein Auftrag an die KI, höchstens LIMITS.photoTasks je Blatt", () => {
+  assert.deepEqual(validateAnswerSpec({ type: "photo" }, 1), { type: "photo" });
+  assert.deepEqual(validateAnswerSpec({ type: "photo", hint: "Plakat", maxBytes: 1, columns: ["x"] }, 2), { type: "photo" });   // unbekannte Felder entfallen
+  assert.throws(() => validateAnswerSpec({ type: "foto" }, 3), { message: "Aufgabe 3: Unbekannte Antwortart (möglich: Textfeld, Tabelle, Weltkarten-Zuordnung, Foto)." });
+  assert.deepEqual([...NO_AI_ANSWER_TYPES].sort(), ["map", "photo"]);
+  const r = validateSheetInput({ tasks: [{ text: "Fotografiere dein Plakat.", solution: "geheimer Auftrag", answer: { type: "photo", extra: 1 } }, { text: "Erkläre es.", solution: "Begründung" }] });
+  assert.deepEqual(r.tasks[0], { text: "Fotografiere dein Plakat.", solution: "", answer: { type: "photo" } });   // Foto: nie ein Auftrag an die KI
+  assert.deepEqual(r.tasks[1], { text: "Erkläre es.", solution: "Begründung" });
+  const photos = (n) => Array.from({ length: n }, (_, k) => ({ text: "Foto " + (k + 1), answer: { type: "photo" } }));
+  assert.equal(validateSheetInput({ tasks: [...photos(LIMITS.photoTasks), { text: "Text" }] }).tasks.length, LIMITS.photoTasks + 1);
+  assert.throws(() => validateSheetInput({ tasks: photos(LIMITS.photoTasks + 1) }), (e) => e instanceof InputError && e.status === 400 &&
+    e.message === "Höchstens " + LIMITS.photoTasks + " Aufgaben mit der Antwortart Foto je Feibeitsblatt.");
+  // aus D1 gelesen: für die Lehrkraft und öffentlich genau {type:"photo"}
+  assert.deepEqual(teacherAnswer({ type: "photo", x: 1 }), { type: "photo" });
+});
+test("Antwortart Foto: öffentlich genau {type:\"photo\"}", async () => {
+  assert.deepEqual(await publicAnswer({ type: "photo", secret: "x" }, "K7QM4X", new Set()), { type: "photo" });
+});
+test("Umschlag mit Fotos: validateEnvelope(env, max) – größer als envelopeBytes nur mit der Grenze für Foto-Blätter; Grenzen passen zusammen", () => {
+  const env = { v: 1, ek: b64(384), iv: b64(12) };
+  const ct = (bytes) => b64(bytes);   // Base64-Länge 4·⌈bytes/3⌉
+  const mid = ct(600 * 1024);   // ≈ 800 KB: zu groß für normale Blätter, passt bei Blättern mit Foto-Aufgabe
+  rejectsWith(() => validateEnvelope({ ...env, ct: mid }), "too_large", 413);
+  const ok = validateEnvelope({ ...env, ct: mid }, LIMITS.photoEnvelopeBytes);
+  assert.ok(ok.length > LIMITS.envelopeBytes && ok.length <= LIMITS.photoEnvelopeBytes);
+  rejectsWith(() => validateEnvelope({ ...env, ct: ct(770 * 1024) }, LIMITS.photoEnvelopeBytes), "too_large", 413);
+  // ein offensichtlich zu langes ct scheitert vor dem Base64-Muster (auch wenn es gar kein Base64 ist)
+  rejectsWith(() => validateEnvelope({ ...env, ct: "!".repeat(LIMITS.photoEnvelopeBytes + 1) }, LIMITS.photoEnvelopeBytes), "too_large", 413);
+  rejectsWith(() => validateEnvelope({ ...env, ct: "!".repeat(1000) }, LIMITS.photoEnvelopeBytes), "bad_envelope");
+  // Request-Body (Code, Kennung, stage) passt auch mit dem größten Umschlag; eine D1-Zeile (≤ 2 MB) auch samt final_env (≤ envelopeBytes)
+  const body = JSON.stringify({ code: "K7QM4X", envelope: { v: 1, ek: "x".repeat(512), iv: "x".repeat(16), ct: "x".repeat(LIMITS.photoEnvelopeBytes - 600) }, stage: "final", attempt: "0123456789abcdef" });
+  assert.ok(body.length <= LIMITS.bodyBytes, "Body " + body.length);
+  assert.ok(LIMITS.photoEnvelopeBytes + LIMITS.envelopeBytes + 1024 < 2000000, "D1-Zeile");
+  assert.ok(LIMITS.photoEnvelopeBytes < LIMITS.pageBytes);   // eine Seite der Lehrkraft-Liste hat immer Platz für mindestens eine Abgabe
 });
 
 /* ---------- Löschfrist (verantwortlich ist der Betreiber – keine Angaben einer Schule mehr) ---------- */

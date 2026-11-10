@@ -13,7 +13,9 @@ einer Abgabe ohne KI-Feedback nur die abgegebene Fassung), dazu die finale KI-R�
 Arbeitsblatt zum Ausdrucken herunterladen – mit Schreiblinien und einem QR-Code zu dieser Checkliste, auf der die
 Schüler:innen selbst abhaken, ob ihre Antworten die Erwartungen erfüllen. Unter dem Material einer Aufgabe lassen sich
 YouTube-Videos einbetten: Die Schüler:innen laden ein Video erst mit einem eigenen Klick (vorher lädt die Seite nichts von YouTube),
-auf dem analogen Arbeitsblatt führt ein QR-Code zum Video. Ein Feibeitsblatt kann auch das Finale eines
+auf dem analogen Arbeitsblatt führt ein QR-Code zum Video. Statt eines Textes kann die Antwort auch eine Tabelle, eine
+Weltkarten-Zuordnung oder ein **Foto** sein (z. B. vom eigenen Plakat – der Browser verkleinert es und gibt es nur
+verschlüsselt mit der Abgabe an Sie, nie an eine KI). Ein Feibeitsblatt kann auch das Finale eines
 Escape-Rooms der Reihe sein: Dann kommen die Schüler:innen über den Link am Ende des Escape-Rooms (oder dessen
 Überblick-PDF) mit ihren Angaben und Ergebnissen aus dem Raum an (siehe [Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)).
 Wie im Feiditor misst Feibeitsblatt beim Schreiben die **Tippzeiten** (je Zeichen den Abstand zum vorangehenden Zeichen).
@@ -135,6 +137,18 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Vorschlagsliste), Enter prüft. „Alle Zuordnungen löschen“ fängt nach einer Rückfrage neu an. Ob eine Zuordnung
    stimmt, prüft der Browser selbst; die richtigen Länder bekommt er nicht zu sehen, nur Prüfwerte. Zu dieser
    Antwortart gibt es kein KI-Feedback.
+   **Foto:** Ist die Antwort ein Foto (z. B. vom eigenen Plakat), stehen unter der Aufgabe die Knöpfe „Foto aufnehmen“
+   (auf Handy und Tablet öffnet sich direkt die Kamera) und „Bild auswählen“ (Galerie oder Datei; am Computer öffnen beide
+   die Dateiauswahl, ein Bild lässt sich auch hineinziehen). Der Browser verkleinert das Foto sofort auf dem Gerät
+   (längste Seite höchstens 1280 Pixel, als JPEG je höchstens 200 KB – bei drei Foto-Aufgaben je etwa 133 KB) und
+   zeichnet es dabei neu: Zusatzangaben wie Aufnahmeort und Kamera (EXIF) entfallen. Danach erscheint eine Vorschau
+   (Klick vergrößert) mit Größe; „Neues Foto aufnehmen“, „Anderes Bild auswählen“ und „Foto entfernen“ (mit Rückfrage)
+   ersetzen bzw. entfernen es. Das Foto steht im Zwischenstand auf dem Gerät (und in der Zwischenstand-PDF) und geht nur
+   verschlüsselt mit der Abgabe an die Lehrkraft – nie an eine KI, nie an die Rechtschreibprüfung und nicht schon mit dem
+   Erstversuch. Ist der Speicher des Browsers voll, sichert die Seite die Texte ohne das Foto und sagt es („Zwischenstand
+   ohne Foto gespeichert …“); bis die Seite neu lädt, bleibt das Foto trotzdem da, danach muss es neu aufgenommen werden
+   (das Foto-Feld sagt es). Einfügen-Sperre und Tippzeit-Messung gibt es hier nicht. Zu dieser Antwortart gibt es kein
+   KI-Feedback; in der Lösungs-PDF steht das Foto selbst.
 5. **Rechtschreibung und Grammatik prüfen.** Unter jedem Antwortfeld gibt es diesen kleinen Button. Beim ersten Klick
    erklärt ein Dialog, dass der Text an LanguageTool (Learneo, Inc., USA) geht und dass man den Dienst laut Anbieter nur
    nutzen darf, wenn man mindestens 18 ist oder 16 bzw. 17 und die Eltern es erlaubt haben. Wer das bestätigt („Trifft
@@ -397,7 +411,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    Datenschutzhinweis eines solchen Blattes nennt YouTube (Google) von selbst. Videos gehen nie an die KI – sie kennt also
    weder den Link noch den Inhalt eines Videos. Auf dem analogen Arbeitsblatt steht je Video ein QR-Code (Schritt 7).
    **Antwortart:** Unter „Antwortart“ wählen Sie je Aufgabe, wie die Schüler:innen antworten: **Textfeld** (Vorgabe),
-   **Tabelle** oder **Weltkarten-Zuordnung**. Bei der Tabelle tragen Sie die Spaltenüberschriften ein (eine je Zeile
+   **Tabelle**, **Weltkarten-Zuordnung** oder **Foto**. Bei der Tabelle tragen Sie die Spaltenüberschriften ein (eine je Zeile
    oder durch „;“ getrennt, höchstens 8 mit je 60 Zeichen) und die Zahl der vorgegebenen Zeilen (1 bis 30); eine
    Vorschau zeigt den Tabellenkopf. Die ausgefüllte Tabelle geht wie ein Text an die KI – mit dem Hinweis, welche
    Spalten sie hat –, das KI-Feedback funktioniert also wie beim Textfeld. Bei der Weltkarten-Zuordnung legen Sie bis
@@ -409,7 +423,13 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    auf höchstens 400 Pixel; sie zählen nicht zu den fünf Bildern je Aufgabe, aber zur Speichergrenze von 12 MB je
    Blatt. Die richtigen Länder gibt der Server den Schüler:innen nie im Klartext, sondern nur als Prüfwerte (SHA-256
    aus Code, Karte und Land) – wer sich auskennt, kann diese mit etwas Aufwand allen Ländern zuordnen; geheim ist die
-   Lösung damit also nicht.
+   Lösung damit also nicht. Beim **Foto** nehmen die Schüler:innen ein Foto auf oder wählen ein Bild aus (z. B. ihr
+   Plakat); was darauf zu sehen sein soll, schreiben Sie in die Aufgabenstellung – weitere Angaben gibt es nicht. Der
+   Browser verkleinert das Foto (längste Seite 1280 Pixel, je höchstens 200 KB, bei drei Foto-Aufgaben je etwa 133 KB)
+   und gibt es nur verschlüsselt mit der Abgabe an Sie; höchstens drei Foto-Aufgaben je Blatt, weil alle Fotos in den
+   einen verschlüsselten Umschlag der Abgabe passen müssen. Auch diese Antwortart braucht keinen Auftrag an die KI und
+   geht nie an die KI (ein vorher eingetragener Auftrag wird verworfen); eine Checkliste (Schritt 7) können Sie trotzdem
+   selbst eintragen – sie steht dann in der Lösungs-PDF unter dem Foto.
 4. **Code generieren.** Der Code erscheint groß (z. B. `K7Q-M4X`) mit „Kopieren“. Bilder und PDF-Dateien werden
    dabei nacheinander hochgeladen („Alle 3 Bilder sind gespeichert.“, „2 Bilder und 1 PDF-Datei sind
    gespeichert.“; größere PDF-Dateien gehen in Teilen zu je 512 KB an den Server); so lange bleibt „Zur Übersicht“
@@ -463,6 +483,11 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    darin; bei einem Escape-Room-Finale enthält sie nur die Lösungsseiten (den Überblick aus dem Raum gibt es dort über
    „Überblick als PDF herunterladen“). Eine Tabelle
    erscheint dort als Tabelle, eine Weltkarten-Zuordnung als Liste („Kaffee → Brasilien“) mit „Zugeordnet: x von n“.
+   Ein **Foto** steht in einer eigenen Spalte „Abgegebenes Foto“ als Vorschau mit Größe; ein Klick vergrößert es,
+   „Foto herunterladen“ speichert es als JPEG (im Dateinamen Code, Klasse, Kürzel und Aufgabe, nie der Geburtstag), und in
+   der Lösungs-PDF steht es eingebettet. Ein Erstversuch enthält noch kein Foto („ein Foto kommt erst mit der Abgabe“).
+   Mit Fotos sind Abgaben deutlich größer (je Foto etwa 0,15–0,3 MB, verschlüsselt) – das Laden der Abgaben dauert dann
+   entsprechend länger.
    In den aufgeklappten „Aufgaben und Aufträge an die KI“ eines Blattes steht je Aufgabe die Antwortart, bei der Weltkarte
    mit allen Karten und ihren richtigen Ländern. Eingebettete YouTube-Videos stehen dort und in den Details der Abgaben
    unter „Videos (YouTube)“ als Links (neuer Tab) – ohne Player und ohne Vorschaubild. Gibt die
@@ -498,7 +523,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    Hintergrund enthält sie **alles**, was zum Wiederherstellen nötig ist: Aufgaben (mit Formatierung und Links), **Aufträge an die KI**, Material mit
    Formatierung und Links, jedes Bild in Originalqualität mit Anzeigeart und Bildbeschreibung, jede PDF-Datei
    unverändert, die YouTube-Videos (Kennung, Startzeit und Titel – ohne Anhang, ohne Vorschaubild) und die Antwortarten
-   (Tabellenspalten; Karten mit Bild und richtigen Ländern) – Bilder und Dateien jeweils mit Prüfsumme. Sichtbar steht die Antwortart unter jeder Aufgabe, bei der Weltkarte mit der Liste der Karten und Länder. Im PDF-Programm erscheinen diese Daten als Anhänge. Abgaben der Schüler:innen
+   (Tabellenspalten; Karten mit Bild und richtigen Ländern; Foto) – Bilder und Dateien jeweils mit Prüfsumme. Sichtbar steht die Antwortart unter jeder Aufgabe, bei der Weltkarte mit der Liste der Karten und Länder. Im PDF-Programm erscheinen diese Daten als Anhänge. Abgaben der Schüler:innen
    enthält die Datei nicht. Weil die Aufträge an die KI darin stecken, geben Sie die Datei bitte nicht an Schüler:innen
    weiter; auf der ersten Seite steht dazu ein Hinweis. Mit **„Feibeitsblatt aus PDF-Datei laden“** (oben neben
    „Neues Feibeitsblatt erstellen“) wählen Sie eine solche Datei aus. Der Editor öffnet sich mit allen Aufgaben,
@@ -532,7 +557,8 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    („nur digital“) und Platz für die Antwort: **8 Schreiblinien** im Abstand von 24 pt (etwa 8,5 mm, passend für Handschrift
    in Schriftgröße 14), bei einer Tabelle ein Gitter mit **zwei Schreibzeilen je Tabellenzeile** (der Kopf wiederholt
    sich auf jeder neuen Seite; bei vielen Spalten wird seine Schrift kleiner, bis jedes Wort in seine Spalte passt), bei
-   der Weltkarten-Zuordnung eine Umrisskarte ohne Ländernamen und darunter die Karten mit einer Linie für das Land. Am
+   der Weltkarten-Zuordnung eine Umrisskarte ohne Ländernamen und darunter die Karten mit einer Linie für das Land, bei
+   einer Foto-Aufgabe ein leerer Rahmen („Hier kannst du zeichnen oder ein Foto einkleben.“). Am
    Ende steht ein **QR-Code zur Checkliste**. Aufträge an die KI, richtige Länder, Abgaben und Vorschaubilder von YouTube
    stehen nie darin. Die
    Punkte der Checkliste schlägt nach „Code generieren“ (bei älteren Blättern beim ersten Öffnen dieser Seite) einmal die
@@ -802,7 +828,9 @@ der Server beim nächsten Aufräumen.
    was abweicht: Rufen die Schüler:innen die Seite über GitHub Pages auf (z. B. über den Link in der
    Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub als Empfänger für die ganze
    Seite (unter der Worker-Adresse nur für die Checklisten-Seite hinter dem QR-Code); bei Blättern ohne Auftrag an die KI
-   entfallen die Angaben zum KI-Feedback; bei Blättern nur mit Weltkarten-Zuordnung entfallen der Satz zur
+   entfallen die Angaben zum KI-Feedback; bei Blättern mit Foto-Aufgabe kommt je ein Absatz zum Foto hinzu (verkleinert
+   ohne Aufnahmeort, im Zwischenstand, nur verschlüsselt mit der Abgabe, nie an eine KI); bei Blättern nur mit
+   Weltkarten-Zuordnung und Fotos entfallen der Satz zur
    Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „Widerspruch gegen
    die Tippzeit-Messung“ (dort wird nichts gemessen); bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
    Angaben-Bildschirm in der „ihr“-Form (derselbe Inhalt). „Speichern“ – die Schüler:innen sehen die Löschfrist beim
@@ -1148,7 +1176,7 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | Feibeitsblätter: Titel, Aufgaben, Material, **Aufträge an die KI**, ggf. YouTube-Videos (Kennung, Startzeit, Titel – nie ein Link) und Name und Kennung eines Escape-Rooms | Cloudflare D1, Datenbank in der EU-Jurisdiktion | unverschlüsselt (der Server braucht sie für das KI-Feedback; Videos, Name und Kennung des Escape-Rooms sind öffentlich abrufbar) | bis Sie das Blatt löschen |
 | Bilder zu Aufgaben (von Ihnen hochgeladen) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen | bis Sie das Blatt löschen |
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
-| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten **mit ihren Tippzeiten** (nach einem Widerspruch nur der Vermerk `optOut`), KI-Feedback (bei Abgaben von vor dem 08.11.2026 auch die damals vom Browser nachgereichte finale KI-Rückmeldung bzw. bei noch älteren die Rückmeldung zur abgegebenen Fassung), ob die finale KI-Rückmeldung abgewählt wurde (`finalWanted`), Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“); bei einem Escape-Room-Finale außerdem die Ergebnisse aus dem Escape-Room (Name und Kennung des Raums, Codewort, Abschlusszeitpunkt, je Station Versuche und Fehler im ersten Versuch, genutzte Zwischenstand-Dateien des Escape-Rooms mit Stelle und Zeitpunkten, ob die Prüfsumme stimmt) – ohne vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe), eine zufällige Kennung der Bearbeitung und der Zeitpunkt, zu dem die finale KI-Rückmeldung geliefert wurde (danach ist die Abgabe abgeschlossen) | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
+| Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten **mit ihren Tippzeiten** (nach einem Widerspruch nur der Vermerk `optOut`), bei Foto-Aufgaben das abgegebene Foto (JPEG, verkleinert, ohne EXIF; nur in der Abgabe, nicht im Erstversuch), KI-Feedback (bei Abgaben von vor dem 08.11.2026 auch die damals vom Browser nachgereichte finale KI-Rückmeldung bzw. bei noch älteren die Rückmeldung zur abgegebenen Fassung), ob die finale KI-Rückmeldung abgewählt wurde (`finalWanted`), Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“); bei einem Escape-Room-Finale außerdem die Ergebnisse aus dem Escape-Room (Name und Kennung des Raums, Codewort, Abschlusszeitpunkt, je Station Versuche und Fehler im ersten Versuch, genutzte Zwischenstand-Dateien des Escape-Rooms mit Stelle und Zeitpunkten, ob die Prüfsumme stimmt) – ohne vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe), eine zufällige Kennung der Bearbeitung und der Zeitpunkt, zu dem die finale KI-Rückmeldung geliefert wurde (danach ist die Abgabe abgeschlossen) | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
 | Finale KI-Rückmeldung zu einer Abgabe (je Aufgabe „Das gelingt dir schon“ und „Das hat gefehlt“, Zeitpunkt; keine Antworten, keine Angaben zur Person) | Cloudflare D1 (EU), bei der Abgabe (Spalte `final_env`) | **nur verschlüsselt** – der Server verschlüsselt sie selbst mit Ihrem öffentlichen Schlüssel, bevor er sie speichert; lesen können sie nur Sie (die Abgabe selbst ändert er dabei nicht) | mit der Abgabe (Löschfrist, einzelner Eintrag, alle Abgaben, Blatt) |
 | Erstversuche: dieselben Angaben mit der ersten Fassung (samt Tippzeiten) und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt; nach einem Widerspruch mit derselben Kennung ohne Tippzeiten ersetzt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
 | Checkliste je Feibeitsblatt (Lösungs-PDF der Schüler:innen ohne finale KI-Rückmeldung, analoges Arbeitsblatt): Vorschlag der KI (Entwurf, entsteht nach „Code generieren“) und die von Ihnen bestätigten bzw. gespeicherten Punkte | Cloudflare D1 (EU), Tabelle `sheet_checklists` | unverschlüsselt; die bestätigte Fassung (nie der Entwurf) ist ab dem Bestätigen für alle abrufbar, die den Code bzw. den QR-Code kennen – auch während die Klasse noch schreibt; die Bestätigungsseite lädt sie nach jeder Abgabe für die Lösungs-PDF | bis Sie das Blatt löschen |
@@ -1263,6 +1291,14 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   `https://www.youtube-nocookie.com` und Bilder nur von der eigenen Seite – so kann vor dem Klick auch versehentlich nichts
   von YouTube geladen werden. Manche Browser bauen beim Überfahren eines Links von sich aus schon eine Verbindung zu dessen
   Server auf („Seiten vorab laden“); das gilt für jeden Link, auch im Material, und liegt außerhalb der Seite.
+- **Fotos (Antwortart Foto):** Das Foto nimmt die Seite nur über die Dateiauswahl des Browsers entgegen (keine
+  Kamera-Freigabe für die Seite – `Permissions-Policy: camera=()` bleibt). Der Browser verkleinert es auf dem Gerät und
+  zeichnet es dabei neu (canvas → JPEG), Zusatzangaben wie Aufnahmeort, Kamera und Aufnahmezeit (EXIF) entfallen. Bis zur
+  Abgabe steht es unverschlüsselt im Zwischenstand dieses Browsers und in jeder Zwischenstand-PDF; an den Server geht es
+  nur verschlüsselt in der Abgabe (nicht im Erstversuch). Für das KI-Feedback und die finale KI-Rückmeldung schickt der
+  Browser statt des Fotos nur den Vermerk „[Foto]“, und die Foto-Aufgabe selbst steht nie im Prompt. Der
+  Datenschutzhinweis eines Blattes mit Foto-Aufgabe sagt das in einem eigenen Absatz (Kurzfassung und „Welche Daten?“),
+  die Seite „Impressum & Datenschutz“ in einem eigenen Abschnitt.
 - **Checkliste (Lehrkraft):** Gleich nach „Code generieren“ (bei älteren Blättern beim ersten Öffnen von „Analoges
   Arbeitsblatt als PDF herunterladen“, außerdem bei „Neu von der KI vorschlagen lassen“) schickt der Server
   **Aufgabenstellungen, den Text des Materials (ohne Link-Adressen), die Spalten von Tabellen und Ihre Aufträge an die
@@ -1296,7 +1332,7 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
 ### Tippzeiten
 
 Wie im Feiditor misst die Seite beim Schreiben je Zeichen, wie viel Zeit seit dem vorangehenden Zeichen vergangen ist –
-in Textfeldern und Tabellenzellen, nie bei der Weltkarten-Zuordnung. Festgehalten wird je Zeichen nur ein Wert: 0 bis 70
+in Textfeldern und Tabellenzellen, nie bei der Weltkarten-Zuordnung und beim Foto. Festgehalten wird je Zeichen nur ein Wert: 0 bis 70
 Millisekunden (aufgerundet), „mehr als 70 Millisekunden oder erstes Zeichen“ oder „ohne Messung“ (Leerraum, ältere
 Stände); längere Pausen und Uhrzeiten werden nicht gespeichert. Entstehen mehrere Zeichen in einem Zug (Wortvorschlag,
 Wischen, Autokorrektur, Diktat, ein per Rechtsklick übernommener Korrekturvorschlag des Browsers), haben alle nach dem
@@ -1712,8 +1748,9 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | YouTube-Videos je Aufgabe | 3; Titel bis 120 Zeichen; Startzeit unter 24 Stunden; belegen keinen Speicher für Dateien (nur Kennung, Startzeit und Titel) |
 | Tabelle (Antwortart) | 1–8 Spalten mit je 60 Zeichen Überschrift, 1–30 Zeilen; die ganze Tabelle als Text höchstens 8000 Zeichen |
 | Weltkarten-Zuordnung (Antwortart) | 1–40 Karten je Aufgabe (Bezeichnung 120, Hinweis 400 Zeichen, ein Bild – zählt nicht zu den 5 Bildern), je Karte 1–10 richtige Länder, je Blatt höchstens 400 richtige Länder zusammen |
+| Foto (Antwortart) | höchstens 3 Foto-Aufgaben je Blatt; je Foto längste Seite 1280 Pixel und höchstens 200 KB als JPEG (alle Fotos einer Abgabe zusammen höchstens 400 KB, bei drei Foto-Aufgaben also je etwa 133 KB) – der Browser verkleinert selbst; die verschlüsselte Abgabe darf bei Blättern mit Foto-Aufgabe bis 1000 KB groß sein (sonst 400 KB) |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
-| Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB samt den gespeicherten finalen KI-Rückmeldungen (eine Klasse braucht weit weniger) |
+| Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB samt den gespeicherten finalen KI-Rückmeldungen (eine Klasse braucht weit weniger; mit Fotos etwa 0,2–0,8 MB je Abgabe, also Platz für etwa 50–200 Abgaben) |
 | KI-Anfragen je Netzwerk (IP-Adresse) | 480 pro Stunde bzw. 1 600 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und finale KI-Rückmeldung nach der Abgabe; am 08.11.2026 verdoppelt, weil sich im Schulnetz meist alle Klassen eine IP-Adresse teilen – das reicht für etwa 200–240 Schüler:innen pro Stunde und Netzwerk); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht, ebenso wenig eine finale Anfrage, die der Server ablehnt |
 | KI-Anfragen je Feibeitsblatt | 600 pro Tag (bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
 | Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 360 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe; die finale KI-Rückmeldung legt der Server selbst ab) |

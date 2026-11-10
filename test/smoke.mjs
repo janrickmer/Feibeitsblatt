@@ -663,6 +663,33 @@ async function main() {
     r = await api("GET", "/api/teacher/sheets", undefined, { auth });
     assert.equal(r.json.sheets.find((s) => s.code === code).submissionCount, 1);
     ok("Abgabe: Umschlag-Prüfungen; gespeicherter Umschlag mit dem privaten Schlüssel entschlüsselt = payload");
+    step = "Antwortart Foto";
+    {
+      r = await api("POST", "/api/teacher/sheets", { title: "Smoke: Plakat", tasks: [{ text: "Fotografiere dein Plakat.", solution: "verworfen", answer: { type: "photo", hint: "weg" } },
+        { text: "Erkläre es.", solution: "- Begründung" }] }, { auth });
+      assert.equal(r.status, 200, r.text);
+      const pc = r.json.code;
+      r = await api("GET", "/api/sheet/" + pc);
+      assert.deepEqual(r.json.sheet.tasks.map((t) => t.answer), [{ type: "photo" }, { type: "text" }]);
+      assert.equal(/verworfen|"hint"/.test(r.text), false);
+      r = await api("GET", "/api/teacher/sheets/" + pc, undefined, { auth });
+      assert.deepEqual([r.json.sheet.tasks[0].answer, r.json.sheet.tasks[0].solution], [{ type: "photo" }, ""]);
+      expectErr(await api("POST", "/api/teacher/sheets", { tasks: [1, 2, 3, 4].map((k) => ({ text: "Foto " + k, answer: { type: "photo" } })) }, { auth }), 400, "bad_request");
+      // Umschlag mit Foto (≈ 300 KB als data:-URL, dazu Text) – größer als LIMITS.envelopeBytes: nur beim Blatt mit Foto-Aufgabe (D1 sieht in den Aufgaben nach)
+      const photo = "data:image/jpeg;base64,/9j/" + b64(crypto.getRandomValues(new Uint8Array(60000))).repeat(5).slice(0, 4 * 90000);
+      const pPayload = { v: 1, stage: "final", sheetCode: pc, person: { vorname: "Ida", nachname: "Fo", geburtsdatum: "--03-04", klasse: "7a" },
+        answers: [{ first: "[Foto]", final: "[Foto]", photo }, { first: "Foto-Text-Marker", final: "Foto-Text-Marker" }], submittedAt: new Date().toISOString() };
+      const pEnv = await makeEnvelope(sheetPub.publicKey, pPayload), pSize = JSON.stringify(pEnv).length;
+      assert.ok(pSize > 400 * 1024 && pSize <= 1000 * 1024, "Umschlag " + pSize);
+      expectErr(await api("POST", "/api/submit", { code, envelope: pEnv }), 413, "too_large");   // Blatt ohne Foto-Aufgabe (nicht gezählt)
+      r = await api("POST", "/api/submit", { code: pc, envelope: pEnv }); submitCount++;
+      assert.equal(r.status, 200, r.text);
+      r = await api("GET", "/api/teacher/sheets/" + pc + "/submissions", undefined, { auth });
+      assert.equal(r.json.submissions.length, 1); assert.equal(r.json.next, null);
+      assert.deepEqual(await openEnvelope(privateKey, r.json.submissions[0].envelope), pPayload);
+      assert.equal((await api("DELETE", "/api/teacher/sheets/" + pc, undefined, { auth })).status, 200);
+    }
+    ok("Antwortart Foto: {type:\"photo\"} ohne Auftrag an die KI (höchstens 3 je Blatt); Umschläge über 400 KB nur bei Blättern mit Foto-Aufgabe, entschlüsselt unverändert");
 
     step = "Erstversuch";
     const attempt = "0123456789abcdef";
