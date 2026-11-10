@@ -1232,11 +1232,11 @@
           <button type="button" class="btn ghost small" id="t-refresh">Aktualisieren</button>
           <button type="button" class="btn ghost small" id="t-template">Als Vorlage für ein neues Feibeitsblatt verwenden</button>
           <button type="button" class="btn ghost small" id="t-export">Als PDF-Datei herunterladen</button>
-          <button type="button" class="btn ghost small" id="t-analog">Analoges Arbeitsblatt als PDF herunterladen</button>
+          <button type="button" class="btn ghost small" id="t-analog">Notfall-Feibeitsblatt (analog) als PDF herunterladen</button>
           <button type="button" class="btn ghost small" id="t-ck-edit">Checkliste bearbeiten</button>
         </div>
         <p class="status" id="t-export-status" aria-live="polite"></p>
-        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Ihre Aufträge an die KI und die PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.<span id="t-analog-hint"> „Analoges Arbeitsblatt als PDF herunterladen“ erstellt ein Arbeitsblatt zum Ausdrucken mit Schreiblinien und einem QR-Code, der zur Checkliste zum Abhaken führt – zu der Checkliste, die Sie beim Anlegen bestätigt haben.</span> „Checkliste bearbeiten“ ändert die Checkliste, die in der Lösungs-PDF der Schüler:innen steht, wenn die finale KI-Rückmeldung nicht rechtzeitig kommt.</p>
+        <p class="fhint">„Als PDF-Datei herunterladen“ sichert das Feibeitsblatt vollständig: Die Datei zeigt Aufgaben, Material und Bilder und enthält im Hintergrund auch Ihre Aufträge an die KI und die PDF-Dateien (keine Abgaben). Mit „Feibeitsblatt aus PDF-Datei laden“ (oben) verwenden Sie es später wieder, etwa in einer Parallelklasse: Es bekommt dann einen neuen Code, und seine Abgaben erscheinen getrennt.<span id="t-analog-hint"> „Notfall-Feibeitsblatt (analog) als PDF herunterladen“ erstellt ein Arbeitsblatt zum Ausdrucken mit Schreiblinien und einem QR-Code, der zur Checkliste zum Abhaken führt – zu der Checkliste, die Sie beim Anlegen bestätigt haben.</span> „Checkliste bearbeiten“ ändert die Checkliste, die in der Lösungs-PDF der Schüler:innen steht, wenn die finale KI-Rückmeldung nicht rechtzeitig kommt.</p>
 
         <div class="subhead">
           <h3>Abgaben</h3>
@@ -8525,8 +8525,8 @@ $("t-del-sheet").addEventListener("click", async () => {
  * die KI schlägt einmal vor (POST, als Entwurf beim Blatt gespeichert), die Lehrkraft prüft, ändert und bestätigt (PUT – ab jetzt
  * öffentlich: Lösungs-PDF der Schüler:innen, wenn die finale KI-Rückmeldung fehlt, und QR-Code des analogen Arbeitsblattes);
  * "edit" – „Checkliste bearbeiten“ in den Blattdetails (#tv-analog, speichern ohne PDF); "analog" – „Analoges Arbeitsblatt“ ohne
- * bestätigte Checkliste (ältere Blätter): speichern und PDF wie bisher. Mit bestätigter Checkliste lädt „Analoges Arbeitsblatt als PDF
- * herunterladen“ das PDF direkt (openAnalog) – ohne noch einmal zu fragen. Der Editor wird zwischen den Ansichten verschoben (ckMount),
+ * bestätigte Checkliste (ältere Blätter): speichern und PDF wie bisher. Mit bestätigter Checkliste lädt „Notfall-Feibeitsblatt (analog)
+ * als PDF herunterladen“ das PDF direkt (openAnalog) – ohne noch einmal zu fragen. Der Editor wird zwischen den Ansichten verschoben (ckMount),
  * es gibt ihn nur einmal. Abbruchzähler T.analogRun wie T.importRun/T.exportRun: nach Verlassen oder Abmelden kommt nichts mehr an. */
 const CHECK_POINTS = 8, CHECK_POINT_MAX = 160;   // = LIMITS.checkPoints / LIMITS.checkPoint im Worker
 const CK_LIMIT_HINT = `Höchstens ${CHECK_POINTS} Punkte, je höchstens ${CHECK_POINT_MAX} Zeichen.`;
@@ -8721,7 +8721,7 @@ async function ckEditorOpen(code, sheet, mode) {
     $("ck-regen").disabled = true;   // ohne den gespeicherten Stand nicht überschreiben: erst zurück und neu öffnen
   }
 }
-/* „Analoges Arbeitsblatt als PDF herunterladen“: mit bestätigter Checkliste gleich das PDF (nicht noch einmal fragen – Status in
+/* „Notfall-Feibeitsblatt (analog) als PDF herunterladen“: mit bestätigter Checkliste gleich das PDF (nicht noch einmal fragen – Status in
    #t-export-status), sonst der Editor (prüfen, speichern, PDF). Verlassen der Übersicht, Wechsel des Blattes oder Abmelden: nichts mehr. */
 async function openAnalog() {
   if (!T.selSheet || !T.sel || cleanEscapeSpec(T.selSheet.escape)) return;   // Escape-Room-Finale: kein analoges Arbeitsblatt
@@ -8807,9 +8807,9 @@ async function analogImages(code, sheet, onStep) {
   }
   return shows;
 }
-const analogPdfName = (code, title) => {   // „Feibeitsblatt-Arbeitsblatt-K7Q-M4X-Titel.pdf“ – Titel nur ASCII wie bei der Sicherung
-  const t = pdfAscii(title || "").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 60).trim().replace(/^\.+/, "");
-  return `Feibeitsblatt-Arbeitsblatt-${fmtCode(code)}${t ? "-" + t : ""}.pdf`;
+const analogPdfName = (code, title) => {   // „Notfall-Feibeitsblatt-Titel-K7Q-M4X.pdf“ (ohne Titel „Notfall-Feibeitsblatt-K7Q-M4X.pdf“) – Titel nur ASCII wie bei der Sicherung
+  const t = pdfAscii(title || "").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 60).trim().replace(/^\.+/, "").replace(/[\s-]+$/, "");   // kein „--“ vor dem Code
+  return `Notfall-Feibeitsblatt-${t ? t + "-" : ""}${fmtCode(code)}.pdf`;
 };
 async function ckSave() {
   if (!CK || !CK.loaded) return;

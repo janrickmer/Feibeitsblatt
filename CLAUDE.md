@@ -1303,7 +1303,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   drei Lagen (`CK.mode`, `ckMount` verschiebt ihn zwischen `#b-ck-slot` und `#ck-home` in `#tv-analog`; `CK_SAVE_LABEL`): `"create"` (s. o.),
   `"edit"` – `#t-ck-edit` „Checkliste bearbeiten“ in den Blattdetails (auch bei Escape-Blättern) → `#tv-analog` mit `h1#ck-h1` „Checkliste“,
   „Checkliste speichern“, ohne PDF – und `"analog"` (ältere Blätter ohne bestätigte Checkliste: „Analoges Arbeitsblatt“, `#ck-intro1`,
-  „Speichern und PDF herunterladen“ wie bisher). `#t-analog` „Analoges Arbeitsblatt als PDF herunterladen“ im ausgewählten Blatt →
+  „Speichern und PDF herunterladen“ wie bisher). `#t-analog` „Notfall-Feibeitsblatt (analog) als PDF herunterladen“ (Wunsch der Lehrkraft vom 10.11.2026; Hinweis `#t-analog-hint` zitiert ihn) im ausgewählten Blatt →
   `openAnalog`: mit bestätigter Checkliste **direkt** das PDF, ohne noch einmal zu fragen (Abbruchzähler `T.analogDirect` und `T.overviewLeft` –
   steigt in `teacherView` bei jedem Verlassen der Übersicht; Verlassen, anderes Blatt oder Abmelden → nichts, die Meldung „wird erstellt …“
   wird geleert; Knopf „PDF wird erstellt …“, Meldungen in `#t-export-status`: „… – mit der Checkliste, die
@@ -1363,7 +1363,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Punkten) QR-Code `ANALOG_QR_PT` 90 (Module als Rechtecke in Modul-Einheiten per `cm`, Ruhezone 4 Module, links im Seitenrand) zu
   `checkUrlOf(code)` = `PUBLIC_URL#checkliste=CODE` (`window.FEIBEITSBLATT_PUBLIC`, GitHub Pages – ohne Pages dort die eigene Adresse
   eintragen, README „Optional: GitHub Pages“; der Textbaustein für Eltern nennt GitHub für die Checklisten-Seite); Fußzeile Code ·
-  Titel und „Seite n von N“; Datei `Feibeitsblatt-Arbeitsblatt-<Code>-<Titel>.pdf`; nie Aufträge an die KI, Länder, Abgaben oder
+  Titel und „Seite n von N“; Datei `analogPdfName` `Notfall-Feibeitsblatt-<Titel>-<Code>.pdf` (Titel ASCII per `pdfAscii`, Code `K7Q-M4X`; ohne Titel `Notfall-Feibeitsblatt-<Code>.pdf`); nie Aufträge an die KI, Länder, Abgaben oder
   Checklistenpunkte. QR-Block zwischen `/* QR:BEGIN` und `/* QR:END */` (`qrMatrix(text, forceMask?)` → `{size, version, mask, dark}`,
   Byte-Modus, Stufe M, Version 1–10, nur zur Laufzeit aufrufen; `test/unit/qr.test.mjs` mit jsQR 1.4.0). Schüler:innen:
   `#checkliste=<CODE>` (beim Laden; `hashchange` nur von Start, Arbeitsform, Angaben und Checkliste aus) → `#screen-check`

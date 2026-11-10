@@ -5297,7 +5297,7 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste beim Anlegen einmal v
   await tp.click("#b-res-back");
   await expect(tp.locator("#t-sel-code")).toHaveText(shown);
   await expect(tp.locator("#t-sel-tasks .si")).toHaveCount(4);
-  await expect(tp.locator("#t-analog")).toHaveText("Analoges Arbeitsblatt als PDF herunterladen");
+  await expect(tp.locator("#t-analog")).toHaveText("Notfall-Feibeitsblatt (analog) als PDF herunterladen");
   await expect(tp.locator("#t-ck-edit")).toHaveText("Checkliste bearbeiten");
   await tp.click("#t-analog");
   await expect(tp.locator("#tv-analog")).toBeVisible();
@@ -5341,7 +5341,7 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste beim Anlegen einmal v
   await tp.fill("#ck-4", final4[0]);
   const [dl] = await Promise.all([tp.waitForEvent("download"), tp.click("#ck-save")]);
   await expect(tp.locator("#ck-status")).toHaveText(/^Gespeichert\. Das PDF \(\d+ KB\) wird heruntergeladen\.$/, { timeout: 30_000 });
-  expect(dl.suggestedFilename()).toBe(`Feibeitsblatt-Arbeitsblatt-${shown}-Wasser und Welt - analog.pdf`);
+  expect(dl.suggestedFilename()).toBe(`Notfall-Feibeitsblatt-Wasser und Welt - analog-${shown}.pdf`);
   const put = (await t.calls((r) => r.method === "PUT" && r.path === `/api/teacher/sheets/${code}/checklist`))[0];
   expect(JSON.parse(put.reqBody)).toEqual({ ai: true, tasks: [{ n: 1, points: final1 }, { n: 2, points: draft2 }, { n: 3, points: [] }, { n: 4, points: final4 }] });
   const [ckRow] = await d1Query(`SELECT draft, final FROM sheet_checklists WHERE sheet_code='${code}'`);
@@ -5477,7 +5477,7 @@ test("7k Analoges Arbeitsblatt: KI schlägt die Checkliste beim Anlegen einmal v
   await expect(tp.locator("#t-export-status")).toHaveText(/^Das analoge Arbeitsblatt \(\d+ KB\) wird heruntergeladen – mit der Checkliste, die Sie bestätigt haben\.$/, { timeout: 30_000 });
   await expect(tp.locator("#tv-overview")).toBeVisible();
   await expect(tp.locator("#tv-analog")).toBeHidden();
-  expect(dlDirect.suggestedFilename()).toBe(`Feibeitsblatt-Arbeitsblatt-${shown}-Wasser und Welt - analog.pdf`);
+  expect(dlDirect.suggestedFilename()).toBe(`Notfall-Feibeitsblatt-Wasser und Welt - analog-${shown}.pdf`);
   const D = analogPdfOf(await readFile(await dlDirect.path()));
   expect(pdfQr(D.contents[D.contents.length - 1]).text).toBe(CHECK_URL);
   expect(D.lines.flat().join("\n")).toBe(A.lines.flat().join("\n"));   // dasselbe Arbeitsblatt wie eben
