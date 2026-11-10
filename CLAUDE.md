@@ -2,7 +2,7 @@
 
 Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft; die Kurzfassung
 des Datenschutzhinweises nennt die Messung in einem Satz, Widerspruch per Schalter im eigenen Abschnitt des ausführlichen Hinweises): Lehrkraft legt Aufgaben +
-Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; bis zu 3 YouTube-Videos je Aufgabe unter dem Material, geladen erst nach Klick; Antwort als Textfeld, Tabelle oder Weltkarten-Zuordnung) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
+Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; bis zu 3 YouTube-Videos je Aufgabe unter dem Material, geladen erst nach Klick; Antwort als Textfeld, Tabelle, Weltkarten-Zuordnung oder Foto) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
 überarbeiten, verschlüsselt abgeben (danach finale KI-Rückmeldung zur abgegebenen Fassung – abwählbar, der Server legt sie verschlüsselt
 für die Lehrkraft zur Abgabe, Download höchstens 30/60/90 s gesperrt (Einstellung der Lehrkraft), sonst steht die Checkliste in der
 Lösungs-PDF) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); nach „Code generieren“
@@ -93,7 +93,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `/door`, Blatt-Codes enthalten immer Buchstaben. `GET …/submissions?after=<id>` liefert seitenweise (≤ 50 bzw.
   ≤ 8 MB je Seite – gezählt Umschlag + `finalEnv` –, `next` = letzte id oder `null`) je Eintrag `{id, receivedAt, stage, envelope,
   finalEnv}` (`finalEnv` = die vom Server abgelegte finale KI-Rückmeldung als JSON-Text des Umschlags, sonst `null`); das Frontend
-  schleift über `next`. `GET /api/health` ohne
+  schleift über `next`. Seit den Fotos (Umschläge bis ~1 MB) holt die Abfrage aus D1 nur die Zeilen, die die Seite braucht: von den
+  nächsten 51 Zeilen (Unterabfrage mit `length(envelope)+COALESCE(length(final_env),0)`, Fensterfunktionen `ROW_NUMBER()` und `SUM(…) OVER
+  (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)` = `before`) die ersten beiden und jede mit `before ≤ pageBytes` – sonst kämen
+  bis zu 51 große Zeilen in den Worker (128 MB, 10 ms CPU). Die Schleife danach zählt wie bisher genau (finalEnv als JSON-Text, nie weniger als
+  D1) und findet so immer die Zeile, an der sie abbricht (Unit-Test zählt die gelieferten Zeilen). `GET /api/health` ohne
   Datenbank. KI-Fehler, bei denen Warten hilft (BUSY, RATE_LIMIT, TIMEOUT) → 429 `ai_busy` mit `retryAfter`,
   Tageskontingent von Workers AI (kontoweit) → 503 `ai_quota` ohne `retryAfter`, sonst 502 `ai_error`; ohne
   `SETTINGS_SECRET` → 503 `server_not_configured` (nur beim Speichern eines API-Schlüssels). `GET`/`PUT /api/teacher/ai`
@@ -141,6 +145,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   gefehlt“ verbessert neu abgeben und erneut fragen; ein verspäteter Erstversuch bleibt wirkungslos (`kept`). Das Ersetzen einer Zeile
   derselben Bearbeitung (`UPDATE … WHERE id=? AND final_at IS NULL`) ist atomar: kam die finale Rückmeldung dazwischen, ändert sich nichts,
   Antwort 409 `final_locked` – so liegt `final_env` nie neben einem anderen Umschlag. Die Grenze je Blatt (40 MB) zählt `envelope` + `final_env`.
+  **Umschläge mit Fotos** (Antwortart Foto, siehe Antwortarten): `validateEnvelope(body.envelope, LIMITS.photoEnvelopeBytes)` (1000 KB; ein zu
+  langes `ct` scheitert vor dem Base64-Muster); ist der Umschlag größer als `LIMITS.envelopeBytes` (400 KB, `big`), sieht die erste Anweisung des
+  Batches nach, ob das Blatt eine Foto-Aufgabe hat (`CASE WHEN ?2 AND json_valid(tasks) THEN EXISTS(SELECT 1 FROM json_each(sheets.tasks) WHERE
+  json_extract(value,'$.answer.type')='photo') ELSE 0 END` – ohne `big` parst D1 kein JSON), sonst 413 `too_large` „Die Abgabe ist zu groß.“
+  (vor dem Zählen, nichts gespeichert). Dieselben vier Anweisungen wie bisher. Entscheidung (Erweiterung, nichts Bestehendes wird strenger):
+  nur Blätter mit Foto-Aufgabe bekommen die größere Grenze; `bodyBytes` (1 MB), `sheetBytes` (40 MB), `submissionsPerSheet`, `submit_bytes`
+  (60 MB/h) und `pageBytes` bleiben. Größter Umschlag + `final_env` (≤ 400 KB) < 2 MB je D1-Zeile; ein Request-Body mit dem größten Umschlag
+  < `bodyBytes` (Unit-Tests in lib.test und photo.test).
   `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
   `#p-klasse-hint` sagt es den Schüler:innen so: Angaben gehen mit dem KI-Feedback (Erstversuch), ohne KI-Feedback erst
   bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
@@ -163,7 +175,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   im Latin-1-String, liest `/Length` (direkt oder Verweis, sonst bis `endstream`) und entpackt `FlateDecode` per
   `DecompressionStream` – neu gespeicherte PDFs bleiben lesbar; `cleanDraft` prüft wie die Eingabefelder (Code,
   Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`,
-  Tippzeiten `typing` per `ttCleanDraft` nur passend, Widerspruch `ttOptOut`/`ttResend` per `ttDraftFlags` – dann `typing: null`). Startseite: `#start-pdf` →
+  Tippzeiten `typing` per `ttCleanDraft` nur passend, Widerspruch `ttOptOut`/`ttResend` per `ttDraftFlags` – dann `typing: null`, Fotos `photos` nur
+  als geprüfte JPEG-data:-URLs per `cleanPhoto`, an `answers` ausgerichtet). Startseite: `#start-pdf` →
   `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB, Blatt laden, Aufgabenzahl prüfen, bei neuerem
   lokalen Stand nachfragen; ein Widerspruch gegen die Tippzeit-Messung im lokalen Stand bleibt – `ttKeepOptOut`) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
@@ -203,9 +216,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   „KI-Feedback zur ersten Fassung:“, ohne Checkliste und ohne Satz zur finalen Rückmeldung;
   Fußzeile „Seite n von N“; nur mit KI-Stichpunkten (`hasAi`, vorab aus `items` berechnet) die KI-Kennzeichnung: sichtbar
   `AI_PDF_NOTE` unter dem Kopf, `/Subject` + `/Keywords` im Info-Dict, XMP-Stream (`xmpPacket`, UTF-8, `/Length` in Bytes,
-  letztes Objekt `6 + 2·Seiten`, `/Metadata` im Katalog) mit `Iptc4xmpExt:DigitalSourceType` `compositeSynthetic` – eine PDF nur mit Checkliste hat
+  letztes Objekt `6 + 2·Seiten + Fotos`, `/Metadata` im Katalog) mit `Iptc4xmpExt:DigitalSourceType` `compositeSynthetic` – eine PDF nur mit Checkliste hat
   davon nichts, nur den sichtbaren Satz zum KI-Vorschlag (siehe KI-Kennzeichnung); Dateiname `Feibeitsblatt-Loesungen-<Code>-<Datum>.pdf`, ohne
   Geburtstag. Die Quelltexte von `makeSolutionsPdf` und `escPdfPages` enthalten nie `typing` oder `.payload` (Unit-Test).
+  **Foto-Aufgaben** (`sub.kinds[i] === "photo"`, `sub.answers[i].photo`): unter „Meine Lösung (abgegebene Fassung):“ das Foto selbst, eingebettet
+  ohne neues Kodieren (`photoBytes` → `jpegInfo`; nur wenn `pdfPhotoOk`: SOF0/1/2, 1 oder 3 Farbkanäle, ≤ 4096 px) über `pg.addImage`/`pg.image`
+  (höchstens Satzspiegel × 330 pt, 96 dpi, dünner Rahmen; je Seite die Namen in `ops.ims`) und `pdfAssemble(…, {images})`: je Foto ein Objekt
+  `/Type /XObject /Subtype /Image … /ColorSpace /DeviceRGB|/DeviceGray /BitsPerComponent 8 /Filter /DCTDecode` mit der Nummer `6 + 2·Seiten + k`
+  (vor dem XMP, das letztes Objekt bleibt), Seiten mit `/XObject << /Im1 n 0 R >>`; ein unlesbarer Kopf → grau „[Foto – kann in dieser Datei nicht angezeigt
+  werden]“, ohne Foto „(kein Foto)“ (bzw. der Text einer älteren Seite, die ein Textfeld zeigte). Kein KI-Hinweis zur Foto-Aufgabe (wie bei der
+  Weltkarte), die Checkliste der Lehrkraft aber schon (anders als bei der Weltkarte – sinnvoll z. B. für ein Plakat).
 - **Finale KI-Rückmeldung zur abgegebenen Fassung (Wunsch der Lehrkraft vom 08.11.2026; ersetzt die frühere „zweite Rückmeldung“ nur zu
   geänderten Aufgaben):** `submitAll` gibt **zuerst** ab (die Abgabe hängt nie von der KI ab). **Angebot im Abgabe-Dialog** – auch **ohne erstes
   KI-Feedback**: `fb2Offer(finals, na)` (eingefroren beim Öffnen wie der Text des Dialogs) nur bei `S.sheet.aiFeedback`, mit Empfänger
@@ -383,7 +403,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `feibeitsblatt/auth/v1` (`authKey`; Server speichert nur SHA-256 hex, Vergleich in konstanter Zeit).
   Schlüsselpaar RSA-OAEP 3072/SHA-256; privater Schlüssel (PKCS8) AES-GCM-verschlüsselt unter `encKey`.
   Abgabe-Umschlag `{v:1, ek, iv, ct}` (AES-GCM-256 mit Zufallsschlüssel, `ek` = RSA-OAEP); die Personendaten stehen
-  nur im verschlüsselten payload. KDF-Parameter und `info`-Strings nie ändern ohne Versionswechsel – sonst sind
+  nur im verschlüsselten payload – ebenso die Fotos (Antwortart Foto, `answers[i].photo`; derselbe Umschlag, kein eigenes Format). KDF-Parameter und `info`-Strings nie ändern ohne Versionswechsel – sonst sind
   Zugang und alle Abgaben verloren. `authKey`/privater Schlüssel nur im Arbeitsspeicher. **Ausnahme – der Server verschlüsselt die finale
   KI-Rückmeldung selbst** (seit dem 08.11.2026, siehe Finale KI-Rückmeldung): `sealForTeacher(publicKeyB64, payload)` in lib.js genau wie
   `Crypto.seal` – zufälliger AES-GCM-256-Schlüssel, 12 Byte IV, AES-GCM über das UTF-8-JSON, der Schlüssel per RSA-OAEP/SHA-256 unter
@@ -400,7 +420,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   finale KI-Rückmeldung – RSA-OAEP-Verschlüsseln mit dem öffentlichen Schlüssel der Lehrkraft (günstig; Warten auf fetch/D1 zählt nicht;
   workerd begrenzt PBKDF2 ohnehin). ≤ 50 D1-Abfragen und ≤ 50
   Subrequests je Aufruf → `db.batch()`. D1: 5 Mio. gelesene / 100 000 geschriebene Zeilen pro Tag (seit 1.9.2026
-  hart) → Indizes, `COUNT` über Index. Lange KI-Anfragen sind ok (keine Wall-Time-Grenze bei verbundenem Client).
+  hart) → Indizes, `COUNT` über Index. Lange KI-Anfragen sind ok (keine Wall-Time-Grenze bei verbundenem Client). Abgaben mit Fotos
+  (Umschlag bis 1000 KB) belasten Speicher und Datenbank stärker: die Lehrkraft-Liste holt deshalb nur die Zeilen einer Seite aus D1 (siehe
+  API), und die 500 MB je Datenbank (Free) teilen sich Abgaben mit den 200 MB für Bilder und Dateien – die Löschfrist hält das im Rahmen.
 - **KI:** Nie Personendaten an die KI – `/api/feedback` bekommt nur `{code, answers}`, dazu `recipients` (ids der Empfänger) und im
   Final-Modus `final`, `attempt`, `receivedAt` (siehe API, Krypto); nichts davon geht an die KI. Der Worker baut die Nachrichten
   **selbst** aus D1 (Aufgaben, reiner Text des Materials, Aufträge an die KI – nie Videos, Bilder oder Dateien) und den Antworten (`buildFeedbackMessages`; nie `messages` vom
@@ -646,8 +668,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   ebenfalls auf den Abschnitt („(siehe „Widerspruch gegen die Tippzeit-Messung“)“). **Was zum Zwischenstand und zur Zwischenstand-PDF gesagt wird, hängt an `TT_KEEP_IN_DRAFT`** (`ttInDraft`
   in `privacyNoticeDom`, Parameter `keep` von `TT_SWITCH_EFFECT`/`TT_SWITCH_SCOPE`; ohne – eingecheckt –: „bis zur Abgabe hält diese Seite
   sie nur im Arbeitsspeicher – in deinem Zwischenstand und in einer Zwischenstand-PDF-Datei stehen sie nicht.“, kein „außer den
-  Tippzeiten darin“ beim § 25) – nie fest verdrahten. Alle Tippzeit-Sätze entfallen bei Blättern nur mit Weltkarten (`typing:
-  ttMeasured(sh)` – dort wird nichts gemessen; dann auch kein `TT_SHORT` und kein Abschnitt zum Widerspruch). **Kurzfassungen:
+  Tippzeiten darin“ beim § 25) – nie fest verdrahten. Alle Tippzeit-Sätze entfallen bei Blättern nur mit Weltkarten und Fotos (`typing:
+  ttMeasured(sh)` – dort wird nichts gemessen; dann auch kein `TT_SHORT` und kein Abschnitt zum Widerspruch). **Fotos** (nur bei Blättern
+  mit Foto-Aufgabe, `sheetPhotoCount(sh)`; Muster wie die Videos: eigene Absätze, nie in andere Sätze gemischt): `photoShort(g)` als
+  `p.privacy#p-privacy-photo` (Angaben-Bildschirm, nach `#p-privacy-yt`) bzw. `#privacy-photo` (Schreibbereich, nach `#privacy-yt`) und
+  `privacyNoticeDom(…, {photos: true})` → `B.photoData` (`PHOTO_PRIV_DU`/`PHOTO_PRIV_IHR`) als Absatz unter „Welche Daten?“ **nach** den Absätzen
+  zu Tippzeiten, Escape-Room und Videos (so bleibt `„Welche Daten?“ + p + p` = `TT_ACCESS`): Foto gehört zu den Antworten, nur eigene Arbeit,
+  verkleinert ohne EXIF, bis zur Abgabe im Zwischenstand (und in Zwischenstand-PDFs), an die Lehrkraft nur verschlüsselt mit der Abgabe, nie an
+  eine KI (für KI-Anfragen nur der Vermerk `PHOTO_TEXT`, die Aufgabe nicht im Prompt); „Impressum & Datenschutz“: eigener Abschnitt
+  `section#legal-photo` „Feibeitsblätter mit Foto-Aufgaben“ (`renderLegalPhoto`, allgemeine Form). Rechtsgrundlage wie die übrigen Antworten
+  (das Foto ist Teil der Bearbeitung; im Zwischenstand wie die Texte unter § 25 Abs. 2 Nr. 2 TDDDG – kein eigener Listenpunkt). **Kurzfassungen:
   genau ein neutraler Satz** – Entscheidung des Betreibers vom 27.10.2026, zweite Fassung nach Rechtsprüfung (die erste Fassung „gar
   nicht in der Kurzfassung“ ist überholt): `TT_SHORT(g)` „Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen
   kannst du unter „Alle Informationen zum Datenschutz“.“ (Angaben-Bildschirm einer Gruppe: „… widersprechen könnt ihr unter …“),
@@ -679,7 +709,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (allgemeine Sätze: KI-Dienst wird vor dem Senden genannt, Frist nach dem Code) und Hinweis in `#legal-status`; `#legal-other`
   zu Blättern ohne KI und Gruppen, danach `section#legal-escape` „Feibeitsblatt als Finale eines Escape-Rooms“ (allgemeine Form,
   siehe Escape-Room-Anbindung; `#legal-privfull` bleibt dafür unverändert) und `section#legal-video` „Feibeitsblätter mit Videos von
-  YouTube“ (allgemeine Form, siehe YouTube-Videos). Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
+  YouTube“ (allgemeine Form, siehe YouTube-Videos) und `section#legal-photo` „Feibeitsblätter mit Foto-Aufgaben“. Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
   `rel="noopener"`, sr-only „(öffnet in neuem Tab)“ (`.copyright a` klickbar trotz `pointer-events:none`; auf der Seite selbst
   ausgeblendet per `body.on-legal`). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
   Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
@@ -895,8 +925,58 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   erfunden): E2E 7d liest ihren Datensatz selbst und vergleicht – eine andere Sicherung derselben Form lässt sich einsetzen.
   E2E 7c: Weltkarte + Tabelle anlegen, zuordnen (falsch 3 s rot, richtig gleiche Farbe/Pfeil), Zoom, Tastatur, Tabelle,
   Neuladen, Feedback-Prompt, Abgabe, Lehrkraft-Ansicht, Sicherung/Import.
+  **Foto** (Wunsch der Lehrkraft vom 10.11.2026, z. B. ein Foto vom eigenen Plakat): `{type:"photo"}` ohne weitere Felder (`validateAnswerSpec`
+  verwirft unbekannte – was zu sehen sein soll, steht in der Aufgabenstellung), höchstens `LIMITS.photoTasks` 3 je Blatt (`validateSheetInput`:
+  400 „Höchstens 3 Aufgaben mit der Antwortart Foto je Feibeitsblatt.“; `ANS_LIMITS.photoTasks` = `PHOTO_TASKS` im Browser, `b-gen` prüft
+  dasselbe). `solution` wird `""` wie bei der Weltkarte – `NO_AI_ANSWER_TYPES` (lib.js, `{map, photo}`) = `NO_AI_KINDS` im Browser: `wantsFeedback`
+  (Feedback vor und nach der Abgabe, `feedbackResults` → `NO_SOLUTION_NOTE`), `buildChecklistMessages`, `ckWants`; `teacherAnswer`/`publicAnswer`
+  liefern genau `{type:"photo"}`. **Darstellung (Vertrag, auch für Fremdsysteme, die Blätter per API anlegen und Abgaben entschlüsseln):**
+  Textform = `PHOTO_TEXT` „[Foto]“ mit Foto, sonst `""` – sie steht in `answers` des Zwischenstands und in `answers[i].first/final` von
+  Erstversuch und Abgabe, geht in `/api/feedback` (vor und nach der Abgabe, also auch in den Prüfwert `ah` – `finalAnswersDigest` bleibt
+  unverändert); die Foto-Aufgabe selbst steht nie im Prompt. Das Foto ist ein JPEG als data:-URL `data:image/jpeg;base64,<Standard-Base64>`
+  (`PHOTO_PREFIX`; `cleanPhoto`: beginnt mit `/9j/`, Länge Vielfaches von 4, ≤ `PHOTO_DATA_MAX` Zeichen – sonst „kein Foto“): im Zwischenstand
+  `photos` (an `answers` ausgerichtet, `null` ohne Foto; fehlt, wenn es keines gibt), in der Abgabe (stage final) `answers[i].photo` (nur mit
+  Foto), **nie im Erstversuch** (dort `{first, final: null}` wie bei jeder Aufgabe). Ältere Lehrkraft-Seiten kappen `answers[i]` auf
+  `{first, final}` und zeigen „[Foto]“ als Text (nichts bricht, `ah` passt); ältere, gecachte Schüler-Seiten kennen die Art nicht und zeigen
+  ein Textfeld – die Lehrkraft-Ansicht zeigt dann diesen Text statt „(kein Foto)“. **Block PHOTO** (`/* PHOTO:BEGIN … PHOTO:END */`, reine
+  Funktionen, `photo.test.mjs`): `PHOTO_MAX_SIDE` 1280, `PHOTO_MAX_BYTES` 200 KB, `PHOTO_TOTAL_BYTES` 400 KB, `photoBudget(n)` = min(200 KB,
+  ⌊400 KB / n⌋) je Foto bei n Foto-Aufgaben (`sheetPhotoCount`), `PHOTO_STEPS` (1280 px/0,72 → 1280/0,6 → 1024/0,62 → 1024/0,5 → 800/0,55 →
+  640/0,5 → 480/0,45 – die erste Stufe im Budget gewinnt), `PHOTO_ENV_MAX` = `LIMITS.photoEnvelopeBytes`, `photoBytes`, `photoInfo` (Größe und
+  Bytes ohne ganzes Dekodieren), `jpegInfo` (SOF-Kopf), `pdfPhotoOk`. **Schreibbereich (`photoWidget`, `S.tas[i]._kind` "photo"):**
+  `div.photow#a-n` (role group) mit Vorschau `button.photo-view` (Klick → `openLightbox`), Größe `.photo-meta` („1280 × 960 Pixel · 180 KB“),
+  „Noch kein Foto.“, `button.photo-cam` „Foto aufnehmen“ (`input[type=file][accept=image/*][capture=environment]`) und `button.photo-pick` „Bild
+  auswählen“ (ohne capture: Galerie bzw. Datei), mit Foto „Neues Foto aufnehmen“/„Anderes Bild auswählen“/„Foto entfernen“ (`askConfirm` „Foto
+  entfernen?“, danger), Ablegen per Ziehen, Hinweis `PHOTO_HINT` (nur eigene Arbeit, ohne Personen; verkleinert ohne Aufnahmeort; nur
+  verschlüsselt mit der Abgabe, nie an eine KI), Statuszeile `.photo-stat` („Das Foto wird verkleinert …“, „Foto übernommen.“, Fehler in du-Form,
+  z. B. HEIC). `preparePhoto(file, budget)`: ≤ 40 MB, `decodeImage` (EXIF-Drehung), canvas weiß hinterlegt, `imageSmoothingQuality` high,
+  `toBlob("image/jpeg", q)` – das Neuzeichnen entfernt EXIF. `value` = Textform (Setter: nur `""` leert), `photo` = data:-URL, `readOnly` sperrt
+  die Knöpfe (KI-Anfrage). Keine Einfügesperre (keine `textarea`), keine Tippzeiten (`NO_TYPING_KINDS` in `ttCodesOf`/`ttB64Of`/`ttResetAll`/
+  `ttRestore`, `ttMeasured`; im Block TYPING `TT_UNTYPED` für `ttDetail`), keine Rechtschreibprüfung, keine KI-Feedback-Box (auch nicht auf dem
+  Abschlussbildschirm). `#sheet-meta` ergänzt „Bei einer Foto-Aufgabe nimmst du ein Foto auf oder wählst ein Bild aus.“. **Zwischenstand:**
+  `draftRecord` legt `photos` dazu (je Foto bis ~270 000 Zeichen im localStorage, bei jedem Speichern neu geschrieben); ist der Speicher voll,
+  speichert `saveDraft` nach dem Versuch ohne Tippzeiten einen Stand ohne `typing` und `photos` (`SAVE_NO_PHOTOS` „Zwischenstand ohne Foto
+  gespeichert – …“, als Fehler gefärbt) und hält den vollen Stand in `heldDrafts` (Weiterschreiben ohne Neuladen behält das Foto; nach dem
+  Neuladen meldet das Feld `PHOTO_LOST`, wenn die Textform „[Foto]“ ohne Foto zurückkommt). Bekannte Grenze: localStorage (≈ 5 MB je Herkunft)
+  fasst nur wenige Zwischenstände mit Fotos. `openEditor` setzt `photo` aus `d.photos` (immer über `cleanPhoto`), `cleanDraft` (PDF) ebenso;
+  die Zwischenstand-PDF enthält die Fotos (Stand „x von n Aufgaben bearbeitet (k mit Foto)“, Hinweis „… lesbar – auch deine Fotos.“).
+  **Abgabe:** `submitAll` und die Abschluss-PDF einer gescheiterten Escape-Abgabe hängen `photo` an; `sealPayload` prüft bei Blättern mit
+  Foto-Aufgabe gegen `PHOTO_ENV_MAX` (sonst `TT_ENV_MAX`, `ttEnvelopeFits(env, max)`), lässt erst Tippzeiten, dann Escape-Einzelheiten weg und
+  schickt eine Abgabe mit Fotos, die dann noch zu groß wäre (sehr lange Texte), gar nicht erst (`ApiError` too_large → „Bitte kürze deine
+  Antworten.“). `S.lastSubmission.answers[i].photo` für die Lösungs-PDF (eingebettet, siehe Zwischenstand als PDF). **Lehrkraft:** Blatt-Editor
+  Option „Foto“ (`#bt-n` value "photo", `.bans-photo` mit Hinweis und Grenzen, Auftrag an die KI ausgeblendet, `NO_SOL_TEXT.photo` in `.nosol`),
+  `builderAnswer`, Vorlage, Sicherung (`task.answer = {type:"photo"}`, sichtbar „Antwortart: Foto – …“) und Import tragen die Art mit;
+  Blattdetails `answerSpecDom` „Antwortart: Foto“ (`PHOTO_SPEC_TEXT`), kein „Auftrag an die KI“. `loadSubs` übernimmt `answers[i].photo` nur
+  über `cleanPhoto` (sonst entfällt es). Details: eine Spalte „Abgegebenes Foto“ (`photoDetailDom`: Vorschau `.dphoto-view` → Vergrößerung,
+  Größe, „Foto herunterladen“ als `Feibeitsblatt-Foto-<Code>-<Klasse>-<Kürzel>-Aufgabe-n.jpg` per `dataUrlToBlob`/`downloadBlob`), kein
+  „Angezeigtes KI-Feedback“; die Lösungs-PDF aus der Übersicht bettet es ein (`teacherSolutionsSub`). Analoges Arbeitsblatt: ein Rahmen über
+  die volle Breite (`ANALOG_PHOTO_PT` 220 pt, `analogPhoto`) mit „Hier kannst du zeichnen oder ein Foto einkleben.“ (auch im Text von
+  `#ck-intro1`). Datenschutz: siehe Datenschutz-Angaben („Fotos“). E2E 7s (eigenes Blatt, wird gelöscht; `PHOTO_SHOTS_OUT=<Ordner>` speichert
+  Bildschirmfotos): Anlegen (Auftrag ausgeblendet), Foto über die Kamera-Auswahl (PNG 1600 × 1200 → JPEG 1280 × 960), Vergrößerung, `photos` im
+  Zwischenstand, Neuladen, Ersetzen (400 × 300), Entfernen abgebrochen, kein Bild → Meldung, KI-Feedback nur mit „[Foto]“ (Prompt ohne die
+  Aufgabe), Erstversuch ohne Foto, Abgabe in D1 entschlüsselt mit `photo`, `final_env` passt (`ah`), Lösungs-PDF mit `/DCTDecode`,
+  Lehrkraft-Details, Vergrößern, Herunterladen (Name und Bytes), Lösungs-PDF der Übersicht, analoges Arbeitsblatt, Sicherung und Import.
 - **Tippzeit-Messung (nur im Browser; Server, KI und Lösungs-PDF unverändert):** je `textarea.answer`/`textarea.tcell` (nie
-  Weltkarte) `el._tt = {text, recs:[{t, g?}], undo, lastDel, ver}` (`ttNew`); Zeitpunkt `performance.now()` im Capture-Listener
+  Weltkarte oder Foto – `NO_TYPING_KINDS`) `el._tt = {text, recs:[{t, g?}], undo, lastDel, ver}` (`ttNew`); Zeitpunkt `performance.now()` im Capture-Listener
   `input` (`_evTs`/`_evType`, vor jedem frühen `return`; nie `Date.now` – E2E 3e hält ihn fest), Abgleich `ttSync` (über
   `ttSyncSafe` als erste Zeile von `answerChanged`, Netz im `compositionend`) → `ttApply`: Präfix/Suffix wie `inserted` (`ttDiff`,
   nie ein Ersatzzeichen-Paar teilen; `selectionEnd` wählt bei gleichen Nachbarn – „aa“ → „aaa“ – die getippte Stelle),
@@ -1510,12 +1590,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   KI-Anfragen: KI-Feedback und finale KI-Rückmeldung, die nach der Abgabe fast immer kommt) (gezählt
   erst, wenn die Anfrage gültig ist und zur KI geht – eine finale Anfrage, die `checkFinal` ablehnt (`final_*`), zählt nie; bei
   BUSY/RATE_LIMIT/TIMEOUT/SERVER/NETWORK/DAILY_LIMIT
-  Rückerstattung), `submit` 360/h + `submit_bytes` 60 MB/h (nur gültige Abgaben/Erstversuche zu existierenden
+  Rückerstattung), `submit` 360/h + `submit_bytes` 60 MB/h (mit Fotos etwa 0,2–0,8 MB je Abgabe – reicht für etwa 75–300 Abgaben je Stunde
+  und Netzwerk; nur gültige Abgaben/Erstversuche zu existierenden
   Blättern; je Schüler:in bis zu zwei Aufrufe – Erstversuch und Abgabe –, ohne erstes Feedback einer; ein `feedback2` älterer Seiten und ein
   `final_locked` zählen nie), `checklist` 60/h je IP (KI-Vorschlag der Checkliste – jedes neue Blatt fragt nach „Code generieren“ einmal –, Erstattung wie beim Feedback).
   Je Blatt höchstens 400 Abgaben / 40 MB (Umschläge samt `final_env`). Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
   als Pfeffer), IPv6 vorher auf /64 gekürzt (`ipKey`) – nie Klartext-IPs speichern. Schulnetz = eine IP für viele.
-- **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`); `node test/smoke.mjs` (API gegen echten
+- **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`; Antwortart Foto: `photo.test.mjs` liest den Block PHOTO – Grenzen gegen
+  `LIMITS`, `cleanPhoto`, `jpegInfo`/`pdfPhotoOk`, `photoBudget` und ein echter Umschlag mit 1–3 größten Fotos samt 150 KB Text ≤
+  `LIMITS.photoEnvelopeBytes` und Body ≤ `bodyBytes`; lib/ai/worker/typing.test für Validierung, Prompt, große Umschläge nur bei Foto-Blättern
+  und die Liste nach Bytes – der Test zählt die Zeilen, die D1 liefert; Smoke-Schritt „Antwortart Foto“ gegen echtes D1); `node test/smoke.mjs` (API gegen echten
   `wrangler dev --local` + `test/mock-ai.mjs`, Ports 8811/8812, am Ende auch der Zeitplan); `npm run test:e2e` (Playwright 1.56.1, Ports
   8787/8790, frischer Zustand je Lauf – nicht parallel zu `npm run dev`). Workers AI ist lokal nie erreichbar: Unit-Tests
   nutzen ein gefälschtes `env.AI` (`fakeAI` in ai.test.mjs, `mockAIBinding(mock)` aus `test/mock-ai.mjs` mit `mode`
@@ -1565,7 +1649,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   KI im Test: Anbieter `custom`, baseUrl `http://127.0.0.1:<port>/v1` (Mock); LanguageTool per
   `page.route("https://api.languagetool.org/**")`, YouTube/Google per Attrappe (siehe YouTube-Videos: nie echte Anfragen). In der
   Sandbox: echte KI-Anbieter, LanguageTool und YouTube nicht erreichbar, Browser unter `/opt/pw-browsers` – **nie `playwright
-  install`**. Gestartete Server immer beenden. **Finale KI-Rückmeldung in E2E-Tests:** Nach jeder Abgabe mit KI startet sie im Hintergrund
+  install`**. Passt die Revision dort nicht zu Playwright 1.56.1 (erwartet 1194; am 10.11.2026 lag dort 1243), laufen die Tests nur mit einer
+  lokalen Kopie der Konfiguration außerhalb des Repositorys, die `launchOptions.executablePath` auf das vorhandene Chromium setzt (testDir/cwd
+  absolut); belegen andere Sitzungen 8787/8790, `E2E_PORT`/`E2E_MOCK_PORT` setzen (env.mjs). Gestartete Server immer beenden. **Finale KI-Rückmeldung in E2E-Tests:** Nach jeder Abgabe mit KI startet sie im Hintergrund
   (vorausgewählt) und sperrt den Download bis zur Wartezeit – in den Tests die Vorgabe 30 s, länger als `expect.timeout` (20 s); der Mock-Modus ist global, eine finale Anfrage kann
   in den Modus eines späteren Schritts oder Tests fallen. Tests, die das nicht prüfen, wählen sie im Abgabe-Dialog ab (`confirmDialog(page, title,
   true, {check: false})` in `helpers.mjs`), warten auf sie oder halten `/api/feedback` per `page.route` an; nach 30 s gedrückte Downloads
