@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { inflateSync, deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
-import { expectedResults, expectedChecklist } from "../mock-ai.mjs";
+import { expectedResults, expectedChecklist, parseFeedbackPrompt } from "../mock-ai.mjs";
 import jsQR from "jsqr";
 import { deriveTeacherKeys, makeEnvelope, openPrivateKey, openEnvelope } from "../smoke.mjs";
 import { makePng } from "../png.mjs";
@@ -3201,9 +3201,10 @@ test("5 Datenbank enthält keinen Klartext der Abgaben; /api/sheet liefert nie d
     expect(res.status()).toBe(200);
     const body = await res.text();
     const j = JSON.parse(body);
-    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "code", "escape", "finalWaitSec", "privacy", "publicKey", "tasks", "title"]);
+    expect(Object.keys(j.sheet).sort()).toEqual(["aiFeedback", "aiProvider", "aiRecipients", "aiTasks", "code", "escape", "finalWaitSec", "privacy", "publicKey", "tasks", "title"]);
     expect(j.sheet.finalWaitSec).toBe(30);   // Wartezeit auf die finale KI-Rückmeldung (Vorgabe; Einstellung der Lehrkraft, siehe 7r)
     expect(j.sheet.aiFeedback).toBe(true);
+    expect(j.sheet.aiTasks).toEqual([1, 2]);   // Aufgaben mit Auftrag an die KI (nur die Nummern, nie der Auftrag)
     expect(j.sheet.escape).toBe(null);   // kein Finale eines Escape-Rooms
     expect(j.sheet.aiRecipients).toEqual([{ id: "custom:" + j.sheet.aiProvider, label: j.sheet.aiProvider + RECIPIENT_SUFFIX, transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }]);
     expect(j.sheet.privacy).toEqual({ retentionDays: DAYS });   // nur die Frist (ohne updatedAt; verantwortlich ist der Betreiber, fest in index.html)
@@ -3748,7 +3749,8 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   const s = await student(G);
   const { page } = s;
   await expect(page.locator("#fin-text")).toHaveText(FIN_TEXT);
-  await expect(page.locator("#privacy")).toContainText("Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.");
+  // zwei Aufgaben mit Auftrag an die KI → auch Buttons „KI-Feedback nur zu dieser Aufgabe“ (7t): der Hinweis nennt beide Wege
+  await expect(page.locator("#privacy")).toContainText("Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ (später „KI-Feedback zu den übrigen Aufgaben“) oder bei einer Aufgabe auf „KI-Feedback nur zu dieser Aufgabe“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI – beim Button einer Aufgabe nur deine Antwort zu dieser Aufgabe, beim Button unten deine Antworten zu den Aufgaben, zu denen du noch kein KI-Feedback hast; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.");
   await expect(page.locator("#privacy")).toContainText("Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund).");
   await expect(page.locator("#submit-btn")).toBeEnabled();
   await expect(page.locator("#submit-btn")).toHaveAccessibleDescription(SUBMIT_HINT_NO_FB);
@@ -8212,6 +8214,520 @@ test("7r Finale KI-Rückmeldung: Checkliste beim Anlegen (KI-Vorschlag, ändern,
 
   // aufräumen: das Blatt samt Abgaben und Checkliste löschen
   await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+/* ---------- KI-Feedback je Aufgabe (Entscheidung der Lehrkraft vom 17.11.2026) ---------- */
+test("7t KI-Feedback je Aufgabe: Buttons „KI-Feedback nur zu dieser Aufgabe“ nur bei Text- und Tabellenaufgaben mit Auftrag an die KI (nicht bei nur einer solchen Aufgabe, nicht mit einem älteren Worker) → leer: kein Dialog, nichts gesendet; ausgelastet: Warten an der Aufgabe, der Button bleibt; je Aufgabe einmal (Dialog mit Empfängern, nur diese Antwort mit only, Fokus in die Box) → Erstversuch nur mit diesen Aufgaben, mit jedem weiteren Feedback in derselben Zeile ersetzt; Neuladen und Zwischenstand-PDF behalten den Stand; der Button unten fragt danach nur die übrigen Aufgaben; Abgabe sichtbar wie bisher (ohne Feedback: erste Fassung = abgegebene); Lehrkraft-Ansicht je Aufgabe; Lösungs-PDF", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  // Blatt: 1 Text, 2 Tabelle, 3 und 4 Text (alle mit Auftrag), 5 Text ohne Auftrag, 6 Foto
+  const T7 = [
+    { text: TASKS[0].text, solution: TASKS[0].solution },
+    { text: "Erkläre zwei Begriffe in der Tabelle.", solution: "- Gewissen\n- Moral\n- Beispiel nennen" },
+    { text: TASKS[1].text, solution: TASKS[1].solution },
+    { text: "Wie fühlst du dich, wenn du etwas falsch gemacht hast?", solution: "- Gefühl benennen\n- Wiedergutmachung" },
+    { text: "Was möchtest du noch sagen?", solution: "" },
+    { text: "Fotografiere dein Plakat.", solution: "" },
+  ];
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "KI-Feedback je Aufgabe");
+  for (let k = 4; k <= 6; k++) { await tp.click("#b-add"); await expect(tp.locator("#bq-" + k)).toBeFocused(); }   // die neue Zeile holt sich kurz danach den Fokus
+  for (let i = 0; i < T7.length; i++) {
+    await tp.fill("#bq-" + (i + 1), T7[i].text);
+    if (T7[i].solution) await tp.fill("#bs-" + (i + 1), T7[i].solution);
+  }
+  await tp.selectOption("#bt-2", "table");
+  await tp.fill("#bc-2", "Begriff; Erklärung");
+  await tp.fill("#br-2", "2");
+  await tp.selectOption("#bt-6", "photo");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#ck-state")).toContainText("Vorschlag der KI");   // der Vorschlag der Checkliste ist da (eigene KI-Anfrage)
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  // öffentlich nur die Nummern der Aufgaben mit Auftrag an die KI (nie der Auftrag; nie Foto oder Text ohne Auftrag)
+  const pub = await (await request.get("/api/sheet/" + code)).json();
+  expect(pub.sheet.aiTasks).toEqual([1, 2, 3, 4]);
+  expect(pub.sheet.aiFeedback).toBe(true);
+  for (const x of T7) for (const line of x.solution.split("\n").map((l) => l.replace(/^- /, "")).filter((l) => l.length >= 15)) expect(JSON.stringify(pub)).not.toContain(line);
+
+  const ANS = {
+    a1: "Das Gewissen ist eine innere Instanz.",
+    cells: ["Gewissen", "innere Stimme", "Moral", "Regeln für alle"],
+    a3: "Ich habe einmal gelogen.",
+    a4: "Ich fühle mich schlecht.",
+    a5: "Danke für die Stunde.",
+    rev1: " Es meldet sich als schlechtes Gewissen.",
+    rev3: " Die Begründung: Lügen ist unfair.",
+  };
+  const A2T = "Begriff | Erklärung\n" + ANS.cells[0] + " | " + ANS.cells[1] + "\n" + ANS.cells[2] + " | " + ANS.cells[3];
+  const FBT_LABEL = "KI-Feedback nur zu dieser Aufgabe", FBT_DONE = "KI-Feedback zu dieser Aufgabe erhalten", FBT_REST = "KI-Feedback zu den übrigen Aufgaben";
+  const SUBMIT_HINT_FB = "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " +
+    "Nach der Abgabe bekommst du eine finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt (beim Abgeben abwählbar).";
+  const FBT_FINAL = "nach der Abgabe gehen alle deine Antworten denselben Weg für die finale KI-Rückmeldung (beim Abgeben abwählbar; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen)";
+  const rsTo = (nums) => RS_MOCK.replace("Deine Antworten gehen", nums.length === 1 ? "Nur deine Antwort zu Aufgabe " + nums[0] + " geht" : "Nur deine Antworten zu den Aufgaben " + nums.slice(0, -1).join(", ") + " und " + nums[nums.length - 1] + " gehen");
+  const fbtDialogText = (to, rs, one) => FB_VOLUNTARY + "\n" + rs + "\nDas KI-Feedback zum Überarbeiten gibt es zu jeder Aufgabe nur einmal – " + to + " mit diesem Klick; " + FBT_FINAL + ". " +
+    (one ? "Deine Antwort " : "Deine Antworten ") + to + " zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – " + (one ? "wird" : "werden") +
+    " als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch, der mit jedem weiteren KI-Feedback ersetzt wird) und später mit abgegeben.";
+  const btnOf = (page, n) => page.locator("#fbt-btn-" + n);
+  const expectBtn = async (page, n, got, enabled) => {
+    await expect(btnOf(page, n)).toHaveText(got ? FBT_DONE : FBT_LABEL);
+    await expect(btnOf(page, n)).toHaveAccessibleName((got ? FBT_DONE : FBT_LABEL) + " – Aufgabe " + n);   // sichtbarer Text samt Nummer der Aufgabe
+    if (enabled) await expect(btnOf(page, n)).toBeEnabled(); else await expect(btnOf(page, n)).toBeDisabled();
+  };
+  const draftOf = (pg) => pg.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("feibeitsblatt:draft:")); return k ? JSON.parse(localStorage.getItem(k)) : null; });
+  const steps = (pg) => pg.locator("#ed-steps-list li");
+  const curStep = (pg) => pg.evaluate(() => Array.from(document.querySelectorAll("#ed-steps-list li")).findIndex((li) => li.classList.contains("cur")) + 1);
+  const fbPosts = async (x) => (await x.calls((e) => e.path === "/api/feedback" && e.method === "POST")).map((e) => ({ status: e.status, body: JSON.parse(e.reqBody || "{}"), res: e.body }));
+  const firstOk = async (x) => (await x.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody || "{}")).filter((b) => b.stage === "first");
+  const priv = await teacherPriv();
+  const rowsOf = () => d1Query(`SELECT id, stage, attempt, received_at, envelope FROM submissions WHERE sheet_code='${code}' ORDER BY id`);
+  const nulls = (n) => Array(n).fill(null);
+
+  /* ---------- Schüler:in Kai ---------- */
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "kai", nachname: "je", geb: "--03-03", klasse: "8c" });
+  // Buttons nur bei den Aufgaben 1–4 (Text und Tabelle mit Auftrag): Text in der Zeile der Rechtschreibprüfung, Tabelle in einer eigenen Zeile
+  await expect(page.locator(".fbtbtn")).toHaveCount(4);
+  for (let n = 1; n <= 4; n++) await expectBtn(page, n, false, true);
+  await expect(page.locator("#t-1 .checkrow").locator(".ltbtn, .fbtbtn")).toHaveCount(2);
+  await expect(page.locator("#t-2 .checkrow.fbt-row #fbt-btn-2")).toHaveCount(1);
+  await expect(page.locator("#t-2 .ltbtn")).toHaveCount(0);
+  await expect(page.locator("#t-5 .fbtbtn, #t-6 .fbtbtn")).toHaveCount(0);
+  await expect(page.locator("#t-5 .ltbtn")).toHaveCount(1);
+  for (let n = 1; n <= 4; n++) await expect(page.locator("#fbt-st-" + n)).toHaveAttribute("role", "status");
+  await expect(page.locator("#fb-btn")).toHaveText("KI um ein Feedback bitten");   // solange kein Button einer Aufgabe benutzt wurde: wie bisher
+  await expect(page.locator("#fin-text")).toHaveText(FIN_TEXT);
+  await expect(steps(page)).toHaveText(STEPS_AI);
+  expect(await curStep(page)).toBe(1);
+  // Datenschutz unter dem Button: beide Wege; der Erstversuch wird mit jedem weiteren KI-Feedback ersetzt
+  await expect(page.locator("#privacy")).toContainText("Nur wenn du auf „KI um ein Feedback bitten“ (später „" + FBT_REST + "“) oder bei einer Aufgabe auf „" + FBT_LABEL + "“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI – beim Button einer Aufgabe nur deine Antwort zu dieser Aufgabe, beim Button unten deine Antworten zu den Aufgaben, zu denen du noch kein KI-Feedback hast;");
+  await expect(page.locator("#privacy")).toContainText("an den Server dieser Seite geschickt – ebenso beim Button einer Aufgabe.");
+  await expect(page.locator("#privacy")).toContainText("Bekommst du KI-Feedback nur zu einzelnen Aufgaben, enthält der Erstversuch nur diese Aufgaben und wird mit jedem weiteren KI-Feedback ersetzt.");
+  await expectOnlyTtShort(page, "Schreibbereich mit Buttons je Aufgabe");
+  await mockReset();
+
+  // leere Antwort: kein Dialog, nichts gesendet – die eine Chance bleibt
+  await btnOf(page, 1).click();
+  await expect(page.locator("#fbt-st-1")).toHaveText("Schreibe zuerst eine Antwort zu Aufgabe 1.");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await expectBtn(page, 1, false, true);
+  expect(await fbPosts(s)).toEqual([]);
+
+  // Antworten (Aufgabe 4 bleibt vorerst leer), Foto zu Aufgabe 6
+  await typeAt(page, "#a-1", ANS.a1);
+  const cells = page.locator("#a-2 textarea.tcell:not(.measure)");
+  for (let k = 0; k < 4; k++) { await cells.nth(k).click(); await page.keyboard.type(ANS.cells[k]); }
+  await typeAt(page, "#a-3", ANS.a3);
+  await page.locator("#a-6 input.photo-file").nth(1).setInputFiles({ name: "plakat.png", mimeType: "image/png", buffer: makePng(400, 300, [30, 140, 90]) });
+  await expect(page.locator("#a-6 .photo-stat")).toHaveText("Foto übernommen.");
+
+  // ausgelastet (429 ai_busy): Warten an der Aufgabe, alle Feedback-Buttons gesperrt; „Nicht länger warten“ → der Button bleibt (kein Feedback erhalten)
+  await page.route("**/api/feedback", (route) => route.fulfill({ status: 429, contentType: "application/json", headers: { "retry-after": "30" },
+    body: JSON.stringify({ ok: false, error: "Gerade fragen sehr viele gleichzeitig.", code: "ai_busy", aiCode: "BUSY", retryAfter: 30 }) }));
+  await btnOf(page, 3).click();
+  await confirmDialog(page, "KI-Feedback zu Aufgabe 3 anfordern?");
+  await expect(page.locator("#fbt-wait-3")).toBeVisible();
+  await expect(page.locator("#fbt-wait-num-3")).toHaveText(/^Nächster Versuch in \d+ s$/);
+  await expect(page.locator("#fbt-st-3")).toContainText("die KI ist ausgelastet. Nächster Versuch automatisch in etwa");
+  await expect(page.locator("#fbt-st-3")).toContainText("(Versuch 2 von 5)");
+  await expect(page.locator("#fb-wait")).toBeHidden();
+  await expect(page.locator("#fb-status")).toHaveText("");
+  for (const n of [1, 2, 3, 4]) await expect(btnOf(page, n)).toBeDisabled();   // immer nur eine Anfrage
+  await expect(page.locator("#fb-btn")).toBeDisabled();
+  expect(await curStep(page)).toBe(2);
+  await expect(page.locator("#fbt-wait-stop-3")).toHaveAccessibleName("Nicht länger warten – KI-Feedback zu Aufgabe 3");
+  await page.click("#fbt-wait-stop-3");
+  await expect(page.locator("#fbt-st-3")).toHaveText("Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
+  await expect(page.locator("#fbt-wait-3")).toBeHidden();
+  for (const n of [1, 2, 3, 4]) await expectBtn(page, n, false, true);
+  await expect(page.locator("#fb-btn")).toHaveText("KI um ein Feedback bitten");
+  await expect(page.locator("#fb-btn")).toBeEnabled();
+  await page.unroute("**/api/feedback");
+  let posts = await fbPosts(s);
+  expect(posts.map((p) => p.status)).toEqual([429]);
+  expect(posts[0].body).toEqual({ code, answers: ["", "", ANS.a3, "", "", ""], recipients: posts[0].body.recipients, only: [3] });
+  expect(await mockCount("feedback")).toBe(0);
+
+  // Aufgabe 1 einzeln: Dialog mit Empfängern (nur diese Antwort), einmal je Aufgabe, Freiwilligkeit wie bisher – keine Wörter zur Tippzeit-Messung
+  await btnOf(page, 1).click();
+  await expect(page.locator("#dlg.open")).toBeVisible();
+  await expectOnlyTtShort(page, "Dialog „KI-Feedback zu Aufgabe 1 anfordern?“");
+  await expect(page.locator("#dlg-ok")).toHaveText("Feedback anfordern");
+  await expect(page.locator("#dlg-cancel")).toHaveText("Weiterschreiben");
+  expect(await confirmDialog(page, "KI-Feedback zu Aufgabe 1 anfordern?", true, { check: "none" })).toBe(fbtDialogText("zu Aufgabe 1", rsTo([1]), true));
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#fb-1")).toBeFocused();   // Fokus in die Box der Aufgabe (nicht ans Blattende)
+  const exp1 = expectedResults([T7[0]], [ANS.a1])[0];
+  expect(await feedbackOf(page, 1)).toMatchObject({ covered: exp1.covered, missing: exp1.missing });
+  expect(exp1.missing.length).toBeGreaterThan(0);   // Plausibilität: es gibt Tipps
+  for (const n of [2, 3, 4, 5, 6]) await expect(page.locator("#t-" + n + " .fbbox")).toBeHidden();
+  await expectBtn(page, 1, true, false);
+  for (const n of [2, 3, 4]) await expectBtn(page, n, false, true);
+  await expect(page.locator("#fbt-st-3")).toHaveText("Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");   // nur die Statuszeile der angefragten Aufgabe ändert sich
+  await expect(page.locator("#fbt-st-1")).toHaveText("");
+  await expect(page.locator("#fb-btn")).toHaveText(FBT_REST);
+  await expect(page.locator("#fb-btn")).toBeEnabled();
+  await expect(page.locator("#revise-hint")).toHaveText("Lies das KI-Feedback zu Aufgabe 1 und überarbeite dort deine Antwort: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Zu den Aufgaben 2, 3 und 4 kannst du noch ein KI-Feedback anfordern. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden bei dieser Aufgabe beide Fassungen.");
+  await expect(page.locator("#ed-hint")).toHaveText("Du hast das KI-Feedback zu Aufgabe 1 erhalten. Überarbeite dort deine Antwort und gib danach ganz unten ab.");
+  await expect(page.locator("#fin-text")).toHaveText("Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback zu den übrigen Aufgaben (2, 3 und 4) bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY);
+  await expect(page.locator("#submit-hint")).toHaveText(SUBMIT_HINT_FB);   // Abgabe sichtbar wie bisher
+  expect(await curStep(page)).toBe(3);
+  await expectOnlyTtShort(page, "Schreibbereich nach dem KI-Feedback zu Aufgabe 1");
+  posts = await fbPosts(s);
+  expect(posts.map((p) => p.status)).toEqual([429, 200]);
+  expect(Object.keys(posts[1].body).sort()).toEqual(["answers", "code", "only", "recipients"]);
+  expect(posts[1].body).toMatchObject({ code, answers: [ANS.a1, "", "", "", "", ""], only: [1] });   // nur diese Antwort, die übrigen ""
+  let ms = await mockRequests("feedback");
+  expect(ms).toHaveLength(1);
+  expect(parseFeedbackPrompt(ms[0].messages[1].content).map((b) => [b.nr, b.answer])).toEqual([[1, ANS.a1]]);
+  expect(ms[0].messages[1].content).toContain("(Nummern: 1):");
+  for (const x of [ANS.a3, ANS.cells[1], T7[2].text]) expect(ms[0].messages[1].content).not.toContain(x);
+
+  // Erstversuch: nur Aufgabe 1 (erste Fassung und Feedback), die übrigen null
+  await expect.poll(async () => (await firstOk(s)).length, { timeout: 30_000 }).toBe(1);
+  const attempt = (await firstOk(s))[0].attempt;
+  expect(attempt).toMatch(ATTEMPT);
+  let rows = await rowsOf();
+  expect(rows.map((r) => [r.stage, r.attempt])).toEqual([["first", attempt]]);
+  const row1 = rows[0];
+  let fp = await openEnvelope(priv, JSON.parse(row1.envelope));
+  expect(fp).toMatchObject({ v: 1, stage: "first", sheetCode: code, person: { vorname: "Kai", nachname: "Je", geburtsdatum: "--03-03", klasse: "8c" }, submittedAt: null });
+  expect(fp.answers).toEqual([{ first: ANS.a1, final: null }, ...Array(5).fill({ first: null, final: null })]);
+  expect(fp.feedback).toEqual([{ covered: exp1.covered, missing: exp1.missing }, ...nulls(5)]);
+  expect(fp.feedbackAts).toEqual([fp.feedbackAt, ...nulls(5)]);
+  expect(fp.typing.v).toBe(1);
+  expect(typeof fp.typing.answers[0].first).toBe("string");
+  expect(fp.typing.answers.slice(1)).toEqual(Array(5).fill({ first: null, final: null }));
+  expect(JSON.stringify(fp)).not.toContain(ANS.a3);   // Datensparsamkeit: unfertige Antworten anderer Aufgaben kommen erst mit der Abgabe
+
+  // Aufgabe 2 (Tabelle) einzeln – während die Anfrage läuft: nur die Zellen der Tabelle schreibgeschützt, alle Feedback-Buttons gesperrt
+  let release; const held = new Promise((r) => { release = r; });
+  await page.route("**/api/feedback", async (route) => { await held; await route.continue(); });
+  await btnOf(page, 2).click();
+  expect(await confirmDialog(page, "KI-Feedback zu Aufgabe 2 anfordern?")).toBe(fbtDialogText("zu Aufgabe 2", rsTo([2]), true));
+  await expect(page.locator("#fbt-st-2")).toHaveText("Die KI arbeitet … das kann bis zu einer Minute dauern.");
+  expect(await page.evaluate(() => [document.getElementById("a-1").readOnly, document.getElementById("a-3").readOnly, document.getElementById("a-5").readOnly,
+    ...Array.from(document.querySelectorAll("#a-2 textarea.tcell:not(.measure)"), (c) => c.readOnly)])).toEqual([false, false, false, true, true, true, true]);
+  for (const n of [1, 2, 3, 4]) await expect(btnOf(page, n)).toBeDisabled();
+  await expect(page.locator("#fb-btn")).toBeDisabled();
+  expect(await curStep(page)).toBe(2);
+  release();
+  await expect(page.locator("#t-2 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await page.unroute("**/api/feedback");
+  await expect(page.locator("#fb-2")).toBeFocused();
+  const exp2 = expectedResults([T7[1]], [A2T])[0];
+  expect(exp2.covered.length && exp2.missing.length).toBeTruthy();   // Plausibilität: gelingt schon und Tipps
+  expect(await feedbackOf(page, 2)).toMatchObject({ covered: exp2.covered, missing: exp2.missing });
+  expect(await feedbackOf(page, 1)).toMatchObject({ covered: exp1.covered, missing: exp1.missing });   // das Feedback zu Aufgabe 1 bleibt
+  expect(await page.evaluate(() => Array.from(document.querySelectorAll("#a-2 textarea.tcell:not(.measure)"), (c) => c.readOnly))).toEqual([false, false, false, false]);
+  await expectBtn(page, 2, true, false);
+  for (const n of [3, 4]) await expectBtn(page, n, false, true);
+  await expect(page.locator("#revise-hint")).toHaveText("Lies das KI-Feedback zu den Aufgaben 1 und 2 und überarbeite dort deine Antworten: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Zu den Aufgaben 3 und 4 kannst du noch ein KI-Feedback anfordern. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden bei diesen Aufgaben beide Fassungen.");
+  await expect(page.locator("#ed-hint")).toHaveText("Du hast das KI-Feedback zu den Aufgaben 1 und 2 erhalten. Überarbeite dort deine Antworten und gib danach ganz unten ab.");
+  posts = await fbPosts(s);
+  expect(posts[2].body).toMatchObject({ code, answers: ["", A2T, "", "", "", ""], only: [2] });
+  ms = await mockRequests("feedback");
+  expect(ms.map((r) => parseFeedbackPrompt(r.messages[1].content).map((b) => b.nr))).toEqual([[1], [2]]);
+  expect(ms[1].messages[1].content).toContain("Antwort als Tabelle mit den Spalten: Begriff, Erklärung");
+
+  // Erstversuch ersetzt: dieselbe Zeile (gleiche Kennung), jetzt mit den Aufgaben 1 und 2
+  await expect.poll(async () => (await firstOk(s)).length, { timeout: 30_000 }).toBe(2);
+  expect((await firstOk(s)).map((b) => b.attempt)).toEqual([attempt, attempt]);
+  rows = await rowsOf();
+  expect(rows.map((r) => [r.id, r.stage, r.attempt])).toEqual([[row1.id, "first", attempt]]);
+  expect(rows[0].envelope).not.toBe(row1.envelope);
+  expect(rows[0].received_at).toBeGreaterThanOrEqual(row1.received_at);
+  fp = await openEnvelope(priv, JSON.parse(rows[0].envelope));
+  expect(fp.answers).toEqual([{ first: ANS.a1, final: null }, { first: A2T, final: null }, ...Array(4).fill({ first: null, final: null })]);
+  expect(fp.feedback).toEqual([{ covered: exp1.covered, missing: exp1.missing }, { covered: exp2.covered, missing: exp2.missing }, ...nulls(4)]);
+  expect(fp.feedbackAts.slice(2)).toEqual(nulls(4));
+  expect(fp.feedbackAts[1] > fp.feedbackAts[0]).toBe(true);
+  expect(fp.feedbackAt).toBe(fp.feedbackAts[0]);   // das früheste
+
+  // Lehrkraft: der Erstversuch zeigt je Aufgabe – mit Feedback zwei Spalten, ohne „noch nicht übermittelt“
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Erstversuch ohne Überarbeitung");
+  await tp.locator("#t-subs-body tr.main").first().click();
+  let det = tp.locator("#t-subs-body tr.details:visible");
+  const dt = (k) => det.locator(".dtask").nth(k), heads = (k) => dt(k).locator("table.cmp > thead > tr > th");
+  await expect(det.locator(".dmeta")).toContainText("Erstversuch ohne Überarbeitung – noch nicht abgegeben · KI-Feedback zu den Aufgaben 1 und 2, zuerst am ");
+  await expect(det.locator(".moodle-hint").first()).toHaveText("Diese Schülerin oder dieser Schüler hat KI-Feedback zu den Aufgaben 1 und 2 angefordert, aber (noch) nicht abgegeben. Gezeigt wird zu diesen Aufgaben die erste Fassung mit dem Feedback; die übrigen Antworten kommen erst mit der Abgabe. Eine spätere Abgabe ersetzt diesen Eintrag.");
+  await expect(heads(0)).toHaveText(["Erste Eingabe (vor dem KI-Feedback)", "Eingabe nach dem KI-Feedback"]);
+  await expect(dt(0).locator("table.cmp > tbody > tr > td")).toHaveText([ANS.a1, "(noch nicht überarbeitet)"]);
+  await expect(heads(1)).toHaveText(["Erste Eingabe (vor dem KI-Feedback)", "Eingabe nach dem KI-Feedback"]);
+  await expect(dt(0).locator(".dfb .fb-head")).toHaveText(/^Angezeigtes KI-Feedback \(am .+\)$/);   // zu verschiedenen Zeitpunkten angefordert
+  for (const k of [2, 3]) {
+    await expect(heads(k)).toHaveText(["Antwort"]);
+    await expect(dt(k).locator("table.cmp td")).toHaveText("(zu dieser Aufgabe noch kein KI-Feedback – noch nicht übermittelt)");
+    await expect(dt(k).locator(".dfb")).toHaveCount(0);
+  }
+  await expect(dt(4).locator("table.cmp td")).toHaveText("(noch nicht übermittelt – kommt erst mit der Abgabe)");   // ohne Auftrag an die KI
+  await expect(dt(5).locator("table.cmp td")).toHaveText("(ein Foto kommt erst mit der Abgabe)");
+
+  // Neuladen → „Weiterschreiben“: Stand je Aufgabe bleibt, kein neuer Erstversuch
+  let d = await draftOf(page);
+  expect(d).toMatchObject({ attempt, firstSent: true, firstSentSig: "1,2" });
+  expect(d.first).toEqual([ANS.a1, A2T, ...nulls(4)]);
+  expect(d.feedback.map((f) => (f ? { covered: f.covered, missing: f.missing } : null))).toEqual([{ covered: exp1.covered, missing: exp1.missing }, { covered: exp2.covered, missing: exp2.missing }, ...nulls(4)]);
+  expect(d.feedbackAts.slice(0, 2).every((x) => typeof x === "string")).toBe(true);
+  expect(d.feedbackAts.slice(2)).toEqual(nulls(4));
+  await page.waitForTimeout(700);
+  await page.reload();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible();
+  await expect(page.locator("#t-2 .fbbox")).toBeVisible();
+  for (const n of [3, 4, 5, 6]) await expect(page.locator("#t-" + n + " .fbbox")).toBeHidden();
+  for (const n of [1, 2]) await expectBtn(page, n, true, false);
+  for (const n of [3, 4]) await expectBtn(page, n, false, true);
+  await expect(page.locator("#fb-btn")).toHaveText(FBT_REST);
+  expect(await curStep(page)).toBe(3);
+  await typeAt(page, "#a-5", ANS.a5);   // nach dem Neuladen getippt: gemessen (für die Zeile zum Rot-Anteil der Lehrkraft)
+  await page.waitForTimeout(500);
+  expect((await firstOk(s)).length).toBe(2);   // gleicher Stand → nichts erneut gesendet
+
+  // Zwischenstand-PDF: Stand „zu den Aufgaben 1 und 2 erhalten“, Hinweis „je Aufgabe nur einmal“; auf einem frischen Gerät derselbe Stand
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#ed-pdf")]);
+  const dpdf = await readFile(await dl.path());
+  const i0 = dpdf.indexOf("/FbDraft 1"), d0 = dpdf.indexOf("stream\n", i0) + 7, d1 = dpdf.indexOf("\nendstream", d0);
+  const drec = JSON.parse(dpdf.subarray(d0, d1).toString("utf8"));
+  expect(drec).toMatchObject({ kind: "feibeitsblatt-draft", code, attempt, firstSent: true, firstSentSig: "1,2" });
+  expect(drec.first).toEqual([ANS.a1, A2T, ...nulls(4)]);
+  expect(drec.feedback.slice(2)).toEqual(nulls(4));
+  const dtext = pdfShownText(dpdf);
+  expect(dtext).toContain("KI-Feedback zu den Aufgaben 1 und 2 erhalten");
+  expect(dtext).toContain("Hast du schon KI-Feedback bekommen, bleibt es in der Datei erhalten; zu jeder Aufgabe gibt es nur ein KI-Feedback zum Überarbeiten – ein zweites zur selben Aufgabe gibt es nicht.");
+  expect(dtext).not.toContain("ein zweites KI-Feedback zum Überarbeiten gibt es nicht");
+  const fresh = await openPage(browser);
+  await fresh.page.setInputFiles("#start-pdf-file", { name: "stand.pdf", mimeType: "application/pdf", buffer: dpdf });
+  await expect(fresh.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(fresh.page.locator("#t-1 .fbbox")).toBeVisible();
+  await expect(fresh.page.locator("#t-2 .fbbox")).toBeVisible();
+  await expect(fresh.page.locator("#t-3 .fbbox")).toBeHidden();
+  for (const n of [1, 2]) await expectBtn(fresh.page, n, true, false);
+  for (const n of [3, 4]) await expectBtn(fresh.page, n, false, true);
+  await expect(fresh.page.locator("#fb-btn")).toHaveText(FBT_REST);
+  await fresh.page.waitForTimeout(500);
+  expect(await fresh.calls((r) => r.path === "/api/submit")).toEqual([]);   // der Erstversuch mit diesem Stand ist schon gesendet
+  await closePage(fresh);
+
+  // Button unten: nur noch die übrigen Aufgaben mit Auftrag (3 und 4) – erst ist Aufgabe 4 leer
+  await page.click("#fb-btn");
+  const emptyText = await confirmDialog(page, "Noch nicht alles beantwortet", false);
+  expect(emptyText.startsWith("Aufgabe 4 ist noch leer.\n" + FB_VOLUNTARY + "\n" + rsTo([3, 4]) + "\n")).toBe(true);
+  expect(emptyText).toContain("Möchtest du es zu den Aufgaben 3 und 4 trotzdem jetzt anfordern?");
+  expect((await fbPosts(s)).length).toBe(3);   // abgebrochen: nichts gesendet
+  await typeAt(page, "#a-4", ANS.a4);
+  await page.click("#fb-btn");
+  expect(await confirmDialog(page, "KI-Feedback zu den übrigen Aufgaben anfordern?")).toBe(fbtDialogText("zu den Aufgaben 3 und 4", rsTo([3, 4]), false));
+  await expect(page.locator("#t-3 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#t-4 .fbbox")).toBeVisible();
+  await expect(page.locator("#revise-hint")).toBeFocused();   // Button unten: wie bisher auf den Hinweis zum Überarbeiten
+  const exp34 = expectedResults([T7[2], T7[3]], [ANS.a3, ANS.a4]);
+  expect(await feedbackOf(page, 3)).toMatchObject({ covered: exp34[0].covered, missing: exp34[0].missing });
+  expect(await feedbackOf(page, 4)).toMatchObject({ covered: exp34[1].covered, missing: exp34[1].missing });
+  // Aufgabe 5 (Text ohne Auftrag) wie nach dem Feedback zum ganzen Blatt: „kein KI-Feedback“; das Foto ohne Box
+  expect(await feedbackOf(page, 5)).toMatchObject({ covered: [], missing: [], note: NO_SOLUTION_NOTE });
+  await expect(page.locator("#t-6 .fbbox")).toBeHidden();
+  await expect(page.locator("#fb-btn")).toHaveText("KI-Feedback erhalten");
+  await expect(page.locator("#fb-btn")).toBeDisabled();
+  for (const n of [1, 2, 3, 4]) await expectBtn(page, n, true, false);
+  await expect(page.locator("#fbt-st-3")).toHaveText("");   // die ältere Meldung („Du wartest nicht länger …“) gilt nicht mehr
+  await expect(page.locator("#fin-text")).toHaveText(FIN_TEXT);
+  await expect(page.locator("#submit-hint")).toHaveText(SUBMIT_HINT_FB);
+  expect(await curStep(page)).toBe(3);
+  posts = await fbPosts(s);
+  expect(posts.map((p) => p.status)).toEqual([429, 200, 200, 200]);
+  expect(posts[3].body).toMatchObject({ code, answers: ["", "", ANS.a3, ANS.a4, "", ""], only: [3, 4] });   // ohne die Aufgabe ohne Auftrag und das Foto
+  ms = await mockRequests("feedback");
+  expect(ms.map((r) => parseFeedbackPrompt(r.messages[1].content).map((b) => b.nr))).toEqual([[1], [2], [3, 4]]);
+  await expect.poll(async () => (await firstOk(s)).length, { timeout: 30_000 }).toBe(3);
+  rows = await rowsOf();
+  expect(rows.map((r) => [r.id, r.stage, r.attempt])).toEqual([[row1.id, "first", attempt]]);
+  fp = await openEnvelope(priv, JSON.parse(rows[0].envelope));
+  expect(fp.answers.map((a) => a.first)).toEqual([ANS.a1, A2T, ANS.a3, ANS.a4, null, null]);
+  expect(fp.feedback.map((f) => (f ? f.covered.length + f.missing.length > 0 : f))).toEqual([true, true, true, true, null, null]);
+
+  // überarbeiten und abgeben – Dialog und Hinweis wie bisher (mit KI-Feedback), die finale KI-Rückmeldung beurteilt alle Aufgaben
+  await typeAt(page, "#a-1", ANS.rev1);
+  await typeAt(page, "#a-3", ANS.rev3);
+  const finals = [ANS.a1 + ANS.rev1, A2T, ANS.a3 + ANS.rev3, ANS.a4, ANS.a5, "[Foto]"];
+  await page.click("#submit-btn");
+  await expect(page.locator("#dlg.open")).toBeVisible();
+  await expectOnlyTtShort(page, "Abgabe-Dialog");
+  expect(await confirmDialog(page, "Jetzt abgeben?", true, { check: true })).toBe("Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" + FINAL_DLG + RS_MOCK + FINAL_DLG_END);
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(page.locator("#done-wait")).toBeHidden({ timeout: 60_000 });
+  await expect(page.locator("#done-fb-status")).toHaveText("So sieht die KI deine abgegebene Fassung:");
+  posts = await fbPosts(s);
+  expect(posts).toHaveLength(5);
+  expect(Object.keys(posts[4].body).sort()).toEqual(["answers", "attempt", "code", "final", "receivedAt", "recipients"]);   // nie only
+  expect(posts[4].body).toMatchObject({ answers: finals, final: true, attempt });
+  expect(JSON.parse(posts[4].res)).toMatchObject({ ok: true, final: true, stored: true });
+  const msAll = (await mockRequests()).filter((r) => r.kind !== "checklist");
+  expect(msAll.map((r) => r.kind)).toEqual(["feedback", "feedback", "feedback", "final"]);
+  expect(parseFeedbackPrompt(msAll[3].messages[1].content).map((b) => b.nr)).toEqual([1, 2, 3, 4]);
+  // Abgabe in D1 (dieselbe Zeile): Aufgaben ohne Feedback mit erster Fassung = abgegebener, feedback null; kein Vermerk noAi
+  rows = await rowsOf();
+  expect(rows.map((r) => [r.id, r.stage, r.attempt])).toEqual([[row1.id, "final", attempt]]);
+  const fin = await openEnvelope(priv, JSON.parse(rows[0].envelope));
+  expect(fin.answers.map((a) => [a.first, a.final])).toEqual([[ANS.a1, finals[0]], [A2T, A2T], [ANS.a3, finals[2]], [ANS.a4, ANS.a4], [ANS.a5, ANS.a5], ["[Foto]", "[Foto]"]]);
+  expect(fin.answers[5].photo).toMatch(/^data:image\/jpeg;base64,\/9j\//);
+  expect(fin.feedback.slice(4)).toEqual([null, null]);
+  expect(fin.feedback.slice(0, 4).map((f) => ({ covered: f.covered, missing: f.missing }))).toEqual([exp1, exp2, ...exp34].map((e) => ({ covered: e.covered, missing: e.missing })));
+  expect(fin).toMatchObject({ stage: "final", finalMode: true, finalWanted: true });
+  expect(fin.noAi).toBeUndefined();
+  expect(fin.feedbackAts.slice(4)).toEqual([null, null]);
+  expect(fin.feedbackAts[2]).toBe(fin.feedbackAts[3]);   // mit einem Klick angefordert
+  expect(fin.feedbackAt).toBe(fin.feedbackAts[0]);
+  expect(fin.typing.answers[4].first).toBe("=");   // ohne eigenes KI-Feedback: erste Fassung = abgegebene
+  expect(typeof fin.typing.answers[4].final).toBe("string");
+  expect(fin.typing.answers[5]).toEqual({ first: null, final: null });   // Foto: keine Tippzeiten
+  const recT = await finalEnvOf(priv, (await subRowsOf(code, attempt))[0].final_env, rows[0].envelope);
+  expect(recT.results.map((r) => r && r.missing)).toEqual(expectedResults(T7, finals).map((e) => e.missing));
+  // Lösungs-PDF: je Aufgabe die finale Rückmeldung – nie die erste Fassung oder das Feedback zu ihr
+  const expFinal = expectedResults(T7, finals);
+  const [sdl] = await Promise.all([page.waitForEvent("download"), page.click("#done-pdf")]);
+  const solBuf = await readFile(await sdl.path()), sol = solBuf.toString("latin1");
+  pdfStructure(solBuf);
+  for (const x of ["(KI-Feedback zur ersten Fassung", "(Erste Fassung", "gilt auch f"]) expect(sol, x).not.toContain(x);
+  expect(sol.split("(Finale KI-R\\374ckmeldung:) Tj").length - 1).toBe(4);
+  expectFinalInPdf(sol, expFinal);
+  await closePage(s);
+
+  // ein älterer Worker ohne aiTasks: keine Buttons je Aufgabe, nur der Button unten – alles wie bisher
+  const o = await openPage(browser);
+  await o.page.route(new RegExp("/api/sheet/" + code + "$"), async (route) => {
+    const res = await route.fetch(), j = await res.json();
+    delete j.sheet.aiTasks;
+    await route.fulfill({ response: res, json: j });
+  });
+  await enterCode(o.page, shown);
+  await fillPerson(o.page, { vorname: "ole", nachname: "al", geb: "--05-05", klasse: "8c" });
+  await expect(o.page.locator("#t-1 .ltbtn")).toHaveCount(1);
+  await expect(o.page.locator(".fbtbtn")).toHaveCount(0);
+  await expect(o.page.locator("#fb-btn")).toHaveText("KI um ein Feedback bitten");
+  await expect(o.page.locator("#privacy")).toContainText("Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI;");
+  await closePage(o);
+
+  // Lehrkraft: die Abgabe – Aufgaben mit Feedback zwei Spalten, ohne Feedback eine Spalte (abgegebene Fassung), Zeile zum Rot-Anteil ohne „erste Eingabe“
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Abgabe");
+  await tp.locator("#t-subs-body tr.main").first().click();
+  det = tp.locator("#t-subs-body tr.details:visible");
+  await expect(det.locator(".dmeta")).toContainText("KI-Feedback zu den Aufgaben 1, 2, 3 und 4, zuerst am ");
+  for (const k of [0, 1, 2, 3]) await expect(heads(k)).toHaveText(["Erste Eingabe (vor dem KI-Feedback)", "Eingabe nach dem KI-Feedback"]);
+  await expect(dt(0).locator("table.cmp > tbody > tr > td")).toHaveText([ANS.a1, finals[0]]);
+  await expect(dt(3).locator("table.cmp > tbody > tr > td")).toHaveText([ANS.a4, ANS.a4 + "(unverändert)"]);
+  await expect(heads(4)).toHaveText(["Abgegebene Fassung (ohne KI-Feedback zum Überarbeiten)"]);
+  await expect(dt(4).locator("table.cmp > tbody > tr > td")).toHaveText([ANS.a5]);
+  await expect(dt(4).locator(".dfb")).toHaveCount(0);
+  await expect(dt(4).locator(".dtt")).toHaveText(/^Tippzeiten – Rot-Anteil: \d+ % \(von \d+ Zeichen\)/);
+  await expect(dt(4).locator(".dtt")).not.toContainText("erste Eingabe");
+  await expect(heads(5)).toHaveText(["Abgegebenes Foto"]);
+  for (const k of [0, 1, 2, 3]) await expect(dt(k).locator(".dfb:not(.dfb2) .fb-head")).toHaveText(/^Angezeigtes KI-Feedback \(am .+\)$/);
+  await expect(det.locator(".dfb2 .fb-head")).toHaveText(Array(expFinal.filter((e) => e.covered.length || e.missing.length).length).fill("Finale KI-Rückmeldung"));
+  const [tdl] = await Promise.all([tp.waitForEvent("download"), det.locator("button.dpdf").click()]);
+  const tsol = await readFile(await tdl.path());
+  pdfStructure(tsol);
+  expectFinalInPdf(tsol.toString("latin1"), expFinal);
+
+  /* ---------- Schüler:in Lea: schreibt in einer anderen Aufgabe weiter, während das Feedback zu Aufgabe 1 ankommt; danach ist das
+     Tageskontingent aufgebraucht → keine finale KI-Rückmeldung angeboten oder angekündigt, nichts mehr an den Server ---------- */
+  const l = await openPage(browser);
+  const lp = l.page;
+  await enterCode(lp, shown);
+  await fillPerson(lp, { vorname: "lea", nachname: "lo", geb: "--06-06", klasse: "8c" });
+  await typeAt(lp, "#a-1", ANS.a1);
+  await typeAt(lp, "#a-3", ANS.a3);
+  let releaseL; const heldL = new Promise((r) => { releaseL = r; });
+  await lp.route("**/api/feedback", async (route) => { await heldL; await route.continue(); });
+  await btnOf(lp, 1).click();
+  await confirmDialog(lp, "KI-Feedback zu Aufgabe 1 anfordern?");
+  await expect(lp.locator("#fbt-st-1")).toHaveText("Die KI arbeitet … das kann bis zu einer Minute dauern.");
+  await typeAt(lp, "#a-3", " Weil");   // Aufgabe 3 ist nicht gesperrt
+  releaseL();
+  await expect(lp.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await lp.unroute("**/api/feedback");
+  // die Statuszeile sagt es an; Fokus und Ansicht bleiben beim Feld, in dem geschrieben wird (kein Sprung in die Box von Aufgabe 1)
+  await lp.waitForTimeout(400);
+  await expect(lp.locator("#a-3")).toBeFocused();
+  await expect(lp.locator("#a-3")).toBeInViewport();
+  await expect(lp.locator("#fbt-st-1")).toHaveText("Dein KI-Feedback zu Aufgabe 1 ist da – es steht unter deiner Antwort.");
+  await lp.keyboard.type(" es");
+  await expect(lp.locator("#a-3")).toHaveValue(ANS.a3 + " Weil es");
+  await expectBtn(lp, 1, true, false);
+  await expect(lp.locator("#submit-hint")).toHaveText(SUBMIT_HINT_FB);
+  // die übrigen Aufgaben (Button unten): 503 ai_quota
+  const FB2_QUOTA = "Eine finale KI-Rückmeldung gibt es diesmal nicht – das KI-Kontingent für heute ist aufgebraucht";
+  await lp.route("**/api/feedback", (route) => route.fulfill({ status: 503, contentType: "application/json",
+    body: JSON.stringify({ ok: false, error: "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.", code: "ai_quota", aiCode: "DAILY_LIMIT" }) }));
+  await lp.click("#fb-btn");
+  await confirmDialog(lp, "Noch nicht alles beantwortet");   // Aufgaben 2 und 4 sind leer
+  await expect(lp.locator("#fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht. Du kannst ohne KI-Feedback abgeben oder es morgen noch einmal versuchen.");
+  await expect(lp.locator("#fb-fallback")).toHaveText("Ein KI-Feedback zu den übrigen Aufgaben ist gerade nicht möglich (KI-Kontingent für heute aufgebraucht). Du kannst es morgen noch einmal versuchen oder trotzdem abgeben.");
+  const quotaHint = "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " + FB2_QUOTA + ".";
+  await expect(lp.locator("#submit-hint")).toHaveText(quotaHint);   // keine Ankündigung der finalen KI-Rückmeldung
+  await lp.waitForTimeout(700);
+  await lp.reload();   // der Grund steht im Zwischenstand
+  await lp.click("#resume-btn");
+  await expect(lp.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(lp.locator("#submit-hint")).toHaveText(quotaHint);
+  await lp.click("#submit-btn");
+  expect(await confirmDialog(lp, "Jetzt abgeben?", true, { check: "none" })).toBe("Achtung: Die Aufgaben 2, 4, 5 und 6 sind noch leer.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. " +
+    "Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" + FB2_QUOTA + "; an die KI wird nichts gesendet.");
+  await expect(lp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(lp.locator("#done-pdf")).not.toHaveAttribute("aria-disabled", "true");   // keine Wartezeit auf eine finale Rückmeldung
+  await lp.waitForTimeout(500);
+  await expect(lp.locator("#done-fb")).toBeHidden();
+  const lPosts = await fbPosts(l);
+  expect(lPosts.map((p) => [p.status, p.body.final === true])).toEqual([[200, false], [503, false]]);   // keine finale Anfrage
+  const lAttempt = (await l.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody || "{}")).find((b) => b.stage === "final").attempt;
+  const lRow = (await rowsOf()).find((r) => r.attempt === lAttempt);
+  const lFin = await openEnvelope(priv, JSON.parse(lRow.envelope));
+  expect(lFin).toMatchObject({ stage: "final", finalMode: true });
+  expect(lFin.finalWanted).toBeUndefined();   // nicht angeboten
+  expect(lFin.noAi).toBeUndefined();   // mit KI-Feedback zu Aufgabe 1: kein Vermerk „ohne KI-Feedback“
+  expect(lFin.feedback.map((f) => !!f)).toEqual([true, false, false, false, false, false]);
+  await closePage(l);
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+
+  // Blatt mit nur einer Aufgabe mit Auftrag (dazu eine Tabelle ohne Auftrag): keine Buttons je Aufgabe – alles wie bisher
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Nur eine Aufgabe mit KI");
+  await tp.fill("#bq-1", TASKS[0].text);
+  await tp.fill("#bs-1", TASKS[0].solution);
+  await tp.fill("#bq-2", "Trage zwei Begriffe ein.");
+  await tp.selectOption("#bt-2", "table");
+  await tp.fill("#bc-2", "Begriff; Erklärung");
+  await tp.fill("#br-2", "1");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#ck-state")).toContainText("Vorschlag der KI");
+  const shown1 = (await tp.locator("#b-res-code").textContent()).trim(), code1 = shown1.replace("-", "");
+  expect((await (await request.get("/api/sheet/" + code1)).json()).sheet.aiTasks).toEqual([1]);
+  const u = await openPage(browser);
+  await enterCode(u.page, shown1);
+  await fillPerson(u.page, { vorname: "uli", nachname: "ei", geb: "--04-04", klasse: "8c" });
+  await expect(u.page.locator("#t-1 .ltbtn")).toHaveCount(1);
+  await expect(u.page.locator(".fbtbtn")).toHaveCount(0);
+  await expect(u.page.locator("#fb-btn")).toHaveText("KI um ein Feedback bitten");
+  await expect(u.page.locator("#privacy")).toContainText("Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht.");
+  await expect(u.page.locator("#privacy")).not.toContainText("einzelnen Aufgaben");
+  await closePage(u);
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown1);
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");

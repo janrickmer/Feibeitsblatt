@@ -678,8 +678,10 @@ export function validateAnswers(answers, taskCount) {
     return cleanText(a);
   });
 }
-// Zweite KI-Rückmeldung (nach der Abgabe): nur diese Aufgaben gehen an die KI – die nach dem ersten Feedback geänderten,
-// 1-basiert. Fehlt `only`, gelten alle (erstes Feedback) → null; sonst aufsteigend sortiert, ohne Doppelte.
+// KI-Feedback zu einzelnen Aufgaben: nur diese Aufgaben gehen an die KI, 1-basiert – „KI-Feedback nur zu dieser Aufgabe“ (eine
+// Nummer) bzw. der Knopf unten, nachdem es schon Feedback zu einzelnen Aufgaben gab (die übrigen Aufgaben ohne Feedback); ältere,
+// gecachte Seiten schicken es für die zweite Rückmeldung zu geänderten Aufgaben. Fehlt `only`, gelten alle → null; sonst aufsteigend
+// sortiert, ohne Doppelte – eine ungültige Auswahl wird nie stillschweigend zu „alle“. Im Final-Modus verboten (validateFinalMeta).
 export function validateOnly(only, taskCount) {
   if (only == null) return null;
   if (!Array.isArray(only) || !only.length || only.length > taskCount ||
@@ -822,14 +824,22 @@ export const RATE = {
   auth: { max: 10, windowMs: 900e3 },             // falsche Passwörter je IP
   auth_all: { max: 200, windowMs: 3600e3 },        // falsche Passwörter insgesamt (gegen verteiltes Raten)
   lookup_miss: { max: 30, windowMs: 600e3 },       // unbekannte Codes je IP
-  // je Schüler:in bis zu zwei KI-Anfragen: Feedback zum Überarbeiten und Rückmeldung zur abgegebenen Fassung
-  // verdoppelt am 08.11.2026 (Entscheidung des Betreibers): Die finale KI-Rückmeldung kommt nach fast jeder Abgabe, und im Schulnetz teilen
-  // sich meist alle Klassen eine IP – die Grenze bremst Schleifen und einzelne Quellen, schützt aber kein Kontingent vollständig
+  // je Schüler:in bis zu n + 1 KI-Anfragen bei n Aufgaben mit Auftrag an die KI: Feedback zum Überarbeiten (je Aufgabe einzeln oder für
+  // die übrigen Aufgaben zusammen, seit dem 17.11.2026) und die finale KI-Rückmeldung nach der Abgabe – meist weniger, weil nicht jede
+  // Aufgabe einzeln angefragt wird.
+  // feedback verdoppelt am 08.11.2026 (Entscheidung des Betreibers): Die finale KI-Rückmeldung kommt nach fast jeder Abgabe, und im Schulnetz
+  // teilen sich meist alle Klassen eine IP – die Grenze bremst Schleifen und einzelne Quellen, schützt aber kein Kontingent vollständig;
+  // am 17.11.2026 (Feedback je Aufgabe) unverändert gelassen (Entscheidung des Betreibers), ebenso feedback_chars – Anfragen zu einzelnen
+  // Aufgaben schicken die übrigen Antworten leer und zählen so nur, was gesendet wird
   feedback: { max: 480, windowMs: 3600e3 },        // KI-Anfragen je IP
   feedback_chars: { max: 1600000, windowMs: 3600e3 },  // … gewichtet nach Zeichen der Antworten
-  sheet_feedback: { max: 600, windowMs: 86400e3 },     // KI-Anfragen je Blatt und Tag (begrenzt Missbrauch je Blatt; das kontoweite
+  // sheet_feedback verdoppelt am 17.11.2026 (Entscheidung des Betreibers, Feedback je Aufgabe): 600 → 1200 je Blatt und Tag
+  sheet_feedback: { max: 1200, windowMs: 86400e3 },    // KI-Anfragen je Blatt und Tag (begrenzt Missbrauch je Blatt; das kontoweite
                                                        // Tageskontingent von Workers AI ist kleiner und bleibt aufbrauchbar – dafür gibt es die Reserve)
-  submit: { max: 360, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP (je Schüler:in bis zu zwei Aufrufe: Erstversuch, Abgabe; „feedback2“ älterer Seiten zählt nicht)
+  // submit verdoppelt am 17.11.2026 (Entscheidung des Betreibers): je Schüler:in bis zu n + 1 Aufrufe – nach jedem KI-Feedback (je Aufgabe
+  // oder für die übrigen) ersetzt die Seite den Erstversuch (dieselbe Zeile), dazu die Abgabe; ohne KI-Feedback nur die Abgabe (ein Widerspruch
+  // gegen die Tippzeit-Messung ersetzt einen gesendeten Erstversuch noch einmal)
+  submit: { max: 720, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP („feedback2“ älterer Seiten und final_locked zählen nicht)
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
   checklist: { max: 60, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste je IP (Lehrkraft; jedes neue Blatt fragt einmal)
 };

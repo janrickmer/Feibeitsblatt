@@ -3,7 +3,8 @@
 Feibeitsblatt ist ein Schreibeditor für Arbeitsblätter im Stil des Feiditors. Sie als Lehrkraft legen Aufgaben
 an – je Aufgabe mit einem Auftrag an die KI, worauf sie beim Feedback achten soll – und erhalten dafür einen kurzen Code. Mit diesem Code öffnen die Schüler:innen das
 Arbeitsblatt, tippen ihre Antworten selbst (Einfügen ist gesperrt), lassen Rechtschreibung und Grammatik prüfen,
-holen sich (freiwillig) einmal ein KI-Feedback zum Inhalt, überarbeiten ihre Antworten und geben ab; nach der Abgabe bekommen
+holen sich (freiwillig) ein KI-Feedback zum Inhalt – je Aufgabe höchstens einmal, einzeln zu einer Aufgabe oder für alle übrigen
+zusammen –, überarbeiten ihre Antworten und geben ab; nach der Abgabe bekommen
 sie eine **finale KI-Rückmeldung**, die je Aufgabe nennt, was gelungen ist und was gefehlt hat (beim Abgeben abwählbar); der Server
 legt sie verschlüsselt für Sie zur Abgabe. Kommt sie nicht innerhalb der Wartezeit, die Sie in den KI-Einstellungen festlegen (30, 60 oder
 90 Sekunden), steht in ihrer Lösungs-PDF stattdessen Ihre Checkliste zum Selbstprüfen. Diese Checkliste schlägt
@@ -166,40 +167,63 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    erklärt, dass dies die Antwort einer KI ist, die selbst Fehler machen kann, und dass sie nur zum Überarbeiten
    des eigenen Textes dient. Das Antwortfeld selbst bleibt unverändert – Verbesserungen tippen die Schüler:innen
    selbst ein.
-6. **KI um ein Feedback bitten.** Am Ende des Blattes. Der Server gibt die Antworten zusammen mit Ihrem Auftrag an
+6. **KI um ein Feedback bitten.** Am Ende des Blattes steht der Button „KI um ein Feedback bitten“. Hat das Feibeitsblatt
+   mindestens zwei Text- oder Tabellenaufgaben mit einem Auftrag an die KI, steht außerdem unter jeder dieser Aufgaben – rechts
+   in der Zeile von „Rechtschreibung und Grammatik prüfen“, bei Tabellen in einer eigenen Zeile – der kleine Button
+   **„KI-Feedback nur zu dieser Aufgabe“** (Weltkarten- und Foto-Aufgaben und Aufgaben ohne Auftrag haben keinen; bei nur einer
+   Aufgabe mit Auftrag fehlt er ganz, er wäre dasselbe wie der Button unten). Er schickt nur die Antwort zu dieser einen
+   Aufgabe an die KI; ist das Feld noch leer, sagt die Seite „Schreibe zuerst eine Antwort zu Aufgabe n.“ und sendet nichts.
+   Danach steht das Feedback unter dieser Aufgabe (der Fokus springt dorthin – außer jemand schreibt währenddessen in einem
+   anderen Feld weiter: dann bleiben Fokus und Ansicht dort, und die Zeile unter dem Button meldet „Dein KI-Feedback zu
+   Aufgabe n ist da – es steht unter deiner Antwort.“), und der Button heißt gesperrt „KI-Feedback zu
+   dieser Aufgabe erhalten“. Der Button unten heißt dann **„KI-Feedback zu den übrigen Aufgaben“** und fragt nur noch die
+   Aufgaben mit Auftrag an, die noch kein Feedback haben (die übrigen Antworten schickt er nicht mit); sind alle versorgt,
+   heißt er gesperrt „KI-Feedback erhalten“. Wer keinen Button einer Aufgabe nutzt, erlebt alles wie bisher: ein Feedback zu
+   allen Aufgaben auf einmal. Der Server gibt die Antworten zusammen mit Ihrem Auftrag an
    die KI weiter (siehe Schritt 3 für Lehrkräfte). Je Aufgabe erscheinen kurze Stichpunkte: in **grüner** Schrift
    unter „Das gelingt dir schon“, was die Antwort schon gut macht, und in **roter** Schrift unter „Tipps zum
    Überarbeiten“, was die Schülerin bzw. der Schüler ergänzen, genauer erklären oder richtigstellen kann – als Hinweis
    oder Frage, ohne Noten und ohne die Lösung vorzusagen (außer Ihr Auftrag erlaubt es). Das
-   Feedback zum Überarbeiten gibt es **nur einmal**; die Antworten zu diesem Zeitpunkt werden als „erste Fassung“
-   festgehalten (nach der Abgabe folgt die finale KI-Rückmeldung, siehe Schritt 7).
-   Der Dialog vor dem Senden nennt den KI-Dienst (Betreiber und Sitz) und, falls eingerichtet, die Reserve-KI. Ist die
+   Feedback zum Überarbeiten gibt es **je Aufgabe nur einmal** – einzeln oder zusammen mit den übrigen; die Antwort zum
+   Zeitpunkt der Anfrage wird als „erste Fassung“ festgehalten (nach der Abgabe folgt die finale KI-Rückmeldung zu allen
+   Aufgaben, siehe Schritt 7). Es läuft immer nur eine Anfrage: Solange sie läuft, sind alle Feedback-Buttons gesperrt, und
+   nur die Felder der angefragten Aufgaben lassen sich nicht bearbeiten.
+   Jeder Klick fragt vorher in einem Dialog nach (z. B. „KI-Feedback zu Aufgabe 2 anfordern?“); er nennt den KI-Dienst
+   (Betreiber und Sitz) und, falls eingerichtet, die Reserve-KI und sagt, welche Antworten gesendet werden. Ist die
    KI ausgelastet (viele Anfragen in derselben Minute), wartet die Seite mit Countdown und wiederholt die Anfrage
    automatisch – bis zu fünf Versuche in etwa vier Minuten, jeweils mit dem aktuellen Text; währenddessen darf
-   weitergeschrieben werden, „Nicht länger warten“ bricht ab. Ein Abbruch per „Nicht länger warten“ zählt als ein
+   weitergeschrieben werden, „Nicht länger warten“ bricht ab (bei einer Anfrage zu einer Aufgabe stehen Meldung, Countdown
+   und „Nicht länger warten“ an dieser Aufgabe). Ein Abbruch per „Nicht länger warten“ zählt als ein
    Fehlversuch, ein erschöpfter Zyklus als zwei (ab dem zweiten nennt die Seite den Grund); ebenso zählt eine
-   Anfrage, die nie zu Ende kam, weil der Tab geschlossen wurde oder das Gerät ausging – beim nächsten Öffnen. Die
+   Anfrage, die nie zu Ende kam, weil der Tab geschlossen wurde oder das Gerät ausging – beim nächsten Öffnen. Eine
+   gescheiterte Anfrage verbraucht das Feedback zu einer Aufgabe nicht. Die
    Fehlversuche entscheiden den Vermerk bei einer Abgabe ohne KI-Feedback (Schritt 7).
    Mit dem Feedback geht diese erste Fassung samt Feedback außerdem verschlüsselt an die Lehrkraft – als
    **„Erstversuch“**. So sehen Sie auch, wer sich ein Feedback geholt, aber nicht abgegeben hat; die spätere Abgabe
-   ersetzt den Erstversuch. Unter dem Button steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
+   ersetzt den Erstversuch. Nach jedem weiteren Feedback (zu einer anderen Aufgabe oder zu den übrigen) ersetzt die Seite
+   den Erstversuch durch einen neuen; er enthält nur die Aufgaben, die schon Feedback haben – die übrigen Antworten kommen
+   erst mit der Abgabe. Unter dem Button unten steht klein und ausgegraut, welche Daten dabei wohin gehen (siehe
    [Datenschutz](#datenschutz)).
-7. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten. Nach einer
+7. **Überarbeiten und abgeben.** Nach dem Feedback folgt der Hinweis, die Antworten zu überarbeiten (nach Feedback nur zu
+   einzelnen Aufgaben nennt er diese Aufgaben und, zu welchen noch ein Feedback möglich ist). Nach einer
    Rückfrage wird die Abgabe im Browser verschlüsselt und gesendet: erste Fassung, überarbeitete Fassung und das
-   KI-Feedback. **Das KI-Feedback ist freiwillig:** „Abgeben“ geht jederzeit (nur ein Blatt mit lauter leeren
-   Antworten lässt sich nicht abgeben; leere einzelne Aufgaben nennt der Dialog). Abschluss-Text und beide
+   KI-Feedback (bei Aufgaben ohne eigenes Feedback ist die erste Fassung die abgegebene). Rückfrage und Hinweis unter
+   „Abgeben“ sind dieselben wie bisher. **Das KI-Feedback ist freiwillig:** „Abgeben“ geht jederzeit (nur ein Blatt mit lauter leeren
+   Antworten lässt sich nicht abgeben; leere einzelne Aufgaben nennt der Dialog). Abschluss-Text und alle
    Feedback-Dialoge sagen: „Das KI-Feedback ist freiwillig – du kannst auch ohne KI-Feedback abgeben, ohne dass dir
    daraus ein Nachteil entsteht.“ Der Abgabe-Dialog ohne KI-Feedback sagt es ebenfalls – wörtlich, wenn keine Anfrage
    lief, sonst „… ohne dass dir daraus ein Nachteil entsteht“; läuft gerade eine Anfrage, sagt er stattdessen, dass sie
    abgebrochen wird. Wer ohne KI-Feedback abgibt, bestätigt das in einem eigenen Dialog („Ohne KI-Feedback
    abgeben?“); hat sie bzw. er nie eine Anfrage gestellt, geht dabei nichts an die KI – erst danach, wenn die finale
    KI-Rückmeldung nicht abgewählt wird (siehe unten). Ohne Feedback gibt es keinen Erstversuch, und Sie sehen in den
-   Abgaben nur eine Fassung mit dem neutralen Hinweis „Ohne KI-Feedback zum Überarbeiten abgegeben.“ War das KI-Feedback nicht möglich – keine KI eingerichtet, Anbieter ausgefallen, ein
+   Abgaben nur eine Fassung mit dem neutralen Hinweis „Ohne KI-Feedback zum Überarbeiten abgegeben.“ (Gab es Feedback zu
+   einzelnen Aufgaben, entfällt der Hinweis; nur bei den Aufgaben ohne eigenes Feedback sehen Sie eine Fassung.) War das KI-Feedback nicht möglich – keine KI eingerichtet, Anbieter ausgefallen, ein
    Versuch gescheitert, eine laufende Anfrage mit der Abgabe abgebrochen oder nie zu Ende gekommen (Tab geschlossen) –,
    steht dort „Ohne KI-Feedback zum Überarbeiten abgegeben – das KI-Feedback war nicht möglich (Grund).“ Was eine abgebrochene Anfrage
    schon gesendet hatte, hat der KI-Dienst erhalten; der Dialog sagt das. Bis zur Abgabe lässt sich das Feedback
-   jederzeit anfordern; kommt es an, während der Abgabe-Dialog offen ist, wird nicht abgegeben, sondern erst das
-   Feedback gezeigt (nach dem Schließen des Dialogs springt der Fokus zum Hinweis „Lies das KI-Feedback …“). Solange
+   jederzeit anfordern; kommt es (auch zu einer einzelnen Aufgabe) an, während der Abgabe-Dialog offen ist, wird nicht
+   abgegeben, sondern erst das Feedback gezeigt (nach dem Schließen des Dialogs springt der Fokus zum Hinweis „Lies das
+   KI-Feedback …“). Läuft beim Abgeben noch eine Anfrage zu einer weiteren Aufgabe, bricht die Abgabe sie ab. Solange
    die bestätigte Abgabe gesendet wird, lassen sich weder KI-Feedback anfordern noch der Zwischenstand abbrechen – die
    Abgabe käme ja trotzdem an. War die Abgabe technisch erfolgreich, erscheint die
    Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt; ist eine Löschfrist
@@ -216,7 +240,8 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    die Empfänger und dass der Server sie verschlüsselt zur Abgabe speichert, wo nur Sie sie lesen können. Wer das Kästchen abwählt, bekommt keine (die Abgabe vermerkt
    verschlüsselt „abgewählt“). Nicht angeboten wird sie bei Blättern ohne Auftrag an die KI, wenn kein KI-Dienst eingerichtet
    ist (auch, wenn er beim Weiterschreiben inzwischen fehlt), wenn die Seite das Tageskontingent schon als aufgebraucht
-   kennt und wenn alle Antworten zusammen zu lang sind. Direkt nach der Abgabe gehen dann **alle** abgegebenen Antworten auf demselben Weg wie beim ersten
+   kennt (auch, wenn es erst nach einem KI-Feedback zu einzelnen Aufgaben aufgebraucht war – dann sagen Dialog und Hinweis
+   „Eine finale KI-Rückmeldung gibt es diesmal nicht – das KI-Kontingent für heute ist aufgebraucht“) und wenn alle Antworten zusammen zu lang sind. Direkt nach der Abgabe gehen dann **alle** abgegebenen Antworten auf demselben Weg wie beim ersten
    Feedback an die KI (ohne Kürzel, Geburtstag und Klasse) – mit allen Aufgaben, die einen Auftrag an die KI haben, auch den
    unverändert abgegebenen. Anders als das Feedback zum Überarbeiten gibt sie keine Tipps mehr: Je Aufgabe nennt sie
    „Das gelingt dir schon“ (grün) und **„Das hat gefehlt“** (rot) – konkret, was gefehlt hat oder richtig gewesen wäre,
@@ -275,7 +300,7 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
 > den Code an die Klasse geben. Ist das KI-Feedback nicht eingerichtet, ist das Tageskontingent von Workers AI
 > aufgebraucht oder schlägt es zweimal hintereinander fehl (Kontingent erschöpft, Anbieter gestört), sehen die
 > Schüler:innen einen Hinweis mit dem Grund. Ohne eingerichtete KI sieht die Seite beim Klick auf „KI um ein Feedback
-> bitten“ erst nach, ob Sie sie inzwischen eingerichtet haben – sonst wird nichts gesendet. Hat keine Aufgabe
+> bitten“ (oder „KI-Feedback nur zu dieser Aufgabe“) erst nach, ob Sie sie inzwischen eingerichtet haben – sonst wird nichts gesendet. Hat keine Aufgabe
 > einen Auftrag an die KI, gibt es keinen Feedback-Button und gar keine KI.
 >
 > Die **finale KI-Rückmeldung** nach der Abgabe ist im Abgabe-Dialog vorausgewählt, lässt sich dort aber abwählen – auch
@@ -363,7 +388,9 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
 
    Hier dürfen Sie Text einfügen. Zeilen lassen sich hinzufügen, entfernen und verschieben (1 bis 30 Aufgaben). Eine
    Aufgabe ohne Auftrag an die KI bekommt kein KI-Feedback, sondern den Hinweis „Zu dieser Aufgabe gibt es kein
-   KI-Feedback.“
+   KI-Feedback.“ Haben mindestens zwei Text- oder Tabellenaufgaben einen Auftrag, steht bei diesen Aufgaben für die
+   Schüler:innen zusätzlich der Button „KI-Feedback nur zu dieser Aufgabe“ (siehe [So arbeiten Schüler:innen,
+   Schritt 6](#so-arbeiten-schülerinnen)) – je Aufgabe gibt es das Feedback zum Überarbeiten trotzdem nur einmal.
    **Aufgabenstellung formatieren:** Die Aufgabenstellung formatieren Sie genau wie das Material (siehe unten): Knöpfe
    **F**, **K**, **U** bzw. Strg+B, Strg+I, Strg+U für fett, kursiv und unterstrichen, „Link“ für Links (nur `http://`
    und `https://`); eingefügter Text aus Word oder dem Browser behält Hervorhebungen und Links. Die Schüler:innen sehen
@@ -467,7 +494,13 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    eine Legende über der Tabelle erklärt die Farben, und die Zusammenfassung lautet dann z. B. „3 Abgaben ·
    1 Erstversuch ohne Überarbeitung“. Aufgeklappt sehen Sie je Aufgabe eine Tabelle mit Spalte 1 „Erste Eingabe
    (vor dem KI-Feedback)“ und Spalte 2 „Eingabe nach dem KI-Feedback“ (bei einem Erstversuch steht dort „(noch
-   nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat, und bei
+   nicht überarbeitet)“), darunter klein das KI-Feedback, das die Schülerin bzw. der Schüler gesehen hat. Wurde das
+   KI-Feedback nur zu einzelnen Aufgaben geholt (Button „KI-Feedback nur zu dieser Aufgabe“, siehe Schüler:innen, Schritt 6),
+   haben nur diese Aufgaben zwei Spalten; die übrigen zeigen in einer Abgabe eine Spalte „Abgegebene Fassung (ohne KI-Feedback
+   zum Überarbeiten)“ und im Erstversuch „(zu dieser Aufgabe noch kein KI-Feedback – noch nicht übermittelt)“ (Aufgaben ohne
+   Auftrag an die KI: „(noch nicht übermittelt – kommt erst mit der Abgabe)“); oben steht z. B. „KI-Feedback zu den Aufgaben 1
+   und 3 am …“, bei verschiedenen Zeitpunkten „…, zuerst am …“ und je Aufgabe „Angezeigtes KI-Feedback (am …)“. Ältere
+   Einträge sehen aus wie bisher. Außerdem steht bei
    jeder Aufgabe mit Auftrag an die KI die **„Finale KI-Rückmeldung“** („Gelingt schon:“, „Hat gefehlt:“ – auch bei
    Abgaben ohne erstes KI-Feedback), sobald der Server sie zur Abgabe abgelegt hat – verschlüsselt mit Ihrem Schlüssel, die
    Abgabe selbst bleibt dabei unverändert. Wurde sie beim
@@ -611,7 +644,7 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    **Der Code steht im öffentlichen Quelltext des Escape-Rooms** (bei GitHub Pages für alle lesbar). Die Sperre der
    Startseite ist nur eine Hilfe für die Schüler:innen: Wer den Code kennt, kann das Feibeitsblatt über die Schnittstelle
    öffnen, KI-Feedback anfordern und abgeben – und so die Grenzen je Blatt ausschöpfen (400 Abgaben bzw. 40 MB,
-   600 KI-Anfragen am Tag). **Wer den Code kennt, kann außerdem mit erfundenen Angaben und Antworten abgeben und bekommt
+   1 200 KI-Anfragen am Tag). **Wer den Code kennt, kann außerdem mit erfundenen Angaben und Antworten abgeben und bekommt
    dann die finale KI-Rückmeldung, die konkret nennt, was gefehlt hat** – also Inhalte Ihrer Aufträge an die KI, auch wenn
    diese verlangen, die Lösung nicht zu verraten; ebenso ist die bestätigte Checkliste für alle mit dem Code lesbar. Den
    Wortlaut der Aufträge gibt der Server zwar nie heraus, ihren Inhalt aber auf diesem Weg. Schreiben Sie deshalb nichts
@@ -819,7 +852,8 @@ der Server beim nächsten Aufräumen.
 1. In der Lehrkräfte-Übersicht auf **„Datenschutz und Löschfrist“** klicken. Oben steht schreibgeschützt der Betreiber
    mit der Aufsichtsbehörde – prüfen Sie, ob die Angaben stimmen (ändern lassen sie sich nur in `index.html`).
 2. **Löschfrist** wählen: 7, 14, 30 (Vorgabe), 60, 90, 180 oder 365 Tage. Gezählt wird ab dem Eingang auf dem Server –
-   bei einem Erstversuch, den die Abgabe später ersetzt, ab der Abgabe. Die Seite zeigt sofort, wie viele ältere
+   bei einem Erstversuch, den die Abgabe später ersetzt, ab der Abgabe (ein Erstversuch, den ein weiteres KI-Feedback zu einer
+   anderen Aufgabe ersetzt, ab diesem Ersetzen). Die Seite zeigt sofort, wie viele ältere
    Einträge die gewählte Frist jetzt löschen würde, und fragt vor dem Speichern nach („Ältere Abgaben jetzt löschen?“) –
    gelöscht wird dann sofort und endgültig. Eine längere Frist gilt auch für schon gespeicherte Abgaben; informieren
    Sie die Schüler:innen dann neu.
@@ -924,10 +958,13 @@ Hinweise:
   Erfüllt eine Antwort alles, bleibt „Das hat gefehlt“ leer. Sie beurteilt alle Aufgaben mit Auftrag, auch unverändert
   abgegebene, und kann deshalb eine Antwort anders sehen als das erste Feedback. Alles Übrige gilt wie oben: nur nach
   Ihrem Auftrag, nichts verlangen, was weder Aufgabe noch Auftrag fordern, keine Noten, Antworten nur als Daten.
-- Das Feedback zum Überarbeiten gibt es einmal je Gerät und Angaben, dazu nach der Abgabe die finale KI-Rückmeldung
-  (auch ohne vorheriges Feedback, sofern nicht abgewählt) – je Schüler:in also bis zu zwei KI-Anfragen. Der Server kann das nicht erzwingen (wer andere
-  Angaben eingibt oder ein zweites Gerät nutzt, kann erneut anfragen). Je Feibeitsblatt sind höchstens 600
-  KI-Anfragen pro Tag möglich – das begrenzt Missbrauch bei Anbietern mit eigenem API-Schlüssel. Das Tageskontingent
+- Das Feedback zum Überarbeiten gibt es je Gerät und Angaben zu jeder Aufgabe einmal – einzeln über „KI-Feedback nur zu dieser
+  Aufgabe“ oder für alle übrigen zusammen über den Button unten –, dazu nach der Abgabe die finale KI-Rückmeldung (auch ohne
+  vorheriges Feedback, sofern nicht abgewählt). Je Schüler:in sind das bei n Aufgaben mit Auftrag bis zu n + 1 KI-Anfragen (jede
+  Aufgabe einzeln und dann die finale); wer nur den Button unten nutzt, braucht wie bisher höchstens zwei. Eine Anfrage zu einer
+  Aufgabe enthält nur diese Aufgabe und diese Antwort und ist entsprechend kürzer. Der Server kann das nicht erzwingen (wer andere
+  Angaben eingibt oder ein zweites Gerät nutzt, kann erneut anfragen). Je Feibeitsblatt sind höchstens 1 200
+  KI-Anfragen pro Tag möglich (bis zum 17.11.2026: 600) – das begrenzt Missbrauch bei Anbietern mit eigenem API-Schlüssel. Das Tageskontingent
   von Workers AI (10 000 Neurons für das ganze Konto) ist kleiner und kann trotzdem aufgebraucht werden (siehe oben;
   Abhilfe: eine [Reserve-KI](#reserve-ki-zweiter-anbieter)).
 
@@ -1178,7 +1215,7 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | PDF-Dateien zu Aufgaben (von Ihnen hochgeladen, mit Dateiname) | Cloudflare D1 (EU) | unverschlüsselt; abrufbar für alle, die den Code kennen; gehen nie an die KI | bis Sie das Blatt löschen |
 | Abgaben: Kürzel von Vor- und Nachname, Geburtstag (Tag und Monat; Abgaben von vor der Umstellung enthalten noch das volle Geburtsdatum – angezeigt wird auch dort nur Tag und Monat), Klasse – bei Partner- oder Gruppenarbeit stattdessen die Kürzel aller Mitglieder (2–10, „MaxMu“) und die Klasse, kein Geburtstag –, beide Fassungen der Antworten **mit ihren Tippzeiten** (nach einem Widerspruch nur der Vermerk `optOut`), bei Foto-Aufgaben das abgegebene Foto (JPEG, verkleinert, ohne EXIF; nur in der Abgabe, nicht im Erstversuch), KI-Feedback (bei Abgaben von vor dem 08.11.2026 auch die damals vom Browser nachgereichte finale KI-Rückmeldung bzw. bei noch älteren die Rückmeldung zur abgegebenen Fassung), ob die finale KI-Rückmeldung abgewählt wurde (`finalWanted`), Zeitpunkte; bei einer Abgabe ohne KI-Feedback nur eine Fassung und der Vermerk dazu (`noAi`: ohne Anfrage, KI-Feedback nicht möglich oder Blatt ohne KI; im zweiten Fall der Grund als `feedbackError`, z. B. „KI ausgelastet“); bei einem Escape-Room-Finale außerdem die Ergebnisse aus dem Escape-Room (Name und Kennung des Raums, Codewort, Abschlusszeitpunkt, je Station Versuche und Fehler im ersten Versuch, genutzte Zwischenstand-Dateien des Escape-Rooms mit Stelle und Zeitpunkten, ob die Prüfsumme stimmt) – ohne vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen | Cloudflare D1 (EU) | **nur verschlüsselt**; im Klartext stehen nur der Blatt-Code, der Eingangszeitpunkt, die Art (Erstversuch/Abgabe), eine zufällige Kennung der Bearbeitung und der Zeitpunkt, zu dem die finale KI-Rückmeldung geliefert wurde (danach ist die Abgabe abgeschlossen) | automatisch nach Ihrer Löschfrist (7–365 Tage nach dem Eingang, bei Neuinstallationen anfangs 30; ohne gespeicherte Frist erst, wenn Sie löschen), früher, wenn Sie den einzelnen Eintrag, alle Abgaben oder das Blatt löschen |
 | Finale KI-Rückmeldung zu einer Abgabe (je Aufgabe „Das gelingt dir schon“ und „Das hat gefehlt“, Zeitpunkt; keine Antworten, keine Angaben zur Person) | Cloudflare D1 (EU), bei der Abgabe (Spalte `final_env`) | **nur verschlüsselt** – der Server verschlüsselt sie selbst mit Ihrem öffentlichen Schlüssel, bevor er sie speichert; lesen können sie nur Sie (die Abgabe selbst ändert er dabei nicht) | mit der Abgabe (Löschfrist, einzelner Eintrag, alle Abgaben, Blatt) |
-| Erstversuche: dieselben Angaben mit der ersten Fassung (samt Tippzeiten) und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt; nach einem Widerspruch mit derselben Kennung ohne Tippzeiten ersetzt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe), sonst wie Abgaben |
+| Erstversuche: dieselben Angaben mit der ersten Fassung (samt Tippzeiten) und dem KI-Feedback, gespeichert in dem Moment, in dem das KI-Feedback ankommt; bei KI-Feedback zu einzelnen Aufgaben nur diese Aufgaben, nach jedem weiteren Feedback mit derselben Kennung ersetzt (die ersetzte Fassung bleibt bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung der Datenbank); nach einem Widerspruch mit derselben Kennung ohne Tippzeiten ersetzt | Cloudflare D1 (EU) | wie Abgaben, nur verschlüsselt | bis die Abgabe derselben Bearbeitung den Eintrag ersetzt (die Frist zählt dann ab der Abgabe, bei einem ersetzten Erstversuch ab dem letzten Ersetzen), sonst wie Abgaben |
 | Checkliste je Feibeitsblatt (Lösungs-PDF der Schüler:innen ohne finale KI-Rückmeldung, analoges Arbeitsblatt): Vorschlag der KI (Entwurf, entsteht nach „Code generieren“) und die von Ihnen bestätigten bzw. gespeicherten Punkte | Cloudflare D1 (EU), Tabelle `sheet_checklists` | unverschlüsselt; die bestätigte Fassung (nie der Entwurf) ist ab dem Bestätigen für alle abrufbar, die den Code bzw. den QR-Code kennen – auch während die Klasse noch schreibt; die Bestätigungsseite lädt sie nach jeder Abgabe für die Lösungs-PDF | bis Sie das Blatt löschen |
 | Löschfrist (früher gespeicherte Angaben einer Schule entfernt der Server beim Aufräumen) | Cloudflare D1 (EU), Tabelle `settings` (`privacy`) | unverschlüsselt; öffentlich abrufbar (Datenschutzhinweis eines Blattes, Seite „Impressum & Datenschutz“ über `GET /api/privacy`) | bis Sie sie ändern |
 | Angaben des Betreibers (Name, Anschrift, E-Mail, Aufsichtsbehörde) | in `index.html` (`window.FEIBEITSBLATT_OPERATOR`), nicht in der Datenbank | öffentlich (Impressum, Datenschutzhinweis) | bis sie in `index.html` geändert werden |
@@ -1229,9 +1266,12 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   „vom Betreiber dieser Seite beim Anbieter zu prüfen“) und LanguageTool (Learneo ist nach dem Data Privacy Framework zertifiziert,
   ersatzweise Standardvertragsklauseln) – und nur bei Blättern mit Videos Google Ireland Limited (YouTube; Übermittlung in
   die USA laut Google über das EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln).
-- **KI-Feedback (freiwillig):** Nur wenn die Schülerin bzw. der Schüler auf „KI um ein Feedback bitten“ klickt und
-  den Dialog bestätigt, schickt der Browser den Blatt-Code, die Antworten und die Liste der Empfänger, über die
-  informiert wurde, an den Server dieser Seite (Cloudflare). Wer ohne vorherige Anfrage ohne KI-Feedback abgibt, dessen
+- **KI-Feedback (freiwillig):** Nur wenn die Schülerin bzw. der Schüler auf „KI um ein Feedback bitten“ (später „KI-Feedback
+  zu den übrigen Aufgaben“) oder bei einer Aufgabe auf „KI-Feedback nur zu dieser Aufgabe“ klickt und den Dialog bestätigt,
+  schickt der Browser den Blatt-Code, die Antworten und die Liste der Empfänger, über die informiert wurde, an den Server
+  dieser Seite (Cloudflare). Beim Button einer Aufgabe ist das nur die Antwort zu dieser Aufgabe, beim Button unten nach
+  Feedback zu einzelnen Aufgaben nur die Antworten zu den Aufgaben ohne Feedback – die übrigen Antworten schickt der Browser
+  leer mit, dazu die Nummern der angefragten Aufgaben; Dialog und Hinweis unter dem Button sagen das. Wer ohne vorherige Anfrage ohne KI-Feedback abgibt, dessen
   Antworten gehen bis zur Abgabe an keine KI (danach nur für die finale KI-Rückmeldung, wenn sie nicht abgewählt wurde). Der Server leitet **Aufgabenstellungen und den Text des
   Materials (jeweils als reinen Text ohne Link-Adressen), Ihre Aufträge an die KI und die Antworten** an den ersten KI-Anbieter weiter – nur für Aufgaben mit
   Auftrag an die KI. Nur wenn dieser ausgelastet ist, sein Tageskontingent aufgebraucht hat, nicht antwortet, einen
@@ -1481,6 +1521,28 @@ bzw. ein Schüler der Tippzeit-Messung in einem zweiten Tab mit demselben Stand,
 während die Abgabe noch gesendet wird), entfernt das die Tippzeiten nicht mehr aus der Abgabe; nach der Abgabe lassen sie
 sich nur zusammen mit der ganzen Abgabe löschen – so sagt es der Datenschutzhinweis schon (siehe [Tippzeiten](#tippzeiten)).
 
+### KI-Feedback je Aufgabe
+
+Seit dem 17.11.2026 (Wunsch der Lehrkraft) gibt es das KI-Feedback zum Überarbeiten je Aufgabe höchstens einmal – einzeln
+über „KI-Feedback nur zu dieser Aufgabe“ oder für alle übrigen zusammen über den Button unten (siehe
+[So arbeiten Schüler:innen, Schritt 6](#so-arbeiten-schülerinnen)). Beim Button einer Aufgabe schickt der Browser nur die Antwort zu
+dieser Aufgabe (die übrigen Antworten leer) mit ihrer Nummer an den Server, und von dort geht sie mit dieser einen Aufgabe an
+die KI; beim Button unten danach nur die Antworten zu den Aufgaben, die noch kein Feedback haben. Der Erstversuch wird nach jedem Feedback mit derselben Kennung
+ersetzt und enthält nur die Aufgaben, zu denen es schon Feedback gibt; die ersetzte Fassung bleibt bis zu 7 Tage (bei einem
+bezahlten Cloudflare-Tarif bis zu 30 Tage) in der Datensicherung der Datenbank, und die Löschfrist beginnt mit jedem Ersetzen
+neu. „Einmal je Aufgabe“ merkt sich nur der Browser (wie bisher beim Feedback zum ganzen Blatt); der Server erzwingt es nicht.
+
+Angepasst sind nur die Sätze, die sonst nicht mehr stimmten: der Datenschutzhinweis unter dem Feedback-Button (auf Blättern mit
+diesen Buttons nennt er beide Buttons, dass beim Button einer Aufgabe nur diese Antwort an die KI geht und dass der Erstversuch
+mit jedem weiteren Feedback ersetzt wird), die Feedback-Dialoge und der Hinweis in der Zwischenstand-PDF („zu jeder Aufgabe gibt
+es nur ein KI-Feedback zum Überarbeiten“). Die Kurzfassung, der ausführliche Hinweis und der Hinweis unter dem Feld „Klasse“
+bleiben unverändert – was sie sagen, gilt auch, wenn weniger Antworten gesendet werden.
+
+**Weiter vom Betreiber zu prüfen** (Stand 17.11.2026; der Hinweis behauptet dazu nichts): Der ausführliche Hinweis sagt
+„Deine Lehrkraft sieht deine Antworten (mit KI-Feedback deine erste und deine überarbeitete Fassung) …“; bei Feedback nur zu
+einzelnen Aufgaben gibt es eine erste Fassung nur zu diesen Aufgaben. Ob das präzisiert und das Ersetzen des Erstversuchs dort
+ausdrücklich genannt werden soll, ist offen.
+
 ### Empfehlungen
 
 1. Prüfen Sie als Betreiber **vor** der Nutzung Cloudflare (Hosting und Datenbank), den gewählten KI-Anbieter,
@@ -1575,8 +1637,9 @@ Schüler:innen.
 > Die Rückmeldungen der KI sind freiwillig: Wer kein KI-Feedback zum Überarbeiten möchte, gibt ohne ab, und daraus
 > entsteht kein Nachteil. Nach der Abgabe gibt es eine finale KI-Rückmeldung, die zu jeder Aufgabe nennt, was gelungen ist
 > und was gefehlt hat; sie ist vorausgewählt und lässt sich beim Abgeben abwählen – dann gehen die Antworten an keinen
-> KI-Dienst, und in der Lösungs-PDF steht stattdessen eine Checkliste der Lehrkraft. Für die Rückmeldungen (eine zum
-> Überarbeiten, eine nach der Abgabe zu allen Aufgaben) werden nur die Antworttexte (ohne
+> KI-Dienst, und in der Lösungs-PDF steht stattdessen eine Checkliste der Lehrkraft. Für die Rückmeldungen (zum
+> Überarbeiten je Aufgabe höchstens eine – einzeln zu einer Aufgabe oder für alle übrigen zusammen, dann gehen nur die
+> betreffenden Antworten an die KI –, dazu eine nach der Abgabe zu allen Aufgaben) werden nur die Antworttexte (ohne
 > Namen und Angaben zur Person) zusammen mit den Aufgaben und den Vorgaben der Lehrkraft an den KI-Dienst [z. B.
 > Cloudflare Workers AI – Cloudflare, Inc., USA, derselbe Anbieter, der den Server betreibt] gesendet; nur wenn
 > dieser nicht antwortet, ausgelastet ist, sein Tageskontingent aufgebraucht hat oder kein brauchbares Feedback liefert, an
@@ -1641,10 +1704,15 @@ vom Blatt ab):
 - Eine Feedback-Anfrage mit 1 800–4 000 Token Eingabe und 200–500 Token Ausgabe kostet etwa **22–50 Neurons**
   (GLM-4.7-Flash 17–40). Viel Material oder viele Aufgaben machen sie teurer – bei sehr großen
   Blättern über 100 Neurons je Anfrage.
+- Eine Anfrage zu einer einzelnen Aufgabe („KI-Feedback nur zu dieser Aufgabe“) enthält nur diese Aufgabe und diese
+  Antwort, zahlt aber die Anweisungen (≈ 800 Token, mit Gemma 4 rund 7 Neurons) jedes Mal voll: grob **10–20 Neurons**.
+  Fordert jemand bei fünf Aufgaben jede einzeln an, kostet das zusammen etwa 30 Neurons mehr als eine gemeinsame Anfrage
+  (Schätzung); die finale KI-Rückmeldung bleibt gleich.
 - 180 Anfragen am Tag (etwa drei Klassen mit je 30 Schüler:innen und je zwei Anfragen: KI-Feedback und finale
   KI-Rückmeldung) brauchen also etwa **3 900–9 000 Neurons**, 40–90 % des Tageskontingents, dazu je neuem Blatt der
-  Vorschlag der Checkliste. Für mehr reicht es nicht sicher; dafür ist die Reserve-KI da (oder die Abgabe ohne
-  KI-Feedback bzw. mit abgewählter finaler Rückmeldung).
+  Vorschlag der Checkliste. Nutzen alle die Buttons je Aufgabe (bei fünf Aufgaben sechs Anfragen je Schüler:in), kommen
+  grob 2 700 Neurons hinzu (Schätzung). Für mehr – oder drei Klassen, die alle Aufgaben einzeln anfragen – reicht es nicht
+  sicher; dafür ist die Reserve-KI da (oder die Abgabe ohne KI-Feedback bzw. mit abgewählter finaler Rückmeldung).
 - Die finale KI-Rückmeldung nach der Abgabe enthält alle Aufgaben mit Auftrag an die KI – auch unveränderte – und ist
   damit etwa so groß wie die erste Anfrage, mit etwas mehr Ausgabe („Das hat gefehlt“); sie kommt auch von
   Schüler:innen, die kein KI-Feedback angefordert haben (außer sie wählen sie ab).
@@ -1671,7 +1739,11 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 - Jede Schülerin und jeder Schüler stellt bis zu **zwei** solche Anfragen: das Feedback zum Überarbeiten und nach der
   Abgabe die finale KI-Rückmeldung (mit allen Aufgaben; sie entfällt nur, wenn sie abgewählt wird). 60 Schüler:innen
   sind also bis zu 120 Anfragen, ohne Cache 300 000–500 000 Token – deutlich über dem Tageslimit von etwa 200 000
-  Token von gpt-oss-120b. Deshalb macht Feibeitsblatt mehrere Dinge:
+  Token von gpt-oss-120b. Wer die Buttons „KI-Feedback nur zu dieser Aufgabe“ nutzt, stellt bei n Aufgaben mit Auftrag
+  bis zu n + 1 Anfragen; jede enthält dann nur eine Aufgabe und eine Antwort. Die Token steigen dadurch kaum (die
+  Anweisungen samt dieser Aufgabe sind für alle Anfragen zur selben Aufgabe ein gemeinsames, gecachtes Präfix), die Zahl
+  der Anfragen schon – sie zählt bei Groq je Modell gegen die Grenzen pro Minute und pro Tag. Deshalb macht Feibeitsblatt
+  mehrere Dinge:
   1. **Anfrage in Cache-freundlicher Reihenfolge.** Der für alle Schüler:innen eines Blattes gleiche Teil (Anweisungen,
      Aufgaben, Material, Aufträge an die KI) steht vorn, die Antworten stehen hinten. Groq cacht solche Präfixe
      automatisch (für die gpt-oss-Modelle, laut Groq „best effort“, Cache einige Stunden gültig), und **gecachte
@@ -1698,7 +1770,8 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
      höchstens die eingestellte Wartezeit (30, 60 oder 90 Sekunden).
   4. **Reserve-KI.** Erst wenn der erste Anbieter mit allen Modellen ausgelastet ist oder ausfällt, geht die Anfrage
      an die [Reserve-KI](#reserve-ki-zweiter-anbieter), falls eingerichtet.
-- **Fazit:** 60 Schüler:innen am Tag mit je 600 Wörtern (bis zu 120 Anfragen) sind mit einem kostenlosen
+- **Fazit:** 60 Schüler:innen am Tag mit je 600 Wörtern (bis zu 120 Anfragen; mit Feedback je Aufgabe bei fünf Aufgaben
+  bis zu 360, aber kaum mehr Token) sind mit einem kostenlosen
   Groq-Schlüssel machbar, weil der Server über mehrere Modelle ausweicht. **Einschränkung:** Die finalen
   KI-Rückmeldungen kommen fast alle auf einmal, wenn am Ende der Stunde die ganze Klasse abgibt – und jede enthält
   alle Aufgaben. Sind dann alle Modelle ausgelastet, nennt der Server eine Wartezeit von 5 bis 60 Sekunden, und viele
@@ -1751,9 +1824,9 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Foto (Antwortart) | höchstens 3 Foto-Aufgaben je Blatt; je Foto längste Seite 1280 Pixel und höchstens 200 KB als JPEG (alle Fotos einer Abgabe zusammen höchstens 400 KB, bei drei Foto-Aufgaben also je etwa 133 KB) – der Browser verkleinert selbst; die verschlüsselte Abgabe darf bei Blättern mit Foto-Aufgabe bis 1000 KB groß sein (sonst 400 KB) |
 | Antwort je Aufgabe / alle Antworten zusammen | 8000 / 40 000 Zeichen (die Seite zeigt ab 7000 Zeichen einen Zähler) |
 | Abgaben je Feibeitsblatt | 400 Abgaben bzw. 40 MB samt den gespeicherten finalen KI-Rückmeldungen (eine Klasse braucht weit weniger; mit Fotos etwa 0,2–0,8 MB je Abgabe, also Platz für etwa 50–200 Abgaben) |
-| KI-Anfragen je Netzwerk (IP-Adresse) | 480 pro Stunde bzw. 1 600 000 Zeichen pro Stunde (je Schüler:in bis zu zwei Anfragen: Feedback zum Überarbeiten und finale KI-Rückmeldung nach der Abgabe; am 08.11.2026 verdoppelt, weil sich im Schulnetz meist alle Klassen eine IP-Adresse teilen – das reicht für etwa 200–240 Schüler:innen pro Stunde und Netzwerk); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht, ebenso wenig eine finale Anfrage, die der Server ablehnt |
-| KI-Anfragen je Feibeitsblatt | 600 pro Tag (bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
-| Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 360 pro Stunde bzw. 60 MB pro Stunde (je Schüler:in bis zu zwei Übermittlungen: Erstversuch beim KI-Feedback und Abgabe; die finale KI-Rückmeldung legt der Server selbst ab) |
+| KI-Anfragen je Netzwerk (IP-Adresse) | 480 pro Stunde bzw. 1 600 000 Zeichen pro Stunde (je Schüler:in bis zu n + 1 Anfragen bei n Aufgaben mit Auftrag an die KI: Feedback zum Überarbeiten – je Aufgabe einzeln oder für die übrigen zusammen – und finale KI-Rückmeldung nach der Abgabe; nur mit dem Button unten zwei; am 08.11.2026 verdoppelt, weil sich im Schulnetz meist alle Klassen eine IP-Adresse teilen – das reicht für etwa 200–240 Schüler:innen pro Stunde und Netzwerk mit je zwei Anfragen, im ungünstigsten Fall – fünf Aufgaben, jede einzeln – für etwa 80; am 17.11.2026 unverändert gelassen, Anfragen zu einer Aufgabe zählen nur die gesendete Antwort als Zeichen); nur Anfragen, die wirklich zur KI gehen, zählen – ein gestörter KI-Anbieter zählt nicht, ebenso wenig eine finale Anfrage, die der Server ablehnt |
+| KI-Anfragen je Feibeitsblatt | 1 200 pro Tag (bis zum 17.11.2026: 600 – verdoppelt, weil es mit dem Feedback je Aufgabe mehr Anfragen je Schüler:in geben kann und sich alle Klassen mit demselben Code dieses Kontingent teilen; bei Workers AI reicht das Tageskontingent des Kontos meist für weniger) |
+| Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 720 pro Stunde (bis zum 17.11.2026: 360) bzw. 60 MB pro Stunde (je Schüler:in bis zu n + 1 Übermittlungen: nach jedem KI-Feedback ein Erstversuch, der den vorigen ersetzt, und die Abgabe; nur mit dem Button unten bis zu zwei; die finale KI-Rückmeldung legt der Server selbst ab) |
 | Finale KI-Rückmeldung | der Download wartet höchstens 30, 60 oder 90 Sekunden auf sie (Ihre Einstellung, Vorgabe 30; danach mit Ihrer Checkliste); anfordern – und damit für Sie gespeichert – nur in den ersten 15 Minuten nach der Abgabe; einmal je Abgabe – danach lässt sich die Abgabe nicht mehr durch eine neue derselben Bearbeitung ersetzen |
 | Checkliste (Lösungs-PDF, analoges Arbeitsblatt) | höchstens 8 Punkte je Aufgabe, je 160 Zeichen; KI-Vorschläge 60 pro Stunde je Netzwerk (IP-Adresse) – jedes neue Feibeitsblatt fragt einmal |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner); dasselbe gilt für die Überblick-PDF eines Escape-Rooms |
@@ -1934,6 +2007,13 @@ nichts mehr. Browser-Tests, die das nicht prüfen, wählen sie im Abgabe-Dialog 
 den Ablauf (Checkliste beim Anlegen, Countdown, Abwählen, Checkliste in der PDF nach 30 Sekunden, Lehrkraft-Ansicht, Wartezeit
 60 Sekunden als Einstellung), Test 7p, was passiert, wenn der Server die Rückmeldung nicht für Sie ablegen kann.
 `FINAL_SHOTS_OUT=<Ordner> npm run test:e2e` speichert dabei Bildschirmfotos.
+
+**KI-Feedback je Aufgabe:** Die reinen Hilfsfunktionen stehen im Block `FBTASK:BEGIN … FBTASK:END` von `index.html`
+(Unit-Test `test/unit/fbtask.test.mjs`); der Server meldet die Aufgaben mit Auftrag an die KI als `aiTasks` in
+`GET /api/sheet/:code` (nur die Nummern). Anfragen zu einer Aufgabe bzw. zu den übrigen schicken `only` und die übrigen
+Antworten leer; ohne Button einer Aufgabe bleibt die Anfrage wie bisher (ohne `only`, alle Antworten) – darauf bauen die
+älteren Browser-Tests, Test 7t prüft den neuen Weg (Anfrage je Aufgabe, Erstversuch in der Datenbank, Zwischenstand,
+Lehrkraft-Ansicht).
 
 **Zeitplan lokal auslösen:** Unter `wrangler dev` startet
 `curl "http://localhost:8787/cdn-cgi/local/scheduled?cron=17+2+*+*+*&format=json"` den täglichen Lauf (Löschfrist,

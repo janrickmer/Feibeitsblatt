@@ -140,7 +140,7 @@ test("sheets: create, list, public view never contains solutions", async () => {
   assert.equal(r.status, 200, r.text);
   code = r.json.code;
   r = await call("GET", "/api/sheet/" + code.slice(0, 3).toLowerCase() + "-" + code.slice(3));
-  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], videos: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiProvider: "127.0.0.1:" + mock.port,
+  assert.deepEqual(r.json.sheet, { code, title: "Bio", tasks: tasks.map((t) => ({ text: t.text, textFmt: [], material: [], videos: [], images: [], files: [], answer: { type: "text" } })), publicKey: T.publicKey, aiFeedback: true, aiTasks: [1], aiProvider: "127.0.0.1:" + mock.port,
     aiRecipients: [{ id: "custom:127.0.0.1:" + mock.port, label: "127.0.0.1:" + mock.port + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)", transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }],
     // die Neuinstallation (Setup ohne Blätter) löscht nach 30 Tagen (updatedAt/auto bleiben intern)
     privacy: { retentionDays: 30 }, escape: null, finalWaitSec: 30 });   // Wartezeit auf die finale KI-Rückmeldung: Vorgabe 30 s
@@ -683,40 +683,95 @@ test("feedback: one AI call, expected covered/missing (= gut/tipps of the mock),
   assert.equal(mock.state.requests[0].temperature, 0.1);
 });
 
-test("second feedback (only): just the chosen tasks go to the AI – prompt, answers and output budget; null results for the others; bad selections → 400", async () => {
-  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Nur geänderte", tasks: [
+test("KI-Feedback je Aufgabe (only): nur die gewählte Aufgabe geht an die KI (die übrigen Antworten leer) – Ergebnisse null für die übrigen, gezählt nur das Gesendete; der Knopf unten für die übrigen; gewählte Aufgabe ohne Auftrag ohne KI und ungezählt; ungültige Auswahl → 400", async () => {
+  const jTasks = [
     { text: "Erkläre die Photosynthese.", solution: "- Photosynthese braucht Licht\n- Sauerstoff entsteht" },
     { text: "Deine Meinung?", solution: "" },
     { text: "Warum verdunstet Wasser?", solution: "- Wärme" },
-  ] } });
+    { text: "Ordne die Stoffe zu.", solution: "- Wasser", answer: { type: "table", columns: ["Stoff", "Zustand"], rows: 2 } },
+  ];
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Je Aufgabe", tasks: jTasks } });
   assert.equal(r.status, 200, r.text);
-  const c = r.json.code;
-  mock.reset();
-  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["", "", "Durch Wärme"], only: [3] } });
-  assert.equal(r.status, 200, r.text);
-  assert.deepEqual(r.json.results, [null, null, { covered: ["Wärme"], missing: [] }]);
-  assert.equal(r.json.aiGenerated, true);
-  assert.equal(mock.state.requests.length, 1);
-  const u = mock.state.requests[0].messages[1].content;
-  assert.match(u, /\(Nummern: 3\):/); assert.match(u, /^### Aufgabe 3$/m); assert.match(u, /^### Antwort zu Aufgabe 3$/m);
-  assert.doesNotMatch(u, /Photosynthese|^### Aufgabe 1$|^### Antwort zu Aufgabe 1$/m);   // Aufgabe 1 weder als Aufgabe noch als Antwort
-  assert.deepEqual(parseFeedbackPrompt(u).map((b) => b.nr), [3]);
-  // eine gewählte Aufgabe ohne Auftrag: keine KI, nur der Hinweis
-  mock.reset();
-  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Licht", "Text", "Wärme"], only: [2] } });
-  assert.equal(r.status, 200, r.text);
-  assert.deepEqual(r.json.results, [null, { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }, null]);
-  assert.equal(r.json.aiGenerated, false); assert.equal(mock.state.requests.length, 0);
-  // ungültige Auswahl: nie stillschweigend „alle“
-  for (const only of [[], [0], [4], [1, 1], ["1"], [1.5], "1", { 0: 1 }, [1, 2, 3, 3]]) {
-    r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Licht", "", "Wärme"], only } });
-    assert.equal(r.status, 400, JSON.stringify(only)); assert.equal(r.json.code, "bad_answers");
-  }
-  assert.equal(mock.state.requests.length, 0);
-  // ohne only wie bisher: alle Aufgaben mit Auftrag
-  r = await call("POST", "/api/feedback", { body: { code: c, answers: ["Licht", "", "Wärme"], only: null } });
-  assert.equal(r.status, 200, r.text); assert.equal(r.json.results.length, 3); assert.ok(r.json.results[0] && r.json.results[2]);
-  assert.match(mock.state.requests[0].messages[1].content, /\(Nummern: 1, 3\):/);
+  const c = r.json.code, ip = "203.0.113.211";
+  r = await call("GET", "/api/sheet/" + c);
+  assert.deepEqual([r.json.sheet.aiFeedback, r.json.sheet.aiTasks], [true, [1, 3, 4]]);   // daran hängt die Seite die Knöpfe je Aufgabe
+  const bucket = async (kind, key) => { const row = d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(await bucketOf(kind, key, SECRET)); return row ? row.count : 0; };
+  const counts = async () => [await bucket("feedback", ip), await bucket("feedback_chars", ip), await bucket("sheet_feedback", c)];
+  const fb = (answers, only) => call("POST", "/api/feedback", { body: { code: c, answers, ...(only === undefined ? {} : { only }) }, ip });
+  const userMsg = (k = 0) => mock.state.requests[k].messages[1].content;
+  const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen (Zähler und D1-Abfragen genau)
+  try {
+    // „KI-Feedback nur zu Aufgabe 3“: die übrigen Antworten leer – nur Aufgabe 3 (Aufgabe und Antwort) im Prompt
+    mock.reset();
+    let a = ["", "", "Durch Wärme", ""], c0 = await counts();
+    r = await fb(a, [3]);
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, [null, null, { covered: ["Wärme"], missing: [] }, null]);
+    assert.equal(r.json.aiGenerated, true);
+    assert.ok(r.queries <= 18, "D1-Abfragen: " + r.queries);   // only kostet keine Abfrage mehr
+    assert.equal(mock.state.requests.length, 1); assert.equal(mock.state.requests[0].kind, "feedback");
+    let u = userMsg();
+    assert.ok(u.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 3):\n\n### Aufgabe 3\n"), u);
+    assert.ok(u.endsWith("\n\nGib für jede der 1 Aufgaben (Nummern: 3) dein Feedback als JSON zurück."), u);
+    assert.match(u, /^### Antwort zu Aufgabe 3$/m);
+    assert.doesNotMatch(u, /Photosynthese|Meinung|Stoffe|^### (Antwort zu )?Aufgabe [124]$/m);   // weder Aufgabe noch Antwort der übrigen
+    assert.deepEqual(parseFeedbackPrompt(u).map((b) => b.nr), [3]);
+    // gezählt: eine KI-Anfrage je IP und Blatt, Zeichen nur der gesendeten Antwort
+    assert.deepEqual((await counts()).map((n, i) => n - c0[i]), [1, "Durch Wärme".length, 1]);
+    // dieselbe Aufgabe bei einer anderen Schülerin: gleicher Teil vor den Antworten (Präfix-Caching je Aufgabe)
+    const head = (x) => x.slice(0, x.indexOf("Antworten der Schülerin bzw. des Schülers:"));
+    mock.reset();
+    r = await fb(["", "", "Weil die Sonne scheint.", ""], [3]);
+    assert.equal(r.status, 200, r.text);
+    assert.equal(head(userMsg()), head(u)); assert.notEqual(userMsg(), u);
+    // „KI-Feedback nur zu Aufgabe 4“ (Tabelle): mit den Spalten vor der Antwort
+    mock.reset();
+    a = ["", "", "", "Stoff | Zustand\nWasser | flüssig"];
+    r = await fb(a, [4]);
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, [null, null, null, expectedResults(jTasks, a)[3]]);
+    u = userMsg();
+    assert.deepEqual(parseFeedbackPrompt(u).map((b) => b.nr), [4]);
+    assert.ok(u.includes("### Antwort zu Aufgabe 4\nAntwort als Tabelle mit den Spalten: Stoff, Zustand\n<<<\nStoff | Zustand\nWasser | flüssig\n>>>"), u);
+    // Knopf unten nach Feedback zu Aufgabe 3 und 4: die übrigen (1 und 2 – Aufgabe 2 ohne Auftrag); nur Aufgabe 1 geht an die KI,
+    // Aufgabe 2 bekommt wie beim Feedback zum ganzen Blatt den Hinweis, 3 und 4 null (die Seite behält ihr Feedback)
+    mock.reset();
+    a = ["Pflanzen brauchen Licht.", "", "", ""];
+    c0 = await counts();
+    r = await fb(a, [2, 1]);   // Reihenfolge egal
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, [expectedResults(jTasks, a)[0], { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }, null, null]);
+    assert.equal(mock.state.requests.length, 1);
+    u = userMsg();
+    assert.ok(u.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 1):\n\n### Aufgabe 1\n"), u);
+    assert.doesNotMatch(u, /Meinung|verdunstet|Stoffe/);
+    assert.deepEqual((await counts()).map((n, i) => n - c0[i]), [1, a[0].length, 1]);
+    // nur Aufgaben ohne Auftrag gewählt: keine KI, nichts gezählt, nur der Hinweis
+    mock.reset(); c0 = await counts();
+    r = await fb(["Licht", "Text", "Wärme", ""], [2]);
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, [null, { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }, null, null]);
+    assert.equal(r.json.aiGenerated, false); assert.equal(mock.state.requests.length, 0);
+    assert.deepEqual(await counts(), c0);
+    // ungültige Auswahl: nie stillschweigend „alle“, nichts an die KI, nichts gezählt
+    for (const only of [[], [0], [5], [-1], [1, 1], [3, 1, 3], ["1"], [1.5], "1", { 0: 1 }, [1, 2, 3, 4, 4]]) {
+      r = await fb(["Licht", "", "Wärme", ""], only);
+      assert.equal(r.status, 400, JSON.stringify(only)); assert.equal(r.json.code, "bad_answers");
+      assert.equal(r.json.error, "Die Auswahl der Aufgaben passt nicht zu diesem Feibeitsblatt. Bitte lade die Seite neu.");
+    }
+    // die Antworten müssen weiter vollständig (alle Aufgaben, leer erlaubt) mitkommen
+    r = await fb(["Licht"], [1]);
+    assert.equal(r.status, 400); assert.equal(r.json.code, "bad_answers");
+    assert.equal(mock.state.requests.length, 0); assert.deepEqual(await counts(), c0);
+    // ohne only (bzw. null) wie bisher: alle Aufgaben mit Auftrag in einer Anfrage
+    for (const only of [undefined, null]) {
+      mock.reset();
+      a = ["Licht", "", "Wärme", "Stoff | Zustand\nWasser | fest"];
+      r = await fb(a, only);
+      assert.equal(r.status, 200, r.text); assert.deepEqual(r.json.results, expectedResults(jTasks, a));
+      assert.equal(mock.state.requests.length, 1); assert.match(userMsg(), /\(Nummern: 1, 3, 4\):/);
+    }
+  } finally { Math.random = rnd; }
   r = await call("DELETE", "/api/teacher/sheets/" + c, { auth });
   assert.equal(r.status, 200);
 });
@@ -728,6 +783,7 @@ test("aiFeedback flag: false when no task has an Auftrag an die KI (map tasks ne
   const c = r.json.code;
   r = await call("GET", "/api/sheet/" + c);
   assert.equal(r.json.sheet.aiFeedback, false);
+  assert.deepEqual(r.json.sheet.aiTasks, []);   // keine Aufgabe mit Auftrag: auch keine Knöpfe je Aufgabe
   assert.equal(/wird verworfen|solution/.test(r.text), false);
   mock.reset();
   r = await call("POST", "/api/feedback", { body: { code: c, answers: ["", "Text"] } });
@@ -737,6 +793,65 @@ test("aiFeedback flag: false when no task has an Auftrag an die KI (map tasks ne
   assert.equal(r.json.sheet.aiFeedback, true);
   r = await call("DELETE", "/api/teacher/sheets/" + c, { auth });
   assert.equal(r.status, 200, r.text);
+});
+
+test("aiTasks: Nummern der Aufgaben mit Auftrag an die KI (Text und Tabelle; nie Weltkarte oder Foto, auch nicht mit Auftrag) – nur Ja/Nein, nie der Auftrag, keine zusätzliche D1-Abfrage; nur öffentlich", async () => {
+  const map = { type: "map", map: "world", items: [{ id: "kaffee", label: "Kaffee", countries: [{ id: "076", name: "Brasilien" }] }] };
+  const table = { type: "table", columns: ["Ursache", "Folge"], rows: 3 };
+  const mixed = [
+    { text: "Erkläre den Treibhauseffekt.", solution: "Auftrag-Eins: CO2 nennen" },        // 1 Text mit Auftrag
+    { text: "Deine Meinung?", solution: " \n " },                                         // 2 Text ohne Auftrag (nur Leerraum)
+    { text: "Fülle die Tabelle.", solution: "Auftrag-Drei: zwei Folgen", answer: table },   // 3 Tabelle mit Auftrag
+    { text: "Ordne zu.", solution: "Auftrag-Vier wird verworfen", answer: map },          // 4 Weltkarte: nie an die KI
+    { text: "Fotografiere dein Plakat.", solution: "Auftrag-Fünf wird verworfen", answer: { type: "photo" } },   // 5 Foto: nie an die KI
+    { text: "Tabelle ohne Auftrag.", solution: "", answer: table },                        // 6 Tabelle ohne Auftrag
+    { text: "Fasse zusammen.", solution: "Auftrag-Sieben: kurz" },                         // 7 Text mit Auftrag
+  ];
+  const rnd = Math.random; Math.random = () => 0.5;   // ohne das gelegentliche Aufräumen (D1-Abfragen genau vergleichen)
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Gemischt", tasks: mixed } });
+  assert.equal(r.status, 200, r.text);
+  const c = r.json.code;
+  try {
+    r = await call("GET", "/api/sheet/" + c);
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.sheet.aiFeedback, true);
+    assert.deepEqual(r.json.sheet.aiTasks, [1, 3, 7]);   // aufsteigend, 1-basiert
+    assert.deepEqual(r.json.sheet.tasks.map((t) => t.answer.type), ["text", "text", "table", "map", "photo", "table", "text"]);
+    assert.ok(r.json.sheet.tasks.every((t) => !("ai" in t) && !("solution" in t)));   // auf Blattebene, nicht je Aufgabe
+    assert.equal(/Auftrag-|solution/.test(r.text), false, r.text);   // nie der Auftrag selbst
+    assert.equal(r.queries, 4);
+    assert.equal((await call("GET", "/api/sheet/" + code)).queries, r.queries);   // keine zusätzliche D1-Abfrage
+    // dieselbe Auswahl wie beim Feedback zum ganzen Blatt: genau diese Aufgaben gehen an die KI
+    mock.reset();
+    const answers = ["CO2", "Finde ich gut.", "Ursache | Folge\nCO2 | Wärme", "", "[Foto]", "a | b", "Kurz."];
+    r = await call("POST", "/api/feedback", { body: { code: c, answers }, ip: "203.0.113.212" });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(parseFeedbackPrompt(mock.state.requests[0].messages[1].content).map((b) => b.nr), [1, 3, 7]);
+    assert.deepEqual(r.json.results.map((x, i) => (x && !x.note ? i + 1 : null)).filter(Boolean), [1, 3, 7]);
+    // je Aufgabe einzeln: auf jeder Nummer aus aiTasks geht genau diese Aufgabe an die KI
+    for (const n of [1, 3, 7]) {
+      mock.reset();
+      const one = answers.map((x, i) => (i === n - 1 ? x : ""));
+      r = await call("POST", "/api/feedback", { body: { code: c, answers: one, only: [n] }, ip: "203.0.113.212" });
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual(parseFeedbackPrompt(mock.state.requests[0].messages[1].content).map((b) => b.nr), [n]);
+      assert.deepEqual(r.json.results.map((x, i) => (x ? i + 1 : null)).filter(Boolean), [n]);
+    }
+    // Lehrkraft-Ansicht unverändert (sie kennt die Aufträge ohnehin): kein aiTasks
+    r = await call("GET", "/api/teacher/sheets/" + c, { auth });
+    assert.equal("aiTasks" in r.json.sheet, false);
+    // Blatt nur mit Weltkarte und Foto: leer, kein KI-Feedback
+    r = await call("POST", "/api/teacher/sheets", { auth, body: { tasks: [{ text: "Ordne zu.", solution: "x", answer: map }, { text: "Foto", solution: "y", answer: { type: "photo" } }] } });
+    assert.equal(r.status, 200, r.text);
+    const c2 = r.json.code;
+    r = await call("GET", "/api/sheet/" + c2);
+    assert.deepEqual([r.json.sheet.aiFeedback, r.json.sheet.aiTasks], [false, []]);
+    assert.equal((await call("DELETE", "/api/teacher/sheets/" + c2, { auth })).status, 200);
+    // ein Blatt mit genau einer Aufgabe mit Auftrag: eine Nummer (die Seite zeigt dann nur den Knopf unten)
+    r = await call("GET", "/api/sheet/" + code);
+    assert.deepEqual([r.json.sheet.aiFeedback, r.json.sheet.aiTasks], [true, [1]]);
+  } finally { Math.random = rnd; }
+  assert.equal((await call("DELETE", "/api/teacher/sheets/" + c, { auth })).status, 200);
 });
 
 test("AI gate spaces parallel requests (custom: 1 s)", async () => {
@@ -795,6 +910,7 @@ test("Antwortart Foto: ohne Auftrag an die KI gespeichert (höchstens 3 je Blatt
   r = await call("GET", "/api/sheet/" + c);
   assert.deepEqual(r.json.sheet.tasks.map((t) => t.answer), [{ type: "photo" }, { type: "text" }]);
   assert.equal(r.json.sheet.aiFeedback, true);   // Aufgabe 2 hat einen Auftrag an die KI
+  assert.deepEqual(r.json.sheet.aiTasks, [2]);   // die Foto-Aufgabe nie (auch nicht mit einem Auftrag beim Anlegen)
   assert.equal(/Auftrag-Marker|maxBytes|"hint"/.test(r.text), false);
   // KI: die Foto-Aufgabe geht nie an die KI (der Browser schickt nur die Textform „[Foto]“, auch die steht nicht im Prompt)
   const before = mock.state.requests.length;
@@ -807,7 +923,8 @@ test("Antwortart Foto: ohne Auftrag an die KI gespeichert (höchstens 3 je Blatt
   r = await call("POST", "/api/teacher/sheets", { auth, body: { tasks: [{ text: "Nur ein Foto", solution: "x", answer: { type: "photo" } }] } });
   assert.equal(r.status, 200, r.text);
   const onlyPhoto = r.json.code;
-  assert.equal((await call("GET", "/api/sheet/" + onlyPhoto)).json.sheet.aiFeedback, false);
+  r = await call("GET", "/api/sheet/" + onlyPhoto);
+  assert.deepEqual([r.json.sheet.aiFeedback, r.json.sheet.aiTasks], [false, []]);
   r = await call("POST", "/api/teacher/sheets", { auth, body: { tasks: Array.from({ length: 4 }, (_, i) => ({ text: "Foto " + i, answer: { type: "photo" } })) } });
   assert.equal(r.status, 400); assert.equal(r.json.error, "Höchstens 3 Aufgaben mit der Antwortart Foto je Feibeitsblatt.");
   // Abgabe mit Foto: Umschlag größer als LIMITS.envelopeBytes – angenommen nur beim Blatt mit Foto-Aufgabe, entschlüsselt unverändert
@@ -911,6 +1028,44 @@ test("first attempt (stage first) is replaced by the final submission of the sam
 // Prüfwert der finalen KI-Rückmeldung (final_env.ah): SHA-256 hex über JSON der Antworten – unabhängig vom Worker berechnet
 const answersDigest = (list) => createHash("sha256").update(JSON.stringify(list), "utf8").digest("hex");
 const ckCountSubmit = (b) => { const row = d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(b); return row ? row.count : null; };
+test("Erstversuch wächst mit jedem KI-Feedback je Aufgabe: dieselbe Kennung ersetzt dieselbe Zeile (neuer Umschlag, neuer Eingang), jeder Aufruf zählt submit; die Abgabe ersetzt ihn wie bisher", async () => {
+  const ip = "203.0.113.213", attempt = "a1b2c3d4e5f60718";
+  const person = { vorname: "Jo", nachname: "Ei", geburtsdatum: "--05-06", klasse: "8a" };
+  const fb1 = { covered: ["Licht"], missing: ["Nenne den Sauerstoff."] };
+  // nach dem Feedback zu Aufgabe 1: nur Aufgabe 1 mit erster Fassung und Feedback, Aufgabe 2 leer (null)
+  const p1 = { v: 1, stage: "first", sheetCode: code, person, answers: [{ first: "Licht", final: null }, { first: null, final: null }], feedback: [fb1, null] };
+  // nach dem Feedback zu Aufgabe 2 (bzw. zu den übrigen): beide
+  const p2 = { ...p1, answers: [{ first: "Licht", final: null }, { first: "Meinung", final: null }], feedback: [fb1, { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }] };
+  const rowsOf = () => d1.db.prepare("SELECT id, stage, received_at, envelope FROM submissions WHERE sheet_code=? AND attempt=?").all(code, attempt);
+  const submits = async () => ckCountSubmit(await bucketOf("submit", ip, SECRET)) || 0;
+  const n0 = await submits(), before = (await call("GET", "/api/teacher/sheets", { auth })).json.sheets.find((x) => x.code === code);
+  let r = await call("POST", "/api/submit", { body: { code, envelope: await makeEnvelope(T.publicKey, p1), stage: "first", attempt }, ip });
+  assert.equal(r.status, 200, r.text);
+  const id = r.json.id, at1 = r.json.receivedAt;
+  assert.equal(r.json.replaced, undefined);
+  await new Promise((res) => setTimeout(res, 5));
+  r = await call("POST", "/api/submit", { body: { code, envelope: await makeEnvelope(T.publicKey, p2), stage: "first", attempt }, ip });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual([r.json.id, r.json.replaced], [id, "first"]);
+  assert.ok(r.json.receivedAt > at1);   // die Löschfrist zählt ab dem letzten Ersetzen
+  let rows = rowsOf();
+  assert.equal(rows.length, 1); assert.equal(rows[0].stage, "first"); assert.equal(rows[0].received_at, r.json.receivedAt);
+  assert.deepEqual(await openEnvelope(T.privateKey, JSON.parse(rows[0].envelope)), p2);
+  assert.equal(await submits(), n0 + 2);
+  let sheets = (await call("GET", "/api/teacher/sheets", { auth })).json.sheets.find((x) => x.code === code);
+  assert.deepEqual([sheets.submissionCount, sheets.firstCount], [before.submissionCount, before.firstCount + 1]);
+  // die Abgabe derselben Bearbeitung ersetzt den Erstversuch in derselben Zeile (Aufgaben ohne Feedback: erste Fassung = abgegebene)
+  const fin = { ...p2, stage: "final", answers: [{ first: "Licht", final: "Licht und Sauerstoff" }, { first: "Meinung", final: "Meinung" }] };
+  r = await call("POST", "/api/submit", { body: { code, envelope: await makeEnvelope(T.publicKey, fin), stage: "final", attempt }, ip });
+  assert.equal(r.status, 200, r.text); assert.deepEqual([r.json.id, r.json.replaced], [id, "first"]);
+  rows = rowsOf();
+  assert.equal(rows.length, 1); assert.equal(rows[0].stage, "final");
+  assert.deepEqual(await openEnvelope(T.privateKey, JSON.parse(rows[0].envelope)), fin);
+  sheets = (await call("GET", "/api/teacher/sheets", { auth })).json.sheets.find((x) => x.code === code);
+  assert.deepEqual([sheets.submissionCount, sheets.firstCount], [before.submissionCount + 1, before.firstCount]);
+  d1.db.prepare("DELETE FROM submissions WHERE id=?").run(id);
+});
+
 test("stage feedback2 (nur noch ältere, gecachte Seiten): ersetzt nie eine Abgabe, legt nie eine an, zählt nicht – kept, wenn zu genau dieser Abgabe die finale Rückmeldung schon beim Server liegt, sonst gone", async () => {
   const mk = (extra) => makeEnvelope(T.publicKey, { v: 1, stage: "final", sheetCode: code, person: { vorname: "Ida", nachname: "Re", geburtsdatum: "--03-03", klasse: "7a" }, answers: [{ first: "a", final: "b" }], ...extra });
   const attempt = "00112233445566aa", ip = "203.0.113.90";
@@ -1627,7 +1782,8 @@ test("KI-Einstellungen: Verbrauch heute je KI – erste KI und Reserve getrennt 
     assert.deepEqual(Object.keys(rows).sort(), ["custom", "custom#r"]);   // die Reserve unter ihrem eigenen Schlüssel
     assert.equal(rows.custom.requests, 1); assert.ok(rows.custom.tokens > 100); assert.equal(rows.custom.neurons, 0); assert.equal(rows.custom.req_limits, null);
     assert.equal(rows["custom#r"].requests, 1); assert.ok(rows["custom#r"].tokens > 0);
-    r = await call("GET", "/api/teacher/ai", { auth });
+    const rnd = Math.random; Math.random = () => 0.5;   // kein 2-%-Aufräumen beim Zählen (sonst gelegentlich 9 statt 4 Abfragen)
+    try { r = await call("GET", "/api/teacher/ai", { auth }); } finally { Math.random = rnd; }
     assert.ok(r.queries <= 4, "D1-Abfragen: " + r.queries);   // Anmeldung + ein Batch (Einstellungen, Sperre, Verbrauch)
     assert.deepEqual(r.json.consumption.main, { provider: "custom", day, requests: 1, tokens: rows.custom.tokens, resetAt: nextMid, limits: null });
     assert.deepEqual(r.json.consumption.reserve, { provider: "custom", day, requests: 1, tokens: rows["custom#r"].tokens, resetAt: nextMid, limits: null });

@@ -283,7 +283,7 @@ test("feedbackAcceptor: jede angefragte Aufgabe braucht mindestens einen Stichpu
   assert.equal(acc({ aufgaben: [] }), false);
   assert.equal(acc({ aufgaben: [{ nr: 1, angesprochen: ["a"] }, { nr: 3, fehlt: ["b"] }] }), true);                // altes Format
 });
-test("buildFeedbackMessages/feedbackResults with only (second feedback): just the chosen tasks, same format and order; null for the others", () => {
+test("buildFeedbackMessages/feedbackResults with only (KI-Feedback je Aufgabe; ältere Seiten: second feedback): just the chosen tasks, same format and order; null for the others", () => {
   const answers = ["Licht und Wasser", "egal", "weil warm"];
   const { messages, nrs } = buildFeedbackMessages(tasks, answers, [3]);
   assert.deepEqual(nrs, [3]);
@@ -875,4 +875,33 @@ test("Antwortart Foto: nie an die KI – weder Feedback (vor und nach der Abgabe
   const ck = buildChecklistMessages(tasks);
   assert.deepEqual(ck.nrs, [2]);
   assert.equal(/Kunstwerk|Auftrag-Marker/.test(ck.messages[1].content), false);
+});
+
+/* ---------- KI-Feedback je Aufgabe (only, seit dem 17.11.2026) ---------- */
+test("KI-Feedback je Aufgabe: wantsFeedback je Antwortart (= aiTasks); only [n] schickt nur Aufgabe n – unabhängig davon, was in den übrigen Antworten steht; feedbackResults null für die übrigen, Hinweis für gewählte ohne Auftrag", () => {
+  const table = { type: "table", columns: ["A", "B"], rows: 2 };
+  const map = { type: "map", map: "world", items: [] };
+  const tasks = [
+    { text: "Erkläre die Photosynthese.", solution: "- Licht" },
+    { text: "Deine Meinung?", solution: " \n " },
+    { text: "Warum verdunstet Wasser?", solution: "- Wärme" },
+    { text: "Fülle die Tabelle.", solution: "- Weizen", answer: table },
+    { text: "Tabelle ohne Auftrag", solution: "", answer: table },
+    { text: "Ordne zu.", solution: "älterer Auftrag", answer: map },
+    { text: "Foto", solution: "älterer Auftrag", answer: { type: "photo" } },
+  ];
+  assert.deepEqual(tasks.map(wantsFeedback), [true, false, true, true, false, false, false]);
+  // die übrigen Antworten leer oder gefüllt: dieselbe Nachricht (sie stehen nie im Prompt) – leer senden kostet also nichts
+  const empty = ["", "", "Durch Wärme", "", "", "", ""], full = ["Licht", "Gut.", "Durch Wärme", "A | B\nWeizen | x", "x", "Kaffee → Brasilien", "[Foto]"];
+  const a = buildFeedbackMessages(tasks, empty, [3]), b = buildFeedbackMessages(tasks, full, [3]);
+  assert.deepEqual(a.nrs, [3]); assert.deepEqual(b, a);
+  assert.equal(a.messages[0].content, FEEDBACK_SYSTEM);   // derselbe System-Prompt wie beim Feedback zum ganzen Blatt
+  assert.ok(a.messages[1].content.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 3):\n\n### Aufgabe 3\n"), a.messages[1].content);
+  assert.equal(/Photosynthese|Meinung|Tabelle|Ordne|Foto|Licht|Weizen/.test(a.messages[1].content), false, a.messages[1].content);
+  // Knopf unten nach Feedback zu Aufgabe 3: die übrigen ohne Feedback – nur die mit Auftrag gehen an die KI
+  const rest = buildFeedbackMessages(tasks, full, [1, 2, 4, 5]);
+  assert.deepEqual(rest.nrs, [1, 4]);
+  const res = feedbackResults(tasks, new Map([[1, { covered: ["Licht"], missing: [] }], [4, { covered: [], missing: ["Nenne Weizen."] }]]), [1, 2, 4, 5]);
+  assert.deepEqual(res, [{ covered: ["Licht"], missing: [] }, { covered: [], missing: [], note: NO_SOLUTION_NOTE }, null,
+    { covered: [], missing: ["Nenne Weizen."] }, { covered: [], missing: [], note: NO_SOLUTION_NOTE }, null, null]);
 });

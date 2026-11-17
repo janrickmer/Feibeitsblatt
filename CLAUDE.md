@@ -2,7 +2,8 @@
 
 Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft; die Kurzfassung
 des Datenschutzhinweises nennt die Messung in einem Satz, Widerspruch per Schalter im eigenen Abschnitt des ausführlichen Hinweises): Lehrkraft legt Aufgaben +
-Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; bis zu 3 YouTube-Videos je Aufgabe unter dem Material, geladen erst nach Klick; Antwort als Textfeld, Tabelle, Weltkarten-Zuordnung oder Foto) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, einmal KI-Feedback (freiwillig),
+Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; bis zu 3 YouTube-Videos je Aufgabe unter dem Material, geladen erst nach Klick; Antwort als Textfeld, Tabelle, Weltkarten-Zuordnung oder Foto) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, KI-Feedback (freiwillig, je Aufgabe
+höchstens einmal – einzeln per „KI-Feedback nur zu dieser Aufgabe“ oder für die übrigen zusammen, siehe KI-Feedback je Aufgabe),
 überarbeiten, verschlüsselt abgeben (danach finale KI-Rückmeldung zur abgegebenen Fassung – abwählbar, der Server legt sie verschlüsselt
 für die Lehrkraft zur Abgabe, Download höchstens 30/60/90 s gesperrt (Einstellung der Lehrkraft), sonst steht die Checkliste in der
 Lösungs-PDF) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); nach „Code generieren“
@@ -51,7 +52,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `material` (Absätze aus Läufen, siehe unten), `textFmt` (formatierte Aufgabenstellung, siehe unten; `[]` = nur `text`)
   und `files` (PDF-Dateien, siehe unten) und immer `videos: [{id, start?, title?}]` (`videosOut`, `[]` ohne Videos; nie eine URL – siehe
   YouTube-Videos; `POST /api/teacher/sheets` nimmt je Aufgabe optional `videos` und antwortet zusätzlich mit `videoCount`). `GET /api/sheet/:code` liefert außerdem `aiFeedback` (Ja/Nein: mindestens eine
-  Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`) und
+  Aufgabe mit Auftrag an die KI, `wantsFeedback` aus ai.js; nie der Auftrag; fehlt bei älteren Workern = `true`), `aiTasks` (immer, auf
+  Blattebene: aufsteigende 1-basierte Nummern genau der Aufgaben mit `wantsFeedback` – Text/Tabelle mit Auftrag, nie Weltkarte oder Foto –,
+  `[]` ohne; `aiFeedback` = `aiTasks.length > 0`; nur Ja/Nein je Aufgabe, nie der Auftrag; aus derselben Zeile, keine zusätzliche Abfrage;
+  nicht in `GET /api/teacher/sheets/:code` und nicht in den Objekten je Aufgabe – die Schlüsselliste je Aufgabe im Smoke-Test bleibt; siehe
+  KI-Feedback je Aufgabe) und
   `privacy: {retentionDays} | null` (siehe Datenschutz-Angaben; im bestehenden `IN`-Batch, keine Abfrage mehr) und `finalWaitSec`
   (in `sheet`; Wartezeit auf die finale KI-Rückmeldung 30 | 60 | 90, `finalWaitOut`; ebenfalls aus dem `IN`-Batch – `key IN
   ('teacher','ai','privacy','final')`, weiter 4 Abfragen, siehe Finale KI-Rückmeldung, „Wartezeit“).
@@ -84,9 +89,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bleibt es bei `final_done`. `finalDoneStmt` und der `done`-Haken von `askAI` sind entfallen. Ohne Aufgabe mit Auftrag: `results` ohne KI,
   `stored:false`, `final_at` bleibt NULL.
   `only: [n…]` (1-basierte Aufgabennummern, `validateOnly`: Ganzzahlen 1…Aufgabenzahl,
-  ohne Doppelte, nicht leer, sonst 400 `bad_answers` – nie stillschweigend „alle“; fehlt/`null` = alle) bleibt nur für ältere,
-  gecachte Seiten (zweite Rückmeldung zu geänderten Aufgaben): dann gehen nur diese Aufgaben (mit Auftrag) an die KI, `results`
-  hat für die übrigen `null`; die jetzige Seite schickt es nie. Es antwortet
+  ohne Doppelte, nicht leer, sonst 400 `bad_answers` – nie stillschweigend „alle“; fehlt/`null` = alle; nie zusammen mit `final`) schickt
+  **die jetzige Seite wieder** (seit dem 17.11.2026, siehe KI-Feedback je Aufgabe): `[n]` beim Button „KI-Feedback nur zu dieser Aufgabe“,
+  die noch offenen Aufgaben mit Auftrag beim Button unten, sobald es zu einzelnen Aufgaben Feedback gibt – dann jeweils mit allen übrigen
+  Antworten als `""` (Datenminimierung; `answers` behält eine Stelle je Aufgabe, `validateAnswers` nimmt `""`/`null`; `feedback_chars` zählt so
+  nur Gesendetes); ältere, gecachte Seiten nutzen es für die zweite Rückmeldung zu geänderten Aufgaben. Dann gehen nur diese Aufgaben (mit
+  Auftrag) an die KI, `results` hat für die übrigen `null`; eine gewählte Text-/Tabellenaufgabe ohne Auftrag bekommt `NO_SOLUTION_NOTE`; hat
+  keine gewählte einen Auftrag, antwortet der Server ohne KI (`aiGenerated: false`) und zählt nichts. Ob eine Aufgabe schon einmal Feedback
+  bekam, prüft der Server nicht (wie beim ganzen Blatt – „einmal“ gilt nur im Browser). Es antwortet
   zusätzlich `aiGenerated` (`true` + `digitalSourceType` IPTC `trainedAlgorithmicMedia`,
   wenn die KI gefragt wurde, sonst `false`); `POST /api/submit` liefert `retentionDays` (Frist jetzt, `null` = keine).
   Türcode `env.TEACHER_DOOR_CODE || "1104"`; das Frontend schickt rein numerische Eingaben (4–12 Ziffern) an
@@ -132,7 +142,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`validateSubmitMeta`; `first` braucht `attempt`). Der Browser erzeugt je Bearbeitung eine Kennung (`S.attempt`,
   `hexOf(8 Zufallsbytes)`, im Zwischenstand gespeichert) und schickt nach erhaltenem KI-Feedback die erste Fassung +
   Feedback als Erstversuch (`sendFirstAttempt`, payload `stage:"first"`, `answers[].final = null`, `submittedAt:null`;
-  scheitert das Senden, wird es beim nächsten Öffnen nachgeholt – `S.firstSent`). Gleiche `attempt` → `UPDATE`
+  scheitert das Senden, wird es beim nächsten Öffnen nachgeholt – `S.firstSent`). **Nach jedem KI-Feedback** (zu einer Aufgabe oder zum
+  Rest, siehe KI-Feedback je Aufgabe) ersetzt er den vorigen mit derselben `attempt` (dieselbe Zeile, `received_at` und damit die Löschfrist
+  neu, jeder Aufruf zählt unter `submit`; ersetzte Fassungen bleiben bis zu 7 Tage in der Datensicherung von D1). Er enthält **nur die Aufgaben,
+  die schon Feedback haben** (erste Fassung + Feedback); die übrigen `answers[i].first = null`, `feedback[i] = null`, Tippzeiten `first: null`; bei
+  Feedback zu einzelnen Aufgaben (oder verschiedenen Zeitpunkten) zusätzlich `feedbackAts` (ISO je Aufgabe, `fbtAtsOut`), `feedbackAt` = der
+  früheste. `S.firstSent` bleibt ein Boolean (E2E und `ttDraftFlags` lesen `=== true`), dazu `S.firstSentSig` = `fbtSig(S.feedback)` des gesendeten
+  Stands („1,3“, im Zwischenstand als `firstSentSig`; ältere Stände ohne das Feld: die jetzige Signatur); weicht sie ab (`grown`), sendet
+  `sendFirstAttempt` erneut – auch aus `openEditor`; kommt während des Sendens weiteres Feedback, gleich danach noch einmal (`again`, wie
+  bei `S.ttResend`). Gleiche `attempt` → `UPDATE`
   derselben Zeile (`replaced`), ein Erstversuch überschreibt nie eine Abgabe (`kept:true`); ohne `attempt` wird
   eingefügt. Widerspricht jemand nach dem Senden der Tippzeit-Messung, ersetzt der Browser den Erstversuch mit derselben
   `attempt` ohne Tippzeiten (`S.ttResend`, siehe Tippzeit-Messung). `stage: "feedback2"` (mit `attempt` und `receivedAt` der Abgabe-Antwort,
@@ -162,7 +180,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Reihenfolge der Eingabe zählt nicht –, in Lösch-Dialogen mitgezählt; die Details
   der Abgabe zeigen sie in `details.dolder` „n ältere Erstversuche dieser Person (bzw. Gruppe) (in der Liste ausgeblendet)“, gebaut beim
   Aufklappen per `buildDetail(x.s, true)` ohne Löschknopf – sonst wäre die Auskunft unvollständig); Details:
-  „Erstversuch ohne Überarbeitung – noch nicht abgegeben“, Spalte 2 „(noch nicht überarbeitet)“, am Ende „Diesen Eintrag
+  „Erstversuch ohne Überarbeitung – noch nicht abgegeben“, Spalte 2 „(noch nicht überarbeitet)“ (Erstversuch mit Feedback nur zu einzelnen
+  Aufgaben: Hinweis `fbtFirstHint`, bei den übrigen Aufgaben eine Spalte „Antwort“ mit `FBT_FIRST_NONE_AI` bzw. `FBT_FIRST_NONE`, siehe KI-Feedback
+  je Aufgabe), am Ende „Diesen Eintrag
   löschen“ (`deleteEntry`, danger-Dialog mit Kürzel, Geburtstag, Klasse bzw. „der Gruppe MaxMu, LiMu (Klasse 8b)“; löscht die
   ausgeblendeten Erstversuche derselben Person bzw. Gruppe und zuletzt die id selbst in Blöcken zu `DELETE_IDS_MAX` = `LIMITS.deleteIds` (50) – scheitert ein Block, bleibt der
   Rest unter der Abgabe –, lädt Liste und Zähler neu, Status in `#t-subs-status`) – so setzt die Lehrkraft Löschwünsche um.
@@ -174,7 +194,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readStartPdf` (Block `PDFREAD`; liefert den Zwischenstand oder – Kennzeichen `/FbEscape 1` – die Hülle aus der Überblick-PDF eines Escape-Rooms) sucht die Kennzeichen
   im Latin-1-String, liest `/Length` (direkt oder Verweis, sonst bis `endstream`) und entpackt `FlateDecode` per
   `DecompressionStream` – neu gespeicherte PDFs bleiben lesbar; `cleanDraft` prüft wie die Eingabefelder (Code,
-  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam, `attempt`,
+  Kürzel, Geburtstag per `bdayOf` – ein altes volles Datum wird auf Tag und Monat gekürzt –, Klasse bzw. eine Gruppe per `cleanGroup`, ≤ 30 Antworten, `first`+`feedback` nur gemeinsam (je Aufgabe beide
+  oder beide `null`, `fbtPairs` – KI-Feedback nur zu einzelnen Aufgaben; ältere Dateien haben überall beide), `feedbackAts` per `fbtAts`,
+  `firstSentSig` nur mit `firstSent`, `attempt`,
   Tippzeiten `typing` per `ttCleanDraft` nur passend, Widerspruch `ttOptOut`/`ttResend` per `ttDraftFlags` – dann `typing: null`, Fotos `photos` nur
   als geprüfte JPEG-data:-URLs per `cleanPhoto`, an `answers` ausgerichtet). Startseite: `#start-pdf` →
   `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB, Blatt laden, Aufgabenzahl prüfen, bei neuerem
@@ -229,13 +251,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Finale KI-Rückmeldung zur abgegebenen Fassung (Wunsch der Lehrkraft vom 08.11.2026; ersetzt die frühere „zweite Rückmeldung“ nur zu
   geänderten Aufgaben):** `submitAll` gibt **zuerst** ab (die Abgabe hängt nie von der KI ab). **Angebot im Abgabe-Dialog** – auch **ohne erstes
   KI-Feedback**: `fb2Offer(finals, na)` (eingefroren beim Öffnen wie der Text des Dialogs) nur bei `S.sheet.aiFeedback`, mit Empfänger
-  (`recipientParts().any`), nicht bei `FB_QUOTA`/`FB_NO_AI` und nicht, wenn alle Antworten zusammen zu lang sind (`fb2TooLong(finals)`, wie
-  `validateAnswers`). Dann zeigt `submitDialog(withFb, finals, na, offer)` über `askConfirm({…, check: {label, checked}})` unter dem Text das
+  (`recipientParts().any`), nicht bei `FB_QUOTA`/`FB_NO_AI` (ohne erstes Feedback aus `noAiState`, mit KI-Feedback zu einzelnen Aufgaben aus
+  `fb2Known()` – eine weitere Anfrage ergab den Grund, siehe KI-Feedback je Aufgabe) und nicht, wenn alle Antworten zusammen zu lang sind
+  (`fb2TooLong(finals)`, wie `validateAnswers`). Dann zeigt `submitDialog(withFb, finals, na, offer)` über `askConfirm({…, check: {label, checked}})` unter dem Text das
   **vorausgewählte, abwählbare** Kästchen `#dlg-check` (`label#dlg-check-row.checkrow.dlg-check`, `#dlg-check-label` = `FB2_CHECK_LABEL` „Nach der
   Abgabe eine finale KI-Rückmeldung erhalten“; erstes Element der Tab-Falle; ohne `check` verborgen, Zustand bis zum nächsten Aufruf in
   `$("dlg-check").checked`) und im Text `fb2DialogLine()` „Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI
   beurteilt, was dir gelungen ist und was gefehlt hat; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine
-  Lehrkraft lesen. <`recipientSentence()`> Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.“ (ohne Angebot mit erstem Feedback `FB2_NO_AI` „…; an die KI wird nichts gesendet.“ bzw.
+  Lehrkraft lesen. <`recipientSentence()`> Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.“ (ohne Angebot mit erstem Feedback `FB2_NO_AI` „…; an die KI wird nichts gesendet.“, nach `fb2Known` `FB2_QUOTA` „Eine finale KI-Rückmeldung
+  gibt es diesmal nicht – das KI-Kontingent für heute ist aufgebraucht; an die KI wird nichts gesendet.“ bzw.
   „Deine Antworten sind zusammen zu lang für eine finale KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet.“; ohne erstes Feedback
   und ohne Angebot die bisherigen Sätze „An die KI wird nichts gesendet.“ u. ä.). `wantFinal = offer && ok === true && $("dlg-check").checked`;
   angeboten → `payload.finalWanted = wantFinal` (verschlüsselt; die Lehrkraft sieht „abgewählt“); **jede** neue Abgabe trägt `payload.finalMode = true`
@@ -369,12 +393,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Lösungsseiten – `teacherSolutionsSub` setzt kein `escape`, den Überblick gibt es über „Überblick als PDF herunterladen“ –, nie
   Tippzeiten, nie ein voller Name), daneben in den Details weiter `p.dtt`/`p.dtt-sum` und `escDetailDom`, Dateiname `teacherSolutionsName`
   `Feibeitsblatt-Loesungen-<Code>-<Klasse>-<Kürzel bzw. Gruppe-…>-<Abgabedatum>.pdf` (ASCII, nie Geburtstag). `.dmeta` sagt „ohne
-  KI-Feedback zum Überarbeiten“ (Blatt ohne Auftrag an die KI: „ohne KI-Feedback“). Datenschutzhinweis und beide Feedback-Dialoge nennen die
+  KI-Feedback zum Überarbeiten“ (Blatt ohne Auftrag an die KI: „ohne KI-Feedback“). Datenschutzhinweis und alle Feedback-Dialoge (auch die zu
+  einzelnen Aufgaben, `fbtDialog` mit `FBT_FINAL`) nennen die
   finale Rückmeldung (auch ohne vorheriges KI-Feedback, beim Abgeben abwählbar) und dass der Server sie verschlüsselt zur Abgabe speichert, nur
   für die Lehrkraft lesbar (`FB2_SEND`/`PRIV_IHR.fb2Send`, Cloudflare-Punkt, `renderPrivacy`, `fb2DialogLine`); `#submit-hint` kündigt sie nur
-  an (beim Abgeben abwählbar). Je Schüler:in also bis zu zwei KI-Anfragen (KI-Feedback +
-  finale; ohne erstes Feedback eine) → Rate-Limits verdoppelt (der Vorschlag der Checkliste, einer je neuem Blatt, zählt unter `checklist`); bis zu zwei Aufrufe von
-  `/api/submit` (Erstversuch, Abgabe; ohne erstes Feedback einer – ein `feedback2` älterer Seiten zählt nicht) → `submit` 360/h.
+  an (beim Abgeben abwählbar). Je Schüler:in also bis zu n + 1 KI-Anfragen bei n Aufgaben mit Auftrag (KI-Feedback je Aufgabe bzw. für die
+  übrigen + finale; ohne Feedback zu einzelnen Aufgaben wie früher zwei, ohne erstes Feedback eine) → Rate-Limits angehoben (am 08.11.2026
+  `feedback`/`feedback_chars`, am 17.11.2026 `sheet_feedback` auf 1200/Tag; der Vorschlag der Checkliste, einer je neuem Blatt, zählt unter
+  `checklist`); bis zu n + 1 Aufrufe von `/api/submit` (je KI-Feedback ein Erstversuch, der den vorigen ersetzt, dazu die Abgabe; ohne erstes
+  Feedback einer – ein `feedback2` älterer Seiten zählt nicht) → `submit` 720/h (siehe Rate-Limits).
   **Tests:** E2E 7r (eigenes Blatt, wird gelöscht; `FINAL_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos): Checkliste beim Anlegen (Vorschlag
   nach „Code generieren“, prüfen, bestätigen), Abgabe ohne erstes Feedback mit vorausgewähltem Kästchen → Anfrage mit `final: true`,
   Countdown neben dem Spinner, Download gesperrt bis zur Rückmeldung, Boxen grün/rot, PDF schwarz mit „Das hat gefehlt:“; abgewählt → keine
@@ -423,12 +450,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   hart) → Indizes, `COUNT` über Index. Lange KI-Anfragen sind ok (keine Wall-Time-Grenze bei verbundenem Client). Abgaben mit Fotos
   (Umschlag bis 1000 KB) belasten Speicher und Datenbank stärker: die Lehrkraft-Liste holt deshalb nur die Zeilen einer Seite aus D1 (siehe
   API), und die 500 MB je Datenbank (Free) teilen sich Abgaben mit den 200 MB für Bilder und Dateien – die Löschfrist hält das im Rahmen.
-- **KI:** Nie Personendaten an die KI – `/api/feedback` bekommt nur `{code, answers}`, dazu `recipients` (ids der Empfänger) und im
+- **KI:** Nie Personendaten an die KI – `/api/feedback` bekommt nur `{code, answers}`, dazu `recipients` (ids der Empfänger), bei KI-Feedback
+  je Aufgabe bzw. zu den übrigen `only` (Aufgabennummern, die übrigen Antworten `""`) und im
   Final-Modus `final`, `attempt`, `receivedAt` (siehe API, Krypto); nichts davon geht an die KI. Der Worker baut die Nachrichten
   **selbst** aus D1 (Aufgaben, reiner Text des Materials, Aufträge an die KI – nie Videos, Bilder oder Dateien) und den Antworten (`buildFeedbackMessages`; nie `messages` vom
   Browser annehmen, sonst offenes KI-Relay); Daten zwischen `<<<`/`>>>` über `safeData`. Nur Aufgaben mit
-  Auftrag an die KI (bei `only` – nur ältere Seiten – nur diese: gleiches Format, nur weniger Aufgaben; im Final-Modus immer alle), eine
-  Anfrage je Blatt. **Finale KI-Rückmeldung** (`buildFeedbackMessages(tasks, answers, only, {final: true})`): nur ein anderer System-Prompt
+  Auftrag an die KI (bei `only` – KI-Feedback zu einer Aufgabe bzw. zu den übrigen, ältere Seiten: zweite Rückmeldung – nur diese: gleiches
+  Format, nur weniger Aufgaben, `outTokens` nach ihrer Zahl; das gecachte Präfix teilen alle Anfragen mit derselben Auswahl, z. B. alle zu
+  „Aufgabe n“; im Final-Modus immer alle), je Klick eine gemeinsame Anfrage für alle gewählten Aufgaben (nie eine je Aufgabe). **Finale KI-Rückmeldung** (`buildFeedbackMessages(tasks, answers, only, {final: true})`): nur ein anderer System-Prompt
   `FEEDBACK_FINAL_SYSTEM` (enthält wörtlich `FEEDBACK_FINAL_MARK` „finale Rückmeldung nach der Abgabe“ – daran erkennt der Mock sie –, **nie das
   Wort „Checkliste“**, daran erkennt er den Checklisten-Prompt), die Nutzer-Nachricht ist byte-gleich mit der des Feedbacks vor der Abgabe (die
   Reihenfolge-Regel gilt weiter; das gecachte Präfix unterscheidet sich zwischen beiden Arten, die erste finale Anfrage eines Blattes ist ein
@@ -470,8 +499,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Schema-Aufrüstung `ensureColumns` ≤ 12 – drei PRAGMAs, acht ALTERs, Index; `GET /api/sheet/:code` und `GET /api/teacher/ai` je 4). Browser (`requestFeedback`): nur bei `ai_busy` automatisch wiederholen – `FB_TRIES` 5,
   `FB_MAX_MS` 4 min, Wartezeit = retryAfter × (1 + 0–30 %) + 0–3 s, ein `setTimeout` auf einen absoluten Zeitpunkt +
   `visibilitychange`, Sekundenzähler in `#fb-wait` (aria-hidden) außerhalb der Live-Region `#fb-status` (beide und `#fb-fallback` direkt unter `#fb-btn`, vor dem
-  Datenschutzhinweis `#privacy`/`#privacy-esc`/`#privfull-ed` – E2E 7f prüft die Lage), Felder nur
-  während einer laufenden Anfrage readOnly, vor jedem Versuch `answers` neu lesen (`S.first` = gesendete Fassung),
+  Datenschutzhinweis `#privacy`/`#privacy-esc`/`#privfull-ed` – E2E 7f prüft die Lage; bei einer Anfrage zu einer Aufgabe stattdessen
+  `#fbt-st-n`/`#fbt-wait-n`/`#fbt-wait-stop-n` an der Aufgabe, `fbUi(target)`, `waitBeforeRetry(…, ui)`), Felder nur
+  während einer laufenden Anfrage readOnly (nur die der angefragten Aufgaben), vor jedem Versuch `answers` neu lesen (nur die angefragten;
+  `S.first` = gesendete Fassung),
   `#fb-wait-stop` = Abbruch (1 Fehlversuch), erschöpfter Zyklus = 2 Fehlversuche, `S.fbFails` im Zwischenstand;
   Lauf-Kennung `S.fbRun` + `stopFeedbackRun()` (resetStudent/openEditor) gegen späte Antworten, `api()` nimmt
   `signal`. Mock: `setMode("tpm", null, n)` = n Anfragen je Modell und 5-Minuten-Fenster, `"403flag"` = Moderation.
@@ -620,7 +651,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `no-store`, kein Rate-Limit, kein `lookup_miss`. `routeSetup` legt in einem Batch mit dem
   teacher-INSERT `privacy` {30, auto} an – nur wenn dieser Aufruf die Lehrkraft angelegt hat, noch keine Zeile da ist und
   es keine Blätter gibt (bestehende Installationen löschen erst nach dem ersten Speichern; „Passwort vergessen“ behält
-  die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe). Browser: `cleanPrivacy` (nur
+  die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe; ein Erstversuch, den ein weiteres KI-Feedback ersetzt → ab dem Ersetzen). Browser: `cleanPrivacy` (nur
   `{retentionDays}`), `privacyShortText(p, list, withAi, group, typing)` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
   kostenloses Angebot.“, nennt den KI-Dienst – „… wenn du das KI-Feedback anforderst, und nach der Abgabe für die finale KI-Rückmeldung – außer
   du wählst sie beim Abgeben ab.“; mit `typing` (`ttMeasured`) am Ende **genau der eine Satz `TT_SHORT`**, siehe unten; die finale
@@ -1005,7 +1036,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   beim Laden (`cleanupDrafts`); `true` = auch im Zwischenstand und in der Zwischenstand-PDF; die Datenschutztexte im Browser und
   `#t-tt-none` folgen dem Schalter (siehe Datenschutz-Angaben), **beim Umlegen README (Tabelle, Rechtsgrundlagen, Abschnitt
   Tippzeiten, Elternbrief, Entwicklung) und diese Datei von Hand anpassen**. **Nutzlast** (Erstversuch/Abgabe, nur verschlüsselt, `payload.v` bleibt 1): `typing:{v:1,
-  answers:[{first: B|"="|null, final: B|null}]}` (`"="` = gleicher Text und gleiche Werte wie final, ohne KI-Feedback immer;
+  answers:[{first: B|"="|null, final: B|null}]}` (`"="` = gleicher Text und gleiche Werte wie final, ohne KI-Feedback immer,
+  ebenso bei Aufgaben ohne eigenes KI-Feedback;
   Erstversuch `final:null`), nach Widerspruch `ttOptOutPayload()` = `{v:1, optOut:true}`, zu groß `{v:1, omitted:"too_large"}`
   (`sealPayload`: `ttEnvelopeFits` = `validateEnvelope`; `sendSealed`: 413 bzw. 409 → einmal genau dieselbe Nutzlast ohne Werte,
   nichts neu lesen), Rechenfehler `{v:1, omitted:"error"}` – **eine Abgabe scheitert nie an den Tippzeiten**; **nie** in
@@ -1013,7 +1045,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Tippzeiten mehr: Die angenommene Nutzlast wird nicht gemerkt (die finale KI-Rückmeldung legt der Server selbst ab, nichts wird nachgereicht),
   `S.firstTyping` wird `null`. **Lehrkraft:** `loadSubs` → `ttCleanPayload`
   (eigenes try/catch; → `null` | `{optOut}` | `{omitted}` | `{list}`, nur Base64-Form, `"="` nur bei gleichem Text), dekodiert
-  erst beim Aufklappen: `buildDetail` → `ttDetail(p, types, n, isFirst, noFb)` (`{sum, per:[{first, fin, line}]}`, Zeilen als
+  erst beim Aufklappen: `buildDetail` → `ttDetail(p, types, n, isFirst, noFb)` (`noFb` Boolean für den ganzen Eintrag oder – KI-Feedback nur
+  zu einzelnen Aufgaben, `fbtNoFbList` – je Aufgabe ein Boolean: ohne eigenes Feedback eine Zeile ohne Bezeichnung; die Gesamtzeile ohne
+  Bezeichnungen nur, wenn keine gemessene Aufgabe Feedback hat) (`{sum, per:[{first, fin, line}]}`, Zeilen als
   Stücke aus `ttSummary`/`ttPctText`/`ttShareParts` – bei Tabellen nur die Zellen), `ttDom`/`answerDom(…, codes, info)` (Spans
   `tt-r|tt-y|tt-g` ohne title/aria; `textContent` der Zelle = Antworttext – Tests lesen ihn; `ttSegmentsCut`: mehr als `TT_SEG_MAX`
   2000 Abschnitte → Gelb+Grün zusammen, dann nur Rot, dann keine Färbung, `ttCutNote` sagt es), `p.dtt` je Aufgabe
@@ -1407,7 +1441,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   bearbeiten“; nur für die Lösungs-PDF); der Lösch-Dialog warnt, dass der Arena-Tunnel dann ins Leere führt. **Der Code steht im öffentlichen Quelltext
   des Raums** (`FEIBEITSBLATT_CODE`): Die Sperre der Startseite ist nur Oberfläche – jede:r kann mit dem Code `GET /api/sheet/:code`,
   `GET /api/sheet/:code/checklist`, `POST /api/feedback` und `POST /api/submit` aufrufen und die Grenzen je Blatt (400 Abgaben/40 MB,
-  `sheet_feedback` 600/Tag) ausschöpfen – und mit einer erfundenen Abgabe die **finale KI-Rückmeldung** bekommen, die konkret nennt, was gefehlt
+  `sheet_feedback` 1200/Tag) ausschöpfen – und mit einer erfundenen Abgabe die **finale KI-Rückmeldung** bekommen, die konkret nennt, was gefehlt
   hat (also Inhalte der Aufträge an die KI, auch wenn sie das Verraten der Lösung verbieten); ebenso ist die bestätigte Checkliste lesbar;
   Gegenmittel: Einträge löschen bzw. neues Blatt und neuen Code im Raum eintragen (README, `#b-esc-hint`).
   **Hülle** (vom Raum, im Link und in der Überblick-PDF gleich): `{kind:"feibeitsblatt-escape", v:1, d, s}`, `d` = JSON-Text der Daten
@@ -1532,16 +1566,18 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Live-Region): `renderSteps` aus `renderFeedbackState`, bei `busyFeedback`, `unlock`, `submitting` und `stopFeedbackRun` (baut die
   Liste nur bei geänderten Einträgen neu, `ol._key`; sonst nur `li.cur` + `aria-current="step"`). Mit KI: „Aufgaben bearbeiten“,
   „KI-Feedback anfordern (freiwillig, empfohlen)“ (ohne Empfänger oder mit gemeldetem Grund `fbBlockedNow`: „(freiwillig, empfohlen
-  – gerade nicht möglich)“), „Lösungen mithilfe des KI-Feedbacks überarbeiten“, „Abgeben“, „Lösungen mit finaler KI-Rückmeldung
+  – gerade nicht möglich)“ – nur, solange es noch Aufgaben mit Auftrag ohne Feedback gibt, `!fbDoneAll()`), „Lösungen mithilfe des KI-Feedbacks überarbeiten“, „Abgeben“, „Lösungen mit finaler KI-Rückmeldung
   herunterladen“ + `STEP_LATE` („– nur direkt nach der Abgabe auf der Bestätigungsseite (nicht nach Neuladen oder „Neues
-  Feibeitsblatt öffnen“)“); ohne KI „Aufgaben bearbeiten“, „Abgeben“, „Lösungen herunterladen“ + `STEP_LATE`. Aktuell: 1, bei
-  laufender Anfrage 2, nach dem Feedback 3, beim Senden 4 (ohne KI 1/2); der letzte Schritt nie (`clearEditor` leert den Kasten,
+  Feibeitsblatt öffnen“)“); ohne KI „Aufgaben bearbeiten“, „Abgeben“, „Lösungen herunterladen“ + `STEP_LATE`. Die Beschriftungen gelten
+  unverändert auch mit KI-Feedback je Aufgabe. Aktuell: beim Senden 4, bei laufender Anfrage 2 (auch zu einer einzelnen Aufgabe – vor 3),
+  sobald es zu irgendeiner Aufgabe Feedback gibt 3, sonst 1 (ohne KI 1/2); der letzte Schritt nie (`clearEditor` leert den Kasten,
   nicht auf `#screen-done`). Beim Öffnen kein Wegscrollen (`scrollTop = 0`, Fokus mit `preventScroll`).
 - **Das KI-Feedback ist freiwillig** (Handreichung KI des HKM, Juli 2023: S. 10 allgemein „derzeit nur auf
   freiwilliger Basis“; S. 17 kein Nachteil ohne KI – dort für volljährige Schüler:innen, sinngemäß übertragen).
   „Abgeben“ ist nie wegen fehlenden Feedbacks gesperrt (nur ein ganz leeres Blatt: Meldung wie beim Feedback; leere
   Aufgaben nennt der Dialog); vorgesehen bleibt Feedback → überarbeiten → abgeben, ohne Druck: `FB_VOLUNTARY` („… ohne
-  dass dir daraus ein Nachteil entsteht“) in `#fin-text` und beiden Feedback-Dialogen. Ohne Feedback fragt
+  dass dir daraus ein Nachteil entsteht“) in `#fin-text` (auch in `fbtFinText`) und allen Feedback-Dialogen (auch `fbtDialog`, wörtlich
+  unverändert). Ohne Feedback fragt
   `submitDialog` „Ohne KI-Feedback abgeben?“; eingestuft wird **nach** dem Dialog (`noAiState(wasBusy)`) →
   verschlüsselt `noAi`: `"declined"` nur, wenn nie eine Anfrage lief (`S.fbFails === 0`, keine laufende Anfrage, kein
   `S.fbUnavailable`, `aiRecipients` nicht leer; vor dem Senden speichert `requestFeedback` `S.fbPending` im
@@ -1568,11 +1604,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   zählt auch ein Lauf, den die Abgabe abbricht oder der nach `ai_busy` mit „zu lang“ bzw. `ai_changed` endet (Meldung
   dann „dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise
   schon erhalten“ statt „es wurde nichts gesendet“). Ohne Feedback: kein Erstversuch, `feedback:null`, `first = final`; bis zur Abgabe
-  umkehrbar. **Die finale KI-Rückmeldung gibt es auch ohne erstes Feedback** (Entscheidung der Lehrkraft vom 08.11.2026): der Abgabe-Dialog
+  umkehrbar. Mit Feedback nur zu einzelnen Aufgaben gilt die Abgabe als mit KI-Feedback (kein `noAi`, `submitDialog` und `#submit-hint`
+  wörtlich wie bisher – „beide Fassungen“); je Aufgabe ohne eigenes Feedback `first = final`, `feedback[i] = null` (siehe KI-Feedback je
+  Aufgabe). **Die finale KI-Rückmeldung gibt es auch ohne erstes Feedback** (Entscheidung der Lehrkraft vom 08.11.2026): der Abgabe-Dialog
   bietet sie per vorausgewähltem Kästchen an, wenn `fb2Offer` es zulässt (nicht bei `FB_QUOTA`/`FB_NO_AI`, nicht ohne Empfänger, nicht zu lang) –
   sonst bleibt es bei „An die KI wird nichts gesendet.“; wer sie abwählt, bekommt die Checkliste in die Lösungs-PDF. Ob ein
   vorausgewähltes, abwählbares Kästchen zu „nur auf freiwilliger Basis“ der Handreichung passt, ist offen (README, „Weiter vom Betreiber zu
-  prüfen“). Kommt ein Feedback, während der Dialog offen ist, wird
+  prüfen“). Kommt ein Feedback (auch zu einer weiteren einzelnen Aufgabe – `submitAll` vergleicht `fbtSig` vor und nach dem Dialog), während
+  der Dialog offen ist, wird
   nicht abgegeben (Fokus bleibt im Dialog; nach dem Schließen bei beiden Antworten auf `#revise-hint`, beim Bestätigen
   zusätzlich `#submit-status`); scheitert eine Abgabe, die eine Anfrage abgebrochen hat, gibt der `catch` Felder,
   `#fb-btn` und `#fb-status` frei. `S.submitting` (nach dem Bestätigen bis zum `finally`, dort bei einem Fehlschlag
@@ -1583,20 +1622,133 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   erstes Feedback ohne Empfänger nach Weiterschreiben).
   Lehrkraft (`noAiNote`, neutral): „Ohne KI-Feedback zum Überarbeiten abgegeben.“ bzw. „… – das KI-Feedback war nicht möglich (Grund).“
   (alte Abgaben ohne `noAi` = nicht möglich), eine Spalte „Abgegebene Fassung (ohne KI-Feedback zum Überarbeiten)“ (Blatt ohne Auftrag an die KI: „(ohne KI-Feedback)“; `.dmeta` „ohne KI-Feedback zum Überarbeiten“) (`table.cmp.one`); Liste, Legende, Zähler unverändert. Lösungs-PDF: derselbe Satz im Kopf (nicht
-  bei `none`); Zwischenstand-PDF „Stand: … KI-Feedback schon erhalten / angefordert, beim Sichern noch nicht erhalten
-  (`fbPending`) / bisher nicht geklappt (Grund) / nicht angefordert“, ohne KI-Hinweise bei Blättern ohne KI. E2E 3b, 4
+  bei `none`; mit Feedback nur zu einzelnen Aufgaben keiner); Zwischenstand-PDF „Stand: … KI-Feedback schon erhalten / zu den Aufgaben 1 und 3
+  erhalten (`fbtGot`; dazu „, eine weitere Anfrage beim Sichern noch nicht beantwortet“ bei `fbPending`) / angefordert, beim Sichern noch nicht
+  erhalten (`fbPending`) / bisher nicht geklappt (Grund) / nicht angefordert“, ohne KI-Hinweise bei Blättern ohne KI. E2E 3b, 4
   und 7f (G–P, u. a. Tab zu während der Anfrage, Scheitern hinter dem Dialog, abgebrochene wartende Anfrage, alte
   Abgabe ohne `noAi`; Blatt ohne Auftrag) prüfen Dialoge und Hinweise wörtlich.
+- **KI-Feedback je Aufgabe (Wunsch der Lehrkraft vom 17.11.2026):** Das KI-Feedback zum Überarbeiten gibt es **je Aufgabe höchstens
+  einmal** – einzeln über `button.btn.ghost.small.fbtbtn#fbt-btn-n` „KI-Feedback nur zu dieser Aufgabe“ (`FBT_LABEL`) oder für alle übrigen
+  zusammen über `#fb-btn`. „Einmal“ gilt nur im Browser (Zwischenstand); der Server erzwingt es nicht (die Kennung erzeugt der Browser, wie beim
+  ganzen Blatt) – nirgends als erzwungen beschreiben. **Wurde kein Button einer Aufgabe benutzt, bleibt alles byte-gleich** (Anfrage ohne
+  `only` mit allen Antworten, Beschriftungen, Texte, Dialoge, `#privacy` bis auf die Sätze unten, Erstversuch, Abgabe) – darauf bauen die
+  bestehenden E2E-Tests. **Wo:** nur bei Text- und Tabellenaufgaben in `S.sheet.aiTasks` (`fetchSheet` → `fbtCleanAiTasks(sh.aiTasks, kinds)`:
+  Ganzzahlen 1…n, sortiert, ohne Doppelte, nie Weltkarte/Foto – `FBT_NO_AI` = `NO_AI_KINDS`; fehlt das Feld, älterer Worker → `null`: keine
+  Buttons je Aufgabe, nur der unten wie bisher) und nur bei `perTaskOn()` = `fbtPerTask(aiTasks, aiFeedback)`: mindestens **zwei** solche
+  Aufgaben (bei einer wäre er dasselbe wie der Button unten). `fbtDom(n)` → `S.fbts[i]` = `{btn, stat, wait, num, stop}` bzw. `null`: Textfeld
+  rechts (`.fbtbtn{margin-left:auto}`) in `.checkrow` hinter „Rechtschreibung und Grammatik prüfen“ und `.ltstat`, Tabelle in eigener
+  `div.checkrow.fbt-row`; darunter `p.status.fbt-stat#fbt-st-n` (`role="status"`, `aria-live="polite"`) und `div.fbwait.hidden#fbt-wait-n` mit
+  `#fbt-wait-num-n` (aria-hidden) und `button.linkbtn#fbt-wait-stop-n` „Nicht länger warten“ (aria-label „Nicht länger warten – KI-Feedback zu
+  Aufgabe n“). Eigene Klasse, nie `.ltbtn` (`ltDecline` ersetzt nur die Prüf-Buttons). Zugänglicher Name `fbtAria(n, got)` = sichtbarer Text +
+  „ – Aufgabe n“ (WCAG 2.5.3, wie „Rechtschreibung und Grammatik prüfen – Aufgabe n“); danach gesperrt `FBT_DONE` „KI-Feedback zu dieser Aufgabe
+  erhalten“. Die Feedback-Box solcher Aufgaben ist `div.fbbox#fb-n` mit `tabindex="-1"`. **Button unten:** ohne Feedback „KI um ein Feedback
+  bitten“ wie bisher; sobald es zu einer Aufgabe Feedback gibt `FBT_REST` „KI-Feedback zu den übrigen Aufgaben“ – fragt nur `fbOpenNums()`
+  (`fbtOpen`: Aufgaben aus `aiTasks` ohne Feedback; ohne Liste alle ohne Feedback außer Weltkarte/Foto); keine mehr offen (`fbDoneAll()`) →
+  gesperrt „KI-Feedback erhalten“. `syncFbButtons()` stellt alle Buttons ein (aus `renderFeedbackState`, `unlock`, beim Start einer Anfrage
+  und der Abgabe). Text-/Tabellenaufgaben **ohne Auftrag** fragt der Button unten dann nicht mehr an (der Server schickte ohnehin nur
+  `NO_SOLUTION_NOTE`); sobald alle Aufgaben mit Auftrag Feedback haben, zeigt `renderFeedbackState` bei ihnen im Browser die Box „Zu dieser
+  Aufgabe gibt es kein KI-Feedback.“ wie nach dem Feedback zum ganzen Blatt – nicht gespeichert (`feedback[i]` bleibt `null`, die Lehrkraft sieht
+  dort eine Spalte). Teilweise: nur Aufgaben mit Feedback haben eine Box. **Anfrage** `requestFeedback(target)` (`target` 0-basiert = Button
+  der Aufgabe, `null` = unten; `targets` = `[n]` | `fbOpenNums()` | `null` = bisheriger Weg): leere Antwort beim Button einer Aufgabe → kein
+  Dialog, nichts gesendet, an der Aufgabe `fbtEmptyOne` „Schreibe zuerst eine Antwort zu Aufgabe n.“ (die Chance bleibt; auch vor einem
+  automatischen neuen Versuch nach `ai_busy` → Fehlversuch mit diesem Text); alle angefragten leer → `fbtEmptyRest`. Jeder Klick fragt per
+  `askConfirm(fbtDialog(nums, one, empty, FB_VOLUNTARY, recipientSentence(nums)))`: „KI-Feedback zu Aufgabe n anfordern?“ bzw. „KI-Feedback zu
+  den übrigen Aufgaben anfordern?“ (mit leeren „Noch nicht alles beantwortet“/„Trotzdem anfordern“), OK „Feedback anfordern“, Abbrechen
+  „Weiterschreiben“, `safeFirst`; Text: `FB_VOLUNTARY` wörtlich, die Empfänger, „Das KI-Feedback zum Überarbeiten gibt es zu jeder Aufgabe nur
+  einmal – zu Aufgabe n mit diesem Klick; <`FBT_FINAL`>.“ und dass die Antwort als erste Fassung „als Erstversuch, der mit jedem weiteren
+  KI-Feedback ersetzt wird“ an die Lehrkraft geht – keine Tippzeit-Wörter (`expectOnlyTtShort` zählt bei offenem Dialog wie beim bisherigen
+  genau den einen Satz der Kurzfassung). `recipientSentence(nums)`: ohne Argument **byte-gleich** (Abgabe-Dialog über `fb2DialogLine`), mit
+  einer Nummer „Nur deine Antwort zu Aufgabe n geht – … – über den Server dieser Seite an den KI-Dienst …“ (und „verarbeiten deinen Text“), mit
+  mehreren „Nur deine Antworten zu den Aufgaben 2 und 4 gehen …“. Body `{code, answers: fbtRequest(texts, targets), recipients, only:
+  targets}` (übrige Antworten `""`); `/api/feedback` und `/api/submit` unverändert (siehe API), die finale KI-Rückmeldung fragt weiter alle
+  Aufgaben ohne `only`. **Immer nur eine Anfrage:** `S.busyFeedback` + `S.fbTarget`; währenddessen und während `S.submitting` sind alle
+  Feedback-Buttons gesperrt, readOnly nur die angefragten Felder; Status, Countdown und „Nicht länger warten“ an der Aufgabe (`fbUi(target)`),
+  bei `ai_busy` liest jeder neue Versuch nur die angefragten Antworten neu. Erfolg: `fbtMerge(prev, targets, sent, typing, results, normFb, at)`
+  (`targets` null = wie bisher; sonst nur die angefragten Aufgaben, kein Objekt für ein Ziel → `bad_result`), Fokus auf `#fb-n` der Aufgabe
+  (Button unten weiter `#revise-hint`) – außer bei einer Anfrage zu einzelnen Aufgaben (`targets`; die übrigen Felder blieben bearbeitbar), wenn
+  die Schüler:in gerade in einem Eingabefeld ist (`fbtBusyIn(activeElement, answerOf(…))`: Antwortfeld, Tabellenzelle, `INPUT`/`TEXTAREA`/`SELECT`,
+  bearbeitbarer Text; nicht bei offenem Dialog): dann weder Fokus noch Scrollen, die Statuszeile (`#fbt-st-n` bzw. `#fb-status`) sagt
+  `fbtArrived(targets)` „Dein KI-Feedback zu Aufgabe n ist da – es steht unter deiner Antwort.“ („… zu den Aufgaben 3 und 4 … jeweils unter …“);
+  vor dem Fokus (50 ms später) erneut geprüft. Danach `sendFirstAttempt`. „Schon angefordert“ heißt **erhalten** (`fbtHas`): eine gescheiterte oder
+  abgebrochene Anfrage lässt den Button stehen und zählt wie bisher als Fehlversuch (`S.fbFails`). `ai_changed` beim Button einer Aufgabe endet
+  mit „… Lies bitte den Datenschutzhinweis unten auf dem Feibeitsblatt noch einmal …“; ohne Empfänger, aber mit Feedback `FBT_NO_AI_MORE`.
+  `fbBlockedNow` und „gerade nicht möglich“ im Ablauf-Kasten gelten nur, solange Aufgaben offen sind (`fbDoneAll()`); `stopFeedbackRun` leert
+  Status und Warteanzeige an der Aufgabe. **Zustand:** `S.feedback`, `S.first`, `S.firstTyping` sind Arrays mit `null` für Aufgaben ohne
+  Feedback (`S.feedback` bleibt `null` bis zum ersten Feedback gleich welcher Art; je Aufgabe Feedback und erste Fassung gemeinsam);
+  `S.feedbackAt` = frühester Zeitpunkt, `S.feedbackAts` je Aufgabe (`null` = alle zu `feedbackAt`, der bisherige Weg); `fbtSig` („1,3“),
+  `fbtPartial`. **Texte nur im Teilzustand** (`part` = Feedback zu manchen, nicht allen Einträgen; in den bisherigen Zuständen wörtlich gleich):
+  `#fin-text` `fbtFinText(open, FB_VOLUNTARY)` „… kannst du die KI um ein Feedback zu den übrigen Aufgaben (2 und 3) bitten …“ bzw. „zu
+  Aufgabe 2“ (nur solange offene da sind), `#revise-hint` `fbtReviseText(got, open)`, `#ed-hint` `fbtEdHint(got)`, `#fb-fallback`
+  `fbtFallback(open, …)` (ohne Satz zur Lehrkraft – den Vermerk „nicht möglich“ gibt es nur ganz ohne Feedback). `#submit-hint` und
+  `submitDialog` bleiben **wörtlich** (auch „beide Fassungen“; die Abgabe ist für die Schüler:innen sichtbar unverändert) – mit einer Ausnahme
+  für einen Zustand, den es vorher nicht gab: Ergab eine weitere Anfrage nach KI-Feedback zu einer Aufgabe `ai_quota` bzw. `ai_not_configured`
+  (`S.fbUnavailable` = `FB_QUOTA`/`FB_NO_AI`; vorher konnte das nicht neben `S.feedback` stehen), liefert `fb2Known()` (ruft `quotaExpired`) den
+  Grund wie `noAiState` ohne erstes Feedback: `submitAll` → `fb2Offer(finals, known)` bietet nichts an (kein Kästchen, keine finale Anfrage, die
+  Antworten gehen nicht umsonst an den Server), `submitDialog(withFb, finals, known, offer)` sagt `FB2_QUOTA` bzw. `FB2_NO_AI` + „; an die KI
+  wird nichts gesendet.“ (nie „zu lang“), `#submit-hint` statt der Ankündigung `FB2_QUOTA` bzw. `FB2_NO_AI` + „.“ – passend zu `#fb-fallback`. **Erstversuch**
+  nach jedem Feedback ersetzt, nur Aufgaben mit Feedback (siehe Erstversuch ↔ Abgabe). **Abgabe:** `answers[i].first` = erste Fassung bzw. bei
+  Aufgaben ohne eigenes Feedback die abgegebene, `feedback` mit `null` (`fbOut(null)` = `null`), `feedbackAts` nur per `fbtAtsOut` (Aufgaben
+  ohne Feedback oder verschiedene Zeitpunkte), `noAi` nur ganz ohne Feedback, Tippzeiten `first: "="` bei Aufgaben ohne Feedback, `payload.v`
+  bleibt 1; kommt hinter dem offenen Abgabe-Dialog Feedback zu einer weiteren Aufgabe an (`fbtSig`), wird nicht abgegeben (wie beim ersten).
+  Läuft beim Abgeben noch eine Anfrage zu einer Aufgabe, bricht `submitAll` sie ab (Fehlversuch) – mit vorhandenem Feedback sagt der Dialog das
+  nicht. Escape-Blätter gleich; die Abschluss-PDF einer gescheiterten Escape-Abgabe verträgt `null`. Unverändert: finale KI-Rückmeldung,
+  Lösungs-PDF (nie die erste Fassung; ohne Kopfsatz „Ohne KI-Feedback …“, sobald es irgendein Feedback gab), Checkliste, Tippzeit-Messung und
+  Widerspruch (`S.ttResend` bleibt), Escape-Room. **Zwischenstand:** `draftRecord` mit `null`-Paaren, dazu `feedbackAts` (falls da) und
+  `firstSentSig` (mit `firstSent`); `openEditor`/`cleanDraft` per `fbtPairs` (je Aufgabe beide oder keines; ältere Stände haben überall beide und
+  laden unverändert) und `fbtAts`; ein offener `fbPending` zählt beim Öffnen als Fehlversuch, solange nicht alles versorgt ist (`!fbDoneAll()`
+  bzw. in `cleanDraft` `fbtPartial`). Zwischenstand-PDF `makeDraftPdf(d, withAi, escName, perTask)`: „Stand: … · KI-Feedback zu den Aufgaben 1
+  und 3 erhalten“ (`fbtGot`; „, eine weitere Anfrage beim Sichern noch nicht beantwortet“ bei `fbPending`), unter „Bitte beachte“ bei
+  `perTaskOn()` oder teilweisem Feedback `FBT_PDF_ONCE` „Hast du schon KI-Feedback bekommen, bleibt es in der Datei erhalten; zu jeder Aufgabe
+  gibt es nur ein KI-Feedback zum Überarbeiten – ein zweites zur selben Aufgabe gibt es nicht.“, sonst der bisherige Satz. **Lehrkraft:**
+  `loadSubs` → `fbtTeacher` (je Aufgabe `normFb` oder `null`, ohne jede Rückmeldung `null`), `feedbackAts` per `fbtAts`; `buildDetail` mit `partNo =
+  fbtNoFbList(p.feedback, n)`: `.dmeta` `fbtMeta` „KI-Feedback zu den Aufgaben 1 und 3 am …“ (verschiedene Zeitpunkte, `fbtAtsDiffer`: „…,
+  zuerst am …“, je Aufgabe „Angezeigtes KI-Feedback (am …)“), Erstversuch-Hinweis `fbtFirstHint`; je Aufgabe ohne eigenes Feedback in einer
+  Abgabe eine Spalte „Abgegebene Fassung (ohne KI-Feedback zum Überarbeiten)“, in einem Erstversuch eine Spalte „Antwort“ mit `FBT_FIRST_NONE_AI`
+  „(zu dieser Aufgabe noch kein KI-Feedback – noch nicht übermittelt)“ bzw. – ohne Auftrag – `FBT_FIRST_NONE` „(noch nicht übermittelt – kommt erst
+  mit der Abgabe)“ (Foto-Aufgaben wie bisher „(ein Foto kommt erst mit der Abgabe)“), Tippzeiten-Zeile ohne „erste Eingabe“/„nach dem KI-Feedback“ (`ttDetail` mit Liste, siehe Tippzeit-Messung); ältere Einträge
+  wie bisher; Liste, Legende, Zähler unverändert. **Datenschutz** (nur Sätze, die sonst falsch würden): `renderPrivacy` (`#privacy`) bei
+  `perTaskOn()` – Satz 1 „Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ (später „KI-Feedback zu den übrigen
+  Aufgaben“) oder bei einer Aufgabe auf „KI-Feedback nur zu dieser Aufgabe“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an
+  eine KI – beim Button einer Aufgabe nur deine Antwort zu dieser Aufgabe, beim Button unten deine Antworten zu den Aufgaben, zu denen du noch
+  kein KI-Feedback hast; …“, „… an den Server dieser Seite geschickt – ebenso beim Button einer Aufgabe.“ und nach dem Erstversuch-Satz
+  „Bekommst du KI-Feedback nur zu einzelnen Aufgaben, enthält der Erstversuch nur diese Aufgaben und wird mit jedem weiteren KI-Feedback
+  ersetzt.“; sonst wörtlich wie bisher. Dazu die Feedback-Dialoge und der Hinweis der Zwischenstand-PDF (oben). **Unverändert:**
+  `privacyShortText`, `privacyNoticeDom`, `#p-klasse-hint`, Abbrechen- und Abgabe-Dialog (sie bleiben wahr: weniger gesendete Antworten sind
+  abgedeckt, die Datensicherung bis 7 Tage nennen sie schon). **Restrisiken (hingenommen):** ältere, gecachte Schüler-Seiten behandeln einen
+  teilweisen Zwischenstand, als gäbe es Feedback zu allen Aufgaben; ältere Lehrkraft-Seiten zeigen bei Aufgaben ohne Feedback zwei Spalten
+  (Lehrkräfte nach dem Ausrollen neu laden); ein älterer Worker ohne `aiTasks` mit teilweisem Zwischenstand: keine Buttons je Aufgabe, `#privacy`
+  wie bisher, der Button unten heißt `FBT_REST`; zwei Tabs mit demselben Zwischenstand. Reine Helfer zwischen `/* FBTASK:BEGIN` und
+  `/* FBTASK:END */` (vor „KI-Feedback“; kein `$`/`S`/`h`/`document`), `test/unit/fbtask.test.mjs`; nicht reine Helfer `perTaskOn`,
+  `fbOpenNums`, `fbDoneAll`, `fbUi`, `syncFbButtons` vor `renderSteps`. E2E 7t (nach 7r, vor 8; eigenes Blatt – Text, Tabelle und
+  zwei Texte mit Auftrag, ein Text ohne Auftrag, ein Foto –, wird gelöscht): `aiTasks` öffentlich `[1, 2, 3, 4]`, Buttons nur dort (Tabelle in
+  eigener Zeile), `#privacy` mit beiden Wegen, leere Antwort ohne Dialog, `ai_busy` per `page.route` (Warten an der Aufgabe, „Nicht länger
+  warten“ → der Button bleibt), Aufgabe 1 einzeln (Dialog mit `expectOnlyTtShort`, Prompt nur mit Aufgabe 1, Fokus in `#fb-1`), Erstversuch
+  in D1 nur mit Aufgabe 1, dann Aufgabe 2 (während der angehaltenen Anfrage nur ihre Zellen readOnly) → dieselbe Zeile ersetzt,
+  Lehrkraft-Ansicht des Erstversuchs (Foto wie bisher „(ein Foto kommt erst mit der Abgabe)“), Neuladen und Zwischenstand-PDF mit
+  `null`-Einträgen, Button unten nur für 3 und 4 (Aufgabe 5 danach mit „kein KI-Feedback“), Abgabe mit unverändertem Dialog (D1: erste =
+  abgegebene Fassung ohne Feedback, kein `noAi`; finale Rückmeldung zu allen Aufgaben mit Auftrag), Lösungs-PDF, Lehrkraft-Ansicht der
+  Abgabe (eine Spalte, Tippzeiten-Zeile ohne „erste Eingabe“), Schüler:in Lea (schreibt während der angehaltenen Anfrage zu Aufgabe 1 in
+  Aufgabe 3 weiter → Fokus bleibt in `#a-3`, weitere Zeichen kommen an, `#fbt-st-1` = `fbtArrived`; danach Button unten mit 503 `ai_quota` per
+  `page.route` → `#fb-fallback`, `#submit-hint` mit `FB2_QUOTA` auch nach Neuladen, Abgabe-Dialog ohne Kästchen mit `FB2_QUOTA`, keine finale
+  Anfrage, D1 ohne `finalWanted` und ohne `noAi`), älterer Worker ohne `aiTasks` (per `page.route` entfernt: nur der Button
+  unten, `#privacy` wie bisher) und ein Blatt mit nur einer Aufgabe mit Auftrag (keine Buttons). Das Haupt-Blatt der E2E-Tests (`TASKS`: drei Aufgaben, zwei mit Auftrag) und die Blätter von 7b/7f haben jetzt Buttons je
+  Aufgabe; die übrigen Tests benutzen sie nicht und prüfen so den bisherigen Weg (nur `#privacy` lautet auf solchen Blättern neu, siehe Datenschutz oben – 7f prüft Satz 1).
 - **Rate-Limits** (`rate_limits`, festes Fenster, `rlHit` atomar per Upsert … RETURNING): `door`, `auth`
   10/15 min und `auth_all` 200/h (nur Fehlversuche – richtige Codes/Passwörter gehen **immer** durch, laufende
   Sitzungen ebenso; über dem Limit bremst `requireTeacher` Fehlversuche um 2 s), `lookup_miss` 30/10 min (gültige
-  Codes immer), `feedback` 480/h + `feedback_chars` 1 600 000/h je IP (verdoppelt am 08.11.2026, Entscheidung des Betreibers: die finale KI-Rückmeldung kommt nach fast jeder Abgabe, im Schulnetz teilen sich alle eine IP) + `sheet_feedback` 600/Tag je Blatt (je Schüler:in bis zu zwei
-  KI-Anfragen: KI-Feedback und finale KI-Rückmeldung, die nach der Abgabe fast immer kommt) (gezählt
+  Codes immer), `feedback` 480/h + `feedback_chars` 1 600 000/h je IP (verdoppelt am 08.11.2026, Entscheidung des Betreibers: die finale KI-Rückmeldung kommt nach fast jeder Abgabe, im Schulnetz teilen sich alle eine IP; am 17.11.2026 trotz KI-Feedback je Aufgabe unverändert gelassen – Anfragen zu
+  einzelnen Aufgaben schicken die übrigen Antworten leer, `feedback_chars` zählt also nur Gesendetes; bei 480/h reicht eine Schul-IP im
+  ungünstigsten Fall – 5 Aufgaben mit Auftrag, jede einzeln angefragt, also 6 Anfragen je Schüler:in – noch für etwa 80 Schüler:innen pro Stunde) + `sheet_feedback` 1200/Tag je Blatt (am 17.11.2026
+  von 600 verdoppelt, Entscheidung des Betreibers: je Schüler:in bis zu n + 1 KI-Anfragen bei n Aufgaben mit Auftrag – KI-Feedback je Aufgabe
+  bzw. für die übrigen und die finale KI-Rückmeldung, die nach der Abgabe fast immer kommt; das Kontingent teilen sich alle Klassen mit
+  demselben Code, späte Schüler:innen verlören sonst zuerst die finale Rückmeldung) (gezählt
   erst, wenn die Anfrage gültig ist und zur KI geht – eine finale Anfrage, die `checkFinal` ablehnt (`final_*`), zählt nie; bei
   BUSY/RATE_LIMIT/TIMEOUT/SERVER/NETWORK/DAILY_LIMIT
-  Rückerstattung), `submit` 360/h + `submit_bytes` 60 MB/h (mit Fotos etwa 0,2–0,8 MB je Abgabe – reicht für etwa 75–300 Abgaben je Stunde
+  Rückerstattung), `submit` 720/h (am 17.11.2026 von 360 verdoppelt, Entscheidung des Betreibers) + `submit_bytes` 60 MB/h (unverändert; mit Fotos etwa 0,2–0,8 MB je Abgabe – reicht für etwa 75–300 Abgaben je Stunde
   und Netzwerk; nur gültige Abgaben/Erstversuche zu existierenden
-  Blättern; je Schüler:in bis zu zwei Aufrufe – Erstversuch und Abgabe –, ohne erstes Feedback einer; ein `feedback2` älterer Seiten und ein
+  Blättern; je Schüler:in bis zu n + 1 Aufrufe – nach jedem KI-Feedback ein Erstversuch, der den vorigen ersetzt (dieselbe Zeile, zählt
+  trotzdem), dazu die Abgabe; ohne erstes Feedback einer, ohne Feedback zu einzelnen Aufgaben wie früher zwei; ein Widerspruch gegen die
+  Tippzeit-Messung kann einen gesendeten Erstversuch noch einmal ersetzen; ein `feedback2` älterer Seiten und ein
   `final_locked` zählen nie), `checklist` 60/h je IP (KI-Vorschlag der Checkliste – jedes neue Blatt fragt nach „Code generieren“ einmal –, Erstattung wie beim Feedback).
   Je Blatt höchstens 400 Abgaben / 40 MB (Umschläge samt `final_env`). Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
   als Pfeffer), IPv6 vorher auf /64 gekürzt (`ipKey`) – nie Klartext-IPs speichern. Schulnetz = eine IP für viele.
@@ -1659,7 +1811,12 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (vorausgewählt) und sperrt den Download bis zur Wartezeit – in den Tests die Vorgabe 30 s, länger als `expect.timeout` (20 s); der Mock-Modus ist global, eine finale Anfrage kann
   in den Modus eines späteren Schritts oder Tests fallen. Tests, die das nicht prüfen, wählen sie im Abgabe-Dialog ab (`confirmDialog(page, title,
   true, {check: false})` in `helpers.mjs`), warten auf sie oder halten `/api/feedback` per `page.route` an; nach 30 s gedrückte Downloads
-  brauchen ein eigenes Timeout bzw. `page.clock`. E2E 7r: siehe Finale KI-Rückmeldung.
+  brauchen ein eigenes Timeout bzw. `page.clock`. E2E 7r: siehe Finale KI-Rückmeldung. KI-Feedback je Aufgabe: Unit `fbtask.test.mjs` (Block
+  FBTASK per `new Function`, Texte ohne Tippzeit-Wörter, `recipientSentence` ohne Argument unverändert, `ttDetail` je Aufgabe, `fbtBusyIn`/
+  `fbtArrived` samt Reihenfolge Prüfen → Scrollen → erneut Prüfen → Fokus, `fb2Known`/`fb2Offer`/`submitDialog` ausgewertet mit `FB_QUOTA`/
+  `FB_NO_AI`), worker/lib/ai
+  (`aiTasks`, `only` mit leeren übrigen Antworten, wachsender Erstversuch, Grenzen 1200/720), Smoke (`aiTasks`, Rest-Anfrage, `submit` bis 720),
+  E2E 7t (siehe KI-Feedback je Aufgabe).
 - **Deployment:** `.github/workflows/deploy.yml` (push auf `main` + `workflow_dispatch`): ohne Secret
   `CLOUDFLARE_API_TOKEN` nur Hinweis (CI bleibt grün). Sonst `npm ci` → `npm test` → `npm run build` →
   workers.dev-Subdomain sicherstellen → D1 `--jurisdiction eu` anlegen, falls nicht vorhanden (Ort nur beim
