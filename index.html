@@ -1359,12 +1359,12 @@
         </div>
         <div class="provinfo note" data-prov="cloudflare">
           <p><b>Cloudflare Workers AI</b> (Empfehlung) läuft im selben Cloudflare-Konto wie der Server dieser Seite – ohne API-Schlüssel und ohne weiteren KI-Dienstleister. Vorgabemodell ist Gemma 4 (26B, von Google, offen lizenziert); ist es ausgelastet, weicht der Server auf GLM-4.7-Flash aus. Der Denkmodus der Modelle wird abgeschaltet, damit das Kontingent reicht – der Verbindungstest zeigt, ob es wirkt (Token „im Denkmodus“: 0). Aktiv wird Workers AI erst, wenn Sie den Anbieter speichern.</p>
-          <p><b>Limits:</b> kostenlos 10.000 „Neurons“ pro Tag für das ganze Cloudflare-Konto (alle Modelle zusammen; Neustart um 0:00 Uhr UTC, also 1:00 Uhr MEZ bzw. 2:00 Uhr MESZ), höchstens 300 Anfragen pro Minute. Eine Feedback-Anfrage kostet je nach Umfang etwa 20–50 Neurons – das reicht für etwa 200–450 Anfragen am Tag; je Schüler:in fallen bis zu zwei an. Viel Material, lange Aufträge an die KI und viele Aufgaben machen jede Anfrage teurer (bei Workers AI zählen alle Token, auch wiederkehrende): Ein großes Feibeitsblatt oder sehr viele Anfragen können das Kontingent für alle Klassen aufbrauchen. Ist es aufgebraucht, springt die Reserve-KI ein (falls eingerichtet); sonst können die Schüler:innen bis zum Neustart ohne KI-Feedback abgeben. Den geschätzten Verbrauch zeigt diese Seite; genau steht er im Cloudflare-Dashboard unter „Workers AI“. Mit dem kostenpflichtigen Plan „Workers Paid“ wird Verbrauch über 10.000 Neurons berechnet (0,011 US-$ je 1.000 Neurons).</p>
+          <p><b>Limits:</b> kostenlos 10.000 „Neurons“ pro Tag für das ganze Cloudflare-Konto (alle Modelle zusammen; Neustart um 0:00 Uhr UTC, also 1:00 Uhr MEZ bzw. 2:00 Uhr MESZ), höchstens 300 Anfragen pro Minute. Eine Feedback-Anfrage kostet je nach Umfang etwa 20–50 Neurons – das reicht für etwa 200–450 Anfragen am Tag; je Schüler:in fallen meist zwei an (KI-Feedback und finale KI-Rückmeldung), mit „KI-Feedback nur zu dieser Aufgabe“ bis zu n + 1 bei n Aufgaben mit Auftrag an die KI (eine Anfrage zu einer einzelnen Aufgabe kostet etwa 10–20 Neurons). Viel Material, lange Aufträge an die KI und viele Aufgaben machen jede Anfrage teurer (bei Workers AI zählen alle Token, auch wiederkehrende): Ein großes Feibeitsblatt oder sehr viele Anfragen können das Kontingent für alle Klassen aufbrauchen. Ist es aufgebraucht, springt die Reserve-KI ein (falls eingerichtet); sonst können die Schüler:innen bis zum Neustart ohne KI-Feedback abgeben. Den geschätzten Verbrauch zeigt diese Seite; genau steht er im Cloudflare-Dashboard unter „Workers AI“. Mit dem kostenpflichtigen Plan „Workers Paid“ wird Verbrauch über 10.000 Neurons berechnet (0,011 US-$ je 1.000 Neurons).</p>
           <p><b>Datenschutz:</b> Laut Cloudflare speichert Workers AI Ein- und Ausgaben nur so lange, wie es zur Beantwortung nötig ist, und nutzt sie nicht zum Training – abgesehen von begrenzten Ausnahmen (Sicherheit, gesetzliche Pflichten); Betriebsdaten wie Zeitpunkt, Modell und Token-Zahl speichert Cloudflare. Empfänger ist Cloudflare, Inc. (San Francisco, USA) – derselbe Anbieter, der den Server dieser Seite betreibt. Die Datenbank liegt in der EU, die KI-Verarbeitung durch Workers AI kann aber auch außerhalb der EU stattfinden (Cloudflare bietet für Workers AI keine Beschränkung auf die EU an); die Übermittlung stützt sich laut Cloudflare auf das EU-US Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. Der Server nutzt kein AI Gateway, damit Anfragen nicht protokolliert werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="groq">
           <p><b>Groq</b> betreibt offene Modelle (z. B. gpt-oss-120b, Llama 3.3 70B) auf eigener Hardware und antwortet sehr schnell. Schlüssel: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com → API Keys</a> (kostenloses Konto, keine Kreditkarte).</p>
-          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8.000 Token pro Minute und 200.000 pro Tag). Jede Feedback-Anfrage ist eine Anfrage – je Schülerin bzw. Schüler das freiwillige KI-Feedback und die finale KI-Rückmeldung nach der Abgabe, also meist zwei; gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage derselben Art zum selben Blatt) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Groq eignet sich deshalb auch als Reserve-KI.</p>
+          <p><b>Limits</b> (bitte in der Groq-Konsole unter „Limits“ prüfen): je nach Modell etwa 30 Anfragen pro Minute und 1000 pro Tag, dazu Token-Limits je Modell (bei gpt-oss-120b etwa 8.000 Token pro Minute und 200.000 pro Tag). Jede Feedback-Anfrage ist eine Anfrage – je Schülerin bzw. Schüler das freiwillige KI-Feedback und die finale KI-Rückmeldung nach der Abgabe, also meist zwei (mit „KI-Feedback nur zu dieser Aufgabe“ bis zu n + 1 bei n Aufgaben mit Auftrag an die KI); gecachte Token (Aufgaben, Material und Aufträge an die KI ab der zweiten Anfrage derselben Art zu denselben Aufgaben) zählen bei Groq nicht mit. Ist ein Modell ausgelastet oder sein Tageskontingent erschöpft, weicht der Server automatisch auf das nächste Modell aus – und danach auf die Reserve-KI, falls eingerichtet. Groq eignet sich deshalb auch als Reserve-KI.</p>
           <p><b>Datenschutz:</b> Rechtsträger ist Groq LLC (USA); Vertragspartner für Kund:innen im EWR ist Groq UK Limited (London). Kundendaten liegen laut Groq in Rechenzentren in den USA; verarbeitet wird auch in anderen Ländern. Prüfen Sie die Bedingungen, bevor Schülertexte gesendet werden.</p>
         </div>
         <div class="provinfo note hidden" data-prov="openrouter">
@@ -1467,7 +1467,7 @@
         </div>
         <p class="status" id="fw-status" role="status"></p>
       </div>
-      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts; nur die finale KI-Rückmeldung legt er – mit Ihrem Schlüssel verschlüsselt, also nur für Sie lesbar – zur jeweiligen Abgabe. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage derselben Art (KI-Feedback bzw. finale KI-Rückmeldung) zum selben Blatt aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits. Je Schülerin bzw. Schüler sind es meist zwei Anfragen (KI-Feedback und finale KI-Rückmeldung), dazu eine je neuem Feibeitsblatt für den Vorschlag der Checkliste. Bei Cloudflare Workers AI zählen alle Token – für Gemma 4 gibt es keinen Rabatt für gecachte Eingaben.</p>
+      <p class="note" style="max-width:760px">An die KI gehen nur die Aufgabenstellungen, Ihr Material, Ihre Aufträge an die KI und die Antworttexte – keine Kürzel, Geburtstage oder Klassen. Der Server speichert davon nichts; nur die finale KI-Rückmeldung legt er – mit Ihrem Schlüssel verschlüsselt, also nur für Sie lesbar – zur jeweiligen Abgabe. Kein kostenloses Kontingent ist unbegrenzt: Alle Anbieter begrenzen Anfragen pro Minute und pro Tag. Der Server stellt die Anfrage so, dass der gleichbleibende Teil (Aufgaben, Material, Aufträge an die KI) bei Anbietern mit automatischem Prompt-Caching (z. B. Groq) ab der zweiten Anfrage derselben Art (KI-Feedback bzw. finale KI-Rückmeldung) zu denselben Aufgaben aus dem Cache kommt – dort zählen gecachte Token nicht gegen die Limits. Je Schülerin bzw. Schüler sind es meist zwei Anfragen (KI-Feedback und finale KI-Rückmeldung; mit „KI-Feedback nur zu dieser Aufgabe“ bis zu n + 1 bei n Aufgaben mit Auftrag an die KI), dazu eine je neuem Feibeitsblatt für den Vorschlag der Checkliste. Bei Cloudflare Workers AI zählen alle Token – für Gemma 4 gibt es keinen Rabatt für gecachte Eingaben.</p>
     </div>
 
     <!-- Datenschutz: Betreiber (fest eingetragen) und Löschfrist -->
@@ -6506,6 +6506,11 @@ function fbtReviseText(got, open) {
 }
 const fbtEdHint = (got) => `Du hast das KI-Feedback ${fbtTo(got)} erhalten. Überarbeite dort ${got.length === 1 ? "deine Antwort" : "deine Antworten"} und gib danach ganz unten ab.`;
 const fbtFallback = (open, reason, later) => `Ein KI-Feedback ${open.length === 1 ? "zu Aufgabe " + open[0] : "zu den übrigen Aufgaben"} ist gerade nicht möglich (${reason}). Du kannst es ${later} noch einmal versuchen oder trotzdem abgeben.`;
+/* Während einer Anfrage zu einzelnen Aufgaben bleiben die übrigen Felder bearbeitbar: Arbeitet die Schüler:in gerade in einem Eingabefeld
+   (el = das Element mit dem Fokus, answer = ein Antwortfeld bzw. eine Tabellenzelle darin), holt die ankommende Rückmeldung weder den Fokus
+   noch scrollt sie weg – die Statuszeile sagt an, dass sie da ist (fbtArrived) */
+const fbtBusyIn = (el, answer) => !!el && (!!answer || el.isContentEditable === true || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
+const fbtArrived = (nums) => `Dein KI-Feedback ${fbtTo(nums)} ist da – es steht ${nums.length === 1 ? "" : "jeweils "}unter deiner Antwort.`;
 // Zwischenstand-PDF: Zeile „Stand:“ (… · KI-Feedback zu den Aufgaben 1 und 3 erhalten) und der Hinweis „nur einmal“ bei Blättern mit Buttons je Aufgabe
 const fbtGot = (feedback) => (fbtPartial(feedback) ? fbtTo(fbtNums(feedback)) + " erhalten" : "schon erhalten");
 const FBT_PDF_ONCE = "Hast du schon KI-Feedback bekommen, bleibt es in der Datei erhalten; zu jeder Aufgabe gibt es nur ein KI-Feedback zum Überarbeiten – ein zweites zur selben Aufgabe gibt es nicht.";
@@ -6635,9 +6640,12 @@ function renderFeedbackState() {
   $("fin-text").textContent = !aiSheet ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab."
     : part && open.length ? fbtFinText(open, FB_VOLUNTARY)   // Button unten nur noch für die übrigen Aufgaben
     : "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
+  // mit KI-Feedback (zu einzelnen Aufgaben) und danach bekanntem Grund ohne KI (fb2Known) die finale Rückmeldung nicht ankündigen – wie fb2Offer
+  const known = has ? fb2Known() : null;
   $("submit-hint").textContent = has
     ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " +
-      (recipientParts().any ? "Nach der Abgabe bekommst du eine finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt (beim Abgeben abwählbar)." : FB2_NO_AI + ".")
+      (!recipientParts().any || (known && known.reason === FB_NO_AI) ? FB2_NO_AI + "." : known ? FB2_QUOTA + "."
+        : "Nach der Abgabe bekommst du eine finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt (beim Abgeben abwählbar).")
     : noAi ? "Du kannst ohne KI-Feedback abgeben. Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     : !aiSheet ? "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen."
     // die finale Rückmeldung nur ankündigen, wenn es sie geben kann (wie fb2Offer: ein KI-Dienst ist eingerichtet)
@@ -6851,9 +6859,18 @@ async function requestFeedback(target) {
     sendFirstAttempt();   // im Hintergrund (mit jedem weiteren Feedback ersetzt); die Abgabe enthält die erste Fassung ohnehin
     // Button einer Aufgabe: Fokus in die Box dieser Aufgabe (nicht ans Blattende); Button unten: auf den Hinweis zum Überarbeiten
     const rh = one ? S.fbs[target] : $("revise-hint");
+    // Anfrage zu einzelnen Aufgaben (targets): die übrigen Felder blieben bearbeitbar – schreibt die Schüler:in gerade woanders (fbtBusyIn),
+    // bleiben Fokus und Ansicht, wo sie sind, und die Statuszeile sagt an, dass das Feedback da ist (ohne Ziel wie bisher: alle Felder waren gesperrt)
+    const elsewhere = () => { const ae = document.activeElement; return !!targets && !$("dlg").classList.contains("open") && fbtBusyIn(ae, answerOf(ae)); };
+    const arrived = () => { if (st.textContent === "") setStatus(st, fbtArrived(targets), ""); };
+    if (elsewhere()) { arrived(); return; }
     rh.scrollIntoView({ block: "nearest", behavior: "smooth" });
     // nicht aus einem offenen Dialog heraus (z. B. „Ohne KI-Feedback abgeben?“ während die Anfrage lief)
-    setTimeout(() => { if (!$("dlg").classList.contains("open")) { try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ } } }, 50);
+    setTimeout(() => {
+      if ($("dlg").classList.contains("open")) return;
+      if (elsewhere()) { arrived(); return; }
+      try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ }
+    }, 50);
     return;
   }
 }
@@ -6965,6 +6982,15 @@ const fb2TooLong = (finals) => finals.reduce((n, a) => n + String(a || "").lengt
 // Erstes KI-Feedback liegt vor (Zwischenstand), aber die Seite kennt jetzt keinen Empfänger (KI entfernt oder nicht nutzbar):
 // keine finale Rückmeldung – die abgegebenen Antworten gehen dann gar nicht erst an den Server (Abgabe-Dialog, Hinweis)
 const FB2_NO_AI = "Eine finale KI-Rückmeldung gibt es diesmal nicht – ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet";
+// KI-Feedback zu einzelnen Aufgaben liegt vor, eine weitere Anfrage ergab danach: Tageskontingent aufgebraucht (ai_quota) – heute antwortet keine KI
+const FB2_QUOTA = "Eine finale KI-Rückmeldung gibt es diesmal nicht – das KI-Kontingent für heute ist aufgebraucht";
+/* Mit KI-Feedback (zu einzelnen Aufgaben) kann danach ein Grund bekannt sein, aus dem heute keine KI antwortet: aufgebrauchtes Kontingent oder
+   keine eingerichtete KI (S.fbUnavailable – vor dem KI-Feedback je Aufgabe ging das nicht zusammen). Dann wie ohne erstes Feedback (noAiState):
+   keine finale Rückmeldung anbieten oder ankündigen – die Antworten gingen sonst umsonst an den Server. → {reason} | null */
+function fb2Known() {
+  quotaExpired();   // ein Kontingent von einem früheren Tag gilt nicht mehr
+  return S.fbUnavailable === FB_QUOTA || S.fbUnavailable === FB_NO_AI ? { reason: S.fbUnavailable } : null;
+}
 /* Wird die finale KI-Rückmeldung im Abgabe-Dialog angeboten (vorausgewählt, abwählbar)? Nur bei Blättern mit Auftrag an die KI, mit
    einem Empfänger, nicht bei aufgebrauchtem Kontingent oder ohne eingerichtete KI (na = Einstufung ohne erstes Feedback) und nicht, wenn
    die Antworten zusammen zu lang sind (der Server nähme sie nicht an). Eingefroren beim Öffnen des Dialogs – wie dessen Text. */
@@ -7302,6 +7328,9 @@ function submitDialog(withFb, finals, na, offer) {
       text: emptyLine + lock + " Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" +
         (offer ? fb2DialogLine()
           : !recipientParts().any ? FB2_NO_AI + "; an die KI wird nichts gesendet."   // z. B. weitergeschrieben, nachdem die KI entfernt wurde
+          // nach KI-Feedback zu einzelnen Aufgaben bekannt (fb2Known): heute antwortet keine KI
+          : na && na.reason === FB_QUOTA ? FB2_QUOTA + "; an die KI wird nichts gesendet."
+          : na && na.reason === FB_NO_AI ? FB2_NO_AI + "; an die KI wird nichts gesendet."
           : "Deine Antworten sind zusammen zu lang für eine finale KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet.") };
   }
   if (na.mode === "none") return { title: "Jetzt abgeben?", ok: "Abgeben", cancel: "Weiterschreiben", safeFirst: true,
@@ -7329,8 +7358,10 @@ async function submitAll() {
   if (emptyNums(finals).length === finals.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
   const withFb = !!S.feedback, wasBusy = S.busyFeedback, said = withFb ? null : noAiState(false);
   const fbSig = fbtSig(S.feedback);   // welche Aufgaben KI-Feedback haben (auch einzelne)
-  const offer = fb2Offer(finals, said);   // eingefroren wie der Text des Dialogs
-  const ok = await askConfirm(submitDialog(withFb, finals, said, offer));
+  // mit KI-Feedback: ein danach bekannter Grund ohne KI (Kontingent aufgebraucht, keine KI eingerichtet) gilt wie ohne erstes Feedback
+  const known = withFb ? fb2Known() : said;
+  const offer = fb2Offer(finals, known);   // eingefroren wie der Text des Dialogs
+  const ok = await askConfirm(submitDialog(withFb, finals, known, offer));
   const wantFinal = offer && ok === true && $("dlg-check").checked;   // finale KI-Rückmeldung nach der Abgabe (vorausgewählt, abwählbar)
   if (S.submitted) return;
   // während der Dialog offen war, ist das angeforderte KI-Feedback (bzw. eines zu einer weiteren Aufgabe) angekommen: erst zeigen, nichts abgeben

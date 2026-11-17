@@ -251,13 +251,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Finale KI-Rückmeldung zur abgegebenen Fassung (Wunsch der Lehrkraft vom 08.11.2026; ersetzt die frühere „zweite Rückmeldung“ nur zu
   geänderten Aufgaben):** `submitAll` gibt **zuerst** ab (die Abgabe hängt nie von der KI ab). **Angebot im Abgabe-Dialog** – auch **ohne erstes
   KI-Feedback**: `fb2Offer(finals, na)` (eingefroren beim Öffnen wie der Text des Dialogs) nur bei `S.sheet.aiFeedback`, mit Empfänger
-  (`recipientParts().any`), nicht bei `FB_QUOTA`/`FB_NO_AI` und nicht, wenn alle Antworten zusammen zu lang sind (`fb2TooLong(finals)`, wie
-  `validateAnswers`). Dann zeigt `submitDialog(withFb, finals, na, offer)` über `askConfirm({…, check: {label, checked}})` unter dem Text das
+  (`recipientParts().any`), nicht bei `FB_QUOTA`/`FB_NO_AI` (ohne erstes Feedback aus `noAiState`, mit KI-Feedback zu einzelnen Aufgaben aus
+  `fb2Known()` – eine weitere Anfrage ergab den Grund, siehe KI-Feedback je Aufgabe) und nicht, wenn alle Antworten zusammen zu lang sind
+  (`fb2TooLong(finals)`, wie `validateAnswers`). Dann zeigt `submitDialog(withFb, finals, na, offer)` über `askConfirm({…, check: {label, checked}})` unter dem Text das
   **vorausgewählte, abwählbare** Kästchen `#dlg-check` (`label#dlg-check-row.checkrow.dlg-check`, `#dlg-check-label` = `FB2_CHECK_LABEL` „Nach der
   Abgabe eine finale KI-Rückmeldung erhalten“; erstes Element der Tab-Falle; ohne `check` verborgen, Zustand bis zum nächsten Aufruf in
   `$("dlg-check").checked`) und im Text `fb2DialogLine()` „Danach bekommst du eine finale KI-Rückmeldung: Sie nennt zu jeder Aufgabe, die die KI
   beurteilt, was dir gelungen ist und was gefehlt hat; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine
-  Lehrkraft lesen. <`recipientSentence()`> Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.“ (ohne Angebot mit erstem Feedback `FB2_NO_AI` „…; an die KI wird nichts gesendet.“ bzw.
+  Lehrkraft lesen. <`recipientSentence()`> Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab.“ (ohne Angebot mit erstem Feedback `FB2_NO_AI` „…; an die KI wird nichts gesendet.“, nach `fb2Known` `FB2_QUOTA` „Eine finale KI-Rückmeldung
+  gibt es diesmal nicht – das KI-Kontingent für heute ist aufgebraucht; an die KI wird nichts gesendet.“ bzw.
   „Deine Antworten sind zusammen zu lang für eine finale KI-Rückmeldung – deshalb wird nichts noch einmal an die KI gesendet.“; ohne erstes Feedback
   und ohne Angebot die bisherigen Sätze „An die KI wird nichts gesendet.“ u. ä.). `wantFinal = offer && ok === true && $("dlg-check").checked`;
   angeboten → `payload.finalWanted = wantFinal` (verschlüsselt; die Lehrkraft sieht „abgewählt“); **jede** neue Abgabe trägt `payload.finalMode = true`
@@ -1663,7 +1665,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Feedback-Buttons gesperrt, readOnly nur die angefragten Felder; Status, Countdown und „Nicht länger warten“ an der Aufgabe (`fbUi(target)`),
   bei `ai_busy` liest jeder neue Versuch nur die angefragten Antworten neu. Erfolg: `fbtMerge(prev, targets, sent, typing, results, normFb, at)`
   (`targets` null = wie bisher; sonst nur die angefragten Aufgaben, kein Objekt für ein Ziel → `bad_result`), Fokus auf `#fb-n` der Aufgabe
-  (Button unten weiter `#revise-hint`), danach `sendFirstAttempt`. „Schon angefordert“ heißt **erhalten** (`fbtHas`): eine gescheiterte oder
+  (Button unten weiter `#revise-hint`) – außer bei einer Anfrage zu einzelnen Aufgaben (`targets`; die übrigen Felder blieben bearbeitbar), wenn
+  die Schüler:in gerade in einem Eingabefeld ist (`fbtBusyIn(activeElement, answerOf(…))`: Antwortfeld, Tabellenzelle, `INPUT`/`TEXTAREA`/`SELECT`,
+  bearbeitbarer Text; nicht bei offenem Dialog): dann weder Fokus noch Scrollen, die Statuszeile (`#fbt-st-n` bzw. `#fb-status`) sagt
+  `fbtArrived(targets)` „Dein KI-Feedback zu Aufgabe n ist da – es steht unter deiner Antwort.“ („… zu den Aufgaben 3 und 4 … jeweils unter …“);
+  vor dem Fokus (50 ms später) erneut geprüft. Danach `sendFirstAttempt`. „Schon angefordert“ heißt **erhalten** (`fbtHas`): eine gescheiterte oder
   abgebrochene Anfrage lässt den Button stehen und zählt wie bisher als Fehlversuch (`S.fbFails`). `ai_changed` beim Button einer Aufgabe endet
   mit „… Lies bitte den Datenschutzhinweis unten auf dem Feibeitsblatt noch einmal …“; ohne Empfänger, aber mit Feedback `FBT_NO_AI_MORE`.
   `fbBlockedNow` und „gerade nicht möglich“ im Ablauf-Kasten gelten nur, solange Aufgaben offen sind (`fbDoneAll()`); `stopFeedbackRun` leert
@@ -1674,7 +1680,12 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `#fin-text` `fbtFinText(open, FB_VOLUNTARY)` „… kannst du die KI um ein Feedback zu den übrigen Aufgaben (2 und 3) bitten …“ bzw. „zu
   Aufgabe 2“ (nur solange offene da sind), `#revise-hint` `fbtReviseText(got, open)`, `#ed-hint` `fbtEdHint(got)`, `#fb-fallback`
   `fbtFallback(open, …)` (ohne Satz zur Lehrkraft – den Vermerk „nicht möglich“ gibt es nur ganz ohne Feedback). `#submit-hint` und
-  `submitDialog` bleiben **wörtlich** (auch „beide Fassungen“; die Abgabe ist für die Schüler:innen sichtbar unverändert). **Erstversuch**
+  `submitDialog` bleiben **wörtlich** (auch „beide Fassungen“; die Abgabe ist für die Schüler:innen sichtbar unverändert) – mit einer Ausnahme
+  für einen Zustand, den es vorher nicht gab: Ergab eine weitere Anfrage nach KI-Feedback zu einer Aufgabe `ai_quota` bzw. `ai_not_configured`
+  (`S.fbUnavailable` = `FB_QUOTA`/`FB_NO_AI`; vorher konnte das nicht neben `S.feedback` stehen), liefert `fb2Known()` (ruft `quotaExpired`) den
+  Grund wie `noAiState` ohne erstes Feedback: `submitAll` → `fb2Offer(finals, known)` bietet nichts an (kein Kästchen, keine finale Anfrage, die
+  Antworten gehen nicht umsonst an den Server), `submitDialog(withFb, finals, known, offer)` sagt `FB2_QUOTA` bzw. `FB2_NO_AI` + „; an die KI
+  wird nichts gesendet.“ (nie „zu lang“), `#submit-hint` statt der Ankündigung `FB2_QUOTA` bzw. `FB2_NO_AI` + „.“ – passend zu `#fb-fallback`. **Erstversuch**
   nach jedem Feedback ersetzt, nur Aufgaben mit Feedback (siehe Erstversuch ↔ Abgabe). **Abgabe:** `answers[i].first` = erste Fassung bzw. bei
   Aufgaben ohne eigenes Feedback die abgegebene, `feedback` mit `null` (`fbOut(null)` = `null`), `feedbackAts` nur per `fbtAtsOut` (Aufgaben
   ohne Feedback oder verschiedene Zeitpunkte), `noAi` nur ganz ohne Feedback, Tippzeiten `first: "="` bei Aufgaben ohne Feedback, `payload.v`
@@ -1716,7 +1727,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Lehrkraft-Ansicht des Erstversuchs (Foto wie bisher „(ein Foto kommt erst mit der Abgabe)“), Neuladen und Zwischenstand-PDF mit
   `null`-Einträgen, Button unten nur für 3 und 4 (Aufgabe 5 danach mit „kein KI-Feedback“), Abgabe mit unverändertem Dialog (D1: erste =
   abgegebene Fassung ohne Feedback, kein `noAi`; finale Rückmeldung zu allen Aufgaben mit Auftrag), Lösungs-PDF, Lehrkraft-Ansicht der
-  Abgabe (eine Spalte, Tippzeiten-Zeile ohne „erste Eingabe“), älterer Worker ohne `aiTasks` (per `page.route` entfernt: nur der Button
+  Abgabe (eine Spalte, Tippzeiten-Zeile ohne „erste Eingabe“), Schüler:in Lea (schreibt während der angehaltenen Anfrage zu Aufgabe 1 in
+  Aufgabe 3 weiter → Fokus bleibt in `#a-3`, weitere Zeichen kommen an, `#fbt-st-1` = `fbtArrived`; danach Button unten mit 503 `ai_quota` per
+  `page.route` → `#fb-fallback`, `#submit-hint` mit `FB2_QUOTA` auch nach Neuladen, Abgabe-Dialog ohne Kästchen mit `FB2_QUOTA`, keine finale
+  Anfrage, D1 ohne `finalWanted` und ohne `noAi`), älterer Worker ohne `aiTasks` (per `page.route` entfernt: nur der Button
   unten, `#privacy` wie bisher) und ein Blatt mit nur einer Aufgabe mit Auftrag (keine Buttons). Das Haupt-Blatt der E2E-Tests (`TASKS`: drei Aufgaben, zwei mit Auftrag) und die Blätter von 7b/7f haben jetzt Buttons je
   Aufgabe; die übrigen Tests benutzen sie nicht und prüfen so den bisherigen Weg (nur `#privacy` lautet auf solchen Blättern neu, siehe Datenschutz oben – 7f prüft Satz 1).
 - **Rate-Limits** (`rate_limits`, festes Fenster, `rlHit` atomar per Upsert … RETURNING): `door`, `auth`
@@ -1798,7 +1812,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   in den Modus eines späteren Schritts oder Tests fallen. Tests, die das nicht prüfen, wählen sie im Abgabe-Dialog ab (`confirmDialog(page, title,
   true, {check: false})` in `helpers.mjs`), warten auf sie oder halten `/api/feedback` per `page.route` an; nach 30 s gedrückte Downloads
   brauchen ein eigenes Timeout bzw. `page.clock`. E2E 7r: siehe Finale KI-Rückmeldung. KI-Feedback je Aufgabe: Unit `fbtask.test.mjs` (Block
-  FBTASK per `new Function`, Texte ohne Tippzeit-Wörter, `recipientSentence` ohne Argument unverändert, `ttDetail` je Aufgabe), worker/lib/ai
+  FBTASK per `new Function`, Texte ohne Tippzeit-Wörter, `recipientSentence` ohne Argument unverändert, `ttDetail` je Aufgabe, `fbtBusyIn`/
+  `fbtArrived` samt Reihenfolge Prüfen → Scrollen → erneut Prüfen → Fokus, `fb2Known`/`fb2Offer`/`submitDialog` ausgewertet mit `FB_QUOTA`/
+  `FB_NO_AI`), worker/lib/ai
   (`aiTasks`, `only` mit leeren übrigen Antworten, wachsender Erstversuch, Grenzen 1200/720), Smoke (`aiTasks`, Rest-Anfrage, `submit` bis 720),
   E2E 7t (siehe KI-Feedback je Aufgabe).
 - **Deployment:** `.github/workflows/deploy.yml` (push auf `main` + `workflow_dispatch`): ohne Secret

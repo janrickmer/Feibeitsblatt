@@ -8639,6 +8639,65 @@ test("7t KI-Feedback je Aufgabe: Buttons „KI-Feedback nur zu dieser Aufgabe“
   const tsol = await readFile(await tdl.path());
   pdfStructure(tsol);
   expectFinalInPdf(tsol.toString("latin1"), expFinal);
+
+  /* ---------- Schüler:in Lea: schreibt in einer anderen Aufgabe weiter, während das Feedback zu Aufgabe 1 ankommt; danach ist das
+     Tageskontingent aufgebraucht → keine finale KI-Rückmeldung angeboten oder angekündigt, nichts mehr an den Server ---------- */
+  const l = await openPage(browser);
+  const lp = l.page;
+  await enterCode(lp, shown);
+  await fillPerson(lp, { vorname: "lea", nachname: "lo", geb: "--06-06", klasse: "8c" });
+  await typeAt(lp, "#a-1", ANS.a1);
+  await typeAt(lp, "#a-3", ANS.a3);
+  let releaseL; const heldL = new Promise((r) => { releaseL = r; });
+  await lp.route("**/api/feedback", async (route) => { await heldL; await route.continue(); });
+  await btnOf(lp, 1).click();
+  await confirmDialog(lp, "KI-Feedback zu Aufgabe 1 anfordern?");
+  await expect(lp.locator("#fbt-st-1")).toHaveText("Die KI arbeitet … das kann bis zu einer Minute dauern.");
+  await typeAt(lp, "#a-3", " Weil");   // Aufgabe 3 ist nicht gesperrt
+  releaseL();
+  await expect(lp.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  await lp.unroute("**/api/feedback");
+  // die Statuszeile sagt es an; Fokus und Ansicht bleiben beim Feld, in dem geschrieben wird (kein Sprung in die Box von Aufgabe 1)
+  await lp.waitForTimeout(400);
+  await expect(lp.locator("#a-3")).toBeFocused();
+  await expect(lp.locator("#a-3")).toBeInViewport();
+  await expect(lp.locator("#fbt-st-1")).toHaveText("Dein KI-Feedback zu Aufgabe 1 ist da – es steht unter deiner Antwort.");
+  await lp.keyboard.type(" es");
+  await expect(lp.locator("#a-3")).toHaveValue(ANS.a3 + " Weil es");
+  await expectBtn(lp, 1, true, false);
+  await expect(lp.locator("#submit-hint")).toHaveText(SUBMIT_HINT_FB);
+  // die übrigen Aufgaben (Button unten): 503 ai_quota
+  const FB2_QUOTA = "Eine finale KI-Rückmeldung gibt es diesmal nicht – das KI-Kontingent für heute ist aufgebraucht";
+  await lp.route("**/api/feedback", (route) => route.fulfill({ status: 503, contentType: "application/json",
+    body: JSON.stringify({ ok: false, error: "Das KI-Kontingent für heute ist aufgebraucht. Morgen geht es wieder.", code: "ai_quota", aiCode: "DAILY_LIMIT" }) }));
+  await lp.click("#fb-btn");
+  await confirmDialog(lp, "Noch nicht alles beantwortet");   // Aufgaben 2 und 4 sind leer
+  await expect(lp.locator("#fb-status")).toHaveText("Das KI-Kontingent für heute ist aufgebraucht. Du kannst ohne KI-Feedback abgeben oder es morgen noch einmal versuchen.");
+  await expect(lp.locator("#fb-fallback")).toHaveText("Ein KI-Feedback zu den übrigen Aufgaben ist gerade nicht möglich (KI-Kontingent für heute aufgebraucht). Du kannst es morgen noch einmal versuchen oder trotzdem abgeben.");
+  const quotaHint = "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " + FB2_QUOTA + ".";
+  await expect(lp.locator("#submit-hint")).toHaveText(quotaHint);   // keine Ankündigung der finalen KI-Rückmeldung
+  await lp.waitForTimeout(700);
+  await lp.reload();   // der Grund steht im Zwischenstand
+  await lp.click("#resume-btn");
+  await expect(lp.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(lp.locator("#submit-hint")).toHaveText(quotaHint);
+  await lp.click("#submit-btn");
+  expect(await confirmDialog(lp, "Jetzt abgeben?", true, { check: "none" })).toBe("Achtung: Die Aufgaben 2, 4, 5 und 6 sind noch leer.\nNach der Abgabe kannst du deine Antworten nicht mehr ändern. " +
+    "Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" + FB2_QUOTA + "; an die KI wird nichts gesendet.");
+  await expect(lp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(lp.locator("#done-pdf")).not.toHaveAttribute("aria-disabled", "true");   // keine Wartezeit auf eine finale Rückmeldung
+  await lp.waitForTimeout(500);
+  await expect(lp.locator("#done-fb")).toBeHidden();
+  const lPosts = await fbPosts(l);
+  expect(lPosts.map((p) => [p.status, p.body.final === true])).toEqual([[200, false], [503, false]]);   // keine finale Anfrage
+  const lAttempt = (await l.calls((e) => e.path === "/api/submit" && e.status === 200)).map((e) => JSON.parse(e.reqBody || "{}")).find((b) => b.stage === "final").attempt;
+  const lRow = (await rowsOf()).find((r) => r.attempt === lAttempt);
+  const lFin = await openEnvelope(priv, JSON.parse(lRow.envelope));
+  expect(lFin).toMatchObject({ stage: "final", finalMode: true });
+  expect(lFin.finalWanted).toBeUndefined();   // nicht angeboten
+  expect(lFin.noAi).toBeUndefined();   // mit KI-Feedback zu Aufgabe 1: kein Vermerk „ohne KI-Feedback“
+  expect(lFin.feedback.map((f) => !!f)).toEqual([true, false, false, false, false, false]);
+  await closePage(l);
   // aufräumen
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");

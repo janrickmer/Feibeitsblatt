@@ -8,7 +8,7 @@ const i = html.indexOf("/* FBTASK:BEGIN"), j = html.indexOf("/* FBTASK:END */");
 const block = html.slice(i, j);
 const NAMES = "FBT_NO_AI, FBT_LABEL, FBT_DONE, FBT_REST, fbtAria, fbtList, fbtTo, fbtCleanAiTasks, fbtPerTask, fbtHas, fbtNums, fbtSig, fbtPartial, fbtOpen, " +
   "fbtRequest, fbtMerge, fbtPairs, fbtAts, fbtAtsOut, fbtTeacher, fbtNoFbList, fbtAtsDiffer, fbtEmptyOne, fbtEmptyRest, FBT_FINAL, FBT_NO_AI_MORE, " +
-  "fbtDialog, fbtRest, fbtFinText, fbtReviseText, fbtEdHint, fbtFallback, fbtGot, FBT_PDF_ONCE, fbtFirstHint, FBT_FIRST_NONE_AI, FBT_FIRST_NONE, fbtMeta";
+  "fbtDialog, fbtRest, fbtFinText, fbtReviseText, fbtEdHint, fbtFallback, fbtBusyIn, fbtArrived, fbtGot, FBT_PDF_ONCE, fbtFirstHint, FBT_FIRST_NONE_AI, FBT_FIRST_NONE, fbtMeta";
 const F = new Function(block + "\nreturn { " + NAMES + " };")();
 const body = (start, end) => { const a = html.indexOf(start), b = html.indexOf(end, a); assert.ok(a > 0 && b > a, start); return html.slice(a, b); };
 // normFb aus index.html (die Normalisierung einer Rückmeldung) – fbtMerge, fbtPairs und fbtTeacher bekommen sie als Parameter
@@ -243,7 +243,7 @@ test("fbtask: Texte – Freiwilligkeit, Empfänger, „nur einmal“ je Aufgabe,
   assert.doesNotMatch(F.fbtFallback([2], "x", "später"), /Lehrkraft/);
   const all = [one.text, one.title, rest.text, rest.title, empty.text, F.fbtEmptyOne(1), F.fbtEmptyRest([1, 2]), F.FBT_LABEL, F.FBT_DONE, F.FBT_REST,
     F.fbtAria(1, false), F.fbtAria(1, true), F.fbtFinText([1], FB_VOLUNTARY), F.fbtReviseText([1], [2]), F.fbtEdHint([1]), F.fbtFallback([1], "x", "später"),
-    F.FBT_NO_AI_MORE, F.FBT_FINAL, F.FBT_PDF_ONCE, F.fbtFirstHint(false, [1]), F.FBT_FIRST_NONE_AI, F.FBT_FIRST_NONE];
+    F.FBT_NO_AI_MORE, F.FBT_FINAL, F.FBT_PDF_ONCE, F.fbtFirstHint(false, [1]), F.FBT_FIRST_NONE_AI, F.FBT_FIRST_NONE, F.fbtArrived([1]), F.fbtArrived([2, 3])];
   // keine Tippzeit-Wörter; Schüler:innen werden geduzt (nie „Sie“/„Ihr“, im Schreibbereich auch bei Gruppen kein „ihr“)
   for (const x of all) { assert.doesNotMatch(x, NO_TT, x); assert.doesNotMatch(x, /\b(ihr|euer|eure\w*|euch)\b/i, x); assert.doesNotMatch(x, /\b(Sie|Ihre?)\b/, x); }
 });
@@ -305,4 +305,70 @@ test("fbtask: Bildschirm – Buttons je Aufgabe, Datenschutzsatz unter dem Butto
   assert.ok(rp.includes("beim Button einer Aufgabe nur deine Antwort zu dieser Aufgabe"));
   assert.ok(rp.includes("Bekommst du KI-Feedback nur zu einzelnen Aufgaben, enthält der Erstversuch nur diese Aufgaben und wird mit jedem weiteren KI-Feedback ersetzt. "));
   for (const m of rp.match(/`[^`]*`/g)) assert.doesNotMatch(m.replace(/\$\{[^}]*\}/g, ""), NO_TT);
+});
+
+test("fbtask: Feedback kommt an, während die Schüler:in in einem anderen Feld schreibt → Fokus und Ansicht bleiben, die Statuszeile sagt es an", () => {
+  // die übrigen Felder bleiben während einer Anfrage zu einzelnen Aufgaben bearbeitbar: Eingabefelder (auch eine Tabellenzelle über answerOf)
+  for (const tag of ["TEXTAREA", "INPUT", "SELECT"]) assert.equal(F.fbtBusyIn({ tagName: tag }, null), true, tag);
+  assert.equal(F.fbtBusyIn({ tagName: "DIV", isContentEditable: true }, null), true);
+  assert.equal(F.fbtBusyIn({ tagName: "DIV" }, { tagName: "TEXTAREA" }), true);
+  // kein Feld: <body> (der gesperrte Button hat den Fokus verloren), ein Button, die Box selbst – dann wie bisher Fokus in die Box
+  for (const el of [null, undefined, { tagName: "BODY" }, { tagName: "BUTTON" }, { tagName: "DIV", isContentEditable: false }]) assert.equal(F.fbtBusyIn(el, null), false);
+  assert.equal(F.fbtArrived([3]), "Dein KI-Feedback zu Aufgabe 3 ist da – es steht unter deiner Antwort.");
+  assert.equal(F.fbtArrived([3, 4]), "Dein KI-Feedback zu den Aufgaben 3 und 4 ist da – es steht jeweils unter deiner Antwort.");
+  // requestFeedback: nur bei Anfragen zu einzelnen Aufgaben (targets; ohne Ziel waren alle Felder gesperrt – wie bisher), nicht bei offenem
+  // Dialog; vor dem Scrollen und noch einmal vor dem Fokus geprüft
+  const req = body("async function requestFeedback(target) {", "\n}\n");
+  assert.ok(req.includes('const elsewhere = () => { const ae = document.activeElement; return !!targets && !$("dlg").classList.contains("open") && fbtBusyIn(ae, answerOf(ae)); };'));
+  assert.ok(req.includes("const arrived = () => { if (st.textContent === \"\") setStatus(st, fbtArrived(targets), \"\"); };"));
+  const a = req.indexOf("if (elsewhere()) { arrived(); return; }"), sc = req.indexOf("rh.scrollIntoView("), b = req.indexOf("if (elsewhere()) { arrived(); return; }", a + 1), fo = req.indexOf("rh.focus(");
+  assert.ok(a > 0 && a < sc && sc < b && b < fo, "erst prüfen, dann scrollen; im Zeitgeber erneut prüfen, dann Fokus");
+});
+
+test("fbtask: KI-Feedback zu einer Aufgabe, danach Tageskontingent aufgebraucht → keine finale KI-Rückmeldung angeboten oder angekündigt (wie ohne erstes Feedback)", () => {
+  const consts = ["FB_NOT_DONE", "FB_QUOTA", "FB_NO_AI", "FB2_NO_AI", "FB2_QUOTA", "FB2_CHECK_LABEL"].map((k) => body("const " + k + " = ", "\n")).join("\n");   // je eine Zeile (samt Kommentar)
+  const S = { sheet: { aiFeedback: true }, fbUnavailable: "", fbUnavailableDay: "" };
+  let any = true, expired = 0;
+  const env = new Function("S", "recipientParts", "quotaExpired", "listNums", "laterFor", "FB_VOLUNTARY", "fb2TooLong", "recipientSentence",
+    consts + "\n" + body("const emptyNums = ", ";\n") + ";\n" + body("const fb2DialogLine = ", ";\n") + ";\n" +
+    body("function fb2Known() {", "\n}\n") + "\n}\n" + body("function fb2Offer(finals, na) {", "\n}\n") + "\n}\n" + body("function submitDialog(", "\n}\n") + "\n}\n" +
+    "return { FB_QUOTA, FB_NO_AI, FB2_QUOTA, FB2_NO_AI, fb2Known, fb2Offer, submitDialog };")(
+    S, () => ({ any }), () => { expired++; return false; }, (a) => a.join(" und "), () => "morgen", FB_VOLUNTARY, () => false, () => "WER.");
+  assert.equal(env.FB2_QUOTA, "Eine finale KI-Rückmeldung gibt es diesmal nicht – das KI-Kontingent für heute ist aufgebraucht");
+  assert.doesNotMatch(env.FB2_QUOTA, NO_TT);
+  const finals = ["a", "b"];
+  // ohne Grund: angeboten wie bisher (Dialog wörtlich wie bisher)
+  assert.equal(env.fb2Known(), null);
+  assert.equal(expired, 1);   // ein Kontingent von einem früheren Tag gilt nicht mehr
+  assert.equal(env.fb2Offer(finals, env.fb2Known()), true);
+  const offered = env.submitDialog(true, finals, null, true);
+  assert.deepEqual(offered.check, { label: "Nach der Abgabe eine finale KI-Rückmeldung erhalten", checked: true });
+  assert.ok(offered.text.endsWith("WER. Möchtest du das nicht, wähle die finale KI-Rückmeldung unten ab."));
+  // Kontingent aufgebraucht (503 ai_quota bei einer weiteren Anfrage): nicht angeboten, kein Kästchen, der Dialog sagt warum – nie „zu lang“
+  S.fbUnavailable = env.FB_QUOTA;
+  assert.deepEqual(env.fb2Known(), { reason: env.FB_QUOTA });
+  assert.equal(env.fb2Offer(finals, env.fb2Known()), false);
+  const q = env.submitDialog(true, finals, env.fb2Known(), false);
+  assert.equal(q.check, undefined);
+  assert.equal(q.title, "Jetzt abgeben?");
+  assert.equal(q.text, "Nach der Abgabe kannst du deine Antworten nicht mehr ändern. Abgegeben werden deine erste Fassung (vor dem KI-Feedback) und deine überarbeitete Fassung.\n" +
+    env.FB2_QUOTA + "; an die KI wird nichts gesendet.");
+  // keine KI eingerichtet (503 ai_not_configured), die Seite kennt aber noch Empfänger
+  S.fbUnavailable = env.FB_NO_AI;
+  assert.equal(env.fb2Offer(finals, env.fb2Known()), false);
+  assert.ok(env.submitDialog(true, finals, env.fb2Known(), false).text.endsWith("\n" + env.FB2_NO_AI + "; an die KI wird nichts gesendet."));
+  // ein vorübergehender Grund (ausgelastet) verhindert die finale Rückmeldung nicht – wie ohne erstes Feedback
+  S.fbUnavailable = "KI ausgelastet";
+  assert.equal(env.fb2Known(), null);
+  // ohne Empfänger wie bisher
+  any = false; S.fbUnavailable = "";
+  assert.ok(env.submitDialog(true, finals, null, false).text.endsWith("\n" + env.FB2_NO_AI + "; an die KI wird nichts gesendet."));
+  // submitAll und #submit-hint nutzen den Grund (ohne Feedback wie bisher noAiState)
+  const submit = body("async function submitAll()", "\n}\n");
+  assert.ok(submit.includes("const known = withFb ? fb2Known() : said;"));
+  assert.ok(submit.includes("const offer = fb2Offer(finals, known);"));
+  assert.ok(submit.includes("const ok = await askConfirm(submitDialog(withFb, finals, known, offer));"));
+  const rfs = body("function renderFeedbackState() {", "\n}\n");
+  assert.ok(rfs.includes("const known = has ? fb2Known() : null;"));
+  assert.ok(rfs.includes('(!recipientParts().any || (known && known.reason === FB_NO_AI) ? FB2_NO_AI + "." : known ? FB2_QUOTA + "."'));
 });

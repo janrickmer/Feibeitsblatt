@@ -1782,7 +1782,8 @@ test("KI-Einstellungen: Verbrauch heute je KI – erste KI und Reserve getrennt 
     assert.deepEqual(Object.keys(rows).sort(), ["custom", "custom#r"]);   // die Reserve unter ihrem eigenen Schlüssel
     assert.equal(rows.custom.requests, 1); assert.ok(rows.custom.tokens > 100); assert.equal(rows.custom.neurons, 0); assert.equal(rows.custom.req_limits, null);
     assert.equal(rows["custom#r"].requests, 1); assert.ok(rows["custom#r"].tokens > 0);
-    r = await call("GET", "/api/teacher/ai", { auth });
+    const rnd = Math.random; Math.random = () => 0.5;   // kein 2-%-Aufräumen beim Zählen (sonst gelegentlich 9 statt 4 Abfragen)
+    try { r = await call("GET", "/api/teacher/ai", { auth }); } finally { Math.random = rnd; }
     assert.ok(r.queries <= 4, "D1-Abfragen: " + r.queries);   // Anmeldung + ein Batch (Einstellungen, Sperre, Verbrauch)
     assert.deepEqual(r.json.consumption.main, { provider: "custom", day, requests: 1, tokens: rows.custom.tokens, resetAt: nextMid, limits: null });
     assert.deepEqual(r.json.consumption.reserve, { provider: "custom", day, requests: 1, tokens: rows["custom#r"].tokens, resetAt: nextMid, limits: null });

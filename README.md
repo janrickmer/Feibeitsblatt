@@ -173,7 +173,9 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    **„KI-Feedback nur zu dieser Aufgabe“** (Weltkarten- und Foto-Aufgaben und Aufgaben ohne Auftrag haben keinen; bei nur einer
    Aufgabe mit Auftrag fehlt er ganz, er wäre dasselbe wie der Button unten). Er schickt nur die Antwort zu dieser einen
    Aufgabe an die KI; ist das Feld noch leer, sagt die Seite „Schreibe zuerst eine Antwort zu Aufgabe n.“ und sendet nichts.
-   Danach steht das Feedback unter dieser Aufgabe (der Fokus springt dorthin), und der Button heißt gesperrt „KI-Feedback zu
+   Danach steht das Feedback unter dieser Aufgabe (der Fokus springt dorthin – außer jemand schreibt währenddessen in einem
+   anderen Feld weiter: dann bleiben Fokus und Ansicht dort, und die Zeile unter dem Button meldet „Dein KI-Feedback zu
+   Aufgabe n ist da – es steht unter deiner Antwort.“), und der Button heißt gesperrt „KI-Feedback zu
    dieser Aufgabe erhalten“. Der Button unten heißt dann **„KI-Feedback zu den übrigen Aufgaben“** und fragt nur noch die
    Aufgaben mit Auftrag an, die noch kein Feedback haben (die übrigen Antworten schickt er nicht mit); sind alle versorgt,
    heißt er gesperrt „KI-Feedback erhalten“. Wer keinen Button einer Aufgabe nutzt, erlebt alles wie bisher: ein Feedback zu
@@ -238,7 +240,8 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    die Empfänger und dass der Server sie verschlüsselt zur Abgabe speichert, wo nur Sie sie lesen können. Wer das Kästchen abwählt, bekommt keine (die Abgabe vermerkt
    verschlüsselt „abgewählt“). Nicht angeboten wird sie bei Blättern ohne Auftrag an die KI, wenn kein KI-Dienst eingerichtet
    ist (auch, wenn er beim Weiterschreiben inzwischen fehlt), wenn die Seite das Tageskontingent schon als aufgebraucht
-   kennt und wenn alle Antworten zusammen zu lang sind. Direkt nach der Abgabe gehen dann **alle** abgegebenen Antworten auf demselben Weg wie beim ersten
+   kennt (auch, wenn es erst nach einem KI-Feedback zu einzelnen Aufgaben aufgebraucht war – dann sagen Dialog und Hinweis
+   „Eine finale KI-Rückmeldung gibt es diesmal nicht – das KI-Kontingent für heute ist aufgebraucht“) und wenn alle Antworten zusammen zu lang sind. Direkt nach der Abgabe gehen dann **alle** abgegebenen Antworten auf demselben Weg wie beim ersten
    Feedback an die KI (ohne Kürzel, Geburtstag und Klasse) – mit allen Aufgaben, die einen Auftrag an die KI haben, auch den
    unverändert abgegebenen. Anders als das Feedback zum Überarbeiten gibt sie keine Tipps mehr: Je Aufgabe nennt sie
    „Das gelingt dir schon“ (grün) und **„Das hat gefehlt“** (rot) – konkret, was gefehlt hat oder richtig gewesen wäre,
