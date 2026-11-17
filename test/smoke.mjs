@@ -377,6 +377,7 @@ async function main() {
     assert.equal(r.json.sheet.tasks[0].images.length, 5); assert.deepEqual(r.json.sheet.tasks[1].images, [{ id: img3.id, mode: "thumb", w: 640, h: 400, alt: "" }]); assert.deepEqual(r.json.sheet.tasks.map((t) => t.files), [[], [{ id: fileId, name: "Arbeitsblatt- Zelle.pdf", bytes: pdf.length }], []]);
     assert.equal(r.json.sheet.publicKey, T.publicKey); assert.equal(r.json.sheet.aiProvider, "127.0.0.1:" + MOCK_PORT);
     assert.equal(r.json.sheet.aiFeedback, true);   // mindestens eine Aufgabe mit Auftrag an die KI
+    assert.deepEqual(r.json.sheet.aiTasks, [1, 3]);   // Nummern der Aufgaben mit Auftrag (nur Ja/Nein, auf Blattebene) – Knöpfe je Aufgabe
     assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "custom:127.0.0.1:" + MOCK_PORT, label: "127.0.0.1:" + MOCK_PORT + " (Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen)",
       transfer: "vom Betreiber dieser Seite beim Anbieter zu prüfen" }]);   // Empfänger für den Datenschutzhinweis
     // Neuinstallation: Löschfrist 30 Tage als Vorgabe (öffentlich nur die Frist; verantwortlich ist der Betreiber, siehe index.html)
@@ -411,6 +412,7 @@ async function main() {
       assert.deepEqual(pa.items.map((it) => [it.id, it.label, it.hint, it.image, it.checks.length]), [["kaffee", "Kaffee", undefined, "00000000000000c1", 2], ["tee", "Tee", "Blätter", undefined, 1]]);
       assert.equal(pa.items[0].checks[0], createHash("sha256").update(wc + "|kaffee|076").digest("hex"));
       assert.deepEqual(r.json.sheet.tasks[1].answer, { type: "table", columns: ["Produkt", "Land / Ort"], rows: 2 });
+      assert.deepEqual(r.json.sheet.aiTasks, [2]);   // die Weltkarte nie, auch nicht mit einem Auftrag beim Anlegen
       assert.equal(/Brasilien|Vietnam|Indien|countries|verworfen/.test(r.text), false, "Länder oder Auftrag an die KI im öffentlichen JSON");
       assert.equal(r.json.sheet.tasks[0].images.filter((m) => m.mode === "card").length, 2);
       r = await api("GET", "/api/teacher/sheets/" + wc, undefined, { auth });
@@ -484,7 +486,7 @@ async function main() {
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found"); feedbackCount++;
     r = await api("POST", "/api/feedback", { code: otherCode, answers: ["egal"] }); feedbackCount++;
     assert.deepEqual(r.json, { ok: true, results: [{ covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." }], aiGenerated: false });
-    // zweite Rückmeldung nach der Abgabe: nur die geänderte Aufgabe 3 geht an die KI (only), die übrigen Ergebnisse sind null
+    // „KI-Feedback nur zu dieser Aufgabe“: nur Aufgabe 3 geht an die KI (only, die übrigen Antworten leer), die übrigen Ergebnisse sind null
     mock.reset();
     const only3 = ["", "", "Wasser verdunstet durch Wärme."];
     r = await api("POST", "/api/feedback", { code: display, answers: only3, only: [3] }); feedbackCount++;
@@ -497,6 +499,17 @@ async function main() {
     expectErr(await api("POST", "/api/feedback", { code, answers: ["a", "", ""], only: [4] }), 400, "bad_answers"); feedbackCount++;
     expectErr(await api("POST", "/api/feedback", { code, answers: ["a", "", ""], only: [] }), 400, "bad_answers"); feedbackCount++;
     assert.equal(mock.state.requests.length, 1);
+    // Knopf unten nach dem Feedback zu Aufgabe 3: die übrigen Aufgaben (1 und 2) – nur Aufgabe 1 geht an die KI, Aufgabe 2 (ohne Auftrag)
+    // bekommt wie beim ganzen Blatt nur den Hinweis, Aufgabe 3 null (die Seite behält ihr Feedback)
+    mock.reset();
+    const rest = ["Pflanzen brauchen Licht.", "", ""];
+    r = await api("POST", "/api/feedback", { code, answers: rest, only: [1, 2] }); feedbackCount++;
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.results, [...expectedResults(tasks, rest).slice(0, 2), null]);
+    assert.equal(mock.state.requests.length, 1);
+    const sentRest = mock.state.requests[0].messages[1].content;
+    assert.ok(sentRest.startsWith("Aufgaben, Material und Aufträge der Lehrkraft (Nummern: 1):\n\n### Aufgabe 1\n"), sentRest);
+    assert.equal(sentRest.includes(tasks[1].text) || sentRest.includes(tasks[2].text), false, "nur Aufgabe 1 geht mit");
     // Verbrauch heute je KI in echter D1 (der Upsert samt json_valid/json_patch wird übersetzt; den json_patch-Zweig selbst erreicht nur
     // Groq – Unit-Test): Anfragen und Token des eigenen Dienstes, keine Grenze abfragbar
     {
@@ -507,7 +520,7 @@ async function main() {
       assert.ok(m.requests >= 2 && m.tokens > 0, JSON.stringify(m));
       assert.equal(m.day, new Date().toISOString().slice(0, 10)); assert.ok(m.resetAt > Date.now() && m.resetAt % 86400e3 === 0);
     }
-    ok("Feedback: eine KI-Anfrage im neuen Format (Auftrag der Lehrkraft), gut/tipps wie erwartet, Aufgabe ohne Auftrag mit Hinweis; Längenprüfungen; zweite Rückmeldung nur für die gewählten Aufgaben (only); Verbrauch je KI gezählt");
+    ok("Feedback: eine KI-Anfrage im neuen Format (Auftrag der Lehrkraft), gut/tipps wie erwartet, Aufgabe ohne Auftrag mit Hinweis; Längenprüfungen; KI-Feedback je Aufgabe nur für die gewählten Aufgaben (only); Verbrauch je KI gezählt");
 
     mock.setMode("fenced");
     r = await api("POST", "/api/feedback", { code, answers }); feedbackCount++;
@@ -905,13 +918,30 @@ async function main() {
     r = await api("GET", "/api/sheet/" + otherCode);
     assert.equal(r.status, 200, "gültige Codes öffnen trotz Sperre: " + r.text);
     ok("unbekannte Codes: nach 30 Fehlgriffen 429; gültige Codes öffnen weiter");
-    // Abgaben: jede gültige Abgabe und jeder Erstversuch zählt je IP (360/h); unbekannte Codes zählen nicht
+    // Abgaben: jede gültige Abgabe und jeder Erstversuch zählt je IP (720/h – seit dem 17.11.2026 ersetzt die Seite den Erstversuch nach
+    // jedem KI-Feedback je Aufgabe); unbekannte Codes zählen nicht. Bis 300 neue Abgaben (das Blatt fasst 400), danach ersetzen die Aufrufe
+    // einen Erstversuch derselben Bearbeitung (dieselbe Zeile) – gezählt wird jeder; je 8 gleichzeitig (der Zähler ist atomar)
+    const SUBMIT_MAX = 720;
     const otherPub = r.json.sheet.publicKey;
     const env2 = await makeEnvelope(otherPub, { v: 1, sheetCode: otherCode, person: { vorname: "Tes", nachname: "Tt", geburtsdatum: "2010-01-01", klasse: "5a" }, answers: [{ first: "", final: "x" }] });
-    for (; submitCount < 360; submitCount++) { r = await api("POST", "/api/submit", { code: otherCode, envelope: env2 }); assert.equal(r.status, 200, r.text); }
+    const envFirst2 = await makeEnvelope(otherPub, { v: 1, stage: "first", sheetCode: otherCode, person: { vorname: "Tes", nachname: "Tt", geburtsdatum: "--01-01", klasse: "5a" }, answers: [{ first: "x", final: null }], feedback: [{ covered: ["x"], missing: [] }] });
+    const rlAttempt = "5e5e5e5e5e5e5e5e";
+    const submitBatch = async (n, body) => {
+      const res = await Promise.all(Array.from({ length: n }, () => api("POST", "/api/submit", body)));
+      for (const x of res) assert.equal(x.status, 200, x.text);
+      submitCount += n;
+      return res;
+    };
+    while (submitCount < 300) await submitBatch(Math.min(8, 300 - submitCount), { code: otherCode, envelope: env2 });
+    const rlRowId = (await submitBatch(1, { code: otherCode, envelope: envFirst2, stage: "first", attempt: rlAttempt }))[0].json.id;   // legt die Zeile an
+    while (submitCount < SUBMIT_MAX) {
+      const res = await submitBatch(Math.min(8, SUBMIT_MAX - submitCount), { code: otherCode, envelope: envFirst2, stage: "first", attempt: rlAttempt });
+      for (const x of res) assert.deepEqual([x.json.id, x.json.replaced], [rlRowId, "first"]);
+    }
     expectErr(await api("POST", "/api/submit", { code: otherCode, envelope: env2 }), 429, "rate_limited");
+    expectErr(await api("POST", "/api/submit", { code: otherCode, envelope: envFirst2, stage: "first", attempt: rlAttempt }), 429, "rate_limited");   // auch das Ersetzen
     expectErr(await api("POST", "/api/feedback", { code: "AAAAA2", answers: [] }), 404, "not_found");
-    ok("Abgabe: die 361. gültige Abgabe je IP → 429 (unbekannte Codes zählen nicht)");
+    ok("Abgabe: die 721. gültige Abgabe bzw. der 721. Erstversuch je IP → 429 (Ersetzen zählt mit, unbekannte Codes zählen nicht)");
 
     step = "Zeitplan";
     await cron(Date.now() + 8 * 86400e3);   // acht Tage später: nach der Frist von 7 Tagen

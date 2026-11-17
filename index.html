@@ -453,6 +453,9 @@
   .ltstat.bad{color:var(--red)}
   .ltstat:empty{display:none}
   .lt-off{font-style:italic}
+  /* KI-Feedback nur zu dieser Aufgabe: rechts in der Zeile der Rechtschreibprüfung (Tabellen: eigene Zeile); Stand und Warten darunter */
+  .fbtbtn{margin-left:auto}
+  .fbt-stat{margin:6px 0 0}
   /* Antwortart Tabelle */
   .tablew-scroll{max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch}
   table.anstable{border-collapse:collapse; width:100%; min-width:max-content; font-family:var(--serif); font-size:17px; line-height:1.5; background:var(--paper)}
@@ -2360,7 +2363,8 @@ function ttSummary(head, parts) {
    ttCleanPayload), types = Antwortart je Aufgabe ("text" | "table" | "map" | "photo"), n Aufgaben. → {sum, per: [{first, fin, line}]}: je
    Aufgabe die Werte beider Fassungen (null = ohne Messung) und die Zeile zum Rot-Anteil (Stücke wie ttSummary, null bei leerer Antwort),
    dazu die Zeile über alle Aufgaben – keine bei Blättern nur mit Weltkarten und Fotos (dort wird nichts gemessen). Ohne KI-Feedback (noFb)
-   eine Fassung ohne Bezeichnung (die abgegebene), beim Erstversuch nur die erste. Der Rot-Anteil steht nie in der Liste. */
+   eine Fassung ohne Bezeichnung (die abgegebene), beim Erstversuch nur die erste. noFb ist ein Boolean (ganzer Eintrag) oder je Aufgabe ein
+   Boolean (KI-Feedback nur zu einzelnen Aufgaben: ohne eigenes Feedback eine Fassung ohne Bezeichnung). Der Rot-Anteil steht nie in der Liste. */
 const TT_UNTYPED = ["map", "photo"];          // Antwortarten ohne Tippzeiten (= NO_TYPING_KINDS außerhalb des Blocks)
 function ttDetail(p, types, n, isFirst, noFb) {
   const specs = Array.from({ length: n }, (_, i) => (types && types[i]) || "text");
@@ -2370,8 +2374,10 @@ function ttDetail(p, types, n, isFirst, noFb) {
   if (!ty) { out.sum = one("Tippzeiten: ohne Messung (älterer Stand)."); return out; }
   if (ty.optOut) { out.sum = one(TT_OPTOUT_NOTE); return out; }   // widersprochen: keine Werte, keine Zeilen je Aufgabe
   if (ty.omitted) { out.sum = one(ty.omitted === "too_large" ? "Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen." : "Tippzeiten: nicht übermittelt (technischer Fehler beim Senden)."); return out; }
-  const labels = (a, b) => (noFb ? [""] : isFirst ? [a] : [a, b]);   // ohne KI-Feedback eine Fassung, Erstversuch nur die erste
-  const both = (l, sF, sE) => l.map((label, k) => ({ label, share: noFb || k ? sE : sF }));
+  const nf = (i) => (Array.isArray(noFb) ? !!noFb[i] : !!noFb);   // diese Aufgabe ohne eigenes KI-Feedback?
+  const none = Array.isArray(noFb) ? specs.every((t, i) => TT_UNTYPED.includes(t) || nf(i)) : !!noFb;   // ganzer Eintrag ohne KI-Feedback
+  const labels = (a, b, no) => (no ? [""] : isFirst ? [a] : [a, b]);   // ohne KI-Feedback eine Fassung, Erstversuch nur die erste
+  const both = (l, sF, sE, no) => l.map((label, k) => ({ label, share: no || k ? sE : sF }));
   const allF = [], allE = [];
   specs.forEach((type, i) => {
     if (TT_UNTYPED.includes(type)) return;
@@ -2381,11 +2387,11 @@ function ttDetail(p, types, n, isFirst, noFb) {
     const firstC = L ? (L.first === "=" ? (first === fin ? finC : null) : ttDecode(L.first, first)) : null;
     const pF = ttShareParts(first, firstC, tab), pE = ttShareParts(fin, finC, tab), per = out.per[i];
     per.first = firstC; per.fin = finC;
-    const parts = both(labels("erste Eingabe", "nach dem KI-Feedback"), ttShare(pF), ttShare(pE));
+    const parts = both(labels("erste Eingabe", "nach dem KI-Feedback", nf(i)), ttShare(pF), ttShare(pE), nf(i));
     if (parts.some((x) => x.share.n || x.share.none)) per.line = ttSummary("Tippzeiten – Rot-Anteil: ", parts);
     allF.push(...pF); allE.push(...pE);
   });
-  out.sum = ttSummary("Tippzeiten – Rot-Anteil über alle Aufgaben: ", both(labels("erste Fassung", "abgegebene Fassung"), ttShare(allF), ttShare(allE)));
+  out.sum = ttSummary("Tippzeiten – Rot-Anteil über alle Aufgaben: ", both(labels("erste Fassung", "abgegebene Fassung", none), ttShare(allF), ttShare(allE), none));
   return out;
 }
 /* TYPING:END */
@@ -3412,6 +3418,10 @@ const S = {
   code: "", sheet: null, pub: null, person: null, draftKey: "",
   groupMode: false,   // auf dem Angaben-Bildschirm gewählt: Partner- / Gruppenarbeit (danach zählt isGroup(S.person))
   tas: [], outs: [], fbs: [], first: null, feedback: null, feedbackAt: null,
+  // KI-Feedback je Aufgabe (FBTASK): feedback/first/firstTyping tragen null für Aufgaben ohne Feedback; feedbackAts = Zeitpunkte je Aufgabe
+  // (null = alle zu feedbackAt, wie bisher); fbts = Button, Statuszeile und Warteanzeige je Aufgabe (null ohne Button); fbTarget = Aufgabe
+  // der laufenden Anfrage (0-basiert) bzw. null (Button unten)
+  feedbackAts: null, fbts: [], fbTarget: null,
   firstTyping: null,   // Tippzeiten der ersten Fassung (Base64 | null je Aufgabe, an S.first ausgerichtet) – aus demselben snapshot() wie S.first
   ttOptOut: false,   // Widerspruch gegen die Tippzeit-Messung (Schalter im Datenschutzhinweis; im Zwischenstand gemerkt, auf dem Angaben-Bildschirm vorab)
   ttResend: false,   // ein Erstversuch mit Tippzeiten ist gesendet: wird mit derselben Kennung ohne sie ersetzt (sendFirstAttempt, sonst beim nächsten Öffnen)
@@ -3425,6 +3435,7 @@ const S = {
   busyFeedback: false, ltCache: new Map(),
   ltConsent: false, ltDeclined: false,   // Rechtschreibprüfung: Selbstauskunft im Dialog je geöffnetem Blatt („Trifft nicht zu“ → Buttons weg); nie gespeichert
   attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
+  firstSentSig: "",   // Aufgaben mit KI-Feedback im zuletzt gesendeten Erstversuch (fbtSig) – kommt weiteres Feedback, wird er ersetzt
   fbRun: 0, fbStop: null, fbAbort: null,   // laufende Feedback-Anfrage: Lauf-Kennung (gegen späte Antworten nach Abbruch/Wechsel), Warten abbrechen, Anfrage abbrechen
   lastSubmission: null,   // die soeben abgegebene Lösung (nur im Arbeitsspeicher, bis „Neues Feibeitsblatt öffnen“) – für die PDF der Lösungen
   // Finale eines Escape-Rooms: escPending = aus dem Raum angekommen, Schreibbereich noch nicht offen (nur Arbeitsspeicher); escape = zum
@@ -3461,6 +3472,8 @@ async function fetchSheet(code) {
     videos: sh.tasks.map((t) => cleanVideos(t && t.videos)),   // je Aufgabe: YouTube-Videos (Kennung, Start, Titel) – geladen erst nach einem Klick
     aiRecipients: recipientsOf(sh),   // alle möglichen Empfänger (erster Anbieter, Reserve) mit Rechtsträger und Sitz
     aiFeedback: sh.aiFeedback !== false,   // false = keine Aufgabe mit Auftrag an die KI: kein KI-Feedback (ältere Worker: wie bisher)
+    // 1-basierte Nummern der Aufgaben mit Auftrag an die KI (nur Ja/Nein) – Buttons „KI-Feedback nur zu dieser Aufgabe“; älterer Worker: null
+    aiTasks: fbtCleanAiTasks(sh.aiTasks, sh.tasks.map((t) => cleanAnswer(t && t.answer).type)),
     privacy: cleanPrivacy(sh.privacy),   // Löschfrist für den Datenschutzhinweis (null = keine gespeichert)
     finalWaitSec: finalWaitOf(sh.finalWaitSec !== undefined ? sh.finalWaitSec : r.finalWaitSec),   // Wartezeit auf die finale KI-Rückmeldung (30 | 60 | 90)
     escape: cleanEscapeSpec(sh.escape)   // Finale eines Escape-Rooms {id, name} (nur über den Raum zu öffnen) – sonst null
@@ -3510,13 +3523,17 @@ const RESERVE_WHEN = "nicht antwortet, ausgelastet ist, sein Tageskontingent auf
 const NO_AI_SET = "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – deine Antworten gehen an keine KI.";
 // ohne welche Angaben die Antworten an die KI gehen (Schreibbereich, Dialoge) – eine Gruppe hat keinen Geburtstag angegeben
 const noPersonData = () => (isGroup(S.person) ? "ohne die Namenskürzel der Gruppe und die Klasse" : "ohne Namenskürzel, Geburtstag und Klasse");
-function recipientSentence() {
+// nums (optional, 1-basiert): Anfrage nur zu diesen Aufgaben (KI-Feedback zu einer Aufgabe bzw. zu den übrigen) – ohne Argument wie bisher
+// (so steht der Satz auch im Abgabe-Dialog, fb2DialogLine)
+function recipientSentence(nums) {
   const r = recipientParts();
   if (!r.any) return NO_AI_SET + " Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird.";
-  return `Deine Antworten gehen – ${noPersonData()} – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
+  const one = Array.isArray(nums) && nums.length === 1, some = Array.isArray(nums) && nums.length > 1;
+  const subj = one ? `Nur deine Antwort zu Aufgabe ${nums[0]} geht` : some ? `Nur deine Antworten zu den Aufgaben ${listNums(nums)} gehen` : "Deine Antworten gehen";
+  return `${subj} – ${noPersonData()} – über den Server dieser Seite an den KI-Dienst ${r.first}.` +
     (r.rest.length ? ` Nur wenn dieser Dienst ${RESERVE_WHEN}, geht dieselbe Anfrage danach an ${r.rest.join(" bzw. ")}.` : "") +
     (r.cf ? " Bei Cloudflare ist die KI-Verarbeitung auch außerhalb der EU möglich." : "") +
-    (r.usa ? (r.cf ? " Die übrigen Dienste mit Sitz in den USA" : " Dienste mit Sitz in den USA") + " verarbeiten deine Texte außerhalb der EU." : "");
+    (r.usa ? (r.cf ? " Die übrigen Dienste mit Sitz in den USA" : " Dienste mit Sitz in den USA") + ` verarbeiten ${one ? "deinen Text" : "deine Texte"} außerhalb der EU.` : "");
 }
 /* ---------- Datenschutzhinweis nach Art. 13 DSGVO ----------
  * Gestuft (Art. 12: kurz und verständlich): eine Kurzfassung und darunter aufklappbar „Alle Informationen zum Datenschutz“.
@@ -4004,14 +4021,18 @@ function renderPersonPrivacy() {
 function renderPrivacy() {
   const r = recipientParts(), withAi = S.sheet.aiFeedback, days = S.sheet.privacy && S.sheet.privacy.retentionDays;
   const who = isGroup(S.person) ? "den Namenskürzeln der Gruppe und der Klasse" : "Namenskürzel, Geburtstag und Klasse";   // Gruppe: kein Geburtstag
+  // Blatt mit Buttons „KI-Feedback nur zu dieser Aufgabe“ (FBTASK): beide Wege nennen – sonst bleibt der Hinweis wörtlich wie bisher
+  const each = perTaskOn();
   $("privacy").textContent = "";
   $("privacy").append(h("b", { text: "Datenschutz: " }),
     (withAi
-      ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. ` +
+      ? (each
+        ? `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ (später „${FBT_REST}“) oder bei einer Aufgabe auf „${FBT_LABEL}“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI – beim Button einer Aufgabe nur deine Antwort zu dieser Aufgabe, beim Button unten deine Antworten zu den Aufgaben, zu denen du noch kein KI-Feedback hast; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. `
+        : `Das KI-Feedback ist freiwillig: Nur wenn du auf „KI um ein Feedback bitten“ klickst und das bestätigst, gehen deine Antworten zum Überarbeiten an eine KI; du kannst auch ohne KI-Feedback abgeben, ohne dass dir daraus ein Nachteil entsteht. `) +
         (!r.any   // keine KI eingerichtet: derselbe Inhalt wie im ausführlichen Hinweis (nie einen KI-Dienst nennen, den es nicht gibt)
           ? `${NO_AI_SET} Richtet deine Lehrkraft einen ein, nennt dir diese Seite ihn, bevor etwas gesendet wird. `
           : `Nach der Abgabe gehen deine Antworten außerdem für die finale KI-Rückmeldung an die KI – auch ohne vorheriges KI-Feedback, außer du wählst sie beim Abgeben ab. ` +
-        `Beim Klick auf „KI um ein Feedback bitten“ und für die finale KI-Rückmeldung werden nur deine Antworten – ${noPersonData()} – an den Server dieser Seite geschickt. ` +
+        `Beim Klick auf „KI um ein Feedback bitten“ und für die finale KI-Rückmeldung werden nur deine Antworten – ${noPersonData()} – an den Server dieser Seite geschickt${each ? " – ebenso beim Button einer Aufgabe" : ""}. ` +
         `Er leitet sie zusammen mit den Aufgaben, dem Material und dem Auftrag deiner Lehrkraft an den KI-Dienst ${r.first} weiter` +
         (r.rest.length ? ` – nur wenn dieser ${RESERVE_WHEN}, nacheinander an ${r.rest.join(" bzw. ")} –` : "") +
         ` und speichert selbst nichts davon; der KI-Dienst verarbeitet sie nach seinen eigenen Bedingungen` +
@@ -4025,6 +4046,7 @@ function renderPrivacy() {
     `, Betreiber Learneo, Inc., USA) gesendet – ohne Namen oder Angaben zu dir, aber mit der Internetadresse deines Geräts. ` +
     (withAi
       ? `Sobald du das KI-Feedback bekommst, werden deine erste Fassung und das Feedback zusammen mit ${who} verschlüsselt auf dem Server dieser Seite (Cloudflare, Inc., USA; Datenbank in der EU) gespeichert – als „Erstversuch“, den nur deine Lehrkraft lesen kann. ` +
+        (each ? `Bekommst du KI-Feedback nur zu einzelnen Aufgaben, enthält der Erstversuch nur diese Aufgaben und wird mit jedem weiteren KI-Feedback ersetzt. ` : "") +
         `Deine Abgabe nach der Überarbeitung ersetzt ihn. Gibst du ohne KI-Feedback ab, wird nur deine Abgabe gespeichert (ebenso verschlüsselt, mit dem Vermerk „ohne KI-Feedback“ und – falls das KI-Feedback nicht möglich war – dem Grund). ` +
         (r.any ? `Die finale KI-Rückmeldung speichert der Server verschlüsselt zu deiner Abgabe; dort kann sie nur deine Lehrkraft lesen. ` : "") +
         (days ? `Erstversuch und Abgabe werden ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht alles nach der Durchsicht. `)
@@ -4515,7 +4537,7 @@ async function openEditor(fromPerson) {
   S.escape = esc; S.escSoft = null;   // normales Blatt: Daten aus einem fremden Zwischenstand entfallen
   S.ttOptOut = false; S.ttResend = false; S.firstSending = null; S.ttLastRaw = null; S.ttGen++;
   S.submitted = false; S.first = null; S.firstTyping = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbPending = false; S.ltCache = new Map();
-  S.attempt = ""; S.firstSent = false;
+  S.attempt = ""; S.firstSent = false; S.firstSentSig = ""; S.feedbackAts = null;
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltConsent = false; S.ltDeclined = false;   // Selbstauskunft zu LanguageTool gilt nur, solange dieses Blatt geöffnet ist
   S.draftKey = key;
@@ -4544,18 +4566,23 @@ async function openEditor(fromPerson) {
         if (!t.photo && String(d.answers[i] || "") === PHOTO_TEXT) t._lost();
       });
       if (Array.isArray(d.first) && d.first.length === sh.tasks.length && Array.isArray(d.feedback) && d.feedback.length === sh.tasks.length) {
-        S.first = d.first.map((x) => String(x || ""));
-        S.feedback = d.feedback.map(normFb);
-        S.feedbackAt = typeof d.feedbackAt === "string" ? d.feedbackAt : null;
+        // je Aufgabe erste Fassung und Feedback – oder beide null (KI-Feedback nur zu einzelnen Aufgaben; ältere Stände haben überall beide)
+        const pr = fbtPairs(d.first.map((x) => (x == null ? null : String(x || ""))), d.feedback, sh.tasks.length, normFb, Infinity);
+        S.first = pr.first; S.feedback = pr.feedback;
+        S.feedbackAt = S.feedback && typeof d.feedbackAt === "string" ? d.feedbackAt : null;
+        S.feedbackAts = fbtAts(d.feedbackAts, S.feedback);   // Zeitpunkte je Aufgabe (fehlt: alle zu feedbackAt)
       }
       if (typeof d.fbUnavailable === "string" && d.fbUnavailable) S.fbUnavailable = d.fbUnavailable.slice(0, 200);
       if (typeof d.fbUnavailableDay === "string" && DAY_RE.test(d.fbUnavailableDay)) S.fbUnavailableDay = d.fbUnavailableDay;
       if (Number.isInteger(d.fbFails)) S.fbFails = Math.max(0, Math.min(9, d.fbFails));   // Fehlversuche überdauern ein Neuladen
       // Eine Anfrage war unterwegs, als die Seite verschwand (Tab geschlossen, Absturz): die KI hat die Antworten womöglich
-      // erhalten, ein Feedback kam nie an → Fehlversuch (eine Abgabe ohne Feedback gilt dann nie als „ohne Anfrage“)
-      if (d.fbPending === true && !S.feedback) { S.fbFails = Math.min(9, S.fbFails + 1); pendingLost = true; }
+      // erhalten, ein Feedback kam nie an → Fehlversuch (eine Abgabe ohne Feedback gilt dann nie als „ohne Anfrage“) – auch, wenn es zu
+      // anderen Aufgaben schon Feedback gibt
+      if (d.fbPending === true && !fbDoneAll()) { S.fbFails = Math.min(9, S.fbFails + 1); pendingLost = true; }
       if (typeof d.attempt === "string" && ATTEMPT_RE.test(d.attempt)) S.attempt = d.attempt;
       S.firstSent = !!d.firstSent;
+      // welche Aufgaben der gesendete Erstversuch enthält; ältere Stände (Feedback zu allen Aufgaben auf einmal): genau die jetzigen
+      S.firstSentSig = !S.firstSent ? "" : typeof d.firstSentSig === "string" ? d.firstSentSig.slice(0, 200) : fbtSig(S.feedback);
       restored = d.answers.some((a) => String(a || "").trim());
     }
   } catch (e) { /* kaputter Entwurf: ignorieren */ }
@@ -4593,7 +4620,7 @@ async function openEditor(fromPerson) {
   renderFeedbackState();
   setSaveState(saveFailed ? SAVE_FAILED : imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", saveFailed);
   // Erstversuch nachholen, falls die Übermittlung damals scheiterte – bzw. ohne Tippzeiten ersetzen (Widerspruch, S.ttResend)
-  if (S.feedback && (!S.firstSent || S.ttResend)) sendFirstAttempt();
+  if (S.feedback && (!S.firstSent || S.ttResend || fbtSig(S.feedback) !== S.firstSentSig)) sendFirstAttempt();
   setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
   show("screen-editor");
   $("paperwrap").scrollTop = 0;
@@ -4610,9 +4637,21 @@ function liveFill(box, el, text, still) {
   setTimeout(() => { if (!box.classList.contains("hidden") && (!still || still())) el.textContent = text; }, 80);
 }
 
+/* Button „KI-Feedback nur zu dieser Aufgabe“ samt Statuszeile und Warteanzeige („Nicht länger warten“) an der Aufgabe n (FBTASK) */
+function fbtDom(n) {
+  const btn = h("button", { type: "button", class: "btn ghost small fbtbtn", id: "fbt-btn-" + n, text: FBT_LABEL, "aria-label": fbtAria(n, false) });
+  const stat = h("p", { class: "status fbt-stat", id: "fbt-st-" + n, role: "status", "aria-live": "polite" });
+  const num = h("span", { id: "fbt-wait-num-" + n, "aria-hidden": "true" });
+  const stop = h("button", { type: "button", class: "linkbtn", id: "fbt-wait-stop-" + n, text: "Nicht länger warten", "aria-label": "Nicht länger warten – KI-Feedback zu Aufgabe " + n });
+  const wait = h("div", { class: "fbwait hidden", id: "fbt-wait-" + n }, [num, stop]);
+  btn.addEventListener("click", () => requestFeedback(n - 1));
+  stop.addEventListener("click", () => { if (S.fbStop) S.fbStop(); });
+  return { btn, stat, wait, num, stop };
+}
 function buildTasks() {
   const box = $("tasks"); box.textContent = "";
-  S.tas = []; S.outs = []; S.fbs = [];
+  S.tas = []; S.outs = []; S.fbs = []; S.fbts = [];
+  const perTask = perTaskOn();   // Buttons je Aufgabe nur bei mindestens zwei Aufgaben mit Auftrag an die KI
   S.sheet.tasks.forEach((text, i) => {
     const n = i + 1, spec = (S.sheet.answers && S.sheet.answers[i]) || { type: "text" }, isText = spec.type === "text";
     const pe = h("p", { class: "paste-err", id: "pe-" + n, role: "alert" });
@@ -4628,7 +4667,9 @@ function buildTasks() {
     const ltBtn = isText ? h("button", { type: "button", class: "btn ghost small ltbtn", text: "Rechtschreibung und Grammatik prüfen", "aria-label": "Rechtschreibung und Grammatik prüfen – Aufgabe " + n }) : null;
     const ltStat = h("span", { class: "ltstat", role: "status", "aria-live": "polite" });
     const out = h("div", { class: "lt-out hidden", "aria-live": "polite" });
-    const fb = h("div", { class: "fbbox hidden" });
+    // KI-Feedback nur zu dieser Aufgabe (Text und Tabelle mit Auftrag): danach springt der Fokus in die Box der Aufgabe
+    const fbt = perTask && (isText || spec.type === "table") && S.sheet.aiTasks.includes(n) ? fbtDom(n) : null;
+    const fb = h("div", fbt ? { class: "fbbox hidden", id: "fb-" + n, tabindex: "-1" } : { class: "fbbox hidden" });
     // Bilder der Lehrkraft: Miniaturen rechts neben Aufgabe und Antwort, größere Bilder zwischen Aufgabenstellung und Antwortfeld
     const imgs = (S.sheet.images && S.sheet.images[i]) || [], mat = (S.sheet.material && S.sheet.material[i]) || [], files = (S.sheet.files && S.sheet.files[i]) || [];
     const vids = (S.sheet.videos && S.sheet.videos[i]) || [];   // YouTube-Videos: direkt unter dem Material, je Video ein Platzhalter
@@ -4647,7 +4688,8 @@ function buildTasks() {
         files.length ? h("div", { class: "task-files" }, [h("span", { class: "sublabel", text: "Material zum Herunterladen" }), h("div", { class: "filelist" }, files.map((f) => fileButton(S.code, f, n)))]) : null,
         figs.length ? h("div", { class: "task-figs" }, figs) : null,
         isText ? ta : ta.el, pe, cnt,
-        isText ? h("div", { class: "checkrow" }, [ltBtn, ltStat]) : null,
+        isText ? h("div", { class: "checkrow" }, [ltBtn, ltStat, fbt && fbt.btn]) : fbt ? h("div", { class: "checkrow fbt-row" }, [fbt.btn]) : null,
+        fbt && fbt.stat, fbt && fbt.wait,
         out, fb
       ])
     ]);
@@ -4655,7 +4697,7 @@ function buildTasks() {
     if (isText) ta._tt = ttNew("", null);   // Tippzeiten (Tabellen: je Zelle, Weltkarte und Foto: keine)
     if (isText) ta.addEventListener("input", () => answerChanged(ta));
     if (ltBtn) ltBtn.addEventListener("click", () => ltRun(i, ltBtn, ltStat));
-    S.tas.push(ta); S.outs.push(out); S.fbs.push(fb);
+    S.tas.push(ta); S.outs.push(out); S.fbs.push(fb); S.fbts.push(fbt);
     box.appendChild(sec);
   });
 }
@@ -5319,9 +5361,13 @@ function draftRecord() {
   try { typing = S.ttOptOut ? null : ttDraftOut(now.typing, S.first ? S.first.map((_, i) => (S.firstTyping && S.firstTyping[i]) || null) : null); } catch (e) { typing = null; }
   // Fotos (Antwortart Foto) an answers ausgerichtet (data:-URL | null) – nur, wenn es mindestens eines gibt
   const photos = S.tas.map((t) => (t && t._kind === "photo" && t.photo) || null);
+  // KI-Feedback nur zu einzelnen Aufgaben (FBTASK): first/feedback tragen null für Aufgaben ohne Feedback, feedbackAts die Zeitpunkte je
+  // Aufgabe; firstSentSig = welche Aufgaben der gesendete Erstversuch enthält
   return { v: 1, t: Date.now(), answers: now.texts, ...(photos.some(Boolean) ? { photos } : {}), first: S.first, feedback: S.feedback, feedbackAt: S.feedbackAt,
+    ...(S.feedbackAts ? { feedbackAts: S.feedbackAts } : {}),
     ...(S.feedback ? { feedbackAi: { aiGenerated: true, digitalSourceType: AI_SOURCE } } : {}),   // KI-Kennzeichnung (cleanDraft liest das Feld nicht)
     fbUnavailable: S.fbUnavailable || "", fbUnavailableDay: S.fbUnavailable ? S.fbUnavailableDay || "" : "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent,
+    ...(S.firstSent ? { firstSentSig: S.firstSentSig } : {}),
     ...(typing ? { typing } : {}), ...(S.ttOptOut ? { ttOptOut: true } : {}), ...(S.ttResend ? { ttResend: true } : {}),
     ...(S.escape ? { escape: S.escape.hull } : {}) };   // Escape-Room-Finale: die Hülle unverändert (die Prüfsumme lässt sich so jederzeit neu rechnen)
 }
@@ -5425,8 +5471,9 @@ function pdfWrap(str, size, bold, maxW) {   // Zeilenumbruch an Leerzeichen; ein
 const pdfUtf16 = (str) => { let x = "<FEFF"; for (let i = 0; i < str.length; i++) x += str.charCodeAt(i).toString(16).padStart(4, "0"); return x + ">"; };   // Info-Texte (PDFDocEncoding ≠ WinAnsi)
 const latin1 = (str) => { const u = new Uint8Array(str.length); for (let i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 0xFF; return u; };
 /* Zwischenstand d (siehe draftRecord + kind/code/sheetTitle/person) → PDF-Bytes */
-// withAi = false: Blatt ohne Auftrag an die KI (kein Hinweis zum KI-Feedback); escName: Finale eines Escape-Rooms (d.escape trägt die Daten aus dem Raum)
-function makeDraftPdf(d, withAi = true, escName = "") {
+// withAi = false: Blatt ohne Auftrag an die KI (kein Hinweis zum KI-Feedback); escName: Finale eines Escape-Rooms (d.escape trägt die Daten aus dem Raum);
+// perTask: Blatt mit Buttons „KI-Feedback nur zu dieser Aufgabe“ bzw. Feedback nur zu einzelnen Aufgaben (Hinweis „nur einmal“ je Aufgabe)
+function makeDraftPdf(d, withAi = true, escName = "", perTask = false) {
   const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M;   // A4, Ränder
   const ops = [];
   const put = (x, yTop, str, size, bold, color) => ops.push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - yTop).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
@@ -5444,7 +5491,7 @@ function makeDraftPdf(d, withAi = true, escName = "") {
   if (esc) row("Escape-Room:", `„${escName}“ – mit deinen Daten aus dem Escape-Room`);
   row("Gesichert am:", fmtDT(when) + " Uhr");
   if (isGroup(p)) row("Gruppe:", personLabel(p)); else row("Angaben:", personLabel(p));
-  const fbState = Array.isArray(d.feedback) ? "schon erhalten"
+  const fbState = Array.isArray(d.feedback) ? fbtGot(d.feedback) + (d.fbPending && fbtPartial(d.feedback) ? ", eine weitere Anfrage beim Sichern noch nicht beantwortet" : "")   // teilweise: „zu den Aufgaben 1 und 3 erhalten“
     : d.fbPending ? "angefordert, beim Sichern noch nicht erhalten"   // beim Öffnen dieser Datei zählt das als Fehlversuch
     : d.fbUnavailable || d.fbFails > 0 ? `bisher nicht geklappt (${d.fbUnavailable || FB_NOT_DONE})` : "nicht angefordert";
   row("Stand:", `${done} von ${answers.length} ${answers.length === 1 ? "Aufgabe" : "Aufgaben"} ${nPhotos ? `bearbeitet (${nPhotos} mit Foto)` : "mit Text"}` + (withAi ? " · KI-Feedback " + fbState : ""));
@@ -5466,7 +5513,7 @@ function makeDraftPdf(d, withAi = true, escName = "") {
   put(M, y, "Bitte beachte", 12.5, true); y += 18;
   [nPhotos ? "Die Datei enthält deine Antworten lesbar – auch deine Fotos. Gib sie nicht weiter und lade sie nirgendwo sonst hoch." : "Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
     "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
-    withAi ? "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites KI-Feedback zum Überarbeiten gibt es nicht." : "",
+    withAi ? (perTask ? FBT_PDF_ONCE : "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites KI-Feedback zum Überarbeiten gibt es nicht.") : "",
     esc ? "Die Datei enthält auch deine Daten aus dem Escape-Room (voller Name, Geburtsdatum, Bestätigungscode und Ergebnisse) – damit kannst du hier weitermachen." : ""
   ].filter(Boolean).forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
   put(M, H - 40, "Erstellt mit Feibeitsblatt · " + url, 9, false, "0.45 0.45 0.45");
@@ -5638,18 +5685,19 @@ function cleanDraft(o) {
   const answers = o.answers.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER));
   // Fotos (Antwortart Foto): nur geprüfte JPEG-data:-URLs an answers ausgerichtet; ob die Aufgabe eine Foto-Aufgabe ist, klärt openEditor
   const photos = Array.isArray(o.photos) && o.photos.length === answers.length ? o.photos.map((x) => cleanPhoto(x) || null) : null;
-  let first = null, feedback = null;
-  if (Array.isArray(o.first) && Array.isArray(o.feedback) && o.first.length === answers.length && o.feedback.length === answers.length) {
-    first = o.first.map((a) => String(a == null ? "" : a).slice(0, MAX_ANSWER)); feedback = o.feedback.map(normFb);
-  }
+  // je Aufgabe erste Fassung und Feedback – oder beide null (KI-Feedback nur zu einzelnen Aufgaben; ältere Dateien haben überall beide)
+  const { first, feedback } = fbtPairs(o.first, o.feedback, answers.length, normFb, MAX_ANSWER);
   const fl = ttDraftFlags(o);
   return {
     v: 1, code, sheetTitle: String(o.sheetTitle || "").slice(0, 200), t: Number.isFinite(o.t) ? o.t : 0,
     person, answers, photos: photos && photos.some(Boolean) ? photos : null, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
+    feedbackAts: fbtAts(o.feedbackAts, feedback),
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
     fbUnavailableDay: typeof o.fbUnavailableDay === "string" && DAY_RE.test(o.fbUnavailableDay) ? o.fbUnavailableDay : "",
-    fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0, fbPending: o.fbPending === true && !feedback,
+    // ein offener Auftrag zählt beim Öffnen als Fehlversuch – auch, wenn es zu anderen Aufgaben schon Feedback gibt (openEditor prüft genauer)
+    fbFails: Number.isInteger(o.fbFails) ? Math.max(0, Math.min(9, o.fbFails)) : 0, fbPending: o.fbPending === true && (!feedback || fbtPartial(feedback)),
     attempt: typeof o.attempt === "string" && ATTEMPT_RE.test(o.attempt) ? o.attempt : "", firstSent: o.firstSent === true,
+    firstSentSig: o.firstSent === true && typeof o.firstSentSig === "string" ? o.firstSentSig.slice(0, 200) : null,
     // Widerspruch gegen die Tippzeit-Messung bleibt gemerkt (dann keine Tippzeiten); ein noch zu ersetzender Erstversuch nur mit Feedback
     ttOptOut: fl.optOut, ttResend: fl.resend && !!feedback,
     typing: fl.optOut ? null : (() => { try { return ttCleanDraft(o.typing, answers, first); } catch (e) { return null; } })(),   // nur, was genau zu den gekappten Texten passt
@@ -5671,7 +5719,7 @@ $("ed-pdf").addEventListener("click", () => {
     // Escape-Room-Finale: die Datei enthält vollen Namen, Geburtsdatum und Bestätigungscode – wie die übrigen Escape-PDFs nur zum
     // Speichern (application/octet-stream), nie als Vorschau im Tab (z. B. iOS)
     const escName = S.escape && S.sheet.escape ? S.sheet.escape.name : "";
-    downloadBlob(new Blob([makeDraftPdf(d, S.sheet.aiFeedback || !!S.feedback, escName)], { type: escName ? "application/octet-stream" : "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
+    downloadBlob(new Blob([makeDraftPdf(d, S.sheet.aiFeedback || !!S.feedback, escName, perTaskOn() || fbtPartial(S.feedback))], { type: escName ? "application/octet-stream" : "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
     setSaveState("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf", false);
   } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
 });
@@ -6335,6 +6383,141 @@ function renderLT(i, text, res) {
   growAll();
 }
 
+/* FBTASK:BEGIN – KI-Feedback zu einzelnen Aufgaben, reine Funktionen ohne Abhängigkeiten (test/unit/fbtask.test.mjs liest diesen Block)
+ * Entscheidung der Lehrkraft vom 17.11.2026: Das KI-Feedback zum Überarbeiten gibt es je Aufgabe höchstens einmal – einzeln über
+ * „KI-Feedback nur zu dieser Aufgabe“ (nur bei Text- und Tabellenaufgaben mit Auftrag an die KI, und nur, wenn ein Blatt mindestens zwei
+ * davon hat – bei einer wäre er dasselbe wie der Button unten) oder für alle übrigen zusammen über den Button unten. Zustand je Aufgabe:
+ * feedback[i] = Rückmeldung oder null (zu dieser Aufgabe noch keine), first[i] (erste Fassung) ebenso – je Aufgabe beide da oder beide
+ * null; ganz ohne Feedback sind beide null. Ältere Zwischenstände, Erstversuche und Abgaben tragen immer alle Einträge. Wurde kein Button
+ * einer Aufgabe benutzt, bleibt alles wie bisher (Anfrage ohne only, alle Antworten, dieselben Texte). */
+const FBT_NO_AI = ["map", "photo"];   // = NO_AI_KINDS: Weltkarte und Foto gehen nie an die KI
+const FBT_LABEL = "KI-Feedback nur zu dieser Aufgabe";
+const FBT_DONE = "KI-Feedback zu dieser Aufgabe erhalten";
+const FBT_REST = "KI-Feedback zu den übrigen Aufgaben";   // Button unten, sobald es zu einzelnen Aufgaben schon KI-Feedback gibt
+// zugänglicher Name: der sichtbare Text und die Nummer der Aufgabe (wie „Rechtschreibung und Grammatik prüfen – Aufgabe n“, WCAG 2.5.3)
+const fbtAria = (n, got) => (got ? FBT_DONE : FBT_LABEL) + " – Aufgabe " + n;
+const fbtList = (a) => (a.length === 1 ? String(a[0]) : a.slice(0, -1).join(", ") + " und " + a[a.length - 1]);   // = listNums
+// „zu Aufgabe 2“ bzw. „zu den Aufgaben 2 und 4“
+const fbtTo = (nums) => (nums.length === 1 ? "zu Aufgabe " + nums[0] : "zu den Aufgaben " + fbtList(nums));
+/* aiTasks aus GET /api/sheet/:code (1-basierte Nummern der Aufgaben mit Auftrag an die KI – nur Ja/Nein, nie der Auftrag) → aufsteigend,
+   ohne Doppelte, nur Ganzzahlen 1…Aufgabenzahl, nie Weltkarte oder Foto (kinds = Antwortart je Aufgabe); fehlt das Feld (älterer
+   Worker) → null: dann gibt es keine Buttons je Aufgabe, nur den Button unten wie bisher */
+function fbtCleanAiTasks(raw, kinds) {
+  if (!Array.isArray(raw) || !Array.isArray(kinds)) return null;
+  const out = [];
+  for (const x of raw.slice(0, 60)) if (Number.isInteger(x) && x >= 1 && x <= kinds.length && !FBT_NO_AI.includes(kinds[x - 1]) && !out.includes(x)) out.push(x);
+  return out.sort((a, b) => a - b);
+}
+const fbtPerTask = (aiTasks, aiFeedback) => aiFeedback !== false && Array.isArray(aiTasks) && aiTasks.length >= 2;
+const fbtHas = (feedback, i) => Array.isArray(feedback) && feedback[i] != null;   // i 0-basiert
+const fbtNums = (feedback) => (Array.isArray(feedback) ? feedback.reduce((o, f, i) => (f != null ? o.concat(i + 1) : o), []) : []);
+// Kennzeichen der Aufgaben mit KI-Feedback („1,3“): welcher Stand steckt im gesendeten Erstversuch?
+const fbtSig = (feedback) => fbtNums(feedback).join(",");
+// teilweise: zu manchen Aufgaben KI-Feedback, zu anderen (noch) keines
+const fbtPartial = (feedback) => Array.isArray(feedback) && feedback.some((f) => f == null);
+/* Offene Aufgaben für den Button unten (1-basiert): ganz ohne Feedback null (er fragt wie bisher alle Aufgaben), sonst die Aufgaben mit
+   Auftrag ohne Feedback (aiTasks; ein älterer Worker ohne die Liste: alle Aufgaben ohne Feedback außer Weltkarte und Foto) */
+function fbtOpen(feedback, aiTasks, kinds) {
+  if (!Array.isArray(feedback)) return null;
+  const all = Array.isArray(aiTasks) ? aiTasks : feedback.map((_, i) => i + 1).filter((n) => !(Array.isArray(kinds) && FBT_NO_AI.includes(kinds[n - 1])));
+  return all.filter((n) => Number.isInteger(n) && n >= 1 && n <= feedback.length && feedback[n - 1] == null);
+}
+// Antworten einer Anfrage: nur die angefragten (targets 1-basiert), alle übrigen "" (Datensparsamkeit; der Server prüft die volle Länge);
+// targets = null → alle wie bisher
+const fbtRequest = (texts, targets) => (Array.isArray(targets) ? texts.map((a, i) => (targets.includes(i + 1) ? a : "")) : texts.slice());
+/* Antwort des Servers einarbeiten → {first, feedback, typing, ats, at} oder null (unbrauchbar: dann „unvollständig“). targets = null (alle,
+   wie bisher: first = gesendete Antworten, feedback = results.map(norm), keine Zeitpunkte je Aufgabe) oder die angefragten Nummern (nur
+   sie werden gesetzt; der Server liefert null außerhalb von only). prev = {first, feedback, typing, ats, at} bisher; typing = Tippzeiten
+   der gesendeten Antworten je Aufgabe oder null (widersprochen bzw. verworfen); at = Zeitpunkt (ISO). */
+function fbtMerge(prev, targets, sent, typing, results, norm, at) {
+  if (!Array.isArray(results) || !Array.isArray(sent) || results.length !== sent.length) return null;
+  if (!Array.isArray(targets)) return { first: sent.slice(), feedback: results.map(norm), typing: Array.isArray(typing) ? typing.slice() : null, ats: null, at };
+  if (!targets.length || targets.some((n) => !Number.isInteger(n) || n < 1 || n > sent.length || !results[n - 1] || typeof results[n - 1] !== "object")) return null;
+  const len = sent.length, p = prev || {}, copy = (a) => (Array.isArray(a) && a.length === len ? a.slice() : Array(len).fill(null));
+  const first = copy(p.first), feedback = copy(p.feedback), ty = copy(p.typing);
+  const ats = Array.isArray(p.ats) && p.ats.length === len ? p.ats.slice() : feedback.map((f) => (f != null ? p.at || null : null));
+  for (const n of targets) {
+    first[n - 1] = sent[n - 1]; feedback[n - 1] = norm(results[n - 1]);
+    ty[n - 1] = Array.isArray(typing) ? typing[n - 1] || null : null; ats[n - 1] = at;
+  }
+  return { first, feedback, typing: Array.isArray(typing) || Array.isArray(p.typing) ? ty : null, ats, at: p.at || at };
+}
+/* Zwischenstand (geparst) → {first, feedback}: je Aufgabe eine Rückmeldung (Objekt) mit erster Fassung (Text, auf max gekappt) oder beide
+   null; ohne jede Rückmeldung beide null. Ältere Zwischenstände haben überall beide (bleiben unverändert). norm = normFb */
+function fbtPairs(first, feedback, n, norm, max) {
+  const none = { first: null, feedback: null };
+  if (!Array.isArray(first) || !Array.isArray(feedback) || first.length !== n || feedback.length !== n) return none;
+  const f = [], b = [];
+  for (let i = 0; i < n; i++) {
+    const ok = !!feedback[i] && typeof feedback[i] === "object" && !Array.isArray(feedback[i]) && first[i] != null;
+    f.push(ok ? String(first[i]).slice(0, max) : null); b.push(ok ? norm(feedback[i]) : null);
+  }
+  return b.some(Boolean) ? { first: f, feedback: b } : none;
+}
+// Zeitpunkte je Aufgabe (ISO-Text, ≤ 40 Zeichen) an feedback ausgerichtet; ohne passende Liste null
+function fbtAts(raw, feedback) {
+  if (!Array.isArray(raw) || !Array.isArray(feedback) || raw.length !== feedback.length) return null;
+  return feedback.map((f, i) => (f != null && typeof raw[i] === "string" && raw[i] ? raw[i].slice(0, 40) : null));
+}
+// Für Erstversuch und Abgabe: die Zeitpunkte je Aufgabe nur, wenn es Aufgaben ohne KI-Feedback gibt oder die Zeitpunkte sich unterscheiden
+function fbtAtsOut(feedback, ats) {
+  if (!Array.isArray(feedback) || !Array.isArray(ats) || ats.length !== feedback.length) return null;
+  return fbtPartial(feedback) || new Set(ats.filter((_, i) => feedback[i] != null)).size > 1 ? ats.slice() : null;
+}
+// Lehrkraft (loadSubs): feedback einer Nutzlast → je Aufgabe normalisiert oder null; ohne jede Rückmeldung null (wie ohne KI-Feedback)
+function fbtTeacher(feedback, norm) {
+  if (!Array.isArray(feedback)) return null;
+  const out = feedback.slice(0, 30).map((f) => (f && typeof f === "object" && !Array.isArray(f) ? norm(f) : null));
+  return out.some(Boolean) ? out : null;
+}
+// Lehrkraft: Aufgaben (0-basiert, n Stück) ohne eigenes KI-Feedback in einem Eintrag, der zu anderen Aufgaben eines hat → [Boolean] | null
+function fbtNoFbList(feedback, n) {
+  if (!Array.isArray(feedback)) return null;
+  const list = Array.from({ length: n }, (_, i) => !feedback[i]);
+  return list.some(Boolean) ? list : null;
+}
+// Unterscheiden sich die Zeitpunkte je Aufgabe (dann nennt die Lehrkraft-Ansicht sie je Aufgabe)?
+const fbtAtsDiffer = (ats) => Array.isArray(ats) && new Set(ats.filter((x) => typeof x === "string" && x)).size > 1;
+/* Texte (Schüler:innen: du-Form; keine Wörter zur Tippzeit-Messung). vol = FB_VOLUNTARY, who = recipientSentence(nums) */
+const fbtEmptyOne = (n) => "Schreibe zuerst eine Antwort zu Aufgabe " + n + ".";
+const fbtEmptyRest = (nums) => "Bitte beantworte zuerst " + (nums.length === 1 ? "Aufgabe " + nums[0] + " – das Feld ist" : "die Aufgaben " + fbtList(nums) + " – ihre Felder sind") + " noch leer.";
+const FBT_FINAL = "nach der Abgabe gehen alle deine Antworten denselben Weg für die finale KI-Rückmeldung (beim Abgeben abwählbar; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen)";
+const FBT_NO_AI_MORE = "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – ein weiteres KI-Feedback ist nicht möglich. Du kannst trotzdem abgeben.";
+/* Dialog vor einer Anfrage zu einer Aufgabe (one: Button der Aufgabe nums[0]) bzw. zu den übrigen Aufgaben (Button unten nach Feedback zu
+   einzelnen Aufgaben; empty = davon noch leere) – wie der bisherige Dialog: Freiwilligkeit, Empfänger, „nur einmal“, Erstversuch */
+function fbtDialog(nums, one, empty, vol, who) {
+  const to = fbtTo(nums), single = nums.length === 1, base = { ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true };
+  const keep = `${single ? "Deine Antwort" : "Deine Antworten"} ${to} zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – ` +
+    `${single ? "wird" : "werden"} als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch, der mit jedem weiteren KI-Feedback ersetzt wird) und später mit abgegeben.`;
+  if (!one && empty.length) return { ...base, title: "Noch nicht alles beantwortet", ok: "Trotzdem anfordern",
+    text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + fbtList(empty) + " sind"} noch leer.\n${vol}\n${who}\n` +
+      `Das KI-Feedback zum Überarbeiten gibt es zu jeder Aufgabe nur einmal (nach der Abgabe folgt noch die finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt – beim Abgeben abwählbar; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen). Möchtest du es ${to} trotzdem jetzt anfordern?` };
+  return { ...base, title: one || single ? `KI-Feedback zu Aufgabe ${nums[0]} anfordern?` : "KI-Feedback zu den übrigen Aufgaben anfordern?",
+    text: `${vol}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es zu jeder Aufgabe nur einmal – ${to} mit diesem Klick; ${FBT_FINAL}. ${keep}` };
+}
+// Hinweise, solange es KI-Feedback nur zu einzelnen Aufgaben gibt (got = Aufgaben mit Feedback, open = noch offene mit Auftrag)
+const fbtRest = (open) => (open.length === 1 ? "zu Aufgabe " + open[0] : "zu den übrigen Aufgaben (" + fbtList(open) + ")");
+const fbtFinText = (open, vol) => `Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback ${fbtRest(open)} bitten und deine Antworten danach überarbeiten. ${vol}`;
+function fbtReviseText(got, open) {
+  const one = got.length === 1;
+  return `Lies das KI-Feedback ${fbtTo(got)} und überarbeite dort ${one ? "deine Antwort" : "deine Antworten"}: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik.` +
+    (open.length ? ` ${open.length === 1 ? "Zu Aufgabe " + open[0] : "Zu den Aufgaben " + fbtList(open)} kannst du noch ein KI-Feedback anfordern.` : "") +
+    ` Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden bei ${one ? "dieser Aufgabe" : "diesen Aufgaben"} beide Fassungen.`;
+}
+const fbtEdHint = (got) => `Du hast das KI-Feedback ${fbtTo(got)} erhalten. Überarbeite dort ${got.length === 1 ? "deine Antwort" : "deine Antworten"} und gib danach ganz unten ab.`;
+const fbtFallback = (open, reason, later) => `Ein KI-Feedback ${open.length === 1 ? "zu Aufgabe " + open[0] : "zu den übrigen Aufgaben"} ist gerade nicht möglich (${reason}). Du kannst es ${later} noch einmal versuchen oder trotzdem abgeben.`;
+// Zwischenstand-PDF: Zeile „Stand:“ (… · KI-Feedback zu den Aufgaben 1 und 3 erhalten) und der Hinweis „nur einmal“ bei Blättern mit Buttons je Aufgabe
+const fbtGot = (feedback) => (fbtPartial(feedback) ? fbtTo(fbtNums(feedback)) + " erhalten" : "schon erhalten");
+const FBT_PDF_ONCE = "Hast du schon KI-Feedback bekommen, bleibt es in der Datei erhalten; zu jeder Aufgabe gibt es nur ein KI-Feedback zum Überarbeiten – ein zweites zur selben Aufgabe gibt es nicht.";
+// Lehrkraft (Sie-Form über die Schüler:innen): Erstversuch mit KI-Feedback nur zu einzelnen Aufgaben
+const fbtFirstHint = (grp, nums) => `${grp ? "Diese Gruppe hat" : "Diese Schülerin oder dieser Schüler hat"} KI-Feedback ${fbtTo(nums)} angefordert, aber (noch) nicht abgegeben. ` +
+  `Gezeigt wird ${nums.length === 1 ? "zu dieser Aufgabe" : "zu diesen Aufgaben"} die erste Fassung mit dem Feedback; die übrigen Antworten kommen erst mit der Abgabe. Eine spätere Abgabe ersetzt diesen Eintrag.`;
+const FBT_FIRST_NONE_AI = "(zu dieser Aufgabe noch kein KI-Feedback – noch nicht übermittelt)";
+const FBT_FIRST_NONE = "(noch nicht übermittelt – kommt erst mit der Abgabe)";
+// .dmeta: „KI-Feedback zu den Aufgaben 1 und 3 am …“ bzw. bei verschiedenen Zeitpunkten „…, zuerst am …“ (when = schon formatiert)
+const fbtMeta = (nums, when, differ) => `KI-Feedback ${fbtTo(nums)}${differ ? ", zuerst am " : " am "}${when}`;
+/* FBTASK:END */
+
 /* ---------- KI-Feedback ---------- */
 // Format je Aufgabe {covered, missing, note?}: covered = „gut“ (gelingt schon), missing = „tipps“ (zum Überarbeiten) – die
 // historischen Namen bleiben, damit ältere Zwischenstände, Erstversuche und Abgaben lesbar bleiben
@@ -6376,17 +6559,41 @@ function markAi(el, kind, on, source) {
    als li.cur mit aria-current="step". Gebaut wird nur, wenn sich die Schritte ändern; sonst wechseln Klasse und aria-current an Ort und
    Stelle. Der letzte Schritt (Herunterladen) gelingt nur auf der Bestätigungsseite – im Editor ist er nie der aktuelle. */
 const STEP_LATE = "– nur direkt nach der Abgabe auf der Bestätigungsseite (nicht nach Neuladen oder „Neues Feibeitsblatt öffnen“)";
+/* KI-Feedback je Aufgabe (Block FBTASK): Gibt es Buttons je Aufgabe? Welche Aufgaben deckt der Button unten noch ab? */
+const perTaskOn = () => !!S.sheet && fbtPerTask(S.sheet.aiTasks, S.sheet.aiFeedback);
+const fbOpenNums = () => fbtOpen(S.feedback, S.sheet && S.sheet.aiTasks, ((S.sheet && S.sheet.answers) || []).map((a) => a && a.type));
+const fbDoneAll = () => Array.isArray(S.feedback) && !fbOpenNums().length;   // zu allen Aufgaben mit Auftrag KI-Feedback (Button unten: „erhalten“)
+// Button, Statuszeile und Warteanzeige einer Anfrage: an der Aufgabe (target 0-basiert) bzw. unten (null)
+function fbUi(target) {
+  const u = Number.isInteger(target) ? S.fbts[target] : null;
+  return u ? { btn: u.btn, st: u.stat, box: u.wait, num: u.num, stop: u.stop }
+    : { btn: $("fb-btn"), st: $("fb-status"), box: $("fb-wait"), num: $("fb-wait-num"), stop: $("fb-wait-stop") };
+}
+// Zustand der Feedback-Buttons: immer nur eine Anfrage gleichzeitig (alle gesperrt, solange eine läuft oder abgegeben wird)
+function syncFbButtons() {
+  const has = !!S.feedback, done = has && fbDoneAll(), fbBtn = $("fb-btn");
+  fbBtn.disabled = done || S.busyFeedback || S.submitting;
+  fbBtn.textContent = done ? "KI-Feedback erhalten" : has ? FBT_REST : "KI um ein Feedback bitten";
+  S.fbts.forEach((u, i) => {
+    if (!u) return;
+    const got = fbtHas(S.feedback, i);
+    u.btn.disabled = got || S.busyFeedback || S.submitting;
+    u.btn.textContent = got ? FBT_DONE : FBT_LABEL;
+    u.btn.setAttribute("aria-label", fbtAria(i + 1, got));
+  });
+}
 function renderSteps() {
   const ol = $("ed-steps-list");
   if (!S.sheet) { ol.textContent = ""; ol._key = ""; return; }
   const ai = !!(S.sheet.aiFeedback || S.feedback);   // wie renderFeedbackState
-  // „gerade nicht möglich“: gemeldeter Grund (fbBlockedNow) oder keine KI eingerichtet (ohne Klick erkennbar)
-  const blocked = !S.feedback && (fbBlockedNow() || !(S.sheet.aiRecipients || []).length);
+  // „gerade nicht möglich“: gemeldeter Grund (fbBlockedNow) oder keine KI eingerichtet (ohne Klick erkennbar) – für die noch offenen Aufgaben
+  const blocked = !fbDoneAll() && (fbBlockedNow() || !(S.sheet.aiRecipients || []).length);
   const esc = !!S.sheet.escape;   // Finale eines Escape-Rooms: die Abschluss-PDF enthält auch den Überblick aus dem Raum
   const items = ai ? [["Aufgaben bearbeiten"], ["KI-Feedback anfordern", blocked ? "(freiwillig, empfohlen – gerade nicht möglich)" : "(freiwillig, empfohlen)"],
     ["Lösungen mithilfe des KI-Feedbacks überarbeiten"], ["Abgeben"], [esc ? "Lösungen, finale KI-Rückmeldung und Escape-Room-Überblick herunterladen" : "Lösungen mit finaler KI-Rückmeldung herunterladen", STEP_LATE]]
     : [["Aufgaben bearbeiten"], ["Abgeben"], [esc ? "Lösungen und Escape-Room-Überblick herunterladen" : "Lösungen herunterladen", STEP_LATE]];
-  const cur = ai ? (S.submitting ? 4 : S.feedback ? 3 : S.busyFeedback ? 2 : 1) : (S.submitting ? 2 : 1);
+  // aktuell: beim Senden der Abgabe 4, während einer Anfrage 2 (auch zu einer einzelnen Aufgabe), mit KI-Feedback (zu irgendeiner Aufgabe) 3
+  const cur = ai ? (S.submitting ? 4 : S.busyFeedback ? 2 : S.feedback ? 3 : 1) : (S.submitting ? 2 : 1);
   const key = JSON.stringify(items);
   if (ol._key !== key) {
     ol.textContent = "";
@@ -6404,11 +6611,17 @@ const FB_VOLUNTARY = "Das KI-Feedback ist freiwillig – du kannst auch ohne KI-
 function renderFeedbackState() {
   quotaExpired();   // Seite über 0:00 UTC offen: „morgen“ ist inzwischen heute
   const has = !!S.feedback;
+  // KI-Feedback nur zu einzelnen Aufgaben (FBTASK): got = Aufgaben mit Feedback, open = noch offene mit Auftrag (Button unten)
+  const got = fbtNums(S.feedback), part = got.length > 0 && fbtPartial(S.feedback), open = fbOpenNums() || [], done = has && !open.length;
+  const aiTasks = Array.isArray(S.sheet.aiTasks) ? S.sheet.aiTasks : null;
   S.fbs.forEach((box, i) => {
     box.textContent = "";
     const noAi = S.tas[i] && NO_AI_KINDS.has(S.tas[i]._kind);   // Weltkarte (die Karte zeigt sofort, was stimmt) und Foto: kein KI-Feedback
-    box.classList.toggle("hidden", !has || noAi);
-    const f = has && !noAi ? S.feedback[i] || { covered: [], missing: [] } : null;
+    // wie bisher: mit Feedback alle Boxen; teilweise nur die Aufgaben mit Feedback – und, sobald alle Aufgaben mit Auftrag eines haben, bei
+    // den übrigen Text- und Tabellenaufgaben der Hinweis wie nach dem Feedback zum ganzen Blatt (sie haben keinen Auftrag an die KI)
+    const f = !has || noAi ? null : !part ? S.feedback[i] || { covered: [], missing: [] } : S.feedback[i]
+      ? S.feedback[i] : done && aiTasks && !aiTasks.includes(i + 1) ? { covered: [], missing: [], note: "Zu dieser Aufgabe gibt es kein KI-Feedback." } : null;
+    box.classList.toggle("hidden", !f);
     markAi(box, "feedback", hasAiPoints(f));
     if (!f) return;
     box.appendChild(h("p", { class: "fb-head", text: "KI-Feedback zu Aufgabe " + (i + 1) }));
@@ -6417,10 +6630,10 @@ function renderFeedbackState() {
   // „Abgeben“ geht immer; ohne Feedback fragt submitDialog nach. Blätter ohne Auftrag an die KI: kein Feedback-Button.
   const fbBtn = $("fb-btn"), sub = $("submit-btn"), noAi = fbBlockedNow(), aiSheet = S.sheet.aiFeedback || has;
   fbBtn.classList.toggle("hidden", !aiSheet);
-  fbBtn.disabled = has || S.busyFeedback || S.submitting;
-  fbBtn.textContent = has ? "KI-Feedback erhalten" : "KI um ein Feedback bitten";
+  syncFbButtons();   // Button unten („KI um ein Feedback bitten“ / FBT_REST / „KI-Feedback erhalten“) und die Buttons je Aufgabe
   sub.disabled = S.submitted;
   $("fin-text").textContent = !aiSheet ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab."
+    : part && open.length ? fbtFinText(open, FB_VOLUNTARY)   // Button unten nur noch für die übrigen Aufgaben
     : "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
   $("submit-hint").textContent = has
     ? "Abgegeben werden beide Fassungen: deine Antworten vor dem KI-Feedback und deine überarbeiteten Antworten. Alles wird verschlüsselt; nur deine Lehrkraft kann es lesen. " +
@@ -6431,12 +6644,14 @@ function renderFeedbackState() {
     : "Du kannst auch ohne KI-Feedback abgeben. " + (recipientParts().any && S.fbUnavailable !== FB_NO_AI ? "Nach der Abgabe bekommst du eine finale KI-Rückmeldung (beim Abgeben abwählbar). " : "") +
       "Deine Antworten werden verschlüsselt; nur deine Lehrkraft kann sie lesen.";
   const fbf = $("fb-fallback");
-  fbf.textContent = noAi ? "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es " + laterFor(S.fbUnavailable) + " noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war." : "";
+  // teilweise: nur die übrigen Aufgaben sind betroffen – und die Lehrkraft sieht keinen Vermerk „nicht möglich“ (den gibt es nur ganz ohne Feedback)
+  fbf.textContent = !noAi ? "" : has ? fbtFallback(open, S.fbUnavailable, laterFor(S.fbUnavailable))
+    : "Das KI-Feedback ist gerade nicht möglich (" + S.fbUnavailable + "). Du kannst es " + laterFor(S.fbUnavailable) + " noch einmal versuchen oder ohne KI-Feedback abgeben – deine Lehrkraft sieht dann, dass das KI-Feedback nicht möglich war.";
   fbf.classList.toggle("hidden", !noAi);
   const rh = $("revise-hint"), eh = $("ed-hint");
-  const reviseText = "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
+  const reviseText = part ? fbtReviseText(got, open) : "Lies das KI-Feedback zu jeder Aufgabe und überarbeite jetzt deine Antworten: Nutze die Tipps, ergänze, was noch fehlt, und verbessere Rechtschreibung und Grammatik. Wenn du fertig bist, klicke auf „Abgeben“ – abgegeben werden beide Fassungen.";
   rh.textContent = reviseText; rh.classList.toggle("hidden", !has);
-  eh.textContent = "Du hast das KI-Feedback erhalten. Überarbeite jetzt deine Antworten und gib danach ganz unten ab.";
+  eh.textContent = part ? fbtEdHint(got) : "Du hast das KI-Feedback erhalten. Überarbeite jetzt deine Antworten und gib danach ganz unten ab.";
   eh.classList.toggle("hidden", !has);
   renderSteps();
   growAll();
@@ -6453,10 +6668,11 @@ const FB_MAX_MS = 4 * 60e3;    // … und höchstens etwa vier Minuten seit dem 
 const roughTime = (ms) => ms < 20000 ? "einer Viertelminute" : ms < 45000 ? "einer halben Minute" : ms < 80000 ? "einer Minute" : "zwei Minuten";
 const jitterMs = (max) => { const u = new Uint32Array(1); crypto.getRandomValues(u); return (u[0] / 4294967296) * max; };
 /* Warten bis zur Fälligkeit (absoluter Zeitpunkt, ein Timer – Hintergrund-Tabs drosseln Timer, deshalb auch bei Rückkehr prüfen);
-   der sichtbare Sekundenzähler steht außerhalb der Live-Region (sonst liest ein Screenreader jede Sekunde vor) */
-function waitBeforeRetry(run, ms, nextTry) {
+   der sichtbare Sekundenzähler steht außerhalb der Live-Region (sonst liest ein Screenreader jede Sekunde vor). ui = fbUi(…): unten bzw. an
+   der Aufgabe, deren KI-Feedback angefragt ist */
+function waitBeforeRetry(run, ms, nextTry, ui = fbUi(null)) {
   return new Promise((resolve) => {
-    const due = Date.now() + ms, box = $("fb-wait"), num = $("fb-wait-num"), st = $("fb-status");
+    const due = Date.now() + ms, box = ui.box, num = ui.num, st = ui.st;
     setStatus(st, `Gerade bitten sehr viele gleichzeitig um Feedback – die KI ist ausgelastet. Nächster Versuch automatisch in etwa ${roughTime(ms)} (Versuch ${nextTry} von ${FB_TRIES}). Du kannst so lange weiterschreiben; beim nächsten Versuch wird dein aktueller Text geschickt. Lass diese Seite geöffnet.`, "busy");
     box.classList.remove("hidden");
     const tick = () => { num.textContent = `Nächster Versuch in ${Math.max(0, Math.ceil((due - Date.now()) / 1000))} s`; };
@@ -6465,7 +6681,7 @@ function waitBeforeRetry(run, ms, nextTry) {
     let timer = 0, cancelled = false;
     const done = () => {
       clearInterval(iv); clearTimeout(timer); document.removeEventListener("visibilitychange", onVis);
-      if (document.activeElement === $("fb-wait-stop")) { try { $("fb-wait-stop").blur(); } catch (e) { /* egal */ } }   // der Button verschwindet; failed() setzt den Fokus
+      if (document.activeElement === ui.stop) { try { ui.stop.blur(); } catch (e) { /* egal */ } }   // der Button verschwindet; failed() setzt den Fokus
       box.classList.add("hidden"); num.textContent = ""; S.fbStop = null;
       resolve(cancelled);
     };
@@ -6477,17 +6693,27 @@ function waitBeforeRetry(run, ms, nextTry) {
 }
 $("fb-wait-stop").addEventListener("click", () => { if (S.fbStop) S.fbStop(); });
 
-async function requestFeedback() {
-  if (S.feedback || S.busyFeedback || submitBusy($("fb-status"), SENDING_FB)) return;
-  const st = $("fb-status"), btn = $("fb-btn");
+/* KI-Feedback anfordern: target = null (Button unten) oder die Aufgabe (0-basiert) des Buttons „KI-Feedback nur zu dieser Aufgabe“. Ohne
+   Feedback zu einzelnen Aufgaben fragt der Button unten wie bisher alle Aufgaben (ohne only, alle Antworten); danach nur noch die übrigen
+   Aufgaben mit Auftrag (only, die übrigen Antworten ""). Je Aufgabe gibt es das Feedback zum Überarbeiten höchstens einmal (FBTASK). */
+async function requestFeedback(target) {
+  const one = Number.isInteger(target) && !!S.fbts[target], ui = fbUi(one ? target : null);
+  // Ziel der Anfrage (1-basiert): die eine Aufgabe, die übrigen ohne Feedback – oder null (noch kein Feedback: alle Aufgaben wie bisher)
+  const gone = () => (one ? fbtHas(S.feedback, target) : fbDoneAll());   // schon erhalten → nichts mehr anzufordern
+  if (gone() || S.busyFeedback || submitBusy(ui.st, SENDING_FB)) return;
+  const st = ui.st, btn = ui.btn;
   setStatus(st, "", "");
+  let targets = one ? [target + 1] : S.feedback ? fbOpenNums() : null;
+  const sel = () => (targets ? targets.map((n) => n - 1) : S.tas.map((_, i) => i));   // angefragte Aufgaben (0-basiert)
   const snapshot = () => {   // Antworten jetzt lesen – vor jedem Versuch neu, damit Feedback und erste Fassung zum gesendeten Text passen
-    const { texts: answers, typing } = answersNow();   // Tippzeiten im selben Moment (nur für die erste Fassung, nie an die KI)
-    const empty = []; answers.forEach((a, i) => { if (!a.trim()) empty.push(i + 1); });
+    const { texts, typing } = answersNow();   // Tippzeiten im selben Moment (nur für die erste Fassung, nie an die KI)
+    const answers = fbtRequest(texts, targets);   // nur die angefragten Antworten (die übrigen ""); ohne Ziel alle wie bisher
+    const empty = []; sel().forEach((i) => { if (!answers[i].trim()) empty.push(i + 1); });
     return { answers, typing, ttGen: S.ttGen, empty, tooLong: tooLongTotal(answers) };   // ttGen: wurde die Messung danach verworfen?
   };
   let { answers, typing, ttGen, empty, tooLong } = snapshot();
-  if (empty.length === answers.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
+  if (one && empty.length) { setStatus(st, fbtEmptyOne(target + 1), "bad"); return; }   // leere Antwort: kein Dialog, nichts gesendet
+  if (empty.length === sel().length) { setStatus(st, targets ? fbtEmptyRest(targets) : "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
   if (tooLong) { setStatus(st, tooLong, "bad"); return; }
   // Ohne Empfänger war beim Laden keine KI eingerichtet: erst nachsehen, ob die Lehrkraft sie inzwischen eingerichtet hat (nur ein GET).
   // Bleibt die Liste leer, gibt es keinen Dialog und nichts wird gesendet (Datenminimierung); sonst nennt der Dialog die echten Empfänger.
@@ -6497,7 +6723,7 @@ async function requestFeedback() {
     setStatus(st, "Einen Moment …", "busy");
     let err = null;
     try { await reloadRecipients(); } catch (e) { err = e; }
-    if (S.sheet !== sheet || S.feedback || S.busyFeedback || submitBusy(st, SENDING_FB)) return;
+    if (S.sheet !== sheet || gone() || S.busyFeedback || submitBusy(st, SENDING_FB)) return;
     renderFeedbackState();
     // Der gesperrte Button hat den Fokus verloren (Chromium: body) – zurückgeben, bevor ein Dialog ihn sich als Rücksprung merkt
     if (document.activeElement === document.body) { try { btn.focus({ preventScroll: true }); } catch (x) { /* egal */ } }
@@ -6505,7 +6731,7 @@ async function requestFeedback() {
       if (err) { setStatus(st, errMsg(err, "s"), "bad"); return; }
       S.fbUnavailable = FB_NO_AI; S.fbUnavailableDay = utcToday();
       renderFeedbackState(); saveDraft();
-      setStatus(st, "Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.", "bad");
+      setStatus(st, S.feedback ? FBT_NO_AI_MORE : "Deine Lehrkraft hat das KI-Feedback noch nicht eingerichtet – du kannst ohne KI-Feedback abgeben.", "bad");
       return;
     }
     setStatus(st, "", "");
@@ -6513,8 +6739,8 @@ async function requestFeedback() {
     // Rechtschreibprüfung): nicht hineinfragen – die Entscheidung dort gilt; das KI-Feedback lässt sich danach neu anfordern
     if ($("dlg").classList.contains("open")) return;
   }
-  const who = recipientSentence();   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
-  const ok = await askConfirm(empty.length ? {
+  const who = recipientSentence(targets || undefined);   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
+  const ok = await askConfirm(targets ? fbtDialog(targets, one, empty, FB_VOLUNTARY, who) : empty.length ? {
     title: "Noch nicht alles beantwortet",
     text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (nach der Abgabe folgt noch die finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt – beim Abgeben abwählbar; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen). Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
@@ -6524,11 +6750,13 @@ async function requestFeedback() {
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
   });
   if (!ok || submitBusy(st, SENDING_FB)) return;
+  if (gone() || S.busyFeedback) return;   // während des Dialogs (z. B. in einem anderen Ablauf) erledigt: nichts doppelt anfordern
   const run = ++S.fbRun, t0 = Date.now();
-  S.busyFeedback = true; btn.disabled = true;
+  S.busyFeedback = true; S.fbTarget = one ? target : null; btn.disabled = true;
+  syncFbButtons();   // immer nur eine Anfrage: alle Feedback-Buttons gesperrt
   renderSteps();
   let tries = 0, busySeen = 0;
-  const unlock = () => { S.busyFeedback = false; S.fbPending = false; btn.disabled = !!S.feedback; S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; renderSteps(); };
+  const unlock = () => { S.busyFeedback = false; S.fbPending = false; S.fbTarget = null; syncFbButtons(); S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; renderSteps(); };
   // Fehlversuch(e) zählen (fbFails > 0 heißt: eine Anfrage lief schon – eine Abgabe ohne Feedback gilt dann nicht als „selbst
   // gewählt“, siehe noAiState); nach zweien zeigt die Seite den Grund (S.fbUnavailable), Abgeben geht ohnehin immer
   const failed = (e, count, msg) => {
@@ -6548,7 +6776,7 @@ async function requestFeedback() {
   for (;;) {
     if (run !== S.fbRun) return;
     tries++;
-    S.tas.forEach((t) => { t.readOnly = true; });   // nur während eine Anfrage wirklich läuft
+    sel().forEach((i) => { S.tas[i].readOnly = true; });   // nur während eine Anfrage wirklich läuft – nur die angefragten Felder
     setStatus(st, tries === 1 ? "Die KI arbeitet … das kann bis zu einer Minute dauern." : `Neuer Versuch – die KI arbeitet (Versuch ${tries} von ${FB_TRIES}).`, "busy");
     const slow = setTimeout(() => { if (run === S.fbRun) setStatus(st, "Die KI arbeitet … das dauert gerade etwas länger. Bitte warte noch.", "busy"); }, 60000);
     // Vor dem Senden im Zwischenstand vermerken: endet die Seite, bevor der Lauf endet (Tab geschlossen, Absturz), zählt das
@@ -6557,7 +6785,8 @@ async function requestFeedback() {
     S.fbAbort = new AbortController();
     let r;
     try {
-      r = await api("POST", "/api/feedback", { body: { code: S.code, answers, recipients: (S.sheet.aiRecipients || []).map((x) => x.id) }, timeout: 150000, signal: S.fbAbort.signal });
+      const recipients = (S.sheet.aiRecipients || []).map((x) => x.id);
+      r = await api("POST", "/api/feedback", { body: targets ? { code: S.code, answers, recipients, only: targets } : { code: S.code, answers, recipients }, timeout: 150000, signal: S.fbAbort.signal });
     } catch (e) {
       clearTimeout(slow);
       if (run !== S.fbRun || (e instanceof ApiError && e.code === "aborted")) return;
@@ -6567,13 +6796,14 @@ async function requestFeedback() {
         if (tries < FB_TRIES && Date.now() - t0 < FB_MAX_MS) {
           // Automatisch erneut – mit Zufallsanteil, damit nicht alle Browser einer Klasse in derselben Sekunde wiederkommen
           const base = Math.max(3, Math.min(60, e.retryAfter || 30)) * 1000;
-          const cancelled = await waitBeforeRetry(run, Math.round(base * (1 + jitterMs(0.3)) + jitterMs(3000)), tries + 1);
+          const cancelled = await waitBeforeRetry(run, Math.round(base * (1 + jitterMs(0.3)) + jitterMs(3000)), tries + 1, ui);
           if (run !== S.fbRun || S.submitted) return;
           if (cancelled) {
             failed(e, 1, "Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
             return;
           }
-          ({ answers, typing, ttGen, empty, tooLong } = snapshot());
+          ({ answers, typing, ttGen, empty, tooLong } = snapshot());   // nur die angefragten Aufgaben neu lesen
+          if (one && empty.length) { failed(e, 1, fbtEmptyOne(target + 1)); return; }   // inzwischen geleert: das eine Feedback nicht an ein leeres Feld verschenken
           if (tooLong) { failed(e, 1, tooLong); return; }   // frühere Versuche dieses Laufs gingen schon an den Server: Fehlversuch
           continue;
         }
@@ -6590,7 +6820,8 @@ async function requestFeedback() {
         saveDraft();
         setStatus(st, "Die Lehrkraft hat die KI-Einstellungen geändert – " + (busySeen
           ? "dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise schon erhalten."
-          : "es wurde nichts gesendet.") + " Lies bitte den Datenschutzhinweis unter dem Button noch einmal und fordere das Feedback dann erneut an.", "bad");
+          : "es wurde nichts gesendet.") + (one ? " Lies bitte den Datenschutzhinweis unten auf dem Feibeitsblatt noch einmal und fordere das Feedback dann erneut an."
+          : " Lies bitte den Datenschutzhinweis unter dem Button noch einmal und fordere das Feedback dann erneut an."), "bad");
         return;
       }
       const msg = e.code === "bad_result" ? "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal."
@@ -6600,55 +6831,69 @@ async function requestFeedback() {
       return;
     } finally { clearTimeout(slow); }
     if (run !== S.fbRun) return;
-    if (!Array.isArray(r.results) || r.results.length !== answers.length) { failed(new ApiError("bad_result"), 1, "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal."); return; }
-    S.first = answers.slice();   // genau die gesendete Fassung
-    // … und ihre Tippzeiten aus demselben snapshot() – inzwischen widersprochen bzw. die Messung verworfen (auch an und wieder aus): keine
-    S.firstTyping = S.ttOptOut || ttGen !== S.ttGen ? null : typing.slice();
-    S.feedback = r.results.map(normFb);
-    S.feedbackAt = new Date().toISOString();
+    // einarbeiten: ohne Ziel wie bisher (erste Fassung = gesendete Antworten, alle Rückmeldungen); sonst nur die angefragten Aufgaben.
+    // Die Tippzeiten der ersten Fassung aus demselben snapshot() – inzwischen widersprochen bzw. die Messung verworfen (auch an und wieder
+    // aus): keine
+    const m = fbtMerge({ first: S.first, feedback: S.feedback, typing: S.firstTyping, ats: S.feedbackAts, at: S.feedbackAt }, targets, answers,
+      S.ttOptOut || ttGen !== S.ttGen ? null : typing, r.results, normFb, new Date().toISOString());
+    if (!m) { failed(new ApiError("bad_result"), 1, "Die Antwort der KI war unvollständig. Bitte versuche es noch einmal."); return; }
+    S.first = m.first;   // genau die gesendete Fassung (je angefragter Aufgabe)
+    S.firstTyping = m.typing;
+    S.feedback = m.feedback;
+    S.feedbackAt = m.at; S.feedbackAts = m.ats;
     S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbFails = 0; S.fbPending = false;
     saveDraft();
     setStatus(st, "", "");
+    // ältere Meldungen an den Aufgaben, die jetzt KI-Feedback haben (z. B. „Schreibe zuerst …“, „Du wartest nicht länger …“), gelten nicht mehr
+    (targets || S.tas.map((_, i) => i + 1)).forEach((k) => { const u = S.fbts[k - 1]; if (u) setStatus(u.stat, "", ""); });
     unlock();
     renderFeedbackState();
-    sendFirstAttempt();   // im Hintergrund; die Abgabe enthält die erste Fassung ohnehin
-    const rh = $("revise-hint");
+    sendFirstAttempt();   // im Hintergrund (mit jedem weiteren Feedback ersetzt); die Abgabe enthält die erste Fassung ohnehin
+    // Button einer Aufgabe: Fokus in die Box dieser Aufgabe (nicht ans Blattende); Button unten: auf den Hinweis zum Überarbeiten
+    const rh = one ? S.fbs[target] : $("revise-hint");
     rh.scrollIntoView({ block: "nearest", behavior: "smooth" });
     // nicht aus einem offenen Dialog heraus (z. B. „Ohne KI-Feedback abgeben?“ während die Anfrage lief)
     setTimeout(() => { if (!$("dlg").classList.contains("open")) { try { rh.focus({ preventScroll: true }); } catch (x) { /* egal */ } } }, 50);
     return;
   }
 }
-$("fb-btn").addEventListener("click", requestFeedback);
+$("fb-btn").addEventListener("click", () => requestFeedback(null));
 
-/* Feedback-Einträge in der gespeicherten Form (ohne Darstellungsfelder) */
-const fbOut = (f) => (f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing });
+/* Feedback-Einträge in der gespeicherten Form (ohne Darstellungsfelder); null = zu dieser Aufgabe (noch) kein KI-Feedback */
+const fbOut = (f) => (!f ? null : f.note ? { covered: f.covered, missing: f.missing, note: f.note } : { covered: f.covered, missing: f.missing });
 /* Erstversuch: erste Fassung + KI-Feedback verschlüsselt an die Lehrkraft übermitteln. Die spätere Abgabe (gleiche Kennung)
-   ersetzt ihn auf dem Server. Schlägt die Übermittlung fehl, wird sie beim nächsten Öffnen nachgeholt. */
+   ersetzt ihn auf dem Server. Schlägt die Übermittlung fehl, wird sie beim nächsten Öffnen nachgeholt. Mit KI-Feedback nur zu einzelnen
+   Aufgaben (FBTASK) enthält er nur diese Aufgaben (erste Fassung und Feedback; die übrigen first null, feedback null) und wird nach jedem
+   weiteren Feedback ersetzt (gleiche Kennung → dieselbe Zeile; S.firstSentSig = welche Aufgaben er schon enthält). */
 async function sendFirstAttempt() {
   ttFollowStored();   // Widerspruch aus einem anderen Tab mit demselben Stand gilt auch hier (dann ohne Tippzeiten)
   // Widerspruch nach dem Senden (S.ttResend): denselben Eintrag (gleiche Kennung → UPDATE derselben Zeile) ohne Tippzeiten ersetzen
   const resend = S.firstSent && S.ttResend;
-  if (!S.feedback || !S.first || (S.firstSent && !resend) || S.submitted || !S.attempt || !S.pub || S.firstSending) return;
-  const att = S.attempt, run = {};
+  const grown = S.firstSent && fbtSig(S.feedback) !== S.firstSentSig;   // seit dem gesendeten Erstversuch weiteres KI-Feedback
+  // Läuft schon eine Übermittlung, holt sie das Ersetzen danach nach (again)
+  if (!S.feedback || !S.first || (S.firstSent && !resend && !grown) || S.submitted || !S.attempt || !S.pub || S.firstSending) return;
+  const att = S.attempt, run = {}, sig = fbtSig(S.feedback);
   S.firstSending = run;
   let again = false;
   try {
     const payload = {
       v: 1, stage: "first", sheetCode: S.code, sheetTitle: S.sheet.title,
       person: personOut(S.person),
-      answers: S.first.map((a) => ({ first: a, final: null })),
+      answers: S.first.map((a) => ({ first: a, final: null })),   // a = null: zu dieser Aufgabe noch kein KI-Feedback (nichts übermittelt)
       feedback: S.feedback.map(fbOut), feedbackAt: S.feedbackAt, submittedAt: null
     };
+    const ats = fbtAtsOut(S.feedback, S.feedbackAts);   // Zeitpunkte je Aufgabe (nur bei Feedback zu einzelnen Aufgaben)
+    if (ats) payload.feedbackAts = ats;
     try { payload.typing = S.ttOptOut ? ttOptOutPayload() : { v: 1, answers: S.first.map((_, i) => ({ first: (S.firstTyping && S.firstTyping[i]) || null, final: null })) }; }
     catch (e) { payload.typing = { v: 1, omitted: "error" }; }
     if (S.escape) payload.escape = escPayload(S.escape.rec, escCheck(S.escape.hull));   // Ergebnisse aus dem Escape-Room (ohne Personendaten)
     await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "first", attempt: att }));
     if (S.attempt !== att) return;   // inzwischen eine andere Bearbeitung (zurückgesetzt, anderes Blatt): deren Stand nicht anfassen
-    S.firstSent = true;
+    S.firstSent = true; S.firstSentSig = sig;
     // ohne Tippzeiten gesendet → nichts mehr zu ersetzen; mit, aber inzwischen widersprochen → gleich noch einmal ohne
     if (!ttHasData(payload.typing)) S.ttResend = false;
     else if (S.ttOptOut) { S.ttResend = true; again = true; }
+    if (fbtSig(S.feedback) !== sig) again = true;   // während des Sendens kam weiteres KI-Feedback: gleich mit ihm ersetzen
     if (!S.submitted) saveDraft();
   } catch (e) {
     // kein Drama: beim nächsten Öffnen erneut, und die Abgabe enthält die erste Fassung (bzw. ersetzt den Eintrag ohne Tippzeiten)
@@ -7031,9 +7276,10 @@ function quotaExpired() {
   return true;
 }
 /* Ist das KI-Feedback gerade nicht möglich (#fb-fallback, Hinweis unter „Abgeben“)? „KI nicht eingerichtet“ gilt nicht mehr, sobald die
-   Seite Empfänger kennt (die Lehrkraft hat die KI inzwischen eingerichtet) – die Abgabe trägt den Grund trotzdem weiter (noAiState). */
+   Seite Empfänger kennt (die Lehrkraft hat die KI inzwischen eingerichtet) – die Abgabe trägt den Grund trotzdem weiter (noAiState). Mit
+   KI-Feedback zu einzelnen Aufgaben gilt es für die übrigen (nur solange noch eine Aufgabe mit Auftrag ohne Feedback ist). */
 function fbBlockedNow() {
-  if (S.feedback || !S.fbUnavailable) return false;
+  if (fbDoneAll() || !S.fbUnavailable) return false;
   return !(S.fbUnavailable === FB_NO_AI && (S.sheet.aiRecipients || []).length);
 }
 function noAiState(wasBusy) {
@@ -7082,11 +7328,13 @@ async function submitAll() {
   const finals = S.tas.map((t) => t.value);
   if (emptyNums(finals).length === finals.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
   const withFb = !!S.feedback, wasBusy = S.busyFeedback, said = withFb ? null : noAiState(false);
+  const fbSig = fbtSig(S.feedback);   // welche Aufgaben KI-Feedback haben (auch einzelne)
   const offer = fb2Offer(finals, said);   // eingefroren wie der Text des Dialogs
   const ok = await askConfirm(submitDialog(withFb, finals, said, offer));
   const wantFinal = offer && ok === true && $("dlg-check").checked;   // finale KI-Rückmeldung nach der Abgabe (vorausgewählt, abwählbar)
   if (S.submitted) return;
-  if (!!S.feedback !== withFb) {   // während der Dialog offen war, ist das angeforderte KI-Feedback angekommen: erst zeigen, nichts abgeben
+  // während der Dialog offen war, ist das angeforderte KI-Feedback (bzw. eines zu einer weiteren Aufgabe) angekommen: erst zeigen, nichts abgeben
+  if (!!S.feedback !== withFb || fbtSig(S.feedback) !== fbSig) {
     if (ok) setStatus(st, "Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.", "");
     // requestFeedback hat den Fokus im offenen Dialog gelassen – jetzt nachholen (closeDlg hat ihn gerade auf „Abgeben“ gesetzt)
     const rh = $("revise-hint");
@@ -7097,6 +7345,7 @@ async function submitAll() {
   if (!ok) return;
   $("submit-esc").classList.add("hidden");   // Hinweis einer gescheiterten Abgabe (Escape-Room-Finale) gilt für den neuen Versuch nicht
   S.submitting = true; $("fb-btn").disabled = true;   // bis zum Ende des Sendens (finally): kein KI-Feedback, kein „Abbrechen“
+  syncFbButtons();   // auch die Buttons „KI-Feedback nur zu dieser Aufgabe“
   renderSteps();
   // Erst nach dem Dialog einstufen: eine laufende Anfrage kann inzwischen gescheitert sein (dann gilt ihr Grund). Hat der Dialog
   // aber „nicht möglich (Grund)“ gesagt, bleibt es dabei – auch wenn ein Nachsehen (requestFeedback) während des offenen Dialogs
@@ -7114,12 +7363,15 @@ async function submitAll() {
     const payload = {
       v: 1, stage: "final", sheetCode: S.code, sheetTitle: S.sheet.title,
       person: personOut(S.person),
-      // Antwortart Foto: final = PHOTO_TEXT, dazu photo = das Foto (JPEG als data:-URL) – nur in der Abgabe, nie im Erstversuch
-      answers: now.texts.map((fin, i) => Object.assign({ first: withFb ? S.first[i] : fin, final: fin },
+      // Antwortart Foto: final = PHOTO_TEXT, dazu photo = das Foto (JPEG als data:-URL) – nur in der Abgabe, nie im Erstversuch.
+      // Aufgaben ohne eigenes KI-Feedback (nur zu einzelnen Aufgaben angefordert): erste Fassung = abgegebene, feedback[i] null
+      answers: now.texts.map((fin, i) => Object.assign({ first: withFb && S.first[i] != null ? S.first[i] : fin, final: fin },
         S.tas[i] && S.tas[i]._kind === "photo" && S.tas[i].photo ? { photo: S.tas[i].photo } : null)),
       feedback: withFb ? S.feedback.map(fbOut) : null,
       feedbackAt: withFb ? S.feedbackAt : null, submittedAt: new Date().toISOString()
     };
+    const ats = withFb ? fbtAtsOut(S.feedback, S.feedbackAts) : null;   // Zeitpunkte je Aufgabe (nur bei Feedback zu einzelnen Aufgaben)
+    if (ats) payload.feedbackAts = ats;
     if (na) payload.noAi = na.mode;
     if (na && na.mode === "unavailable") payload.feedbackError = na.reason;
     // finalMode: Abgabe mit der finalen KI-Rückmeldung (fb2Of: ohne gespeicherte Rückmeldung gibt es keine – nie die alte Regel
@@ -7130,7 +7382,7 @@ async function submitAll() {
     try {
       if (S.ttOptOut) payload.typing = ttOptOutPayload();   // widersprochen: keine Werte, die Lehrkraft sieht „ohne Messung (widersprochen)“
       else payload.typing = { v: 1, answers: now.texts.map((fin, i) => {
-        const f = now.typing[i], ft = withFb ? (S.firstTyping && S.firstTyping[i]) || null : f;
+        const f = now.typing[i], ft = withFb && S.feedback[i] ? (S.firstTyping && S.firstTyping[i]) || null : f;
         return { first: ft != null && ft === f && payload.answers[i].first === fin ? "=" : ft, final: f };
       }) };
     } catch (e) { payload.typing = { v: 1, omitted: "error" }; }
@@ -7242,7 +7494,7 @@ $("submit-esc-pdf").addEventListener("click", () => {
   try {
     const texts = S.tas.map((t) => t.value), withFb = !!S.feedback;   // nur die Texte – nie Tippzeiten
     const sub = { code: S.code, title: S.sheet.title, tasks: S.sheet.tasks.slice(), kinds: S.tas.map((t) => t._kind || "text"), person: personOut(S.person),
-      answers: texts.map((fin, i) => Object.assign({ first: withFb && S.first ? S.first[i] : fin, final: fin }, S.tas[i]._kind === "photo" && S.tas[i].photo ? { photo: S.tas[i].photo } : null)),
+      answers: texts.map((fin, i) => Object.assign({ first: withFb && S.first && S.first[i] != null ? S.first[i] : fin, final: fin }, S.tas[i]._kind === "photo" && S.tas[i].photo ? { photo: S.tas[i].photo } : null)),
       feedback: withFb ? S.feedback.map(fbOut) : null, receivedAt: Date.now(), feedback2: null, failed: true, escape: { rec: S.escape.rec, name: S.sheet.escape.name } };
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
     downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/octet-stream" }), `Escape-Room-${escFileRoom(S.sheet.escape.name)}-Abschluss-${stamp}-nicht-abgegeben.pdf`);
@@ -7253,7 +7505,7 @@ $("submit-esc-pdf").addEventListener("click", () => {
 /* Schreibfläche leeren (gemeinsam genutzte Geräte) */
 function clearEditor() {
   $("tasks").textContent = "";
-  S.tas = []; S.outs = []; S.fbs = [];
+  S.tas = []; S.outs = []; S.fbs = []; S.fbts = [];
   $("who-name").textContent = ""; $("ed-title").textContent = ""; $("sheet-title").textContent = "";
   $("ed-steps-list").textContent = ""; $("ed-steps-list")._key = "";
 }
@@ -7262,7 +7514,11 @@ function stopFeedbackRun() {
   S.fbRun++;
   if (S.fbStop) { try { S.fbStop(); } catch (e) { /* egal */ } }
   if (S.fbAbort) { try { S.fbAbort.abort(); } catch (e) { /* egal */ } }
-  S.fbStop = null; S.fbAbort = null; S.busyFeedback = false;
+  // Anfrage zu einer einzelnen Aufgabe: ihre Statuszeile („Die KI arbeitet …“) und Warteanzeige an der Aufgabe gelten nicht mehr
+  const u = Number.isInteger(S.fbTarget) ? S.fbts[S.fbTarget] : null;
+  if (u) setStatus(u.stat, "", "");
+  S.fbts.forEach((x) => { if (x) x.wait.classList.add("hidden"); });
+  S.fbStop = null; S.fbAbort = null; S.busyFeedback = false; S.fbTarget = null;
   $("fb-wait").classList.add("hidden");
   if (S.sheet && S.tas.length) renderSteps();
 }
@@ -7270,7 +7526,7 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende finale Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, importDraft: null, lastSubmission: null, escPending: null, escape: null, escSoft: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, feedbackAts: null, fbTarget: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, firstSentSig: "", importDraft: null, lastSubmission: null, escPending: null, escape: null, escSoft: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   resetMembers();   // Kürzelfelder der Gruppe: wieder ein leeres Feld beim nächsten Öffnen
   $("p-err").textContent = ""; $("start-err").textContent = ""; setStatus($("start-status"), "", "");
@@ -7608,7 +7864,9 @@ async function loadSubs() {
             a && cleanPhoto(a.photo) ? { photo: a.photo } : null));
           // Tippzeiten: nur geprüfte Base64-Form (dekodiert wird erst beim Aufklappen); ein Fehler kostet nur die Messung, nie den Eintrag
           try { p.typing = ttCleanPayload(p.typing, p.answers); } catch (e) { p.typing = null; }
-          if (Array.isArray(p.feedback)) p.feedback = p.feedback.slice(0, 30);
+          // je Aufgabe normalisiert oder null (KI-Feedback nur zu einzelnen Aufgaben); ganz ohne Rückmeldung null; Zeitpunkte je Aufgabe gekappt
+          if (Array.isArray(p.feedback)) p.feedback = fbtTeacher(p.feedback, normFb);
+          p.feedbackAts = fbtAts(Array.isArray(p.feedbackAts) ? p.feedbackAts.slice(0, 30) : null, p.feedback);
           // in der Abgabe selbst: die von einer früheren Seite nachgereichte finale KI-Rückmeldung (final: alle Aufgaben) bzw. bei älteren
           // Abgaben die zweite (nur geänderte Aufgaben, die übrigen null); ein Fehler kostet nur sie, nie den Eintrag.
           // finalWanted: im Abgabe-Dialog gewählt (true) bzw. abgewählt (false)
@@ -7812,23 +8070,27 @@ function buildDetail(s, older) {
   const p = s.p, tasks = (T.selSheet && T.selSheet.tasks) || [], isFirst = s.stage === "first";
   const box = h("div", { class: "detbox" + (older ? " older" : "") });
   const noFb = !isFirst && !Array.isArray(p.feedback);   // eine Fassung: die abgegebene
+  const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
+  // KI-Feedback nur zu einzelnen Aufgaben (FBTASK): je Aufgabe ohne eigenes Feedback (true) – sonst null (ältere Einträge: wie bisher)
+  const partNo = fbtNoFbList(p.feedback, n), fbNums = fbtNums(p.feedback), atsDiffer = fbtAtsDiffer(p.feedbackAts);
   const meta = [older ? `Älterer Erstversuch vom ${fmtDT(s.receivedAt)} (ohne Überarbeitung)` : isFirst ? "Erstversuch ohne Überarbeitung – noch nicht abgegeben" : `Abgegeben am ${fmtDT(s.receivedAt)}`];
-  if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
+  if (p.feedbackAt && fbNums.length && (partNo || atsDiffer)) meta.push(fbtMeta(fbNums, fmtDT(p.feedbackAt), atsDiffer));
+  else if (p.feedbackAt) meta.push(`KI-Feedback am ${fmtDT(p.feedbackAt)}`);
   else if (noFb) meta.push(p.noAi === "none" ? "ohne KI-Feedback" : "ohne KI-Feedback zum Überarbeiten");
   const keep = retentionDaysT(), got = toDate(s.receivedAt);   // Löschfrist gilt ab dem Eingang (ein Erstversuch: ab seinem Eingang)
   if (keep && got) meta.push("automatische Löschung ab dem " + fmtD(got.getTime() + keep * 864e5));   // gelöscht im nächsten nächtlichen Lauf oder beim Öffnen der Übersicht
   box.appendChild(h("p", { class: "dmeta " + (isFirst ? "st-first" : "st-final"), text: meta.join(" · ") }));
   const grp = isGroup(p.person);
   if (grp) box.appendChild(h("p", { class: "dgroup", text: "Gruppenarbeit: " + p.person.gruppe.join(", ") }));
-  const n = tasks.length ? Math.min(Math.max(p.answers.length, tasks.length), 30) : Math.min(p.answers.length, 30);
   let tt = null;   // Tippzeiten: ein Fehler kostet nur die Färbung und die Anteile, nie die Details
-  try { tt = ttDetail(p, Array.from({ length: n }, (_, i) => (tasks[i] ? cleanAnswer(tasks[i].answer).type : "text")), n, isFirst, noFb); } catch (e) { tt = null; }
+  try { tt = ttDetail(p, Array.from({ length: n }, (_, i) => (tasks[i] ? cleanAnswer(tasks[i].answer).type : "text")), n, isFirst, partNo || noFb); } catch (e) { tt = null; }
   if (tt && tt.sum) box.appendChild(ttLineDom("dtt-sum", tt.sum));
   if (older) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: grp ? "Eine frühere Bearbeitung derselben Gruppe (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Gruppe inzwischen abgegeben hat."
       : "Eine frühere Bearbeitung derselben Person (z. B. auf einem anderen Gerät): erste Fassung mit dem KI-Feedback. In der Liste ist sie ausgeblendet, weil diese Person inzwischen abgegeben hat." }));
   } else if (isFirst) {
-    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: (grp ? "Diese Gruppe hat" : "Diese Schülerin oder dieser Schüler hat") + " das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
+    box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: partNo && fbNums.length ? fbtFirstHint(grp, fbNums)
+      : (grp ? "Diese Gruppe hat" : "Diese Schülerin oder dieser Schüler hat") + " das KI-Feedback angefordert, aber (noch) nicht abgegeben. Gezeigt wird die erste Fassung mit dem Feedback; eine spätere Abgabe ersetzt diesen Eintrag." }));
   } else if (noFb && noAiNote(p)) {
     box.appendChild(h("p", { class: "moodle-hint", style: "margin:0 0 12px; text-align:left", text: noAiNote(p) }));
   }
@@ -7858,8 +8120,8 @@ function buildDetail(s, older) {
     };
     const f = Array.isArray(p.feedback) && p.feedback[i] ? normFb(p.feedback[i]) : null;
     const fbEl = markAi(h("div", { class: "dfb" }), "feedback", hasAiPoints(f));
-    if (f) {
-      fbEl.appendChild(h("p", { class: "fb-head", text: "Angezeigtes KI-Feedback" }));
+    if (f) {   // zu verschiedenen Zeitpunkten angefordert (einzelne Aufgaben): der Zeitpunkt je Aufgabe
+      fbEl.appendChild(h("p", { class: "fb-head", text: "Angezeigtes KI-Feedback" + (atsDiffer && p.feedbackAts[i] ? ` (am ${fmtDT(p.feedbackAts[i])})` : "") }));
       if (f.covered.length) fbEl.append(h("p", { class: "fb-ok", text: "Gelingt schon:" }), h("ul", { class: "fb-ok" }, f.covered.map((x) => h("li", { text: x }))));
       if (f.missing.length) fbEl.append(h("p", { class: "fb-miss", text: "Tipps zum Überarbeiten:" }), h("ul", { class: "fb-miss" }, f.missing.map((x) => h("li", { text: x }))));
       if (f.note) fbEl.appendChild(h("p", { class: "fb-note", text: f.note }));
@@ -7878,10 +8140,17 @@ function buildDetail(s, older) {
       else td.appendChild(fin.trim() && fin !== PHOTO_TEXT ? document.createTextNode(fin) : h("span", { class: "empty", text: "(kein Foto)" }));
       return td;
     };
+    // KI-Feedback nur zu einzelnen Aufgaben, diese ohne: Abgabe – eine Spalte (die abgegebene Fassung); Erstversuch – noch nicht übermittelt
+    // (mit Auftrag an die KI „noch kein KI-Feedback“; die Antwort kommt erst mit der Abgabe)
+    const noFbI = noFb || !!(partNo && partNo[i]), LA = "Antwort";
+    const aiTask = !NO_AI_KINDS.has(spec.type) && !!(tasks[i] ? String(tasks[i].solution || "").trim() : true);
     const cmp = isPhoto ? h("table", { class: "cmp one" }, [
       h("thead", null, [h("tr", null, [h("th", { scope: "col", text: LP })])]),
       h("tbody", null, [h("tr", null, [photoCell()])])
-    ]) : noFb ? h("table", { class: "cmp one" }, [   // zuerst die Zellen (sie melden info.cut), dann die Zeile zum Rot-Anteil
+    ]) : isFirst && noFbI ? h("table", { class: "cmp one" }, [
+      h("thead", null, [h("tr", null, [h("th", { scope: "col", text: LA })])]),
+      h("tbody", null, [h("tr", null, [h("td", { "data-label": LA }, [h("span", { class: "empty", text: aiTask ? FBT_FIRST_NONE_AI : FBT_FIRST_NONE })])])])
+    ]) : noFbI ? h("table", { class: "cmp one" }, [   // zuerst die Zellen (sie melden info.cut), dann die Zeile zum Rot-Anteil
       h("thead", null, [h("tr", null, [h("th", { scope: "col", text: L0 })])]),
       h("tbody", null, [h("tr", null, [cell(fin, L0, null, false, ty.fin)])])
     ]) : h("table", { class: "cmp" }, [

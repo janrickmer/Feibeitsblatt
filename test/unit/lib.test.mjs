@@ -121,8 +121,13 @@ test("validateSheetInput: trimming, defaults, limits", () => {
 test("validateOnly: null = all tasks; otherwise unique 1-based task numbers, sorted; anything else → bad_answers", () => {
   assert.equal(validateOnly(undefined, 3), null); assert.equal(validateOnly(null, 3), null);
   assert.deepEqual(validateOnly([3, 1], 3), [1, 3]);
-  assert.deepEqual(validateOnly([2], 3), [2]);
-  for (const bad of [[], [0], [4], [1, 1], ["1"], [1.5], [NaN], "1", 1, {}, [1, 2, 3, 4]]) rejectsWith(() => validateOnly(bad, 3), "bad_answers");
+  assert.deepEqual(validateOnly([2], 3), [2]);   // „KI-Feedback nur zu dieser Aufgabe“
+  assert.deepEqual(validateOnly([1, 2, 3], 3), [1, 2, 3]);   // alle gewählt ist erlaubt (Knopf unten ohne Feedback je Aufgabe schickt kein only)
+  for (const bad of [[], [0], [4], [-1], [1, 1], [3, 1, 3], ["1"], [1.5], [NaN], [null], "1", 1, {}, [1, 2, 3, 4]]) rejectsWith(() => validateOnly(bad, 3), "bad_answers");
+  // die Seite schickt bei einer Auswahl die übrigen Antworten leer – die Liste bleibt vollständig (eine Antwort je Aufgabe)
+  assert.deepEqual(validateAnswers(["", "", "Durch Wärme"], 3), ["", "", "Durch Wärme"]);
+  assert.deepEqual(validateAnswers([null, "x", null], 3), ["", "x", ""]);
+  rejectsWith(() => validateAnswers(["Durch Wärme"], 3), "bad_answers");
 });
 test("validateFinalMeta: final fehlt/null/false = Feedback vor der Abgabe; final:true nur mit Kennung (16 Hex) und Eingang (Ganzzahl > 0), nie mit only", () => {
   const no = { final: false, attempt: null, receivedAt: null };
@@ -220,7 +225,8 @@ test("rate-limit buckets never contain the IP; messages in German", async () => 
   assert.notEqual(await bucketOf("auth", "203.0.113.7"), b.replace("door", "auth"));
   assert.deepEqual(Object.fromEntries(Object.entries(RATE).map(([k, v]) => [k, [v.max, v.windowMs / 60000]])),
     { door: [10, 15], auth: [10, 15], auth_all: [200, 60], lookup_miss: [30, 10], feedback: [480, 60], feedback_chars: [1600000, 60],
-      sheet_feedback: [600, 1440], submit: [360, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [60, 60] });
+      // sheet_feedback und submit am 17.11.2026 verdoppelt (KI-Feedback je Aufgabe: je Schüler:in bis zu n + 1 KI-Anfragen und Aufrufe)
+      sheet_feedback: [1200, 1440], submit: [720, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [60, 60] });
   assert.match(rateMessage("auth", 61), /^Zu viele falsche Passwörter\. Mit dem richtigen Passwort .* in etwa 2 Minuten möglich\.$/);
   assert.equal(rateMessage("door", 30), "Zu viele Fehlversuche. Ein neuer Versuch ist in etwa 1 Minute möglich.");
   assert.match(rateMessage("lookup_miss", 120), /richtigen Code geht es weiter/);

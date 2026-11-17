@@ -802,7 +802,8 @@ export const FEEDBACK_FINAL_SCHEMA_GEMINI = {
 
 /**
  * tasks: [{text, solution (= Auftrag an die KI), material?, answer?}], answers: [string] (gleich lang),
- * only: null (alle) oder 1-basierte Nummern (zweite Rückmeldung: nur die nach dem ersten Feedback geänderten Aufgaben),
+ * only: null (alle) oder 1-basierte Nummern – nur diese Aufgaben (KI-Feedback nur zu einer Aufgabe bzw. zu den übrigen Aufgaben
+ *   ohne Feedback; ältere, gecachte Seiten: zweite Rückmeldung zu geänderten Aufgaben; nie zusammen mit final),
  * final: true = finale Rückmeldung nach der Abgabe (nur ein anderer System-Prompt, die Nachricht bleibt byte-gleich)
  * → { messages, nrs } – nrs = 1-basierte Nummern der Aufgaben MIT Auftrag an die KI (nur diese gehen an die KI)
  */
@@ -829,7 +830,8 @@ export function buildFeedbackMessages(tasks, answers, only, { final = false } = 
   // Der für alle Schüler:innen eines Blattes gleiche Teil (Aufgaben, Material, Aufträge der Lehrkraft) steht zuerst, die
   // Antworten zuletzt: So greift das automatische Präfix-Caching der Anbieter (Groq: gecachte Token zählen nicht gegen die
   // Minuten-/Tageslimits) ab der zweiten Anfrage zum selben Blatt – nur die Antworten und die Ausgabe kosten Kontingent. Eine
-  // zweite Rückmeldung mit `only` enthält nur die gewählten Aufgaben (gleiches Format, weniger Token; Präfix nur bei gleicher Auswahl).
+  // Anfrage mit `only` (Feedback zu einer Aufgabe bzw. zu den übrigen) enthält nur die gewählten Aufgaben (gleiches Format, weniger
+  // Token; Präfix nur bei gleicher Auswahl – „KI-Feedback nur zu Aufgabe n“ teilt ihn also mit allen Anfragen zu derselben Aufgabe).
   const user = "Aufgaben, Material und Aufträge der Lehrkraft (Nummern: " + nrs.join(", ") + "):\n\n" + blocks.join("\n\n") +
     "\n\nAntworten der Schülerin bzw. des Schülers:\n\n" + replies.join("\n\n") +
     "\n\nGib für jede der " + nrs.length + " Aufgaben (Nummern: " + nrs.join(", ") + ") dein Feedback als JSON zurück.";
@@ -852,7 +854,7 @@ function cleanItems(v) {
   }
   return out;
 }
-// Ein einzelner Eintrag als Objekt statt Liste (bei nur einer Aufgabe – z. B. der zweiten Rückmeldung – schreiben Modelle das manchmal)
+// Ein einzelner Eintrag als Objekt statt Liste (bei nur einer Aufgabe – z. B. „KI-Feedback nur zu dieser Aufgabe“ – schreiben Modelle das manchmal)
 const ENTRY_KEYS = ["gut", "angesprochen", "covered", "korrekt", "tipps", "tipp", "fehlt", "missing", "nicht_angesprochen", "fehlend"];
 const isEntry = (o) => !!o && typeof o === "object" && !Array.isArray(o) && ENTRY_KEYS.some((k) => k in o);
 function entriesOf(json) {
@@ -903,7 +905,8 @@ export const feedbackAcceptor = (nrs, opts) => (json) => {
 };
 
 /** Ergebnis je Aufgabe (gleiche Länge wie tasks): {covered = gut, missing = tipps}, ohne Auftrag an die KI mit Hinweis;
- *  mit only (zweite Rückmeldung) null für nicht gewählte Aufgaben – für sie gilt im Browser die erste Rückmeldung */
+ *  mit only null für nicht gewählte Aufgaben (der Browser behält für sie, was er schon hat); eine gewählte Aufgabe ohne Auftrag bekommt
+ *  den Hinweis NO_SOLUTION_NOTE – sind alle gewählten ohne Auftrag, antwortet routeFeedback ohne KI und ohne zu zählen */
 export function feedbackResults(tasks, map, only) {
   const pick = Array.isArray(only) ? new Set(only) : null;
   return tasks.map((t, i) => pick && !pick.has(i + 1) ? null : wantsFeedback(t)

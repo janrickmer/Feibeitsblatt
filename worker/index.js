@@ -928,15 +928,17 @@ async function routePublicSheet(c, codeRaw) {
   // Bild-Metadaten verlassen den Server; die Länder einer Weltkarten-Zuordnung nur als Prüfwerte (SHA-256 von Code|Karte|Land),
   // Kartenbilder nur, wenn sie zu dieser Aufgabe gespeichert sind; YouTube-Videos nur als geprüfte Kennung (videosOut, nie eine
   // URL – die Adressen baut der Browser auf festen Hosts), immer als Liste wie material
-  // aiFeedback: Hat mindestens eine Aufgabe einen Auftrag an die KI (keine Weltkarte)? Sonst zeigt die Seite keinen
-  // Feedback-Button (nur ein Ja/Nein – nie der Auftrag selbst)
-  const parsed = parseTasks(s.tasks), aiFeedback = parsed.some(wantsFeedback);
+  // aiFeedback: Hat mindestens eine Aufgabe einen Auftrag an die KI (keine Weltkarte, kein Foto)? Sonst zeigt die Seite keinen
+  // Feedback-Button (nur ein Ja/Nein – nie der Auftrag selbst). aiTasks: die 1-basierten Nummern genau dieser Aufgaben, aufsteigend
+  // (je Aufgabe ebenfalls nur Ja/Nein, wantsFeedback) – daran hängt die Seite den Knopf „KI-Feedback nur zu dieser Aufgabe“; eine
+  // ältere Seite ohne das Feld zeigt nur den Knopf für das ganze Blatt. Aus derselben Zeile, keine zusätzliche D1-Abfrage.
+  const parsed = parseTasks(s.tasks), aiTasks = parsed.flatMap((t, i) => (wantsFeedback(t) ? [i + 1] : [])), aiFeedback = aiTasks.length > 0;
   const tasks = await Promise.all(parsed.map(async (t, i) => {
     const images = imagesForTask(im.results, i + 1);
     return { text: String(t.text || ""), textFmt: Array.isArray(t.textFmt) ? t.textFmt : [], material: Array.isArray(t.material) ? t.material : [], videos: videosOut(t.videos), images, files: filesForTask(fi.results, i + 1),
       answer: await publicAnswer(t.answer, code, new Set(images.filter((m) => m.mode === "card").map((m) => m.id))) };
   }));
-  return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}),
+  return json({ ok: true, sheet: { code: s.code, title: s.title, tasks, publicKey: teacher ? teacher.publicKey : null, aiFeedback, aiTasks, aiProvider, ...(aiRecipients.length ? { aiRecipients } : {}), ...(aiReserve ? { aiReserve } : {}),
     privacy: pv ? { retentionDays: pv.retentionDays } : null,
     // Finale eines Escape-Rooms: nur Kennung und Name des Raums (die Seite sperrt dann die Code-Eingabe), sonst null
     escape: escapeOut(s.escape_id, s.escape_name),
@@ -1055,7 +1057,10 @@ async function routeFeedback(c) {
   if (!s) throw sheetNotFound();
   const tasks = parseTasks(s.tasks);
   const answers = validateAnswers(body.answers, tasks.length);
-  // Zweite Rückmeldung nach der Abgabe: nur die nach dem ersten Feedback geänderten Aufgaben (spart Token und Kontingent)
+  // only: nur diese Aufgaben gehen an die KI – „KI-Feedback nur zu dieser Aufgabe“ (eine Nummer) bzw. der Knopf unten nach einem
+  // solchen Feedback (die übrigen Aufgaben ohne Feedback); die Seite schickt die übrigen Antworten dann leer (Datenminimierung; feedback_chars
+  // zählt so nur die gesendeten Antworten). Ältere, gecachte Seiten: zweite Rückmeldung zu geänderten Aufgaben. Nie im Final-Modus
+  // (validateFinalMeta). Ob es dieselbe Aufgabe schon einmal gab, prüft der Server nicht (wie beim Feedback zum ganzen Blatt).
   const only = validateOnly(body.only, tasks.length);
   if (fin.final) checkFinal(c, firstRow(sub), fin);
   // stored: im Final-Modus, ob die Rückmeldung jetzt verschlüsselt bei der Abgabe liegt (sonst sagt die Bestätigungsseite, dass sie die
@@ -1100,7 +1105,8 @@ async function routeFeedback(c) {
   return json({ ok: true, results, aiGenerated: true, digitalSourceType: AI_SOURCE_TYPE, ...marked });
 }
 
-// Abgabe (stage "final") oder Erstversuch (stage "first", nach dem KI-Feedback). Mit derselben attempt-Kennung ersetzt die
+// Abgabe (stage "final") oder Erstversuch (stage "first", nach jedem KI-Feedback – zu einzelnen Aufgaben oder zum ganzen Blatt; ein
+// weiterer Erstversuch derselben Bearbeitung ersetzt den vorigen, dieselbe Zeile). Mit derselben attempt-Kennung ersetzt die
 // Abgabe den Erstversuch derselben Bearbeitung; ein Erstversuch überschreibt nie eine Abgabe, und nach der finalen KI-Rückmeldung
 // (final_at) ersetzt auch eine neue Abgabe sie nicht mehr. Der Server sieht nur den Umschlag. stage „feedback2“ (ältere, noch gecachte
 // Seiten reichten damit die finale Rückmeldung nach) ersetzt nichts mehr – die Rückmeldung speichert der Server selbst (final_env).
