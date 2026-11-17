@@ -1463,7 +1463,7 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     assert.deepEqual({ ready: r.json.ready, k: r.json.hasKey, h: r.json.keyHint, saved: r.json.saved, w: r.json.warning, err: r.json.keyError }, { ready: true, k: true, h: "", saved: true, w: undefined, err: undefined });
     assert.match(r.json.tierNote, /10\.000 Neurons/); assert.equal(r.json.modelCount, undefined);
     let s = settingsRow("ai"); assert.equal(s.apiKeyEnc, undefined); assert.equal(s.provider, "cloudflare"); assert.equal(JSON.stringify(s).includes("sk-x"), false);
-    assert.deepEqual(s.fallbacks, [GEMMA, "@cf/zai-org/glm-4.7-flash", "@cf/qwen/qwen3-30b-a3b-fp8"]);
+    assert.deepEqual(s.fallbacks, [GEMMA, "@cf/zai-org/glm-4.7-flash"]);   // Qwen3-30B schaltet Cloudflare am 20.11.2026 ab
     // Empfänger: Rechtsträger und Sitz
     r = await call("GET", "/api/sheet/" + c, { env: CFENV });
     assert.deepEqual(r.json.sheet.aiRecipients, [{ id: "cloudflare", label: CF_LABEL, transfer: "EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln" }]); assert.equal(r.json.sheet.aiProvider, "Cloudflare Workers AI");
@@ -1476,7 +1476,7 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     assert.equal(r.status, 200); assert.match(r.json.warning, /^Gespeichert, aber: Workers AI ist für diesen Worker nicht eingerichtet/);
     // Verbindungstest über das Binding: kurze Ausgabegrenze, Token-Zahlen (ohne Inhalt) für die Lehrkraft, Verbrauch gezählt
     r = await call("POST", "/api/teacher/ai/test", { auth, env: CFENV });
-    assert.equal(r.status, 200, r.text); assert.equal(r.json.sample, "Verbindung steht."); assert.equal(r.json.modelCount, 3);
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.sample, "Verbindung steht."); assert.equal(r.json.modelCount, 2);
     assert.equal(cf.calls.at(-1).inputs.max_completion_tokens, 200);
     assert.ok(r.json.usage.prompt_tokens > 0 && r.json.usage.completion_tokens > 0); assert.equal(r.json.usage.reasoning_tokens, 0);
     assert.equal(usageRow().requests, 1);
@@ -1513,6 +1513,14 @@ test("Workers AI (Binding): nur nach „Speichern“ aktiv, ohne Schlüssel; Emp
     const fRow = d1.db.prepare("SELECT final_at, final_env FROM submissions WHERE sheet_code=? AND attempt=?").get(c, fAttempt);
     assert.ok(fRow.final_at > 0);
     assert.deepEqual((await openEnvelope(T.privateKey, JSON.parse(fRow.final_env))).results, r.json.results);
+    // Vor dem 20.11.2026 gespeicherte Einstellungen nennen noch Qwen3-30B (abgeschaltet) – in den Ausweichmodellen und, falls dort
+    // eingetragen, als Modell: nie gefragt, die Vorgabe antwortet
+    const savedAi = settingsRow("ai"), QWEN = "@cf/qwen/qwen3-30b-a3b-fp8";
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='ai'").run(JSON.stringify({ ...savedAi, model: QWEN, fallbacks: [GEMMA, "@cf/zai-org/glm-4.7-flash", QWEN] }));
+    cf.calls = []; mock.reset();
+    r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Pflanzen brauchen Licht.", "x"], recipients: ["cloudflare"] }, ip: "203.0.113.95" });
+    assert.equal(r.status, 200, r.text); assert.deepEqual(cf.calls.map((x) => x.model), [GEMMA]);
+    d1.db.prepare("UPDATE settings SET value=? WHERE key='ai'").run(JSON.stringify(savedAi));
     // Lokal (wrangler dev --local): Binding da, Aufruf scheitert → Feedback 503 ai_not_configured, Test 502 mit Hinweis
     cf.mode = "local";
     r = await call("POST", "/api/feedback", { env: CFENV, body: { code: c, answers: ["Licht", ""] } });

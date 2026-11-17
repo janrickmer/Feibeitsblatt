@@ -520,11 +520,15 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (Schlüssel → 400 `aiKeyless`, Modell nur `@cf/`/`@hf/`, kein `SETTINGS_SECRET` nötig, ohne Binding Warnung bzw. keyError
   `CF_NO_BINDING`). `callAIInner`: `cfg.ai.run(model, buildWorkersAIInputs(…), {returnRawResponse: true, signal})` – **immer
   genau diese zwei Optionen** (das Binding speichert sie am geteilten Objekt), **nie `gateway`**; Nicht-Response wird verpackt,
-  „needs to be run remotely“ → CONFIG `CF_LOCAL`, geworfenes „NNNN: …“ → Fehlerantwort. Modelle fest: Gemma 4 → GLM-4.7-Flash →
-  Qwen3-30B (`CF_MODELS`: `maxField`, `think` = `chat_template_kwargs.enable_thinking:false`, `neurons` je Mio. Token),
+  „needs to be run remotely“ → CONFIG `CF_LOCAL`, geworfenes „NNNN: …“ → Fehlerantwort. Modelle fest: Gemma 4 → GLM-4.7-Flash
+  (`CF_MODELS`: `maxField`, `think` = `chat_template_kwargs.enable_thinking:false`, `neurons` je Mio. Token; Qwen3-30B, bis dahin das
+  dritte, schaltet Cloudflare am 20.11.2026 ab – Changelog vom 05.11.2026, HTTP 410 / Code 5028; `PROVIDERS.cloudflare.retired`
+  filtert es auch aus vorher gespeicherten `settings.ai.fallbacks` und als eingetragenes Modell; kein Ersatz, Entscheidung des Betreibers
+  vom 17.11.2026: Cloudflares Ersatzvorschläge brauchen Workers Paid oder kosten ein Vielfaches),
   `outTokens` = min(8192, 800 + 300 × Aufgaben) (final 800 + 400 × Aufgaben), Test 200. Codes: 3036 → DAILY_LIMIT `accountWide`, `until` = nächstes 0:00
   UTC, kein Modellwechsel; 3040 → wie Minutenlimit (10 s); 3006 → zu lang; 3007/3008 → 408; `CF_GONE` (5007, 3042, 5035,
-  5016, 5018, 3041) → Modell 24 h; 3023/401 → FORBIDDEN; **jede andere 4xx**: dasselbe Modell erst ohne JSON-Modus (der
+  5016, 5018, 3041, 5028 = abgeschaltet) und HTTP 410 ohne Code → Modell einmal gefragt, dann 24 h gesperrt („… ist bei Workers AI
+  abgeschaltet“); 3023/401 → FORBIDDEN; **jede andere 4xx**: dasselbe Modell erst ohne JSON-Modus (der
   Denkmodus bleibt aus – mit ihm kostet die Antwort ein Vielfaches), dann ohne kwargs (nennt die Meldung
   `chat_template_kwargs`/`enable_thinking`/`thinking`, zuerst die kwargs), dann nächstes Modell, gesperrt nur `TTL.soft`
   (5 min – eine einzelne seltsame Anfrage ändert die Modellfolge nicht für einen Tag) – `minRetryMs` bleibt, also am Ende
