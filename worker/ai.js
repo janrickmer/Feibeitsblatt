@@ -14,7 +14,11 @@ export const PROVIDERS = {
   // das ganze Konto und alle Modelle (accountDaily), das Minutenlimit (300/min) je Konto und Aufgabentyp → kein perModelGate,
   // kein Versetzen des Startmodells (spread:false): erst die Vorgabe, dann die Ausweichmodelle in fester Reihenfolge.
   cloudflare: { label: "Cloudflare Workers AI", kind: "workers-ai", keyless: true, accountDaily: true, spread: false,
-    defaultModel: "@cf/google/gemma-4-26b-a4b-it", fallbacks: ["@cf/zai-org/glm-4.7-flash", "@cf/qwen/qwen3-30b-a3b-fp8"],
+    defaultModel: "@cf/google/gemma-4-26b-a4b-it", fallbacks: ["@cf/zai-org/glm-4.7-flash"],
+    // Qwen3-30B schaltet Cloudflare am 20.11.2026 ab (Changelog vom 05.11.2026: danach HTTP 410, Code 5028). Es war das dritte
+    // Modell und steht noch in Einstellungen, die vorher gespeichert wurden (settings.ai.fallbacks) – `retired` filtert es auch
+    // dort und als eingetragenes Modell heraus. Kein Ersatz: Gemma 4 → GLM-4.7-Flash → Reserve (Entscheidung vom 17.11.2026).
+    retired: /^@cf\/qwen\/qwen3-30b-a3b-fp8$/i,
     gapMs: 200, recipient: "Cloudflare, Inc. (San Francisco, USA) – betreibt auch den Server, der die Abgaben speichert",
     transfer: "EU-US Data Privacy Framework, ersatzweise Standardvertragsklauseln", keyHint: "" },
   // rateHeaders: Groq meldet mit jeder Antwort je Modell die Grenze für Anfragen pro Tag (siehe dailyRequestInfo)
@@ -39,16 +43,15 @@ export const PROVIDERS = {
 // Vorauswahl der Oberfläche, solange die Lehrkraft nichts gespeichert hat – aktiv (Empfänger von Schülertexten) wird ein
 // Anbieter erst durch „Speichern“ (siehe usable() in index.js)
 export const DEFAULT_PROVIDER = "cloudflare";
-// Workers AI je Modell (Modellseiten unter developers.cloudflare.com/workers-ai/models/…, abgerufen 22.10.2026):
-// maxField = Feld für die Ausgabegrenze; think = chat_template_kwargs.enable_thinking:false mitschicken (der Denkmodus ist bei
-// Gemma 4 und GLM-4.7-Flash dokumentiert und standardmäßig an – er kostet Neurons; bei Qwen3 ist das Feld nicht dokumentiert,
-// ein Versuch mit Rückfall). GLM und Qwen dokumentieren im Schema nur die Prompt-Form, `messages` nur in den Beispielen; den
-// JSON-Modus nennen nur die Modellschemata. Lehnt ein Modell die Anfrage ab, folgen Versuche ohne kwargs bzw. ohne JSON-Modus.
+// Workers AI je Modell (Modellseiten unter developers.cloudflare.com/workers-ai/models/…, abgerufen 22.10.2026; keines der beiden
+// ist abgekündigt, geprüft am 17.11.2026): maxField = Feld für die Ausgabegrenze; think = chat_template_kwargs.enable_thinking:false
+// mitschicken (der Denkmodus ist bei Gemma 4 und GLM-4.7-Flash dokumentiert und standardmäßig an – er kostet Neurons). GLM
+// dokumentierte im Schema nur die Prompt-Form, `messages` nur in den Beispielen; den JSON-Modus nennen nur die Modellschemata.
+// Lehnt ein Modell die Anfrage ab, folgen Versuche ohne kwargs bzw. ohne JSON-Modus.
 // neurons = [je Mio. Eingabe-Token, je Mio. Ausgabe-Token] laut Preisliste (20.10.2026) – nur für die Verbrauchsschätzung.
 export const CF_MODELS = {
   "@cf/google/gemma-4-26b-a4b-it": { maxField: "max_completion_tokens", think: true, neurons: [9091, 27273] },
   "@cf/zai-org/glm-4.7-flash": { maxField: "max_completion_tokens", think: true, neurons: [5500, 36400] },
-  "@cf/qwen/qwen3-30b-a3b-fp8": { maxField: "max_tokens", think: true, neurons: [4625, 30475] },
 };
 const CF_PRICE_UNKNOWN = [9091, 36400];   // anderes @cf/-Modell: vorsichtig mit den höchsten Preisen der festen Liste schätzen
 export const CF_DAILY_NEURONS = 10000;
@@ -162,7 +165,7 @@ export function buildWorkersAIInputs(model, messages, o, jsonMode, thinkOff = tr
   if (thinkOff && m.think) inputs.chat_template_kwargs = { enable_thinking: false };
   return inputs;
 }
-// Antwort des Bindings (returnRawResponse): chat.completion (Gemma 4, GLM, Qwen3) oder {response, usage} (ältere Modelle,
+// Antwort des Bindings (returnRawResponse): chat.completion (Gemma 4, GLM) oder {response, usage} (ältere Modelle,
 // im JSON-Modus ist response ein Objekt). Ein Umschlag wie bei der REST-API ({result, success}) wird vorsichtshalber ausgepackt.
 const cfBody = (data) => (data && !Array.isArray(data.choices) && data.response == null && data.result && typeof data.result === "object" ? data.result : data);
 export function parseWorkersAI(data) {
@@ -222,8 +225,10 @@ export function cfNeurons(model, u) {
   const [i, o] = (CF_MODELS[model] || {}).neurons || CF_PRICE_UNKNOWN;
   return u ? (u.prompt_tokens * i + u.completion_tokens * o) / 1e6 : 0;
 }
-const CF_GONE = new Set([5007, 3042, 5035, 5016, 5018, 3041]);   // Modell unbekannt, nicht freigegeben oder nur mit Workers Paid
-const CF_STATUS = { 3036: 429, 3040: 429, 3006: 413, 3007: 408, 3008: 408, 5007: 400, 3042: 404, 3023: 403, 5035: 403, 5016: 403, 5018: 403, 3041: 403 };
+// Modell unbekannt, nicht freigegeben, nur mit Workers Paid oder abgeschaltet (5028 „… was deprecated on …“, HTTP 410 – Cloudflare-
+// Fehlerliste; so ab dem 20.11.2026 u. a. Qwen3-30B und einige Llama-3.1-/3.2-Modelle): einmal gefragt, dann 24 h gesperrt (TTL.gone)
+const CF_GONE = new Set([5007, 3042, 5035, 5016, 5018, 3041, 5028]);
+const CF_STATUS = { 3036: 429, 3040: 429, 3006: 413, 3007: 408, 3008: 408, 5007: 400, 3042: 404, 3023: 403, 5035: 403, 5016: 403, 5018: 403, 3041: 403, 5028: 410 };
 function cfCode(data, emsg) {
   const c = Number(data && (data.internalCode ?? (Array.isArray(data.errors) && data.errors[0] ? data.errors[0].code : undefined)));
   return Number.isFinite(c) && c > 0 ? c : Number((/^(\d{4}):/.exec(emsg) || [])[1]) || 0;
@@ -426,9 +431,11 @@ async function callAIInner(cfg, messages, opts, rotated, cost) {
           withMsg(emsg) + ". Es steht ab 0:00 Uhr UTC (1:00 Uhr MEZ bzw. 2:00 Uhr MESZ) wieder zur Verfügung.", { status, accountWide: true, until: nextUtcMidnight() });
       if (ic === 3023) throw new AIError("FORBIDDEN", "Workers AI ist für dieses Cloudflare-Konto gesperrt" + withMsg(emsg) + ".", { status });
       if (status === 401) throw new AIError("FORBIDDEN", "Workers AI hat die Anfrage abgelehnt (HTTP 401" + withMsg(emsg) + ").", { status });
-      if (CF_GONE.has(ic)) {
-        lastErr = new AIError("NOT_FOUND", "Modell „" + model + "“ ist bei Workers AI nicht verfügbar oder nicht freigegeben" + withMsg(emsg) + ". Bitte in den KI-Einstellungen ein anderes Modell wählen.", { status });
-        rotate(model, "ist bei Workers AI nicht verfügbar (" + ic + ")", TTL.gone);
+      // HTTP 410 („Gone“) auch ohne Code: so meldet Workers AI ein abgeschaltetes Modell – nie dreimal fragen und nur 5 min sperren
+      if (CF_GONE.has(ic) || status === 410) {
+        const off = ic === 5028 || status === 410;
+        lastErr = new AIError("NOT_FOUND", "Modell „" + model + "“ ist bei Workers AI " + (off ? "abgeschaltet" : "nicht verfügbar oder nicht freigegeben") + withMsg(emsg) + ". Bitte in den KI-Einstellungen ein anderes Modell wählen.", { status });
+        rotate(model, "ist bei Workers AI " + (off ? "abgeschaltet" : "nicht verfügbar") + " (" + (ic || "HTTP " + status) + ")", TTL.gone);
         continue;
       }
       if (ic === 3040) status = 429;                               // Kapazität erschöpft: wie ein Minutenlimit (nächstes Modell)

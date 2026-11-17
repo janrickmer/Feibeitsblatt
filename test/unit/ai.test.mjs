@@ -545,7 +545,7 @@ function fakeAI(steps) {
 const chat = (content, model = GEMMA, usage = { prompt_tokens: 3000, completion_tokens: 300, total_tokens: 3300, completion_tokens_details: { reasoning_tokens: 0 } }) =>
   ({ body: { id: "x", object: "chat.completion", model, choices: [{ index: 0, message: { role: "assistant", content, reasoning_content: "denk" }, finish_reason: "stop" }], usage } });
 const cfErr = (status, internalCode, description) => ({ status, body: { internalCode, description, name: "AiError" } });
-const CF = (ai, extra = {}) => ({ provider: "cloudflare", ai, model: "", fallbacks: [GEMMA, GLM, QWEN], key: "cloudflare", ...extra });
+const CF = (ai, extra = {}) => ({ provider: "cloudflare", ai, model: "", fallbacks: [GEMMA, GLM], key: "cloudflare", ...extra });
 
 test("workers ai: Gemma mit Denkmodus aus, max_completion_tokens, JSON-Modus; immer genau zwei Optionen (nie gateway); Verbrauch geschätzt", async () => {
   const ai = fakeAI([chat("{\"ok\":true}")]);
@@ -571,9 +571,9 @@ test("workers ai: feste Reihenfolge – startAt versetzt nichts, ein gewähltes 
   await callAI(CF(ai), msgs, { startAt: 2 });
   assert.equal(ai.calls[0].model, GEMMA);
   ai = fakeAI([cfErr(429, 3040, "Capacity temporarily exceeded, please try again."), chat("{\"ok\":2}")]);
-  const r = await callAI(CF(ai, { model: QWEN, fallbacks: [] }), msgs, { startAt: 1 });
-  assert.deepEqual(ai.calls.map((c) => c.model), [QWEN, GEMMA]); assert.deepEqual(r.json, { ok: 2 });
-  assert.equal(ai.calls[0].inputs.max_tokens, 2048, "Qwen: max_tokens");
+  const r = await callAI(CF(ai, { model: GLM, fallbacks: [] }), msgs, { startAt: 1 });
+  assert.deepEqual(ai.calls.map((c) => c.model), [GLM, GEMMA]); assert.deepEqual(r.json, { ok: 2 });
+  assert.equal(ai.calls[0].inputs.max_completion_tokens, 2048, "GLM: max_completion_tokens"); assert.equal(ai.calls[0].inputs.max_tokens, undefined);
 });
 test("workers ai: 3036 (Tageskontingent) im internalCode-, errors[]- und Wurf-Format → DAILY_LIMIT für das ganze Konto bis 0:00 UTC, ohne Modellwechsel", async () => {
   const daily = "You have used up your daily free allocation of 10,000 neurons. Please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage.";
@@ -594,6 +594,19 @@ test("workers ai: 3040 (Kapazität) → nächstes Modell mit kurzer Sperre; 5007
     r = await callAI(CF(ai, { model: "@cf/x/y" }), msgs);
     assert.deepEqual(r.json, { ok: 3 }); assert.equal(r.rotated[0].model, "@cf/x/y"); assert.equal(r.rotated[0].ttlMs, TTL.gone);
   }
+  // abgeschaltetes Modell (Cloudflare: HTTP 410, Code 5028 – im internalCode-, errors[]- und Wurf-Format, auch 410 ohne Code):
+  // genau einmal gefragt (nicht dreimal wie bei einer unbekannten Ablehnung), 24 h gesperrt, dann das nächste Modell
+  const dep = "@cf/x/y was deprecated on 2026-11-20. See the model catalog for alternatives.";
+  for (const step of [cfErr(410, 5028, dep), { status: 410, body: { errors: [{ code: 5028, message: "AiError: " + dep }], success: false } },
+    { throw: "5028: " + dep }, { throw: "InferenceUpstreamError: 5028: " + dep }, { status: 410, body: { errors: [{ message: "Gone" }] } }]) {
+    ai = fakeAI([step, chat("{\"ok\":3}")]);
+    r = await callAI(CF(ai, { model: "@cf/x/y" }), msgs);
+    assert.deepEqual(r.json, { ok: 3 }); assert.deepEqual(ai.calls.map((c) => c.model), ["@cf/x/y", GEMMA]);
+    assert.deepEqual(r.rotated.map((x) => [x.model, x.ttlMs]), [["@cf/x/y", TTL.gone]]); assert.match(r.rotated[0].reason, /abgeschaltet/);
+  }
+  ai = fakeAI([cfErr(410, 5028, dep)]);
+  await assert.rejects(callAI(CF(ai, { model: "@cf/x/y", fallbacks: [] }), msgs, { deadlineMs: 14000, minLeftMs: 0, maxAttempts: 1 }),
+    (e) => e.code === "NOT_FOUND" && /abgeschaltet/.test(e.message) && /anderes Modell/.test(e.message));
   ai = fakeAI([cfErr(413, 3006, "Request is too large"), chat("{\"ok\":4}", GLM)]);
   r = await callAI(CF(ai), msgs);
   assert.deepEqual(r.json, { ok: 4 }); assert.match(r.rotated[0].reason, /zu lang/);
@@ -619,9 +632,9 @@ test("workers ai: unbekannte Ablehnung (400 „Bad input“) → dasselbe Modell
   const ai2 = fakeAI([{ status: 400, body: { errors: [{ code: 5006, message: "JSON Mode couldn't be met" }] } }, chat("{\"ok\":6}")]);
   await callAI(CF(ai2), msgs);
   assert.deepEqual(ai2.calls.map((c) => [!!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[true, true], [true, false]]);
-  const ai3 = fakeAI([cfErr(400, 5006, "Error: additionalProperties: chat_template_kwargs is not allowed"), chat("{\"ok\":7}", QWEN)]);
-  await callAI(CF(ai3, { model: QWEN }), msgs);
-  assert.deepEqual(ai3.calls.map((c) => [c.model, !!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[QWEN, true, true], [QWEN, false, true]]);
+  const ai3 = fakeAI([cfErr(400, 5006, "Error: additionalProperties: chat_template_kwargs is not allowed"), chat("{\"ok\":7}", GLM)]);
+  await callAI(CF(ai3, { model: GLM }), msgs);
+  assert.deepEqual(ai3.calls.map((c) => [c.model, !!c.inputs.chat_template_kwargs, !!c.inputs.response_format]), [[GLM, true, true], [GLM, false, true]]);
   // ohne JSON-Modus (z. B. ein Aufruf mit json:false): gleich die kwargs
   const ai5 = fakeAI([bad, chat("ok")]);
   await callAI(CF(ai5), msgs, { json: false });
@@ -630,11 +643,27 @@ test("workers ai: unbekannte Ablehnung (400 „Bad input“) → dasselbe Modell
   const ai4 = fakeAI([cfErr(405, 5019, "Deprecated SDK version"), cfErr(405, 5019, "x"), cfErr(405, 5019, "x"), chat("{\"ok\":8}", GLM)]);
   assert.deepEqual((await callAI(CF(ai4), msgs)).json, { ok: 8 });
 });
-test("workers ai: 3040, 3040, dann 400 beim letzten Modell → RATE_LIMIT mit Wartezeit (ai_busy) statt HTTP-Fehler", async () => {
+test("workers ai: 3040, dann 400 beim letzten Modell → RATE_LIMIT mit Wartezeit (ai_busy) statt HTTP-Fehler", async () => {
   const cap = cfErr(429, 3040, "Capacity temporarily exceeded, please try again."), bad = cfErr(400, 5006, "AiError: Bad input: Error: oneOf at '/' not met");
-  const ai = fakeAI([cap, cap, bad, bad, bad]);
+  const ai = fakeAI([cap, bad, bad, bad]);
   await assert.rejects(callAI(CF(ai), msgs, { deadlineMs: 14000, minLeftMs: 0 }), (e) => e.code === "RATE_LIMIT" && e.retryAfterMs === 10000);
-  assert.deepEqual(ai.calls.map((c) => c.model), [GEMMA, GLM, QWEN, QWEN, QWEN]);
+  assert.deepEqual(ai.calls.map((c) => c.model), [GEMMA, GLM, GLM, GLM]);
+});
+test("workers ai: Qwen3-30B (am 20.11.2026 abgeschaltet) ist kein Ausweichmodell mehr und wird nie gefragt – auch nicht aus einer vorher gespeicherten Liste oder als eingetragenes Modell", async () => {
+  assert.deepEqual(PROVIDERS.cloudflare.fallbacks, [GLM]); assert.equal(CF_MODELS[QWEN], undefined);
+  assert.ok(PROVIDERS.cloudflare.retired.test(QWEN)); assert.ok(![GEMMA, GLM].some((m) => PROVIDERS.cloudflare.retired.test(m)));
+  // vor dem 20.11. gespeichert: settings.ai.fallbacks = [Gemma, GLM, Qwen] – beide ausgelastet → ai_busy, Qwen nie gefragt
+  // (maxWaitMs klein: sonst wartet das letzte Modell einmal 10 s auf sich selbst)
+  const cap = cfErr(429, 3040, "Capacity temporarily exceeded, please try again.");
+  let ai = fakeAI([cap, cap]);
+  await assert.rejects(callAI(CF(ai, { fallbacks: [GEMMA, GLM, QWEN] }), msgs, { deadlineMs: 14000, minLeftMs: 0, maxWaitMs: 1000 }), (e) => e.code === "RATE_LIMIT" && e.retryAfterMs === 10000);
+  assert.deepEqual(ai.calls.map((c) => c.model), [GEMMA, GLM]);
+  // als Modell eingetragen (auch in anderer Schreibweise): übersprungen, die Vorgabe antwortet
+  for (const model of [QWEN, QWEN.toUpperCase()]) {
+    ai = fakeAI([chat("{\"ok\":1}")]);
+    const r = await callAI(CF(ai, { model, fallbacks: [GEMMA, GLM, QWEN] }), msgs);
+    assert.deepEqual(r.json, { ok: 1 }); assert.deepEqual(ai.calls.map((c) => c.model), [GEMMA]); assert.deepEqual(r.rotated, []);
+  }
 });
 test("workers ai: ältere Modelle ({response} als Text oder Objekt), REST-Umschlag {result}, Denkspur wird ignoriert, abgeschnitten → nächstes Modell", async () => {
   let ai = fakeAI([{ body: { response: "{\"a\":1}", usage: {} } }]);
@@ -661,7 +690,7 @@ test("workers ai: lokal (wrangler dev --local) → CONFIG mit Hinweis ohne weite
 });
 test("workers ai: testKey liefert die feste Liste ohne Netz; Feedback-Prompt geht unverändert durch; Kosten-Überschlag (Preisliste 20.10.2026)", async () => {
   const t = await testKey({ provider: "cloudflare" });
-  assert.deepEqual(t.models.map((m) => m.id), [GEMMA, GLM, QWEN]); assert.equal(calls.length, 0);
+  assert.deepEqual(t.models.map((m) => m.id), [GEMMA, GLM]); assert.equal(calls.length, 0);
   assert.match(t.tierNote, /10\.000 Neurons pro Tag für das ganze Cloudflare-Konto/);
   const { messages, nrs } = buildFeedbackMessages([{ text: "A", solution: "- Licht" }], ["Licht"]);
   const ai = fakeAI([chat(JSON.stringify({ aufgaben: [{ nr: 1, gut: ["Licht"], tipps: [] }] }))]);
