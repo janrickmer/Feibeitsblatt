@@ -100,7 +100,12 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    (Antworten, Angaben, ggf. KI-Feedback – keine Tippzeiten) steckt unsichtbar als eingebettete Datei in der PDF. Auf der Startseite
    stellt **„Zwischenstand-PDF hochladen“** aus genau dieser Datei alles wieder her (ein Screenshot oder Ausdruck
    enthält die Daten nicht). Die Datei enthält die Antworten lesbar – sie gehört nicht in fremde Hände. Liegt auf
-   dem Gerät schon ein neuerer Zwischenstand derselben Person, fragt die Seite, welcher Stand gelten soll. Hat die
+   dem Gerät schon ein neuerer Zwischenstand derselben Person, fragt die Seite, welcher Stand gelten soll. Zeigt
+   **Unterricks** (die Unterrichtsplattform derselben Lehrkraft) ein Feibeitsblatt aus einer früheren Sitzung erneut an,
+   können die Schüler:innen ihre Zwischenstand-PDF auch dort auswählen: Unterricks öffnet das Feibeitsblatt in einem neuen
+   Tab und übergibt ihm die Datei direkt im Browser (von Tab zu Tab, nicht über einen Server); danach geht es genau so weiter
+   wie mit „Zwischenstand-PDF hochladen“ – mit denselben Prüfungen, Rückfragen und Meldungen (siehe [Entwicklung](#entwicklung),
+   „Übergabe aus Unterricks“). Hat die
    Lehrkraft Bilder zu einer Aufgabe
    hinterlegt, stehen sie je nach Einstellung als kleine Miniaturen rechts neben Aufgabe und Antwortfeld (auf
    schmalen Bildschirmen zwischen Aufgabenstellung und Antwortfeld) oder etwas größer unter der Aufgabenstellung.
@@ -1225,7 +1230,7 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach beim täglichen Aufräumen gelöscht (ohne Zeitplan: beim Öffnen der Übersicht) |
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
 | Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
-| Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale samt Datensatz aus dem Escape-Room), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
+| Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale samt Datensatz aus dem Escape-Room), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie – auch nicht, wenn Unterricks sie an Feibeitsblatt übergibt (von Tab zu Tab im selben Browser) | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | Cookies und ähnliche Daten von YouTube – nur nach einem Klick auf „Video von YouTube laden“ | im Browser des benutzten Geräts, gesetzt und gelesen von Google (YouTube), nicht von Feibeitsblatt | nach den Bedingungen von Google; Feibeitsblatt speichert weder die Einwilligung noch, welche Videos geladen wurden | bis sie ablaufen oder im Browser gelöscht werden |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, finale KI-Rückmeldung oder – ohne sie – Ihre Checkliste; kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
@@ -2051,6 +2056,18 @@ Kennzeichen `/FbEscape 1` in der Überblick-PDF. Einzelheiten, Grenzen und Testv
 („Escape-Room-Anbindung“); Änderungen an der Schnittstelle nur gemeinsam mit den Escape-Rooms und mit einer neuen Version
 `v`. `test/escape-fixture.mjs` baut Hülle, Link und Überblick-PDF so wie ein Escape-Room (mit frei erfundenen Daten);
 `ESCAPE_PDF_OUT=<Ordner> npm run test:e2e` speichert die PDF-Dateien und Bildschirmfotos der Tests 7n/7o zum Ansehen.
+
+**Übergabe aus Unterricks (v1):** Wählen Schüler:innen in Unterricks die Zwischenstand-PDF eines Feibeitsblattes aus einer
+früheren Sitzung, öffnet Unterricks diese Seite mit `#von-unterricks` in einem neuen Tab (mit `window.opener`). Die Seite entfernt
+den Hash sofort, meldet sich beim öffnenden Tab bereit (`{kind: "feibeitsblatt-bereit", v: 1}`, nur an
+`https://unterricks.janrickmer.de` und `https://unterricks.feindt.workers.dev`) und nimmt genau **eine** Nachricht
+`{kind: "unterricks-zwischenstand", v: 1, pdf: ArrayBuffer}` an – nur vom öffnenden Tab, nur von diesen beiden Adressen (läuft
+Feibeitsblatt selbst auf `127.0.0.1`/`localhost`, also in Tests, auch von dort), nur auf der Startseite und höchstens 5 MB groß.
+Danach geht es denselben Weg wie „Zwischenstand-PDF hochladen“; die Antwort
+`{kind: "feibeitsblatt-zwischenstand-angekommen", v: 1, ok, grund?}` (`zu-gross`, `kein-pdf`, `beschaeftigt`) geht nur an den
+öffnenden Tab. Ohne den Hash oder ohne öffnenden Tab ändert sich nichts. Einzelheiten in `CLAUDE.md` („Zwischenstand-PDF aus
+Unterricks“), Unit-Test `test/unit/unterricks.test.mjs`, Browser-Test 3f (Unterricks als Attrappe). Änderungen an Adressen oder
+Nachrichten nur gemeinsam mit Unterricks und mit einer neuen Version `v`.
 
 **YouTube-Videos:** Gespeichert wird je Aufgabe nur `videos: [{id, start?, title?}]` (nie eine URL); alle Adressen baut der
 Browser aus der geprüften Kennung (`youtubeUrl`, `youtubeEmbedUrl` im Block `VIDEO:BEGIN … VIDEO:END` von `index.html`,

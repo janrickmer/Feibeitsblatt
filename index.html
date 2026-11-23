@@ -1639,6 +1639,12 @@ try {
   const hs = String(location.hash || "");
   if (/^#escape=/i.test(hs)) { if (escLinkRaw === null) escLinkRaw = hs.slice(8); history.replaceState(null, "", location.pathname + location.search); }
 } catch (e) { /* ohne History-API: trotzdem verarbeiten */ }
+/* Geöffnet von Unterricks, um eine Zwischenstand-PDF zu übergeben (#von-unterricks, siehe unterricksListen): den Hash sofort aus der Adresse
+   entfernen; die Übergabe selbst beginnt erst, wenn die Seite aufgebaut ist */
+let fromUnterricks = false;
+try {
+  if (unterricksHash(location.hash)) { fromUnterricks = true; history.replaceState(null, "", location.pathname + location.search); }
+} catch (e) { /* ohne History-API: der Hash stört nicht */ }
 
 /* ---------------------------- Helfer ---------------------------- */
 const API = String(window.FEIBEITSBLATT_API || "").replace(/\/+$/, "");
@@ -4164,12 +4170,15 @@ $("resume-del").addEventListener("click", async () => {
 
 /* ---------- Zwischenstand-PDF hochladen (Startseite) ---------- */
 const PDF_NOT_DRAFT = "In dieser Datei steckt kein Feibeitsblatt-Zwischenstand. Lade genau die PDF-Datei hoch, die du mit „Zwischenstand als PDF-Datei sichern“ gespeichert hast – kein Screenshot und kein Ausdruck davon.";
+const PDF_TOO_BIG = "Diese Datei ist zu groß für einen Zwischenstand. " + PDF_NOT_DRAFT;
+// → true, wenn danach der Schreibbereich offen ist (bei einer Überblick-PDF aus einem Escape-Room: die Angaben bzw. der Schreibbereich);
+// sonst steht die Meldung auf der Startseite (für die Antwort an Unterricks, siehe unterricksListen)
 async function importDraftPdf(file) {
   const err = $("start-err"), btn = $("start-pdf");
   err.textContent = "";
   if (!subtle) { err.textContent = "Dieser Browser unterstützt die nötige Verschlüsselung nicht (Seite bitte über https öffnen)."; return; }
   if (!file) return;
-  if (file.size > PDF_MAX_BYTES) { err.textContent = "Diese Datei ist zu groß für einen Zwischenstand. " + PDF_NOT_DRAFT; return; }
+  if (file.size > PDF_MAX_BYTES) { err.textContent = PDF_TOO_BIG; return; }
   escDrop(); $("start-esc-retry").classList.add("hidden"); setStatus($("start-status"), "", "");
   const run = ESC.run;   // ein späterer Weg von der Startseite (Code, „Weiterschreiben“, Ankunft aus einem Escape-Room) macht diesen hinfällig
   busy(btn, true, "Datei wird gelesen …");
@@ -4178,7 +4187,7 @@ async function importDraftPdf(file) {
     try { r = await readStartPdf(await file.arrayBuffer()); } catch (e) { r = { kind: e && e.message === "escape-bad" ? "escape-bad" : "" }; }
     // Überblick-PDF aus einem Escape-Room: derselbe Weg wie über den Link am Ende des Raums
     if (run !== ESC.run) return;
-    if (r.kind === "escape") { busy(btn, false); $("code-input").value = ""; return await escArrive(r.o, "pdf"); }
+    if (r.kind === "escape") { busy(btn, false); $("code-input").value = ""; return (await escArrive(r.o, "pdf")) === true; }
     if (r.kind === "escape-bad") { err.textContent = ESC_PDF_BAD; showResume(); return; }
     if (r.kind === "draft") d = cleanDraft(r.o);
     if (!d) { err.textContent = PDF_NOT_DRAFT; return; }
@@ -4205,11 +4214,86 @@ async function importDraftPdf(file) {
     S.person = person; S.importDraft = d;
     $("code-input").value = "";
     await openEditor();
+    return screen === "screen-editor";
   } catch (e) { if (run === ESC.run) { resetStudent(); err.textContent = startErr(e); } }
   finally { busy(btn, false); }
 }
 $("start-pdf").addEventListener("click", () => { const f = $("start-pdf-file"); f.value = ""; f.click(); });
 $("start-pdf-file").addEventListener("change", () => { const f = $("start-pdf-file").files && $("start-pdf-file").files[0]; if (f) importDraftPdf(f); });
+
+/* ---------- Zwischenstand-PDF aus Unterricks (Adresse mit #von-unterricks; Übergabe-Protokoll v1) ----------
+ * Unterricks (die Unterrichtsplattform derselben Lehrkraft) zeigt ein Feibeitsblatt aus einer früheren Sitzung erneut an: Schüler:innen
+ * wählen dort ihre Zwischenstand-PDF, Unterricks öffnet diese Seite mit #von-unterricks in einem neuen Tab (mit window.opener). Die Seite
+ * entfernt den Hash sofort, meldet sich beim öffnenden Tab bereit ({kind: "feibeitsblatt-bereit", v: 1}) und nimmt genau EINE Nachricht
+ * {kind: "unterricks-zwischenstand", v: 1, pdf: ArrayBuffer} an – nur vom öffnenden Tab, nur von den Adressen von Unterricks (lokal, also
+ * nur in Tests, auch http://127.0.0.1 bzw. http://localhost mit beliebigem Port), nur auf der Startseite ohne offenen Dialog, höchstens
+ * PDF_MAX_BYTES. Danach genau derselbe Weg wie „Zwischenstand-PDF hochladen“ (importDraftPdf: alle Prüfungen, Rückfrage bei einem neueren
+ * Stand auf diesem Gerät, dieselben Meldungen); die Antwort {kind: "feibeitsblatt-zwischenstand-angekommen", v: 1, ok, grund?} geht nur an
+ * den öffnenden Tab. Die PDF geht nur von Tab zu Tab auf demselben Gerät (postMessage), nie über einen Server – an den Server geht wie beim
+ * eigenen Hochladen nur das Laden des Blattes per Code. Ohne Hash oder ohne öffnenden Tab ändert sich nichts. */
+/* UNTERRICKS:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/unterricks.test.mjs liest diesen Block) */
+const UNTERRICKS_ORIGINS = Object.freeze(["https://unterricks.janrickmer.de", "https://unterricks.feindt.workers.dev"]);
+const UT_LOCAL_HOST_RE = /^(?:127\.0\.0\.1|localhost)$/;
+const UT_LOCAL_ORIGIN_RE = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::[0-9]{1,5})?$/;
+const UT_REASONS = Object.freeze(["zu-gross", "kein-pdf", "beschaeftigt"]);
+// Hash beim Laden (ganz oben im Skript aufgerufen, deshalb ohne Konstanten des Blocks)
+function unterricksHash(hash) { return /^#von-unterricks$/.test(String(hash || "")); }
+// Läuft diese Seite selbst lokal (127.0.0.1/localhost – nur Tests)? Nur dann gelten auch lokale Adressen als Unterricks.
+function unterricksLocal(hostname) { return UT_LOCAL_HOST_RE.test(String(hostname || "")); }
+// Herkunft einer Nachricht (event.origin) – genau verglichen, nie per Teilstring
+function unterricksOriginOk(origin, local) {
+  return typeof origin === "string" && (UNTERRICKS_ORIGINS.includes(origin) || (!!local && UT_LOCAL_ORIGIN_RE.test(origin)));
+}
+// Ziele der Bereitschaftsnachricht: jede erlaubte Adresse von Unterricks (an eine andere stellt der Browser sie nicht zu); lokal "*",
+// weil sich der Port der öffnenden Seite nicht erkennen lässt – die Nachricht enthält nichts außer kind und v
+function unterricksReadyTargets(local) { return local ? ["*"] : UNTERRICKS_ORIGINS.slice(); }
+function unterricksReady() { return { kind: "feibeitsblatt-bereit", v: 1 }; }
+// Inhalt einer Nachricht → null (nicht für diese Übergabe: nicht beachten) | {pdf: ArrayBuffer} | {grund: "kein-pdf" | "zu-gross"}
+function unterricksParse(data, max) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  if (data.kind !== "unterricks-zwischenstand" || data.v !== 1) return null;
+  const pdf = data.pdf;
+  if (Object.prototype.toString.call(pdf) !== "[object ArrayBuffer]" || !pdf.byteLength) return { grund: "kein-pdf" };
+  if (pdf.byteLength > max) return { grund: "zu-gross" };
+  return { pdf };
+}
+// Eine Nachricht an diese Seite → null (nicht beachten: schon eine angenommen, nicht vom öffnenden Tab, fremde Herkunft, anderer Inhalt) |
+// {grund} (ablehnen, mit Antwort) | {pdf} (übernehmen). m = {done, opener, source, origin, data, local, free}; free = Startseite ohne Dialog
+function unterricksDecide(m, max) {
+  if (!m || m.done || !m.opener || m.source !== m.opener || !unterricksOriginOk(m.origin, m.local)) return null;
+  const p = unterricksParse(m.data, max);
+  if (!p) return null;
+  return m.free ? p : { grund: "beschaeftigt" };
+}
+function unterricksReply(ok, grund) {
+  const r = { kind: "feibeitsblatt-zwischenstand-angekommen", v: 1, ok: ok === true };
+  if (!r.ok && UT_REASONS.includes(grund)) r.grund = grund;
+  return r;
+}
+/* UNTERRICKS:END */
+// Nur mit #von-unterricks und öffnendem Tab (Aufruf ganz unten, nach dem Aufbau der Seite): erst zuhören, dann bereit melden
+function unterricksListen() {
+  const op = window.opener;
+  if (!op) return;
+  const local = unterricksLocal(location.hostname);
+  let done = false;
+  window.addEventListener("message", function onMessage(ev) {
+    const d = unterricksDecide({ done, opener: window.opener, source: ev.source, origin: ev.origin, data: ev.data, local,
+      free: screen === "screen-start" && !dlgResolve }, PDF_MAX_BYTES);
+    if (!d) return;
+    done = true;   // nur EINE Nachricht je Seitenaufruf – auch eine abgelehnte
+    window.removeEventListener("message", onMessage);
+    const src = ev.source, origin = ev.origin;
+    const reply = (ok, grund) => { try { src.postMessage(unterricksReply(ok, grund), origin); } catch (e) { /* Tab von Unterricks inzwischen zu */ } };
+    if (d.grund) {   // auf der Startseite dieselbe Meldung wie beim eigenen Hochladen; anderswo (beschäftigt) bleibt alles, wie es ist
+      if (d.grund !== "beschaeftigt") $("start-err").textContent = d.grund === "zu-gross" ? PDF_TOO_BIG : PDF_NOT_DRAFT;
+      reply(false, d.grund);
+      return;
+    }
+    importDraftPdf(new Blob([d.pdf], { type: "application/pdf" })).then((r) => reply(r === true), () => reply(false));
+  });
+  for (const t of unterricksReadyTargets(local)) { try { op.postMessage(unterricksReady(), t); } catch (e) { /* egal */ } }
+}
 
 /* ---------- Ankunft aus einem Escape-Room (Feibeitsblatt als Finale; Link #escape=… oder Überblick-PDF) ----------
  * Die Hülle wird geprüft (Prüfsumme: "ok" | "mismatch" – nur ein Indiz), der Datensatz gekappt (cleanEscape); der Code muss zu einem
@@ -4262,7 +4346,8 @@ async function escArrive(hull, src) {
   S.escPending = { hull, rec, check: escCheck(hull), src };
   return escLoad(run);
 }
-// Blatt zur Ankunft laden (auch „Erneut versuchen“ nach einem Netzfehler – die Daten bleiben bis dahin im Arbeitsspeicher)
+// Blatt zur Ankunft laden (auch „Erneut versuchen“ nach einem Netzfehler – die Daten bleiben bis dahin im Arbeitsspeicher); → true, wenn danach
+// die Angaben bzw. der Schreibbereich offen sind (Antwort an Unterricks, siehe importDraftPdf)
 async function escLoad(run) {
   const pend = S.escPending, err = $("start-err"), btn = $("start-btn"), retry = $("start-esc-retry");
   if (!pend || run !== ESC.run) return;
@@ -4296,9 +4381,10 @@ async function escLoad(run) {
       let has = false;
       try { const x = JSON.parse((await draftRaw(S.code, pre.person)) || "null"); has = !!(x && Array.isArray(x.answers) && x.answers.some((a) => String(a || "").trim())); } catch (e) { has = false; }
       if (run !== ESC.run || S.escPending !== pend) return;
-      if (has) { S.person = pre.person; await openEditor(); return; }
+      if (has) { S.person = pre.person; await openEditor(); return screen === "screen-editor"; }
     }
     openPerson(false, pre);
+    return true;
   } catch (e) { if (run === ESC.run && screen === "screen-start") err.textContent = startErr(e); }
   finally { busy(btn, false); }
 }
@@ -11127,6 +11213,7 @@ else {
   showResume();
   const c = checkHashCode(); if (c !== null) openChecklist(c); else if (legalHash()) openLegal();   // Adresse aus dem QR-Code des analogen Arbeitsblattes bzw. Link „Impressum & Datenschutz“
 }
+if (fromUnterricks) unterricksListen();   // Zwischenstand-PDF aus Unterricks (#von-unterricks, schon aus der Adresse entfernt)
 // nur, solange noch nichts den Fokus hat – sonst nähme er ihn z. B. „Erneut versuchen“ nach einer schnell gescheiterten Ankunft aus einem
 // Escape-Room wieder weg
 setTimeout(() => { const a = document.activeElement; if (screen === "screen-start" && (!a || a === document.body)) $("code-input").focus(); }, 50);
