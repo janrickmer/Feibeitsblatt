@@ -1573,8 +1573,20 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   10 s, z. B. eine ältere Feibeitsblatt-Seite) den Rückfall „Tippe im Feibeitsblatt auf „Zwischenstand-PDF hochladen“ …“. Adressen und Nachrichten
   ändern sich nur zusammen mit Unterricks (dort `feibeitsblattUrl`) und mit einer neuen Version `v`. Reine Helfer zwischen
   `/* UNTERRICKS:BEGIN` und `/* UNTERRICKS:END */` (`test/unit/unterricks.test.mjs`: Hash, Hosts, Herkünfte, Ziele, Nachrichten, Antwort,
-  `unterricksListen` mit nachgebauter Umgebung); E2E 3f (Unterricks-Attrappe per `context.route` unter `https://unterricks.janrickmer.de`, als
-  fremde Herkunft unter `https://unterricks.example.org`; echte Zwischenstand-PDF aus „Zwischenstand als PDF-Datei sichern“).
+  `unterricksListen` mit nachgebauter Umgebung; `importDraftPdf`/`escArrive`/`escLoad` mit nachgebauter Umgebung: das Ergebnis ist `true` genau
+  dann, wenn danach der Schreibbereich bzw. die Angaben offen sind, bei einem neueren Stand auf dem Gerät erst nach der Rückfrage); E2E-Helfer
+  `unterricksStandIn(context, url)` (Attrappe per `context.route`: öffnet wie Unterricks, wählt die Datei einmal und überträgt je Klick eine
+  Kopie; Fehler und Anfragen aller Tabs des Kontexts per `context.on("weberror")`/`context.on("request")` von Anfang an – ein neuer Tab kann
+  sein Skript ausgeführt haben, bevor das `page`-Ereignis im Test ankommt), E2E 3f (Attrappe unter einer lokalen Adresse `MOCK_URL` +
+  `/unterricks-attrappe/sitzung`, als fremde Herkunft `http://127.0.0.2:<MOCK_PORT>`; echte Zwischenstand-PDF aus „Zwischenstand als PDF-Datei
+  sichern“; zweiter Klick mit derselben Datei bei neuerem Stand auf dem Gerät → Rückfrage, Antwort erst danach, `ok:true` bei beiden
+  Antworten), 3g (unter `https://unterricks.janrickmer.de`, fremd `https://unterricks.example.org` – ein Pop-up von einer öffentlichen
+  Adresse auf 127.0.0.1; bleibt 3g beim Öffnen hängen, womöglich Chromiums „Local Network Access“; braucht die PDF aus 3f in `S.utPdf`), 7n
+  (Überblick-PDF über die Attrappe → Angaben bzw. vorhandener Zwischenstand, `ok:true`; nicht freigeschaltet → `ok:false`). **Von Unterricks
+  erwartet** (Prüfbefund vom 23.11.2026, dort umzusetzen): je Klick eine Kopie übertragen (`pdf.slice(0)`) – sonst ist seine Datei nach dem
+  ersten Senden leer und ein zweiter Klick bekäme `kein-pdf` –, und nach den 10 s weiter auf eine späte Bereitschaft hören und dann noch senden
+  (eine langsam ladende Seite bekäme den Zwischenstand sonst nie; der Rückfall-Satz steht im Tab von Unterricks, den die Schüler:innen gerade
+  nicht sehen).
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
@@ -1788,7 +1800,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `LIMITS`, `cleanPhoto`, `jpegInfo`/`pdfPhotoOk`, `photoBudget` und ein echter Umschlag mit 1–3 größten Fotos samt 150 KB Text ≤
   `LIMITS.photoEnvelopeBytes` und Body ≤ `bodyBytes`; lib/ai/worker/typing.test für Validierung, Prompt, große Umschläge nur bei Foto-Blättern
   und die Liste nach Bytes – der Test zählt die Zeilen, die D1 liefert; Smoke-Schritt „Antwortart Foto“ gegen echtes D1; Übergabe aus Unterricks:
-  `unterricks.test.mjs`, E2E 3f); `node test/smoke.mjs` (API gegen echten
+  `unterricks.test.mjs`, E2E 3f, 3g und 7n); `node test/smoke.mjs` (API gegen echten
   `wrangler dev --local` + `test/mock-ai.mjs`, Ports 8811/8812, am Ende auch der Zeitplan); `npm run test:e2e` (Playwright 1.56.1, Ports
   8787/8790, frischer Zustand je Lauf – nicht parallel zu `npm run dev`). Workers AI ist lokal nie erreichbar: Unit-Tests
   nutzen ein gefälschtes `env.AI` (`fakeAI` in ai.test.mjs, `mockAIBinding(mock)` aus `test/mock-ai.mjs` mit `mode`

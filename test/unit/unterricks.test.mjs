@@ -240,3 +240,138 @@ test("unterricks: lokal (Tests) bereit an „*“ und lokale Herkunft erlaubt", 
   await h.settle();
   assert.deepEqual(h.replies(), [{ to: "opener", data: { kind: "feibeitsblatt-zwischenstand-angekommen", v: 1, ok: true }, target: "http://127.0.0.1:8790" }]);
 });
+
+/* importDraftPdf, escArrive und escLoad mit nachgebauter Umgebung: ihr Ergebnis wird die Antwort an Unterricks (ok: r === true) – true genau
+   dann, wenn danach der Schreibbereich (bei einer Überblick-PDF aus einem Escape-Room: die Angaben bzw. der Schreibbereich) offen ist; sonst
+   steht die Meldung auf der Startseite. Dieselben Funktionen nimmt auch „Zwischenstand-PDF hochladen“ (dort zählt das Ergebnis nicht). */
+const fnSrc = (head) => { const a = html.indexOf(head); assert.ok(a > 0, head); return html.slice(a, html.indexOf("\n}\n", a) + 3); };
+const IMPORT_SRC = fnSrc("async function importDraftPdf(file) {") + fnSrc("async function escArrive(hull, src) {") + fnSrc("async function escLoad(run) {");
+function importHarness(o = {}) {
+  return new Function("o", `
+let screen = "screen-start";
+const S = {}, ESC = { run: 0 }, CHK = { run: 0 }, LEGAL = { run: 0 }, subtle = o.noCrypto ? null : {}, els = {}, log = [];
+const $ = (id) => els[id] || (els[id] = { id, textContent: "", value: "x", classList: { add() {}, remove() {} }, focus() {} });
+const document = { activeElement: null };
+const busy = () => {}, setStatus = () => {}, fmtDT = (t) => String(t), ttKeepOptOut = (d) => d, escCheck = () => "ok";
+const showResume = () => log.push("showResume");
+const escDrop = () => { ESC.run++; };
+const resetStudent = () => { log.push("resetStudent"); screen = "screen-start"; };
+const show = (s) => { screen = s; };
+const readStartPdf = async (buf) => { log.push("read:" + buf.byteLength); if (o.readThrows) throw new Error(o.readThrows); return o.read; };
+const cleanDraft = (x) => (x && Array.isArray(x.answers) ? x : null);
+const fetchSheet = async (code) => { log.push("fetch:" + code); if (o.fetchError) throw o.fetchError; return { code, sheet: o.sheet }; };
+const useSheet = (x) => { S.code = x.code; S.sheet = x.sheet; };
+const escFromHull = () => o.escFromHull || null;
+const draftRaw = async () => (o.local ? JSON.stringify(o.local) : null);
+const askConfirm = (opts) => { log.push("ask:" + opts.title); if (o.onAsk) o.onAsk(ESC); return o.ask ? o.ask(opts) : Promise.resolve(true); };
+const openEditor = async () => { log.push("openEditor"); if (o.editorFails) { resetStudent(); return; } screen = "screen-editor"; };
+const openPerson = () => { log.push("openPerson"); screen = "screen-person"; };
+const startErr = (e) => "START " + (e && e.message);
+const errMsg = () => "NETZ.";
+const cleanEscape = (x) => (x && typeof x.code === "string" && x.room ? x : null);
+const escPerson = () => ({ complete: !!o.complete, person: { vorname: "Max", nachname: "Mu", geburtsdatum: "--05-04", klasse: "10b" } });
+const PDF_MAX_BYTES = 100, PDF_TOO_BIG = "ZU GROSS", PDF_NOT_DRAFT = "KEIN ZWISCHENSTAND", ESC_PDF_BAD = "ESC KAPUTT", ESC_NEED = "ESC NÖTIG",
+  NO_CRYPTO = "KEINE KRYPTO", ESC_LINK_BAD = "LINK KAPUTT", ESC_NOT_OPEN = "NICHT FREI", ESC_NO_SHEET = "KEIN BLATT", ESC_WRONG = "FALSCHER RAUM";
+${IMPORT_SRC}
+return { importDraftPdf, state: () => ({ screen, err: $("start-err").textContent, log, S, run: ESC.run }) };`)(o);
+}
+const PDF = () => new Blob(["%PDF-1.7 Zwischenstand"]);
+const DRAFT = () => ({ v: 1, kind: "feibeitsblatt-draft", t: 1000, code: "K7QM4X", person: { vorname: "Uma", nachname: "Re", geburtsdatum: "--06-11", klasse: "7c" }, answers: ["a", ""] });
+const SHEET = { tasks: [{}, {}], escape: null };
+const tick = () => new Promise((r) => setTimeout(r, 20));
+
+test("unterricks: importDraftPdf liefert true, sobald der Schreibbereich offen ist – sonst nicht (Meldung auf der Startseite)", async () => {
+  // Zwischenstand ohne Stand auf dem Gerät: Blatt laden, Schreibbereich mit dem Stand aus der Datei
+  let h = importHarness({ read: { kind: "draft", o: DRAFT() }, sheet: SHEET });
+  assert.equal(await h.importDraftPdf(PDF()), true);
+  assert.equal(h.state().screen, "screen-editor");
+  assert.deepEqual(h.state().S.importDraft.answers, ["a", ""]);
+  assert.deepEqual(h.state().log.filter((x) => /^(fetch|openEditor)/.test(x)), ["fetch:K7QM4X", "openEditor"]);
+  // nicht geklappt: Ergebnis nie true, die Meldung steht auf der Startseite
+  const fails = [
+    [{ noCrypto: true }, /Verschlüsselung/],
+    [{ size: 101 }, /^ZU GROSS$/],
+    [{ read: { kind: "" } }, /^KEIN ZWISCHENSTAND$/],
+    [{ readThrows: "kaputt" }, /^KEIN ZWISCHENSTAND$/],
+    [{ readThrows: "escape-bad" }, /^ESC KAPUTT$/],
+    [{ read: { kind: "draft", o: { kind: "feibeitsblatt-draft" } } }, /^KEIN ZWISCHENSTAND$/],
+    [{ read: { kind: "draft", o: DRAFT() }, sheet: { tasks: [{}] } }, /andere Anzahl Aufgaben/],
+    [{ read: { kind: "draft", o: DRAFT() }, sheet: { tasks: [{}, {}], escape: { id: "raum" } } }, /^ESC NÖTIG$/],
+    [{ read: { kind: "draft", o: DRAFT() }, fetchError: Object.assign(new Error("weg"), { code: "not_found" }) }, /^START weg$/],
+  ];
+  for (const [o, msg] of fails) {
+    h = importHarness({ sheet: SHEET, ...o });
+    const r = await h.importDraftPdf(o.size ? new Blob([new Uint8Array(o.size)]) : PDF());
+    assert.notEqual(r, true, JSON.stringify(o));
+    assert.match(h.state().err, msg, JSON.stringify(o));
+    assert.notEqual(h.state().screen, "screen-editor");
+    assert.ok(!h.state().log.includes("openEditor"));
+  }
+  // der Schreibbereich öffnet sich nicht (openEditor bricht ab): false
+  h = importHarness({ read: { kind: "draft", o: DRAFT() }, sheet: SHEET, editorFails: true });
+  assert.equal(await h.importDraftPdf(PDF()), false);
+  assert.equal(h.state().screen, "screen-start");
+});
+
+test("unterricks: neuerer Stand auf dem Gerät – das Ergebnis kommt erst nach der Rückfrage, true bei beiden Antworten; ein anderer Weg währenddessen → nicht true", async () => {
+  const local = { v: 1, t: 2000, answers: ["a", "später auf dem Gerät"] };
+  for (const [answer, imported] of [[true, true], [false, false], [null, false]]) {   // null: keine Antwort (ein anderer Dialog war offen)
+    let reply;
+    const h = importHarness({ read: { kind: "draft", o: DRAFT() }, sheet: SHEET, local, ask: () => new Promise((r) => { reply = r; }) });
+    let done = false, result;
+    const p = h.importDraftPdf(PDF()).then((r) => { done = true; result = r; });
+    await tick();
+    assert.ok(h.state().log.includes("ask:Neuerer Zwischenstand auf diesem Gerät"));
+    assert.equal(done, false, "kein Ergebnis, solange die Rückfrage offen ist");
+    assert.equal(h.state().screen, "screen-start");
+    reply(answer);
+    await p;
+    assert.equal(result, true, String(answer));
+    assert.equal(h.state().screen, "screen-editor");
+    assert.equal(h.state().S.importDraft === null, !imported, String(answer));   // null = der Stand vom Gerät
+  }
+  // ein älterer Stand auf dem Gerät: keine Rückfrage
+  let h = importHarness({ read: { kind: "draft", o: DRAFT() }, sheet: SHEET, local: { ...local, t: 500 } });
+  assert.equal(await h.importDraftPdf(PDF()), true);
+  assert.ok(!h.state().log.some((x) => x.startsWith("ask:")));
+  // während der Rückfrage ein anderer Weg von der Startseite (Code, „Weiterschreiben“ …): nichts geöffnet, Ergebnis nicht true
+  h = importHarness({ read: { kind: "draft", o: DRAFT() }, sheet: SHEET, local, onAsk: (esc) => { esc.run++; } });
+  assert.notEqual(await h.importDraftPdf(PDF()), true);
+  assert.ok(!h.state().log.includes("openEditor"));
+});
+
+test("unterricks: Überblick-PDF aus einem Escape-Room – true, sobald die Angaben bzw. der Schreibbereich offen sind, sonst nicht", async () => {
+  const rec = (x) => ({ code: "K7QM4X", room: { id: "raum", name: "Raum" }, ...x });
+  const hull = (r) => ({ kind: "feibeitsblatt-escape", v: 1, d: JSON.stringify(r), s: "0000000000000000" });
+  const esc = (r, x) => importHarness({ read: { kind: "escape", o: hull(r) }, sheet: { tasks: [{}], escape: { id: "raum", name: "Raum" } }, ...x });
+  // Angaben vorausgefüllt
+  let h = esc(rec());
+  assert.equal(await h.importDraftPdf(PDF()), true);
+  assert.equal(h.state().screen, "screen-person");
+  assert.deepEqual(h.state().log.filter((x) => /^(fetch|open)/.test(x)), ["fetch:K7QM4X", "openPerson"]);
+  // vollständige Angaben, aber noch kein Zwischenstand mit Text: auch die Angaben
+  h = esc(rec(), { complete: true, local: { v: 1, t: 1, answers: ["", " "] } });
+  assert.equal(await h.importDraftPdf(PDF()), true);
+  assert.equal(h.state().screen, "screen-person");
+  // vorhandener Zwischenstand derselben Person: direkt in den Schreibbereich
+  h = esc(rec(), { complete: true, local: { v: 1, t: 1, answers: ["Text"] } });
+  assert.equal(await h.importDraftPdf(PDF()), true);
+  assert.equal(h.state().screen, "screen-editor");
+  // … öffnet sich der Schreibbereich nicht: false
+  h = esc(rec(), { complete: true, local: { v: 1, t: 1, answers: ["Text"] }, editorFails: true });
+  assert.equal(await h.importDraftPdf(PDF()), false);
+  // nicht geklappt: Meldung auf der Startseite, Ergebnis nicht true
+  for (const [r, x, msg] of [
+    [rec({ code: "" }), {}, /^NICHT FREI$/],
+    [{ room: { id: "raum" } }, {}, /^ESC KAPUTT$/],
+    [rec(), { sheet: { tasks: [{}], escape: { id: "anderer-raum" } } }, /^FALSCHER RAUM$/],
+    [rec(), { sheet: { tasks: [{}], escape: null } }, /^FALSCHER RAUM$/],
+    [rec(), { fetchError: Object.assign(new Error("weg"), { code: "not_found" }) }, /^KEIN BLATT$/],
+    [rec(), { fetchError: Object.assign(new Error("Netz"), { code: "network" }) }, /^NETZ\. Deine Daten aus dem Escape-Room sind noch da – versuche es gleich noch einmal\.$/],
+  ]) {
+    h = esc(r, x);
+    assert.notEqual(await h.importDraftPdf(PDF()), true, JSON.stringify([r, x]));
+    assert.match(h.state().err, msg);
+    assert.equal(h.state().screen, "screen-start");
+  }
+});

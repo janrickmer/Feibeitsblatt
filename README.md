@@ -2060,13 +2060,16 @@ Kennzeichen `/FbEscape 1` in der Überblick-PDF. Einzelheiten, Grenzen und Testv
 **Übergabe aus Unterricks (v1):** Wählen Schüler:innen in Unterricks die Zwischenstand-PDF eines Feibeitsblattes aus einer
 früheren Sitzung, öffnet Unterricks diese Seite mit `#von-unterricks` in einem neuen Tab (mit `window.opener`). Die Seite entfernt
 den Hash sofort, meldet sich beim öffnenden Tab bereit (`{kind: "feibeitsblatt-bereit", v: 1}`, nur an
-`https://unterricks.janrickmer.de` und `https://unterricks.feindt.workers.dev`) und nimmt genau **eine** Nachricht
+`https://unterricks.janrickmer.de` und `https://unterricks.feindt.workers.dev`; läuft Feibeitsblatt selbst auf `127.0.0.1`/`localhost`,
+also nur in Tests, an „*“ – der Port einer lokalen Unterricks-Seite lässt sich nicht erkennen, die Nachricht enthält nichts außer `kind`
+und `v`) und nimmt genau **eine** Nachricht
 `{kind: "unterricks-zwischenstand", v: 1, pdf: ArrayBuffer}` an – nur vom öffnenden Tab, nur von diesen beiden Adressen (läuft
 Feibeitsblatt selbst auf `127.0.0.1`/`localhost`, also in Tests, auch von dort), nur auf der Startseite und höchstens 5 MB groß.
 Danach geht es denselben Weg wie „Zwischenstand-PDF hochladen“; die Antwort
 `{kind: "feibeitsblatt-zwischenstand-angekommen", v: 1, ok, grund?}` (`zu-gross`, `kein-pdf`, `beschaeftigt`) geht nur an den
 öffnenden Tab. Ohne den Hash oder ohne öffnenden Tab ändert sich nichts. Einzelheiten in `CLAUDE.md` („Zwischenstand-PDF aus
-Unterricks“), Unit-Test `test/unit/unterricks.test.mjs`, Browser-Test 3f (Unterricks als Attrappe). Änderungen an Adressen oder
+Unterricks“), Unit-Test `test/unit/unterricks.test.mjs`, Browser-Tests 3f und 3g (Unterricks als Attrappe; 3f unter einer lokalen
+Adresse, 3g unter den Adressen von Unterricks) sowie 7n (Überblick-PDF eines Escape-Rooms). Änderungen an Adressen oder
 Nachrichten nur gemeinsam mit Unterricks und mit einer neuen Version `v`.
 
 **YouTube-Videos:** Gespeichert wird je Aufgabe nur `videos: [{id, start?, title?}]` (nie eine URL); alle Adressen baut der
