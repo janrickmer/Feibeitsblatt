@@ -1259,7 +1259,13 @@ async function routeDraftDelete(c) {
 const liveRid = (code, room) => sha256Hex("live|" + code + "|" + room);
 function liveStub(env, rid) {
   if (!env.LIVE) throw new HttpError(503, "live_unavailable", MSG.liveOff);
-  const ns = typeof env.LIVE.jurisdiction === "function" ? env.LIVE.jurisdiction("eu") : env.LIVE;   // Speicherung und Ausführung in der EU
+  const ns = env.LIVE;
+  if (typeof ns.jurisdiction === "function") {
+    // Speicherung und Ausführung in der EU. Nur lokal (wrangler dev) gibt es keine Jurisdiktionen („… not implemented in workerd“):
+    // dort der einfache Namensraum. Jeder andere Fehler bleibt ein Fehler – sonst läge derselbe Raum plötzlich unter einer anderen Kennung.
+    try { const eu = ns.jurisdiction("eu"); return eu.get(eu.idFromName(rid)); }
+    catch (e) { if (!/not implemented in workerd/i.test(String((e && e.message) || ""))) throw new HttpError(503, "live_unavailable", MSG.liveOff); }
+  }
   return ns.get(ns.idFromName(rid));
 }
 const liveFetch = (env, rid, path, init) => liveStub(env, rid).fetch(new Request("https://live" + path, init));
@@ -1303,7 +1309,8 @@ async function routeLiveCreate(c) {
     await c.db.prepare("DELETE FROM live_rooms WHERE rid=?1").bind(rid).run().catch(() => {});
     throw new HttpError(503, "live_unavailable", MSG.liveOff);
   }
-  return json({ ok: true, createdAt: c.now, idleDays: LIVE.idleDays });
+  const made = await r.json().catch(() => null);
+  return json({ ok: true, createdAt: (made && made.createdAt) || c.now, idleDays: LIVE.idleDays });
 }
 async function routeLiveJoin(c) {
   const body = await readJson(c.request);

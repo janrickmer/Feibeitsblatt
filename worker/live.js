@@ -19,7 +19,8 @@
 //     {t:"set",k,v,base?}     Wert speichern; base = Version, auf der das Gerät aufsetzt (weicht sie ab → deny „stale“)
 //     {t:"claim",ks:[f…]}     KI-Feedback zu diesen Aufgaben anfragen  {t:"release",ks}  Anfrage gescheitert/abgebrochen
 //     {t:"claimsub"}          Abgabe beginnen                          {t:"unsub"}       Abgabe gescheitert/abgebrochen
-//     {t:"sub",attempt,receivedAt,sol?}   Abgabe ist angekommen (der Raum sieht in D1 nach) – Raum abschließen
+//     {t:"sub",attempt,sol?}  Abgabe ist angekommen – der Raum sieht in D1 nach (Kennung der Bearbeitung, stage final) und schließt ab.
+//                             Auch als Nachfrage geeignet („Hat schon jemand abgegeben?“, z. B. nach 409 final_locked): gibt es keine → deny „nosub“.
 //   Raum → Browser
 //     {t:"init",you,n,m:{createdAt,meta,tasks,idleDays,sub},st:{k:{v,ver}},lk:{k:[id,ms]},cl:{k:[id,ms]},sc:[id,ms]|null}
 //     {t:"peers",n}  {t:"pv",k,v,by,ms}  {t:"set",k,v,ver,by,ms?}  {t:"ack",k,ver}  {t:"lock",k,by|null,ms?}
@@ -140,10 +141,11 @@ export class LiveRoom {
     await this.store.setAlarm(now + IDLE_MS + 3600e3);
     return json({ ok: true, createdAt: now });
   }
-  // Nach der Abgabe: Gibt es sie (und das Blatt) noch? Sonst verschwinden die Lösungen für die PDF (Löschfrist der Lehrkraft) – der
-  // Vermerk „abgegeben“ bleibt. Kurz nach der Abgabe nicht nachsehen (die Zeile entsteht im selben Moment).
+  // Nach der Abgabe: Gibt es sie (und das Blatt) noch? Sonst verschwinden die Lösungen für die PDF (Löschfrist der Lehrkraft, oder
+  // die Lehrkraft hat den Eintrag gelöscht) – der Vermerk „abgegeben“ bleibt. Wurde die Abgabe beim Abschließen nicht in der Datenbank
+  // gesehen (sie war nicht erreichbar), in der ersten Minute nicht nachsehen.
   async checkSubmission(m, now) {
-    if (!m.sub || m.sub.gone || now - m.sub.at < 60e3 || !this.env || !this.env.DB) return m;
+    if (!m.sub || m.sub.gone || (!m.sub.ok && now - m.sub.at < 60e3) || !this.env || !this.env.DB) return m;
     let row;
     try {
       row = await this.env.DB.prepare(
@@ -231,7 +233,8 @@ export class LiveRoom {
       case "unlock": {
         if (!(a.l || []).includes(msg.k)) return;
         a.l = a.l.filter((k) => k !== msg.k); save();
-        if (!mine(msg.k)) this.broadcast({ t: "lock", k: msg.k, by: null });
+        // „frei“ nur melden, wenn die Aufgabe wirklich frei ist (eine abgelaufene eigene Sperre kann längst ein anderes Gerät halten)
+        if (!mine(msg.k) && !others.lock.has(msg.k)) this.broadcast({ t: "lock", k: msg.k, by: null });
         return;
       }
       case "set": return this.onSet(ws, a, msg, m, now, others, mine, save, deny);
@@ -271,14 +274,16 @@ export class LiveRoom {
       }
       case "sub": {   // Abgabe ist beim Server angekommen (POST /api/submit war erfolgreich): Raum abschließen
         if (m.sub) return deny({ sub: true, why: "submitted" });
-        if (typeof msg.attempt !== "string" || !ATTEMPT.test(msg.attempt) || !Number.isSafeInteger(msg.receivedAt) || msg.receivedAt <= 0) return deny({ sub: true, why: "bad" });
+        if (typeof msg.attempt !== "string" || !ATTEMPT.test(msg.attempt)) return deny({ sub: true, why: "bad" });
+        if (msg.receivedAt != null && !(Number.isSafeInteger(msg.receivedAt) && msg.receivedAt > 0)) return deny({ sub: true, why: "bad" });
         if (msg.sol != null && !isLiveValue(msg.sol, LIVE.solValue)) return deny({ sub: true, why: "bad" });
-        // Gibt es diese Abgabe wirklich? Dann zählt sie – auch von einer neuen Verbindung (das Gerät war beim Senden kurz getrennt).
-        // Ist die Datenbank gerade nicht erreichbar, genügt die Zusage dieser Verbindung („claimsub“).
-        const seen = await this.submissionSeen(m.code, msg.attempt, msg.receivedAt);
-        if (seen === false) return deny({ sub: true, why: "nosub" });
-        if (seen === null && !(a.s > 0)) return deny({ sub: true, why: "noclaim" });
-        m.sub = { attempt: msg.attempt, receivedAt: msg.receivedAt, at: now };
+        // Gibt es die Abgabe wirklich? Dann zählt sie – auch von einer neuen Verbindung (das Gerät war beim Senden kurz getrennt) oder
+        // von einem anderen Gerät (das abgebende Gerät wurde geschlossen, bevor es dem Raum Bescheid sagen konnte). Der Eingang kommt aus
+        // der Datenbank. Ist sie gerade nicht erreichbar, genügt die Zusage dieser Verbindung („claimsub“) mit dem gemeldeten Eingang.
+        const seen = await this.submissionSeen(m.code, msg.attempt);
+        if (seen === 0) return deny({ sub: true, why: "nosub" });
+        if (seen === null && !(a.s > 0 && msg.receivedAt)) return deny({ sub: true, why: "noclaim" });
+        m.sub = { attempt: msg.attempt, receivedAt: seen || msg.receivedAt, at: now, ok: seen ? 1 : 0 };
         const put = { m, t: now };
         let sol = null;
         if (msg.sol != null) { const cur = await this.store.get("k:sol"); sol = { v: msg.sol, ver: (cur ? cur.ver : 0) + 1 }; put["k:sol"] = sol; }
@@ -291,13 +296,13 @@ export class LiveRoom {
       default: return deny({ why: "unknown" });
     }
   }
-  // true/false = Abgabe (stage final) mit dieser Kennung und diesem Eingang liegt beim Blatt vor / nicht vor; null = nicht feststellbar
-  async submissionSeen(code, attempt, receivedAt) {
+  // Eingang (ms) der Abgabe (stage final) mit dieser Kennung bei diesem Blatt; 0 = es gibt keine; null = nicht feststellbar
+  async submissionSeen(code, attempt) {
     if (!this.env || !this.env.DB) return null;
     try {
-      const row = await this.env.DB.prepare("SELECT COUNT(*) AS n FROM submissions WHERE sheet_code=?1 AND attempt=?2 AND stage='final' AND received_at=?3")
-        .bind(code, attempt, receivedAt).first();
-      return row ? Number(row.n) > 0 : null;
+      const row = await this.env.DB.prepare("SELECT MAX(received_at) AS at, COUNT(*) AS n FROM submissions WHERE sheet_code=?1 AND attempt=?2 AND stage='final'")
+        .bind(code, attempt).first();
+      return row ? (Number(row.n) > 0 ? Number(row.at) : 0) : null;
     } catch { return null; }
   }
   async onSet(ws, a, msg, m, now, others, mine, save, deny) {

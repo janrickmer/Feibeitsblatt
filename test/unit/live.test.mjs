@@ -23,7 +23,7 @@ function fakeDb(state) {
     if (state.fail) throw new Error("D1 nicht erreichbar");
     if (/DELETE FROM live_rooms/.test(sql)) { state.registryDeleted.push(args[0]); return {}; }
     if (/AS sheet,/.test(sql)) return { sheet: state.sheet ? 1 : 0, sub: state.subs.filter((s) => s.attempt === args[1]).length };
-    if (/FROM submissions/.test(sql)) return { n: state.subs.filter((s) => s.attempt === args[1] && s.receivedAt === args[2]).length };
+    if (/FROM submissions/.test(sql)) { const hit = state.subs.filter((s) => s.attempt === args[1]); return { n: hit.length, at: hit.length ? Math.max(...hit.map((s) => s.receivedAt)) : null }; }
     if (/FROM sheets/.test(sql)) return { n: state.sheet ? 1 : 0 };
     throw new Error("unerwartete Abfrage: " + sql);
   };
@@ -129,6 +129,8 @@ test("Eine Person je Aufgabe: Sperre, Vorschau, Versionen; verschiedene Aufgaben
   assert.deepEqual(await a.send({ t: "lock", k: "a0" }), [{ t: "lock", k: "a0", by: idA, ms: LIVE.lockMs }]);
   b.take();
   assert.deepEqual(await b.send({ t: "set", k: "a0", v: val("B spät"), base: 2 }), [{ t: "deny", k: "a0", why: "locked", by: idA, cur: { v: val("Hallo B"), ver: 2 } }]);
+  // B gibt seine längst abgelaufene Sperre frei: niemand bekommt „frei“ gemeldet – A hält die Aufgabe
+  assert.deepEqual(await b.send({ t: "unlock", k: "a0" }), []); assert.deepEqual(a.take(), []);
   // Verbindung weg: ihre Sperren sind sofort frei, die anderen erfahren es
   await a.close();
   assert.deepEqual(b.take(), [{ t: "lock", k: "a0", by: null }, { t: "peers", n: 1 }]);
@@ -215,16 +217,16 @@ test("Abgabe nur einmal je Gruppe: Zusage, Prüfung in D1, Abschluss – danach 
   assert.deepEqual(await b.send({ t: "unsub" }), [{ t: "subclaim", by: null }]);
   assert.deepEqual(a.take(), [{ t: "subclaim", by: null }]);
   await b.send({ t: "claimsub" }); a.take(); b.take();
-  // „sub“ zählt nur, wenn es die Abgabe in D1 gibt (Kennung + Eingang, stage final)
-  const attempt = "0123456789abcdef", receivedAt = Date.now();
+  // „sub“ zählt nur, wenn es die Abgabe in D1 gibt (Kennung der Bearbeitung, stage final) – der Eingang kommt aus der Datenbank
+  const attempt = "0123456789abcdef", receivedAt = Date.now() - 1234;
   assert.deepEqual(await b.send({ t: "sub", attempt, receivedAt, sol: val("Lösungen") }), [{ t: "deny", sub: true, why: "nosub" }]);
-  for (const bad of [{ attempt: "xyz", receivedAt }, { attempt, receivedAt: "1" }, { attempt, receivedAt, sol: "kein base64!" }]) assert.equal((await b.send({ t: "sub", ...bad }))[0].why, "bad");
+  for (const bad of [{ attempt: "xyz", receivedAt }, { attempt, receivedAt: "1" }, { attempt, receivedAt: -5 }, { attempt, receivedAt, sol: "kein base64!" }]) assert.equal((await b.send({ t: "sub", ...bad }))[0].why, "bad");
   assert.equal(ctx.data.get("m").sub, null);
   state.subs.push({ attempt, receivedAt });
-  const got = await b.send({ t: "sub", attempt, receivedAt, sol: val("Lösungen") });
+  const got = await b.send({ t: "sub", attempt, receivedAt: 42, sol: val("Lösungen") });   // ein falsch gemeldeter Eingang zählt nicht
   const subMsg = { t: "sub", by: idB, sub: { receivedAt, at: Date.now(), gone: false }, sol: { v: val("Lösungen"), ver: 1 } };
   assert.deepEqual(got, [subMsg]); assert.deepEqual(a.take(), [subMsg]);
-  assert.deepEqual(ctx.data.get("m").sub, { attempt, receivedAt, at: Date.now() });
+  assert.deepEqual(ctx.data.get("m").sub, { attempt, receivedAt, at: Date.now(), ok: 1 });
   assert.equal(ctx.alarm, Date.now() + 86400e3, "nach der Abgabe täglich nachsehen");
   // danach: nichts mehr änderbar, keine zweite Abgabe; nur die Lösungen lassen sich erneuern (finale KI-Rückmeldung kam dazu)
   for (const [msg, why] of [[{ t: "lock", k: "a0" }, "submitted"], [{ t: "pv", k: "a0", v: val("x") }, "submitted"], [{ t: "set", k: "a0", v: val("x") }, "submitted"],
@@ -246,16 +248,21 @@ test("Abgabe von einer neuen Verbindung (kurz getrennt) zählt, wenn D1 sie kenn
   let a = await connect(r.room, r.ctx); a.take();
   assert.deepEqual(await a.send({ t: "set", k: "sol", v: val("zu früh") }), [{ t: "deny", k: "sol", why: "nosub" }]);
   const attempt = "fedcba9876543210", receivedAt = 1_799_999_000_000;
+  // Nachfrage ohne Abgabe („Hat schon jemand abgegeben?“): nosub, nichts ändert sich
+  assert.deepEqual(await a.send({ t: "sub", attempt }), [{ t: "deny", sub: true, why: "nosub" }]);
   state.subs.push({ attempt, receivedAt });
-  assert.equal((await a.send({ t: "sub", attempt, receivedAt }))[0].t, "sub");
-  assert.equal(r.ctx.data.has("k:sol"), false); assert.equal(r.ctx.data.get("m").sub.attempt, attempt);
-  // Datenbank nicht erreichbar: ohne Zusage abgelehnt, mit Zusage angenommen
+  const done = await a.send({ t: "sub", attempt });   // ohne Zusage, ohne Eingang, ohne Lösungen: die Datenbank entscheidet
+  assert.equal(done[0].t, "sub"); assert.equal(done[0].sub.receivedAt, receivedAt); assert.equal(done[0].sol, null);
+  assert.equal(r.ctx.data.has("k:sol"), false); assert.deepEqual({ ...r.ctx.data.get("m").sub, at: 0 }, { attempt, receivedAt, at: 0, ok: 1 });
+  // Datenbank nicht erreichbar: ohne Zusage abgelehnt, mit Zusage und gemeldetem Eingang angenommen
   state.fail = true;
   r = await newRoom({ env: { DB: fakeDb(state) } });
   a = await connect(r.room, r.ctx); a.take();
   assert.deepEqual(await a.send({ t: "sub", attempt, receivedAt }), [{ t: "deny", sub: true, why: "noclaim" }]);
   await a.send({ t: "claimsub" });
-  assert.equal((await a.send({ t: "sub", attempt, receivedAt }))[0].t, "sub");
+  assert.deepEqual(await a.send({ t: "sub", attempt }), [{ t: "deny", sub: true, why: "noclaim" }]);
+  const viaClaim = await a.send({ t: "sub", attempt, receivedAt });
+  assert.equal(viaClaim[0].t, "sub"); assert.equal(viaClaim[0].sub.receivedAt, receivedAt); assert.equal(r.ctx.data.get("m").sub.ok, 0);
   // ohne env.DB (reiner Protokolltest): ebenso
   r = await newRoom();
   a = await connect(r.room, r.ctx); a.take();
@@ -356,13 +363,23 @@ test("Aufräumen (Wecker): 30 Tage ohne Änderung → alles weg; Blatt gelöscht
   const init = c.take()[0];
   assert.deepEqual(init.m.sub, { receivedAt, at: ctx.data.get("m").sub.at, gone: true }); assert.equal("sol" in init.st, false);
   assert.deepEqual(await c.send({ t: "set", k: "sol", v: val("wieder da") }), [{ t: "deny", k: "sol", why: "nosub" }]);
-  // dasselbe beim Verbinden (ohne auf den Wecker zu warten); kurz nach der Abgabe wird nicht nachgesehen
+  // dasselbe beim Verbinden, sofort (ohne auf den Wecker zu warten): solange es die Abgabe gibt, bleiben die Lösungen
   state = dbState({ subs: [{ attempt, receivedAt: Date.now() }] });
   ({ room, ctx } = await newRoom({ env: { DB: fakeDb(state) } }));
   const d = await connect(room, ctx); d.take();
-  await d.send({ t: "sub", attempt, receivedAt: Date.now(), sol: val("Lösungen") });
-  state.subs = []; state.sql.length = 0;
+  await d.send({ t: "sub", attempt, sol: val("Lösungen") });
   let e = await connect(room, ctx);
+  assert.equal(e.take()[0].st.sol.ver, 1);
+  state.subs = [];   // die Lehrkraft löscht den Eintrag
+  e = await connect(room, ctx);
+  assert.equal(e.take()[0].m.sub.gone, true); assert.equal(ctx.data.has("k:sol"), false);
+  // wurde die Abgabe beim Abschließen nicht in der Datenbank gesehen (nicht erreichbar), wird in der ersten Minute nicht nachgesehen
+  state = dbState({ fail: true });
+  ({ room, ctx } = await newRoom({ env: { DB: fakeDb(state) } }));
+  const d2 = await connect(room, ctx); d2.take();
+  await d2.send({ t: "claimsub" }); await d2.send({ t: "sub", attempt, receivedAt: Date.now(), sol: val("Lösungen") });
+  state.fail = false; state.sql.length = 0;
+  e = await connect(room, ctx);
   assert.equal(e.take()[0].st.sol.ver, 1); assert.equal(state.sql.length, 0);
   mock.timers.tick(61e3);
   e = await connect(room, ctx);
@@ -372,8 +389,7 @@ test("Aufräumen (Wecker): 30 Tage ohne Änderung → alles weg; Blatt gelöscht
   ({ room, ctx } = await newRoom({ env: { DB: fakeDb(state) } }));
   const f = await connect(room, ctx); f.take();
   state.subs = [{ attempt, receivedAt: Date.now() }];
-  await f.send({ t: "sub", attempt, receivedAt: Date.now() });
-  mock.timers.tick(61e3);
+  await f.send({ t: "sub", attempt });
   const g = await connect(room, ctx);
   assert.equal(g.closed.code, CLOSE.gone); assert.equal(ctx.data.size, 0);
 });

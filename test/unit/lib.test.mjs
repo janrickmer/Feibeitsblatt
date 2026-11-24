@@ -227,8 +227,9 @@ test("rate-limit buckets never contain the IP; messages in German", async () => 
     { door: [10, 15], auth: [10, 15], auth_all: [200, 60], lookup_miss: [30, 10], feedback: [480, 60], feedback_chars: [1600000, 60],
       // sheet_feedback und submit am 17.11.2026 verdoppelt (KI-Feedback je Aufgabe: je Schüler:in bis zu n + 1 KI-Anfragen und Aufrufe)
       sheet_feedback: [1200, 1440], submit: [720, 60], submit_bytes: [60 * 1024 * 1024, 60], checklist: [60, 60],
-      draft: [300, 60], draft_bytes: [60 * 1024 * 1024, 60] });   // online gesicherte Zwischenstände (24.11.2026)
+      draft: [300, 60], live_create: [120, 60], draft_bytes: [60 * 1024 * 1024, 60] });   // online gesicherte Zwischenstände (24.11.2026)
   assert.match(rateMessage("draft", 120), /Zwischenstände online gesichert.*2 Minuten.*bleibt auf diesem Gerät gespeichert/);
+  assert.equal(rateMessage("live_create", 120), "Gerade wurden von diesem Netzwerk sehr viele Gruppenarbeiten gestartet. Bitte versucht es in etwa 2 Minuten erneut.");
   assert.match(rateMessage("auth", 61), /^Zu viele falsche Passwörter\. Mit dem richtigen Passwort .* in etwa 2 Minuten möglich\.$/);
   assert.equal(rateMessage("door", 30), "Zu viele Fehlversuche. Ein neuer Versuch ist in etwa 1 Minute möglich.");
   assert.match(rateMessage("lookup_miss", 120), /richtigen Code geht es weiter/);
