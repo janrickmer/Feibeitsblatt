@@ -557,6 +557,8 @@ test("draftcode: im Skript – online nur auf Klick; Reihenfolge auf der Startse
   assert.ok(ed.includes("const adopted = !!(importCode && importCode.code) && (!S.saveCode || (S.saveCode === importCode.code && importCode.at > S.savedOnlineAt));"));
   assert.ok(ed.includes("if (adopted) { S.saveCode = importCode.code; S.savedOnlineAt = importCode.at; S.savedOnlineUntil = importCode.until; }"));
   assert.ok(ed.includes("(imported || pendingLost || held || quotaOver || ttChanged || arrived || adopted) && !saveDraft();"));
+  // Lehrkraft: der Dialog „Feibeitsblatt löschen?“ sagt, dass online gesicherte Zwischenstände mit dem Blatt gelöscht werden
+  assert.ok(html.includes('" Auch Zwischenstände, die Schüler:innen zu diesem Feibeitsblatt online gesichert haben, werden dabei gelöscht (ihre Zwischenstand-PDF-Dateien bleiben)." +'));
   // Zurücksetzen: nichts bleibt für das nächste Blatt bzw. die nächste Person stehen
   assert.ok(body("function resetStudent() {", "\n}\n").includes('saveCode: "", savedOnlineAt: 0, savedOnlineUntil: 0, importFrom: "", importCode: null });'));
   assert.ok(body("function clearEditor() {", "\n}\n").includes('dcb.classList.add("hidden"); dcb.textContent = "";'));

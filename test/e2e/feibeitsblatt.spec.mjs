@@ -3260,7 +3260,7 @@ test("3h Online-Zwischenstand: „Zwischenstand sichern (online und als PDF-Date
   await expect(p2.locator("#save-state")).toHaveClass(/\bbad\b/);
   pdfStructure(pdf3, 10);
   expect(txt3).not.toContain("0.75 0.1 0.1 rg");
-  expect(pdfShownText(pdf3)).not.toMatch(/Zwischenstand-Code|online/i);
+  expect(pdfShownText(pdf3)).not.toMatch(/Zwischenstand-Code|online gesichert|Online liegt|weiterhin hochladen/);   // (der Titel des Blattes heißt „Online sichern“)
   expect(pdfShownText(pdf3).startsWith("Zwischenstand für ein Feibeitsblatt ")).toBe(true);
   expect(pdfShownText(pdf3)).toContain("Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.");
   // der Datensatz der Datei: der neue Stand, weiter mit dem Code (und dem Zeitpunkt des letzten gelungenen Sicherns) – sie bleibt hochladbar
@@ -3307,7 +3307,7 @@ test("3h Online-Zwischenstand: „Zwischenstand sichern (online und als PDF-Date
   await t.page.click("#b-res-back");
   await expect(t.page.locator("#t-sel-code")).toHaveText(shown);
   await t.page.click("#t-del-sheet");
-  await confirmDialog(t.page, "Feibeitsblatt löschen?");
+  expect(await confirmDialog(t.page, "Feibeitsblatt löschen?")).toContain("Der Code wird ungültig. Auch Zwischenstände, die Schüler:innen zu diesem Feibeitsblatt online gesichert haben, werden dabei gelöscht (ihre Zwischenstand-PDF-Dateien bleiben).");
   await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
   expect(await rowsOf()).toEqual([]);
   const s5 = await openPage(browser);

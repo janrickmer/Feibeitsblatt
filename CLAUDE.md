@@ -10,7 +10,9 @@ Lösungs-PDF) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); nach „Cod
 schlägt die KI eine Checkliste vor, die die Lehrkraft bestätigt; Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu dieser
 Checkliste drucken; ein Blatt kann auch das Finale eines Escape-Rooms sein (Ankunft per Link oder Überblick-PDF, siehe
-Escape-Room-Anbindung); eine Zwischenstand-PDF kann auch Unterricks direkt übergeben (siehe Zwischenstand-PDF aus Unterricks). Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
+Escape-Room-Anbindung); eine Zwischenstand-PDF kann auch Unterricks direkt übergeben (siehe Zwischenstand-PDF aus Unterricks); auf Klick
+„Zwischenstand sichern (online und als PDF-Datei)“ liegt der Zwischenstand zusätzlich verschlüsselt auf dem Server und lässt sich mit dem
+Zwischenstand-Code (rot oben in der PDF) auf der Startseite wieder laden (siehe Online-Zwischenstand). Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
 Schule; Seite „Impressum & Datenschutz“ (`#impressum`). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
 
@@ -121,6 +123,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   „Bitte wählen Sie eine Wartezeit von 30, 60 oder 90 Sekunden.“) → speichert settings `final` = `{v:1, waitSec}` → `{ok, finalWaitSec}`.
 - **Codes:** 6 Zeichen aus `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (≥ 1 Buchstabe, ≥ 1 Ziffer), Anzeige `K7Q-M4X`,
   Eingabe normalisieren (Großbuchstaben, nur `A–Z0–9`), Erzeugung mit `crypto.getRandomValues` ohne Modulo-Bias.
+  **Zwischenstand-Code** (siehe Online-Zwischenstand): 8 Zeichen aus demselben Alphabet (≥ 1 Buchstabe, ≥ 1 Ziffer), Anzeige `7KQM-4XWP`,
+  dieselbe Normalisierung; ihn erzeugt der **Browser** (`dcNew(rand)`), der Server bekommt ihn nie. Das Feld `#code-input` nimmt beide:
+  `startGo` → nur Ziffern = Türcode, 8 Zeichen = Zwischenstand-Code (`loadDraftByCode`), 6 Zeichen = Blatt-Code, sonst `DC_LEN_ERR`.
 - **D1-Schema:** `settings(key, value)` (`teacher` = `{authHash, kdf, publicKey, encPrivateKey}`, `ai`, `privacy`, `final` = `{v:1,
   waitSec}`), `sheets`,
   `submissions(id, sheet_code, received_at, envelope, stage TEXT DEFAULT 'final', attempt TEXT, final_at INTEGER, final_env TEXT)` + Indizes
@@ -173,7 +178,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   < `bodyBytes` (Unit-Tests in lib.test und photo.test).
   `/sheets` liefert `submissionCount` (nur `final`) und `firstCount`; die Abgabenliste liefert `stage`.
   `#p-klasse-hint` sagt es den Schüler:innen so: Angaben gehen mit dem KI-Feedback (Erstversuch), ohne KI-Feedback erst
-  bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe).
+  bei der Abgabe verschlüsselt an die Lehrkraft (Blatt ohne KI: nur bei der Abgabe); „Bis dahin bleibt dein Zwischenstand nur auf diesem
+  Gerät – außer du sicherst ihn selbst online.“ (`KLASSE_HINT_*`, vier Fassungen: mit/ohne KI, du/ihr; siehe Online-Zwischenstand).
   Lehrkraft-Ansicht: Kürzel `.st-final` (grün) / `.st-first` (orange, `#b85c00`), Legende `#t-subs-legend`,
   Zusammenfassung `subsSummary`; Erstversuche einer Person, die (anders) schon abgegeben hat, werden ausgeblendet
   (`T.subsHidden` = `[{id, who, s}]` per `subWho` – Klasse, Kürzel, Geburtstag; bei einer Gruppe Klasse + sortierte Kürzel, die
@@ -187,10 +193,18 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   ausgeblendeten Erstversuche derselben Person bzw. Gruppe und zuletzt die id selbst in Blöcken zu `DELETE_IDS_MAX` = `LIMITS.deleteIds` (50) – scheitert ein Block, bleibt der
   Rest unter der Abgabe –, lädt Liste und Zähler neu, Status in `#t-subs-status`) – so setzt die Lehrkraft Löschwünsche um.
   Nicht entschlüsselbare Einträge (`tr.errrow`) haben einen eigenen Knopf „Eintrag löschen“. Screenreader-Text in der Pfeilspalte, nie im Kürzel (Tests lesen die Zellen).
-- **Zwischenstand als PDF (ohne Bibliothek):** `makeDraftPdf(d)` baut eine A4-Seite (Helvetica/-Bold, WinAnsi,
-  `pdfStr` oktal-maskiert, Breiten aus `PDF_W_REG/BOLD` für den Umbruch) mit orangem Kasten, URI-Link-Annotation
+- **Zwischenstand als PDF (ohne Bibliothek):** `#ed-pdf` „Zwischenstand sichern (online und als PDF-Datei)“ (`DC_BTN`) sichert erst
+  online (siehe Online-Zwischenstand), dann baut `makeDraftPdf(d, withAi, escName, perTask, online)` eine A4-Seite (Helvetica/-Bold, WinAnsi,
+  `pdfStr` oktal-maskiert, Breiten aus `PDF_W_REG/BOLD` für den Umbruch) – mit `online = {code, at, until}` (Online-Speichern gelungen) **ganz
+  oben rot und fett** (`0.75 0.1 0.1 rg`, `/F2` 20 pt, über dem Titel) `dcPdfHead` „Zwischenstand-Code: XXXX-XXXX“, darunter rot (11 pt)
+  `dcPdfLine` „Mit diesem Code lädst du diesen Zwischenstand bis zum TT.MM.JJJJ auf der Startseite von Feibeitsblatt wieder – ohne die Datei
+  hochzuladen. Gib ihn dort in das Feld „Code“ ein.“ und unter „Bitte beachte“ `dcPdfSecret` (Datei und Code nicht weitergeben), `dcPdfFresh`
+  (online liegt der Stand vom Sichern, der Code bleibt derselbe) und `DC_PDF_UPLOAD` (die Datei bleibt hochladbar); ohne `online`
+  (gescheitert) sieht die Seite aus wie bisher (keine rote Zeile, die bisherigen Punkte). Weiter eine Seite (auch im ungünstigsten Fall:
+  langer Titel, Gruppe mit 10 Personen, Escape-Room, Fotos, Feedback je Aufgabe – Unit-Test), mit orangem Kasten, URI-Link-Annotation
   auf `PUBLIC_URL` (`window.FEIBEITSBLATT_PUBLIC`) und dem Datensatz (`draftRecord()` + `kind:"feibeitsblatt-draft"`,
-  `code`, `sheetTitle`, `person`) als UTF-8-JSON in einem `/Type /EmbeddedFile`-Stream mit Kennzeichen `/FbDraft 1`
+  `code`, `sheetTitle`, `person`; `draftRecord` trägt per `dcOut` zusätzlich `saveCode` und – nach gelungenem Online-Sichern –
+  `savedOnlineAt`/`savedOnlineUntil`) als UTF-8-JSON in einem `/Type /EmbeddedFile`-Stream mit Kennzeichen `/FbDraft 1`
   (zusätzlich im `/EmbeddedFiles`-Namensbaum, Info-Titel als UTF-16 `pdfUtf16`). `readStartPdf` (Block `PDFREAD`; liefert den Zwischenstand oder – Kennzeichen `/FbEscape 1` – die Hülle aus der Überblick-PDF eines Escape-Rooms) sucht die Kennzeichen
   im Latin-1-String, liest `/Length` (direkt oder Verweis, sonst bis `endstream`) und entpackt `FlateDecode` per
   `DecompressionStream` – neu gespeicherte PDFs bleiben lesbar; `cleanDraft` prüft wie die Eingabefelder (Code,
@@ -198,9 +212,10 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   oder beide `null`, `fbtPairs` – KI-Feedback nur zu einzelnen Aufgaben; ältere Dateien haben überall beide), `feedbackAts` per `fbtAts`,
   `firstSentSig` nur mit `firstSent`, `attempt`,
   Tippzeiten `typing` per `ttCleanDraft` nur passend, Widerspruch `ttOptOut`/`ttResend` per `ttDraftFlags` – dann `typing: null`, Fotos `photos` nur
-  als geprüfte JPEG-data:-URLs per `cleanPhoto`, an `answers` ausgerichtet). Startseite: `#start-pdf` →
-  `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB, Blatt laden, Aufgabenzahl prüfen, bei neuerem
-  lokalen Stand nachfragen; ein Widerspruch gegen die Tippzeit-Messung im lokalen Stand bleibt – `ttKeepOptOut`) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal;
+  als geprüfte JPEG-data:-URLs per `cleanPhoto`, an `answers` ausgerichtet, `saveCode`/`savedOnlineAt`/`savedOnlineUntil` nur in gültiger Form per `dcState`). Startseite: `#start-pdf` →
+  `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB) → ab dem geprüften Datensatz der gemeinsame Weg `openLoadedDraft(d, run, src)`
+  (auch für einen über den Zwischenstand-Code geladenen Stand, `src` `"pdf"` | `"code"`: Blatt laden, Aufgabenzahl prüfen, Escape-Hülle, bei neuerem
+  lokalen Stand nachfragen; ein Widerspruch gegen die Tippzeit-Messung im lokalen Stand bleibt – `ttKeepOptOut`) → `S.importDraft` (+ `S.importFrom`, `S.importCode`) → `openEditor` (importiert, speichert sofort lokal;
   `importDraftPdf` liefert `true`, wenn danach der Schreibbereich – bei einer Überblick-PDF die Angaben bzw. der Schreibbereich – offen ist; dieselbe
   Funktion nimmt die von Unterricks übergebene PDF, siehe Zwischenstand-PDF aus Unterricks). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
@@ -427,6 +442,14 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   der Abgabe unverändert, nur verschlüsselt, `stored:false` bei unbrauchbarem Schlüssel und scheiterndem D1, zwei gleichzeitige Anfragen →
   nur eine legt ab), `feedback2` → `kept`/`gone` ohne Ersetzen und Zählung (auch mit unterschobenen Antworten und bei Escape-Blättern),
   `final-wait` samt `finalWaitSec`, D1-Abfragen (siehe KI); ai unverändert.
+- **Krypto – online gesicherter Zwischenstand (nur im Browser, Block DRAFTCODE):** `dcDerive(subtle, code)`: `master` =
+  PBKDF2-HMAC-SHA256(Passwort UTF-8 `"feibeitsblatt/draft/v1|" + CODE8`, Salt UTF-8 `"feibeitsblatt/draft/v1"`, 600 000 Iterationen, 256 Bit);
+  daraus per HKDF-SHA256 (leeres Salt wie beim Lehrkraft-Zugang) `id` = hex(32 Byte, `info` `feibeitsblatt/draft/id/v1`) – nur sie geht an
+  den Server, der `sha256("draft|" + id)` speichert – und der AES-GCM-256-Schlüssel (`info` `feibeitsblatt/draft/enc/v1`, nicht exportierbar,
+  verlässt den Browser nie). Umschlag `{v:1, iv (12 Byte), ct}` (Standard-Base64) = AES-GCM über das UTF-8-JSON des Datensatzes der
+  Zwischenstand-PDF (`dcSeal`/`dcOpen`). **Parameter und `info`-Texte nie ändern** – sonst lädt kein Code mehr (neue Version nötig). Der
+  Code hat knapp 40 Bit: Schutz gegen Erraten über die API (`lookup_miss`) und gegen Mitlesen – wer die Datenbank hat, könnte Codes
+  durchprobieren; die Hinweise sagen deshalb nur „verschlüsselt, den Schlüssel bildet der Code“ (README, Online gesicherter Zwischenstand).
 - **Krypto (im Browser – Ausnahme unten; Server sieht nie Passwort oder Klartext-Abgaben):** PBKDF2-HMAC-SHA256, 600 000
   Iterationen, Salt 16 Byte → `master`; HKDF-SHA256 mit `info` `feibeitsblatt/enc/v1` (AES-GCM-256-Schlüssel) und
   `feibeitsblatt/auth/v1` (`authKey`; Server speichert nur SHA-256 hex, Vergleich in konstanter Zeit).
@@ -655,7 +678,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   es keine Blätter gibt (bestehende Installationen löschen erst nach dem ersten Speichern; „Passwort vergessen“ behält
   die Frist). Frist zählt ab `received_at` (Abgabe ersetzt Erstversuch → ab der Abgabe; ein Erstversuch, den ein weiteres KI-Feedback ersetzt → ab dem Ersetzen). Browser: `cleanPrivacy` (nur
   `{retentionDays}`), `privacyShortText(p, list, withAi, group, typing)` (Kurzfassung: „Verantwortlich ist <Betreiber> – Feibeitsblatt ist ein privates,
-  kostenloses Angebot.“, nennt den KI-Dienst – „… wenn du das KI-Feedback anforderst, und nach der Abgabe für die finale KI-Rückmeldung – außer
+  kostenloses Angebot.“, nach der Löschfrist der eine Satz zum online gesicherten Zwischenstand – „Nur wenn du deinen Zwischenstand online
+  sicherst, liegt auch er verschlüsselt auf dem Server – laden kann ihn nur, wer deinen Zwischenstand-Code kennt.“ (sonst stimmte „lesen kann
+  sie dort nur deine Lehrkraft“ nicht; siehe Online-Zwischenstand) –, nennt den KI-Dienst – „… wenn du das KI-Feedback anforderst, und nach der Abgabe für die finale KI-Rückmeldung – außer
   du wählst sie beim Abgeben ab.“; mit `typing` (`ttMeasured`) am Ende **genau der eine Satz `TT_SHORT`**, siehe unten; die finale
   KI-Rückmeldung nennen außerdem `FB2_SEND`/`PRIV_IHR.fb2Send` beim ersten KI-Dienst, `renderPrivacy`, „Wozu“, „Welche Daten“ (ob abgewählt),
   „Musst du“ (abwählbar) und „Entscheidet die KI“ – nie mit Tippzeit-Wörtern; `FB2_SEND`, `renderPrivacy` und der Cloudflare-Punkt sagen, dass
@@ -666,7 +691,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   einer Schule“, die Lehrkraft liest; Wozu (mit `TT_PURPOSE`: Tippzeiten machen den Schreibprozess sichtbar, die Lehrkraft sieht
   die Färbung **und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe)**, Ursachen für Rot samt
   „übernommener Korrekturvorschlag des Browsers“, Zweck `TT_USE`, kein Beweis, keine automatische Entscheidung, beim Schreiben
-  nicht angezeigt); Rechtsgrundlage als Liste: Bearbeiten/Abgeben/Zwischenstand/Erstversuch/Gruppe
+  nicht angezeigt); Rechtsgrundlage als Liste: Bearbeiten/Abgeben/Zwischenstand („(auch der online gesicherte)“, siehe Online-Zwischenstand)/Erstversuch/Gruppe
   **und das KI-Feedback, wenn du es anforderst, sowie die finale KI-Rückmeldung nach der Abgabe** Art. 6 Abs. 1 Buchst. b DSGVO („… forderst
   das KI-Feedback selbst an; die finale KI-Rückmeldung kannst du beim Abgeben abwählen.“; `ttOut`: „(bei Erstversuch und Abgabe außer den Tippzeiten darin, siehe
   nächster Punkt)“, ohne KI „(bei der Abgabe …)“, mit `TT_KEEP_IN_DRAFT` „(außer den Tippzeiten darin, …)“; bewusst keine
@@ -711,7 +736,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `p.privacy#p-privacy-photo` (Angaben-Bildschirm, nach `#p-privacy-yt`) bzw. `#privacy-photo` (Schreibbereich, nach `#privacy-yt`) und
   `privacyNoticeDom(…, {photos: true})` → `B.photoData` (`PHOTO_PRIV_DU`/`PHOTO_PRIV_IHR`) als Absatz unter „Welche Daten?“ **nach** den Absätzen
   zu Tippzeiten, Escape-Room und Videos (so bleibt `„Welche Daten?“ + p + p` = `TT_ACCESS`): Foto gehört zu den Antworten, nur eigene Arbeit,
-  verkleinert ohne EXIF, bis zur Abgabe im Zwischenstand (und in Zwischenstand-PDFs), an die Lehrkraft nur verschlüsselt mit der Abgabe, nie an
+  verkleinert ohne EXIF, bis zur Abgabe im Zwischenstand (und in Zwischenstand-PDFs; online gesichert verschlüsselt auch auf dem Server), an die Lehrkraft nur verschlüsselt mit der Abgabe, nie an
   eine KI (für KI-Anfragen nur der Vermerk `PHOTO_TEXT`, die Aufgabe nicht im Prompt); „Impressum & Datenschutz“: eigener Abschnitt
   `section#legal-photo` „Feibeitsblätter mit Foto-Aufgaben“ (`renderLegalPhoto`, allgemeine Form). Rechtsgrundlage wie die übrigen Antworten
   (das Foto ist Teil der Bearbeitung; im Zwischenstand wie die Texte unter § 25 Abs. 2 Nr. 2 TDDDG – kein eigener Listenpunkt). **Kurzfassungen:
@@ -748,7 +773,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   siehe Escape-Room-Anbindung; `#legal-privfull` bleibt dafür unverändert) und `section#legal-video` „Feibeitsblätter mit Videos von
   YouTube“ (allgemeine Form, siehe YouTube-Videos) und `section#legal-photo` „Feibeitsblätter mit Foto-Aufgaben“. Fußzeile `#pagefoot`: „Copyright …“ · `a#foot-legal` `href="#impressum"`, `target="_blank"`,
   `rel="noopener"`, sr-only „(öffnet in neuem Tab)“ (`.copyright a` klickbar trotz `pointer-events:none`; auf der Seite selbst
-  ausgeblendet per `body.on-legal`). Empfänger: Lehrkraft; Cloudflare (Sitz USA; betreibt
+  ausgeblendet per `body.on-legal`). Empfänger: Lehrkraft (einen online gesicherten Zwischenstand kann auch sie nicht lesen – `draftTeacher`); Cloudflare (ein online gesicherter Zwischenstand liegt dort verschlüsselt mit einem Schlüssel aus dem Zwischenstand-Code, den der Server nie erhält – `draftCloud`; Sitz USA; betreibt
   Server und Datenbank, nur die Datenbank liegt in der EU – **nie „Server in der EU“** schreiben, der Worker läuft im
   nächstgelegenen Cloudflare-Rechenzentrum; gespeichert nur verschlüsselt, für das KI-Feedback **kurz unverschlüsselt im
   Server, nicht gespeichert** – nie behaupten, Cloudflare sehe die Antworten nur verschlüsselt; die finale KI-Rückmeldung verschlüsselt der
@@ -761,7 +786,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   „vom Betreiber dieser Seite beim Anbieter zu prüfen“. `#start-privacy`: ein Satz zur IP beim Laden und der Verweis auf
   „Impressum & Datenschutz“ ganz unten (`#chk-privacy` ebenso). Speicherdauer nennt Time Travel „bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)“; den
   Zwischenstand auf dem Gerät beschreibt `DRAFT_STAY` (gelöscht nur beim nächsten Aufruf der Seite, `cleanupDrafts`) –
-  **nie „höchstens 7 Tage“ zusagen**. `renderPrivacy` und der ausführliche Hinweis dürfen sich nicht widersprechen. Lehrkraft: `#t-privacy` → `#tv-privacy` (`openPrivacy`;
+  **nie „höchstens 7 Tage“ zusagen** –, dahinter der online gesicherte (nur auf Klick; 30 Tage nach dem letzten Sichern, früher nach der Abgabe
+  oder mit dem Blatt, danach `BACKUP_DAYS` in der Datensicherung; siehe Online-Zwischenstand). Kein Hinweis darf mehr sagen, der Zwischenstand
+  liege *nur* auf dem Gerät, ohne diese Ausnahme zu nennen. `renderPrivacy` und der ausführliche Hinweis dürfen sich nicht widersprechen. Lehrkraft: `#t-privacy` → `#tv-privacy` (`openPrivacy`;
   oben schreibgeschützt `.opbox#pv-operator` „Verantwortlich (fest in index.html eingetragen)“ mit Betreiber und
   Aufsichtsbehörde, `#pv-operator-hint` mit Link auf `#impressum` (neuer Tab); nur noch `#pv-days` + `#pv-days-effect` aus
   `olderThan`; vor dem Löschen Dialog „Ältere Abgaben jetzt löschen?“ (danger); Fehler als „Nicht gespeichert – …“; `pvDirty`
@@ -1035,7 +1062,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `TT_KEEP_IN_DRAFT` (eingecheckt `false` – Entscheidung des Betreibers vom 27.10.2026, Annahme: Speichern der Tippzeiten im
   Zwischenstand bräuchte eine Einwilligung nach § 25 TDDDG; die Seite fragt keine ab): `false` = nur im
   Arbeitsspeicher (nach Neuladen oder Import einer Zwischenstand-PDF gilt der Text als „ohne Messung“), `ttDraftStrip` entfernt sie
-  beim Laden (`cleanupDrafts`); `true` = auch im Zwischenstand und in der Zwischenstand-PDF; die Datenschutztexte im Browser und
+  beim Laden (`cleanupDrafts`); `true` = auch im Zwischenstand und in der Zwischenstand-PDF – und damit verschlüsselt auch in einem online
+  gesicherten Zwischenstand (dessen Hinweise sagen nichts von Tippzeiten: dann anpassen); die Datenschutztexte im Browser und
   `#t-tt-none` folgen dem Schalter (siehe Datenschutz-Angaben), **beim Umlegen README (Tabelle, Rechtsgrundlagen, Abschnitt
   Tippzeiten, Elternbrief, Entwicklung) und diese Datei von Hand anpassen**. **Nutzlast** (Erstversuch/Abgabe, nur verschlüsselt, `payload.v` bleibt 1): `typing:{v:1,
   answers:[{first: B|"="|null, final: B|null}]}` (`"="` = gleicher Text und gleiche Werte wie final, ohne KI-Feedback immer,
@@ -1289,8 +1317,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Ablauf), 7g (Lehrkraft-Ansicht mit alten Abgaben/Erstversuchen). Der Server sieht den Geburtstag nie (nur im
   verschlüsselten Umschlag). Partner- und Gruppenarbeit fragt **keinen** Geburtstag ab (siehe unten); `adoptLegacyDraft`
   sucht nur für Einzelarbeit.
-- **Einzelarbeit / Partner- und Gruppenarbeit:** Nach gültigem Code (`startGo` → `openMode`, nicht bei „Weiterschreiben“ und
-  Zwischenstand-PDF) `#screen-mode` „Wie arbeitest du?“ mit `button.modebtn#mode-single` „Einzelarbeit“ / `#mode-group`
+- **Einzelarbeit / Partner- und Gruppenarbeit:** Nach gültigem Code (`startGo` → `openMode`, nicht bei „Weiterschreiben“,
+  Zwischenstand-Code und Zwischenstand-PDF) `#screen-mode` „Wie arbeitest du?“ mit `button.modebtn#mode-single` „Einzelarbeit“ / `#mode-group`
   „Partner- / Gruppenarbeit“ (Name per `aria-labelledby` auf `.mt`, Erklärzeile `.md` per `aria-describedby`; Fokus auf
   `#mode-single`), `#m-back` „← anderen Code eingeben“ (`resetStudent`). Beide führen zu `#screen-person` (`openPerson(group)`,
   `S.groupMode`; `#p-back` „← zurück zur Auswahl“ fokussiert die gewählte Form): Einzelarbeit unverändert (`#p-single`),
@@ -1527,7 +1555,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `escOverviewDom`), `button.desc-pdf` „Überblick als PDF herunterladen“ (`escPdfPages` mode `teacher`: Kürzel, Geburtstag ohne Jahr,
   Klasse, Prüfsummen-Satz, ohne Bestätigungscode und ohne Lösungserläuterungen; `Escape-Room-<Raum>-Ueberblick-<Code>-Eintrag-<id>.pdf`).
   Nur `textContent`/DOM-APIs. **Datenschutz:** `privacyShortText` bleibt unverändert (typing.test prüft ihn wörtlich); die Sätze zum
-  Escape-Room sind eigene Knoten ohne Tippzeit-Wörter: `p.privacy#p-privacy-esc` (`escPrivacyShort`) unter `#p-privacy-short`,
+  Escape-Room sind eigene Knoten ohne Tippzeit-Wörter (voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät – außer der
+  Zwischenstand wird online gesichert: dann liegen sie verschlüsselt mit darin; `escPrivacyShort`, `escPrivacyEditor`, `ESC_PRIV.stay` und
+  `PV_ESC_NOTE` sagen das, siehe Online-Zwischenstand): `p.privacy#p-privacy-esc` (`escPrivacyShort`) unter `#p-privacy-short`,
   `p#privacy-esc` (`escPrivacyEditor`) unter `#privacy`, `privacyNoticeDom(…, {escape: name})` (Option hinter `ttSwitch`) mit Absätzen
   bzw. Listenpunkten aus `ESC_PRIV` (Wozu; Welche Daten – nach dem `TT_ACCESS`-Absatz, mit der Rechtsgrundlage Buchst. b bzw. § 25
   Abs. 2 Nr. 2 TDDDG, die Liste „Rechtsgrundlage“ bleibt gleich; Lehrkraft samt „verschlüsselt bei Cloudflare gespeichert“ – der
@@ -1578,8 +1608,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `unterricksStandIn(context, url)` (Attrappe per `context.route`: öffnet wie Unterricks, wählt die Datei einmal und überträgt je Klick eine
   Kopie; Fehler und Anfragen aller Tabs des Kontexts per `context.on("weberror")`/`context.on("request")` von Anfang an – ein neuer Tab kann
   sein Skript ausgeführt haben, bevor das `page`-Ereignis im Test ankommt), E2E 3f (Attrappe unter einer lokalen Adresse `MOCK_URL` +
-  `/unterricks-attrappe/sitzung`, als fremde Herkunft `http://127.0.0.2:<MOCK_PORT>`; echte Zwischenstand-PDF aus „Zwischenstand als PDF-Datei
-  sichern“; zweiter Klick mit derselben Datei bei neuerem Stand auf dem Gerät → Rückfrage, Antwort erst danach, `ok:true` bei beiden
+  `/unterricks-attrappe/sitzung`, als fremde Herkunft `http://127.0.0.2:<MOCK_PORT>`; echte Zwischenstand-PDF aus „Zwischenstand sichern (online und als
+  PDF-Datei)“ – dabei genau ein `PUT /api/draft`, die Übergabe selbst schickt nichts dergleichen; zweiter Klick mit derselben Datei bei neuerem Stand auf dem Gerät → Rückfrage, Antwort erst danach, `ok:true` bei beiden
   Antworten), 3g (unter `https://unterricks.janrickmer.de`, fremd `https://unterricks.example.org` – ein Pop-up von einer öffentlichen
   Adresse auf 127.0.0.1; bleibt 3g beim Öffnen hängen, womöglich Chromiums „Local Network Access“; braucht die PDF aus 3f in `S.utPdf`), 7n
   (Überblick-PDF über die Attrappe → Angaben bzw. vorhandener Zwischenstand, `ok:true`; nicht freigeschaltet → `ok:false`). **Von Unterricks
@@ -1587,6 +1617,108 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   ersten Senden leer und ein zweiter Klick bekäme `kein-pdf` –, und nach den 10 s weiter auf eine späte Bereitschaft hören und dann noch senden
   (eine langsam ladende Seite bekäme den Zwischenstand sonst nie; der Rückfall-Satz steht im Tab von Unterricks, den die Schüler:innen gerade
   nicht sehen).
+- **Online-Zwischenstand mit Zwischenstand-Code (Wunsch des Betreibers vom 24.11.2026):** Schüler:innen sollen die Zwischenstand-PDF nicht
+  mehr herunter- und wieder hochladen müssen. **Entscheidungen des Betreibers:** online gespeichert wird **nur auf Klick** auf `#ed-pdf`
+  („Zwischenstand sichern (online und als PDF-Datei)“, `DC_BTN`), nie automatisch (`saveDraft`/`scheduleSave`/`openEditor` rufen nie die
+  API); **nicht mit dem Namen verknüpft** (an den Server gehen nur Kennung, Blatt-Code und Umschlag); ein Code je Bearbeitung;
+  30 Tage nach dem letzten Sichern, gelöscht auch mit dem Blatt und – best effort vom Browser – nach der Abgabe; „Abbrechen und
+  Zwischenstand von diesem Gerät löschen“ löscht den Online-Stand **nicht** (geteiltes Schul-iPad aufräumen, zu Hause mit dem Code
+  weiter); scheitert das Online-Speichern, entsteht die PDF trotzdem wie bisher. **Block `/* DRAFTCODE:BEGIN` … `/* DRAFTCODE:END */`**
+  (reine Funktionen nach dem Block ESCAPE – die Konstanten stehen vor den Datenschutztexten, die `DC_BTN`/`DC_DAYS` zitieren; kein
+  `$`/`S`/`h`/`document`/`api`; `test/unit/draftcode.test.mjs`): `DC_ALPHABET` (= Alphabet der Blatt-Codes), `DC_LEN` 8, `DC_RE`,
+  `DC_ID_RE` (= `DRAFT_ID_RE` in lib.js), `DC_DAYS` 30 (= `LIMITS.draftDays`), `dcNorm` (wie `normCode`), `dcValid` (8 Zeichen, ≥ 1
+  Buchstabe, ≥ 1 Ziffer), `dcFmt` (`XXXX-XXXX`), `dcNew(rnd)` (Bytes ≥ 248 verworfen – ohne Modulo-Bias; im Skript `dcNew(rand)`),
+  `dcState(o)` (fremde Daten → `{code, at, until}`: Code nur in gültiger Form, Zeitpunkte nur zusammen, Ganzzahlen, `until > at`),
+  `dcOut(code, at, until)` (so schreibt `draftRecord` sie: `saveCode`, nach gelungenem Sichern `savedOnlineAt`/`savedOnlineUntil`),
+  `dcTimes(r)` (Antwort des Servers), `dcDerive`/`dcSeal`/`dcOpen`/`dcEnvFits` (siehe Krypto; `subtle` und Zufallsquelle als Parameter),
+  `dcDay`/`dcDate`/`dcClock` (Ortszeit) und alle Texte. **Zustand:** `S.saveCode`, `S.savedOnlineAt`, `S.savedOnlineUntil` (ms; 0 = noch nie
+  online gesichert), im Zwischenstand gemerkt; `openEditor` liest sie nur über `dcState(d)` (lokaler Stand, PDF, geladener Stand),
+  `resetStudent` und die Abgabe leeren sie. **Sichern** (Klick-Handler von `#ed-pdf`, kein Dialog; Knopf währenddessen gesperrt
+  „Zwischenstand wird gesichert …“ – PBKDF2 und Netz dauern): `saveDraft()` → ohne Code `S.saveCode = dcNew(rand)` und sofort speichern →
+  `d` = Datensatz der PDF → `draftKeys(code8)` (`dcDerive`, je Code im Arbeitsspeicher gemerkt: `dcKeyCache`, ≤ 8, ein Fehlschlag nicht) →
+  `dcSeal` → passt der Umschlag nicht (`dcEnvFits`: `TT_ENV_MAX`, bei Blättern mit Foto-Aufgabe `PHOTO_ENV_MAX` – wie bei Abgaben), gar nicht
+  erst senden → `PUT /api/draft` `{id, code: Blatt-Code, envelope}` (Timeout 60 s) → `dcTimes` → `S.savedOnlineAt/-Until`, `saveDraft()`,
+  `renderDraftCode()` → PDF mit `online` (der Datensatz der Datei trägt dann auch Zeitpunkt und Frist; verschlüsselt wurde er ohne sie – sonst
+  gleich) → Statuszeile `dcSavedText` „Zwischenstand online und als PDF-Datei gesichert – dein Zwischenstand-Code: XXXX-XXXX“. Jeder Fehler
+  beim Online-Teil (`ApiError`, sonst `crypto`) → PDF ohne `online`, Statuszeile (als Fehler gefärbt) `dcFailText` „Zwischenstand nur als
+  PDF-Datei gesichert – online hat es nicht geklappt (<Grund>). Die Datei kannst du wie bisher unter „Zwischenstand-PDF hochladen“ hochladen.“
+  (`dcFailReason`: keine Verbindung / zu groß / zu viele Anfragen aus diesem Netz / schon sehr viele Zwischenstände zu diesem Blatt / Blatt
+  gibt es nicht mehr / nicht verschlüsselbar / „der Server hat ihn nicht angenommen“); ein früher online gesicherter Stand und seine Anzeige
+  bleiben. Die PDF enthält genau den Stand vom Klick (wer währenddessen weitertippt, hat das erst nach erneutem Sichern online). Wettläufe:
+  `dcGone` (Codes abgegebener Bearbeitungen) – kommt ein laufendes Sichern erst nach der Abgabe an, wird der Stand gleich wieder gelöscht,
+  keine PDF; wurde der Schreibbereich inzwischen verlassen („Abbrechen“), kommt nur noch die gewünschte Datei (kein Zustand, keine
+  Statuszeile – `same`). **Sichtbar im Schreibbereich:** `p#draft-code.notebox` (`role="status"`, in `header.sheet-head` vor
+  `#esc-updated`; `renderDraftCode`: erst einblenden, dann füllen – wie `liveFill`, mit `_seq`; nur Textknoten, der Code in `b.dcode`)
+  `dcNoteParts` „Zwischenstand-Code: XXXX-XXXX – online gesichert am TT.MM. um HH:MM Uhr, abrufbar bis TT.MM.JJJJ. Was du danach schreibst,
+  ist erst nach erneutem Sichern online.“ – sobald `S.saveCode` und beide Zeitpunkte da sind, also auch nach Neuladen/„Weiterschreiben“,
+  über Code oder PDF; `clearEditor` blendet ihn aus. **Laden** (Startseite): `.sub` „… – oder deinen Zwischenstand-Code.“, `#code-hint`
+  „6 Zeichen, z. B. K7Q-M4X. Dein Zwischenstand-Code (8 Zeichen, steht oben in deiner Zwischenstand-PDF) gehört auch hierher.“, der Hinweis
+  unter „Zwischenstand-PDF hochladen“ nennt den Code als einfacheren Weg. `loadDraftByCode(code8)`: kein möglicher Code → `DC_BAD` ohne
+  Anfrage; `escDrop()`, Lauf-Kennung `ESC.run` (ein späterer Weg von der Startseite gewinnt, eine späte Antwort ändert nichts), `#start-status`
+  `DC_LOADING`; `draftKeys` → `POST /api/draft/load` `{id}` (nur die Kennung) → 404 (`draft_not_found`, auch ein älterer Worker ohne Route) →
+  `DC_NOT_FOUND` „Zu diesem Zwischenstand-Code ist kein Zwischenstand gespeichert (mehr). Prüfe den Code – … 30 Tage … Hast du die
+  Zwischenstand-PDF noch, lade sie unter „Zwischenstand-PDF hochladen“ hoch.“, sonst `startErr` (Netz, 429 – unbekannte Codes zählen beim
+  Server als `lookup_miss`) → `dcOpen` → **`cleanDraft`** (die einzige Tür für geladene Datensätze) → nicht lesbar, kein Zwischenstand oder
+  ein anderer Blatt-Code als der des Servers → `DC_BROKEN` → `saveCode` = der eingegebene Code (auch wenn im Datensatz keiner oder ein
+  anderer stünde), Zeitpunkte vom Server → `openLoadedDraft(d, run, "code")` (siehe Zwischenstand als PDF; Rückfrage bei neuerem Stand auf
+  dem Gerät mit `dcNewerText`/`DC_NEWER_OK` „Online gesicherten Stand“) → `openEditor`: Statuszeile `DC_LOADED` „Online gesicherten
+  Zwischenstand übernommen“, sofort lokal gespeichert, derselbe Code gilt weiter (das nächste Sichern ersetzt den Online-Stand). Wird der
+  neuere Stand des Geräts weitergeführt, übernimmt er den Code des geladenen Stands, wenn er selbst keinen hat, und bei demselben Code den
+  späteren Zeitpunkt des Online-Sicherns (`S.importCode`, `adopted` → sofort speichern). **Nach der Abgabe** (`submitAll`, erst nach HTTP 200):
+  `dcGone.add`, `dropOnlineDraft(S.saveCode)` → `DELETE /api/draft` `{id}` – best effort, Fehler still (der Server löscht sonst nach 30
+  Tagen), der Code wird verworfen; auch ohne bekannten Online-Stand gesendet, sobald es einen Code gibt (er kann von einem anderen Gerät
+  stammen). Gibt jemand auf einem Gerät ab, das den Code nicht kennt (dort neu begonnen), bleibt der Online-Stand bis zur Frist – die
+  Hinweise sagen deshalb „von dem Gerät aus, auf dem du mit ihm weitergearbeitet hast“. **„Abbrechen“** (`#ed-cancel`): kein `DELETE`; der
+  Dialog hängt mit bekanntem Online-Stand `dcCancelText` an („ Dein online gesicherter Zwischenstand (Stand vom TT.MM. um HH:MM Uhr) wird
+  dabei nicht gelöscht: Mit deinem Zwischenstand-Code XXXX-XXXX kannst du ihn bis zum TT.MM.JJJJ auf der Startseite wieder laden.“), sonst
+  bleibt er wörtlich wie bisher; „Nein, Zwischenstand von diesem Gerät löschen“ (`#resume-del`) unverändert. **Lehrkraft:** sieht online
+  gesicherte Zwischenstände nie (nicht entschlüsselbar, keine Liste, keine Zahl); der Dialog „Feibeitsblatt löschen?“ sagt nach „Der Code
+  wird ungültig.“: „Auch Zwischenstände, die Schüler:innen zu diesem Feibeitsblatt online gesichert haben, werden dabei gelöscht (ihre
+  Zwischenstand-PDF-Dateien bleiben).“ **Was online liegt:** genau der
+  Datensatz der Zwischenstand-PDF – Antworten, Angaben (`person`), ggf. erste Fassung und KI-Feedback, Fotos, bei einem Escape-Room-Finale die
+  Hülle (voller Name, Geburtsdatum, Bestätigungscode), der Widerspruch gegen die Tippzeit-Messung als Vermerk; **keine Tippzeiten**, solange
+  `TT_KEEP_IN_DRAFT` aus ist (mit `true` stünden sie auch online – dann die Sätze hier und im README anpassen, sie sagen nichts von
+  Tippzeiten). Gilt für Einzelarbeit, Gruppen und Escape-Blätter gleich; die Übergabe aus Unterricks bleibt unverändert. **Datenschutztexte**
+  (nur so weit geändert, dass sie mit der neuen Möglichkeit wahr bleiben; keine Tippzeit-Wörter, nie „Server in der EU“):
+  `privacyShortText` – ein Satz nach der Löschfrist „Nur wenn du deinen Zwischenstand online sicherst, liegt auch er verschlüsselt auf dem
+  Server – laden kann ihn nur, wer deinen Zwischenstand-Code kennt.“ (ihr: „Nur wenn ihr euren Zwischenstand online sichert, … wer euren
+  Zwischenstand-Code kennt.“); `KLASSE_HINT_*` „… nur auf diesem Gerät – außer du sicherst ihn selbst online.“; `renderPrivacy` (nach „…
+  „Abbrechen und Zwischenstand löschen“ wählen.“): „Nur wenn du oben auf „<DC_BTN>“ klickst, wird er zusätzlich verschlüsselt auf dem Server
+  dieser Seite gespeichert, und du bekommst eine PDF-Datei mit deinem Zwischenstand-Code – … Den Schlüssel bildet der Code, den der Server nie
+  erhält: Wer den Code kennt, kann den Stand laden; … gib Datei und Code nicht weiter. Online wird der Stand 30 Tage nach dem letzten Sichern
+  gelöscht, schon vorher nach deiner Abgabe oder mit dem Feibeitsblatt; „Abbrechen und Zwischenstand löschen“ löscht ihn dort nicht.“ (der
+  frühere Halbsatz „mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen …“ ist darin aufgegangen); `DRAFT_STAY`/
+  `PRIV_IHR.draftStay` (Wie lange: dahinter „Nur wenn du auf „<DC_BTN>“ klickst, wird er zusätzlich verschlüsselt auf dem Server gespeichert.
+  Dort wird er 30 Tage nach dem letzten Sichern gelöscht – schon vorher, wenn du deine Arbeit abgibst (dann löscht ihn diese Seite von dem
+  Gerät aus, auf dem du mit ihm weitergearbeitet hast) oder wenn deine Lehrkraft das Feibeitsblatt löscht – und liegt danach noch
+  `BACKUP_DAYS` in der Datensicherung der Datenbank; „Abbrechen und Zwischenstand löschen“ löscht nur den Stand auf diesem Gerät. Die
+  PDF-Datei …, löschst du selbst.“); `DRAFT_ONLINE_DU` bzw. dieselben Schlüssel in `PRIV_IHR`: `draftPurpose` (Wozu, nach
+  `checkPurpose`), `draftTeacher` (am Ende des Lehrkraft-Punktes: „Einen Zwischenstand, den du online sicherst, kann auch sie nicht lesen
+  – ihn kann nur laden, wer deinen Zwischenstand-Code kennt.“), `draftCloud` (im Cloudflare-Punkt nach „… dort nur verschlüsselt.“:
+  Schlüssel aus dem Code im Browser gebildet, „den Code erhält der Server nie. Er speichert dazu nur den Code des Feibeitsblattes, den
+  Zeitpunkt und die Größe – keinen Namen.“, der Code steht auch in der PDF), `draftChoice` (Musst du …?: „Ob du deinen Zwischenstand online
+  sicherst, entscheidest du selbst – ohne deinen Klick bleibt er nur auf diesem Gerät.“), `draftRights` (Deine Rechte, nach „… löschst du
+  selbst.“: „Einen online gesicherten Zwischenstand kann auch der Betreiber nur mit deinem Zwischenstand-Code finden und löschen.“);
+  Rechtsgrundlage: erster Punkt „dein Zwischenstand (auch der online gesicherte)“ (Buchst. b, die Liste sonst unverändert – `privBases`
+  der E2E-Tests); Escape-Room (`escPrivacyShort` „… auf diesem Gerät – außer du sicherst deinen Zwischenstand online (dann liegen sie
+  verschlüsselt mit darin); …“, `escPrivacyEditor`, `ESC_PRIV.stay`, `PV_ESC_NOTE`) und Foto (`photoShort`, `photoData`, `#legal-photo`)
+  nennen, dass die Daten im online gesicherten Zwischenstand verschlüsselt mit auf dem Server liegen. `TT_SWITCH_SCOPE` ist unverändert
+  (bleibt wahr: ein nach dem Widerspruch gesicherter Stand bringt den Vermerk auf jedes Gerät mit). **Weiter vom Betreiber zu prüfen**
+  (README, „Online gesicherter Zwischenstand“): Buchst. b für das Online-Speichern (ein Knopf für beides – eine PDF ohne Online-Speichern
+  gibt es nur, wenn es scheitert), keine eigene Löschmöglichkeit vor Ablauf der 30 Tage außer der Abgabe, Escape-Daten im Online-Stand,
+  die Frist. **Tests:** Unit `draftcode.test.mjs` (Block ohne Abhängigkeiten, Alphabet/`DC_DAYS`/`DC_ID_RE` gegen lib.js, `dcNew` ohne
+  Bias, `dcState`/`dcOut`/`dcTimes`, Ableitung gegen `node:crypto`, Umschlag gegen `validateDraftEnvelope` samt Größengrenze, alle Texte
+  wörtlich und ohne Tippzeit-Wörter, `loadDraftByCode`/`openLoadedDraft` mit nachgebauter Umgebung und dem echten `cleanDraft` – falscher
+  Code, beschädigter Umschlag, anderes Blatt, 429, Rückfrage, später Weg –, `makeDraftPdf` mit/ohne `online` samt Aufbau und Seitenrand,
+  Stellen im Skript: nur auf Klick, Reihenfolge in `startGo`, `DELETE` nur nach der Abgabe, Datenschutztexte); `unterricks.test.mjs`
+  (`importDraftPdf` + `openLoadedDraft`); E2E 3h (eigenes Blatt ohne KI, wird gelöscht): Startseite, PUT-Body (`id` 64 Hex, `{v, iv, ct}`,
+  kein Klartext, nicht der Code), Statuszeile und `#draft-code`, Kennung und Inhalt unabhängig nachgerechnet/entschlüsselt, PDF (rote
+  Zeile zuerst, Datensatz samt `saveCode`), Zeile in `drafts` (nur `id, sheet_code, saved_at, bytes, data`), frisches Gerät mit dem Code
+  (klein, mit und ohne Bindestrich), erneutes Sichern ersetzt (dieselbe Kennung, eine Zeile), neuerer Stand auf dem Gerät → Rückfrage,
+  „Abbrechen“ mit `dcCancelText` (kein `DELETE`, der Code lädt wieder), falscher Code → `DC_NOT_FOUND`, PUT 500 und Netzfehler per
+  `page.route` → PDF ohne rote Zeile + Statuszeile, diese PDF hochgeladen (derselbe Code gilt weiter), Abgabe → `DELETE` `{id}` → Zeile
+  weg, Code lädt nichts mehr, Blatt gelöscht → Stände weg. Auch 3f (dort jetzt genau ein `PUT /api/draft`) und 2 (Statuszeile, `saveCode`
+  im Datensatz) laufen über den neuen Knopf.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
@@ -1599,8 +1731,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   stehen Größe und „herunterladen“ der Dateiknöpfe in eigener Zeile); im
   Schreibmodus scrollt nur `.paperwrap`, nichts liegt über der Schreibfläche (Abgeben ohne KI-Feedback: eigener Punkt
   unten). Zwischenstand in `localStorage` unter `feibeitsblatt:draft:<SHA-256>` (`draftKeyFor`: Code|Kürzel|Geburtstag|
-  Klasse, Gruppe Code|gruppe|sortierte Kürzel|Klasse; Schlüssel ohne Klartext-Angaben; 7 Tage), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite,
-  „Abbrechen und Zwischenstand löschen“ in der Topbar (der Dialog nennt einen schon gesendeten Erstversuch – „sie kann den Eintrag löschen“ – und bei laufender Anfrage „Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.“); alle Zugriffe in try/catch, nach Abgabe löschen. Was sich nicht
+  Klasse, Gruppe Code|gruppe|sortierte Kürzel|Klasse; Schlüssel ohne Klartext-Angaben; 7 Tage; nur auf Klick zusätzlich verschlüsselt auf dem Server, siehe Online-Zwischenstand), `feibeitsblatt:last` für „Weiterschreiben?“ auf der Startseite,
+  „Abbrechen und Zwischenstand löschen“ in der Topbar (der Dialog nennt einen schon gesendeten Erstversuch – „sie kann den Eintrag löschen“ –, bei laufender Anfrage „Was schon gesendet wurde, hat der KI-Dienst bereits erhalten.“ und einen online gesicherten Stand, der dabei bleibt – `dcCancelText`); alle Zugriffe in try/catch, nach Abgabe löschen. Was sich nicht
   speichern lässt (Speicher voll/gesperrt), hält `heldDrafts` im Arbeitsspeicher (neuer als der gespeicherte Stand; `draftStored`
   liest, `delDraft` löscht beides, `saveDraft` liefert `ok`; `openEditor` speichert so einen Stand sofort erneut und zeigt sonst
   `SAVE_FAILED`). Lehrkraft: Abmeldung nach 20 min ohne Eingabe; Abgaben-Listen seitenweise laden; fremde Payloads vor
@@ -1796,7 +1928,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `final_locked` zählen nie), `checklist` 60/h je IP (KI-Vorschlag der Checkliste – jedes neue Blatt fragt nach „Code generieren“ einmal –, Erstattung wie beim Feedback).
   Je Blatt höchstens 400 Abgaben / 40 MB (Umschläge samt `final_env`). Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
   als Pfeffer), IPv6 vorher auf /64 gekürzt (`ipKey`) – nie Klartext-IPs speichern. Schulnetz = eine IP für viele.
-- **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`; Antwortart Foto: `photo.test.mjs` liest den Block PHOTO – Grenzen gegen
+- **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`; Online-Zwischenstand: `draftcode.test.mjs` und E2E 3h, siehe dort; Antwortart Foto: `photo.test.mjs` liest den Block PHOTO – Grenzen gegen
   `LIMITS`, `cleanPhoto`, `jpegInfo`/`pdfPhotoOk`, `photoBudget` und ein echter Umschlag mit 1–3 größten Fotos samt 150 KB Text ≤
   `LIMITS.photoEnvelopeBytes` und Body ≤ `bodyBytes`; lib/ai/worker/typing.test für Validierung, Prompt, große Umschläge nur bei Foto-Blättern
   und die Liste nach Bytes – der Test zählt die Zeilen, die D1 liefert; Smoke-Schritt „Antwortart Foto“ gegen echtes D1; Übergabe aus Unterricks:

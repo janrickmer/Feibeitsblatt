@@ -9208,6 +9208,8 @@ $("t-del-sheet").addEventListener("click", async () => {
     title: "Feibeitsblatt löschen?",
     text: `„${title}“ (Code ${fmtCode(T.sel)}) wird ${(() => { const n = T.subs.length + T.subsHidden.length, f = T.subs.filter((s) => s.stage === "first").length + T.subsHidden.length;
       return n === 0 ? "" : n === 1 ? (f ? "mitsamt dem einen Erstversuch " : "mitsamt der einen Abgabe ") : `mitsamt allen ${n} ${f === 0 ? "Abgaben" : f === n ? "Erstversuchen" : "Abgaben und Erstversuchen"} `; })()}endgültig gelöscht. Der Code wird ungültig.` +
+      // online gesicherte Zwischenstände der Schüler:innen (DRAFTCODE) löscht der Server mit dem Blatt – ihre Zahl kennt die Seite nicht
+      " Auch Zwischenstände, die Schüler:innen zu diesem Feibeitsblatt online gesichert haben, werden dabei gelöscht (ihre Zwischenstand-PDF-Dateien bleiben)." +
       (esc ? ` Der Escape-Room „${esc.name}“ verweist mit seinem Arena-Tunnel auf diesen Code – danach meldet das Finale „kein Feibeitsblatt (mehr)“, bis Sie im Quelltext des Escape-Rooms einen neuen Code eintragen.` : ""),
     ok: "Feibeitsblatt löschen", cancel: "Abbrechen", danger: true
   });
