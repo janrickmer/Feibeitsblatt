@@ -2229,7 +2229,7 @@ async function liveOpen(subtle, key, text) {
   const pt = await subtle.decrypt({ name: "AES-GCM", iv: all.slice(0, 12) }, key, all.slice(12));
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(pt));
 }
-// Adresse des WebSockets: bei api === "" dieselbe Herkunft wie die Seite (ws: bzw. wss:), sonst die Worker-Adresse (https → wss)
+// Adresse der Live-Verbindung: bei api === "" dieselbe Herkunft wie die Seite (ws: bzw. wss:), sonst die Worker-Adresse (https → wss)
 function liveWsUrl(api, loc, code6, room) {
   const base = api ? String(api).replace(/^http/i, "ws").replace(/\/+$/, "") : (loc.protocol === "https:" ? "wss://" : "ws://") + loc.host;
   return base + "/api/live/ws?code=" + encodeURIComponent(code6) + "&room=" + encodeURIComponent(room);
@@ -2688,7 +2688,7 @@ function ttCleanPayload(t, answers) {
   try {
     if (!t || typeof t !== "object" || t.v !== 1) return null;
     if (t.optOut === true) return { optOut: true };
-    if (t.omitted === "too_large" || t.omitted === "error") return { omitted: t.omitted };
+    if (t.omitted === "too_large" || t.omitted === "error" || t.omitted === "live" || t.omitted === "group") return { omitted: t.omitted };
     if (!Array.isArray(t.answers) || !Array.isArray(answers) || t.answers.length !== answers.length) return null;
     const b = (x) => (typeof x === "string" && x.length <= TT_B64_MAX && x.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(x) ? x : null);
     return { list: answers.map((a, i) => {
@@ -2716,6 +2716,7 @@ function ttPctText(o) {
 }
 const TT_ZERO_NOTE = "Fast alle roten Zeichen kamen zusammen mit anderen in einem Zug (z. B. Wortvorschlag, Wischen, Autokorrektur, Diktat oder ein übernommener Korrekturvorschlag des Browsers).";
 const TT_OPTOUT_NOTE = "Tippzeiten: ohne Messung (widersprochen).";
+const TT_LIVE_NOTE = "Tippzeiten: ohne Messung (Live-Gruppenarbeit).", TT_GROUP_NOTE = "Tippzeiten: ohne Messung (Partner- oder Gruppenarbeit).";
 // Zweck der Färbung – derselbe Wortlaut im Datenschutzhinweis, im Hinweis der Lehrkraft (#t-tt-hint), in README und CLAUDE.md
 const TT_USE = "nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht";
 /* Zeile zum Rot-Anteil: head + Teile [{label, share}] → Stücke [{t, high}] (verkettet die Zeile; high = hervorgehoben). Ist ein Teil
@@ -2746,6 +2747,8 @@ function ttDetail(p, types, n, isFirst, noFb) {
   const ty = p.typing, one = (t) => [{ t, high: false }];
   if (!ty) { out.sum = one("Tippzeiten: ohne Messung (älterer Stand)."); return out; }
   if (ty.optOut) { out.sum = one(TT_OPTOUT_NOTE); return out; }   // widersprochen: keine Werte, keine Zeilen je Aufgabe
+  // Partner- und Gruppenarbeit: nie gemessen (live = an mehreren Geräten, group = ohne Live-Verbindung an einem Gerät)
+  if (ty.omitted === "live" || ty.omitted === "group") { out.sum = one(ty.omitted === "live" ? TT_LIVE_NOTE : TT_GROUP_NOTE); return out; }
   if (ty.omitted) { out.sum = one(ty.omitted === "too_large" ? "Tippzeiten: nicht übermittelt – die Abgabe wäre sonst zu groß gewesen." : "Tippzeiten: nicht übermittelt (technischer Fehler beim Senden)."); return out; }
   const nf = (i) => (Array.isArray(noFb) ? !!noFb[i] : !!noFb);   // diese Aufgabe ohne eigenes KI-Feedback?
   const none = Array.isArray(noFb) ? specs.every((t, i) => TT_UNTYPED.includes(t) || nf(i)) : !!noFb;   // ganzer Eintrag ohne KI-Feedback
@@ -4164,8 +4167,9 @@ const TT_ACCESS = (g, keep = TT_KEEP_IN_DRAFT, ai = true) => (g
   : "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus" +
     (keep ? `, hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis ${ai ? "zur Abgabe" : "dahin"} auch in deinem Zwischenstand in diesem Browser` : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
     " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.");
-// gemessen wird in Textfeldern und Tabellen – nie bei der Weltkarte und beim Foto (dort wird nichts getippt)
-const ttMeasured = (sh) => !(sh && Array.isArray(sh.answers) && sh.tasks && sh.tasks.length && sh.tasks.every((_, i) => sh.answers[i] && NO_TYPING_KINDS.has(sh.answers[i].type)));
+// gemessen wird in Textfeldern und Tabellen – nie bei der Weltkarte und beim Foto (dort wird nichts getippt) und nie bei Partner- und
+// Gruppenarbeit (group; Entscheidung des Betreibers vom 24.11.2026 – mehrere schreiben am selben Text)
+const ttMeasured = (sh, group) => !group && !(sh && Array.isArray(sh.answers) && sh.tasks && sh.tasks.length && sh.tasks.every((_, i) => sh.answers[i] && NO_TYPING_KINDS.has(sh.answers[i].type)));
 const TT_PURPOSE = (g) => (g
   ? " Beim Schreiben misst diese Seite außerdem die Tippzeiten – wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht –, um den Schreibprozess sichtbar zu machen: " +
     "Eure Lehrkraft sieht eure Antworten farbig markiert und den Anteil roter Zeichen in Prozent (je Aufgabe und für die ganze Abgabe); rot sind Zeichen, die sehr schnell oder zusammen mit anderen in einem Zug entstanden sind, zum Beispiel " +
@@ -5773,9 +5777,13 @@ function updateCounter(ta) {
  * Eingabeereignisses merkt der Capture-Listener „input“ (_evTs/_evType), abgeglichen wird in answerChanged (ttSync) – so laufen
  * Tippen, Komposition, Rückgängig und die Rücknahmen der Einfügesperre durch dieselbe Stelle. In „input“ nichts Schweres:
  * kodiert wird erst beim Speichern bzw. Senden (ttB64Of, gemerkt je Stand). Ein Fehler kostet höchstens die Messung, nie den Text. */
+// Keine Messung: nach einem Widerspruch und immer bei Partner- und Gruppenarbeit (auch ohne Live-Verbindung und bei älteren Gruppen-Ständen)
+const ttOff = () => S.ttOptOut || isGroup(S.person);
+// Nutzlast-Teil typing von Erstversuch und Abgabe einer Gruppe: ohne Werte – live (gemeinsam an mehreren Geräten) bzw. group; sonst null
+const ttGroupPayload = () => (isGroup(S.person) ? { v: 1, omitted: S.live ? "live" : "group" } : null);
 function ttSync(el) {   // Textfeld oder Tabellenzelle: Messung an den aktuellen Text angleichen
   if (!el || el.tagName !== "TEXTAREA" || el.classList.contains("measure")) return;
-  if (S.ttOptOut) { el._evTs = el._evType = undefined; return; }   // widersprochen: keine Messung (el._tt bleibt verworfen)
+  if (ttOff()) { el._evTs = el._evType = undefined; return; }   // widersprochen bzw. Gruppe: keine Messung (el._tt bleibt verworfen)
   const ev = el._evTs > 0, now = ev ? el._evTs : performance.now(), type = ev ? el._evType || "" : "";
   el._evTs = el._evType = undefined;
   if (!el._tt) el._tt = ttNew(el.value, null);   // ohne Messung, nie rot
@@ -5810,7 +5818,7 @@ function ttB64Of(t) {   // dasselbe als Base64, gemerkt je Stand des Feldes (sch
 function answersNow() {
   const texts = S.tas.map((t) => t.value);
   let typing;
-  try { typing = S.ttOptOut ? texts.map(() => null) : S.tas.map(ttB64Of); } catch (e) { typing = texts.map(() => null); }
+  try { typing = ttOff() ? texts.map(() => null) : S.tas.map(ttB64Of); } catch (e) { typing = texts.map(() => null); }
   return { texts, typing };
 }
 /* ---------- Widerspruch gegen die Tippzeit-Messung (Art. 21 DSGVO) ----------
@@ -6791,7 +6799,7 @@ document.addEventListener("beforeinput", (e) => {
 }, true);
 document.addEventListener("input", (e) => {
   const ta = answerOf(e.target); if (!ta) return;
-  if (!S.ttOptOut) { ta._evType = e.inputType || ""; ta._evTs = performance.now(); }   // Tippzeiten (nach einem Widerspruch nicht): abgeglichen wird in answerChanged (ttSync)
+  if (!ttOff()) { ta._evType = e.inputType || ""; ta._evTs = performance.now(); }   // Tippzeiten (nach einem Widerspruch und bei Gruppen nicht): abgeglichen wird in answerChanged (ttSync)
   if (e.isComposing || e.inputType === "insertCompositionText") return;   // während einer Komposition (IME, Diktat) nichts anfassen
   const t = e.inputType || "", prev = ta._ok === undefined ? "" : ta._ok;
   if (t === "historyUndo" || t === "historyRedo") { ta._ok = ta.value; return; }
@@ -7534,7 +7542,7 @@ async function sendFirstAttempt() {
     };
     const ats = fbtAtsOut(S.feedback, S.feedbackAts);   // Zeitpunkte je Aufgabe (nur bei Feedback zu einzelnen Aufgaben)
     if (ats) payload.feedbackAts = ats;
-    try { payload.typing = S.ttOptOut ? ttOptOutPayload() : { v: 1, answers: S.first.map((_, i) => ({ first: (S.firstTyping && S.firstTyping[i]) || null, final: null })) }; }
+    try { payload.typing = ttGroupPayload() || (S.ttOptOut ? ttOptOutPayload() : { v: 1, answers: S.first.map((_, i) => ({ first: (S.firstTyping && S.firstTyping[i]) || null, final: null })) }); }
     catch (e) { payload.typing = { v: 1, omitted: "error" }; }
     if (S.escape) payload.escape = escPayload(S.escape.rec, escCheck(S.escape.hull));   // Ergebnisse aus dem Escape-Room (ohne Personendaten)
     await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "first", attempt: att }));
@@ -8044,7 +8052,8 @@ async function submitAll() {
     if (offer) payload.finalWanted = wantFinal;
     // Tippzeiten (nur verschlüsselt, nie in S.lastSubmission): erste Fassung "=" bei gleichem Text und gleichen Werten (ohne KI-Feedback immer)
     try {
-      if (S.ttOptOut) payload.typing = ttOptOutPayload();   // widersprochen: keine Werte, die Lehrkraft sieht „ohne Messung (widersprochen)“
+      if (isGroup(S.person)) payload.typing = ttGroupPayload();   // Partner- und Gruppenarbeit: nie gemessen
+      else if (S.ttOptOut) payload.typing = ttOptOutPayload();   // widersprochen: keine Werte, die Lehrkraft sieht „ohne Messung (widersprochen)“
       else payload.typing = { v: 1, answers: now.texts.map((fin, i) => {
         const f = now.typing[i], ft = withFb && S.feedback[i] ? (S.firstTyping && S.firstTyping[i]) || null : f;
         return { first: ft != null && ft === f && payload.answers[i].first === fin ? "=" : ft, final: f };
