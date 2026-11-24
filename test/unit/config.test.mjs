@@ -40,6 +40,13 @@ test("wrangler.jsonc: Grundeinstellungen unverändert (D1 per Name, Assets mit r
   assert.equal(cfg.ai.binding, "AI"); assert.equal("gateway" in cfg.ai, false);
   assert.equal(cfg.compatibility_flags, undefined);   // kein nodejs_compat
 });
+test("wrangler.jsonc: Live-Gruppenarbeit – Durable Object LiveRoom als SQLite-Klasse (nur die gibt es im kostenlosen Tarif), vom Worker exportiert", async () => {
+  assert.deepEqual(cfg.durable_objects, { bindings: [{ name: "LIVE", class_name: "LiveRoom" }] });
+  assert.deepEqual(cfg.migrations, [{ tag: "v1", new_sqlite_classes: ["LiveRoom"] }]);   // nie ändern – neue Klassen bekommen einen neuen Eintrag
+  assert.equal(JSON.stringify(cfg.migrations).includes("new_classes"), false);
+  const src = readFileSync(new URL("../../worker/index.js", import.meta.url), "utf8");
+  assert.match(src, /^export \{ LiveRoom \};/m);
+});
 
 /* ---------- Content-Security-Policy: _headers (Worker) und <meta http-equiv> in index.html (GitHub Pages; am Worker gelten beide –
    eine Quelle muss in beiden erlaubt sein) ---------- */
@@ -61,9 +68,12 @@ test("CSP: frame-src nur https://www.youtube-nocookie.com – in _headers und im
   }
 });
 test("CSP: _headers und Meta-Tag gleich – bis auf connect-src (Worker-Adresse) und frame-ancestors (nur als Header möglich)", () => {
-  assert.deepEqual(headerCsp["connect-src"], ["'self'", "https://api.languagetool.org"]);
+  // Live-Gruppenarbeit: WebSocket zum Worker. 'self' deckt wss:// derselben Adresse nach CSP 3 ab, ältere Browser brauchen den
+  // ausdrücklichen Eintrag; auf GitHub Pages (nur Meta-Tag) geht es ohnehin nur mit ihm – „https://…“ erlaubt kein „wss://…“.
   assert.ok(workerUrl && /^https:\/\//.test(workerUrl));
-  assert.deepEqual(metaCsp["connect-src"], ["'self'", "https://api.languagetool.org", workerUrl]);   // Worker-Adresse hier und im Skript gleich
+  const wsUrl = workerUrl.replace(/^https:/, "wss:");
+  assert.deepEqual(headerCsp["connect-src"], ["'self'", "https://api.languagetool.org", wsUrl]);
+  assert.deepEqual(metaCsp["connect-src"], ["'self'", "https://api.languagetool.org", workerUrl, wsUrl]);   // Worker-Adresse hier und im Skript gleich
   assert.deepEqual(headerCsp["frame-ancestors"], ["'none'"]); assert.equal("frame-ancestors" in metaCsp, false);
   const rest = (csp) => Object.fromEntries(Object.entries(csp).filter(([k]) => k !== "connect-src" && k !== "frame-ancestors"));
   assert.deepEqual(rest(metaCsp), rest(headerCsp));

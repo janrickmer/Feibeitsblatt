@@ -81,6 +81,7 @@ export const LIMITS = {
   submissionsPerSheet: 400,        // Schutz vor Vollschreiben der Datenbank (eine Klasse braucht ≤ ~100)
   // Online gesicherte Zwischenstände (auf Klick „Zwischenstand sichern“, siehe validateDraftEnvelope): je Blatt, Tage ab dem letzten Sichern
   draftsPerSheet: 600, draftSheetBytes: 40 * 1024 * 1024, draftDays: 30,
+  liveRoomsPerSheet: 300,          // Live-Gruppenarbeit: Räume (Gruppen) je Blatt
   sheetBytes: 40 * 1024 * 1024,    // Summe aller Umschläge je Blatt
   submissionsPage: 50,             // Abgaben je Seite der Lehrkraft-Liste (Arbeitsspeicher des Workers)
   deleteIds: 50,                   // Einträge je Löschauftrag einer Person (DELETE …/submissions mit {ids}; gebunden ≤ 100 Parameter)
@@ -865,6 +866,7 @@ export const RATE = {
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
   checklist: { max: 60, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste je IP (Lehrkraft; jedes neue Blatt fragt einmal)
   // Online gesicherte Zwischenstände je IP (nur auf Klick der Schüler:innen; eine Klasse sichert am Stundenende etwa 30-mal)
+  live_create: { max: 120, windowMs: 3600e3 },     // Live-Gruppenarbeit: neu angelegte Gruppen je IP (eine Klasse: etwa 15)
   draft: { max: 300, windowMs: 3600e3 },
   draft_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
 };
@@ -878,6 +880,7 @@ export function rateMessage(kind, retryAfter) {
     case "feedback": case "feedback_chars": return "Gerade wurden von diesem Netzwerk sehr viele KI-Rückmeldungen angefordert. Bitte versuche es in etwa " + t + " erneut.";
     case "sheet_feedback": return "Für dieses Feibeitsblatt wurden heute schon sehr viele KI-Rückmeldungen angefordert. Bitte sag deiner Lehrkraft Bescheid.";
     case "submit": case "submit_bytes": return "Gerade wurden von diesem Netzwerk sehr viele Abgaben gesendet. Bitte versuche es in etwa " + t + " erneut – deine Antworten bleiben auf diesem Gerät gespeichert.";
+    case "live_create": return "Gerade wurden von diesem Netzwerk sehr viele Gruppenarbeiten gestartet. Bitte versucht es in etwa " + t + " erneut.";
     case "draft": case "draft_bytes": return "Gerade wurden von diesem Netzwerk sehr viele Zwischenstände online gesichert. Bitte versuche es in etwa " + t + " erneut – dein Zwischenstand bleibt auf diesem Gerät gespeichert.";
     case "checklist": return "Gerade wurden sehr viele Checklisten bei der KI angefragt. Bitte versuchen Sie es in etwa " + t + " erneut – Sie können die Punkte auch selbst eintragen.";
     default: return "Zu viele Anfragen. Bitte versuche es in etwa " + t + " erneut.";
