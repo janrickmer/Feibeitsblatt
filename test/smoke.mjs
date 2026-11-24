@@ -57,6 +57,26 @@ export async function openEnvelope(privateKey, env) {
   return JSON.parse(td.decode(await subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, k, unb64(env.ct))));
 }
 
+/* Online gesicherter Zwischenstand: Kennung und Schlüssel aus dem Zwischenstand-Code (8 Zeichen), genau wie im Browser –
+   PBKDF2-HMAC-SHA256 (600 000 Iterationen, Passwort "feibeitsblatt/draft/v1|" + Code, Salt "feibeitsblatt/draft/v1"), daraus per
+   HKDF-SHA256 die Kennung (64 Hex, geht an den Server) und der AES-GCM-Schlüssel (verlässt den Browser nie). */
+export async function deriveDraftKeys(code8, iterations = 600000) {
+  const base = await subtle.importKey("raw", te.encode("feibeitsblatt/draft/v1|" + code8), "PBKDF2", false, ["deriveBits"]);
+  const master = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: te.encode("feibeitsblatt/draft/v1"), iterations }, base, 256);
+  const hk = await subtle.importKey("raw", master, "HKDF", false, ["deriveBits", "deriveKey"]);
+  const idRaw = await subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode("feibeitsblatt/draft/id/v1") }, hk, 256);
+  const key = await subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode("feibeitsblatt/draft/enc/v1") },
+    hk, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  return { id: Buffer.from(idRaw).toString("hex"), key };
+}
+export async function sealDraft(key, record) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  return { v: 1, iv: b64(iv), ct: b64(await subtle.encrypt({ name: "AES-GCM", iv }, key, te.encode(JSON.stringify(record)))) };
+}
+export async function openDraft(key, env) {
+  return JSON.parse(td.decode(await subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, key, unb64(env.ct))));
+}
+
 /* ---------- Durchlauf ---------- */
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -704,6 +724,36 @@ async function main() {
     }
     ok("Antwortart Foto: {type:\"photo\"} ohne Auftrag an die KI (höchstens 3 je Blatt); Umschläge über 400 KB nur bei Blättern mit Foto-Aufgabe, entschlüsselt unverändert");
 
+    step = "Online-Zwischenstand";
+    {
+      // wie im Browser: Kennung und Schlüssel aus dem Zwischenstand-Code; der Server bekommt nur die Kennung und den Umschlag
+      const dk = await deriveDraftKeys("K7QM4X2P");
+      assert.match(dk.id, /^[0-9a-f]{64}$/);
+      assert.equal((await deriveDraftKeys("K7QM4X2P")).id, dk.id); assert.notEqual((await deriveDraftKeys("K7QM4X2Q")).id, dk.id);
+      const rec = { kind: "feibeitsblatt-draft", v: 1, code, sheetTitle: "Smoke", person: { vorname: "Ida", nachname: "Fo", geburtsdatum: "--03-04", klasse: "7a" },
+        answers: ["Zwischenstand-Marker-Qx7 online", ""], saveCode: "K7QM4X2P" };
+      r = await api("PUT", "/api/draft", { id: dk.id, code, envelope: await sealDraft(dk.key, rec) });
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.days, 30); assert.equal(r.json.expiresAt - r.json.savedAt, 30 * 86400e3);
+      r = await api("POST", "/api/draft/load", { id: dk.id });
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.code, code);
+      assert.deepEqual(await openDraft(dk.key, r.json.envelope), rec);
+      assert.equal(/Zwischenstand-Marker|K7QM4X2P|"vorname"/.test(r.text), false, "Antwort nur verschlüsselt");
+      // erneutes Sichern ersetzt; ein anderer Code findet nichts (zählt als unbekannter Code); Löschen nur mit der Kennung
+      const rec2 = { ...rec, answers: ["Zwischenstand-Marker-Qx7 zweite Fassung", "x"] };
+      assert.equal((await api("PUT", "/api/draft", { id: dk.id, code, envelope: await sealDraft(dk.key, rec2) })).status, 200);
+      r = await api("POST", "/api/draft/load", { id: dk.id });
+      assert.deepEqual(await openDraft(dk.key, r.json.envelope), rec2);
+      expectErr(await api("POST", "/api/draft/load", { id: (await deriveDraftKeys("K7QM4X2Q")).id }), 404, "draft_not_found"); misses++;
+      expectErr(await api("PUT", "/api/draft", { id: dk.id, code: "ZZZ999", envelope: await sealDraft(dk.key, rec) }), 404, "not_found");
+      expectErr(await api("PUT", "/api/draft", { id: "kurz", code, envelope: await sealDraft(dk.key, rec) }), 400, "bad_request");
+      const gone = await deriveDraftKeys("M4X2PK7Q");
+      assert.equal((await api("PUT", "/api/draft", { id: gone.id, code, envelope: await sealDraft(gone.key, rec) })).status, 200);
+      assert.deepEqual((await api("DELETE", "/api/draft", { id: gone.id })).json, { ok: true, deleted: 1 });
+      expectErr(await api("POST", "/api/draft/load", { id: gone.id }), 404, "draft_not_found"); misses++;
+      // der erste Stand bleibt für die Prüfung „Datenbank ohne Klartext“ gespeichert
+    }
+    ok("Online-Zwischenstand: Kennung und Schlüssel aus dem Zwischenstand-Code (PBKDF2 + HKDF), gespeichert und geladen nur verschlüsselt, erneutes Sichern ersetzt, Löschen");
+
     step = "Erstversuch";
     const attempt = "0123456789abcdef";
     const firstPayload = { ...payload, stage: "first", answers: payload.answers.map((a) => ({ first: a.final, final: null })), submittedAt: null };
@@ -812,7 +862,7 @@ async function main() {
     for (const f of await filesUnder(STATE)) {
       const buf = await readFile(f).catch(() => null); if (!buf) continue;
       scanned++;
-      for (const needle of ["Zebrafink-Marker", "Ergänzt-Marker", '"geburtsdatum"', '"apiKey":"test"', '"apiKey":']) {
+      for (const needle of ["Zebrafink-Marker", "Ergänzt-Marker", "Zwischenstand-Marker-Qx7", "K7QM4X2P", '"geburtsdatum"', '"apiKey":"test"', '"apiKey":']) {
         assert.equal(buf.includes(Buffer.from(needle)), false, needle + " im Klartext in " + f);
       }
       for (const needle of Object.keys(control)) if (buf.includes(Buffer.from(needle))) control[needle]++;

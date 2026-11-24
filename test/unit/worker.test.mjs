@@ -1441,6 +1441,127 @@ test("Wartezeit auf die finale KI-Rückmeldung: PUT /api/teacher/final-wait nur 
   }
 });
 
+test("Online-Zwischenstand (PUT/POST load/DELETE /api/draft): nur verschlüsselt unter sha256(Kennung), ohne Namen; erneutes Sichern ersetzt; 30 Tage; Grenzen je Blatt und IP; gelöscht mit dem Blatt", async () => {
+  const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const rnd = (n) => { const u = new Uint8Array(n); for (let i = 0; i < n; i += 65536) crypto.getRandomValues(u.subarray(i, Math.min(n, i + 65536))); return u; };
+  const env = (bytes) => ({ v: 1, iv: b64(rnd(12)), ct: b64(rnd(bytes)) });
+  const rows = (c) => d1.db.prepare("SELECT id, sheet_code, saved_at, bytes, data FROM drafts WHERE sheet_code=? ORDER BY saved_at, id").all(c).map((r) => ({ ...r }));
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Online-Zwischenstand", tasks } });
+  assert.equal(r.status, 200, r.text); const c = r.json.code;
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Mit Foto", tasks: [{ text: "Foto vom Plakat", answer: { type: "photo" } }] } });
+  assert.equal(r.status, 200, r.text); const cPhoto = r.json.code;
+  const id = hex(32), e1 = env(900), ip = "203.0.113.150";
+  // Eingaben: Kennung 64 Hex, Blatt muss existieren, Umschlag {v:1, iv (12 Byte), ct} – unbekannte Felder werden nicht gespeichert
+  for (const [body, status, codeWant] of [
+    [{ id: "abc", code: c, envelope: e1 }, 400, "bad_request"], [{ id: id.toUpperCase(), code: c, envelope: e1 }, 400, "bad_request"],
+    [{ id, code: "ZZZ999", envelope: e1 }, 404, "not_found"], [{ id, code: c }, 400, "bad_envelope"],
+    [{ id, code: c, envelope: { v: 2, iv: e1.iv, ct: e1.ct } }, 400, "bad_envelope"], [{ id, code: c, envelope: { v: 1, iv: "AAAA", ct: e1.ct } }, 400, "bad_envelope"],
+    [{ id, code: c, envelope: { v: 1, iv: e1.iv, ct: "kein base64!" } }, 400, "bad_envelope"],
+  ]) {
+    r = await call("PUT", "/api/draft", { body, ip });
+    assert.equal(r.status, status, r.text); assert.equal(r.json.code, codeWant);
+  }
+  assert.deepEqual(rows(c), []);
+  assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM rate_limits WHERE bucket LIKE 'draft%'").get().n, 0, "ungültige Anfragen zählen nicht");
+  // Sichern: Antwort mit Zeitpunkt und Ablauf (30 Tage); gespeichert nur sha256("draft|" + Kennung), Blatt, Zeit, Größe, Umschlag
+  r = await call("PUT", "/api/draft", { body: { id, code: c.slice(0, 3) + "-" + c.slice(3).toLowerCase(), envelope: { ...e1, ek: "x", name: "MaxMu" } }, ip });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(Object.keys(r.json).sort(), ["days", "expiresAt", "ok", "savedAt"]);
+  assert.equal(r.json.days, 30); assert.equal(r.json.expiresAt - r.json.savedAt, 30 * 86400e3); assert.ok(r.queries <= 8, "D1-Abfragen: " + r.queries);
+  let all = rows(c);
+  assert.equal(all.length, 1);
+  assert.equal(all[0].id, await sha256Hex("draft|" + id)); assert.notEqual(all[0].id, id);
+  assert.deepEqual(JSON.parse(all[0].data), e1, "nur v, iv, ct"); assert.equal(all[0].bytes, all[0].data.length);
+  assert.equal(JSON.stringify(all[0]).includes("MaxMu"), false);
+  assert.deepEqual(d1.db.prepare("PRAGMA table_info(drafts)").all().map((x) => x.name), ["id", "sheet_code", "saved_at", "bytes", "data"]);
+  // Laden: Blatt-Code, Zeiten und genau der Umschlag; eine Abfrage
+  r = await call("POST", "/api/draft/load", { body: { id }, ip });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.json, { ok: true, code: c, savedAt: all[0].saved_at, expiresAt: all[0].saved_at + 30 * 86400e3, days: 30, envelope: e1 });
+  assert.equal(r.queries, 1);
+  // Erneutes Sichern mit demselben Code ersetzt dieselbe Zeile; dieselbe Kennung für ein anderes Blatt wird abgelehnt
+  const e2 = env(1200);
+  d1.db.prepare("UPDATE drafts SET saved_at=saved_at-5000 WHERE id=?").run(all[0].id);
+  r = await call("PUT", "/api/draft", { body: { id, code: c, envelope: e2 }, ip });
+  assert.equal(r.status, 200, r.text);
+  all = rows(c); assert.equal(all.length, 1); assert.deepEqual(JSON.parse(all[0].data), e2); assert.equal(all[0].saved_at, r.json.savedAt);
+  r = await call("PUT", "/api/draft", { body: { id, code: cPhoto, envelope: e2 }, ip });
+  assert.equal(r.status, 400); assert.equal(r.json.code, "bad_request"); assert.deepEqual(rows(cPhoto), []);
+  // Größe wie bei Abgaben: über 400 KB nur bei Blättern mit Foto-Aufgabe, nie über 1000 KB (vor dem Zählen, nichts gespeichert)
+  const big = env(360 * 1024);   // als Base64 ≈ 480 KB
+  r = await call("PUT", "/api/draft", { body: { id: hex(32), code: c, envelope: big }, ip });
+  assert.equal(r.status, 413); assert.equal(r.json.code, "too_large"); assert.equal(rows(c).length, 1);
+  const idPhoto = hex(32);
+  r = await call("PUT", "/api/draft", { body: { id: idPhoto, code: cPhoto, envelope: big }, ip });
+  assert.equal(r.status, 200, r.text); assert.equal(rows(cPhoto).length, 1);
+  r = await call("POST", "/api/draft/load", { body: { id: idPhoto }, ip });
+  assert.equal(r.status, 200); assert.equal(r.json.code, cPhoto); assert.equal(r.json.envelope.ct, big.ct);
+  r = await call("PUT", "/api/draft", { body: { id: hex(32), code: cPhoto, envelope: { v: 1, iv: e1.iv, ct: "A".repeat(LIMITS.photoEnvelopeBytes + 4) } }, ip });
+  assert.equal(r.status, 413); assert.equal(r.json.code, "too_large");
+  // gezählt je IP: Anzahl und Bytes (nur gültige)
+  const bDraft = await bucketOf("draft", ip, SECRET), bBytes = await bucketOf("draft_bytes", ip, SECRET);
+  assert.equal(d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(bDraft).count, 3);
+  assert.equal(d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(bBytes).count,
+    JSON.stringify(e1).length + JSON.stringify(e2).length + JSON.stringify(big).length);
+  d1.db.prepare("UPDATE rate_limits SET count=? WHERE bucket=?").run(RATE.draft.max, bDraft);
+  r = await call("PUT", "/api/draft", { body: { id, code: c, envelope: e1 }, ip });
+  assert.equal(r.status, 429); assert.equal(r.json.code, "rate_limited"); assert.match(r.json.error, /Zwischenstände online gesichert/); assert.ok(r.json.retryAfter > 0);
+  assert.deepEqual(JSON.parse(rows(c)[0].data), e2, "nichts ersetzt");
+  // Grenze je Blatt: Anzahl (neue Kennungen) – ein vorhandener Stand lässt sich weiter ersetzen; Bytes
+  const ip2 = "203.0.113.151";
+  const ins = d1.db.prepare("INSERT INTO drafts(id,sheet_code,saved_at,bytes,data) VALUES(?,?,?,?,?)");
+  for (let i = 1; i < LIMITS.draftsPerSheet; i++) ins.run("fill-" + i, c, Date.now(), 10, "{}");
+  r = await call("PUT", "/api/draft", { body: { id: hex(32), code: c, envelope: e1 }, ip: ip2 });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "too_many_drafts"); assert.match(r.json.error, /PDF-Datei enthält deinen Zwischenstand trotzdem/);
+  r = await call("PUT", "/api/draft", { body: { id, code: c, envelope: e1 }, ip: ip2 });
+  assert.equal(r.status, 200, r.text);
+  d1.db.prepare("DELETE FROM drafts WHERE id LIKE 'fill-%'").run();
+  ins.run("fill-big", c, Date.now(), LIMITS.draftSheetBytes - 100, "{}");
+  r = await call("PUT", "/api/draft", { body: { id: hex(32), code: c, envelope: e1 }, ip: ip2 });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "too_many_drafts");
+  d1.db.prepare("DELETE FROM drafts WHERE id='fill-big'").run();
+  // Unbekannte Kennungen: 404 draft_not_found, gezählt wie unbekannte Codes – ein richtiger Code lädt weiter
+  const ip3 = "203.0.113.152";
+  for (let i = 0; i < RATE.lookup_miss.max; i++) {
+    r = await call("POST", "/api/draft/load", { body: { id: hex(32) }, ip: ip3 });
+    assert.equal(r.status, 404); assert.equal(r.json.code, "draft_not_found"); assert.match(r.json.error, /30 Tage nach dem letzten Sichern gelöscht/);
+  }
+  r = await call("POST", "/api/draft/load", { body: { id: hex(32) }, ip: ip3 });
+  assert.equal(r.status, 429); assert.equal(r.json.code, "rate_limited");
+  r = await call("POST", "/api/draft/load", { body: { id }, ip: ip3 });
+  assert.equal(r.status, 200, r.text); assert.deepEqual(r.json.envelope, e1);
+  r = await call("POST", "/api/draft/load", { body: { id: "x" }, ip: ip2 });
+  assert.equal(r.status, 400); assert.equal(r.json.code, "bad_request");
+  // Nach 30 Tagen: nicht mehr ladbar, das Aufräumen (hier: Öffnen der Übersicht) löscht die Zeile; ein jüngerer Stand bleibt
+  const key = await sha256Hex("draft|" + id);
+  d1.db.prepare("UPDATE drafts SET saved_at=? WHERE id=?").run(Date.now() - 30 * 86400e3 - 60e3, key);
+  r = await call("POST", "/api/draft/load", { body: { id }, ip: ip2 });
+  assert.equal(r.status, 404); assert.equal(r.json.code, "draft_not_found");
+  r = await call("GET", "/api/teacher/sheets", { auth });
+  assert.equal(r.status, 200); assert.deepEqual(rows(c), []); assert.equal(rows(cPhoto).length, 1);
+  // Löschen auf Wunsch des Browsers (nach der Abgabe): nur diese Kennung; unbekannt → deleted 0
+  const id2 = hex(32);
+  r = await call("PUT", "/api/draft", { body: { id: id2, code: c, envelope: e1 }, ip: ip2 });
+  assert.equal(r.status, 200, r.text);
+  r = await call("DELETE", "/api/draft", { body: { id: hex(32) }, ip: ip2 });
+  assert.deepEqual(r.json, { ok: true, deleted: 0 }); assert.equal(rows(c).length, 1);
+  r = await call("DELETE", "/api/draft", { body: { id: id2 }, ip: ip2 });
+  assert.deepEqual(r.json, { ok: true, deleted: 1 }); assert.deepEqual(rows(c), []);
+  r = await call("DELETE", "/api/draft", { body: { id: "nix" }, ip: ip2 });
+  assert.equal(r.status, 400);
+  // Mit dem Blatt gelöscht; für ein gelöschtes Blatt wird nichts mehr gespeichert oder geladen
+  r = await call("PUT", "/api/draft", { body: { id: id2, code: c, envelope: e1 }, ip: ip2 });
+  assert.equal(r.status, 200, r.text); assert.equal(rows(c).length, 1);
+  r = await call("DELETE", "/api/teacher/sheets/" + c, { auth });
+  assert.equal(r.status, 200, r.text); assert.deepEqual(rows(c), []);
+  r = await call("PUT", "/api/draft", { body: { id: id2, code: c, envelope: e1 }, ip: ip2 });
+  assert.equal(r.status, 404); assert.deepEqual(rows(c), []);
+  d1.db.prepare("DELETE FROM sheets WHERE code=?").run(cPhoto);   // Blatt weg, Zeile noch da (z. B. Wettlauf): nicht ladbar
+  r = await call("POST", "/api/draft/load", { body: { id: idPhoto }, ip: ip2 });
+  assert.equal(r.status, 404); assert.equal(r.json.code, "draft_not_found");
+  d1.db.prepare("DELETE FROM drafts").run();
+});
+
 test("schema upgrade: old submissions/sheets tables without the later columns get them added (idempotent)", async () => {
   const { ensureColumns } = await import("../../worker/index.js");
   d1.db.exec("CREATE TABLE old_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT, sheet_code TEXT NOT NULL, received_at INTEGER NOT NULL, envelope TEXT NOT NULL)");

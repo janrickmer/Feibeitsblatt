@@ -10,6 +10,7 @@ import {
   withMapChecks, teacherAnswer, publicAnswer, videosOut,
   validatePrivacyInput, privacyOut, PURGE_SQL, DROP_SCHOOL_SQL, OLDER_THAN_SQL, RETENTION_OPTIONS, COUNT_OLDER_SQL, SAVE_PRIVACY_SQL, DELETE_OLDER_SQL,
   validateChecklist, checklistOut, escapeOut, REPLACE_WINDOW_MS, validateFinalMeta, sealForTeacher, validateFinalWait, finalWaitOut,
+  validateDraftId, validateDraftEnvelope,
 } from "./lib.js";
 import {
   PROVIDERS, DEFAULT_PROVIDER, AIError, PUBLIC_MSG, callAI, testKey, pickFallbacks, providerLabel,
@@ -53,6 +54,9 @@ const MSG = {
   ckNoAi: "Es ist kein KI-Dienst eingerichtet, der gerade genutzt werden kann. Bitte prüfen Sie die KI-Einstellungen – die Punkte der Checkliste können Sie auch selbst eintragen.",
   ckQuota: "Das kostenlose Tageskontingent von Cloudflare Workers AI ist aufgebraucht (es gilt für das ganze Cloudflare-Konto). Ab 0:00 Uhr UTC (1:00 Uhr MEZ bzw. 2:00 Uhr MESZ) geht es wieder.",
   // Finale KI-Rückmeldung nach der Abgabe (POST /api/feedback mit final:true) und die damit abgeschlossene Abgabe
+  // Online gesicherter Zwischenstand (PUT/POST/DELETE /api/draft)
+  draftGone: "Zu diesem Zwischenstand-Code ist kein Zwischenstand gespeichert (mehr). Online gesicherte Zwischenstände werden " + LIMITS.draftDays + " Tage nach dem letzten Sichern gelöscht.",
+  draftsFull: "Zu diesem Feibeitsblatt sind schon sehr viele Zwischenstände online gesichert. Deine PDF-Datei enthält deinen Zwischenstand trotzdem – bitte sag deiner Lehrkraft Bescheid.",
   finalGone: "Zu dieser Abgabe gibt es keine finale KI-Rückmeldung.",
   finalExpired: "Die finale KI-Rückmeldung gibt es nur in den ersten " + Math.round(REPLACE_WINDOW_MS / 60000) + " Minuten nach der Abgabe.",
   finalDone: "Die finale KI-Rückmeldung zu dieser Abgabe gibt es schon.",
@@ -111,6 +115,12 @@ const SCHEMA = [
   // Checkliste zum analogen Arbeitsblatt je Blatt: draft = Vorschlag der KI (noch nicht gespeichert, nie öffentlich), final = von der
   // Lehrkraft gespeichert (über den QR-Code öffentlich) – beides JSON {v:1, ai, tasks:[{n, points}]}
   "CREATE TABLE IF NOT EXISTS sheet_checklists (sheet_code TEXT PRIMARY KEY, draft TEXT, final TEXT, updated_at INTEGER NOT NULL)",
+  // Online gesicherte Zwischenstände (nur auf Klick der Schüler:innen): id = sha256 der vom Browser aus dem Zwischenstand-Code
+  // abgeleiteten Kennung (der Code selbst kommt nie an), data = {v:1, iv, ct} – mit einem Schlüssel aus dem Code verschlüsselt, für den
+  // Server nicht lesbar. Kein Name, keine Kennung der Bearbeitung. `data` als letzte Spalte (Summen und Aufräumen lesen sie nicht).
+  "CREATE TABLE IF NOT EXISTS drafts (id TEXT PRIMARY KEY, sheet_code TEXT NOT NULL, saved_at INTEGER NOT NULL, bytes INTEGER NOT NULL, data TEXT NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS idx_drafts_sheet ON drafts(sheet_code, bytes)",
+  "CREATE INDEX IF NOT EXISTS idx_drafts_saved ON drafts(saved_at)",
 ];
 // Belegter Speicher für Bilder und PDF-Dateien aller Blätter (roh, Bytes) – als SQL-Ausdruck für Bedingungen und Listen
 const STORAGE_SQL = "((SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE n=0)+(SELECT COALESCE(SUM(bytes),0) FROM sheet_images))";
@@ -153,9 +163,11 @@ export async function ensureColumns(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON submissions(sheet_code, attempt)").run();
 }
 
+const DRAFT_KEEP_MS = LIMITS.draftDays * 86400e3;
 /* Aufräumen: Abgaben und Erstversuche nach der Löschfrist (PURGE_SQL; ohne gespeicherte Frist nichts), früher gespeicherte Angaben
    einer Schule (DROP_SCHOOL_SQL – verantwortlich ist der Betreiber, siehe index.html), abgelaufene Zähler und Sperren,
-   Verbrauchszeilen von Workers AI älter als zwei Tage. Täglich per Cron Trigger (scheduled), beim Öffnen der Lehrkräfte-Übersicht
+   Verbrauchszeilen von Workers AI älter als zwei Tage, online gesicherte Zwischenstände 30 Tage nach dem letzten Sichern.
+   Täglich per Cron Trigger (scheduled), beim Öffnen der Lehrkräfte-Übersicht
    (routeSheetsList) und gelegentlich bei anderen API-Aufrufen. */
 const cleanupStatements = (db, now) => [
   db.prepare(PURGE_SQL).bind(now),
@@ -163,6 +175,7 @@ const cleanupStatements = (db, now) => [
   db.prepare("DELETE FROM rate_limits WHERE reset_at<?1").bind(now),
   db.prepare("DELETE FROM ai_skip WHERE until<?1").bind(now),
   db.prepare("DELETE FROM ai_usage WHERE day<?1").bind(utcDay(now - 2 * 86400e3)),
+  db.prepare("DELETE FROM drafts WHERE saved_at<?1").bind(now - DRAFT_KEEP_MS),   // online gesicherte Zwischenstände nach 30 Tagen
 ];
 
 /* ---------- Body lesen (≤ 1 MB) ---------- */
@@ -443,6 +456,7 @@ async function routeSheetDelete(c, codeRaw) {
     c.db.prepare("DELETE FROM sheets WHERE code=?1").bind(code),
     c.db.prepare("DELETE FROM sheet_files WHERE sheet_code=?1").bind(code),
     c.db.prepare("DELETE FROM sheet_checklists WHERE sheet_code=?1").bind(code),
+    c.db.prepare("DELETE FROM drafts WHERE sheet_code=?1").bind(code),   // online gesicherte Zwischenstände dieses Blattes
   ]);
   if (!sh.meta || !sh.meta.changes) throw sheetGone();
   return json({ ok: true, deletedSubmissions: (subs.meta && subs.meta.changes) || 0 });
@@ -1154,6 +1168,64 @@ async function routeSubmit(c) {
   return json({ ok: true, id: r.meta ? r.meta.last_row_id : null, receivedAt: c.now, retentionDays });
 }
 
+/* ---------- Online gesicherter Zwischenstand (Wunsch des Betreibers vom 24.11.2026) ----------
+ * Nur wenn Schüler:innen im Schreibbereich auf „Zwischenstand sichern (online und als PDF-Datei)“ klicken, schickt der Browser den
+ * Datensatz der Zwischenstand-PDF verschlüsselt hierher; die PDF nennt den Zwischenstand-Code, mit dem er sich auf der Startseite wieder
+ * laden lässt (ohne Datei). Schlüssel und Kennung leitet der Browser aus dem Code ab – der Server sieht weder den Code noch den Inhalt,
+ * kennt keinen Namen und speichert unter sha256(Kennung): Blatt-Code, Zeitpunkt, Größe, Umschlag. Ein Code je Bearbeitung: erneutes
+ * Sichern ersetzt die Zeile. Gelöscht: 30 Tage nach dem letzten Sichern (cleanupStatements), mit dem Blatt, auf Wunsch des Browsers
+ * (nach der Abgabe). Grenzen: je IP (draft, draft_bytes), je Blatt (draftsPerSheet, draftSheetBytes); unbekannte Kennungen zählen wie
+ * unbekannte Codes (lookup_miss). */
+const draftKey = (id) => sha256Hex("draft|" + id);
+async function routeDraftPut(c) {
+  const body = await readJson(c.request);
+  const id = validateDraftId(body.id), code = normalizeCode(body.code);
+  if (!isValidCode(code)) throw sheetNotFound();
+  const envelope = validateDraftEnvelope(body.envelope, LIMITS.photoEnvelopeBytes), big = envelope.length > LIMITS.envelopeBytes;
+  const key = await draftKey(id);
+  const [sh, cnt, ex] = await c.db.batch([
+    // wie routeSubmit: mehr als envelopeBytes nur bei Blättern mit Foto-Aufgabe (die Fotos stecken im Zwischenstand)
+    c.db.prepare("SELECT CASE WHEN ?2 AND json_valid(tasks) THEN EXISTS(SELECT 1 FROM json_each(sheets.tasks) WHERE json_extract(value,'$.answer.type')='photo') ELSE 0 END AS photo FROM sheets WHERE code=?1")
+      .bind(code, big ? 1 : 0),
+    c.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(bytes),0) AS bytes FROM drafts WHERE sheet_code=?1").bind(code),
+    c.db.prepare("SELECT sheet_code, bytes FROM drafts WHERE id=?1").bind(key),
+  ]);
+  const sheetRow = firstRow(sh);
+  if (!sheetRow) throw sheetNotFound();
+  if (big && !Number(sheetRow.photo)) throw new InputError("Der Zwischenstand ist zu groß für das Online-Speichern.", "too_large", 413);
+  const old = firstRow(ex), use = firstRow(cnt) || {};
+  if (old && old.sheet_code !== code) throw new InputError("Der Zwischenstand-Code ist ungültig.", "bad_request");   // Kennung gehört zu einem anderen Blatt
+  if (!old && (use.n || 0) >= LIMITS.draftsPerSheet) throw new HttpError(409, "too_many_drafts", MSG.draftsFull);
+  if ((use.bytes || 0) - (old ? Number(old.bytes) || 0 : 0) + envelope.length > LIMITS.draftSheetBytes) throw new HttpError(409, "too_many_drafts", MSG.draftsFull);
+  await countAll(c, [{ kind: "draft" }, { kind: "draft_bytes", weight: envelope.length }]);
+  // nur, solange das Blatt existiert (sonst bliebe eine verwaiste Zeile, wenn es inzwischen gelöscht wurde)
+  const r = await c.db.prepare(
+    "INSERT INTO drafts(id,sheet_code,saved_at,bytes,data) SELECT ?1,?2,?3,?4,?5 WHERE EXISTS(SELECT 1 FROM sheets WHERE code=?2) " +
+    "ON CONFLICT(id) DO UPDATE SET saved_at=excluded.saved_at, bytes=excluded.bytes, data=excluded.data WHERE drafts.sheet_code=excluded.sheet_code")
+    .bind(key, code, c.now, envelope.length, envelope).run();
+  if (!r.meta || !r.meta.changes) throw sheetNotFound();
+  return json({ ok: true, savedAt: c.now, expiresAt: c.now + DRAFT_KEEP_MS, days: LIMITS.draftDays });
+}
+// POST /api/draft/load {id} → {code, savedAt, expiresAt, envelope}. Der Umschlag wird als Text eingefügt (kein JSON.parse von bis zu 1 MB).
+async function routeDraftLoad(c) {
+  const body = await readJson(c.request);
+  const key = await draftKey(validateDraftId(body.id));
+  const row = await c.db.prepare(
+    "SELECT d.sheet_code, d.saved_at, d.data FROM drafts d WHERE d.id=?1 AND d.saved_at>=?2 AND EXISTS(SELECT 1 FROM sheets WHERE code=d.sheet_code)")
+    .bind(key, c.now - DRAFT_KEEP_MS).first();
+  if (!row) { await countFailure(c, "lookup_miss"); throw new HttpError(404, "draft_not_found", MSG.draftGone); }
+  const savedAt = Number(row.saved_at);
+  return respond('{"ok":true,"code":' + JSON.stringify(row.sheet_code) + ',"savedAt":' + savedAt + ',"expiresAt":' + (savedAt + DRAFT_KEEP_MS) +
+    ',"days":' + LIMITS.draftDays + ',"envelope":' + row.data + "}");
+}
+// DELETE /api/draft {id} – nach der Abgabe räumt der Browser den Online-Stand ab (wer die Kennung hat, darf löschen)
+async function routeDraftDelete(c) {
+  const body = await readJson(c.request);
+  const key = await draftKey(validateDraftId(body.id));
+  const r = await c.db.prepare("DELETE FROM drafts WHERE id=?1").bind(key).run();
+  return json({ ok: true, deleted: (r.meta && r.meta.changes) || 0 });
+}
+
 /* ---------- Checkliste (zu jedem Feibeitsblatt, auch zum Finale eines Escape-Rooms) ----------
  * Die KI schlägt aus den Aufträgen an die KI einmal je Blatt Punkte vor (draft, nur für die Lehrkraft – die Seite fragt beim Anlegen
  * jedes Blattes danach); erst was die Lehrkraft speichert (final), ist öffentlich (z. B. über den QR-Code des analogen
@@ -1260,6 +1332,8 @@ const ROUTES = [
   [/^\/api\/sheet\/([^/]+)\/checklist$/, { GET: routePublicChecklist }],
   ["/api/feedback", { POST: routeFeedback }],
   ["/api/submit", { POST: routeSubmit }],
+  ["/api/draft", { PUT: routeDraftPut, DELETE: routeDraftDelete }],
+  ["/api/draft/load", { POST: routeDraftLoad }],
   ["/api/teacher/door", { POST: routeDoor }],
   ["/api/teacher/setup", { POST: routeSetup }],
   ["/api/teacher/login", { POST: routeLogin }],
