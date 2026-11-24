@@ -1673,8 +1673,7 @@ test("Live-Gruppenarbeit (/api/live/*): Raum je Zugangswort + Zahlencode einmali
   assert.equal(dev2.got.at(-1).sub.receivedAt, sub.json.receivedAt, "Eingang aus der Datenbank");
   r = await call("POST", "/api/live/join", { body: { code: c, room }, ip, env });
   assert.equal(r.json.submitted, true);
-  // Löschfrist: Abgabe weg → beim nächsten Verbinden (frühestens eine Minute nach der Abgabe) sind die Lösungen weg, der Vermerk bleibt
-  const m = A.ctx.data.get("m"); m.sub.at -= 120e3; A.ctx.data.set("m", m); A.room.m = undefined;
+  // Löschfrist bzw. Eintrag von der Lehrkraft gelöscht: beim nächsten Verbinden sind die Lösungen weg, der Vermerk bleibt
   let again = (await ws(c, room)).client;
   assert.equal(again.got[0].m.sub.gone, false); assert.ok(again.got[0].st.sol);
   d1.db.prepare("DELETE FROM submissions WHERE sheet_code=? AND attempt=?").run(c, attempt);

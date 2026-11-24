@@ -141,10 +141,11 @@ export class LiveRoom {
     await this.store.setAlarm(now + IDLE_MS + 3600e3);
     return json({ ok: true, createdAt: now });
   }
-  // Nach der Abgabe: Gibt es sie (und das Blatt) noch? Sonst verschwinden die Lösungen für die PDF (Löschfrist der Lehrkraft) – der
-  // Vermerk „abgegeben“ bleibt. Kurz nach der Abgabe nicht nachsehen (die Zeile entsteht im selben Moment).
+  // Nach der Abgabe: Gibt es sie (und das Blatt) noch? Sonst verschwinden die Lösungen für die PDF (Löschfrist der Lehrkraft, oder
+  // die Lehrkraft hat den Eintrag gelöscht) – der Vermerk „abgegeben“ bleibt. Wurde die Abgabe beim Abschließen nicht in der Datenbank
+  // gesehen (sie war nicht erreichbar), in der ersten Minute nicht nachsehen.
   async checkSubmission(m, now) {
-    if (!m.sub || m.sub.gone || now - m.sub.at < 60e3 || !this.env || !this.env.DB) return m;
+    if (!m.sub || m.sub.gone || (!m.sub.ok && now - m.sub.at < 60e3) || !this.env || !this.env.DB) return m;
     let row;
     try {
       row = await this.env.DB.prepare(
@@ -281,7 +282,7 @@ export class LiveRoom {
         const seen = await this.submissionSeen(m.code, msg.attempt);
         if (seen === 0) return deny({ sub: true, why: "nosub" });
         if (seen === null && !(a.s > 0 && msg.receivedAt)) return deny({ sub: true, why: "noclaim" });
-        m.sub = { attempt: msg.attempt, receivedAt: seen || msg.receivedAt, at: now };
+        m.sub = { attempt: msg.attempt, receivedAt: seen || msg.receivedAt, at: now, ok: seen ? 1 : 0 };
         const put = { m, t: now };
         let sol = null;
         if (msg.sol != null) { const cur = await this.store.get("k:sol"); sol = { v: msg.sol, ver: (cur ? cur.ver : 0) + 1 }; put["k:sol"] = sol; }

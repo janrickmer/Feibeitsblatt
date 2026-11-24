@@ -224,7 +224,7 @@ test("Abgabe nur einmal je Gruppe: Zusage, Prüfung in D1, Abschluss – danach 
   const got = await b.send({ t: "sub", attempt, receivedAt: 42, sol: val("Lösungen") });   // ein falsch gemeldeter Eingang zählt nicht
   const subMsg = { t: "sub", by: idB, sub: { receivedAt, at: Date.now(), gone: false }, sol: { v: val("Lösungen"), ver: 1 } };
   assert.deepEqual(got, [subMsg]); assert.deepEqual(a.take(), [subMsg]);
-  assert.deepEqual(ctx.data.get("m").sub, { attempt, receivedAt, at: Date.now() });
+  assert.deepEqual(ctx.data.get("m").sub, { attempt, receivedAt, at: Date.now(), ok: 1 });
   assert.equal(ctx.alarm, Date.now() + 86400e3, "nach der Abgabe täglich nachsehen");
   // danach: nichts mehr änderbar, keine zweite Abgabe; nur die Lösungen lassen sich erneuern (finale KI-Rückmeldung kam dazu)
   for (const [msg, why] of [[{ t: "lock", k: "a0" }, "submitted"], [{ t: "pv", k: "a0", v: val("x") }, "submitted"], [{ t: "set", k: "a0", v: val("x") }, "submitted"],
@@ -251,7 +251,7 @@ test("Abgabe von einer neuen Verbindung (kurz getrennt) zählt, wenn D1 sie kenn
   state.subs.push({ attempt, receivedAt });
   const done = await a.send({ t: "sub", attempt });   // ohne Zusage, ohne Eingang, ohne Lösungen: die Datenbank entscheidet
   assert.equal(done[0].t, "sub"); assert.equal(done[0].sub.receivedAt, receivedAt); assert.equal(done[0].sol, null);
-  assert.equal(r.ctx.data.has("k:sol"), false); assert.deepEqual({ ...r.ctx.data.get("m").sub, at: 0 }, { attempt, receivedAt, at: 0 });
+  assert.equal(r.ctx.data.has("k:sol"), false); assert.deepEqual({ ...r.ctx.data.get("m").sub, at: 0 }, { attempt, receivedAt, at: 0, ok: 1 });
   // Datenbank nicht erreichbar: ohne Zusage abgelehnt, mit Zusage und gemeldetem Eingang angenommen
   state.fail = true;
   r = await newRoom({ env: { DB: fakeDb(state) } });
@@ -260,7 +260,7 @@ test("Abgabe von einer neuen Verbindung (kurz getrennt) zählt, wenn D1 sie kenn
   await a.send({ t: "claimsub" });
   assert.deepEqual(await a.send({ t: "sub", attempt }), [{ t: "deny", sub: true, why: "noclaim" }]);
   const viaClaim = await a.send({ t: "sub", attempt, receivedAt });
-  assert.equal(viaClaim[0].t, "sub"); assert.equal(viaClaim[0].sub.receivedAt, receivedAt);
+  assert.equal(viaClaim[0].t, "sub"); assert.equal(viaClaim[0].sub.receivedAt, receivedAt); assert.equal(r.ctx.data.get("m").sub.ok, 0);
   // ohne env.DB (reiner Protokolltest): ebenso
   r = await newRoom();
   a = await connect(r.room, r.ctx); a.take();
@@ -361,13 +361,23 @@ test("Aufräumen (Wecker): 30 Tage ohne Änderung → alles weg; Blatt gelöscht
   const init = c.take()[0];
   assert.deepEqual(init.m.sub, { receivedAt, at: ctx.data.get("m").sub.at, gone: true }); assert.equal("sol" in init.st, false);
   assert.deepEqual(await c.send({ t: "set", k: "sol", v: val("wieder da") }), [{ t: "deny", k: "sol", why: "nosub" }]);
-  // dasselbe beim Verbinden (ohne auf den Wecker zu warten); kurz nach der Abgabe wird nicht nachgesehen
+  // dasselbe beim Verbinden, sofort (ohne auf den Wecker zu warten): solange es die Abgabe gibt, bleiben die Lösungen
   state = dbState({ subs: [{ attempt, receivedAt: Date.now() }] });
   ({ room, ctx } = await newRoom({ env: { DB: fakeDb(state) } }));
   const d = await connect(room, ctx); d.take();
-  await d.send({ t: "sub", attempt, receivedAt: Date.now(), sol: val("Lösungen") });
-  state.subs = []; state.sql.length = 0;
+  await d.send({ t: "sub", attempt, sol: val("Lösungen") });
   let e = await connect(room, ctx);
+  assert.equal(e.take()[0].st.sol.ver, 1);
+  state.subs = [];   // die Lehrkraft löscht den Eintrag
+  e = await connect(room, ctx);
+  assert.equal(e.take()[0].m.sub.gone, true); assert.equal(ctx.data.has("k:sol"), false);
+  // wurde die Abgabe beim Abschließen nicht in der Datenbank gesehen (nicht erreichbar), wird in der ersten Minute nicht nachgesehen
+  state = dbState({ fail: true });
+  ({ room, ctx } = await newRoom({ env: { DB: fakeDb(state) } }));
+  const d2 = await connect(room, ctx); d2.take();
+  await d2.send({ t: "claimsub" }); await d2.send({ t: "sub", attempt, receivedAt: Date.now(), sol: val("Lösungen") });
+  state.fail = false; state.sql.length = 0;
+  e = await connect(room, ctx);
   assert.equal(e.take()[0].st.sol.ver, 1); assert.equal(state.sql.length, 0);
   mock.timers.tick(61e3);
   e = await connect(room, ctx);
@@ -377,8 +387,7 @@ test("Aufräumen (Wecker): 30 Tage ohne Änderung → alles weg; Blatt gelöscht
   ({ room, ctx } = await newRoom({ env: { DB: fakeDb(state) } }));
   const f = await connect(room, ctx); f.take();
   state.subs = [{ attempt, receivedAt: Date.now() }];
-  await f.send({ t: "sub", attempt, receivedAt: Date.now() });
-  mock.timers.tick(61e3);
+  await f.send({ t: "sub", attempt });
   const g = await connect(room, ctx);
   assert.equal(g.closed.code, CLOSE.gone); assert.equal(ctx.data.size, 0);
 });
