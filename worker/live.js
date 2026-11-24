@@ -233,7 +233,8 @@ export class LiveRoom {
       case "unlock": {
         if (!(a.l || []).includes(msg.k)) return;
         a.l = a.l.filter((k) => k !== msg.k); save();
-        if (!mine(msg.k)) this.broadcast({ t: "lock", k: msg.k, by: null });
+        // „frei“ nur melden, wenn die Aufgabe wirklich frei ist (eine abgelaufene eigene Sperre kann längst ein anderes Gerät halten)
+        if (!mine(msg.k) && !others.lock.has(msg.k)) this.broadcast({ t: "lock", k: msg.k, by: null });
         return;
       }
       case "set": return this.onSet(ws, a, msg, m, now, others, mine, save, deny);

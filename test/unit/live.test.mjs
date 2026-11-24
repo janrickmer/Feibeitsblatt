@@ -129,6 +129,8 @@ test("Eine Person je Aufgabe: Sperre, Vorschau, Versionen; verschiedene Aufgaben
   assert.deepEqual(await a.send({ t: "lock", k: "a0" }), [{ t: "lock", k: "a0", by: idA, ms: LIVE.lockMs }]);
   b.take();
   assert.deepEqual(await b.send({ t: "set", k: "a0", v: val("B spät"), base: 2 }), [{ t: "deny", k: "a0", why: "locked", by: idA, cur: { v: val("Hallo B"), ver: 2 } }]);
+  // B gibt seine längst abgelaufene Sperre frei: niemand bekommt „frei“ gemeldet – A hält die Aufgabe
+  assert.deepEqual(await b.send({ t: "unlock", k: "a0" }), []); assert.deepEqual(a.take(), []);
   // Verbindung weg: ihre Sperren sind sofort frei, die anderen erfahren es
   await a.close();
   assert.deepEqual(b.take(), [{ t: "lock", k: "a0", by: null }, { t: "peers", n: 1 }]);
