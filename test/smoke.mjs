@@ -853,7 +853,7 @@ async function main() {
       s1.send({ t: "set", k: "f0", v: await sealLive(lk.key, { first: "Live-Marker-Zr4 Antwort der Gruppe", fb: { covered: ["Punkt eins"], missing: [] } }) });
       assert.deepEqual(await s1.next(), { t: "ack", k: "f0", ver: 1 });
       await s2.until((m) => m.t === "lock" && m.k === "a0" && m.by === null); await s1.until((m) => m.t === "lock" && m.k === "a0");
-      s2.send({ t: "claim", ks: ["f0"] }); assert.deepEqual(await s2.next(), { t: "deny", claim: true, ks: ["f0"], k: "f0", why: "set" });
+      s2.send({ t: "claim", ks: ["f0"] }); { const d = await s2.next(); assert.deepEqual({ ...d, cur: 0 }, { t: "deny", claim: true, ks: ["f0"], k: "f0", why: "set", cur: 0 }); assert.equal(d.cur.ver, 1); }
       // unbekannter Raum: Verbindung wird sofort mit 4404 geschlossen
       const s3 = liveSocket(WS + "?code=" + lc + "&room=" + (await deriveLiveKeys(lc, "smokewortqx", "4712")).room);
       assert.equal((await s3.closedP).code, 4404);

@@ -167,7 +167,7 @@ test("KI-Feedback nur einmal je Aufgabe für die ganze Gruppe: Zusage, Aufgabe s
   const free = [{ t: "claim", ks: ["f0"], by: null }, { t: "lock", k: "a0", by: null }];   // die Freigabe geht an alle, auch an A selbst
   assert.deepEqual(await a.send({ t: "set", k: "f0", v: val("Feedback 1") }), [{ t: "ack", k: "f0", ver: 1 }, ...free]);
   assert.deepEqual(b.take(), [{ t: "set", k: "f0", v: val("Feedback 1"), ver: 1, by: idA }, ...free]);
-  assert.deepEqual(await b.send({ t: "claim", ks: ["f0"] }), [{ t: "deny", claim: true, ks: ["f0"], k: "f0", why: "set" }]);
+  assert.deepEqual(await b.send({ t: "claim", ks: ["f0"] }), [{ t: "deny", claim: true, ks: ["f0"], k: "f0", why: "set", cur: { v: val("Feedback 1"), ver: 1 } }]);
   assert.deepEqual(await b.send({ t: "set", k: "f0", v: val("zweites") }), [{ t: "deny", k: "f0", why: "set", cur: { v: val("Feedback 1"), ver: 1 } }]);
   assert.deepEqual(ctx.data.get("k:f0"), { v: val("Feedback 1"), ver: 1 });
   assert.deepEqual(await b.send({ t: "set", k: "a0", v: val("überarbeitet") }), [{ t: "ack", k: "a0", ver: 1 }]);
@@ -284,7 +284,7 @@ test("Schutz: kaputte Nachrichten trennen (4400), zu große (4413), Dauerfeuer (
   // Speicherfehler (z. B. Tagesgrenze): deny „error“, die Verbindung bleibt, nichts gespeichert
   a = await connect(room, ctx); a.take();
   ctx.failPut = "Exceeded allowed rows written";
-  assert.deepEqual(await a.send({ t: "set", k: "a0", v: val("x") }), [{ t: "deny", why: "error" }]);
+  assert.deepEqual(await a.send({ t: "set", k: "a0", v: val("x") }), [{ t: "deny", k: "a0", why: "error" }]);
   assert.equal(a.closed, null); assert.equal(ctx.data.has("k:a0"), false);
   ctx.failPut = null;
   assert.deepEqual(await a.send({ t: "set", k: "a0", v: val("x") }), [{ t: "ack", k: "a0", ver: 1 }]);

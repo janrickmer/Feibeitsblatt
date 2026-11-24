@@ -26,6 +26,7 @@
 //     {t:"peers",n}  {t:"pv",k,v,by,ms}  {t:"set",k,v,ver,by,ms?}  {t:"ack",k,ver}  {t:"lock",k,by|null,ms?}
 //     {t:"claim",ks,by|null,ms?}  {t:"subclaim",by|null,ms?}  {t:"sub",by,sub,sol}
 //     {t:"deny",k?,claim?,sub?,ks?,why,by?,cur?}   why: bad big submitted submitting locked stale set claimed nosub noclaim unknown error
+//       (cur = gespeicherter Stand {v,ver}: bei locked/stale/set, auch wenn eine Zusage abgelehnt wird, weil es das Feedback schon gibt)
 //   ms = so lange gilt die Sperre bzw. Zusage noch ohne weiteres Lebenszeichen (die Uhren der Geräte gehen verschieden – deshalb eine Dauer).
 //   Schließcodes: 4404 Raum gibt es nicht (mehr), 4409 zu viele Geräte, 4400 ungültige Nachricht, 4413 zu groß, 4429 zu viele Nachrichten.
 
@@ -185,8 +186,12 @@ export class LiveRoom {
 
   async webSocketMessage(ws, raw) {
     try { return await this.onMessage(ws, raw); }
-    // z. B. Tagesgrenze des Speichers erreicht: nichts verloren geben – das Gerät behält seinen Text und versucht es erneut
-    catch { this.send(ws, { t: "deny", why: "error" }); }
+    // z. B. Tagesgrenze des Speichers erreicht: nichts verloren geben – das Gerät behält seinen Text und versucht es erneut.
+    // Mit dem Schlüssel der Nachricht (falls lesbar), damit der Browser weiß, welche Eingabe gemeint ist.
+    catch {
+      let k; try { const m = JSON.parse(raw); if (m && typeof m.k === "string" && m.k.length <= 8) k = m.k; } catch {}
+      this.send(ws, k ? { t: "deny", k, why: "error" } : { t: "deny", why: "error" });
+    }
   }
   async onMessage(ws, raw) {
     if (typeof raw !== "string") return this.bye(ws, CLOSE.bad, "text");
@@ -245,7 +250,8 @@ export class LiveRoom {
         if (others.sub) return deny({ claim: true, ks, why: "submitting", by: others.sub });
         const have = await this.store.get(ks.map((k) => "k:" + k));
         for (const k of ks) {
-          if (have.has("k:" + k)) return deny({ claim: true, ks, k, why: "set" });
+          // schon vorhanden: gleich mitliefern (dem Gerät kann die Nachricht dazu entgangen sein)
+          if (have.has("k:" + k)) { const c = have.get("k:" + k); return deny({ claim: true, ks, k, why: "set", cur: { v: c.v, ver: c.ver } }); }
           if (others.claim.has(k)) return deny({ claim: true, ks, k, why: "claimed", by: others.claim.get(k) });
           const lk = others.lock.get("a" + k.slice(1));
           if (lk) return deny({ claim: true, ks, k, why: "locked", by: lk });
@@ -331,7 +337,7 @@ export class LiveRoom {
     }
     const ver = (cur ? cur.ver : 0) + 1;
     await this.store.put("k:" + k, { v: msg.v, ver });
-    await this.touch(now);
+    try { await this.touch(now); } catch {}   // der Wert ist gespeichert – „zuletzt geändert“ darf daran nichts mehr ändern
     save();
     this.send(ws, { t: "ack", k, ver });
     const holds = info.kind === "a" && (a.l || []).includes(k);   // die Sperre läuft mit jeder Eingabe neu

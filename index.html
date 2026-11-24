@@ -8862,7 +8862,15 @@ function liveOnAck(L, m) {
 // Der Raum lehnt etwas ab: eine Zusage (claim, sub) oder eine Eingabe (k = a<i>)
 async function liveOnDeny(L, m) {
   const why = String(m.why || ""), now = Date.now();
-  if (m.claim) { liveAnswer(L, "claim", { ok: false, why, k: typeof m.k === "string" ? m.k : "", by: m.by }); return; }
+  if (m.claim) {
+    const fk = typeof m.k === "string" ? m.k : "", fi = liveKeyIdx(fk, "f");
+    // das Feedback gibt es schon (diesem Gerät ist die Nachricht dazu entgangen): der Raum liefert es mit – gleich zeigen
+    if (why === "set" && fi >= 0 && m.cur && typeof m.cur === "object") {
+      const f = liveCleanFb(await liveOpenVal(L, m.cur.v), MAX_ANSWER, normFb);
+      if (f && S.live === L) { L.fb[fi] = f; if (L.editor) { liveTakeFb(L); renderFeedbackState(); } }
+    }
+    liveAnswer(L, "claim", { ok: false, why, k: fk, by: m.by }); return;
+  }
   if (m.sub) {   // Abgabe: Zusage abgelehnt (claimsub) bzw. die gemeldete Abgabe (noch) nicht gefunden (sub)
     const r = { ok: false, why, k: typeof m.k === "string" ? m.k : "", by: m.by };
     liveAnswer(L, "subclaim", r); liveAnswer(L, "sub", r);
