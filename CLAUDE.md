@@ -2,7 +2,7 @@
 
 Schreibeditor mit Aufgabencodes (Design und Tippzeit-Messung wie im Feiditor – die Färbung sieht nur die Lehrkraft; die Kurzfassung
 des Datenschutzhinweises nennt die Messung in einem Satz, Widerspruch per Schalter im eigenen Abschnitt des ausführlichen Hinweises): Lehrkraft legt Aufgaben +
-Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; bis zu 3 YouTube-Videos je Aufgabe unter dem Material, geladen erst nach Klick; Antwort als Textfeld, Tabelle, Weltkarten-Zuordnung oder Foto) → Code → Einzel- oder Partner-/Gruppenarbeit → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, KI-Feedback (freiwillig, je Aufgabe
+Aufträge an die KI an (worauf sie beim Feedback achten soll; intern `solution`; Aufgabenstellung und Material formatierbar; bis zu 3 YouTube-Videos je Aufgabe unter dem Material, geladen erst nach Klick; Antwort als Textfeld, Tabelle, Weltkarten-Zuordnung oder Foto) → Code → Einzel- oder Partner-/Gruppenarbeit (Gruppen live an einem oder mehreren Geräten mit Zugangswort und Zahlencode, siehe Live-Gruppenarbeit) → Schüler:innen schreiben (Einfügen gesperrt), LanguageTool-Prüfung, KI-Feedback (freiwillig, je Aufgabe
 höchstens einmal – einzeln per „KI-Feedback nur zu dieser Aufgabe“ oder für die übrigen zusammen, siehe KI-Feedback je Aufgabe),
 überarbeiten, verschlüsselt abgeben (danach finale KI-Rückmeldung zur abgegebenen Fassung – abwählbar, der Server legt sie verschlüsselt
 für die Lehrkraft zur Abgabe, Download höchstens 30/60/90 s gesperrt (Einstellung der Lehrkraft), sonst steht die Checkliste in der
@@ -16,7 +16,11 @@ Zwischenstand-Code (rot oben in der PDF) auf der Startseite wieder laden (siehe 
 Schule; Seite „Impressum & Datenschutz“ (`#impressum`). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
 
-- **Architektur:** `index.html` = ganze Oberfläche in EINER Datei (keine externen Bibliotheken/Fonts).
+- **Architektur:** `index.html` = ganze Oberfläche in EINER Datei (keine externen Bibliotheken/Fonts). Dazu der Worker samt dem
+  Durable Object `LiveRoom` (`worker/live.js`, exportiert aus `worker/index.js`; `wrangler.jsonc`: `durable_objects.bindings [{name:
+  "LIVE", class_name: "LiveRoom"}]`, `migrations [{tag: "v1", new_sqlite_classes: ["LiveRoom"]}]` – nie ändern, `config.test.mjs` prüft)
+  für die Live-Gruppenarbeit (siehe dort); die CSP erlaubt dafür in `connect-src` zusätzlich `wss://feibeitsblatt.feindt.workers.dev`
+  (`_headers` und `<meta>` gleich; `'self'` deckt `ws://`/`wss://` derselben Adresse ab, auf GitHub Pages braucht es den ausdrücklichen Eintrag).
   `npm run build` (`scripts/build.mjs`) kopiert `index.html` + `_headers` nach `dist/`; der Worker liefert `dist/`
   als Workers Static Assets aus. `wrangler.jsonc`: `run_worker_first: ["/api/*"]`, sonst `env.ASSETS.fetch(request)`;
   D1-Binding `DB` → `feibeitsblatt-db` per Name (kein `database_id`); kein `nodejs_compat`; Workers AI per
@@ -121,13 +125,24 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Anweisung mehr im Batch – GET bleibt bei 4 Abfragen); `/ai/test` bei Workers AI `usage` (prompt/completion/reasoning_tokens, nie Inhalt).
   `PUT /api/teacher/final-wait` `{waitSec}` (nur angemeldet; `validateFinalWait`: nur die Zahl 30, 60 oder 90, sonst 400 `bad_request`
   „Bitte wählen Sie eine Wartezeit von 30, 60 oder 90 Sekunden.“) → speichert settings `final` = `{v:1, waitSec}` → `{ok, finalWaitSec}`.
+  **Online-Zwischenstand (Server):** `PUT /api/draft {id (64 Hex), code, envelope {v:1, iv, ct}}` → `{ok, savedAt, expiresAt, days: 30}`
+  (gespeichert unter `sha256("draft|" + id)`; erneutes Sichern ersetzt; über 400 KB nur bei Blättern mit Foto-Aufgabe, nie über 1000 KB;
+  409 `too_many_drafts` bei `LIMITS.draftsPerSheet` 600 bzw. `draftSheetBytes` 40 MB je Blatt), `POST /api/draft/load {id}` → `{ok, code,
+  savedAt, expiresAt, days, envelope}` (eine Abfrage; 404 `draft_not_found` zählt als `lookup_miss`), `DELETE /api/draft {id}` → `{ok,
+  deleted}`. **Live-Gruppenarbeit (Server):** `POST /api/live/create {code, room (64 Hex), meta}` → `{ok, createdAt, idleDays: 30}` (409
+  `room_taken`, 409 `too_many_rooms` bei `LIMITS.liveRoomsPerSheet` 300, 429, 404 Blatt weg, 400 auch bei Escape-Blättern, 503
+  `live_unavailable`), `POST /api/live/join {code, room}` → `{ok, createdAt, submitted, idleDays}` (404 `room_not_found` zählt als
+  `lookup_miss`), `GET /api/live/ws?code=…&room=…` als WebSocket (ohne D1-Abfrage, `noDb`) – siehe Live-Gruppenarbeit.
 - **Codes:** 6 Zeichen aus `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (≥ 1 Buchstabe, ≥ 1 Ziffer), Anzeige `K7Q-M4X`,
   Eingabe normalisieren (Großbuchstaben, nur `A–Z0–9`), Erzeugung mit `crypto.getRandomValues` ohne Modulo-Bias.
   **Zwischenstand-Code** (siehe Online-Zwischenstand): 8 Zeichen aus demselben Alphabet (≥ 1 Buchstabe, ≥ 1 Ziffer), Anzeige `7KQM-4XWP`,
   dieselbe Normalisierung; ihn erzeugt der **Browser** (`dcNew(rand)`), der Server bekommt ihn nie. Das Feld `#code-input` nimmt beide:
   `startGo` → nur Ziffern = Türcode, 8 Zeichen = Zwischenstand-Code (`loadDraftByCode`), 6 Zeichen = Blatt-Code, sonst `DC_LEN_ERR`.
 - **D1-Schema:** `settings(key, value)` (`teacher` = `{authHash, kdf, publicKey, encPrivateKey}`, `ai`, `privacy`, `final` = `{v:1,
-  waitSec}`), `sheets`,
+  waitSec}`), `sheets`, `drafts(id PK, sheet_code, saved_at, bytes, data)` + Indizes `(sheet_code, bytes)` und `(saved_at)` (online
+  gesicherte Zwischenstände; gelöscht nach `LIMITS.draftDays` 30 Tagen in `cleanupStatements` und mit dem Blatt), `live_rooms(rid PK,
+  sheet_code, created_at)` + Index `(sheet_code)` (Verzeichnis der Live-Gruppenarbeiten – kein Inhalt, keine Namen; der Stand liegt im
+  Durable Object),
   `submissions(id, sheet_code, received_at, envelope, stage TEXT DEFAULT 'final', attempt TEXT, final_at INTEGER, final_env TEXT)` + Indizes
   (`sheet_code, id`, `sheet_code, attempt` und `received_at` für die Löschfrist), `sheet_images(id, sheet_code, task, pos, mode, mime,
   w, h, bytes, data TEXT = Base64, created_at)` + Index (`sheet_code, task, pos`), `rate_limits`, `ai_gate`,
@@ -223,7 +238,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, `#done-del` (nur mit Frist: Löschdatum =
   `receivedAt` + `retentionDays` aus der Antwort von `/api/submit`, „oder kurz danach“), bei Partner- und Gruppenarbeit
   (`isGroup(S.lastSubmission.person)`, Wunsch der Lehrkraft) `p#done-group.donegroup` rot (`--red`) und fett „Schicke die Lösungen nach dem
-  Herunterladen auch an die anderen Mitglieder deiner Gruppe!“ (du-Form, ohne Kürzel; sonst verborgen; `#done-pdf` steht direkt dahinter und hat dann
+  Herunterladen auch an die anderen Mitglieder deiner Gruppe!“ (du-Form, ohne Kürzel; in der Live-Gruppenarbeit stattdessen `liveDoneGroup(word, num)` – die anderen holen sich die Lösungen selbst über die Abgabe-Ansicht; sonst verborgen; `#done-pdf` steht direkt dahinter und hat dann
   `aria-describedby="done-group done-pdf-note"`; E2E 2b/3), dann **ganz oben über der finalen KI-Rückmeldung**
   Button `#done-pdf` (`.btn.block.dl` – Wunsch der Lehrkraft vom 08.11.2026: deutlich als Knopf erkennbar: Download-Symbol `svg.dl-ico`
   (aria-hidden), Schatten wie eine Taste, beim Drücken „eingedrückt“, mit `aria-disabled="true"` blass; Text in `span#done-pdf-label`)
@@ -1039,7 +1054,16 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Zwischenstand, Neuladen, Ersetzen (400 × 300), Entfernen abgebrochen, kein Bild → Meldung, KI-Feedback nur mit „[Foto]“ (Prompt ohne die
   Aufgabe), Erstversuch ohne Foto, Abgabe in D1 entschlüsselt mit `photo`, `final_env` passt (`ah`), Lösungs-PDF mit `/DCTDecode`,
   Lehrkraft-Details, Vergrößern, Herunterladen (Name und Bytes), Lösungs-PDF der Übersicht, analoges Arbeitsblatt, Sicherung und Import.
-- **Tippzeit-Messung (nur im Browser; Server, KI und Lösungs-PDF unverändert):** je `textarea.answer`/`textarea.tcell` (nie
+- **Tippzeit-Messung (nur im Browser; Server, KI und Lösungs-PDF unverändert; nur Einzelarbeit):** **Partner- und Gruppenarbeit misst
+  nie Tippzeiten** (Entscheidung des Betreibers vom 24.11.2026 – mehrere schreiben am selben Text; auch im Rückfall ohne Live-Verbindung
+  und bei weitergeschriebenen älteren Gruppen-Ständen): `ttMeasured(sh, group)` ist für Gruppen falsch (kein `TT_SHORT`, kein Abschnitt
+  „Widerspruch …“, kein Schalter – weder auf „Eure Angaben“ noch beim Dazuschalten noch im Schreibbereich), `ttOff()` = `S.ttOptOut ||
+  isGroup(S.person)` (Capture-Listener `input`, `ttSync`, `answersNow`; `openEditor`/`liveOpenEditor` rufen für Gruppen `ttResetAll(false)`,
+  neue Tabellenzellen bekommen `_tt = null`), Erstversuch und Abgabe tragen `ttGroupPayload()` = `{v:1, omitted:"live"}` (Live-Gruppenarbeit)
+  bzw. `{v:1, omitted:"group"}` (ohne Live-Verbindung an einem Gerät); `ttCleanPayload` lässt beide durch, `ttDetail` → `TT_LIVE_NOTE`
+  „Tippzeiten: ohne Messung (Live-Gruppenarbeit).“ / `TT_GROUP_NOTE` „Tippzeiten: ohne Messung (Partner- oder Gruppenarbeit).“ (`#t-tt-hint`
+  nennt beides). Die Gruppen-Fassungen `TT_SHORT(true)`, `TT_SWITCH_IHR`, `TT_OPT_ON_G` … bleiben im Code, werden aber nicht mehr gezeigt.
+  Alles Folgende gilt für die Einzelarbeit: je `textarea.answer`/`textarea.tcell` (nie
   Weltkarte oder Foto – `NO_TYPING_KINDS`) `el._tt = {text, recs:[{t, g?}], undo, lastDel, ver}` (`ttNew`); Zeitpunkt `performance.now()` im Capture-Listener
   `input` (`_evTs`/`_evType`, vor jedem frühen `return`; nie `Date.now` – E2E 3e hält ihn fest), Abgleich `ttSync` (über
   `ttSyncSafe` als erste Zeile von `answerChanged`, Netz im `compositionend`) → `ttApply`: Präfix/Suffix wie `inserted` (`ttDiff`,
@@ -1317,10 +1341,18 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Ablauf), 7g (Lehrkraft-Ansicht mit alten Abgaben/Erstversuchen). Der Server sieht den Geburtstag nie (nur im
   verschlüsselten Umschlag). Partner- und Gruppenarbeit fragt **keinen** Geburtstag ab (siehe unten); `adoptLegacyDraft`
   sucht nur für Einzelarbeit.
-- **Einzelarbeit / Partner- und Gruppenarbeit:** Nach gültigem Code (`startGo` → `openMode`, nicht bei „Weiterschreiben“,
+- **Einzelarbeit / Partner- und Gruppenarbeit:** **Jede neue Partner-/Gruppenarbeit ist live** (siehe Live-Gruppenarbeit): „Partner- /
+  Gruppenarbeit“ führt erst zu `#screen-live` (Gruppensprecher:in oder dazuschalten); die Gruppensprecherin bzw. der Gruppensprecher
+  füllt den hier beschriebenen Angaben-Bildschirm aus (`#p-sub` = `LIVE_GROUP_SUB`, `#p-btn` „Weiter“ → `groupGo` → `liveHostStart`),
+  `#p-back` führt bei Gruppen zurück zu `#screen-live`. Der hier beschriebene **lokale** Gruppen-Weg (Zwischenstand auf dem Gerät unter
+  `draftKeyFor`, „Weiterschreiben?“ mit den Kürzeln, Zwischenstand-PDF/-Code einer Gruppe) gilt nur noch im Rückfall „Ohne
+  Live-Verbindung an diesem Gerät arbeiten“ (`groupGo(true)` → `openEditor(true)`) und für ältere Gruppen-Stände – immer ohne
+  Tippzeit-Messung; Sätze unten zu `TT_SHORT`/Schalter bei Gruppen sind überholt (siehe Tippzeit-Messung), `KLASSE_HINT_*_G` lautet
+  „… Bis dahin liegen sie mit eurem gemeinsamen Stand verschlüsselt auf dem Server dieser Seite – lesbar nur mit eurem Zugangswort und
+  Zahlencode.“ Nach gültigem Code (`startGo` → `openMode`, nicht bei „Weiterschreiben“,
   Zwischenstand-Code und Zwischenstand-PDF) `#screen-mode` „Wie arbeitest du?“ mit `button.modebtn#mode-single` „Einzelarbeit“ / `#mode-group`
-  „Partner- / Gruppenarbeit“ (Name per `aria-labelledby` auf `.mt`, Erklärzeile `.md` per `aria-describedby`; Fokus auf
-  `#mode-single`), `#m-back` „← anderen Code eingeben“ (`resetStudent`). Beide führen zu `#screen-person` (`openPerson(group)`,
+  „Partner- / Gruppenarbeit“ (Name per `aria-labelledby` auf `.mt`, Erklärzeile `.md` per `aria-describedby`; `#mode-group-d` = `LIVE_MODE_D`; Fokus auf
+  `#mode-single`), `#m-back` „← anderen Code eingeben“ (`resetStudent`). Danach `#screen-person` (`openPerson(group)`,
   `S.groupMode`; `#p-back` „← zurück zur Auswahl“ fokussiert die gewählte Form): Einzelarbeit unverändert (`#p-single`),
   Gruppe „Eure Angaben“ (`#p-sub`, `#p-group` mit Hinweis `#p-members-hint`): `#p-members` mit `div.pm-row` (Label „Person n“,
   `input#p-m-n`, `maxlength` 8, Einzelarbeit-Attribute; ab Person 2 `.iconbtn.x` `aria-label` „Person n entfernen“ – Fokus danach
@@ -1719,6 +1751,131 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `page.route` → PDF ohne rote Zeile + Statuszeile, diese PDF hochgeladen (derselbe Code gilt weiter), Abgabe → `DELETE` `{id}` → Zeile
   weg, Code lädt nichts mehr, Blatt gelöscht → Stände weg. Auch 3f (dort jetzt genau ein `PUT /api/draft`) und 2 (Statuszeile, `saveCode`
   im Datensatz) laufen über den neuen Knopf.
+- **Live-Gruppenarbeit (Wunsch des Betreibers vom 24.11.2026):** Partner- und Gruppenarbeit läuft live an einem oder mehreren Geräten.
+  **Entscheidungen des Betreibers:** in einer Aufgabe schreibt immer nur ein Gerät (wer tippt, hält sie, bis einige Sekunden nicht getippt
+  wird; die anderen sehen den Text mitwachsen; eine Tabelle zählt als ein Feld); die Gruppensprecherin bzw. der Gruppensprecher trägt alle
+  Kürzel und die Klasse ein und bekommt Zugangswort und Zahlencode, wer sich dazuschaltet, gibt nur beides ein; keine Tippzeit-Messung bei
+  Gruppen; Durable Objects + WebSocket, der gemeinsame Stand liegt nur verschlüsselt beim Server. Abgeleitet: jede neue Gruppenarbeit ist
+  live (Escape-Blätter weiter nur Einzelarbeit), Zahlencode 5 Ziffern (10000–99999), Zugangswort aus `LIVE_WORDS` (402 Wörter, nur a–z,
+  4–9 Buchstaben – ≈ 25 Bit zusammen: Schutz gegen Erraten über die API, nicht gegen Durchprobieren mit Datenbankzugriff; die Hinweise
+  sagen deshalb nur „verschlüsselt“ und nennen, wer lesen kann), Einmaligkeit je Blatt sichert der Server (409 `room_taken` → neu würfeln,
+  `LIVE_CREATE_TRIES` 6), der Hinweis an gesperrten Aufgaben nennt keinen Namen, Rückfall ohne Live-Verbindung = lokaler Gruppen-Weg.
+  **Server** (`worker/live.js`, Kopfkommentar = Protokoll; nicht ohne Not ändern): Durable Object `LiveRoom` (einfache Klasse,
+  WebSocket-Hibernation, kein `setTimeout`/`setInterval`, Zustand je Verbindung in `serializeAttachment`), ein Raum je Gruppe, Name `rid =
+  sha256("live|" + Code + "|" + room)`, EU-Jurisdiktion (`env.LIVE.jurisdiction("eu")`; lokal unter `wrangler dev` ohne). Im Raum: Kopf `m`
+  (`{v, code, rid, n, photo, meta, createdAt, sub}`), `t` (letzte Änderung, höchstens alle 10 min fortgeschrieben), `k:<Schlüssel>` → `{v,
+  ver}`; Schlüssel `a<i>` Antwort zu Aufgabe i (0-basiert), `f<i>` erste Fassung + KI-Feedback (nur einmal setzbar), `fs` Signatur des
+  gesendeten Erstversuchs, `sol` Lösungen nach der Abgabe; `LIVE` (idleDays 30, lockMs 30 s, claimMs 6 min, submitMs 3 min, maxConns 24,
+  textValue 64 KB, photoValue 640 KB, solValue 1536 KB, metaValue 4096, setsPerMin 150). Nachrichten Browser → Raum: `lock`/`unlock {k}`,
+  `pv {k, v}` (Vorschau, nicht gespeichert, belegt die Aufgabe), `set {k, v, base?}`, `claim`/`release {ks}`, `claimsub`, `unsub`, `sub
+  {attempt, receivedAt?, sol?}`; Raum → Browser: `init {you, n, m:{createdAt, meta, tasks, idleDays, sub}, st, lk, cl, sc}`, `peers`, `pv`,
+  `set`, `ack`, `lock`, `claim`, `subclaim`, `sub`, `deny {why: bad|big|submitted|submitting|locked|stale|set|claimed|nosub|noclaim|unknown|
+  error}`; `ms` = Restdauer einer Sperre/Zusage (der Raum meldet den Ablauf nicht); Schließcodes 4404 (Raum weg), 4409 (zu viele Geräte),
+  4400/4413/4429; `"ping"` → `"pong"` ohne das Objekt zu wecken. Wecker: ohne Abgabe 30 Tage nach der letzten Änderung alles weg; nach
+  der Abgabe täglich (und bei jedem Verbinden) nachsehen, ob es sie in `submissions` noch gibt – sonst `k:sol` weg und `sub.gone`; Blatt
+  weg → alles weg (beim Löschen eines Blattes bis zu 30 Räume sofort per `/wipe`). `sub` zählt nur, wenn die Abgabe (Kennung, stage final)
+  in D1 steht. Free-Plan: je Tag 100 000 Anfragen (20 eingehende WebSocket-Nachrichten = eine) und 100 000 geschriebene Zeilen (jedes
+  `set` = 1) → **Vorschau (`pv`) oft, Speichern (`set`) selten**; fällt der Baustein aus: 503 `live_unavailable`, alles andere läuft.
+  **Krypto (nur im Browser, nie ändern ohne neue Version; identisch zu `deriveLiveKeys`/`sealLive`/`openLive` in test/smoke.mjs):**
+  `liveDerive(subtle, code6, wort, zahl)`: `master` = PBKDF2-HMAC-SHA256(Passwort `"feibeitsblatt/live/v1|" + CODE6 + "|" + wort + "|" +
+  zahl`, Salt `"feibeitsblatt/live/v1"`, 600 000, 256 Bit); HKDF-SHA256 (leeres Salt): `info` `feibeitsblatt/live/id/v1` → `room` (64 Hex,
+  geht an den Server), `feibeitsblatt/live/enc/v1` → AES-GCM-256 (nicht exportierbar). Jeder Wert `Base64(IV 12 ‖ Chiffrat)` über
+  UTF-8-JSON (`liveSeal`/`liveOpen`): `meta {v:1, gruppe, klasse, attempt}` (attempt = die **gemeinsame Kennung der Bearbeitung** für
+  Erstversuch und Abgabe), `a<i> {t: Textform, p?: Foto}`, `f<i> {first, fb, at}`, `fs {sig}` (wie `fbtSig`), `sol` (unten). Alles
+  Entschlüsselte ist fremde Eingabe: `liveOpenVal` (unlesbar → `null` = leer, nie ein Abbruch), `liveCleanMeta` (über `cleanGroup`,
+  attempt 16 Hex), `liveCleanAnswer` (≤ `MAX_ANSWER`, Foto nur über `cleanPhoto`), `liveCleanFb` (`normFb`), `liveCleanSig`,
+  `liveCleanSub`, `liveCleanSol`.
+  **Block `/* LIVE:BEGIN */ … /* LIVE:END */`** (reine Funktionen, braucht nur `asciiDigits` aus BDAY; `test/unit/liveclient.test.mjs`):
+  `LIVE_WORDS`, `liveWord(rnd)`/`liveNumber(rnd)` (ohne Modulo-Bias), `normLiveWord` (klein, ä→ae …, nur a–z, ≤ 20), `normLiveNumber`
+  (`asciiDigits`, nur Ziffern), `liveWordOk`/`liveNumberOk` (genau 5), Takt `LIVE_PV_MS` 1000, `LIVE_SET_IDLE_MS` 1500, `LIVE_SET_MAX_MS`
+  8000, `LIVE_UNLOCK_MS` 4000, Verbindung `LIVE_PING_MS` 25 s, `LIVE_PONG_MS` 10 s, `LIVE_INIT_MS` 12 s, `LIVE_ACK_MS` 10 s,
+  `liveRetryMs` (1, 2, 4, 8, 15 s …), `LIVE_GRACE_MS` 3 s (so lange stört eine Unterbrechung das Tippen nicht), Budget `LIVE_PV_BUDGET`
+  100 / `LIVE_SET_BUDGET` 140 je Minute (`liveBudget`; der Raum trennt ab 150), `liveWsUrl` (bei `API === ""` dieselbe Herkunft mit
+  `ws:`/`wss:`, sonst die Worker-Adresse mit `wss:`), `liveHold`/`liveHeld`/`liveExpire` (Sperren verfallen auf der Uhr dieses Geräts;
+  eigene – auch frühere – Verbindungen sind kein fremdes Gerät), `liveReconcile` (nach einer Unterbrechung: `take`/`send`/`same`/`acked`/
+  `lost`), `liveSig`, `liveKeyIdx`, `liveSolOut`/`liveCleanSol`, `liveLastOut`/`liveLastIn`, alle Texte (`LIVE_…`, `liveDenyText`,
+  `liveStateText`, `liveDoneText`, `liveDoneGroup`, `livePdfHead`, `LIVE_PDF_LINE`; nie ein Wort zur Tippzeit-Messung).
+  **Zustand:** `S.live` = `liveNew(code, word, num, keys)` (null = Einzelarbeit bzw. Gruppe ohne Live-Verbindung): `val`/`ver`
+  (gespeicherter Stand je `a<i>`), `pv` (Vorschau anderer), `fb`, `fsSig`, `locks`/`claims`/`subClaim` (`{by, until}`), `mine[i]` (eigene
+  Eingabe: `dirty`, `sent`, `base`, Zeitgeber), `own` (Kennungen der eigenen Verbindungen), `inq`/`outq` (eingehende Nachrichten werden
+  nacheinander verarbeitet – Entschlüsseln ist asynchron –, ausgehende nacheinander verschlüsselt und gesendet), `editor`, `sub`, `sol`.
+  `resetStudent` → `liveClose`; `openEditor` (lokaler Weg) beginnt mit `liveClose(S.live)`. **Ein gescheiterter WebSocket-Handshake sieht
+  im Browser nur wie Code 1006 aus** → vor dem ersten Verbinden immer `POST /api/live/join`, und `liveLost` fragt nach einem Abbruch ohne
+  Begrüßung erneut `join` (404 → `liveGone`: Startseite mit `LIVE_GONE`, Eintrag für „Weiterschreiben“ weg).
+  **Bildschirme:** `#screen-live` (h1 „Partner- / Gruppenarbeit“, `.modebtn#live-host` „Ich bin Gruppensprecherin / Gruppensprecher“ /
+  `#live-join` „Ich schalte mich dazu“ mit Erklärzeilen `#live-host-d`/`#live-join-d`, `#lv-back` → `openMode("mode-group")`);
+  Gruppensprecher:in → `openPerson(true)` → „Weiter“ → `liveHostStart(person)`: Status `#p-live-status` `LIVE_SETUP`, würfeln, ableiten,
+  `create` (bei `room_taken` neu), `liveConnect` (wartet auf `init`) → `liveInfoOpen`; Fehlschlag: `#p-err` = `LIVE_SETUP_FAIL` + Meldung
+  des Servers, `div#p-live-fail` mit `#p-live-hint` (`LIVE_LOCAL_HINT`), `#p-live-retry` „Erneut versuchen“ (bekommt den Fokus; ein schon
+  angelegter Raum wird weiterverwendet – `liveSetup`) und `#p-live-local` „Ohne Live-Verbindung an diesem Gerät arbeiten“ (`groupGo(true)`).
+  `#screen-liveinfo` (h1#li-h mit Fokus „Euer Zugang zur Gruppenarbeit“, `dl.liveacc` mit `#li-word`/`#li-num` groß, `#li-code`,
+  `#li-text` = `LIVE_INFO_TEXT`, `#li-go` „Zum Feibeitsblatt“). `#screen-livejoin` (h1 „Zur Gruppenarbeit dazuschalten“, `#lj-word`
+  (autocapitalize none), `#lj-num` (numeric, maxlength 5), `#lj-err` role=alert, `#lj-status`, `#lj-privacy` per `renderLivePrivacy` –
+  Kurzfassung, `#lj-privacy-live`, `#lj-privfull` in der „ihr“-Form –, `#lj-go` „Zum Feibeitsblatt“, `#lj-back`; Enter Wort → Zahl →
+  los; `liveJoinGo` → `liveJoin(word, num, still)`: ableiten → `join` (404: Meldung des Servers) → verbinden → `meta` entschlüsseln
+  (scheitert: `LIVE_JOIN_WRONG`) → abgegeben? `liveShowDone`, sonst `liveOpenEditor`). **Weiterschreiben:** `feibeitsblatt:last` =
+  `liveLastOut` `{v, t, code, title, live:{word, num}}` (keine Kürzel; `liveLast()` 7 Tage; `cleanupDrafts` lässt ihn stehen); Startseite
+  `showResume` → `liveResumeParts` „Weiterarbeiten an eurer Gruppenarbeit zu „Titel“? (Zugangswort …, Zahlencode …)“, Knöpfe
+  `LIVE_RESUME_BTN`/`LIVE_RESUME_DEL` → `liveResume` (Lauf-Kennung `ESC.run` wie die anderen Wege der Startseite; Raum weg → Eintrag
+  löschen, Meldung des Servers). Zwischenstand-PDF/-Code einer Gruppe öffnen weiter lokal (nie live).
+  **Schreibbereich** (`liveOpenEditor`: `S.draftKey = ""` – `saveDraft` speichert nichts –, `S.attempt = meta.attempt`, Person aus
+  `meta`, Stand aus `init.st`; `liveEditorLabels`): Kopfzeile `div#live-bar` unter `#ed-title` („Zugangswort: **wort** · Zahlencode:
+  **12345**“, `#live-word`/`#live-num`) und `#live-state` (`role="status"`: „Live verbunden · n Geräte“ / „… · nur dieses Gerät“ /
+  „Verbindung wird hergestellt …“ (Schonfrist) / „Verbindung unterbrochen – wird wiederhergestellt …“ / `LIVE_HINT_SUBMIT` / `LIVE_FULL`),
+  `#save-state` `LIVE_SAVED`/`LIVE_SAVING`/`LIVE_OFFLINE`, `#ed-pdf` „Stand als PDF-Datei sichern“ (`livePdfClick` → `makeLivePdf`:
+  lesbarer Stand, rot und fett oben `livePdfHead` + `LIVE_PDF_LINE`, ohne eingebetteten Datensatz, ohne `PUT /api/draft`;
+  `Feibeitsblatt-Gruppenarbeit-<Code>-<Zeit>.pdf`), `#ed-cancel` „Gruppenarbeit verlassen“ (`liveLeave`, Dialog `LIVE_LEAVE`; der Stand
+  bleibt), `#draft-code` verborgen, `#privacy-live`. `answerChanged` → `liveInput(i, typed)`: getippt → erste Vorschau sofort (belegt die
+  Aufgabe), weitere höchstens alle `LIVE_PV_MS`; `liveSave` (`set` mit `base`) `LIVE_SET_IDLE_MS` nach der letzten Eingabe, spätestens alle
+  `LIVE_SET_MAX_MS`, nie zwei gleichzeitig je Aufgabe; `liveUnlock` `LIVE_UNLOCK_MS` nach der letzten Eingabe bzw. beim Verlassen des
+  Feldes (`focusout`, innerhalb derselben Tabelle nicht) – erst nach dem `ack`; Weltkarte/Foto (`typed` falsch) sofort `set` und frei.
+  Gesendet wird die Textform der ganzen Aufgabe (Foto dazu `p`, nie als Vorschau). Empfangen: `liveApply`/`liveShow` schreiben ins Feld
+  (Tabelle über `w._apply` ohne Neuaufbau), ohne Fokus, ohne Scrollen, ohne erneutes Senden – **nie in ein Feld mit eigener offener Eingabe
+  (`liveMineBusy`)**; die lehnt dann der Raum ab (`deny` `locked`/`stale` → der Raum gewinnt, `LIVE_HINT_STALE`). `liveLockUi`: Feld
+  `readOnly`, `.task.live-locked`, `p.live-hint#lh-n` (`role="status"`, nur im Live-Modus gebaut) `LIVE_HINT_WRITE` bzw. `LIVE_HINT_AI`;
+  eigene KI-Anfrage: `S.fbHold` (`fieldsFree` gibt frei); getrennt (nach `LIVE_GRACE_MS`) oder gibt ein anderes Gerät ab: alle Felder und
+  die Knöpfe für KI-Feedback und Abgabe gesperrt (`liveBlocked`). Neu verbinden mit wachsender Pause, sofort bei `online`/sichtbar/Fokus
+  (`liveKick`), Lebenszeichen `ping`/`pong`; nach dem Wiederverbinden `liveAfterInit` (`liveReconcile` je Aufgabe, offene `f`-/`sol`-/
+  `sub`-Meldungen erneut). `pagehide`/verborgen: offene Eingabe sofort senden (`liveFlushNow`); `beforeunload` warnt nur bei ungespeicherter
+  Eingabe.
+  **KI-Feedback (je Aufgabe nur einmal für die ganze Gruppe):** in `requestFeedback` immer zuerst `askConfirm(LIVE_ASK_FB)` („Erst die
+  Gruppe fragen“ / „Alle sind einverstanden“ / „Noch nicht“), dann der bisherige Dialog mit `guard: true` (sein „OK“ wirkt erst nach
+  500 ms – der zweite Klick eines Doppelklicks bestätigt ihn nicht mit); danach `liveClaimFb` (eigene Eingabe speichern, `claim` – ohne
+  Zusage geht nichts an die KI: `liveDenyText` `set`/`claimed`/`locked`/`submitting`), vor jedem automatischen neuen Versuch erneut;
+  Erfolg → `livePushFb` (`set f<i>` je Ziel-Aufgabe; ohne `only` für alle Aufgaben) → alle Geräte `liveTakeFb` (S.first/S.feedback aus
+  dem Raum, Box sichtbar, Buttons wie nach eigenem Feedback); Abbruch/Fehlschlag → `liveReleaseFb`. Den Erstversuch sendet das Gerät, das
+  das Feedback bekommen hat (danach `set fs` per `liveFirstSent`); ein Gerät, das 20 s nach dem Öffnen Feedback ohne passendes `fs` sieht,
+  holt ihn nach.
+  **Abgabe (nur einmal je Gruppe):** in `submitAll` zuerst `askConfirm(LIVE_ASK_SUBMIT)`, dann der bisherige Dialog (`guard`); danach
+  `liveClaimSub` (alles Eigene speichern, `claimsub`; Ablehnung als `ApiError("live_deny", Text)`), `liveSettle` (alle Felder = gespeicherter
+  Stand – genau der wird abgegeben), `POST /api/submit` wie bisher (Person und `attempt` aus `meta`, `typing {v:1, omitted:"live"}`) →
+  `liveSubmitted` → `{t:"sub", attempt, receivedAt, sol}`; `#done-group` = `liveDoneGroup(word, num)`; Fehlschlag → `liveUnsub`; 409
+  `final_locked` → `LIVE_FINAL_LOCKED` und Nachfrage `{t:"sub", attempt}`. `sol` = `liveSolOut(S.lastSubmission)` (alles für
+  `makeSolutionsPdf`, `fb2: pending|done|none`, Checkliste, **nie Tippzeiten**; über 1536 KB ohne Fotos), nachgereicht per `set sol`
+  (`liveSolPush` aus `fb2LoadChecklist`, `requestFinalFeedback`, `finalFeedbackFailed`/`-Gone`, `fb2Drop`). Alle anderen Geräte und wer
+  später öffnet: `#screen-livedone` (`liveShowDone`/`liveDoneRender`: h1#ld-h „Diese Gruppenarbeit wurde abgegeben“, `#ld-sub`
+  `liveDoneText`, mit `sol` und ohne `gone` `#ld-pdf` „Abgegebene Lösungen als PDF-Datei herunterladen“ + `#ld-pdf-note`, bei `fb2:
+  pending` (höchstens `LIVE_FB2_PENDING_MS` nach der Abgabe) `#ld-wait` `LIVE_DONE_WAIT`, sonst `#ld-none` `LIVE_DONE_GONE` bzw.
+  `LIVE_DONE_NONE`; `#ld-home`). ids der Abgabe-Ansicht beginnen mit `ld-` wie die des Link-Dialogs (`#ld-text`, `#ld-url` …) – keine
+  doppelt vergeben.
+  **Datenschutz:** eigene Bausteine vor `PRIV_IHR` (`LIVE_SHORT`, `LIVE_PRIV_DU`/`LIVE_PRIV_IHR` mit `livePurpose`, `liveData`, `liveItem`,
+  `liveStay`, `liveChoice`, `liveRights`, `PV_LIVE_NOTE`; nie Tippzeit-Wörter, nie „Server in der EU“): Kurzsatz `p.privacy#p-privacy-live`
+  (Angaben der Gruppe), `#lj-privacy-live`, `#privacy-live` (Schreibbereich); `privacyNoticeDom(…, {live: true})` (`const lv = o.live`)
+  fügt Absätze bzw. einen Listenpunkt ein (keine eigene Überschrift, `privacyShortText` unverändert); `renderPrivacy` ersetzt im Live-Modus
+  die Sätze zum Zwischenstand durch `LIVE_PRIV_ED`; „Impressum & Datenschutz“: `section#legal-live` „Partner- und Gruppenarbeit live“
+  (`renderLegalLive`, nach `#legal-photo`). Offen für den Betreiber: README „Live-Gruppenarbeit“, „Weiter vom Betreiber zu prüfen“.
+  **Tests:** `liveclient.test.mjs` (Wortliste, Würfeln, Normalisierung, Takt, Ableitung und Wert-Format gegen smoke.mjs, Prüfung
+  entschlüsselter Werte, `liveReconcile`, `liveSolOut`/`liveCleanSol` samt größter Abgabe, Texte, Stellen im Skript); E2E 2c (eigenes
+  Blatt mit Text, Tabelle, Text und Foto, wird gelöscht; zwei bzw. drei Kontexte; Gerät B über `liveWire` = `context.routeWebSocket` –
+  **vor dem Laden der Seite einrichten** –: Verbindung trennen, blockieren, einzelne Nachrichten verschlucken; `LIVE_SHOTS_OUT=<Ordner>`
+  speichert Bildschirmfotos), E2E 2b (Gruppe ohne Live-Verbindung: `liveUnavailable(context)` → 503 für `create`), 7q und 7m (Gruppen
+  live; keine Messung); Helfer in `helpers.mjs`: `chooseGroupHost`, `fillGroup`, `startGroupHost`, `openGroupSheet`, `joinGroup`,
+  `startGroupLocal`, `confirmDialog(…, {then: Titel})` für zwei Dialoge hintereinander. Das Skript der Seite steckt in einer IIFE –
+  Tests kommen nicht an `S` (nur an DOM und Element-Eigenschaften wie `_tt`).
+  **Bekannte Grenzen:** Schließt das Gerät, das KI-Feedback bekommen hat, die Seite, bevor `set f<i>` ankommt, kennt die Gruppe das
+  Feedback nicht (eine zweite Anfrage ist dann möglich); schließt das abgebende Gerät, bevor die finale KI-Rückmeldung nachgereicht ist,
+  bleibt `sol` ohne sie (die Abgabe-Ansicht wartet höchstens `LIVE_FB2_PENDING_MS`); Fehlversuche und Gründe des KI-Feedbacks
+  (`S.fbFails`, `S.fbUnavailable`) gelten je Gerät.
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
@@ -1909,7 +2066,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Anfrage, D1 ohne `finalWanted` und ohne `noAi`), älterer Worker ohne `aiTasks` (per `page.route` entfernt: nur der Button
   unten, `#privacy` wie bisher) und ein Blatt mit nur einer Aufgabe mit Auftrag (keine Buttons). Das Haupt-Blatt der E2E-Tests (`TASKS`: drei Aufgaben, zwei mit Auftrag) und die Blätter von 7b/7f haben jetzt Buttons je
   Aufgabe; die übrigen Tests benutzen sie nicht und prüfen so den bisherigen Weg (nur `#privacy` lautet auf solchen Blättern neu, siehe Datenschutz oben – 7f prüft Satz 1).
-- **Rate-Limits** (`rate_limits`, festes Fenster, `rlHit` atomar per Upsert … RETURNING): `door`, `auth`
+- **Rate-Limits** (`rate_limits`, festes Fenster, `rlHit` atomar per Upsert … RETURNING; außerdem `draft` 300/h und `draft_bytes`
+  60 MB/h je IP für online gesicherte Zwischenstände, `live_create` 120/h je IP für neue Live-Gruppenarbeiten – unbekannte Zwischenstand-Codes
+  und unbekannte Räume zählen als `lookup_miss`): `door`, `auth`
   10/15 min und `auth_all` 200/h (nur Fehlversuche – richtige Codes/Passwörter gehen **immer** durch, laufende
   Sitzungen ebenso; über dem Limit bremst `requireTeacher` Fehlversuche um 2 s), `lookup_miss` 30/10 min (gültige
   Codes immer), `feedback` 480/h + `feedback_chars` 1 600 000/h je IP (verdoppelt am 08.11.2026, Entscheidung des Betreibers: die finale KI-Rückmeldung kommt nach fast jeder Abgabe, im Schulnetz teilen sich alle eine IP; am 17.11.2026 trotz KI-Feedback je Aufgabe unverändert gelassen – Anfragen zu
@@ -1928,7 +2087,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `final_locked` zählen nie), `checklist` 60/h je IP (KI-Vorschlag der Checkliste – jedes neue Blatt fragt nach „Code generieren“ einmal –, Erstattung wie beim Feedback).
   Je Blatt höchstens 400 Abgaben / 40 MB (Umschläge samt `final_env`). Bucket = Art + gekürzter SHA-256 von IP|Art (mit `SETTINGS_SECRET`
   als Pfeffer), IPv6 vorher auf /64 gekürzt (`ipKey`) – nie Klartext-IPs speichern. Schulnetz = eine IP für viele.
-- **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`; Online-Zwischenstand: `draftcode.test.mjs` und E2E 3h, siehe dort; Antwortart Foto: `photo.test.mjs` liest den Block PHOTO – Grenzen gegen
+- **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`; Live-Gruppenarbeit: `liveclient.test.mjs` (Browser, Block LIVE – darin auch
+  „das Skript der Seite ist als Ganzes syntaktisch gültig“), `live.test.mjs` (Raum), E2E 2c und 2b, siehe dort; Online-Zwischenstand: `draftcode.test.mjs` und E2E 3h, siehe dort; Antwortart Foto: `photo.test.mjs` liest den Block PHOTO – Grenzen gegen
   `LIMITS`, `cleanPhoto`, `jpegInfo`/`pdfPhotoOk`, `photoBudget` und ein echter Umschlag mit 1–3 größten Fotos samt 150 KB Text ≤
   `LIMITS.photoEnvelopeBytes` und Body ≤ `bodyBytes`; lib/ai/worker/typing.test für Validierung, Prompt, große Umschläge nur bei Foto-Blättern
   und die Liste nach Bytes – der Test zählt die Zeilen, die D1 liefert; Smoke-Schritt „Antwortart Foto“ gegen echtes D1; Übergabe aus Unterricks:

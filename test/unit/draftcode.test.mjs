@@ -603,7 +603,8 @@ test("draftcode: Datenschutztexte – nennen das Online-Sichern (nur auf Klick, 
   assert.ok(short(null, [], false, true, false).includes("Eure Lehrkraft löscht sie nach der Durchsicht. " +
     "Nur wenn ihr euren Zwischenstand online sichert, liegt auch er verschlüsselt auf dem Server – laden kann ihn nur, wer euren Zwischenstand-Code kennt. Zu diesem Feibeitsblatt gibt es kein KI-Feedback."));
   // Angaben-Bildschirm (Klasse) und Schreibbereich: nicht mehr „nur auf diesem Gerät“ ohne die Ausnahme
-  for (const x of ["Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.", "Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät – außer ihr sichert ihn selbst online."])
+  // Gruppen arbeiten live: ihr gemeinsamer Stand liegt verschlüsselt auf dem Server (Block LIVE) – auch das nennt der Hinweis zur Klasse
+  for (const x of ["Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.", "Bis dahin liegen sie mit eurem gemeinsamen Stand verschlüsselt auf dem Server dieser Seite – lesbar nur mit eurem Zugangswort und Zahlencode."])
     assert.equal(html.split(x).length - 1, x.includes("dein") ? 3 : 2, x);   // du: HTML + mit/ohne KI; ihr: mit/ohne KI
   assert.ok(!/Zwischenstand nur auf diesem Gerät\./.test(html));
   const rp = body("function renderPrivacy()", 'const full = $("privfull-ed")');

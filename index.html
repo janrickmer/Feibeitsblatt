@@ -94,6 +94,28 @@
   .bday-row{display:flex; gap:12px}
   .bday-item{flex:0 0 6.5em}
   .bday-item label{text-transform:none; letter-spacing:0; font-size:13.5px; color:var(--ink); margin:0 0 4px}
+  /* Live-Gruppenarbeit: Zugangswort und Zahlencode groß (auch aus 1–2 m ablesbar), Kopfzeile, Hinweis an gesperrten Aufgaben */
+  .liveacc{display:grid; grid-template-columns:1fr; gap:12px; margin:20px 0 10px}
+  .liveacc > div{padding:14px 16px 16px; border:1.5px solid var(--line); border-radius:12px; background:var(--paper2); text-align:center}
+  .liveacc dt{font-family:var(--sans); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 0 4px}
+  .liveacc dd{margin:0; font-family:var(--mono); font-weight:700; font-size:clamp(34px, 11vw, 54px); line-height:1.15; letter-spacing:.06em; color:var(--ink); overflow-wrap:anywhere}
+  .liveacc-code{font-family:var(--sans); font-size:15px; margin:0 0 14px; text-align:center}
+  .liveacc-code b{font-family:var(--mono); letter-spacing:.08em}
+  .liveacc-text{font-size:14.5px; line-height:1.55; color:var(--ink); margin:0 0 20px}
+  .live-input{font-family:var(--mono) !important; font-size:20px !important; letter-spacing:.08em}
+  .livefail{margin:8px 0 6px}
+  .livefail p{margin:0 0 10px}
+  .livefail .row{display:flex; gap:8px 10px; flex-wrap:wrap}
+  .livebar{display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:baseline; gap:2px 14px; font-family:var(--sans); font-size:14px; line-height:1.4; margin:2px 0}
+  .livebar b{font-family:var(--mono); font-size:15.5px; font-weight:700; letter-spacing:.04em}
+  .live-state{font-size:12.5px; color:var(--green); font-weight:600}
+  .live-state.off{color:var(--red)}
+  .live-hint{font-family:var(--sans); font-size:13.5px; line-height:1.45; color:var(--orange-ink); font-weight:600; margin:6px 0 0}
+  .live-hint:empty{margin:0}
+  #ld-none{margin:4px 0 16px}
+  #li-h:focus, #ld-h:focus{outline:none}   /* Überschriften, die beim Öffnen den Fokus bekommen (Screenreader lesen sie vor) */
+  .task.live-locked textarea, .task.live-locked .photow, .task.live-locked .mapw{opacity:.82}
+  .task.live-locked textarea{border-style:dashed}
   /* Arbeitsform (#screen-mode) und Kürzel der Gruppe (#p-group) */
   .modes{display:grid; gap:12px; margin:22px 0 4px}
   .modebtn{
@@ -869,6 +891,7 @@
     .modebtn .mt{font-size:18px}
     .topbar{padding:10px 16px}
     .topbar .right{align-items:flex-start; text-align:left}
+    .livebar{justify-content:flex-start}
     .stitle{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}   /* der Titel steht ohnehin auf dem Blatt */
     .paperwrap{padding:16px 10px 40px}
     .sheet{padding:28px 18px 40px}
@@ -951,10 +974,78 @@
         <button type="button" class="modebtn" id="mode-group" aria-labelledby="mode-group-t" aria-describedby="mode-group-d">
           <svg class="modeico" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="14" cy="14" r="5.5"/><circle cx="27" cy="12" r="4.5"/><path d="M3.5 34c0-6.2 4.7-10.5 10.5-10.5S24.5 27.8 24.5 34"/><path d="M24 22.6c1-.4 2-.6 3-.6 5.2 0 9.5 3.9 9.5 9.6"/></svg>
           <span class="mt" id="mode-group-t">Partner- / Gruppenarbeit</span>
-          <span class="md" id="mode-group-d">Ihr bearbeitet es zu zweit oder in einer Gruppe (bis zu 10 Personen) an einem Gerät und gebt gemeinsam ab.</span>
+          <span class="md" id="mode-group-d">Ihr arbeitet zu zweit oder in einer Gruppe (bis zu 10 Personen) live zusammen – an einem oder an mehreren Geräten – und gebt gemeinsam ab.</span>
         </button>
       </div>
       <button type="button" class="backlink" id="m-back">← anderen Code eingeben</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LIVE-GRUPPENARBEIT: Gruppensprecher:in oder dazuschalten ============ -->
+<section id="screen-live" class="screen" aria-labelledby="live-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <p class="sheetline" id="lv-sheet"></p>
+      <h1 id="live-h">Partner- / Gruppenarbeit</h1>
+      <div class="modes">
+        <button type="button" class="modebtn" id="live-host" aria-labelledby="live-host-t" aria-describedby="live-host-d">
+          <svg class="modeico" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="20" cy="15" r="6"/><path d="M8.5 35c0-6.6 5-11.3 11.5-11.3S31.5 28.4 31.5 35"/><path d="M20 2.5v3.2M10.8 5.5l1.8 2.6M29.2 5.5l-1.8 2.6"/></svg>
+          <span class="mt" id="live-host-t">Ich bin Gruppensprecherin / Gruppensprecher</span>
+          <span class="md" id="live-host-d">Du startest die Gruppenarbeit, trägst die Namenskürzel aller Gruppenmitglieder ein und bekommst ein Zugangswort und einen Zahlencode für deine Gruppe.</span>
+        </button>
+        <button type="button" class="modebtn" id="live-join" aria-labelledby="live-join-t" aria-describedby="live-join-d">
+          <svg class="modeico" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="15" cy="14" r="5.5"/><path d="M4.5 34c0-6.2 4.7-10.5 10.5-10.500S25.5 27.8 25.5 34"/><path d="M31 12v10M26 17h10"/></svg>
+          <span class="mt" id="live-join-t">Ich schalte mich dazu</span>
+          <span class="md" id="live-join-d">Deine Gruppe arbeitet schon. Du brauchst das Zugangswort und den Zahlencode von eurer Gruppensprecherin oder eurem Gruppensprecher.</span>
+        </button>
+      </div>
+      <button type="button" class="backlink" id="lv-back">← zurück zur Auswahl</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LIVE-GRUPPENARBEIT: Zugangswort und Zahlencode der Gruppe ============ -->
+<section id="screen-liveinfo" class="screen" aria-labelledby="li-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <p class="sheetline" id="li-sheet"></p>
+      <h1 id="li-h" tabindex="-1">Euer Zugang zur Gruppenarbeit</h1>
+      <dl class="liveacc">
+        <div><dt>Zugangswort</dt><dd id="li-word"></dd></div>
+        <div><dt>Zahlencode</dt><dd id="li-num"></dd></div>
+      </dl>
+      <p class="liveacc-code">Code des Feibeitsblattes: <b id="li-code"></b></p>
+      <p class="liveacc-text" id="li-text"></p>
+      <button type="button" class="btn block" id="li-go">Zum Feibeitsblatt</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LIVE-GRUPPENARBEIT: dazuschalten ============ -->
+<section id="screen-livejoin" class="screen" aria-labelledby="lj-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <p class="sheetline" id="lj-sheet"></p>
+      <h1 id="lj-h">Zur Gruppenarbeit dazuschalten</h1>
+      <p class="sub">Gib das Zugangswort und den Zahlencode ein, die eure Gruppensprecherin oder euer Gruppensprecher bekommen hat.</p>
+      <div class="field">
+        <label for="lj-word">Zugangswort</label>
+        <input type="text" id="lj-word" class="live-input" maxlength="30" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+      </div>
+      <div class="field">
+        <label for="lj-num">Zahlencode</label>
+        <input type="text" id="lj-num" class="live-input" inputmode="numeric" maxlength="5" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="lj-num-hint">
+        <p class="fhint" id="lj-num-hint">5 Ziffern.</p>
+      </div>
+      <div class="pprivacy" id="lj-privacy"></div>
+      <p class="err" id="lj-err" role="alert"></p>
+      <p class="status" id="lj-status" aria-live="polite"></p>
+      <button type="button" class="btn block" id="lj-go">Zum Feibeitsblatt</button>
+      <button type="button" class="backlink" id="lj-back">← zurück</button>
     </div>
   </div>
 </section>
@@ -1009,6 +1100,14 @@
       </div>
       <div class="pprivacy" id="p-privacy"></div>
       <p class="err" id="p-err" aria-live="polite"></p>
+      <div class="notebox livefail hidden" id="p-live-fail">
+        <p id="p-live-hint"></p>
+        <div class="row">
+          <button type="button" class="btn small" id="p-live-retry">Erneut versuchen</button>
+          <button type="button" class="btn ghost small" id="p-live-local">Ohne Live-Verbindung an diesem Gerät arbeiten</button>
+        </div>
+      </div>
+      <p class="status" id="p-live-status" aria-live="polite"></p>
       <button type="button" class="btn block" id="p-btn">Schreibbereich öffnen</button>
       <button type="button" class="backlink" id="p-back">← zurück zur Auswahl</button>
     </div>
@@ -1021,6 +1120,10 @@
     <div class="who"><span class="lbl" id="who-lbl">Verfasser:in</span><span id="who-name"></span></div>
     <div class="right">
       <div class="stitle" id="ed-title"></div>
+      <div class="livebar hidden" id="live-bar">
+        <span class="live-acc">Zugangswort: <b id="live-word"></b> · Zahlencode: <b id="live-num"></b></span>
+        <span class="live-state" id="live-state" role="status"></span>
+      </div>
       <div class="count" id="save-state"></div>
       <button type="button" class="linkbtn" id="ed-pdf">Zwischenstand sichern (online und als PDF-Datei)</button>
       <button type="button" class="linkbtn" id="ed-cancel">Abbrechen und Zwischenstand von diesem Gerät löschen</button>
@@ -1052,6 +1155,7 @@
         <p class="privacy hidden" id="privacy-esc"></p>
         <p class="privacy hidden" id="privacy-yt"></p>
         <p class="privacy hidden" id="privacy-photo"></p>
+        <p class="privacy hidden" id="privacy-live"></p>
         <div id="privfull-ed"></div>
         <div class="moodle-hint hidden" id="revise-hint" role="status" tabindex="-1"></div>
         <div class="submitrow">
@@ -1098,6 +1202,24 @@
   </div>
 </section>
 
+<!-- ============ LIVE-GRUPPENARBEIT: von einem anderen Gerät der Gruppe abgegeben ============ -->
+<section id="screen-livedone" class="screen" aria-labelledby="ld-h">
+  <div class="start-wrap">
+    <div class="card">
+      <p class="brand">Feibeitsblatt</p>
+      <p class="sheetline" id="ld-sheet"></p>
+      <h1 id="ld-h" tabindex="-1">Diese Gruppenarbeit wurde abgegeben</h1>
+      <p class="sub" id="ld-sub"></p>
+      <button type="button" class="btn block dl hidden" id="ld-pdf" aria-describedby="ld-pdf-note"><svg class="dl-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5v11.5"/><path d="M7 10.5l5 5 5-5"/><path d="M4.5 16.5v3h15v-3"/></svg><span id="ld-pdf-label">Abgegebene Lösungen als PDF-Datei herunterladen</span></button>
+      <p class="donewait hidden" id="ld-wait"><span class="spinner" aria-hidden="true"></span><span id="ld-wait-text" role="status"></span></p>
+      <p class="donenote hidden" id="ld-pdf-note">Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.</p>
+      <p class="notebox hidden" id="ld-none" role="status"></p>
+      <p class="status" id="ld-status" aria-live="polite"></p>
+      <button type="button" class="btn ghost block" id="ld-home">Neues Feibeitsblatt öffnen</button>
+    </div>
+  </div>
+</section>
+
 <!-- ============ CHECKLISTE (QR-Code des analogen Arbeitsblattes: Adresse mit #checkliste=CODE) ============ -->
 <section id="screen-check" class="screen" aria-labelledby="check-h">
   <div class="start-wrap">
@@ -1136,10 +1258,11 @@
       <p class="legal-free">Feibeitsblatt ist ein nicht kommerzielles Angebot und wird unentgeltlich bereitgestellt.</p>
       <p class="status" id="legal-status" aria-live="polite"></p>
       <div id="legal-privacy"></div>
-      <p class="fhint legal-other" id="legal-other">Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. Bei Partner- oder Gruppenarbeit gilt alles ebenso für alle in der Gruppe; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.</p>
+      <p class="fhint legal-other" id="legal-other">Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. Bei Partner- oder Gruppenarbeit gilt es ebenso für alle in der Gruppe – mit den Besonderheiten im Abschnitt „Partner- und Gruppenarbeit live“ weiter unten; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.</p>
       <section class="legal-esc" id="legal-escape" aria-labelledby="legal-escape-h"></section>
       <section class="legal-esc" id="legal-video" aria-labelledby="legal-video-h"></section>
       <section class="legal-esc" id="legal-photo" aria-labelledby="legal-photo-h"></section>
+      <section class="legal-esc" id="legal-live" aria-labelledby="legal-live-h"></section>
       <button type="button" class="backlink" id="legal-home2">← zur Startseite</button>
     </div>
   </div>
@@ -1254,7 +1377,7 @@
         <p class="legend hidden" id="t-subs-legend"><span class="st-final">Grün</span> = Abgabe nach der Überarbeitung · <span class="st-first">Orange</span> = Erstversuch ohne Überarbeitung (nur KI-Feedback angefordert, noch nicht abgegeben)</p>
         <div class="ttbox hidden" id="t-tt">
           <p class="legend" id="t-tt-legend">Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): <span class="tt-r">rot</span> (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · <span class="tt-y">gelb</span> = über 15 bis 70 ms · <span class="tt-g">grün</span> = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (<span id="t-tt-none">z. B. ältere Stände oder nach einem Widerspruch</span>); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).</p>
-          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung widersprechen: Die Kurzfassung des Datenschutzhinweises nennt die Messung in einem Satz, im ausführlichen Hinweis („Alle Informationen zum Datenschutz“) steht im Abschnitt „Widerspruch gegen die Tippzeit-Messung“ der Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“. Nach einem Widerspruch steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.</p>
+          <p class="tthint" id="t-tt-hint">Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Schüler:innen können der Messung widersprechen: Die Kurzfassung des Datenschutzhinweises nennt die Messung in einem Satz, im ausführlichen Hinweis („Alle Informationen zum Datenschutz“) steht im Abschnitt „Widerspruch gegen die Tippzeit-Messung“ der Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“. Nach einem Widerspruch steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht. Bei Partner- und Gruppenarbeit wird nicht gemessen: Dort steht „ohne Messung (Live-Gruppenarbeit)“ bzw. „ohne Messung (Partner- oder Gruppenarbeit)“.</p>
           <button type="button" class="btn ghost small" id="t-tt-off" aria-pressed="false">Färbung aus</button>
         </div>
         <p class="status" id="t-subs-status" aria-live="polite"></p>
@@ -2299,11 +2422,54 @@ function liveLastIn(d) {
 }
 // Größe in KB (für Grenzen): verschlüsselter Wert passt in den Raum?
 const liveFits = (v, max) => typeof v === "string" && v.length <= max;
+const LIVE_LOCK_MS = 30000;   // so lange gilt die Sperre eines anderen Geräts ohne Angabe des Raums (= LIVE.lockMs in worker/live.js)
+// Schlüssel a<i> bzw. f<i> → i (0-basiert), sonst -1
+const liveKeyIdx = (k, kind) => { const m = /^([af])(0|[1-9]\d?)$/.exec(String(k)); return m && m[1] === kind ? Number(m[2]) : -1; };
+// Vergleichswert einer Antwort {t, p} (Foto-Aufgabe: Textform und Foto)
+const liveSig = (v) => (v && v.p ? String(v.t || "") + "\n" + v.p : String((v && v.t) || ""));
+/* Lösungen nach der Abgabe (sol) – alles, was die Lösungs-PDF braucht, nie Tippzeiten. liveSolOut baut den Datensatz aus der Abgabe des
+   abgebenden Geräts (sub wie die gemerkte letzte Abgabe; ohne Fotos, falls er sonst zu groß wäre); fb2 = Stand der finalen KI-Rückmeldung: "pending"
+   (läuft noch), "done" (feedback2 liegt bei), "none" (abgewählt, nicht angeboten, gescheitert oder nicht abgewartet). */
+function liveSolOut(sub, withPhotos) {
+  const f2 = sub.feedback2 && Array.isArray(sub.feedback2.results) ? { results: sub.feedback2.results, final: true, at: sub.feedback2.at || "" } : null;
+  const pending = !f2 && sub.fb2Want === true && !sub.fb2Final && (sub.fb2State === "loading" || !sub.fb2State);
+  return { v: 1, code: sub.code, title: sub.title, tasks: sub.tasks, kinds: sub.kinds, person: sub.person,
+    answers: sub.answers.map((a) => Object.assign({ first: a.first, final: a.final }, withPhotos && a.photo ? { photo: a.photo } : null)),
+    feedback: sub.feedback || null, feedbackError: sub.feedbackError || "", noAi: sub.noAi || "", receivedAt: sub.serverAt || sub.receivedAt || 0,
+    ...(typeof sub.finalWanted === "boolean" ? { finalWanted: sub.finalWanted } : {}), feedback2: f2, fb2: f2 ? "done" : pending ? "pending" : "none",
+    checklist: sub.checklist === false ? false : sub.checklist && Array.isArray(sub.checklist.points) ? { ai: !!sub.checklist.ai, points: sub.checklist.points } : null };
+}
+// … und zurück (fremde Eingabe): d = {cleanGroup, cleanPhoto, normFb, max}; → Datensatz für makeSolutionsPdf oder null. checklist: null =
+// lag beim Senden noch nicht vor (die Abgabe-Ansicht holt sie dann selbst), false = keine
+function liveCleanSol(o, d) {
+  if (!o || typeof o !== "object" || Array.isArray(o) || o.v !== 1 || !Array.isArray(o.answers) || typeof o.code !== "string" || !/^[A-Z0-9]{6}$/.test(o.code)) return null;
+  const str = (x, n) => (typeof x === "string" ? x.slice(0, n) : "");
+  const pr = o.person && typeof o.person === "object" ? o.person : {};
+  const person = d.cleanGroup({ gruppe: Array.isArray(pr.gruppe) ? pr.gruppe.slice(0, 12) : null, klasse: str(pr.klasse, 20) });
+  if (!person) return null;
+  const answers = o.answers.slice(0, 30).map((a) => {
+    const ok = !!a && typeof a === "object", p = ok && typeof a.photo === "string" ? d.cleanPhoto(a.photo) : "";
+    return Object.assign({ first: ok ? str(a.first, d.max) : "", final: ok ? str(a.final, d.max) : "" }, p ? { photo: p } : null);
+  });
+  const n = answers.length, isObj = (f) => !!f && typeof f === "object" && !Array.isArray(f);
+  const fb = Array.isArray(o.feedback) ? o.feedback.slice(0, n).map((f) => (isObj(f) ? d.normFb(f) : null)) : null;
+  const f2 = isObj(o.feedback2) && Array.isArray(o.feedback2.results) ? { results: o.feedback2.results.slice(0, n).map((f) => d.normFb(isObj(f) ? f : {})), final: true, at: str(o.feedback2.at, 40) } : null;
+  const ck = isObj(o.checklist) && Array.isArray(o.checklist.points)
+    ? { ai: o.checklist.ai === true, points: o.checklist.points.slice(0, 30).map((ps) => (Array.isArray(ps) ? ps : []).filter((x) => typeof x === "string" && x.trim()).slice(0, 8).map((x) => x.slice(0, 160))) }
+    : o.checklist === false ? false : null;
+  return { code: o.code, title: str(o.title, 200), tasks: (Array.isArray(o.tasks) ? o.tasks : []).slice(0, n).map((t) => str(t, 4000)),
+    kinds: (Array.isArray(o.kinds) ? o.kinds : []).slice(0, n).map((k) => (["text", "table", "map", "photo"].includes(k) ? k : "text")),
+    person: { gruppe: person.gruppe, klasse: person.klasse }, answers, feedback: fb && fb.some(Boolean) ? fb : null, feedbackError: str(o.feedbackError, 200),
+    noAi: ["declined", "unavailable", "none"].includes(o.noAi) ? o.noAi : "", receivedAt: Number.isSafeInteger(o.receivedAt) && o.receivedAt > 0 ? o.receivedAt : 0,
+    finalWanted: typeof o.finalWanted === "boolean" ? o.finalWanted : undefined, feedback2: f2, fb2: f2 ? "done" : o.fb2 === "pending" ? "pending" : "none", checklist: ck };
+}
 /* Texte (du-Form; wo es um alle geht „ihr“; keine Wörter zur Tippzeit-Messung – bei Gruppen wird nie gemessen) */
 const LIVE_MODE_D = "Ihr arbeitet zu zweit oder in einer Gruppe (bis zu 10 Personen) live zusammen – an einem oder an mehreren Geräten – und gebt gemeinsam ab.";
 const LIVE_SETUP = "Der Zugang für eure Gruppe wird eingerichtet …";
 const LIVE_SETUP_FAIL = "Die Live-Verbindung für eure Gruppe ließ sich gerade nicht einrichten.";
 const LIVE_LOCAL_HINT = "Ohne Live-Verbindung arbeitet ihr gemeinsam an diesem einen Gerät: Nur dieses Gerät hat dann euren Stand – dazuschalten kann sich niemand.";
+const LIVE_GROUP_SUB = "Bitte tragt eure Angaben ein. Danach bekommt ihr ein Zugangswort und einen Zahlencode für eure Gruppe.";
+const LIVE_NEXT_BTN = "Weiter";
 const LIVE_INFO_TEXT = "Zeige das deinen Gruppenmitgliedern. Sie öffnen Feibeitsblatt, geben den Code des Feibeitsblattes ein, wählen „Partner- / Gruppenarbeit“ und dann „Ich schalte mich dazu“. " +
   "Zugangswort und Zahlencode stehen auch während der Arbeit oben in der Kopfzeile. Gebt beides nur an eure Gruppe weiter: Wer beides und den Code des Feibeitsblattes kennt, kann euren Stand lesen und ändern.";
 const LIVE_JOINING = "Du wirst mit deiner Gruppe verbunden …";
@@ -2349,6 +2515,9 @@ const LIVE_DONE_PDF = "Abgegebene Lösungen als PDF-Datei herunterladen";
 const LIVE_DONE_WAIT = "Die finale KI-Rückmeldung wird gerade erstellt – sie steht in der PDF-Datei, sobald dieser Hinweis verschwindet.";
 const LIVE_DONE_GONE = "Die Abgabe wurde inzwischen gelöscht – die Lösungen lassen sich hier nicht mehr herunterladen.";
 const LIVE_DONE_NONE = "Die Lösungen liegen hier noch nicht vor.";
+const LIVE_DONE_DL = "Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.";
+// 409 final_locked: die Bearbeitung der Gruppe ist schon abgegeben und abgeschlossen (die Seite fragt dann beim Raum nach)
+const LIVE_FINAL_LOCKED = "Diese Gruppenarbeit ist schon abgegeben und abgeschlossen – sie lässt sich nicht noch einmal abgeben.";
 // Bestätigungsseite des abgebenden Geräts (#done-group, rot): die anderen holen sich die Lösungen selbst
 const liveDoneGroup = (word, num) => `Die anderen Mitglieder deiner Gruppe können die Lösungen selbst herunterladen: Sie öffnen die Gruppenarbeit mit dem Code des Feibeitsblattes, dem Zugangswort „${word}“ und dem Zahlencode ${num}.`;
 // „Stand als PDF-Datei sichern“: ganz oben rot und fett der Zugang, darunter, wie man sich wieder dazuschaltet
@@ -2984,11 +3153,14 @@ function show(id) {
    offen ist), bekommt der zweite Aufruf sofort null (= keine Antwort) – Text und Antwort des offenen Dialogs bleiben unverändert.
    o.check = {label, checked}: ein Kästchen unter dem Text (Abgabe-Dialog: finale KI-Rückmeldung) – sein Zustand steht nach dem Schließen
    in $("dlg-check").checked (bis zum nächsten Aufruf); ohne o.check ist die Zeile verborgen. */
-let dlgResolve = null, dlgReturn = null, dlgOpenedAt = 0, dlgBackdrop = false;
+let dlgResolve = null, dlgReturn = null, dlgOpenedAt = 0, dlgBackdrop = false, dlgGuardUntil = 0;
 function askConfirm(o) {
   if (dlgResolve) return Promise.resolve(null);
   return new Promise((resolve) => {
     dlgResolve = resolve; dlgReturn = document.activeElement; dlgOpenedAt = Date.now();
+    // o.guard: der Dialog folgt unmittelbar auf einen anderen (Live-Gruppenarbeit: „Erst die Gruppe fragen“, dann der bisherige) – der
+    // zweite Klick eines Doppelklicks bestätigt ihn nicht gleich mit: „OK“ wirkt erst nach einem Augenblick
+    dlgGuardUntil = o.guard ? dlgOpenedAt + 500 : 0;
     dlgBackdrop = "backdrop" in o ? o.backdrop : false;
     $("dlg-title").textContent = o.title || "";
     $("dlg-text").textContent = o.text || "";
@@ -3009,7 +3181,7 @@ function closeDlg(val) {
   try { if (dlgReturn && dlgReturn.focus) dlgReturn.focus(); } catch (e) { /* egal */ }
   r(val);
 }
-$("dlg-ok").addEventListener("click", () => closeDlg(true));
+$("dlg-ok").addEventListener("click", () => { if (Date.now() >= dlgGuardUntil) closeDlg(true); });
 $("dlg-cancel").addEventListener("click", () => closeDlg(false));
 $("dlg").addEventListener("keydown", (e) => {
   if (e.key === "Escape") { e.preventDefault(); closeDlg(false); }
@@ -3821,7 +3993,10 @@ const S = {
   // Finale eines Escape-Rooms: escPending = aus dem Raum angekommen, Schreibbereich noch nicht offen (nur Arbeitsspeicher); escape = zum
   // geöffneten Blatt – je {hull, rec, check} (Hülle unverändert für den Zwischenstand, geprüfter Datensatz, Prüfsumme)
   escPending: null, escape: null,
-  escSoft: null   // gescheiterte Abgabe eines Escape-Room-Finales, bei der zuerst Warten bzw. die Lehrkraft hilft: {until} (E-Mail-Weg erst danach)
+  escSoft: null,   // gescheiterte Abgabe eines Escape-Room-Finales, bei der zuerst Warten bzw. die Lehrkraft hilft: {until} (E-Mail-Weg erst danach)
+  // Live-Gruppenarbeit (Block LIVE): live = der Raum der Gruppe samt Verbindung (null = Einzelarbeit bzw. Gruppe ohne Live-Verbindung),
+  // lhs = Hinweis je Aufgabe („Hier schreibt gerade jemand …“), fbHold = Aufgaben, die die eigene KI-Anfrage gerade sperrt
+  live: null, lhs: [], fbHold: null
 };
 const LAST_KEY = "feibeitsblatt:last";   // zuletzt geöffnetes Blatt + Angaben: „Weiterschreiben?“ nach Neuladen
 
@@ -4077,6 +4252,52 @@ const PHOTO_PRIV_IHR = {
     `(und in jeder Zwischenstand-PDF-Datei, die ihr sichert – sichert ihr ihn online, verschlüsselt auch auf dem Server); an eure Lehrkraft geht es nur verschlüsselt mit eurer Abgabe. An eine KI geht es nie – für das KI-Feedback und die finale ` +
     `KI-Rückmeldung bekommt der Server statt des Fotos nur den Vermerk „${PHOTO_TEXT}“, und die Foto-Aufgabe selbst geht nicht an die KI.`,
 };
+/* Live-Gruppenarbeit (Partner- und Gruppenarbeit an mehreren Geräten, Block LIVE): eigene Absätze bzw. Listenpunkte neben den übrigen –
+   nie in deren Sätze gemischt, nie ein Wort zur Tippzeit-Messung (bei Gruppen wird nicht gemessen). Der gemeinsame Stand liegt laufend
+   verschlüsselt in einem Speicher je Gruppe bei Cloudflare (Durable Object, EU); den Schlüssel bildet der Browser aus dem Code des
+   Feibeitsblattes, Zugangswort und Zahlencode – der Server erhält nur eine daraus abgeleitete Kennung. Die Sätze stimmen nur, solange
+   der Raum nichts Unverschlüsseltes speichert und die Seite auf dem Gerät nur Zugangswort und Zahlencode merkt (liveLastOut). */
+const LIVE_SHORT = "Bei Partner- und Gruppenarbeit arbeitet ihr live zusammen: Was ihr schreibt, wird laufend verschlüsselt auf dem Server dieser Seite gespeichert, damit alle Geräte eurer Gruppe denselben Stand sehen. " +
+  "Lesen und ändern kann ihn, wer den Code des Feibeitsblattes, euer Zugangswort und euren Zahlencode kennt – gebt beides nur an eure Gruppe weiter.";
+const LIVE_PRIV_DU = {
+  livePurpose: "Bei Partner- und Gruppenarbeit arbeitest du mit deiner Gruppe live zusammen: Damit alle Geräte eurer Gruppe denselben Stand sehen und ihr gleichzeitig an verschiedenen Aufgaben schreiben könnt, " +
+    "speichert der Server dieser Seite euren gemeinsamen Stand laufend – verschlüsselt.",
+  liveData: "Bei Partner- und Gruppenarbeit gehören zum gemeinsamen Stand eure Antworten (auch Fotos), das KI-Feedback mit der ersten Fassung, nach der Abgabe eure Lösungen samt finaler KI-Rückmeldung für die PDF-Datei " +
+    "sowie die Namenskürzel und die Klasse eurer Gruppe – die Kürzel trägt die Gruppensprecherin oder der Gruppensprecher für alle ein. Das alles wird in deinem Browser mit einem Schlüssel verschlüsselt, " +
+    "der aus dem Code des Feibeitsblattes, eurem Zugangswort und eurem Zahlencode entsteht; Zugangswort und Zahlencode erhält der Server nie. Lesen und ändern kann den gemeinsamen Stand deshalb, wer alle drei kennt – " +
+    "gib Zugangswort und Zahlencode nur an deine Gruppe weiter. Der Server sieht dabei die Internetadresse (IP-Adresse) deines Geräts, die Zeitpunkte, die Größe der Einträge und in welcher Aufgabe gerade geschrieben wird – " +
+    "nicht, was dort steht. Rechtsgrundlage ist wie beim Bearbeiten und Abgeben Art. 6 Abs. 1 Buchst. b DSGVO.",
+  liveItem: "Den gemeinsamen Stand einer Partner- oder Gruppenarbeit speichert Cloudflare in einem eigenen Speicher je Gruppe – nur verschlüsselt; dieser Speicher liegt in der EU. " +
+    "Deine Lehrkraft kann den gemeinsamen Stand nicht lesen; sie bekommt wie sonst nur Erstversuch und Abgabe.",
+  liveStay: `Bei Partner- und Gruppenarbeit wird der gemeinsame Stand ohne Abgabe ${LIVE_IDLE_DAYS} Tage nach der letzten Änderung gelöscht. Nach der Abgabe bleiben die Lösungen für die PDF-Datei so lange gespeichert wie die Abgabe selbst ` +
+    "(bis zur Löschfrist oder bis deine Lehrkraft die Abgabe löscht) und der Vermerk „abgegeben“, bis das Feibeitsblatt gelöscht wird; mit dem Feibeitsblatt wird alles gelöscht (Cloudflare kann einen gelöschten Stand technisch noch bis zu 30 Tage wiederherstellen). Selbst löschen kannst du den gemeinsamen Stand nicht. " +
+    `Auf deinem Gerät liegt dabei kein Zwischenstand: Diese Seite merkt sich dort nur Zugangswort und Zahlencode, damit du weiterarbeiten kannst (höchstens ${DRAFT_DAYS} Tage; § 25 Abs. 2 Nr. 2 TDDDG) – „Gruppenarbeit verlassen“ entfernt beides von diesem Gerät. ` +
+    "Was hier zum Zwischenstand auf dem Gerät und zum online gesicherten Zwischenstand steht, gilt nur, wenn ihr ohne Live-Verbindung gemeinsam an einem Gerät arbeitet.",
+  liveChoice: " Partner- und Gruppenarbeit gibt es nur live: Möchtest du nicht, dass der gemeinsame Stand auf dem Server gespeichert wird, wähle Einzelarbeit. " +
+    "Nur wenn sich die Live-Verbindung nicht einrichten lässt, könnt ihr gemeinsam an einem Gerät arbeiten – dann bleibt der Stand wie bei der Einzelarbeit auf diesem Gerät.",
+  liveRights: "Den gemeinsamen Stand einer Partner- oder Gruppenarbeit kann auch der Betreiber nicht lesen und nur mit dem Code des Feibeitsblattes, dem Zugangswort und dem Zahlencode finden und löschen.",
+};
+const LIVE_PRIV_IHR = {
+  livePurpose: "Bei Partner- und Gruppenarbeit arbeitet ihr live zusammen: Damit alle Geräte eurer Gruppe denselben Stand sehen und ihr gleichzeitig an verschiedenen Aufgaben schreiben könnt, " +
+    "speichert der Server dieser Seite euren gemeinsamen Stand laufend – verschlüsselt.",
+  liveData: "Bei Partner- und Gruppenarbeit gehören zum gemeinsamen Stand eure Antworten (auch Fotos), das KI-Feedback mit der ersten Fassung, nach der Abgabe eure Lösungen samt finaler KI-Rückmeldung für die PDF-Datei " +
+    "sowie die Namenskürzel und die Klasse eurer Gruppe – die Kürzel trägt die Gruppensprecherin oder der Gruppensprecher für alle ein. Das alles wird in eurem Browser mit einem Schlüssel verschlüsselt, " +
+    "der aus dem Code des Feibeitsblattes, eurem Zugangswort und eurem Zahlencode entsteht; Zugangswort und Zahlencode erhält der Server nie. Lesen und ändern kann den gemeinsamen Stand deshalb, wer alle drei kennt – " +
+    "gebt Zugangswort und Zahlencode nur an eure Gruppe weiter. Der Server sieht dabei die Internetadresse (IP-Adresse) eurer Geräte, die Zeitpunkte, die Größe der Einträge und in welcher Aufgabe gerade geschrieben wird – " +
+    "nicht, was dort steht. Rechtsgrundlage ist wie beim Bearbeiten und Abgeben Art. 6 Abs. 1 Buchst. b DSGVO.",
+  liveItem: "Den gemeinsamen Stand einer Partner- oder Gruppenarbeit speichert Cloudflare in einem eigenen Speicher je Gruppe – nur verschlüsselt; dieser Speicher liegt in der EU. " +
+    "Eure Lehrkraft kann den gemeinsamen Stand nicht lesen; sie bekommt wie sonst nur Erstversuch und Abgabe.",
+  liveStay: `Bei Partner- und Gruppenarbeit wird der gemeinsame Stand ohne Abgabe ${LIVE_IDLE_DAYS} Tage nach der letzten Änderung gelöscht. Nach der Abgabe bleiben die Lösungen für die PDF-Datei so lange gespeichert wie die Abgabe selbst ` +
+    "(bis zur Löschfrist oder bis eure Lehrkraft die Abgabe löscht) und der Vermerk „abgegeben“, bis das Feibeitsblatt gelöscht wird; mit dem Feibeitsblatt wird alles gelöscht (Cloudflare kann einen gelöschten Stand technisch noch bis zu 30 Tage wiederherstellen). Selbst löschen könnt ihr den gemeinsamen Stand nicht. " +
+    `Auf euren Geräten liegt dabei kein Zwischenstand: Diese Seite merkt sich dort nur Zugangswort und Zahlencode, damit ihr weiterarbeiten könnt (höchstens ${DRAFT_DAYS} Tage; § 25 Abs. 2 Nr. 2 TDDDG) – „Gruppenarbeit verlassen“ entfernt beides vom jeweiligen Gerät. ` +
+    "Was hier zum Zwischenstand auf dem Gerät und zum online gesicherten Zwischenstand steht, gilt nur, wenn ihr ohne Live-Verbindung gemeinsam an einem Gerät arbeitet.",
+  liveChoice: " Partner- und Gruppenarbeit gibt es nur live: Möchtet ihr nicht, dass der gemeinsame Stand auf dem Server gespeichert wird, wählt Einzelarbeit. " +
+    "Nur wenn sich die Live-Verbindung nicht einrichten lässt, könnt ihr gemeinsam an einem Gerät arbeiten – dann bleibt der Stand wie bei der Einzelarbeit auf diesem Gerät.",
+  liveRights: "Den gemeinsamen Stand einer Partner- oder Gruppenarbeit kann auch der Betreiber nicht lesen und nur mit dem Code des Feibeitsblattes, dem Zugangswort und dem Zahlencode finden und löschen.",
+};
+// Vorschau der Lehrkraft (#pv-preview-note)
+const PV_LIVE_NOTE = "Bei Partner- oder Gruppenarbeit arbeiten die Schüler:innen live an mehreren Geräten: Dann kommen Sätze zum gemeinsamen Stand hinzu, der laufend verschlüsselt auf dem Server liegt " +
+  "(Schlüssel aus Zugangswort und Zahlencode, die der Server nie erhält; lesen und ändern kann ihn, wer beides und den Code des Feibeitsblattes kennt).";
 // Dieselben Bausteine in der „ihr“-Form – nur für den ausführlichen Hinweis auf dem Angaben-Bildschirm einer Gruppe (privacyNoticeDom
 // mit group); inhaltlich gleich, im Schreibbereich bleibt es beim „du“
 const PRIV_IHR = {
@@ -4105,9 +4326,9 @@ const PRIV_IHR = {
   fb2Send: " Nach der Abgabe gehen eure Antworten – auch ohne vorheriges KI-Feedback – auf demselben Weg an die KI: für die finale KI-Rückmeldung, die zu jeder Aufgabe nennt, " +
     "was gelungen ist und was gefehlt hat, und die der Server danach verschlüsselt zu eurer Abgabe speichert – dort kann sie nur eure Lehrkraft lesen (beim Abgeben könnt ihr sie abwählen).",
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
-  ...YT_PRIV_IHR, ...PHOTO_PRIV_IHR,
+  ...YT_PRIV_IHR, ...PHOTO_PRIV_IHR, ...LIVE_PRIV_IHR,
 };
-const PRIV_DU = { draftStay: DRAFT_STAY, ...DRAFT_ONLINE_DU, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET, ...YT_PRIV_DU, ...PHOTO_PRIV_DU };
+const PRIV_DU = { draftStay: DRAFT_STAY, ...DRAFT_ONLINE_DU, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET, ...YT_PRIV_DU, ...PHOTO_PRIV_DU, ...LIVE_PRIV_DU };
 /* Feibeitsblatt als Finale eines Escape-Rooms (nur Einzelarbeit, also nur die du-Form): eigene Absätze bzw. Listenpunkte neben den
    übrigen – nie in deren Sätze gemischt. Voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät (Zwischenstand,
    Zwischenstand-PDF, Abschluss-PDF) – außer die Schülerin sichert den Zwischenstand online: dann liegen sie verschlüsselt mit auf dem
@@ -4236,6 +4457,7 @@ function privacyNoticeDom(p, list, opts) {
   const esc = o.escape && !g ? String(o.escape) : "";   // Finale eines Escape-Rooms (Name; nur Einzelarbeit): eigene Absätze und Listenpunkte
   const yt = !!o.videos;   // YouTube-Videos (Einzelarbeit und Gruppe): eigene Absätze und Listenpunkte, keine eigene Überschrift
   const ph = !!o.photos;   // Foto-Aufgabe (Einzelarbeit und Gruppe): ein eigener Absatz unter „Welche Daten?“
+  const lv = o.live === true;   // Live-Gruppenarbeit (Partner- und Gruppenarbeit): eigene Absätze und ein Listenpunkt, keine eigene Überschrift
   const head = (x) => h(H, { class: "privh", text: x }), para = (x) => h("p", { text: x }), paraN = (...k) => h("p", null, k);
   const ai = withAi && !o.general ? list.filter((x, i) => i === 0 || x.label !== list[0].label) : [];   // derselbe Dienst doppelt (erster und Reserve) einmal
   const cfAt = ai.findIndex((x) => x.id === "cloudflare");
@@ -4284,6 +4506,7 @@ function privacyNoticeDom(p, list, opts) {
     "LanguageTool (Learneo, Inc., USA) bekommt den Text der geprüften Antwort – ohne eure Angaben, aber mit der Internetadresse eures Geräts. ") +
     "Learneo ist nach dem EU-US Data Privacy Framework zertifiziert; ersatzweise gelten Standardvertragsklauseln." }));
   if (yt) items.push(h("li", { text: B.ytItem }));   // Google (YouTube) – nur nach dem Klick auf ein Video
+  if (lv) items.push(h("li", { text: B.liveItem }));   // gemeinsamer Stand der Gruppe: eigener Speicher bei Cloudflare (EU), für die Lehrkraft nicht lesbar
   if (esc) items.push(escMailItem(withAi));
   const what = withAi ? t("Deine Abgabe – und ein Erstversuch, falls du nach dem KI-Feedback nicht abgibst –", "Eure Abgabe – und ein Erstversuch, falls ihr nach dem KI-Feedback nicht abgebt –")
     : t("Deine Abgabe", "Eure Abgabe");
@@ -4338,6 +4561,7 @@ function privacyNoticeDom(p, list, opts) {
       (tt ? TT_PURPOSE(g) : "") + B.checkPurpose + B.draftPurpose),
     esc ? para(ESC_PRIV.purpose(esc)) : null,
     yt ? para(B.ytPurpose) : null,
+    lv ? para(B.livePurpose) : null,
     head("Rechtsgrundlage"),
     h("ul", null, bases.map((x) => h("li", { text: x }))),
     head("Welche Daten?"),
@@ -4356,6 +4580,7 @@ function privacyNoticeDom(p, list, opts) {
     esc ? para(ESC_PRIV.data(esc)) : null,   // Daten aus dem Escape-Room samt Rechtsgrundlage (die Liste der Rechtsgrundlagen bleibt überall gleich)
     yt ? para(B.ytData) : null,   // was Google beim Laden eines Videos bekommt (diese Seite speichert dazu nichts)
     ph ? para(B.photoData) : null,   // Foto-Aufgabe: verkleinert, im Zwischenstand, nur verschlüsselt an die Lehrkraft, nie an eine KI
+    lv ? para(B.liveData) : null,   // Live-Gruppenarbeit: was zum gemeinsamen Stand gehört, wie er verschlüsselt ist und was der Server dabei sieht
     head("Wer bekommt die Daten?"),
     h("ul", null, items),
     head("Wie lange werden die Daten gespeichert?"),
@@ -4376,6 +4601,7 @@ function privacyNoticeDom(p, list, opts) {
       (ai.some((x) => x.id !== "cloudflare") || o.general ? " Wie lange andere KI-Dienste sie aufbewahren, regeln deren Bedingungen." : "")),
     esc ? para(ESC_PRIV.stay) : null,
     yt ? para(B.ytStay) : null,
+    lv ? para(B.liveStay) : null,
     head(t("Musst du mitmachen?", "Müsst ihr mitmachen?")),
     para(t("Deine Angaben sind nötig, damit deine Lehrkraft die Abgabe dir zuordnen kann – ohne sie kannst du nicht abgeben. ",
       "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
@@ -4383,7 +4609,8 @@ function privacyNoticeDom(p, list, opts) {
       t("Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.", "Ihr könnt auch ohne sie abgeben, ohne dass euch daraus ein Nachteil entsteht.") +
       B.draftChoice +
       (tt ? t(` Die Tippzeiten misst diese Seite, solange du nicht widersprichst (siehe „${TT_OBJ_HEAD}“).`, ` Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (siehe „${TT_OBJ_HEAD}“).`) : "") +
-      (yt ? B.ytChoice : "")),   // kein „ohne Nachteil“ zusagen: eine Aufgabe kann das Video voraussetzen
+      (yt ? B.ytChoice : "") +   // kein „ohne Nachteil“ zusagen: eine Aufgabe kann das Video voraussetzen
+      (lv ? B.liveChoice : "")),
     withAi ? head(t("Entscheidet die KI über dich?", "Entscheidet die KI über euch?")) : null,
     withAi ? para(t("Nein. Die KI gibt nur Hinweise und Tipps – nach der Abgabe auch, was gefehlt hat –, keine Noten. Über deine Arbeit entscheidet deine Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüfe sie selbst.",
       "Nein. Die KI gibt nur Hinweise und Tipps – nach der Abgabe auch, was gefehlt hat –, keine Noten. Über eure Arbeit entscheidet eure Lehrkraft. Die Rückmeldungen sind als KI-erzeugt gekennzeichnet; die KI kann sich irren – prüft sie selbst.")) : null,
@@ -4408,6 +4635,7 @@ function privacyNoticeDom(p, list, opts) {
       " Eure Abgaben liegen auf dem Server verschlüsselt – lesen und einzeln löschen kann sie nur eure Lehrkraft; ihr könnt euch deshalb auch an sie wenden. " +
         "Was nur auf eurem Gerät liegt (Zwischenstand, Häkchen), löscht ihr selbst.") + B.draftRights),
     yt ? para(B.ytRights) : null,   // Widerruf der Einwilligung zum Laden von Videos; Rechte auch direkt bei Google
+    lv ? para(B.liveRights) : null,
     paraN(t("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren", "Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren"),
       ...authorityTail()),
   ];
@@ -4415,23 +4643,41 @@ function privacyNoticeDom(p, list, opts) {
     [h("h2", { class: "legal-h2", id: o.id ? o.id + "-h" : null, text: o.summary || "Datenschutzerklärung" }), ...kids]);
   return h("details", { class: "privfull", id: o.id || null, open: o.open ? true : null }, [h("summary", { text: o.summary || "Alle Informationen zum Datenschutz" }), ...kids]);
 }
+// Schreibbereich der Live-Gruppenarbeit (#privacy): statt der Sätze zum Zwischenstand auf dem Gerät und zum Zwischenstand-Code
+const LIVE_PRIV_ED = `Euer gemeinsamer Stand liegt nicht auf diesem Gerät, sondern verschlüsselt auf dem Server dieser Seite (siehe unten). Dieses Gerät merkt sich nur Zugangswort und Zahlencode (höchstens ${DRAFT_DAYS} Tage) – ` +
+  "auf einem geteilten Gerät also bitte oben „Gruppenarbeit verlassen“ wählen, wenn du fertig bist. Die PDF-Datei aus „Stand als PDF-Datei sichern“ enthält eure Antworten lesbar sowie Zugangswort und Zahlencode – gib sie nicht weiter.";
 // Angaben-Bildschirm: Kurzfassung + alle Informationen (Zeitpunkt der Erhebung); Klasse-Hinweis passend zum Blatt
 const KLASSE_HINT_AI = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.";
 const KLASSE_HINT_NO_AI = "z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.";
-const KLASSE_HINT_AI_G = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät – außer ihr sichert ihn selbst online.";
-const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der Abgabe verschlüsselt an eure Lehrkraft. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät – außer ihr sichert ihn selbst online.";
+// Gruppe (Live-Gruppenarbeit): bis dahin liegt der gemeinsame Stand samt Kürzeln und Klasse verschlüsselt auf dem Server – nicht „nur auf diesem Gerät“
+const KLASSE_HINT_AI_G = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin liegen sie mit eurem gemeinsamen Stand verschlüsselt auf dem Server dieser Seite – lesbar nur mit eurem Zugangswort und Zahlencode.";
+const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der Abgabe verschlüsselt an eure Lehrkraft. Bis dahin liegen sie mit eurem gemeinsamen Stand verschlüsselt auf dem Server dieser Seite – lesbar nur mit eurem Zugangswort und Zahlencode.";
 function renderPersonPrivacy() {
   const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
   const esc = !g && sh.escape ? sh.escape.name : "";   // Finale eines Escape-Rooms: ein eigener Absatz unter der Kurzfassung
   const yt = sheetHasVideos(sh);   // YouTube-Videos (auch bei Gruppen, dann in der „ihr“-Form): ebenso ein eigener Absatz
   const ph = sheetPhotoCount(sh) > 0;   // Foto-Aufgabe: ebenso ein eigener Absatz
-  box.append(...[h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))]),
+  // Gruppen messen nie Tippzeiten (ttMeasured mit g): kein Satz dazu, kein Abschnitt zum Widerspruch; dafür der Absatz zur Live-Gruppenarbeit
+  box.append(...[h("p", { class: "privacy", id: "p-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh, g))]),
     esc ? h("p", { class: "privacy", id: "p-privacy-esc", text: escPrivacyShort(esc) }) : null,
     yt ? h("p", { class: "privacy", id: "p-privacy-yt", text: ytShort(g) }) : null,
     ph ? h("p", { class: "privacy", id: "p-privacy-photo", text: photoShort(g) }) : null,
-    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh), ttSwitch: "live", escape: esc, videos: yt, photos: ph })].filter(Boolean));
+    g ? h("p", { class: "privacy", id: "p-privacy-live", text: LIVE_SHORT }) : null,
+    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "p-privfull", group: g, typing: ttMeasured(sh, g), ttSwitch: "live", escape: esc, videos: yt, photos: ph, live: g })].filter(Boolean));
   $("p-klasse-hint").textContent = sh.aiFeedback ? (g ? KLASSE_HINT_AI_G : KLASSE_HINT_AI) : (g ? KLASSE_HINT_NO_AI_G : KLASSE_HINT_NO_AI);
+}
+// „Zur Gruppenarbeit dazuschalten“ (#screen-livejoin): Kurzfassung und alle Informationen in der „ihr“-Form – wer sich dazuschaltet, gibt
+// selbst keine Angaben ein (die Kürzel hat die Gruppensprecherin bzw. der Gruppensprecher eingetragen)
+function renderLivePrivacy() {
+  const sh = S.sheet, list = sh.aiRecipients || [], box = $("lj-privacy");
+  const yt = sheetHasVideos(sh), ph = sheetPhotoCount(sh) > 0;
+  box.textContent = "";
+  box.append(...[h("p", { class: "privacy", id: "lj-privacy-short" }, [h("b", { text: "Datenschutz: " }), privacyShortText(sh.privacy, list, sh.aiFeedback, true, false)]),
+    yt ? h("p", { class: "privacy", id: "lj-privacy-yt", text: ytShort(true) }) : null,
+    ph ? h("p", { class: "privacy", id: "lj-privacy-photo", text: photoShort(true) }) : null,
+    h("p", { class: "privacy", id: "lj-privacy-live", text: LIVE_SHORT }),
+    privacyNoticeDom(sh.privacy, list, { h: "h2", withAi: sh.aiFeedback, pages: PAGES_HOST, id: "lj-privfull", group: true, typing: false, videos: yt, photos: ph, live: true })].filter(Boolean));
 }
 function renderPrivacy() {
   const r = recipientParts(), withAi = S.sheet.aiFeedback, days = S.sheet.privacy && S.sheet.privacy.retentionDays;
@@ -4469,13 +4715,16 @@ function renderPrivacy() {
         (days ? `Sie wird ${days} Tage nach dem Eingang automatisch gelöscht; deine Lehrkraft kann sie auch früher löschen. ` : `Deine Lehrkraft löscht sie nach der Durchsicht. `)) +
     // Tippzeiten: genau der eine neutrale Satz wie in der Kurzfassung des Angaben-Bildschirms (TT_SHORT) – der Schalter steht im eigenen
     // Abschnitt des ausführlichen Hinweises darunter
-    (ttMeasured(S.sheet) ? TT_SHORT(false) + " " : "") +
+    (ttMeasured(S.sheet, isGroup(S.person)) ? TT_SHORT(false) + " " : "") +
+    // Live-Gruppenarbeit: kein Zwischenstand auf dem Gerät, kein Zwischenstand-Code – der gemeinsame Stand liegt im Raum (Absatz #privacy-live)
+    (S.live ? LIVE_PRIV_ED :
     `Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (ist er älter als ${DRAFT_DAYS} Tage, löscht ihn diese Seite beim nächsten Aufruf in diesem Browser) – ` +
     `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen. ` +
     // online gesicherter Zwischenstand (nur auf Klick, DRAFTCODE): Server, Schlüssel aus dem Code, wer ihn laden kann, wann er gelöscht wird
     `Nur wenn du oben auf „${DC_BTN}“ klickst, wird er zusätzlich verschlüsselt auf dem Server dieser Seite gespeichert, und du bekommst eine PDF-Datei mit deinem Zwischenstand-Code – mit dem Code lädst du den Stand auf jedem Gerät wieder. ` +
     `Den Schlüssel bildet der Code, den der Server nie erhält: Wer den Code kennt, kann den Stand laden; die Datei enthält außerdem deine Antworten lesbar – gib Datei und Code nicht weiter. ` +
     `Online wird der Stand ${DC_DAYS} Tage nach dem letzten Sichern gelöscht, schon vorher nach deiner Abgabe oder mit dem Feibeitsblatt; „Abbrechen und Zwischenstand löschen“ löscht ihn dort nicht.` +
+    "") +
     (withAi ? ` Die KI kann sich irren: Prüfe ihr Feedback selbst.` : ""));
   // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm) – samt eigenem Abschnitt mit dem Schalter
   const full = $("privfull-ed");
@@ -4485,7 +4734,7 @@ function renderPrivacy() {
   const yt = sheetHasVideos(S.sheet);   // YouTube-Videos: eigene Absätze bzw. Listenpunkte (im Schreibbereich immer „du“)
   const ph = sheetPhotoCount(S.sheet) > 0;   // Foto-Aufgabe: ein eigener Absatz
   full.appendChild(privacyNoticeDom(S.sheet.privacy, S.sheet.aiRecipients || [], { h: "h3", withAi, pages: PAGES_HOST, id: "privfull-ed-d", noBday: isGroup(S.person),
-    typing: ttMeasured(S.sheet), ttSwitch: "live", escape: esc, videos: yt, photos: ph }));   // Schalter für den Widerspruch gegen die Tippzeit-Messung (an S.ttOptOut gebunden)
+    typing: ttMeasured(S.sheet, isGroup(S.person)), ttSwitch: "live", escape: esc, videos: yt, photos: ph, live: !!S.live }));   // Schalter für den Widerspruch gegen die Tippzeit-Messung (an S.ttOptOut gebunden); Gruppen: keine Messung
   // Finale eines Escape-Rooms: ein eigener Absatz direkt unter dem Hinweis (#privacy)
   const pe = $("privacy-esc");
   pe.textContent = esc ? escPrivacyEditor(esc) : "";
@@ -4498,6 +4747,10 @@ function renderPrivacy() {
   const pp = $("privacy-photo");
   pp.textContent = ph ? photoShort(false) : "";
   pp.classList.toggle("hidden", !ph);
+  // Live-Gruppenarbeit: ebenso ein eigener Absatz
+  const pl = $("privacy-live");
+  pl.textContent = S.live ? LIVE_SHORT : "";
+  pl.classList.toggle("hidden", !S.live);
 }
 function startErr(e) {
   return e.code === "bad_key" ? "Dieses Feibeitsblatt ist fehlerhaft eingerichtet. Bitte sag deiner Lehrkraft Bescheid." : errMsg(e, "s");
@@ -4594,7 +4847,16 @@ function lastSession() {
   } catch (e) { return null; }
 }
 async function showResume() {
-  const box = $("resume-box"), d = lastSession();
+  const box = $("resume-box"), d = lastSession(), lv = d ? null : liveLast();
+  // Live-Gruppenarbeit: gemerkt sind nur Zugangswort und Zahlencode – der Stand liegt im Raum
+  $("resume-btn").textContent = lv ? LIVE_RESUME_BTN : RESUME_BTN; $("resume-del").textContent = lv ? LIVE_RESUME_DEL : RESUME_DEL;
+  if (lv && subtle) {
+    const parts = liveResumeParts(lv.title, lv.word, lv.num);
+    $("resume-text").textContent = "";
+    $("resume-text").append(parts[0], h("b", { text: parts[1] }), parts[2]);
+    box.classList.remove("hidden");
+    return;
+  }
   if (!d || !subtle) { box.classList.add("hidden"); return; }
   let has = false;
   try { const x = JSON.parse((await draftRaw(d.code, d.person)) || "null"); has = !!(x && Array.isArray(x.answers) && x.answers.some((a) => String(a || "").trim())); } catch (e) { has = false; }
@@ -4607,6 +4869,9 @@ async function showResume() {
 }
 $("resume-btn").addEventListener("click", async () => {
   const d = lastSession(), err = $("start-err"), btn = $("resume-btn");
+  if (btn.disabled) return;
+  const lv = d ? null : liveLast();
+  if (lv) return liveResume(lv);   // Live-Gruppenarbeit: wie Dazuschalten, ohne erneute Eingabe
   if (!d) { $("resume-box").classList.add("hidden"); return; }
   escDrop(); $("start-esc-retry").classList.add("hidden");
   const run = ESC.run;
@@ -4621,6 +4886,8 @@ $("resume-btn").addEventListener("click", async () => {
 });
 $("resume-del").addEventListener("click", async () => {
   const d = lastSession();
+  // Live-Gruppenarbeit: nur Zugangswort und Zahlencode verschwinden von diesem Gerät (der gemeinsame Stand bleibt im Raum)
+  if (!d && liveLast()) { store.del(LAST_KEY); $("resume-box").classList.add("hidden"); $("code-input").focus(); return; }
   if (d && !(await askConfirm({ title: "Zwischenstand löschen?", text: "Der gespeicherte Zwischenstand wird von diesem Gerät gelöscht. Das lässt sich nicht rückgängig machen.", ok: "Löschen", cancel: "Behalten", danger: true }))) return;
   if (d) delDraft(await draftKeyFor(d.code, d.person));
   store.del(LAST_KEY);
@@ -4874,7 +5141,7 @@ function openMode(focusId) {
   focusSoon(focusId || "mode-single", 30);
 }
 $("mode-single").addEventListener("click", () => openPerson(false));
-$("mode-group").addEventListener("click", () => openPerson(true));
+$("mode-group").addEventListener("click", () => liveModeOpen());   // Partner- / Gruppenarbeit: erst Gruppensprecher:in oder dazuschalten
 $("m-back").addEventListener("click", () => { resetStudent(); show("screen-start"); showResume(); focusSoon("code-input", 30); });
 
 /* ---------- 3. Angaben (Einzelarbeit: Kürzel, Geburtstag, Klasse; Gruppe: je Person ein Kürzelfeld, einmal die Klasse) ---------- */
@@ -4883,7 +5150,9 @@ function openPerson(group, pre) {
   S.groupMode = !!group && !pre;
   sheetLine($("p-sheet"));
   $("person-h").textContent = group ? "Eure Angaben" : "Deine Angaben";
-  $("p-sub").textContent = group ? "Bitte tragt eure Angaben ein. Danach öffnet sich der Schreibbereich." : "Bitte trage deine Angaben ein. Danach öffnet sich der Schreibbereich.";
+  $("p-sub").textContent = group ? LIVE_GROUP_SUB : "Bitte trage deine Angaben ein. Danach öffnet sich der Schreibbereich.";
+  $("p-btn").textContent = group ? LIVE_NEXT_BTN : "Schreibbereich öffnen";
+  $("p-live-fail").classList.add("hidden"); setStatus($("p-live-status"), "", "");
   $("p-single").classList.toggle("hidden", !!group);
   $("p-group").classList.toggle("hidden", !group);
   if (!memberInputs().length) addMember(false);
@@ -4940,7 +5209,9 @@ async function personGo() {
 }
 /* Partner- / Gruppenarbeit: alle Kürzelfelder (checkGroup: 2–10 Personen, Kürzelform, keine doppelten) und die Klasse */
 let pErrAt = null;   // Feld, zu dem die Meldung in #p-err gehört (removeMember)
-async function groupGo() {
+/* local === true: ohne Live-Verbindung an diesem einen Gerät (Rückfall, wenn sich der Zugang nicht einrichten ließ) – sonst richtet die
+   Gruppensprecherin bzw. der Gruppensprecher hier den Zugang der Gruppe ein (liveHostStart) */
+async function groupGo(local) {
   const err = $("p-err"), inputs = memberInputs(), kf = $("p-klasse");
   err.textContent = ""; pErrAt = null;
   inputs.concat([kf]).forEach((f) => f.classList.remove("invalid"));
@@ -4952,6 +5223,8 @@ async function groupGo() {
   if (!k) return fail(kf, "Bitte gebt eure Klasse ein (z. B. 8b).");
   if (!KLASSE_RE.test(k)) return fail(kf, "Bitte gebt eure Klasse nur mit Buchstaben und Ziffern ein (z. B. 8b).");
   S.person = { gruppe: r.gruppe, klasse: k };
+  if (local !== true) return liveHostStart(S.person);
+  $("p-live-fail").classList.add("hidden");
   const btn = $("p-btn"); busy(btn, true, "Einen Moment …");
   try { await openEditor(true); } finally { busy(btn, false); }
 }
@@ -5020,7 +5293,7 @@ $("p-back").addEventListener("click", () => {
     focusSoon("code-input", 30);
     return;
   }
-  openMode(S.groupMode ? "mode-group" : "mode-single");
+  if (S.groupMode) liveModeOpen("live-host"); else openMode("mode-single");
 });
 
 /* ---------- 4. Schreibfläche ---------- */
@@ -5069,6 +5342,7 @@ async function draftRaw(code, p, key) {
 /* fromPerson: über den Angaben-Bildschirm geöffnet – ein Widerspruch gegen die Tippzeit-Messung von dort gilt (sonst nur der aus dem
    Zwischenstand: „Weiterschreiben“, Zwischenstand-PDF) */
 async function openEditor(fromPerson) {
+  liveClose(S.live); liveEditorLabels(false);   // Stand auf diesem Gerät (Einzelarbeit, Gruppe ohne Live-Verbindung, ältere Gruppen-Stände) – nie live
   const p = S.person, sh = S.sheet, askedOut = fromPerson === true && S.ttOptOut;
   // Zwischenstand lesen (aus einer hochgeladenen PDF-Datei oder von diesem Gerät) und – bei einem Escape-Room-Finale – die Daten aus dem
   // Raum klären, bevor sich irgendetwas am Zustand oder am Schreibbereich ändert: fehlen sie, geht es ohne halb aufgebauten Schreibbereich
@@ -5163,7 +5437,7 @@ async function openEditor(fromPerson) {
   S.ttResend = fl.resend && S.firstSent && !!S.feedback;
   const ttChanged = askedOut && !fl.optOut;
   if (ttChanged && S.firstSent && S.feedback) S.ttResend = true;
-  if (S.ttOptOut) ttResetAll(false);
+  if (S.ttOptOut || isGroup(p)) ttResetAll(false);   // widersprochen bzw. Partner- und Gruppenarbeit (nie gemessen): keine Messung in den Feldern
   // Tippzeiten erst nach allen Texten und der ersten Fassung, je Aufgabe einzeln: ein Fehler kostet höchstens die Messung, nie den
   // Text (ohne Daten bzw. passende Länge → „ohne Messung“, nie rot). Kein zusätzliches Speichern hier (E2E 3e: voller Speicher).
   else if (okDraft) {
@@ -5232,7 +5506,7 @@ function fbtDom(n) {
 }
 function buildTasks() {
   const box = $("tasks"); box.textContent = "";
-  S.tas = []; S.outs = []; S.fbs = []; S.fbts = [];
+  S.tas = []; S.outs = []; S.fbs = []; S.fbts = []; S.lhs = [];
   const perTask = perTaskOn();   // Buttons je Aufgabe nur bei mindestens zwei Aufgaben mit Auftrag an die KI
   S.sheet.tasks.forEach((text, i) => {
     const n = i + 1, spec = (S.sheet.answers && S.sheet.answers[i]) || { type: "text" }, isText = spec.type === "text";
@@ -5252,6 +5526,8 @@ function buildTasks() {
     // KI-Feedback nur zu dieser Aufgabe (Text und Tabelle mit Auftrag): danach springt der Fokus in die Box der Aufgabe
     const fbt = perTask && (isText || spec.type === "table") && S.sheet.aiTasks.includes(n) ? fbtDom(n) : null;
     const fb = h("div", fbt ? { class: "fbbox hidden", id: "fb-" + n, tabindex: "-1" } : { class: "fbbox hidden" });
+    // Live-Gruppenarbeit: Hinweis unter dem Feld, solange ein anderes Gerät die Aufgabe hält (Statusmeldung; leer = nichts zu sehen)
+    const lh = S.live ? h("p", { class: "live-hint", id: "lh-" + n, role: "status" }) : null;
     // Bilder der Lehrkraft: Miniaturen rechts neben Aufgabe und Antwort, größere Bilder zwischen Aufgabenstellung und Antwortfeld
     const imgs = (S.sheet.images && S.sheet.images[i]) || [], mat = (S.sheet.material && S.sheet.material[i]) || [], files = (S.sheet.files && S.sheet.files[i]) || [];
     const vids = (S.sheet.videos && S.sheet.videos[i]) || [];   // YouTube-Videos: direkt unter dem Material, je Video ein Platzhalter
@@ -5269,7 +5545,7 @@ function buildTasks() {
         vids.length ? h("div", { class: "task-videos" }, vids.map((v, k) => videoBlock(v, k, n))) : null,
         files.length ? h("div", { class: "task-files" }, [h("span", { class: "sublabel", text: "Material zum Herunterladen" }), h("div", { class: "filelist" }, files.map((f) => fileButton(S.code, f, n)))]) : null,
         figs.length ? h("div", { class: "task-figs" }, figs) : null,
-        isText ? ta : ta.el, pe, cnt,
+        isText ? ta : ta.el, lh, pe, cnt,
         isText ? h("div", { class: "checkrow" }, [ltBtn, ltStat, fbt && fbt.btn]) : fbt ? h("div", { class: "checkrow fbt-row" }, [fbt.btn]) : null,
         fbt && fbt.stat, fbt && fbt.wait,
         out, fb
@@ -5279,7 +5555,7 @@ function buildTasks() {
     if (isText) ta._tt = ttNew("", null);   // Tippzeiten (Tabellen: je Zelle, Weltkarte und Foto: keine)
     if (isText) ta.addEventListener("input", () => answerChanged(ta));
     if (ltBtn) ltBtn.addEventListener("click", () => ltRun(i, ltBtn, ltStat));
-    S.tas.push(ta); S.outs.push(out); S.fbs.push(fb); S.fbts.push(fbt);
+    S.tas.push(ta); S.outs.push(out); S.fbs.push(fb); S.fbts.push(fbt); S.lhs.push(lh);
     box.appendChild(sec);
   });
 }
@@ -5407,7 +5683,7 @@ function tableWidget(i, spec, pe) {
   const mkCell = (r, k) => {
     const c = h("textarea", { class: "tcell", rows: "1", maxlength: String(TABLE_CELL_MAX), autocomplete: "off", autocapitalize: "sentences", spellcheck: "true",
       writingsuggestions: "false", "aria-label": `${cols[k]}, Zeile ${r + 1}` });
-    c._w = w; c._pe = pe; c._r = r; c._k = k; c._last = ""; c.readOnly = ro; c._tt = ttNew("", null);
+    c._w = w; c._pe = pe; c._r = r; c._k = k; c._last = ""; c.readOnly = ro; c._tt = ttOff() ? null : ttNew("", null);   // widersprochen bzw. Gruppe: keine Messung
     c.addEventListener("input", () => {
       if (w.value.length > MAX_ANSWER) { c.value = c._last; c._ok = c._last; pe.textContent = full(); clearTimeout(pe._t); pe._t = setTimeout(() => { pe.textContent = ""; }, 5000); }
       else c._last = c.value;
@@ -5424,7 +5700,7 @@ function tableWidget(i, spec, pe) {
   };
   function addRow(vals) {
     const r = rows.length, cells = cols.map((_, k) => mkCell(r, k));
-    if (vals) cells.forEach((c, k) => { c.value = String(vals[k] || "").slice(0, TABLE_CELL_MAX); c._last = c.value; c._ok = c.value; c._tt = ttNew(c.value, null); });   // Werte setzt danach _ttRestore
+    if (vals) cells.forEach((c, k) => { c.value = String(vals[k] || "").slice(0, TABLE_CELL_MAX); c._last = c.value; c._ok = c.value; c._tt = ttOff() ? null : ttNew(c.value, null); });   // Werte setzt danach _ttRestore
     rows.push(cells);
     tbody.appendChild(h("tr", null, cells.map((c) => h("td", null, [c]))));
     add.disabled = ro || rows.length >= ANS_LIMITS.rows;
@@ -5443,6 +5719,16 @@ function tableWidget(i, spec, pe) {
     readOnly: { get: () => ro, set: (b) => { ro = !!b; rows.forEach((r) => r.forEach((c) => { c.readOnly = ro; })); add.disabled = ro || rows.length >= ANS_LIMITS.rows; } }
   });
   w.focus = (o) => { if (rows[0]) rows[0][0].focus(o); };
+  // Live-Gruppenarbeit: Stand eines anderen Geräts übernehmen, ohne die Zellen neu zu bauen (der Fokus bleibt, wo er ist)
+  w._apply = (v) => {
+    const data = tableRows(v, cols.length).slice(0, ANS_LIMITS.rows);
+    while (rows.length < Math.max(spec.rows, data.length)) addRow();
+    rows.forEach((r, ri) => r.forEach((c, k) => {
+      const x = String((data[ri] && data[ri][k]) || "").slice(0, TABLE_CELL_MAX);
+      if (c.value !== x) { c.value = x; c._last = x; c._ok = x; }
+    }));
+    growAll();
+  };
   // Tippzeiten: je Zelle gemessen, für die Textform wie tableText zusammengesetzt (Kopf, Trenner, Zeilenumbrüche ohne Messung)
   const syncCells = () => rows.forEach((r) => r.forEach((c) => ttSync(c)));
   w._ttTable = () => {
@@ -5932,7 +6218,8 @@ function answerChanged(el) {
     out.classList.toggle("stale", stale);
     const st = out.querySelector(".lt-stale"); if (st) st.classList.toggle("hidden", !stale);
   }
-  scheduleSave();
+  // Live-Gruppenarbeit: an den Raum (getippt: Vorschau oft, Speichern selten; Weltkarte und Foto sofort) – sonst Zwischenstand auf dem Gerät
+  if (S.live) liveInput(ta._idx, el.tagName === "TEXTAREA"); else scheduleSave();
 }
 
 /* ---------- Zwischenstand auf diesem Gerät ---------- */
@@ -6325,6 +6612,7 @@ function dropOnlineDraft(code8) {
    herunterladen: mit dem Code rot ganz oben, wenn das Online-Speichern geklappt hat, sonst wie bisher ohne (die Statuszeile sagt es). Die
    PDF enthält genau den Stand, der online liegt (der Datensatz vom Klick); sie bleibt in jedem Fall hochladbar. */
 $("ed-pdf").addEventListener("click", async () => {
+  if (S.live) { livePdfClick(); return; }   // Live-Gruppenarbeit: lesbarer Stand mit Zugangswort und Zahlencode – kein Zwischenstand, kein Code
   const btn = $("ed-pdf");
   if (btn.disabled || S.submitted || S.submitting || !S.sheet || !S.person) return;
   const key = S.draftKey, attempt = S.attempt;
@@ -6727,7 +7015,7 @@ function cleanupDrafts() {
       else if (ttDraftStrip(d)) store.set(k, JSON.stringify(d));   // ohne TT_KEEP_IN_DRAFT: frühere Tippzeiten weg (Text und t bleiben)
     } catch (e) { store.del(k); }
   });
-  if (!lastSession()) store.del(LAST_KEY);
+  if (!lastSession() && !liveLast()) store.del(LAST_KEY);
 }
 /* Abbrechen: Zwischenstand und Angaben von diesem Gerät löschen */
 // Während die Abgabe gesendet wird, ginge sie trotzdem ein – also weder abbrechen noch KI-Feedback anfordern (vor und nach dem Dialog prüfen)
@@ -6739,6 +7027,7 @@ function submitBusy(el, msg) {
   return true;
 }
 $("ed-cancel").addEventListener("click", async () => {
+  if (S.live) return liveLeave();   // Live-Gruppenarbeit: „Gruppenarbeit verlassen“ – der gemeinsame Stand bleibt
   if (submitBusy($("submit-status"), SENDING_CANCEL)) return;
   // Ein Erstversuch (erste Fassung + KI-Feedback + Angaben) liegt schon bei der Lehrkraft – das Löschen hier nimmt ihn nicht zurück
   const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." +
@@ -7218,12 +7507,13 @@ function fbUi(target) {
 // Zustand der Feedback-Buttons: immer nur eine Anfrage gleichzeitig (alle gesperrt, solange eine läuft oder abgegeben wird)
 function syncFbButtons() {
   const has = !!S.feedback, done = has && fbDoneAll(), fbBtn = $("fb-btn");
-  fbBtn.disabled = done || S.busyFeedback || S.submitting;
+  const off = !!S.live && liveBlocked();   // Live-Gruppenarbeit: nicht verbunden bzw. ein anderes Gerät gibt gerade ab
+  fbBtn.disabled = done || S.busyFeedback || S.submitting || off;
   fbBtn.textContent = done ? "KI-Feedback erhalten" : has ? FBT_REST : "KI um ein Feedback bitten";
   S.fbts.forEach((u, i) => {
     if (!u) return;
     const got = fbtHas(S.feedback, i);
-    u.btn.disabled = got || S.busyFeedback || S.submitting;
+    u.btn.disabled = got || S.busyFeedback || S.submitting || off || (!!S.live && liveClaimedByOther(i));   // … bzw. ein anderes Gerät fragt die KI gerade zu dieser Aufgabe
     u.btn.textContent = got ? FBT_DONE : FBT_LABEL;
     u.btn.setAttribute("aria-label", fbtAria(i + 1, got));
   });
@@ -7277,7 +7567,7 @@ function renderFeedbackState() {
   const fbBtn = $("fb-btn"), sub = $("submit-btn"), noAi = fbBlockedNow(), aiSheet = S.sheet.aiFeedback || has;
   fbBtn.classList.toggle("hidden", !aiSheet);
   syncFbButtons();   // Button unten („KI um ein Feedback bitten“ / FBT_REST / „KI-Feedback erhalten“) und die Buttons je Aufgabe
-  sub.disabled = S.submitted;
+  sub.disabled = S.submitted || (!!S.live && liveBlocked());
   $("fin-text").textContent = !aiSheet ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Wenn du alle Aufgaben bearbeitet hast, gib ab."
     : part && open.length ? fbtFinText(open, FB_VOLUNTARY)   // Button unten nur noch für die übrigen Aufgaben
     : "Wenn du alle Aufgaben bearbeitet hast, kannst du die KI um ein Feedback bitten und deine Antworten danach überarbeiten. " + FB_VOLUNTARY;
@@ -7342,6 +7632,8 @@ function waitBeforeRetry(run, ms, nextTry, ui = fbUi(null)) {
 }
 $("fb-wait-stop").addEventListener("click", () => { if (S.fbStop) S.fbStop(); });
 
+// Felder nach einer KI-Anfrage wieder freigeben – in der Live-Gruppenarbeit bleiben die gesperrt, die ein anderes Gerät gerade hält
+function fieldsFree() { S.fbHold = null; S.tas.forEach((t) => { t.readOnly = false; }); if (S.live) liveLockUi(); }
 /* KI-Feedback anfordern: target = null (Button unten) oder die Aufgabe (0-basiert) des Buttons „KI-Feedback nur zu dieser Aufgabe“. Ohne
    Feedback zu einzelnen Aufgaben fragt der Button unten wie bisher alle Aufgaben (ohne only, alle Antworten); danach nur noch die übrigen
    Aufgaben mit Auftrag (only, die übrigen Antworten ""). Je Aufgabe gibt es das Feedback zum Überarbeiten höchstens einmal (FBTASK). */
@@ -7352,6 +7644,7 @@ async function requestFeedback(target) {
   if (gone() || S.busyFeedback || submitBusy(ui.st, SENDING_FB)) return;
   const st = ui.st, btn = ui.btn;
   setStatus(st, "", "");
+  if (S.live && !S.live.open) { setStatus(st, liveDenyText("offline", 0, false), "bad"); return; }   // Live-Gruppenarbeit: nur verbunden
   let targets = one ? [target + 1] : S.feedback ? fbOpenNums() : null;
   const sel = () => (targets ? targets.map((n) => n - 1) : S.tas.map((_, i) => i));   // angefragte Aufgaben (0-basiert)
   const snapshot = () => {   // Antworten jetzt lesen – vor jedem Versuch neu, damit Feedback und erste Fassung zum gesendeten Text passen
@@ -7388,8 +7681,14 @@ async function requestFeedback(target) {
     // Rechtschreibprüfung): nicht hineinfragen – die Entscheidung dort gilt; das KI-Feedback lässt sich danach neu anfordern
     if ($("dlg").classList.contains("open")) return;
   }
+  // Live-Gruppenarbeit: immer zuerst „Erst die Gruppe fragen“ – das KI-Feedback gibt es je Aufgabe nur einmal für die ganze Gruppe
+  if (S.live) {
+    const lv = S.live;
+    if (!(await askConfirm(LIVE_ASK_FB))) return;
+    if (S.live !== lv || gone() || S.busyFeedback || submitBusy(st, SENDING_FB)) return;   // inzwischen auf einem anderen Gerät angefordert
+  }
   const who = recipientSentence(targets || undefined);   // der Dialog ist der Entscheidungsmoment: Empfänger stehen hier, nicht nur im Kleingedruckten
-  const ok = await askConfirm(targets ? fbtDialog(targets, one, empty, FB_VOLUNTARY, who) : empty.length ? {
+  const ok = await askConfirm(Object.assign({ guard: !!S.live }, targets ? fbtDialog(targets, one, empty, FB_VOLUNTARY, who) : empty.length ? {
     title: "Noch nicht alles beantwortet",
     text: `${empty.length === 1 ? "Aufgabe " + empty[0] + " ist" : "Die Aufgaben " + listNums(empty) + " sind"} noch leer.\n${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal (nach der Abgabe folgt noch die finale KI-Rückmeldung zu allen Aufgaben, die die KI beurteilt – beim Abgeben abwählbar; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen). Möchtest du es trotzdem jetzt anfordern?`,
     ok: "Trotzdem anfordern", cancel: "Weiterschreiben", safeFirst: true
@@ -7397,7 +7696,7 @@ async function requestFeedback(target) {
     title: "KI-Feedback anfordern?",
     text: `${FB_VOLUNTARY}\n${who}\nDas KI-Feedback zum Überarbeiten gibt es nur einmal; nach der Abgabe gehen deine Antworten noch einmal denselben Weg für die finale KI-Rückmeldung (beim Abgeben abwählbar; der Server speichert sie verschlüsselt zu deiner Abgabe, dort kann sie nur deine Lehrkraft lesen). Deine Antworten zum Zeitpunkt der Anfrage – ist die KI ausgelastet, dein Stand beim letzten automatischen Versuch – werden als erste Fassung gespeichert, verschlüsselt an deine Lehrkraft übermittelt (als Erstversuch) und später mit abgegeben.`,
     ok: "Feedback anfordern", cancel: "Weiterschreiben", safeFirst: true
-  });
+  }));
   if (!ok || submitBusy(st, SENDING_FB)) return;
   if (gone() || S.busyFeedback) return;   // während des Dialogs (z. B. in einem anderen Ablauf) erledigt: nichts doppelt anfordern
   const run = ++S.fbRun, t0 = Date.now();
@@ -7405,7 +7704,7 @@ async function requestFeedback(target) {
   syncFbButtons();   // immer nur eine Anfrage: alle Feedback-Buttons gesperrt
   renderSteps();
   let tries = 0, busySeen = 0;
-  const unlock = () => { S.busyFeedback = false; S.fbPending = false; S.fbTarget = null; syncFbButtons(); S.tas.forEach((t) => { t.readOnly = false; }); S.fbAbort = null; renderSteps(); };
+  const unlock = () => { S.busyFeedback = false; S.fbPending = false; S.fbTarget = null; liveReleaseFb(); syncFbButtons(); fieldsFree(); S.fbAbort = null; renderSteps(); };
   // Fehlversuch(e) zählen (fbFails > 0 heißt: eine Anfrage lief schon – eine Abgabe ohne Feedback gilt dann nicht als „selbst
   // gewählt“, siehe noAiState); nach zweien zeigt die Seite den Grund (S.fbUnavailable), Abgeben geht ohnehin immer
   const failed = (e, count, msg) => {
@@ -7422,10 +7721,22 @@ async function requestFeedback(target) {
     }
     saveDraft();
   };
+  // Live-Gruppenarbeit: eigene offene Eingabe der Ziel-Aufgaben speichern, dann die Zusage des Raums – ohne sie geht nichts an die KI
+  // (schon KI-Feedback zu dieser Aufgabe, ein anderes Gerät fragt gerade an, dort schreibt jemand, ein anderes Gerät gibt ab)
+  const liveClaim = async () => {
+    const c = await liveClaimFb(sel());
+    if (run !== S.fbRun) return false;
+    if (!c.ok) { unlock(); renderFeedbackState(); setStatus(st, c.text, "bad"); return false; }
+    ({ answers, typing, ttGen, empty, tooLong } = snapshot());   // der Stand kann sich seit dem Dialog geändert haben (andere Geräte)
+    const bad = one && empty.length ? fbtEmptyOne(target + 1) : empty.length === sel().length ? (targets ? fbtEmptyRest(targets) : "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.") : tooLong;
+    if (bad) { unlock(); setStatus(st, bad, "bad"); return false; }
+    return true;
+  };
+  if (S.live) { setStatus(st, "Einen Moment …", "busy"); if (!(await liveClaim())) return; }
   for (;;) {
     if (run !== S.fbRun) return;
     tries++;
-    sel().forEach((i) => { S.tas[i].readOnly = true; });   // nur während eine Anfrage wirklich läuft – nur die angefragten Felder
+    sel().forEach((i) => { S.tas[i].readOnly = true; }); S.fbHold = sel();   // nur während eine Anfrage wirklich läuft – nur die angefragten Felder
     setStatus(st, tries === 1 ? "Die KI arbeitet … das kann bis zu einer Minute dauern." : `Neuer Versuch – die KI arbeitet (Versuch ${tries} von ${FB_TRIES}).`, "busy");
     const slow = setTimeout(() => { if (run === S.fbRun) setStatus(st, "Die KI arbeitet … das dauert gerade etwas länger. Bitte warte noch.", "busy"); }, 60000);
     // Vor dem Senden im Zwischenstand vermerken: endet die Seite, bevor der Lauf endet (Tab geschlossen, Absturz), zählt das
@@ -7439,7 +7750,7 @@ async function requestFeedback(target) {
     } catch (e) {
       clearTimeout(slow);
       if (run !== S.fbRun || (e instanceof ApiError && e.code === "aborted")) return;
-      S.tas.forEach((t) => { t.readOnly = false; });
+      fieldsFree();
       if (e instanceof ApiError && e.code === "ai_busy") {
         busySeen++;
         if (tries < FB_TRIES && Date.now() - t0 < FB_MAX_MS) {
@@ -7451,6 +7762,8 @@ async function requestFeedback(target) {
             failed(e, 1, "Du wartest nicht länger. Deine Antworten bleiben gespeichert – du kannst das KI-Feedback später noch einmal anfordern.");
             return;
           }
+          // Live-Gruppenarbeit: vor jedem neuen Versuch die Zusage erneuern (und die eigene Eingabe von inzwischen speichern)
+          if (S.live) { const c = await liveClaimFb(sel()); if (run !== S.fbRun) return; if (!c.ok) { failed(e, 1, c.text); return; } }
           ({ answers, typing, ttGen, empty, tooLong } = snapshot());   // nur die angefragten Aufgaben neu lesen
           if (one && empty.length) { failed(e, 1, fbtEmptyOne(target + 1)); return; }   // inzwischen geleert: das eine Feedback nicht an ein leeres Feld verschenken
           if (tooLong) { failed(e, 1, tooLong); return; }   // frühere Versuche dieses Laufs gingen schon an den Server: Fehlversuch
@@ -7491,6 +7804,7 @@ async function requestFeedback(target) {
     S.feedback = m.feedback;
     S.feedbackAt = m.at; S.feedbackAts = m.ats;
     S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbFails = 0; S.fbPending = false;
+    if (S.live) livePushFb(sel());   // Live-Gruppenarbeit: erste Fassung und Feedback in den Raum – alle Geräte übernehmen sie
     saveDraft();
     setStatus(st, "", "");
     // ältere Meldungen an den Aufgaben, die jetzt KI-Feedback haben (z. B. „Schreibe zuerst …“, „Du wartest nicht länger …“), gelten nicht mehr
@@ -7548,6 +7862,7 @@ async function sendFirstAttempt() {
     await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "first", attempt: att }));
     if (S.attempt !== att) return;   // inzwischen eine andere Bearbeitung (zurückgesetzt, anderes Blatt): deren Stand nicht anfassen
     S.firstSent = true; S.firstSentSig = sig;
+    liveFirstSent(sig);   // Live-Gruppenarbeit: die anderen Geräte wissen, dass der Erstversuch mit diesem Stand gesendet ist
     // ohne Tippzeiten gesendet → nichts mehr zu ersetzen; mit, aber inzwischen widersprochen → gleich noch einmal ohne
     if (!ttHasData(payload.typing)) S.ttResend = false;
     else if (S.ttOptOut) { S.ttResend = true; again = true; }
@@ -7702,6 +8017,7 @@ function fb2Drop(sub) {
   S.fbRun++;
   if (S.fbAbort) { try { S.fbAbort.abort(); } catch (e) { /* egal */ } S.fbAbort = null; }
   sub.fb2State = "dropped";
+  liveSolPush(sub);   // Live-Gruppenarbeit: die Lösungen der anderen warten nicht länger auf die finale Rückmeldung
   doneWaitHide();
   $("done-fb-retry").classList.add("hidden"); fb2Check();
 }
@@ -7713,7 +8029,7 @@ function fb2LoadChecklist(sub) {
     const tasks = Array.isArray(r && r.tasks) ? r.tasks.slice(0, 30) : [];
     const points = tasks.map((t) => (t && Array.isArray(t.points) ? t.points : []).filter((p) => typeof p === "string" && p.trim()).slice(0, CHECK_POINTS).map((p) => p.slice(0, CHECK_POINT_MAX)));
     sub.checklist = points.some((x) => x.length) ? { ai: r.ai === true, points } : false;
-  }).catch(() => { sub.checklist = false; });
+  }).catch(() => { sub.checklist = false; }).then(() => liveSolPush(sub));   // Live-Gruppenarbeit: die Checkliste gehört zu den Lösungen der anderen
   return sub.checklistP;
 }
 // Warten vor dem nächsten automatischen Versuch (absoluter Zeitpunkt) → true = weiter; still – den Stand zeigt #done-wait
@@ -7800,6 +8116,7 @@ function fb2TeacherShow(sub, stored) {
 // Keine finale Rückmeldung mehr möglich: Download frei (die PDF-Datei enthält dann die Checkliste)
 function finalFeedbackGone(sub) {
   sub.fb2Final = true;
+  liveSolPush(sub);   // Live-Gruppenarbeit: die Lösungen der anderen bekommen keine finale Rückmeldung mehr
   doneGateOpen(sub, "failed");
 }
 // Satz zur PDF-Datei, wenn die finale Rückmeldung nicht kommt (Checkliste der Lehrkraft, falls hinterlegt)
@@ -7852,7 +8169,10 @@ function finalFeedbackFailed(e) {
   sub.retryFocus = false;
   fb2Check();   // Hinweis unter dem Knopf; solange er dasteht, wird die Frist nachgerechnet
   if (!canRetry) finalFeedbackGone(sub);
-  else doneGateOpen(sub, "failed");   // der Download wartet nicht auf einen neuen Versuch
+  else {
+    doneGateOpen(sub, "failed");   // der Download wartet nicht auf einen neuen Versuch
+    liveSolPush(sub);   // Live-Gruppenarbeit: auch die Lösungen der anderen warten nicht (kommt die Rückmeldung doch noch, wird sie nachgereicht)
+  }
 }
 async function requestFinalFeedback() {
   const sub = S.lastSubmission;
@@ -7898,6 +8218,7 @@ async function requestFinalFeedback() {
     }
     sub.feedback2 = { results: r.results.map((x) => normFb(x)), final: true, at: new Date().toISOString() };
     sub.fb2State = "done";
+    liveSolPush(sub);   // Live-Gruppenarbeit: die finale Rückmeldung in die Lösungen für die PDF der anderen Geräte
     doneGateOpen(sub, "done");
     retry.classList.add("hidden"); sub.retryFocus = false; fb2Check();
     renderFinalFeedback();
@@ -7995,16 +8316,25 @@ async function submitAll() {
   const st = $("submit-status"), btn = $("submit-btn");
   if (btn.disabled) return;
   setStatus(st, "", "");
-  const finals = S.tas.map((t) => t.value);
+  let finals = S.tas.map((t) => t.value);
   if (emptyNums(finals).length === finals.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
+  // Live-Gruppenarbeit: nur verbunden, und immer zuerst „Erst die Gruppe fragen“ – abgeben kann die Gruppe nur einmal
+  if (S.live) {
+    const lv = S.live;
+    if (!lv.open) { setStatus(st, liveDenyText("offline", 0, true), "bad"); return; }
+    if (!(await askConfirm(LIVE_ASK_SUBMIT))) return;
+    if (S.live !== lv || S.submitted || S.submitting || !S.tas.length) return;   // inzwischen von einem anderen Gerät abgegeben
+    finals = S.tas.map((t) => t.value);   // der Stand kann sich während des Fensters geändert haben (andere Geräte)
+    if (emptyNums(finals).length === finals.length) { setStatus(st, "Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.", "bad"); return; }
+  }
   const withFb = !!S.feedback, wasBusy = S.busyFeedback, said = withFb ? null : noAiState(false);
   const fbSig = fbtSig(S.feedback);   // welche Aufgaben KI-Feedback haben (auch einzelne)
   // mit KI-Feedback: ein danach bekannter Grund ohne KI (Kontingent aufgebraucht, keine KI eingerichtet) gilt wie ohne erstes Feedback
   const known = withFb ? fb2Known() : said;
   const offer = fb2Offer(finals, known);   // eingefroren wie der Text des Dialogs
-  const ok = await askConfirm(submitDialog(withFb, finals, known, offer));
+  const ok = await askConfirm(Object.assign({ guard: !!S.live }, submitDialog(withFb, finals, known, offer)));
   const wantFinal = offer && ok === true && $("dlg-check").checked;   // finale KI-Rückmeldung nach der Abgabe (vorausgewählt, abwählbar)
-  if (S.submitted) return;
+  if (S.submitted || !S.tas.length) return;
   // während der Dialog offen war, ist das angeforderte KI-Feedback (bzw. eines zu einer weiteren Aufgabe) angekommen: erst zeigen, nichts abgeben
   if (!!S.feedback !== withFb || fbtSig(S.feedback) !== fbSig) {
     if (ok) setStatus(st, "Gerade ist dein KI-Feedback angekommen – es steht jetzt unter deinen Antworten. Abgegeben wurde noch nichts: Lies es dir durch, überarbeite, wenn du möchtest, und klicke dann erneut auf „Abgeben“.", "");
@@ -8030,6 +8360,13 @@ async function submitAll() {
   busy(btn, true, "Wird abgegeben …");
   setStatus(st, "Deine Abgabe wird verschlüsselt und gesendet …", "busy");
   try {
+    // Live-Gruppenarbeit: eigene offene Eingaben speichern, dann die Zusage des Raums (nur einmal je Gruppe; nicht, solange jemand schreibt
+    // oder ein Gerät die KI fragt); danach zeigen alle Felder den gespeicherten gemeinsamen Stand – genau der wird abgegeben
+    if (S.live) {
+      const c = await liveClaimSub();
+      if (!c.ok) throw new ApiError("live_deny", c.text);
+      liveSettle(S.live);
+    }
     ttFollowStored();   // Widerspruch aus einem anderen Tab mit demselben Stand gilt auch für diese Abgabe
     const now = answersNow();   // Antworten und Tippzeiten im selben Moment
     const payload = {
@@ -8088,6 +8425,10 @@ async function submitAll() {
     $("done-pdf-label").textContent = S.lastSubmission.escape ? DONE_PDF_ESC : DONE_PDF;
     // Partner- und Gruppenarbeit: die Lösungen hat nur dieses Gerät – rot und fett über dem Button, sie an die anderen weiterzuschicken
     const grp = isGroup(S.lastSubmission.person);
+    // Live-Gruppenarbeit: die anderen holen sich die Lösungen selbst (Abgabe-Ansicht mit Zugangswort und Zahlencode); der Raum erfährt von
+    // der Abgabe samt den Lösungen für ihre PDF (liveSubmitted)
+    $("done-group").textContent = S.live ? liveDoneGroup(S.live.word, S.live.num) : DONE_GROUP_TEXT;
+    if (S.live) liveSubmitted(S.lastSubmission);
     $("done-group").classList.toggle("hidden", !grp);
     $("submit-esc").classList.add("hidden");
     // nach der Abgabe hält diese Seite keine Tippzeiten mehr (TT_ACCESS: „bis zur Abgabe“): die finale Rückmeldung speichert der Server
@@ -8104,14 +8445,18 @@ async function submitAll() {
     if (wantFinal) { doneGate(S.lastSubmission); requestFinalFeedback(); }   // finale KI-Rückmeldung – die Abgabe ist schon angekommen
   } catch (e) {
     if (stopped) {   // die abgebrochene Anfrage hatte Felder und Feedback-Button gesperrt: wieder freigeben (Feedback bleibt möglich)
-      S.tas.forEach((t) => { t.readOnly = false; });
+      fieldsFree();
       setStatus($("fb-status"), "", "");
       renderFeedbackState();
     }
     const wait = e instanceof ApiError && (e.code === "rate_limited" || e.status === 429);   // die Meldung nennt schon die Wartezeit
     // Diese Bearbeitung ist schon abgegeben und mit der finalen KI-Rückmeldung abgeschlossen (z. B. aus einem anderen Tab oder einer
     // Zwischenstand-PDF derselben Bearbeitung): ein neuer Versuch hilft nie
-    if (e instanceof ApiError && e.code === "final_locked") setStatus(st, FINAL_LOCKED_TEXT, "bad");
+    if (S.live) liveUnsub();   // Live-Gruppenarbeit: die Zusage für die Abgabe zurückgeben
+    if (e instanceof ApiError && e.code === "live_deny") setStatus(st, e.serverMsg, "bad");   // der Raum hat die Abgabe (noch) nicht zugelassen
+    // … schon abgegeben und abgeschlossen: beim Raum nachfragen – kennt er die Abgabe, zeigen alle Geräte die Abgabe-Ansicht
+    else if (e instanceof ApiError && e.code === "final_locked" && S.live) { setStatus(st, LIVE_FINAL_LOCKED, "bad"); liveSend(S.live, { t: "sub", attempt: S.attempt }); }
+    else if (e instanceof ApiError && e.code === "final_locked") setStatus(st, FINAL_LOCKED_TEXT, "bad");
     else setStatus(st, (e.code === "crypto" ? "Deine Abgabe konnte nicht verschlüsselt werden." : errMsg(e, "s")) +
       (wait ? " Deine Antworten sind noch da." : " Deine Antworten sind noch da – versuche es gleich noch einmal."), "bad");
     if (S.escape && escMailNow(e)) showSubmitEsc();   // Escape-Room-Finale: Abschluss-PDF für die E-Mail an den Betreiber
@@ -8181,7 +8526,10 @@ $("submit-esc-pdf").addEventListener("click", () => {
 /* Schreibfläche leeren (gemeinsam genutzte Geräte) */
 function clearEditor() {
   $("tasks").textContent = "";
-  S.tas = []; S.outs = []; S.fbs = []; S.fbts = [];
+  S.tas = []; S.outs = []; S.fbs = []; S.fbts = []; S.lhs = []; S.fbHold = null;
+  // Live-Gruppenarbeit: der Schreibbereich ist zu – Zeitgeber offener Eingaben enden, die Kopfzeile verschwindet (die Verbindung bleibt)
+  if (S.live) { S.live.editor = false; for (const m of Object.values(S.live.mine)) liveMineStop(m); S.live.mine = {}; clearTimeout(S.live.firstT); }
+  $("live-bar").classList.add("hidden");
   $("who-name").textContent = ""; $("ed-title").textContent = ""; $("sheet-title").textContent = "";
   $("ed-steps-list").textContent = ""; $("ed-steps-list")._key = "";
   const dcb = $("draft-code"); dcb._seq = (dcb._seq || 0) + 1; dcb.classList.add("hidden"); dcb.textContent = "";   // Zwischenstand-Code der Bearbeitung
@@ -8196,6 +8544,7 @@ function stopFeedbackRun() {
   if (u) setStatus(u.stat, "", "");
   S.fbts.forEach((x) => { if (x) x.wait.classList.add("hidden"); });
   S.fbStop = null; S.fbAbort = null; S.busyFeedback = false; S.fbTarget = null;
+  liveReleaseFb();   // Live-Gruppenarbeit: die Zusage für die abgebrochene KI-Anfrage zurückgeben
   $("fb-wait").classList.add("hidden");
   if (S.sheet && S.tas.length) renderSteps();
 }
@@ -8203,7 +8552,11 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende finale Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, feedbackAts: null, fbTarget: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, firstSentSig: "", importDraft: null, lastSubmission: null, escPending: null, escape: null, escSoft: null,
+  liveClose(S.live); liveSetup = null;   // Live-Gruppenarbeit: Verbindung zum Raum trennen (der gemeinsame Stand bleibt dort)
+  liveEditorLabels(false);
+  $("p-live-fail").classList.add("hidden"); setStatus($("p-live-status"), "", "");
+  $("done-group").textContent = DONE_GROUP_TEXT;
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, feedbackAts: null, fbTarget: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, firstSentSig: "", importDraft: null, lastSubmission: null, escPending: null, escape: null, escSoft: null, live: null, fbHold: null,
     saveCode: "", savedOnlineAt: 0, savedOnlineUntil: 0, importFrom: "", importCode: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   resetMembers();   // Kürzelfelder der Gruppe: wieder ein leeres Feld beim nächsten Öffnen
@@ -8214,6 +8567,930 @@ function resetStudent() {
   $("done-del").textContent = ""; $("done-del").classList.add("hidden");
 }
 $("done-btn").addEventListener("click", () => { resetStudent(); $("code-input").value = ""; show("screen-start"); showResume(); focusSoon("code-input", 30); });
+
+/* =====================================================================
+ *  Live-Gruppenarbeit: Verbindung zum Raum, gemeinsamer Stand, Sperren (reine Helfer und Texte: Block LIVE)
+ * =====================================================================
+ * S.live = der Raum dieser Gruppe (null = Einzelarbeit bzw. Gruppe ohne Live-Verbindung). Der Stand liegt nur im Raum – kein Zwischenstand
+ * auf dem Gerät, kein Online-Zwischenstand-Code. Reihenfolge: eingehende Nachrichten werden nacheinander verarbeitet (inq – das
+ * Entschlüsseln ist asynchron), ausgehende nacheinander verschlüsselt und gesendet (outq).
+ *   val/ver   gespeicherter Stand je Aufgabe (a<i>: {t, p}) und seine Version; pv = Vorschau eines anderen Geräts (nicht gespeichert)
+ *   mine[i]   eigene Eingabe in Aufgabe i: dirty (seit dem letzten Senden geändert), sent (Vergleichswert des noch unbestätigten Speicherns),
+ *             base (Version, auf der sie aufsetzt), Zeitgeber für Vorschau, Speichern und Freigabe
+ *   locks/claims/subClaim  was andere Geräte halten ({by, until} – verfällt von selbst)
+ * Nie überschreibt eine Nachricht des Raums ein Feld, in dem dieses Gerät eine ungespeicherte Eingabe hat – außer der Raum lehnt sie ab
+ * (jemand anderes hält die Aufgabe oder hat sie inzwischen geändert). */
+const DONE_GROUP_TEXT = "Schicke die Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!";
+const RESUME_BTN = "Weiterschreiben", RESUME_DEL = "Nein, Zwischenstand von diesem Gerät löschen";
+const ED_CANCEL_BTN = "Abbrechen und Zwischenstand von diesem Gerät löschen";
+const liveDeps = () => ({ cleanGroup, cleanPhoto, normFb, max: MAX_ANSWER });
+const LIVE_EMPTY = { t: "", p: "" };
+function liveNew(code, word, num, keys) {
+  return { code, word, num, room: keys.room, key: keys.key, ws: null, open: false, auto: false, closed: false, gen: 0, you: "", own: new Set(), n: 0,
+    meta: null, tasks: 0, sub: null, sol: null, val: {}, ver: {}, pv: {}, fb: [], fsSig: null, locks: {}, claims: {}, subClaim: null,
+    mine: {}, notes: {}, times: [], wait: {}, retry: 0, retryT: 0, pingT: 0, pongT: 0, graceT: 0, expT: 0, firstT: 0, doneT: 0, down: false, full: false,
+    inq: Promise.resolve(), outq: Promise.resolve(), editor: false, myClaim: null, iSub: false, iSubmitted: false, pendF: {}, pendSub: null, solLast: "", solBusy: false, solAgain: false };
+}
+// Nachricht ohne Inhalt (Sperren, Zusagen) bzw. mit verschlüsseltem Wert senden – in der Reihenfolge der Aufrufe; → Promise<gesendet?>
+function liveSend(L, msg) {
+  const gen = L.gen;
+  return (L.outq = L.outq.then(() => {
+    if (L.gen !== gen || !L.open || !L.ws || L.ws.readyState !== 1) return false;
+    try { L.ws.send(JSON.stringify(msg)); return true; } catch (e) { return false; }
+  }, () => false));
+}
+function liveSendVal(L, msg, value) {
+  const gen = L.gen;
+  return (L.outq = L.outq.then(async () => {
+    if (L.gen !== gen || !L.open) return false;
+    let v;
+    try { v = await liveSeal(subtle, L.key, value, rand); } catch (e) { return false; }
+    if (L.gen !== gen || !L.open || !L.ws || L.ws.readyState !== 1) return false;
+    try { L.ws.send(JSON.stringify(Object.assign({}, msg, { v }))); return true; } catch (e) { return false; }
+  }, () => false));
+}
+async function liveOpenVal(L, v) { try { return await liveOpen(subtle, L.key, v); } catch (e) { return null; } }   // unlesbar → null (wie leer)
+// Auf die Antwort des Raums zu einer Zusage warten (claim, subclaim, sub): → {ok:true} | {ok:false, why, k?, by?}
+function liveWait(L, kind, ms) {
+  return new Promise((resolve) => {
+    if (L.wait[kind]) L.wait[kind]({ ok: false, why: "offline" });
+    const t = setTimeout(() => done({ ok: false, why: "offline" }), ms || LIVE_ACK_MS);
+    const done = (r) => { if (L.wait[kind] === done) delete L.wait[kind]; clearTimeout(t); resolve(r); };
+    L.wait[kind] = done;
+  });
+}
+const liveAnswer = (L, kind, r) => { if (L.wait[kind]) L.wait[kind](r); };
+
+/* ---------- Verbindung ---------- */
+// → Promise<"init" | "gone" | "full" | "fail">: Begrüßung erhalten, Raum gibt es nicht (mehr), zu viele Geräte, sonst gescheitert
+function liveConnect(L) {
+  return new Promise((resolve) => {
+    const gen = ++L.gen;
+    let done = false, got = false, ws = null;
+    const fin = (r) => { if (!done) { done = true; clearTimeout(timer); resolve(r); } };
+    const timer = setTimeout(() => { if (got) return; fin("fail"); try { ws.close(); } catch (e) { /* egal */ } liveLost(L, gen, 0, false); }, LIVE_INIT_MS);
+    L.open = false;
+    try { ws = new WebSocket(liveWsUrl(API, window.location, L.code, L.room)); }
+    catch (e) { fin("fail"); liveLost(L, gen, 0, false); return; }
+    L.ws = ws;
+    ws.onmessage = (e) => {
+      if (typeof e.data !== "string") return;
+      L.inq = L.inq.then(async () => {
+        if (L.gen !== gen || L.closed) return;
+        if ((await liveOnMessage(L, e.data)) === "init") { got = true; fin("init"); }
+      }).catch(() => { /* eine kaputte Nachricht bricht die Seite nie ab */ });
+    };
+    ws.onclose = (e) => { fin(e.code === 4404 ? "gone" : e.code === 4409 ? "full" : "fail"); liveLost(L, gen, e.code, got); };
+    ws.onerror = () => { /* onclose folgt */ };
+  });
+}
+function liveStopTimers(L) {
+  for (const k of ["retryT", "pingT", "pongT", "graceT", "expT", "firstT", "doneT"]) { clearTimeout(L[k]); L[k] = 0; }
+}
+const liveMineStop = (m) => { if (m) for (const k of ["pvT", "setT", "maxT", "unT", "ackT"]) { clearTimeout(m[k]); m[k] = 0; } };
+// Verbindung weg (auch: nie zustande gekommen). Schließcodes des Raums: 4404 gibt es nicht mehr, 4409 zu viele Geräte.
+async function liveLost(L, gen, code, hadInit) {
+  if (L.gen !== gen || L.closed) return;
+  L.gen++; L.open = false; L.ws = null;
+  clearTimeout(L.pingT); clearTimeout(L.pongT); L.pingT = L.pongT = 0;
+  for (const kind of Object.keys(L.wait)) liveAnswer(L, kind, { ok: false, why: "offline" });
+  // unbestätigtes Speichern: gilt wieder als offene Eingabe (nach dem Verbinden entscheidet liveReconcile – sent bleibt für den Abgleich)
+  for (const m of Object.values(L.mine)) { clearTimeout(m.ackT); m.ackT = 0; }
+  if (!L.auto) return;   // beim ersten Verbinden meldet der Aufrufer das Ergebnis
+  if (code === 4404) { liveGone(L); return; }
+  L.full = code === 4409;
+  if (!L.graceT && !L.down) L.graceT = setTimeout(() => { L.graceT = 0; L.down = true; liveLockUi(); liveRenderState(); }, LIVE_GRACE_MS);
+  liveLockUi(); liveRenderState();
+  // Ohne Begrüßung sieht ein abgelehnter Verbindungsaufbau (Raum weg, Server nicht erreichbar) für den Browser gleich aus: nachfragen
+  if (!hadInit && code !== 4409) {
+    try { await api("POST", "/api/live/join", { body: { code: L.code, room: L.room }, timeout: 15000 }); }
+    catch (e) { if (!L.closed && e instanceof ApiError && e.code === "room_not_found") { liveGone(L); return; } }
+  }
+  if (L.closed || L.retryT || L.open) return;
+  L.retryT = setTimeout(() => { L.retryT = 0; if (!L.closed && !L.open) liveConnect(L); }, L.full ? LIVE_RETRY_MAX_MS : liveRetryMs(L.retry++));
+}
+// sofort neu verbinden (Gerät wieder online, Seite wieder sichtbar) bzw. prüfen, ob die Verbindung noch lebt
+function liveKick() {
+  const L = S.live;
+  if (!L || L.closed || !L.auto) return;
+  if (L.open) { livePing(L); return; }
+  if (L.ws) return;   // Aufbau läuft schon
+  clearTimeout(L.retryT); L.retryT = 0;
+  liveConnect(L);
+}
+function livePing(L) {
+  if (!L.open || !L.ws || L.pongT) return;
+  try { L.ws.send("ping"); } catch (e) { /* onclose folgt */ }
+  const gen = L.gen, ws = L.ws;
+  L.pongT = setTimeout(() => { L.pongT = 0; if (L.gen !== gen) return; try { ws.close(); } catch (e) { /* egal */ } liveLost(L, gen, 0, true); }, LIVE_PONG_MS);
+}
+function livePingSoon(L) {
+  clearTimeout(L.pingT);
+  L.pingT = setTimeout(() => { L.pingT = 0; if (L.open && !L.closed) { livePing(L); livePingSoon(L); } }, LIVE_PING_MS);
+}
+// endgültig schließen (verlassen, zurücksetzen, Raum weg)
+function liveClose(L) {
+  if (!L || L.closed) return;
+  L.closed = true; L.gen++; L.open = false; L.editor = false;
+  liveStopTimers(L);
+  for (const m of Object.values(L.mine)) liveMineStop(m);
+  L.mine = {};
+  for (const kind of Object.keys(L.wait)) liveAnswer(L, kind, { ok: false, why: "offline" });
+  try { if (L.ws) L.ws.close(1000); } catch (e) { /* egal */ }
+  L.ws = null;
+  if (S.live === L) S.live = null;
+  $("live-bar").classList.add("hidden");
+}
+// Den Raum gibt es nicht mehr (Blatt gelöscht, 30 Tage ohne Änderung): Schreibbereich schließen, Startseite mit Meldung
+function liveGone(L) {
+  const mine = S.live === L, quiet = screen === "screen-done";   // die eigene Abgabe ist angekommen – die Bestätigung bleibt stehen
+  const lv = liveLast();
+  if (lv && lv.code === L.code && lv.word === L.word && lv.num === L.num) store.del(LAST_KEY);
+  liveClose(L);
+  if (!mine || quiet) return;
+  closeDlg(null);
+  resetStudent(); $("code-input").value = "";
+  show("screen-start"); showResume();
+  $("start-err").textContent = LIVE_GONE;
+  focusSoon("code-input", 30);
+}
+
+/* ---------- Nachrichten des Raums ---------- */
+async function liveOnMessage(L, raw) {
+  if (L.pongT) { clearTimeout(L.pongT); L.pongT = 0; }   // jede Nachricht ist ein Lebenszeichen
+  if (raw === "pong") return "";
+  let m;
+  try { m = JSON.parse(raw); } catch (e) { return ""; }
+  if (!m || typeof m !== "object") return "";
+  const now = Date.now();
+  switch (m.t) {
+    case "init": await liveOnInit(L, m); return "init";
+    case "peers": L.n = Number.isInteger(m.n) ? m.n : L.n; liveRenderState(); return "";
+    case "lock": {
+      const i = liveKeyIdx(m.k, "a"); if (i < 0) return "";
+      if (m.by == null) { delete L.locks[m.k]; delete L.pv[m.k]; if (!liveMineBusy(L, i)) liveShow(i); }
+      else if (!L.own.has(String(m.by))) L.locks[m.k] = liveHold(m.by, m.ms, now);
+      liveLockUi(); return "";
+    }
+    case "pv": {
+      const i = liveKeyIdx(m.k, "a"); if (i < 0 || L.own.has(String(m.by))) return "";
+      L.pv[m.k] = liveCleanAnswer(await liveOpenVal(L, m.v), MAX_ANSWER, null);
+      L.locks[m.k] = liveHold(m.by, m.ms, Date.now());
+      if (!liveMineBusy(L, i)) liveShow(i);   // eigene offene Eingabe: der Raum lehnt sie gleich ab (deny) – dann wird übernommen
+      liveLockUi(); return "";
+    }
+    case "set": await liveOnSet(L, m); return "";
+    case "ack": liveOnAck(L, m); return "";
+    case "claim": {
+      const ks = Array.isArray(m.ks) ? m.ks.filter((k) => liveKeyIdx(k, "f") >= 0) : [];
+      if (m.by == null) { for (const k of ks) delete L.claims[k]; }
+      else if (String(m.by) === L.you) liveAnswer(L, "claim", { ok: true });
+      else if (!L.own.has(String(m.by))) for (const k of ks) L.claims[k] = liveHold(m.by, m.ms, now);
+      liveLockUi(); return "";
+    }
+    case "subclaim": {
+      if (m.by == null) L.subClaim = null;
+      else if (String(m.by) === L.you) liveAnswer(L, "subclaim", { ok: true });
+      else if (!L.own.has(String(m.by))) L.subClaim = liveHold(m.by, m.ms, now);
+      liveLockUi(); liveRenderState(); return "";
+    }
+    case "sub": {
+      L.sub = liveCleanSub(m.sub) || { receivedAt: 0, at: now, gone: false };
+      L.subClaim = null; L.locks = {}; L.claims = {}; L.pendSub = null;
+      if (m.sol && typeof m.sol === "object") { const sol = liveCleanSol(await liveOpenVal(L, m.sol.v), liveDeps()); if (sol) L.sol = sol; }
+      liveAnswer(L, "sub", { ok: true });
+      if (L.iSubmitted) liveSolSend(L);   // das abgebende Gerät: inzwischen Neues (Checkliste, finale Rückmeldung) nachreichen
+      else liveShowDone(L);
+      return "";
+    }
+    case "deny": await liveOnDeny(L, m); return "";
+    default: return "";
+  }
+}
+// Begrüßung: Angaben der Gruppe, gespeicherter Stand, was andere gerade halten
+async function liveOnInit(L, m) {
+  const head = m.m && typeof m.m === "object" ? m.m : {}, now = Date.now();
+  L.you = String(m.you || ""); L.own.add(L.you); L.n = Number.isInteger(m.n) ? m.n : 1;
+  if (!L.meta) L.meta = liveCleanMeta(await liveOpenVal(L, head.meta), cleanGroup);
+  L.tasks = Number.isInteger(head.tasks) ? head.tasks : 0;
+  L.sub = liveCleanSub(head.sub);
+  const hold = (o) => { const out = {}; if (o && typeof o === "object") for (const k of Object.keys(o)) if (Array.isArray(o[k])) out[k] = liveHold(o[k][0], o[k][1], now); return out; };
+  L.locks = hold(m.lk); L.claims = hold(m.cl); L.pv = {};
+  L.subClaim = Array.isArray(m.sc) ? liveHold(m.sc[0], m.sc[1], now) : null;
+  const st = m.st && typeof m.st === "object" ? m.st : {}, val = {}, ver = {}, fb = [];
+  let fsSig = null, sol = null;
+  for (const k of Object.keys(st)) {
+    const e = st[k]; if (!e || typeof e !== "object") continue;
+    const o = await liveOpenVal(L, e.v), v = Number.isInteger(e.ver) ? e.ver : 0;
+    if (liveKeyIdx(k, "a") >= 0) { val[k] = liveCleanAnswer(o, MAX_ANSWER, cleanPhoto); ver[k] = v; }
+    else if (liveKeyIdx(k, "f") >= 0) fb[liveKeyIdx(k, "f")] = liveCleanFb(o, MAX_ANSWER, normFb);
+    else if (k === "fs") fsSig = liveCleanSig(o);
+    else if (k === "sol") sol = liveCleanSol(o, liveDeps());
+  }
+  L.val = val; L.ver = ver; L.fb = fb; L.fsSig = fsSig; L.sol = L.sub && !L.sub.gone ? sol : null;
+  L.open = true; L.retry = 0; L.full = false; L.down = false;
+  clearTimeout(L.graceT); L.graceT = 0; clearTimeout(L.retryT); L.retryT = 0;
+  livePingSoon(L);
+  if (!L.auto) { L.auto = true; return; }   // erstes Verbinden: der Aufrufer öffnet den Schreibbereich bzw. die Abgabe-Ansicht
+  liveAfterInit(L);
+}
+// Nach dem Wiederverbinden: eigene offene Eingaben abgleichen, Stand übernehmen, Unterbrochenes fortsetzen
+function liveAfterInit(L) {
+  if (S.live !== L) return;
+  if (L.pendSub) { if (L.sub) { L.pendSub = null; } else liveSubSend(L); }
+  if (L.iSubmitted) { if (L.sub) liveSolSend(L); return; }
+  if (L.sub) { liveShowDone(L); return; }
+  if (L.iSub) liveSend(L, { t: "claimsub" });   // die eigene Abgabe läuft noch: Zusage erneuern
+  if (!L.editor) return;
+  S.tas.forEach((t, i) => {
+    const k = "a" + i, m = L.mine[i], cur = L.val[k] || LIVE_EMPTY, v = L.ver[k] || 0;
+    const r = liveReconcile(m ? { text: liveSig(liveLocal(i)), dirty: m.dirty, sent: m.sent, base: m.base } : null, v, liveSig(cur));
+    if (r === "send" || r === "acked") { m.sent = null; m.dirty = true; m.base = v; liveSaveSoon(i, 0); }
+    else {
+      liveMineStop(m); delete L.mine[i];
+      if (r !== "same") liveShow(i);
+      if (r === "lost") liveNote(i, LIVE_HINT_STALE);
+    }
+  });
+  // eigenes KI-Feedback, dessen Ablegen nicht bestätigt wurde: gibt es im Raum inzwischen eines, gilt das; sonst erneut ablegen
+  for (const k of Object.keys(L.pendF)) {
+    const j = liveKeyIdx(k, "f");
+    if (L.fb[j]) delete L.pendF[k];
+    else { L.fb[j] = liveCleanFb(L.pendF[k], MAX_ANSWER, normFb); liveSendVal(L, { t: "set", k }, L.pendF[k]); }
+  }
+  liveTakeFb(L);
+  if (S.busyFeedback && L.myClaim) liveSend(L, { t: "claim", ks: L.myClaim });   // die eigene KI-Anfrage läuft noch: Zusage erneuern
+  renderFeedbackState();
+  liveLockUi(); liveRenderState();
+}
+async function liveOnSet(L, m) {
+  const k = String(m.k), now = Date.now(), own = L.own.has(String(m.by));
+  const ia = liveKeyIdx(k, "a"), jf = liveKeyIdx(k, "f");
+  if (ia >= 0) {
+    if (own) return;
+    L.val[k] = liveCleanAnswer(await liveOpenVal(L, m.v), MAX_ANSWER, cleanPhoto);
+    L.ver[k] = Number.isInteger(m.ver) ? m.ver : (L.ver[k] || 0) + 1;
+    delete L.pv[k];
+    if (m.ms != null) L.locks[k] = liveHold(m.by, m.ms, now);
+    if (!liveMineBusy(L, ia)) liveShow(ia);
+    liveLockUi();
+  } else if (jf >= 0) {
+    const f = liveCleanFb(await liveOpenVal(L, m.v), MAX_ANSWER, normFb);
+    if (!f) return;
+    L.fb[jf] = f; delete L.claims[k]; delete L.pendF[k];
+    if (L.editor && !own) { liveTakeFb(L); renderFeedbackState(); liveLockUi(); }
+  } else if (k === "fs") {
+    L.fsSig = liveCleanSig(await liveOpenVal(L, m.v));
+    if (L.editor && L.fsSig != null && !own) { S.firstSent = true; S.firstSentSig = L.fsSig; }
+  } else if (k === "sol") {
+    const sol = liveCleanSol(await liveOpenVal(L, m.v), liveDeps());
+    if (sol && L.sub && !L.sub.gone) { L.sol = sol; if (screen === "screen-livedone") liveDoneRender(L); }
+  }
+}
+function liveOnAck(L, m) {
+  const k = String(m.k), i = liveKeyIdx(k, "a");
+  if (i < 0) { if (liveKeyIdx(k, "f") >= 0) delete L.pendF[k]; return; }
+  const me = L.mine[i];
+  if (Number.isInteger(m.ver)) L.ver[k] = m.ver;
+  if (!me || me.sent == null) return;
+  clearTimeout(me.ackT); me.ackT = 0;
+  L.val[k] = me.sentV; me.sent = null; me.sentV = null; me.base = L.ver[k] || 0;
+  if (me.dirty) liveSaveSoon(i, Math.max(0, me.last + LIVE_SET_IDLE_MS - Date.now()));
+  else if (me.rel) liveUnlock(i);
+  liveSaveState();
+}
+// Der Raum lehnt etwas ab: eine Zusage (claim, sub) oder eine Eingabe (k = a<i>)
+async function liveOnDeny(L, m) {
+  const why = String(m.why || ""), now = Date.now();
+  if (m.claim) { liveAnswer(L, "claim", { ok: false, why, k: typeof m.k === "string" ? m.k : "", by: m.by }); return; }
+  if (m.sub) {   // Abgabe: Zusage abgelehnt (claimsub) bzw. die gemeldete Abgabe (noch) nicht gefunden (sub)
+    const r = { ok: false, why, k: typeof m.k === "string" ? m.k : "", by: m.by };
+    liveAnswer(L, "subclaim", r); liveAnswer(L, "sub", r);
+    // die eigene Abgabe ist angekommen, der Raum sieht sie aber noch nicht: ein paarmal erneut melden
+    if (L.pendSub && (why === "nosub" || why === "noclaim" || why === "error") && (L.pendSubTries = (L.pendSubTries || 0) + 1) <= 5) setTimeout(() => { if (S.live === L) liveSubSend(L); }, 4000);
+    return;
+  }
+  const k = typeof m.k === "string" ? m.k : "", i = liveKeyIdx(k, "a");
+  if (i < 0) {
+    if (!k && why === "error") {   // der Raum konnte gerade nicht speichern (z. B. Tagesgrenze): nichts verloren geben, später erneut
+      for (const kind of Object.keys(L.wait)) liveAnswer(L, kind, { ok: false, why: "error" });
+      S.tas.forEach((_, j) => { const me = L.mine[j]; if (me && me.sent != null) { clearTimeout(me.ackT); me.ackT = 0; me.sent = null; me.dirty = true; liveNote(j, LIVE_HINT_UNSAVED); liveSaveSoon(j, 5000); } });
+      liveSaveState();
+    }
+    if (liveKeyIdx(k, "f") >= 0) {   // Feedback ließ sich nicht ablegen: gibt es schon eines, gilt das des Raums; sonst später erneut
+      if (m.cur && typeof m.cur === "object") { const f = liveCleanFb(await liveOpenVal(L, m.cur.v), MAX_ANSWER, normFb); if (f) { L.fb[liveKeyIdx(k, "f")] = f; delete L.pendF[k]; if (L.editor) { liveTakeFb(L); renderFeedbackState(); } } }
+      else if (why === "submitted") delete L.pendF[k];
+      else if (L.pendF[k]) setTimeout(() => { if (S.live === L && L.open && L.pendF[k]) liveSendVal(L, { t: "set", k }, L.pendF[k]); }, 3000);
+    }
+    return;
+  }
+  const me = L.mine[i];
+  if ("cur" in m) {   // Ablehnung eines Speicherns: der Raum nennt seinen Stand (null = noch nichts gespeichert)
+    const c = m.cur && typeof m.cur === "object" ? m.cur : null;
+    L.val[k] = c ? liveCleanAnswer(await liveOpenVal(L, c.v), MAX_ANSWER, cleanPhoto) : LIVE_EMPTY;
+    L.ver[k] = c && Number.isInteger(c.ver) ? c.ver : 0;
+  }
+  const retry = (ms) => { if (!me) return; clearTimeout(me.ackT); me.ackT = 0; me.sent = null; me.dirty = true; liveSaveSoon(i, ms); };
+  if (why === "locked" && L.own.has(String(m.by))) { retry(3000); return; }   // die eigene, gerade abgerissene Verbindung hält die Aufgabe noch kurz
+  if (why === "submitting") { if (!liveHeld(L.subClaim, now, L.own)) L.subClaim = liveHold(m.by, LIVE_LOCK_MS, now); retry(4000); liveLockUi(); liveRenderState(); return; }
+  if (why === "submitted") return;   // die Nachricht „sub“ folgt bzw. kam schon
+  if (why === "error" || why === "big" || why === "bad" || why === "unknown") { liveNote(i, LIVE_HINT_UNSAVED); if (why === "error") retry(5000); else if (me) { clearTimeout(me.ackT); me.ackT = 0; me.sent = null; } liveSaveState(); return; }
+  // stale, aber der Raum hat schon genau diesen Stand (das Speichern kam an, nur die Bestätigung nicht): nichts verloren, nichts zu melden
+  if (why === "stale" && me && liveSig(L.val[k] || LIVE_EMPTY) === liveSig(liveLocal(i))) {
+    clearTimeout(me.ackT); me.ackT = 0; me.sent = null; me.sentV = null; me.dirty = false; me.base = L.ver[k] || 0;
+    if (me.rel) liveUnlock(i);
+    liveSaveState(); return;
+  }
+  // locked: ein anderes Gerät war schneller; stale: jemand hat inzwischen geändert – der Raum gewinnt
+  if (why === "locked") L.locks[k] = liveHold(m.by, LIVE_LOCK_MS, now);
+  liveMineStop(me); delete L.mine[i];
+  liveShow(i);
+  if (why === "stale") liveNote(i, LIVE_HINT_STALE);
+  liveLockUi(); liveSaveState();
+}
+
+/* ---------- Felder: Stand des Raums anzeigen, eigene Eingaben senden ---------- */
+// was gerade im Feld steht: {t, p}
+function liveLocal(i) { const t = S.tas[i]; return t ? { t: t.value, p: t._kind === "photo" ? t.photo || "" : "" } : LIVE_EMPTY; }
+const liveMineBusy = (L, i) => { const m = L.mine[i]; return !!m && (m.dirty || m.sent != null); };
+// Wert in das Feld der Aufgabe schreiben – ohne Fokus, ohne Scrollen, ohne erneutes Senden
+function liveApply(i, v) {
+  const t = S.tas[i]; if (!t) return;
+  const text = String(v.t || "");
+  if (t._kind === "photo") { if ((t.photo || "") !== (v.p || "")) t.photo = v.p || ""; }
+  else if (t._kind === "table") { if (t.value !== text) t._apply(text); }
+  else if (t._kind === "map") { if (t.value !== text) t.value = text; }
+  else if (t.value !== text) { t.value = text; t._ok = text; autoGrow(t); updateCounter(t); }
+  const out = S.outs[i];   // Ergebnis der Rechtschreibprüfung gehört zu einem älteren Text
+  if (out && !out.classList.contains("hidden") && out._text != null) {
+    const stale = out._text !== t.value;
+    out.classList.toggle("stale", stale);
+    const st = out.querySelector(".lt-stale"); if (st) st.classList.toggle("hidden", !stale);
+  }
+}
+// Aufgabe i zeigt die Vorschau des Geräts, das sie gerade hält – sonst den gespeicherten Stand
+function liveShow(i) {
+  const L = S.live; if (!L || !L.editor) return;
+  const k = "a" + i;
+  liveApply(i, liveHeld(L.locks[k], Date.now(), L.own) && L.pv[k] ? L.pv[k] : L.val[k] || LIVE_EMPTY);
+}
+// kurzer Hinweis an der Aufgabe (z. B. „inzwischen geändert“)
+function liveNote(i, text) {
+  const L = S.live; if (!L) return;
+  L.notes[i] = { text, until: Date.now() + 12000 };
+  liveLockUi();
+}
+// Sperren und Hinweise an den Aufgaben, Knöpfe für KI-Feedback und Abgabe; abgelaufene Sperren verfallen hier
+function liveLockUi() {
+  const L = S.live; if (!L || !L.editor) return;
+  const now = Date.now();
+  let next = 0;
+  const due = (e) => { if (e && e.until > now && (!next || e.until < next)) next = e.until; };
+  for (const k of Object.keys(L.locks)) if (!(L.locks[k].until > now)) { delete L.locks[k]; delete L.pv[k]; const i = liveKeyIdx(k, "a"); if (i >= 0 && !liveMineBusy(L, i)) liveShow(i); }
+  liveExpire(L.claims, now);
+  if (L.subClaim && !(L.subClaim.until > now)) L.subClaim = null;
+  const subOther = liveHeld(L.subClaim, now, L.own);
+  S.tas.forEach((t, i) => {
+    const lk = L.locks["a" + i], cl = L.claims["f" + i], note = L.notes[i];
+    const held = liveHeld(lk, now, L.own), ai = liveHeld(cl, now, L.own);
+    if (held) due(lk); if (ai) due(cl);
+    if (note && !(note.until > now)) delete L.notes[i]; else due(note);
+    const ro = held || ai || subOther || L.down || (Array.isArray(S.fbHold) && S.fbHold.includes(i));
+    if (t.readOnly !== ro) t.readOnly = ro;
+    const sec = $("t-" + (i + 1)), hint = S.lhs && S.lhs[i];
+    if (sec) sec.classList.toggle("live-locked", held || ai);
+    const text = ai ? LIVE_HINT_AI : held ? LIVE_HINT_WRITE : L.notes[i] ? L.notes[i].text : "";
+    if (hint && hint.textContent !== text) hint.textContent = text;
+  });
+  due(L.subClaim);
+  clearTimeout(L.expT); L.expT = 0;
+  if (next) L.expT = setTimeout(() => { L.expT = 0; liveLockUi(); liveRenderState(); }, Math.min(60000, next - now + 60));
+  syncFbButtons();
+  if (!S.submitting) $("submit-btn").disabled = S.submitted || liveBlocked();
+}
+// KI-Feedback und Abgabe gehen gerade nicht: nicht verbunden bzw. ein anderes Gerät gibt ab
+function liveBlocked() { const L = S.live; return !!L && (!L.open || liveHeld(L.subClaim, Date.now(), L.own)); }
+const liveClaimedByOther = (i) => { const L = S.live; return !!L && liveHeld(L.claims["f" + i], Date.now(), L.own); };
+function liveRenderState() {
+  const L = S.live, bar = $("live-bar");
+  if (!L || !L.editor) { bar.classList.add("hidden"); return; }
+  bar.classList.remove("hidden");
+  $("live-word").textContent = L.word; $("live-num").textContent = L.num;
+  const st = $("live-state");
+  const text = !L.open && L.full ? LIVE_FULL : L.open && liveHeld(L.subClaim, Date.now(), L.own) ? LIVE_HINT_SUBMIT : liveStateText(L.open, L.n, !L.down);
+  if (st.textContent !== text) st.textContent = text;
+  st.classList.toggle("off", !L.open && (L.down || L.full));
+  liveSaveState();
+}
+function liveSaveState() {
+  const L = S.live; if (!L || !L.editor) return;
+  const pend = Object.values(L.mine).some((m) => m.dirty || m.sent != null);
+  setSaveState(!L.open ? LIVE_OFFLINE : pend ? LIVE_SAVING : LIVE_SAVED, !L.open && L.down);
+}
+/* Eigene Eingabe in Aufgabe i (aus answerChanged). typed: getippt (Textfeld, Tabellenzelle) – Vorschau oft, Speichern selten; sonst
+   (Weltkarte, Foto) sofort speichern und die Aufgabe gleich wieder freigeben. */
+function liveInput(i, typed) {
+  const L = S.live; if (!L || !L.editor || S.submitted) return;
+  const now = Date.now();
+  let m = L.mine[i];
+  if (!m) m = L.mine[i] = { dirty: false, sent: null, sentV: null, base: L.ver["a" + i] || 0, last: 0, pvAt: 0, pvT: 0, setT: 0, maxT: 0, unT: 0, ackT: 0, rel: false };
+  m.dirty = true; m.last = now; m.rel = false;
+  delete L.notes[i];
+  clearTimeout(m.unT); m.unT = 0;
+  if (!typed) { liveSave(i, true); liveSaveState(); return; }
+  if (!m.pvT) m.pvT = setTimeout(() => { m.pvT = 0; livePreview(i); }, Math.max(0, m.pvAt + LIVE_PV_MS - now));
+  clearTimeout(m.setT); m.setT = setTimeout(() => { m.setT = 0; liveSave(i, false); }, LIVE_SET_IDLE_MS);
+  if (!m.maxT) m.maxT = setTimeout(() => { m.maxT = 0; liveSave(i, false); }, LIVE_SET_MAX_MS);
+  m.unT = setTimeout(() => { m.unT = 0; liveRelease(i); }, LIVE_UNLOCK_MS);
+  liveSaveState();
+}
+// Vorschau: die anderen sehen den Text mitwachsen (nicht gespeichert; die erste belegt die Aufgabe)
+function livePreview(i) {
+  const L = S.live, m = L && L.mine[i], t = S.tas[i];
+  if (!m || !t || !m.dirty || !L.open || t._kind === "photo") return;
+  const now = Date.now();
+  if (!liveBudget(L.times, now, LIVE_PV_BUDGET)) return;
+  L.times.push(now); m.pvAt = now;
+  liveSendVal(L, { t: "pv", k: "a" + i }, { t: t.value });
+}
+function liveSaveSoon(i, ms) {
+  const L = S.live, m = L && L.mine[i]; if (!m) return;
+  clearTimeout(m.setT);
+  m.setT = setTimeout(() => { m.setT = 0; liveSave(i, false); }, Math.max(0, ms));
+}
+// Speichern (set mit der bekannten Version); release: danach die Aufgabe freigeben
+function liveSave(i, release) {
+  const L = S.live, m = L && L.mine[i], t = S.tas[i];
+  if (!m || !t) return;
+  if (release) m.rel = true;
+  if (!m.dirty) { if (m.rel && m.sent == null) liveUnlock(i); return; }
+  if (m.sent != null || !L.open) return;   // erst die Bestätigung bzw. die Verbindung abwarten (liveOnAck, liveAfterInit)
+  const now = Date.now();
+  if (!liveBudget(L.times, now, LIVE_SET_BUDGET)) { liveSaveSoon(i, 2000); return; }
+  clearTimeout(m.setT); clearTimeout(m.maxT); clearTimeout(m.pvT); m.setT = m.maxT = m.pvT = 0;
+  const v = liveLocal(i);
+  m.dirty = false; m.sent = liveSig(v); m.sentV = v; m.pvAt = now; L.times.push(now);
+  liveSendVal(L, { t: "set", k: "a" + i, base: m.base }, v.p ? { t: v.t, p: v.p } : { t: v.t }).then((ok) => {
+    if (ok || L.mine[i] !== m || m.sent == null) return;
+    clearTimeout(m.ackT); m.ackT = 0; m.sent = null; m.dirty = true;   // nicht gesendet: bleibt offen (nach dem Verbinden erneut)
+  });
+  // bleibt die Bestätigung aus, gilt die Verbindung als tot: neu verbinden (der Abgleich danach sendet erneut)
+  const gen = L.gen, ws = L.ws;
+  clearTimeout(m.ackT);
+  m.ackT = setTimeout(() => { m.ackT = 0; if (L.gen !== gen || m.sent == null) return; try { ws.close(); } catch (e) { /* egal */ } liveLost(L, gen, 0, true); }, LIVE_ACK_MS);
+}
+// Aufgabe freigeben: LIVE_UNLOCK_MS nach der letzten Eingabe bzw. beim Verlassen des Feldes – vorher speichern, erst nach der Bestätigung
+function liveRelease(i) { const L = S.live, m = L && L.mine[i]; if (m) liveSave(i, true); }
+function liveUnlock(i) {
+  const L = S.live, m = L && L.mine[i]; if (!m) return;
+  liveMineStop(m); delete L.mine[i];
+  liveSend(L, { t: "unlock", k: "a" + i });
+  liveSaveState();
+}
+// Eigene offene Eingaben dieser Aufgaben speichern und die Bestätigung abwarten → true, wenn danach nichts mehr offen ist
+async function liveFlush(L, idxs, ms) {
+  const until = Date.now() + (ms || LIVE_ACK_MS);
+  for (;;) {
+    if (S.live !== L || !L.open) return false;
+    const open = idxs.filter((i) => liveMineBusy(L, i));
+    if (!open.length) return true;
+    open.forEach((i) => liveSave(i, true));
+    if (Date.now() > until) return false;
+    await sleep(80);
+  }
+}
+// alle Felder zeigen den gespeicherten Stand des Raums (vor dem Bau der Abgabe: nie eine ungespeicherte Vorschau abgeben)
+function liveSettle(L) { S.tas.forEach((_, i) => { if (!liveMineBusy(L, i)) liveApply(i, L.val["a" + i] || LIVE_EMPTY); }); }
+
+/* ---------- KI-Feedback: je Aufgabe nur einmal für die ganze Gruppe ---------- */
+// erste Fassung und KI-Feedback aus dem Raum → S.first / S.feedback (je Aufgabe beide oder keines), Signatur des gesendeten Erstversuchs
+function liveTakeFb(L) {
+  const n = S.sheet ? S.sheet.tasks.length : 0, first = [], fb = [], ats = [];
+  for (let i = 0; i < n; i++) { const f = L.fb[i] || null; first.push(f ? f.first : null); fb.push(f ? f.fb : null); ats.push(f ? f.at : null); }
+  if (fb.some(Boolean)) {
+    S.first = first; S.feedback = fb; S.feedbackAts = ats;
+    S.feedbackAt = ats.filter(Boolean).sort()[0] || null;
+  }
+  if (L.fsSig != null) { S.firstSent = true; S.firstSentSig = L.fsSig; }
+  // Meldungen an Aufgaben, die jetzt KI-Feedback haben (z. B. „… schon KI-Feedback bekommen“), gelten nicht mehr – die Box steht da
+  if (!S.busyFeedback) S.fbts.forEach((u, i) => { if (u && fb[i] && u.stat.textContent) setStatus(u.stat, "", ""); });
+}
+// Vor der Anfrage an die KI: eigene Eingabe der Ziel-Aufgaben speichern, dann die Zusage des Raums holen → {ok} | {ok:false, text, why}
+async function liveClaimFb(idxs) {
+  const L = S.live;
+  if (!L || !L.open) return { ok: false, why: "offline", text: liveDenyText("offline", 0, false) };
+  if (!(await liveFlush(L, idxs))) return { ok: false, why: "unsaved", text: liveDenyText(S.live === L && L.open ? "unsaved" : "offline", 0, false) };
+  const ks = idxs.map((i) => "f" + i);
+  const w = liveWait(L, "claim");
+  liveSend(L, { t: "claim", ks });
+  const r = await w;
+  if (r.ok) { L.myClaim = ks; return { ok: true }; }
+  if (r.why === "locked" && L.own.has(String(r.by))) return { ok: false, why: "unsaved", text: liveDenyText("unsaved", 0, false) };
+  const j = liveKeyIdx(r.k, "f");
+  return { ok: false, why: r.why, text: liveDenyText(r.why, j >= 0 ? j + 1 : 0, false) };
+}
+function liveReleaseFb() {
+  const L = S.live; if (!L || !L.myClaim) return;
+  const ks = L.myClaim; L.myClaim = null;
+  liveSend(L, { t: "release", ks });
+}
+// Feedback ist da: erste Fassung und Rückmeldung je Ziel-Aufgabe in den Raum (einmal setzbar) – alle Geräte übernehmen sie
+function livePushFb(idxs) {
+  const L = S.live; if (!L) return;
+  for (const i of idxs) {
+    if (!S.feedback || !S.feedback[i] || S.first[i] == null) continue;
+    const at = (S.feedbackAts && S.feedbackAts[i]) || S.feedbackAt || new Date().toISOString();
+    const v = { first: S.first[i], fb: fbOut(S.feedback[i]), at };
+    L.fb[i] = liveCleanFb(v, MAX_ANSWER, normFb);
+    L.pendF["f" + i] = v;   // bis zur Bestätigung gemerkt (nach einer Unterbrechung erneut)
+    liveSendVal(L, { t: "set", k: "f" + i }, v);
+  }
+  // die Zusage gibt der Raum je abgelegter Aufgabe selbst frei; für die übrigen folgt die Freigabe (liveReleaseFb aus unlock)
+}
+// Erstversuch mit diesem Stand ist gesendet (sendFirstAttempt): für die anderen Geräte vermerken
+function liveFirstSent(sig) { const L = S.live; if (L && L.editor) { L.fsSig = sig; liveSendVal(L, { t: "set", k: "fs" }, { sig }); } }
+
+/* ---------- Abgabe: nur einmal je Gruppe ---------- */
+async function liveClaimSub() {
+  const L = S.live;
+  if (!L || !L.open) return { ok: false, why: "offline", text: liveDenyText("offline", 0, true) };
+  if (!(await liveFlush(L, S.tas.map((_, i) => i)))) return { ok: false, why: "unsaved", text: liveDenyText(S.live === L && L.open ? "unsaved" : "offline", 0, true) };
+  const w = liveWait(L, "subclaim");
+  liveSend(L, { t: "claimsub" });
+  const r = await w;
+  if (r.ok) { L.iSub = true; return { ok: true }; }
+  if (r.why === "locked" && L.own.has(String(r.by))) return { ok: false, why: "unsaved", text: liveDenyText("unsaved", 0, true) };
+  const j = liveKeyIdx(r.k, "a");
+  return { ok: false, why: r.why, text: liveDenyText(r.why, j >= 0 ? j + 1 : 0, true) };
+}
+function liveUnsub() { const L = S.live; if (L && L.iSub) { L.iSub = false; liveSend(L, { t: "unsub" }); } }
+// Die Abgabe ist beim Server angekommen: dem Raum Bescheid geben (mit den Lösungen für die PDF der anderen)
+function liveSubmitted(sub) {
+  const L = S.live; if (!L) return;
+  L.iSub = false; L.iSubmitted = true; L.editor = false;
+  L.pendSub = { attempt: sub.attempt, receivedAt: sub.serverAt || undefined };
+  liveSubSend(L);
+}
+async function liveSolSeal(L, sub) {
+  let v = await liveSeal(subtle, L.key, liveSolOut(sub, true), rand);
+  if (!liveFits(v, LIVE_SOL_MAX)) v = await liveSeal(subtle, L.key, liveSolOut(sub, false), rand);   // zu groß: ohne Fotos
+  return liveFits(v, LIVE_SOL_MAX) ? v : null;
+}
+async function liveSubSend(L) {
+  const p = L.pendSub, sub = S.lastSubmission;
+  if (!p || !L.open) return;   // nach dem Verbinden erneut (liveAfterInit)
+  let sol = null, last = "";
+  try { if (sub && sub.attempt === p.attempt) { last = JSON.stringify(liveSolOut(sub, true)); sol = await liveSolSeal(L, sub); } } catch (e) { sol = null; }
+  if (L.pendSub !== p) return;
+  if (await liveSend(L, Object.assign({ t: "sub", attempt: p.attempt }, p.receivedAt ? { receivedAt: p.receivedAt } : null, sol ? { sol } : null))) { if (sol) L.solLast = last; }
+}
+// Lösungen im Raum auf den neuesten Stand bringen (Checkliste geladen, finale KI-Rückmeldung da oder endgültig nicht)
+function liveSolPush(sub) { const L = S.live; if (L && L.iSubmitted && sub && S.lastSubmission === sub) liveSolSend(L); }
+async function liveSolSend(L) {
+  const sub = S.lastSubmission;
+  if (!sub || !L.iSubmitted || !L.open || !L.sub || L.sub.gone) return;
+  if (L.solBusy) { L.solAgain = true; return; }
+  const now = JSON.stringify(liveSolOut(sub, true));
+  if (now === L.solLast) return;
+  L.solBusy = true;
+  try {
+    const v = await liveSolSeal(L, sub);
+    if (v && S.live === L && (await liveSend(L, { t: "set", k: "sol", v }))) L.solLast = now;
+  } catch (e) { /* beim nächsten Anlass erneut */ }
+  finally { L.solBusy = false; if (L.solAgain) { L.solAgain = false; liveSolSend(L); } }
+}
+/* Abgabe-Ansicht der übrigen Geräte (und beim späteren Öffnen): „Diese Gruppenarbeit wurde abgegeben“, die Lösungen als PDF – solange es
+   die Abgabe gibt (sub.gone: von der Lehrkraft bzw. nach der Löschfrist gelöscht → kein Knopf) */
+function liveShowDone(L) {
+  if (S.live !== L || L.iSubmitted) return;
+  closeDlg(null);
+  stopFeedbackRun();
+  clearEditor();
+  S.submitted = true; S.submitting = false;
+  sheetLine($("ld-sheet"));
+  setStatus($("ld-status"), "", "");
+  show("screen-livedone");
+  liveDoneRender(L);
+  setTimeout(() => { try { $("ld-h").focus(); } catch (e) { /* egal */ } }, 40);
+}
+function liveDoneRender(L) {
+  const sub = L.sub || {}, at = sub.receivedAt || sub.at || 0, d = at ? toDate(at) : null;
+  $("ld-sub").textContent = liveDoneText(d ? fmtD(d) : "", d ? pad2(d.getHours()) + ":" + pad2(d.getMinutes()) : "");
+  const sol = sub.gone ? null : L.sol;
+  $("ld-pdf").classList.toggle("hidden", !sol); $("ld-pdf-note").classList.toggle("hidden", !sol);
+  const until = sol && sol.fb2 === "pending" ? (sol.receivedAt || at) + LIVE_FB2_PENDING_MS : 0, pending = until > Date.now();
+  const wait = $("ld-wait"), wt = $("ld-wait-text"), none = $("ld-none");
+  clearTimeout(L.doneT); L.doneT = 0;
+  if (pending) {
+    if (wait.classList.contains("hidden")) liveFill(wait, wt, LIVE_DONE_WAIT, () => S.live === L);
+    L.doneT = setTimeout(() => { L.doneT = 0; if (S.live === L && screen === "screen-livedone") liveDoneRender(L); }, Math.min(until - Date.now() + 500, 2e9));
+  } else { wait.classList.add("hidden"); wt.textContent = ""; }
+  const text = sub.gone ? LIVE_DONE_GONE : !sol ? LIVE_DONE_NONE : "";
+  if (!text) { none.classList.add("hidden"); none.textContent = ""; }
+  else if (none.classList.contains("hidden") || none.textContent !== text) liveFill(none, none, text, () => S.live === L);
+}
+$("ld-pdf").addEventListener("click", async () => {
+  const L = S.live, st = $("ld-status"), btn = $("ld-pdf");
+  if (!L || !L.sol || (L.sub && L.sub.gone) || btn.disabled) return;
+  const sol = L.sol, sub = Object.assign({}, sol, { checklist: sol.checklist === null ? undefined : sol.checklist });
+  btn.disabled = true;
+  try {
+    // die Checkliste der Lehrkraft lag beim Abgeben noch nicht vor: selbst holen (öffentlich, ohne Angaben)
+    if (sub.checklist === undefined) { await Promise.race([fb2LoadChecklist(sub), sleep(4000)]); if (sub.checklist === undefined) sub.checklist = false; }
+    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+    downloadBlob(new Blob([makeSolutionsPdf(sub)], { type: "application/pdf" }), `Feibeitsblatt-Loesungen-${fmtCode(sol.code)}-${stamp}.pdf`);
+    setStatus(st, LIVE_DONE_DL, "ok");
+  } catch (e) { setStatus(st, "Die PDF-Datei konnte nicht erstellt werden. Bitte versuche es noch einmal.", "bad"); }
+  finally { btn.disabled = false; }
+});
+$("ld-home").addEventListener("click", () => { store.del(LAST_KEY); resetStudent(); $("code-input").value = ""; show("screen-start"); showResume(); focusSoon("code-input", 30); });
+
+/* ---------- Bildschirme: Gruppensprecher:in oder dazuschalten, Zugang anzeigen ---------- */
+function liveModeOpen(focusId) {
+  sheetLine($("lv-sheet"));
+  show("screen-live");
+  focusSoon(focusId || "live-host", 30);
+}
+$("live-host").addEventListener("click", () => openPerson(true));
+$("live-join").addEventListener("click", () => liveJoinOpen());
+$("lv-back").addEventListener("click", () => openMode("mode-group"));
+// „Weiterschreiben?“ merkt sich für die Gruppe nur Zugangswort und Zahlencode (keine Kürzel) – gültig wie ein Zwischenstand DRAFT_DAYS
+function liveLast() {
+  try {
+    const d = JSON.parse(store.get(LAST_KEY) || "null");
+    return d && d.v === 1 && d.t > Date.now() - DRAFT_DAYS * 864e5 ? liveLastIn(d) : null;
+  } catch (e) { return null; }
+}
+let liveSetup = null;   // angelegter Raum, zu dem die Verbindung noch nicht stand („Erneut versuchen“ nutzt ihn weiter)
+/* Gruppensprecher:in: Zugangswort und Zahlencode würfeln, Raum anlegen (schon vergeben → neu würfeln), verbinden → Zugang anzeigen.
+   Scheitert es: Meldung, „Erneut versuchen“ bzw. „Ohne Live-Verbindung an diesem Gerät arbeiten“. */
+async function liveHostStart(person) {
+  const err = $("p-err"), btn = $("p-btn"), st = $("p-live-status"), sheet = S.sheet, code = S.code;
+  $("p-live-fail").classList.add("hidden"); err.textContent = "";
+  const here = () => S.sheet === sheet && screen === "screen-person";
+  busy(btn, true, "Einen Moment …"); setStatus(st, LIVE_SETUP, "busy");
+  let L = null;
+  try {
+    if (!subtle || typeof WebSocket !== "function") throw new ApiError("crypto");
+    let pre = liveSetup && liveSetup.code === code && JSON.stringify(liveSetup.person) === JSON.stringify(person) ? liveSetup : null;
+    for (let n = 0; !pre; n++) {
+      const word = liveWord(rand), num = liveNumber(rand), keys = await liveDerive(subtle, code, word, num);
+      const meta = await liveSeal(subtle, keys.key, { v: 1, gruppe: person.gruppe, klasse: person.klasse, attempt: hexOf(rand(8)) }, rand);
+      if (!here()) return;
+      try { await api("POST", "/api/live/create", { body: { code, room: keys.room, meta }, timeout: 30000 }); pre = liveSetup = { code, person, word, num, keys }; }
+      catch (e) { if (!(e instanceof ApiError && e.code === "room_taken" && n + 1 < LIVE_CREATE_TRIES)) throw e; }   // schon vergeben: neu würfeln
+    }
+    if (!here()) return;
+    L = liveNew(code, pre.word, pre.num, pre.keys);
+    liveClose(S.live); S.live = L;
+    const r = await liveConnect(L);
+    if (S.live !== L) return;
+    if (!here()) { liveClose(L); return; }
+    if (r !== "init" || !L.meta) throw new ApiError(r === "full" ? "live_full" : "live_unavailable");
+    liveSetup = null;
+    S.person = { gruppe: L.meta.gruppe.slice(), klasse: L.meta.klasse };
+    liveRemember(L);
+    liveInfoOpen(L);
+  } catch (e) {
+    if (L) liveClose(L);
+    if (!here()) return;
+    // Meldung des Servers (z. B. zu viele Gruppenarbeiten, zu viele Anfragen, Blatt gelöscht), sonst nur der allgemeine Satz
+    const why = e instanceof ApiError && e.serverMsg ? " " + e.serverMsg : e instanceof ApiError && (e.code === "rate_limited" || e.status === 429) ? " " + errMsg(e, "s") : "";
+    err.textContent = LIVE_SETUP_FAIL + why;
+    $("p-live-hint").textContent = LIVE_LOCAL_HINT;
+    $("p-live-fail").classList.remove("hidden");
+    setTimeout(() => { if (here()) { try { $("p-live-retry").focus(); } catch (x) { /* egal */ } } }, 60);   // die beiden Wege stehen direkt unter der Meldung
+  } finally { busy(btn, false); setStatus(st, "", ""); }
+}
+$("p-live-retry").addEventListener("click", () => { if (!$("p-btn").disabled) groupGo(); });
+$("p-live-local").addEventListener("click", () => { if (!$("p-btn").disabled) groupGo(true); });
+function liveRemember(L) { store.set(LAST_KEY, JSON.stringify(liveLastOut(L.code, S.sheet ? S.sheet.title : "", L.word, L.num, Date.now()))); }
+function liveInfoOpen(L) {
+  sheetLine($("li-sheet"));
+  $("li-word").textContent = L.word; $("li-num").textContent = L.num; $("li-code").textContent = fmtCode(L.code);
+  $("li-text").textContent = LIVE_INFO_TEXT;
+  show("screen-liveinfo");
+  setTimeout(() => { try { $("li-h").focus(); } catch (e) { /* egal */ } }, 40);
+}
+$("li-go").addEventListener("click", () => { if (S.live && S.live.meta) liveOpenEditor(); });
+function liveJoinOpen() {
+  sheetLine($("lj-sheet"));
+  for (const id of ["lj-word", "lj-num"]) { $(id).value = ""; $(id).classList.remove("invalid"); }
+  $("lj-err").textContent = ""; setStatus($("lj-status"), "", "");
+  renderLivePrivacy();
+  show("screen-livejoin");
+  focusSoon("lj-word", 30);
+}
+/* Dazuschalten (auch „Weiterarbeiten“ von der Startseite): Schlüssel ableiten → POST /api/live/join (ein abgelehnter Verbindungsaufbau
+   sähe im Browser nur wie ein Abbruch aus) → verbinden → Angaben der Gruppe entschlüsseln → Schreibbereich bzw. Abgabe-Ansicht.
+   still(): gilt der Aufruf noch? → {ok:true} | {err, gone?} | {} (hinfällig) */
+async function liveJoin(word, num, still) {
+  const sheet = S.sheet, code = S.code;
+  if (!subtle || typeof WebSocket !== "function") return { err: NO_CRYPTO };
+  let keys;
+  try { keys = await liveDerive(subtle, code, word, num); } catch (e) { return { err: NO_CRYPTO }; }
+  if (!still()) return {};
+  try { await api("POST", "/api/live/join", { body: { code, room: keys.room }, timeout: 30000 }); }
+  catch (e) {
+    const gone = e instanceof ApiError && e.code === "room_not_found";
+    return { gone, err: gone ? e.serverMsg || LIVE_JOIN_WRONG : e instanceof ApiError && (e.code === "rate_limited" || e.status === 429 || e.code === "not_found" || e.code === "network" || e.code === "timeout") ? errMsg(e, "s")
+      : e instanceof ApiError && e.serverMsg ? e.serverMsg : LIVE_JOIN_FAIL };
+  }
+  if (!still()) return {};
+  const L = liveNew(code, word, num, keys);
+  liveClose(S.live); S.live = L;
+  const r = await liveConnect(L);
+  if (S.live !== L) return {};
+  if (!still() || S.sheet !== sheet) { liveClose(L); return {}; }
+  if (r !== "init") { liveClose(L); return { gone: r === "gone", err: r === "gone" ? LIVE_GONE : r === "full" ? LIVE_FULL : LIVE_JOIN_FAIL }; }
+  if (!L.meta) { liveClose(L); return { err: LIVE_JOIN_WRONG }; }
+  if (L.tasks !== sheet.tasks.length) { liveClose(L); return { err: LIVE_OTHER_SHEET }; }
+  S.person = { gruppe: L.meta.gruppe.slice(), klasse: L.meta.klasse };
+  liveRemember(L);
+  if (L.sub) liveShowDone(L); else liveOpenEditor();
+  return { ok: true };
+}
+async function liveJoinGo() {
+  const err = $("lj-err"), wf = $("lj-word"), nf = $("lj-num"), btn = $("lj-go"), st = $("lj-status");
+  if (btn.disabled) return;
+  err.textContent = ""; wf.classList.remove("invalid"); nf.classList.remove("invalid");
+  const fail = (f, msg) => { f.classList.add("invalid"); err.textContent = msg; f.focus(); };
+  const word = normLiveWord(wf.value), num = normLiveNumber(nf.value);
+  if (!liveWordOk(word)) return fail(wf, LIVE_JOIN_WORD);
+  if (!liveNumberOk(num)) return fail(nf, LIVE_JOIN_NUM);
+  const sheet = S.sheet;
+  busy(btn, true, "Einen Moment …"); setStatus(st, LIVE_JOINING, "busy");
+  try {
+    const r = await liveJoin(word, num, () => S.sheet === sheet && screen === "screen-livejoin");
+    if (r.err && S.sheet === sheet && screen === "screen-livejoin") { setStatus(st, "", ""); err.textContent = r.err; wf.focus(); }
+  } finally { busy(btn, false); setStatus(st, "", ""); }
+}
+$("lj-go").addEventListener("click", liveJoinGo);
+onEnter($("lj-word"), () => $("lj-num").focus());
+onEnter($("lj-num"), liveJoinGo, $("lj-go"));
+$("lj-back").addEventListener("click", () => { $("lj-err").textContent = ""; liveModeOpen("live-join"); });
+// Startseite: „Weiterarbeiten an eurer Gruppenarbeit …?“ – derselbe Weg wie Dazuschalten, ohne erneute Eingabe
+async function liveResume(lv) {
+  const err = $("start-err"), btn = $("resume-btn");
+  escDrop(); $("start-esc-retry").classList.add("hidden");
+  const run = ESC.run;
+  err.textContent = "";
+  busy(btn, true, "Einen Moment …");
+  try {
+    const x = await fetchSheet(lv.code);
+    if (run !== ESC.run) return;   // inzwischen ein anderer Weg von der Startseite
+    useSheet(x);
+    const r = await liveJoin(lv.word, lv.num, () => run === ESC.run && screen === "screen-start");
+    if (r.err && run === ESC.run) {
+      if (r.gone) store.del(LAST_KEY);   // den Raum gibt es nicht mehr: Eintrag weg
+      resetStudent(); showResume();
+      err.textContent = r.err;
+    }
+  } catch (e) {
+    if (run !== ESC.run) return;
+    if (e instanceof ApiError && (e.code === "not_found" || e.status === 404)) { store.del(LAST_KEY); showResume(); }
+    err.textContent = startErr(e);
+  } finally { busy(btn, false); }
+}
+
+/* ---------- Schreibbereich im Live-Modus ---------- */
+// Beschriftungen der Kopfzeile: im Live-Modus „Stand als PDF-Datei sichern“ und „Gruppenarbeit verlassen“
+function liveEditorLabels(on) {
+  $("ed-pdf").textContent = on ? LIVE_PDF_BTN : DC_BTN;
+  $("ed-cancel").textContent = on ? LIVE_LEAVE_BTN : ED_CANCEL_BTN;
+}
+/* Schreibbereich der Gruppe öffnen: Der Stand kommt aus dem Raum (Begrüßung), nicht von diesem Gerät – kein Zwischenstand, kein
+   Zwischenstand-Code; Angaben der Gruppe und Kennung der Bearbeitung aus den verschlüsselten Angaben des Raums. */
+async function liveOpenEditor() {
+  const L = S.live, sh = S.sheet;
+  if (!L || !L.meta || !sh) return;
+  const p = S.person = { gruppe: L.meta.gruppe.slice(), klasse: L.meta.klasse };
+  S.escape = null; S.escSoft = null; S.escPending = null; S.groupMode = true;
+  S.ttOptOut = false; S.ttResend = false; S.firstSending = null; S.ttLastRaw = null; S.ttGen++;
+  S.submitted = false; S.first = null; S.firstTyping = null; S.feedback = null; S.feedbackAt = null; S.feedbackAts = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbPending = false; S.ltCache = new Map();
+  S.firstSent = false; S.firstSentSig = ""; S.importDraft = null; S.importFrom = ""; S.importCode = null;
+  S.saveCode = ""; S.savedOnlineAt = 0; S.savedOnlineUntil = 0;
+  stopFeedbackRun();
+  S.ltConsent = false; S.ltDeclined = false;
+  S.draftKey = "";   // kein Zwischenstand auf diesem Gerät: der Raum ist der Stand
+  S.attempt = L.meta.attempt;   // die gemeinsame Kennung der Bearbeitung (Erstversuch ↔ Abgabe)
+  $("who-lbl").textContent = "Gruppe";
+  $("who-name").textContent = personLabel(p);
+  $("ed-title").textContent = sh.title;
+  $("sheet-title").textContent = sh.title;
+  $("sheet-meta").textContent = `${sh.tasks.length} ${sh.tasks.length === 1 ? "Aufgabe" : "Aufgaben"} · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe.` +
+    (sheetPhotoCount(sh) ? " Bei einer Foto-Aufgabe nimmst du ein Foto auf oder wählst ein Bild aus." : "");
+  $("submit-esc").classList.add("hidden");
+  const upd = $("esc-updated"); upd.textContent = ""; upd.classList.add("hidden");
+  renderDraftCode();
+  L.editor = true; L.mine = {}; L.notes = {};
+  liveEditorLabels(true);
+  renderPrivacy();
+  buildTasks();
+  ttResetAll(false);   // Partner- und Gruppenarbeit: keine Tippzeit-Messung in den Feldern
+  S.tas.forEach((_, i) => liveShow(i));
+  liveTakeFb(L);
+  store.set(LAST_KEY, JSON.stringify(liveLastOut(S.code, sh.title, L.word, L.num, Date.now())));
+  S.tas.forEach(updateCounter);
+  renderFeedbackState();
+  liveLockUi(); liveRenderState();
+  setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
+  show("screen-editor");
+  $("paperwrap").scrollTop = 0;
+  growAll();
+  setTimeout(() => { if (S.tas[0] && screen === "screen-editor") S.tas[0].focus({ preventScroll: true }); }, 60);
+  // Erstversuch nachholen: Ein anderes Gerät hat KI-Feedback bekommen, sein Erstversuch mit diesem Stand kam aber nicht an (mit Abstand –
+  // meist sendet das Gerät, das das Feedback bekommen hat, gerade selbst)
+  clearTimeout(L.firstT);
+  L.firstT = setTimeout(() => { L.firstT = 0; if (S.live === L && L.editor && S.feedback && fbtSig(S.feedback) !== S.firstSentSig) sendFirstAttempt(); }, 20000);
+}
+// „Gruppenarbeit verlassen“: der gemeinsame Stand bleibt; nur dieses Gerät trennt sich und vergisst Zugangswort und Zahlencode
+async function liveLeave() {
+  if (submitBusy($("submit-status"), SENDING_CANCEL)) return;
+  const L = S.live;
+  const ok = await askConfirm(LIVE_LEAVE);
+  if (!ok || S.live !== L || submitBusy($("submit-status"), SENDING_CANCEL)) return;
+  await Promise.race([liveFlush(L, S.tas.map((_, i) => i), 2500), sleep(2500)]);   // eine offene Eingabe noch speichern (bestmöglich)
+  if (S.live !== L) return;
+  store.del(LAST_KEY);
+  resetStudent(); $("code-input").value = "";
+  show("screen-start"); showResume();
+  focusSoon("code-input", 30);
+}
+/* „Stand als PDF-Datei sichern“: lesbarer Stand, ganz oben rot und fett Zugangswort und Zahlencode samt dem Weg zurück – ohne
+   eingebetteten Datensatz (hochladen lässt sich die Datei nicht), ohne Online-Zwischenstand-Code. o = {title, code, word, num, person,
+   tasks, kinds, answers:[{text, photo}], feedback, when} */
+function makeLivePdf(o) {
+  const pg = pdfPager(), { para, gap } = pg, RED = { color: "0.75 0.1 0.1" }, GREY = { color: "0.35 0.35 0.35" };
+  para(livePdfHead(o.word, o.num, fmtCode(o.code)), 15, true, RED);
+  gap(3);
+  para(LIVE_PDF_LINE, 10.5, false, RED);
+  gap(14);
+  para("Stand der Gruppenarbeit – " + (o.title || "Feibeitsblatt"), 17, true);
+  gap(4);
+  para(`Gruppe: ${o.person.gruppe.join(", ")} · Klasse ${o.person.klasse} · Stand: ${fmtDT(o.when)} Uhr – noch nicht abgegeben`, 10.5, false, GREY);
+  const fbs = o.tasks.map((_, i) => (!NO_AI_KINDS.has(o.kinds[i]) && Array.isArray(o.feedback) && o.feedback[i] ? normFb(o.feedback[i]) : null));
+  const hasAi = fbs.some((f) => hasAiPoints(f));
+  if (hasAi) { gap(4); para(AI_PDF_NOTE, 10.5, false, GREY); }
+  gap(14);
+  o.tasks.forEach((task, i) => {
+    const a = o.answers[i] || {}, text = String(a.text || ""), f = fbs[i];
+    pg.room(80);
+    para("Aufgabe " + (i + 1), 13, true);
+    gap(2);
+    if (task) para(String(task), 11, false, { color: "0.25 0.25 0.25" });
+    gap(6);
+    para("Unsere Lösung (Stand beim Sichern):", 10.5, true);
+    if (o.kinds[i] === "photo") {
+      let info = null, bytes = null;
+      if (a.photo) { try { bytes = photoBytes(a.photo); info = jpegInfo(bytes); } catch (e) { info = null; } }
+      if (a.photo && pdfPhotoOk(info)) pg.image(pg.addImage(bytes, info), pg.TW, 330);
+      else para(a.photo ? "[Foto – kann in dieser Datei nicht angezeigt werden]" : "(kein Foto)", 11, false, a.photo ? GREY : {});
+    } else para(text.trim() ? text : "(leer)", 11, false);
+    if (f && (hasAiPoints(f) || f.note)) {
+      gap(6);
+      para("KI-Feedback zur ersten Fassung:", 10.5, true, GREY);
+      for (const c of f.covered) para("• Gelingt schon: " + c, 10.5, false, { indent: 10 });
+      for (const m of f.missing) para("• Tipp: " + m, 10.5, false, { indent: 10 });
+      if (f.note) para(f.note, 10.5, false, { indent: 10, ...GREY });
+    }
+    gap(16);
+  });
+  pg.footer(o.title || "", "Gruppe " + o.person.gruppe.join(", "), `Gruppe (${o.person.gruppe.length})`);
+  const title = "Stand der Gruppenarbeit – " + (o.title || "Feibeitsblatt");
+  return pdfAssemble(pg.pages, hasAi ? { title, subject: AI_PDF_SUBJECT, keywords: AI_PDF_KEYWORDS, xmp: true, images: pg.images } : { title, images: pg.images });
+}
+function livePdfClick() {
+  const L = S.live, btn = $("ed-pdf");
+  if (!L || !L.editor || btn.disabled || S.submitted || !S.sheet || !S.person) return;
+  busy(btn, true, LIVE_PDF_BUSY);
+  try {
+    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
+    const pdf = makeLivePdf({ title: S.sheet.title, code: S.code, word: L.word, num: L.num, person: personOut(S.person), tasks: S.sheet.tasks.slice(),
+      kinds: S.tas.map((x) => x._kind || "text"), answers: S.tas.map((x) => ({ text: x.value, photo: x._kind === "photo" ? x.photo || "" : "" })), feedback: S.feedback, when: t });
+    downloadBlob(new Blob([pdf], { type: "application/pdf" }), `Feibeitsblatt-Gruppenarbeit-${fmtCode(S.code)}-${stamp}.pdf`);
+    setSaveState(LIVE_PDF_DONE, false);
+  } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
+  finally { busy(btn, false); }
+}
+// Feld verlassen: Eingabe speichern und die Aufgabe sofort freigeben (innerhalb derselben Tabelle nicht)
+document.addEventListener("focusout", (e) => {
+  const L = S.live; if (!L || !L.editor) return;
+  const ta = answerOf(e.target); if (!ta) return;
+  const w = ta._w || ta, to = answerOf(e.relatedTarget);
+  if (to && (to._w || to) === w) return;
+  if (Number.isInteger(w._idx)) liveRelease(w._idx);
+});
+// Seite wird geschlossen bzw. wandert in den Hintergrund: eine noch nicht gesendete Eingabe sofort senden (bestmöglich)
+function liveFlushNow() {
+  const L = S.live; if (!L || !L.editor || !L.open) return;
+  for (const i of Object.keys(L.mine)) liveSave(Number(i), true);
+}
+window.addEventListener("pagehide", liveFlushNow);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") liveFlushNow(); else liveKick(); });
+window.addEventListener("online", liveKick);
+window.addEventListener("focus", liveKick);
+window.addEventListener("pageshow", liveKick);
 
 /* =====================================================================
  *  Lehrkraft
@@ -11414,7 +12691,7 @@ function renderPvPreview() {
     privacyNoticeDom(p, list, { h: "h3", withAi: true, pages: PAGES_HOST, open: true, id: "pv-privfull", ttSwitch: "preview" }),
     h("p", { class: "fhint", id: "pv-preview-note", text: (CHECK_HOST ? `Rufen die Schüler:innen die Seite über GitHub Pages auf (${CHECK_HOST}, z. B. über den Link in der Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub bei den Empfängern für die ganze Seite statt nur für die Checklisten-Seite: „${GITHUB_ITEM}“ ` : "") +
       "Bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen der Satz zur Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „" + TT_OBJ_HEAD + "“ – dort wird nichts gemessen. " +
-      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " + PV_ESC_NOTE + " " + PV_VIDEO_NOTE + " Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“)." }));
+      "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " + PV_ESC_NOTE + " " + PV_VIDEO_NOTE + " " + PV_LIVE_NOTE + " Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis außerdem in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“) – ohne die Sätze zur Tippzeit-Messung, denn dort wird nicht gemessen." }));
 }
 function setPvDays(d) {   // eine per API gespeicherte Frist, die nicht in der Auswahl steht, als eigene Möglichkeit zeigen
   const sel = $("pv-days");
@@ -11538,9 +12815,10 @@ onEnter($("pw-2"), changePassword, $("pw-btn"));
 
 /* ---------- Seite verlassen: Warnung bei ungespeicherter Arbeit ---------- */
 window.addEventListener("beforeunload", (e) => {
-  const writing = screen === "screen-editor" && !S.submitted && S.tas.some((t) => t.value.trim());
+  // Live-Gruppenarbeit: der Stand liegt im Raum – warnen nur bei einer Eingabe, die noch nicht gespeichert ist (sie wird noch gesendet)
+  const writing = screen === "screen-editor" && !S.submitted && (S.live ? Object.values(S.live.mine).some((m) => m.dirty || m.sent != null) : S.tas.some((t) => t.value.trim()));
   const building = screen === "screen-teacher" && (T.builderDirty || pvUnsaved() || ckUnsaved());
-  if (writing || building) { if (writing) saveDraft(); e.preventDefault(); e.returnValue = ""; }
+  if (writing || building) { if (writing) { if (S.live) liveFlushNow(); else saveDraft(); } e.preventDefault(); e.returnValue = ""; }
 });
 
 /* ---------- Checkliste zum analogen Arbeitsblatt (Seite hinter dem QR-Code: Adresse mit #checkliste=CODE) ----------
@@ -11722,6 +13000,18 @@ const legalHash = () => /^#impressum$/i.test(location.hash || "");
     h("p", { text: PRIV_DU.photoData }),
     h("p", { text: "Auf dem Server gespeichert wird das Foto wie deine übrigen Antworten nur verschlüsselt: mit deiner Abgabe (und mit ihr gelöscht) und – wenn du deinen Zwischenstand online sicherst – mit ihm; " +
       "in deiner Lösungs-PDF steht es mit, wenn du sie herunterlädst." }));
+})();
+// Partner- und Gruppenarbeit live: eigener Abschnitt in allgemeiner Form
+(function renderLegalLive() {
+  $("legal-live").append(h("h2", { class: "legal-h2", id: "legal-live-h", text: "Partner- und Gruppenarbeit live" }),
+    h("p", { text: "Wählst du „Partner- / Gruppenarbeit“, arbeitet ihr live an einem oder an mehreren Geräten zusammen. Zusätzlich zu den Angaben oben gilt dann:" }),
+    h("p", { text: LIVE_SHORT }),
+    h("p", { text: PRIV_DU.liveData }),
+    h("p", { text: PRIV_DU.liveItem }),
+    h("p", { text: PRIV_DU.liveStay }),
+    h("p", { text: PRIV_DU.liveChoice.trim() }),
+    h("p", { text: PRIV_DU.liveRights }),
+    h("p", { text: "Tippzeiten misst diese Seite bei Partner- und Gruppenarbeit nicht – auch nicht, wenn ihr ohne Live-Verbindung gemeinsam an einem Gerät arbeitet; die Angaben oben zur Tippzeit-Messung gelten nur für die Einzelarbeit." }));
 })();
 async function openLegal() {
   escDrop();   // angekommene Daten aus einem Escape-Room gelten nicht mehr

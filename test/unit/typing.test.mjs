@@ -733,11 +733,13 @@ test("typing: Kurzfassungen nennen die Messung in genau einem neutralen Satz (TT
     assert.doesNotMatch(off1, TT_WORDS);   // Blatt nur mit Weltkarten: kein Wort zur Messung
     assert.doesNotMatch(on1, g ? /\b(du|dein\w*|dir|dich)\b/i : /\b(ihr|euer|eure\w*|euch)\b/i);
   }
-  assert.equal((html.match(/privacyShortText\(/g) || []).length, 3);   // Definition, Angaben-Bildschirm, Vorschau der Lehrkraft
-  assert.ok(html.includes("privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh))"));
+  assert.equal((html.match(/privacyShortText\(/g) || []).length, 4);   // Definition, Angaben-Bildschirm, „Dazuschalten“ (Live-Gruppenarbeit), Vorschau der Lehrkraft
+  // Partner- und Gruppenarbeit: nie gemessen (ttMeasured(sh, g)) – die Kurzfassung der Gruppe und „Dazuschalten“ tragen den Satz nicht
+  assert.ok(html.includes("privacyShortText(sh.privacy, list, sh.aiFeedback, g, ttMeasured(sh, g))"));
+  assert.ok(html.includes("privacyShortText(sh.privacy, list, sh.aiFeedback, true, false)"));
   assert.ok(html.includes("privacyShortText(p, list, true, false, true)"));   // Vorschau: ein Blatt mit KI-Feedback und Messung
   // Schreibbereich (renderPrivacy bis zum ausführlichen Hinweis): derselbe Satz in der du-Form, nur bei Blättern mit Messung, sonst nichts
-  const SHORT_EXPR = '(ttMeasured(S.sheet) ? TT_SHORT(false) + " " : "")';
+  const SHORT_EXPR = '(ttMeasured(S.sheet, isGroup(S.person)) ? TT_SHORT(false) + " " : "")';
   const ed = code(body("function renderPrivacy()", 'const full = $("privfull-ed")'));
   assert.equal(ed.split(SHORT_EXPR).length - 1, 1);
   assert.doesNotMatch(ed.replace(SHORT_EXPR, ""), /Tippzeit|misst|Messung|[Ww]idersprech|Widerspruch|Schalter|\bTT_|ttMeasured|typing/);
@@ -770,8 +772,10 @@ test("typing: Kurzfassungen nennen die Messung in genau einem neutralen Satz (TT
   // auch „Wie lange …?“ sagt nichts mehr vom Halten nach der Abgabe
   assert.doesNotMatch(body("function privacyNoticeDom(", "\n}\n"), /nachgereicht|TT_HELD/);
   // … und nach einem Widerspruch liest die Seite wirklich keine Zeitpunkte mehr (Capture-Listener „input“, ttSync)
-  assert.ok(html.includes("if (!S.ttOptOut) { ta._evType = e.inputType || \"\"; ta._evTs = performance.now(); }"));
-  assert.ok(html.includes("if (S.ttOptOut) { el._evTs = el._evType = undefined; return; }"));
+  // (ttOff: nach einem Widerspruch – und bei Partner- und Gruppenarbeit nie, siehe liveclient.test.mjs)
+  assert.ok(html.includes("const ttOff = () => S.ttOptOut || isGroup(S.person);"));
+  assert.ok(html.includes("if (!ttOff()) { ta._evType = e.inputType || \"\"; ta._evTs = performance.now(); }"));
+  assert.ok(html.includes("if (ttOff()) { el._evTs = el._evType = undefined; return; }"));
   // der ausführliche Hinweis: Zweck, Rechtsgrundlage mit Widerspruch, Daten samt § 25 TDDDG, Empfänger, Speicherdauer – und ein eigener
   // Abschnitt „Widerspruch gegen die Tippzeit-Messung“ mit dem Schalter vor „Deine Rechte“ (dort nur ein Verweis)
   const full = body("function privacyNoticeDom(", "\n}\n");
@@ -784,7 +788,8 @@ test("typing: Kurzfassungen nennen die Messung in genau einem neutralen Satz (TT
   assert.equal(full.indexOf("ttSwitchDom", order[5] + "tt ? ttSwitchDom".length), -1);   // der Schalter steht nicht (mehr) unter „Deine Rechte“
   assert.ok(!full.includes("Schalter unter „"));
   // … auf dem Angaben-Bildschirm und im Schreibbereich mit dem Schalter (live), in der Vorschau der Lehrkraft gesperrt
-  assert.equal((html.match(/typing: ttMeasured\((sh|S\.sheet)\), ttSwitch: "live"/g) || []).length, 2);
+  // (Partner- und Gruppenarbeit: ttMeasured mit Gruppe ist nie wahr – kein Abschnitt, kein Schalter)
+  assert.equal((html.match(/typing: ttMeasured\((sh, g|S\.sheet, isGroup\(S\.person\))\), ttSwitch: "live"/g) || []).length, 2);
   assert.ok(html.includes('id: "pv-privfull", ttSwitch: "preview"'));
   // Seite „Impressum & Datenschutz“: kein Schalter, aber ein Absatz, wo er steht (im eigenen Abschnitt)
   assert.ok(body("function ttSwitchDom(", "\n}\n").includes("steht im Abschnitt „${TT_OBJ_HEAD}“ der Schalter „${TT_SWITCH_DU}“. "));

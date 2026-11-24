@@ -20,7 +20,8 @@ const NAMES = "LIVE_WORDS, LIVE_NUM_LEN, LIVE_NUM_MIN, LIVE_NUM_SPAN, LIVE_WORD_
   "LIVE_MODE_D, LIVE_SETUP, LIVE_SETUP_FAIL, LIVE_LOCAL_HINT, LIVE_INFO_TEXT, LIVE_JOINING, LIVE_JOIN_WORD, LIVE_JOIN_NUM, LIVE_JOIN_WRONG, LIVE_JOIN_FAIL, LIVE_OTHER_SHEET, " +
   "LIVE_GONE, LIVE_FULL, liveResumeParts, LIVE_RESUME_BTN, LIVE_RESUME_DEL, liveStateText, LIVE_SAVED, LIVE_SAVING, LIVE_OFFLINE, LIVE_HINT_WRITE, LIVE_HINT_AI, LIVE_HINT_SUBMIT, " +
   "LIVE_HINT_STALE, LIVE_HINT_UNSAVED, LIVE_LEAVE_BTN, LIVE_LEAVE, LIVE_PDF_BTN, LIVE_PDF_BUSY, LIVE_PDF_DONE, LIVE_ASK_FB, LIVE_ASK_SUBMIT, liveDenyText, liveDoneText, " +
-  "LIVE_DONE_PDF, LIVE_DONE_WAIT, LIVE_DONE_GONE, LIVE_DONE_NONE, liveDoneGroup, livePdfHead, LIVE_PDF_LINE";
+  "LIVE_DONE_PDF, LIVE_DONE_WAIT, LIVE_DONE_GONE, LIVE_DONE_NONE, liveDoneGroup, livePdfHead, LIVE_PDF_LINE, " +
+  "LIVE_LOCK_MS, liveKeyIdx, liveSig, liveSolOut, liveCleanSol, LIVE_GROUP_SUB, LIVE_NEXT_BTN, LIVE_DONE_DL, LIVE_FINAL_LOCKED";
 // der Block braucht nur asciiDigits (Block BDAY)
 const L = new Function(blk("BDAY") + block + "\nreturn { " + NAMES + " };")();
 const G = new Function(blk("GROUP") + "\nreturn { cleanGroup };")();
@@ -335,4 +336,121 @@ test("live: im Live-Modus kein Zwischenstand auf dem Gerät und kein Online-Zwis
   const click = body('$("ed-pdf").addEventListener("click", async () => {', "\n});\n");
   assert.match(click, /if \(S\.live\) \{ livePdfClick\(\); return; \}/);
   assert.ok(click.indexOf("if (S.live)") < click.indexOf("/api/draft"));
+});
+
+test("live: Lösungen nach der Abgabe (sol) – alles für die Lösungs-PDF, nie Tippzeiten; fremde Eingabe wird geprüft und gekappt; passt samt Fotos in den Raum", async () => {
+  const PH = "data:image/jpeg;base64,/9j/" + "A".repeat(400);
+  const deps = { cleanGroup: G.cleanGroup, cleanPhoto: (v) => (typeof v === "string" && v.startsWith("data:image/jpeg;base64,/9j/") ? v : ""), normFb: (r) => ({ covered: (r && r.covered) || [], missing: (r && r.missing) || [] }), max: 8000 };
+  const sub = { code: "K7QM4X", title: "Das Gewissen", tasks: ["Aufgabe eins", "Foto"], kinds: ["text", "photo"], person: { gruppe: ["MaxMu", "LiMu"], klasse: "8b" },
+    answers: [{ first: "erste", final: "letzte" }, { first: "[Foto]", final: "[Foto]", photo: PH }], feedback: [{ covered: ["a"], missing: ["b"] }, null], feedbackError: "", noAi: "",
+    receivedAt: 1790000000000, serverAt: 1790000000123, finalWanted: true, fb2Want: true, fb2State: "loading", fb2Final: false, feedback2: null, checklist: undefined,
+    typing: { v: 1 }, attempt: "0123456789abcdef", recipients: ["groq"], fb2Until: 1, gateOpen: false };
+  const out = L.liveSolOut(sub, true);
+  assert.deepEqual(Object.keys(out).sort(), ["answers", "checklist", "code", "fb2", "feedback", "feedback2", "feedbackError", "finalWanted", "kinds", "noAi", "person", "receivedAt", "tasks", "title", "v"]);
+  assert.equal(JSON.stringify(out).includes("typing"), false);   // nie Tippzeiten, keine Kennung, keine Empfänger
+  assert.equal(JSON.stringify(out).includes("0123456789abcdef"), false);
+  assert.deepEqual([out.fb2, out.checklist, out.receivedAt, out.answers[1].photo], ["pending", null, 1790000000123, PH]);
+  assert.equal(L.liveSolOut(sub, false).answers[1].photo, undefined);                    // zu groß: ohne Fotos
+  // Stand der finalen KI-Rückmeldung: läuft / da / keine (abgewählt, nicht angeboten, gescheitert, nicht abgewartet)
+  assert.equal(L.liveSolOut({ ...sub, fb2State: "" }, true).fb2, "pending");
+  assert.equal(L.liveSolOut({ ...sub, fb2State: "failed" }, true).fb2, "none");
+  assert.equal(L.liveSolOut({ ...sub, fb2State: "dropped" }, true).fb2, "none");
+  assert.equal(L.liveSolOut({ ...sub, fb2Final: true }, true).fb2, "none");
+  assert.equal(L.liveSolOut({ ...sub, fb2Want: false, finalWanted: false }, true).fb2, "none");
+  const done = L.liveSolOut({ ...sub, fb2State: "done", feedback2: { results: [{ covered: ["gut"], missing: ["fehlt"] }, { covered: [], missing: [] }], final: true, at: "2026-11-24T10:00:00.000Z" }, checklist: { ai: true, points: [["Punkt"], []] } }, true);
+  assert.deepEqual([done.fb2, done.feedback2.final, done.checklist], ["done", true, { ai: true, points: [["Punkt"], []] }]);
+  assert.equal(L.liveSolOut({ ...sub, checklist: false }, true).checklist, false);
+  // … und zurück: derselbe Datensatz für makeSolutionsPdf
+  const back = L.liveCleanSol(JSON.parse(JSON.stringify(done)), deps);
+  assert.deepEqual(back.answers, sub.answers);
+  assert.deepEqual([back.code, back.title, back.tasks, back.kinds, back.person, back.receivedAt, back.finalWanted, back.fb2], ["K7QM4X", "Das Gewissen", sub.tasks, sub.kinds, sub.person, 1790000000123, true, "done"]);
+  assert.deepEqual(back.feedback, [{ covered: ["a"], missing: ["b"] }, null]);
+  assert.deepEqual(back.feedback2.results[0], { covered: ["gut"], missing: ["fehlt"] });
+  assert.deepEqual(back.checklist, { ai: true, points: [["Punkt"], []] });
+  // fremde Eingabe: Unbrauchbares → null; Zusätze entfallen, Längen gekappt, Fotos nur geprüft
+  for (const bad of [null, "x", [], { v: 2 }, { v: 1, code: "K7QM4X", answers: [], person: { gruppe: ["Nur"], klasse: "8b" } }, { v: 1, code: "k7", answers: [], person: sub.person }]) assert.equal(L.liveCleanSol(bad, deps), null);
+  const evil = L.liveCleanSol({ v: 1, code: "K7QM4X", title: "T".repeat(999), tasks: [1, "x".repeat(9999)], kinds: ["text", "geheim"], person: { gruppe: ["MaxMu", "LiMu"], klasse: "8b", extra: 1 },
+    answers: [{ first: "a".repeat(9000), final: 7, photo: "javascript:alert(1)" }, "kaputt"], feedback: "x", feedback2: { results: "x" }, noAi: "frei", receivedAt: -5, finalWanted: "ja", fb2: "sonstwas", checklist: { points: [[1, " ", "p".repeat(500)]] }, typing: { v: 1 }, __proto__: { x: 1 } }, deps);
+  assert.deepEqual([evil.title.length, evil.tasks, evil.kinds], [200, ["", "x".repeat(4000)], ["text", "text"]]);
+  assert.deepEqual(evil.answers, [{ first: "a".repeat(8000), final: "" }, { first: "", final: "" }]);
+  assert.deepEqual([evil.feedback, evil.feedback2, evil.noAi, evil.receivedAt, evil.finalWanted, evil.fb2, evil.typing], [null, null, "", 0, undefined, "none", undefined]);
+  assert.deepEqual(evil.checklist, { ai: false, points: [["p".repeat(160)]] });
+  assert.deepEqual(Object.keys(evil.person), ["gruppe", "klasse"]);
+  assert.equal(L.liveCleanSol({ ...JSON.parse(JSON.stringify(done)), fb2: "pending", feedback2: null }, deps).fb2, "pending");
+  // die größte Abgabe (3 Fotos mit je 200 KB, lange Texte) passt verschlüsselt in den Raum; ohne Fotos erst recht
+  const big = "data:image/jpeg;base64,/9j/" + "B".repeat(4 * Math.ceil(200 * 1024 / 3) - 4);
+  const large = L.liveSolOut({ ...sub, tasks: Array(6).fill("t".repeat(4000)), kinds: ["text", "text", "text", "photo", "photo", "photo"],
+    answers: [...Array(3).fill({ first: "ä".repeat(8000), final: "ö".repeat(8000) }), ...Array(3).fill({ first: "[Foto]", final: "[Foto]", photo: big })], feedback: null }, true);
+  const { key } = await L.liveDerive(subtle, "K7QM4X", "birke", "48213", 1000);
+  const sealed = await L.liveSeal(subtle, key, large, rnd);
+  assert.ok(isLiveValue(sealed, LIVE.solValue), "passt: " + sealed.length);
+  assert.deepEqual(await openLive(key, sealed), JSON.parse(JSON.stringify(large)));
+});
+
+test("live: Schlüssel, Vergleichswert, Dauer der Sperre – wie beim Raum", () => {
+  assert.equal(L.LIVE_LOCK_MS, LIVE.lockMs);
+  assert.deepEqual([L.liveKeyIdx("a0", "a"), L.liveKeyIdx("a12", "a"), L.liveKeyIdx("f3", "f"), L.liveKeyIdx("f3", "a"), L.liveKeyIdx("a01", "a"), L.liveKeyIdx("fs", "f"), L.liveKeyIdx(null, "a")], [0, 12, 3, -1, -1, -1, -1]);
+  assert.equal(L.liveSig({ t: "Text", p: "" }), "Text");
+  assert.notEqual(L.liveSig({ t: "[Foto]", p: "data:1" }), L.liveSig({ t: "[Foto]", p: "data:2" }));   // anderes Foto, gleiche Textform
+  assert.equal(L.liveSig(null), "");
+});
+
+test("live: im Skript – Takt beim Tippen, der Schreibende wird nie überschrieben, erst die Gruppe fragen, Zusage vor jeder Anfrage an die KI und vor der Abgabe", () => {
+  // Eingaben gehen im Live-Modus an den Raum (getippt: Vorschau und spätes Speichern; Weltkarte und Foto sofort), sonst in den Zwischenstand
+  assert.match(body("function answerChanged(el) {", "\n}\n"), /if \(S\.live\) liveInput\(ta\._idx, el\.tagName === "TEXTAREA"\); else scheduleSave\(\);/);
+  const inp = body("function liveInput(i, typed) {", "\n}\n");
+  assert.match(inp, /if \(!typed\) \{ liveSave\(i, true\);/);
+  assert.match(inp, /Math\.max\(0, m\.pvAt \+ LIVE_PV_MS - now\)/);
+  assert.match(inp, /LIVE_SET_IDLE_MS\)/); assert.match(inp, /LIVE_SET_MAX_MS\)/); assert.match(inp, /LIVE_UNLOCK_MS\)/);
+  // Vorschau und Speichern bleiben unter der Grenze des Raums; Fotos nie als Vorschau
+  assert.match(body("function livePreview(i) {", "\n}\n"), /t\._kind === "photo"\) return;[\s\S]*liveBudget\(L\.times, now, LIVE_PV_BUDGET\)/);
+  const save = body("function liveSave(i, release) {", "\n}\n");
+  assert.match(save, /if \(m\.sent != null \|\| !L\.open\) return;/);            // nie zwei Speicherungen derselben Aufgabe gleichzeitig
+  assert.match(save, /liveBudget\(L\.times, now, LIVE_SET_BUDGET\)/);
+  assert.match(save, /\{ t: "set", k: "a" \+ i, base: m\.base \}/);                 // mit der Version, auf der die Eingabe aufsetzt
+  // der Raum lehnt ab: „stale“ mit genau dem eigenen Stand (nur die Bestätigung ging verloren) ist kein Verlust – sonst gewinnt der Raum
+  const deny = body("async function liveOnDeny(L, m) {", "\n}\n");
+  assert.match(deny, /if \(why === "stale" && me && liveSig\(L\.val\[k\] \|\| LIVE_EMPTY\) === liveSig\(liveLocal\(i\)\)\)/);
+  assert.match(deny, /if \(why === "locked" && L\.own\.has\(String\(m\.by\)\)\) \{ retry\(3000\); return; \}/);   // die eigene, abgerissene Verbindung: Text behalten, erneut senden
+  assert.match(deny, /if \(why === "stale"\) liveNote\(i, LIVE_HINT_STALE\);/);
+  // freigegeben wird erst nach der Bestätigung des Speicherns
+  assert.match(body("function liveOnAck(L, m) {", "\n}\n"), /else if \(me\.rel\) liveUnlock\(i\);/);
+  // Nachrichten des Raums überschreiben kein Feld mit einer eigenen offenen Eingabe
+  const msg = body("async function liveOnMessage(L, raw) {", "\n}\n") + body("async function liveOnSet(L, m) {", "\n}\n");
+  assert.equal((msg.match(/if \(!liveMineBusy\(L, i[a]?\)\) liveShow\(i[a]?\);/g) || []).length, 3);   // lock frei, Vorschau, Speichern
+  assert.doesNotMatch(body("function liveApply(i, v) {", "\n}\n"), /\.focus\(|scrollIntoView|answerChanged\(|liveInput\(/);   // kein Fokus, kein Scrollen, kein erneutes Senden
+  // Alles Entschlüsselte geht durch die Prüfungen; ein unlesbarer Wert bricht nichts ab
+  assert.ok(html.includes("async function liveOpenVal(L, v) { try { return await liveOpen(subtle, L.key, v); } catch (e) { return null; } }"));
+  // KI-Feedback und Abgabe: immer zuerst das eigene Fenster, dann der bisherige Dialog (dessen „OK“ ein Doppelklick nicht gleich mitbestätigt)
+  const rf = body("async function requestFeedback(target) {", "\n}\n"), sa = body("async function submitAll() {", "\n}\n");
+  assert.ok(rf.indexOf("askConfirm(LIVE_ASK_FB)") > 0 && rf.indexOf("askConfirm(LIVE_ASK_FB)") < rf.indexOf("askConfirm(Object.assign({ guard: !!S.live }"));
+  assert.ok(sa.indexOf("askConfirm(LIVE_ASK_SUBMIT)") > 0 && sa.indexOf("askConfirm(LIVE_ASK_SUBMIT)") < sa.indexOf("askConfirm(Object.assign({ guard: !!S.live }, submitDialog("));
+  assert.match(html, /dlgGuardUntil = o\.guard \? dlgOpenedAt \+ 500 : 0;/);
+  // ohne Zusage des Raums geht nichts an die KI bzw. an /api/submit
+  assert.ok(rf.indexOf("await liveClaim()") > 0 && rf.indexOf("await liveClaim()") < rf.indexOf('api("POST", "/api/feedback"'));
+  assert.ok(rf.indexOf("livePushFb(sel())") > rf.indexOf('api("POST", "/api/feedback"'));
+  assert.ok(sa.indexOf("await liveClaimSub()") > 0 && sa.indexOf("await liveClaimSub()") < sa.indexOf("await sendSealed(payload"));
+  assert.ok(sa.indexOf("liveSettle(S.live)") < sa.indexOf("const now = answersNow();"));   // abgegeben wird der gespeicherte gemeinsame Stand
+  assert.ok(sa.indexOf("liveSubmitted(S.lastSubmission)") > sa.indexOf("await sendSealed(payload"));
+  assert.match(sa, /if \(S\.live\) liveUnsub\(\);/);
+  // Lösungen der anderen: nach Checkliste, finaler Rückmeldung bzw. deren Ausbleiben nachgereicht
+  for (const fn of ["function fb2Drop(sub) {", "function finalFeedbackGone(sub) {", "function fb2LoadChecklist(sub) {", "async function requestFinalFeedback() {", "function finalFeedbackFailed(e) {"]) assert.match(body(fn, "\n}\n"), /liveSolPush\(sub\)/, fn);
+  // Verbindung: erst nachfragen (POST /api/live/join), wachsende Pause, Lebenszeichen
+  const lost = body("async function liveLost(L, gen, code, hadInit) {", "\n}\n");
+  assert.match(lost, /if \(code === 4404\) \{ liveGone\(L\); return; \}/);
+  assert.match(lost, /if \(!hadInit && code !== 4409\)[\s\S]*"\/api\/live\/join"/);
+  assert.match(lost, /liveRetryMs\(L\.retry\+\+\)/);
+  assert.match(body("function livePing(L) {", "\n}\n"), /L\.ws\.send\("ping"\)[\s\S]*LIVE_PONG_MS/);
+  for (const ev of ['window.addEventListener("online", liveKick);', 'window.addEventListener("pagehide", liveFlushNow);']) assert.ok(html.includes(ev), ev);
+  // zurücksetzen trennt die Verbindung; der lokale Weg (openEditor) ist nie live
+  assert.match(body("function resetStudent() {", "\n}\n"), /liveClose\(S\.live\);/);
+  assert.match(body("async function openEditor(fromPerson) {", "\n}\n"), /^[^\n]*\n  liveClose\(S\.live\); liveEditorLabels\(false\);/);
+  // Gruppen: nie Messfelder (auch ohne Live-Verbindung)
+  assert.match(body("async function openEditor(fromPerson) {", "\n}\n"), /if \(S\.ttOptOut \|\| isGroup\(p\)\) ttResetAll\(false\);/);
+});
+
+test("live: das Skript der Seite ist als Ganzes syntaktisch gültig (ein Fehler dort legte die ganze Seite still)", () => {
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.ok(scripts.length >= 3);
+  for (const src of scripts) assert.doesNotThrow(() => new Function(src));   // nur übersetzen, nicht ausführen
 });

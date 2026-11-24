@@ -9,13 +9,14 @@ import { inflateSync, deflateSync } from "node:zlib";
 import { createHash, pbkdf2Sync, hkdfSync, createDecipheriv } from "node:crypto";
 import { expectedResults, expectedChecklist, parseFeedbackPrompt } from "../mock-ai.mjs";
 import jsQR from "jsqr";
-import { deriveTeacherKeys, makeEnvelope, openPrivateKey, openEnvelope } from "../smoke.mjs";
+import { deriveTeacherKeys, makeEnvelope, openPrivateKey, openEnvelope, deriveLiveKeys, openLive } from "../smoke.mjs";
 import { makePng } from "../png.mjs";
 import { escHull, b64url, overviewPdf } from "../escape-fixture.mjs";
 import { MOCK_URL, MOCK_PORT, BASE_URL } from "./env.mjs";
 import {
   PASTE_MSG, UNKNOWN_CODE_MSG, NO_SOLUTION_NOTE, GREEN, RED, openPage, closePage, confirmDialog, teacherLogin,
   lineHeightOf, gapAfterTask, mockState, mockReset, mockMode, mockRequests, mockCount, d1Query, scanState, isYouTubeUrl, FINAL_CHECK_LABEL,
+  LIVE_OFF_MSG, LIVE_SETUP_FAIL, liveUnavailable, chooseGroupHost, fillGroup, startGroupHost, openGroupSheet, joinGroup, startGroupLocal,
 } from "./helpers.mjs";
 
 test.describe.configure({ mode: "serial" });
@@ -211,23 +212,11 @@ const TT_SCOPE = "Der Haken gilt für deine Bearbeitung auf diesem Gerät und f�
   (TT_KEEP ? "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – lösche sie und sichere den Zwischenstand bei Bedarf neu. " : "") +
   "Einen Erstversuch, den du auf einem anderen Gerät gesendet hast, kann diese Seite nicht ersetzen – wende dich dafür an deine Lehrkraft (sie kann ihn löschen). " +
   "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit deiner ganzen Abgabe löschen – wende dich für einen Widerspruch dann an deine Lehrkraft oder an den Betreiber.";
-const TT_EFFECT_G = "Setzt ihr den Haken, misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr und verwirft die schon gemessenen" + (TT_KEEP ? " – auch in eurem Zwischenstand" : "") + ". " +
-  "Einen schon an eure Lehrkraft gesendeten Erstversuch ersetzt sie durch einen ohne Tippzeiten; die alte Fassung bleibt verschlüsselt noch " + BACKUP + " in der Datensicherung der Datenbank. " +
-  "Bei eurer Abgabe sieht eure Lehrkraft dann „ohne Messung (widersprochen)“ – das ist euer Recht und für eure Lehrkraft kein Anlass für einen Verdacht. " +
-  "Nehmt ihr den Haken wieder weg, misst die Seite erst ab dann wieder.";
-const TT_SCOPE_G = "Der Haken gilt für eure Bearbeitung auf diesem Gerät und für Zwischenstand-PDF-Dateien, die ihr danach sichert. " +
-  "Fangt ihr auf einem anderen Gerät oder nach „Abbrechen und Zwischenstand löschen“ neu an, setzt ihn erneut. " +
-  (TT_KEEP ? "Eine schon gesicherte Zwischenstand-PDF-Datei enthält die bisherigen Tippzeiten weiter – löscht sie und sichert den Zwischenstand bei Bedarf neu. " : "") +
-  "Einen Erstversuch, den ihr auf einem anderen Gerät gesendet habt, kann diese Seite nicht ersetzen – wendet euch dafür an eure Lehrkraft (sie kann ihn löschen). " +
-  "Nach der Abgabe lassen sich die Tippzeiten nur zusammen mit eurer ganzen Abgabe löschen – wendet euch für einen Widerspruch dann an eure Lehrkraft oder an den Betreiber.";
 // „Welche Daten?“: Zugriff auf das Gerät im Sinne von § 25 TDDDG – nur die Tatsache (Zwischenstand nur mit TT_KEEP_IN_DRAFT); nach der
 // Abgabe hält die Seite keine Tippzeiten mehr (die finale KI-Rückmeldung speichert der Server selbst – nichts wird nachgereicht)
 const TT_ACCESS = "Für die Tippzeiten liest diese Seite beim Schreiben in deinem Browser die Zeitpunkte deiner Eingaben aus" +
   (TT_KEEP ? ", hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis zur Abgabe auch in deinem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
   " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf dein Gerät im Sinne von § 25 TDDDG.";
-const TT_ACCESS_G = "Für die Tippzeiten liest diese Seite beim Schreiben in eurem Browser die Zeitpunkte eurer Eingaben aus" +
-  (TT_KEEP ? ", hält sie bis zur Abgabe im Arbeitsspeicher und speichert die Tippzeiten bis zur Abgabe auch in eurem Zwischenstand in diesem Browser" : " und hält sie bis zur Abgabe im Arbeitsspeicher") +
-  " (nach einem Widerspruch nicht mehr) – das ist ein Zugriff auf euer Gerät im Sinne von § 25 TDDDG.";
 // „Wie lange …?“: Tippzeiten im Zwischenstand und in einer Zwischenstand-PDF (die bleibt, bis sie gelöscht wird) – nur mit TT_KEEP_IN_DRAFT
 const TT_STAY = "Die Tippzeiten gehören zu Erstversuch und Abgabe und werden mit ihnen gelöscht; " + (TT_KEEP
   ? "bis zur Abgabe stehen sie auch in deinem Zwischenstand – und in jeder Zwischenstand-PDF-Datei, die du sicherst, bis du sie löschst."
@@ -253,13 +242,14 @@ const DELIVER_WORKER = "über Cloudflare; die Checklisten-Seite über GitHub Pag
 const PRIV_HEADS = ["Wer ist verantwortlich?", "Wozu werden deine Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
   "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Musst du mitmachen?", "Entscheidet die KI über dich?", TT_OBJ_HEAD, "Deine Rechte"];
 // Angaben-Bildschirm einer Partner- / Gruppenarbeit: derselbe Hinweis in der „ihr“-Form
+// (Partner- und Gruppenarbeit misst keine Tippzeiten: kein Abschnitt zum Widerspruch)
 const PRIV_HEADS_GROUP = ["Wer ist verantwortlich?", "Wozu werden eure Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
-  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Müsst ihr mitmachen?", "Entscheidet die KI über euch?", TT_OBJ_HEAD, "Eure Rechte"];
+  "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Müsst ihr mitmachen?", "Entscheidet die KI über euch?", "Eure Rechte"];
 const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.";
 const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
 // Partner- / Gruppenarbeit: Texte in der „ihr“-Form dort, wo es um alle geht (Angaben, Datenschutz-Kurzfassung, Rechtschreibprüfung)
 const MEMBERS_HINT = "Tragt für jede Person die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens in ein Feld ein, z. B. „MaxMu“ für Max Mustermann (bei kürzerem Vornamen den ganzen Vornamen). Tragt nur Personen ein, die mitarbeiten – alle sollten wissen, dass ihre Kürzel mit eurer Abgabe an die Lehrkraft gehen.";
-const KLASSE_HINT_GROUP = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät – außer ihr sichert ihn selbst online.";
+const KLASSE_HINT_GROUP = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin liegen sie mit eurem gemeinsamen Stand verschlüsselt auf dem Server dieser Seite – lesbar nur mit eurem Zugangswort und Zahlencode.";
 const LT_CONSENT_GROUP = "Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird nur der Text dieser Antwort an LanguageTool gesendet – ohne eure Namen oder eure Angaben, aber mit der Internetadresse eures Geräts. Die Prüfung ist freiwillig.\n\n" +
   "Laut Anbieter darf LanguageTool nur nutzen, wer\n• mindestens 18 Jahre alt ist oder\n• 16 oder 17 Jahre alt ist und die Erlaubnis der Eltern hat.\n\n" +
   "Trifft das auf alle in eurer Gruppe zu? Wenn nicht, wählt „Trifft nicht auf alle zu“ – ihr schreibt und gebt ganz normal ab, ohne Nachteil.\nDie Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.";
@@ -1098,7 +1088,7 @@ async function checkLegal(lp, { days = 30, deliver = DELIVER_WORKER, github = CH
   await expect(auth).toHaveAttribute("target", "_blank");
   await expect(auth).toHaveAttribute("rel", "noopener noreferrer");
   await expect(lp.locator("#legal-other")).toHaveText("Bei Feibeitsblättern ohne KI-Feedback (ohne Auftrag an die KI) entfallen die Angaben zum KI-Feedback – deine Antworten gehen dann an keine KI. " +
-    "Bei Partner- oder Gruppenarbeit gilt alles ebenso für alle in der Gruppe; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. " +
+    "Bei Partner- oder Gruppenarbeit gilt es ebenso für alle in der Gruppe – mit den Besonderheiten im Abschnitt „Partner- und Gruppenarbeit live“ weiter unten; wer die Angaben einträgt, trägt die Kürzel der anderen mit ein. " +
     "Was für dein Feibeitsblatt gilt, steht nach der Eingabe des Codes auf der Seite „Deine Angaben“ und im Schreibbereich unter den Aufgaben.");
   // Feibeitsblatt als Finale eines Escape-Rooms: eigener Abschnitt in allgemeiner Form (der Hinweis darüber bleibt unverändert)
   const lesc = lp.locator("#legal-escape");
@@ -1116,6 +1106,17 @@ async function checkLegal(lp, { days = 30, deliver = DELIVER_WORKER, github = CH
     "Auf einem ausgedruckten Feibeitsblatt führt zu jedem Video ein QR-Code mit der ausgeschriebenen Adresse direkt zu YouTube: Scannst du ihn oder gibst du die Adresse ein, rufst du YouTube direkt auf; dort gelten die Bedingungen von YouTube."]);
   await expect(lvid.locator("iframe, img, a")).toHaveCount(0);
   await expect(lpriv).not.toContainText(/YouTube|Google/);
+  // Partner- und Gruppenarbeit live: eigener Abschnitt in allgemeiner Form (nach den Foto-Aufgaben)
+  const llive = lp.locator("#legal-live");
+  await expect(llive.locator("h2")).toHaveText("Partner- und Gruppenarbeit live");
+  expect(await lp.$eval("#legal-live", (e) => e.previousElementSibling.id)).toBe("legal-photo");
+  await expect(llive.locator("p").nth(0)).toHaveText("Wählst du „Partner- / Gruppenarbeit“, arbeitet ihr live an einem oder an mehreren Geräten zusammen. Zusätzlich zu den Angaben oben gilt dann:");
+  await expect(llive.locator("p").nth(1)).toHaveText(LIVE_SHORT);
+  await expect(llive).toContainText("Zugangswort und Zahlencode erhält der Server nie.");
+  await expect(llive).toContainText("dieser Speicher liegt in der EU");
+  await expect(llive).toContainText("ohne Abgabe 30 Tage nach der letzten Änderung gelöscht");
+  await expect(llive.locator("p").last()).toHaveText("Tippzeiten misst diese Seite bei Partner- und Gruppenarbeit nicht – auch nicht, wenn ihr ohne Live-Verbindung gemeinsam an einem Gerät arbeitet; die Angaben oben zur Tippzeit-Messung gelten nur für die Einzelarbeit.");
+  expect(await llive.textContent()).not.toMatch(/Server in der EU/);
   for (const w of ["Deine Schule", "Datenschutzbeauftragte", "Schulgesetz", "HSchG", "frag deine Lehrkraft"]) await expect(lp.locator("#screen-legal")).not.toContainText(w);
   await expect(lp.locator("#foot-legal")).toBeHidden();   // auf der Seite selbst kein Link auf sich
   await expect(lp.locator("#pagefoot")).toContainText("Copyright Jan-Rickmer Feindt");
@@ -1306,7 +1307,9 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
     "Bei Feibeitsblättern für einen Escape-Room kommen Sätze zu den Daten aus dem Escape-Room hinzu (voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät " +
     "der Schüler:innen – außer sie sichern ihren Zwischenstand online (dann liegen sie verschlüsselt mit darin) oder schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie). " +
     PV_VIDEO_NOTE + " " +
-    "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“).");
+    "Bei Partner- oder Gruppenarbeit arbeiten die Schüler:innen live an mehreren Geräten: Dann kommen Sätze zum gemeinsamen Stand hinzu, der laufend verschlüsselt auf dem Server liegt " +
+    "(Schlüssel aus Zugangswort und Zahlencode, die der Server nie erhält; lesen und ändern kann ihn, wer beides und den Code des Feibeitsblattes kennt). " +
+    "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis außerdem in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“) – ohne die Sätze zur Tippzeit-Messung, denn dort wird nicht gemessen.");
   // Vorschau mit der (noch ungespeicherten) Frist – derselbe Baustein wie bei den Schüler:innen
   await page.selectOption("#pv-days", String(DAYS));
   await expect(page.locator("#pv-days-effect")).toHaveText("Mit dieser Frist würde jetzt nichts gelöscht.");
@@ -2008,7 +2011,7 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   await closePage(s);
 });
 
-test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → Kürzel aller Mitglieder (hinzufügen, entfernen, Grenzen) und einmal die Klasse → KI-Feedback ohne Kürzel, Weiterschreiben, Zwischenstand-PDF, Abgabe → Lehrkraft sieht alle Kürzel als eine Gruppe", async ({ browser }) => {
+test("2b Partner- / Gruppenarbeit ohne Live-Verbindung (an einem Gerät): nach dem Code Einzel- oder Gruppenarbeit → Gruppensprecher:in → Kürzel aller Mitglieder (hinzufügen, entfernen, Grenzen) und einmal die Klasse → Live-Verbindung nicht einzurichten → an diesem Gerät: KI-Feedback ohne Kürzel, Weiterschreiben, Zwischenstand-PDF, Abgabe → Lehrkraft sieht alle Kürzel als eine Gruppe (ohne Tippzeit-Messung)", async ({ browser }) => {
   // eigenes Blatt mit zwei Aufgaben mit Auftrag an die KI; am Ende gelöscht (die folgenden Tests zählen die Einträge des Hauptblattes)
   const t = await openPage(browser);
   const tp = t.page;
@@ -2025,6 +2028,7 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
 
   const s = await openPage(browser);
   const { page } = s;
+  await liveUnavailable(s.context);   // die Live-Gruppenarbeit lässt sich hier nicht einrichten (Test 2c prüft sie) – die Gruppe arbeitet an einem Gerät
   await enterCode(page, shown);
   // Arbeitsform: zwei große Buttons mit Erklärzeile, Fokus auf „Einzelarbeit“
   await expect(page.locator("#screen-mode")).toHaveClass(/active/);
@@ -2035,7 +2039,7 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.getByRole("button", { name: "Einzelarbeit", exact: true })).toHaveAttribute("id", "mode-single");
   await expect(page.getByRole("button", { name: "Partner- / Gruppenarbeit", exact: true })).toHaveAttribute("id", "mode-group");
   await expect(page.locator("#mode-single-d")).toHaveText("Du bearbeitest das Feibeitsblatt allein.");
-  await expect(page.locator("#mode-group-d")).toHaveText("Ihr bearbeitet es zu zweit oder in einer Gruppe (bis zu 10 Personen) an einem Gerät und gebt gemeinsam ab.");
+  await expect(page.locator("#mode-group-d")).toHaveText("Ihr arbeitet zu zweit oder in einer Gruppe (bis zu 10 Personen) live zusammen – an einem oder an mehreren Geräten – und gebt gemeinsam ab.");
   await expect(page.locator("#mode-group")).toHaveAttribute("aria-describedby", "mode-group-d");
   await shots(page, "1-arbeitsform");
   // „anderen Code eingeben“ führt zur Startseite (der Code steht noch im Feld)
@@ -2061,11 +2065,15 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#screen-mode")).toHaveClass(/active/);
   await expect(page.locator("#mode-single")).toBeFocused();
 
-  // Partner- / Gruppenarbeit: „ihr“-Form, ein Feld je Person, kein Geburtstag
+  // Partner- / Gruppenarbeit: erst Gruppensprecher:in oder dazuschalten; dann „ihr“-Form, ein Feld je Person, kein Geburtstag
   await page.click("#mode-group");
+  await expect(page.locator("#screen-live")).toHaveClass(/active/);
+  await expect(page.locator("#live-host")).toBeFocused();
+  await page.click("#live-host");
   await expect(page.locator("#screen-person")).toHaveClass(/active/);
   await expect(page.locator("#person-h")).toHaveText("Eure Angaben");
-  await expect(page.locator("#p-sub")).toHaveText("Bitte tragt eure Angaben ein. Danach öffnet sich der Schreibbereich.");
+  await expect(page.locator("#p-sub")).toHaveText("Bitte tragt eure Angaben ein. Danach bekommt ihr ein Zugangswort und einen Zahlencode für eure Gruppe.");
+  await expect(page.locator("#p-btn")).toHaveText("Weiter");
   await expect(page.locator("#p-members-hint")).toHaveText(MEMBERS_HINT);
   await expect(page.locator("#p-group legend")).toHaveText("Kürzel aller Personen");
   await expect(page.locator("#p-single")).toBeHidden();
@@ -2081,8 +2089,9 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-privacy-short")).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur eure Lehrkraft\\. " +
     "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Nur wenn ihr euren Zwischenstand online sichert, liegt auch er verschlüsselt auf dem Server – laden kann ihn nur, wer euren Zwischenstand-Code kennt\\. " +
     "Das KI-Feedback ist freiwillig\\. Eure Antworten gehen – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, " +
-    "wenn ihr das KI-Feedback anfordert, und nach der Abgabe für die finale KI-Rückmeldung – außer ihr wählt sie beim Abgeben ab\\. Auch die Rechtschreibprüfung ist freiwillig\\. " + reEsc(TT_SHORT_G) + "$"));
-  await expectTtShort(page.locator("#p-privacy-short"), TT_SHORT_G);   // zur Messung nur der eine Satz in der „ihr“-Form, alles Weitere im ausführlichen Hinweis
+    "wenn ihr das KI-Feedback anfordert, und nach der Abgabe für die finale KI-Rückmeldung – außer ihr wählt sie beim Abgeben ab\\. Auch die Rechtschreibprüfung ist freiwillig\\.$"));
+  expect(await page.locator("#p-privacy-short").textContent()).not.toMatch(NO_TT);   // Partner- und Gruppenarbeit: keine Tippzeit-Messung – kein Satz dazu
+  await expect(page.locator("#p-privacy-live")).toHaveText(LIVE_SHORT);
   // auch alle Informationen zum Datenschutz in der „ihr“-Form (derselbe Inhalt; „Welche Daten?“ nennt beide Arbeitsformen)
   await page.locator("#p-privfull summary").click();
   await expect(page.locator("#p-privfull h2.privh")).toHaveText(PRIV_HEADS_GROUP);
@@ -2093,20 +2102,21 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-privfull")).toContainText("– ohne eure Namenskürzel und die Klasse –");
   await expect(page.locator("#p-privfull")).toContainText(OP_RESP + " Eure Angaben und Antworten liest eure Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen könnt ihr euch an den Betreiber oder an eure Lehrkraft wenden.");
   await expect(page.locator('#p-privfull h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText([
-    "Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand (auch der online gesicherte), der Erstversuch und die Abgabe" + ttOutB(true) + " – und das KI-Feedback, wenn ihr es anfordert, sowie die finale KI-Rückmeldung nach der Abgabe: Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert das KI-Feedback selbst an; die finale KI-Rückmeldung könnt ihr beim Abgeben abwählen.",
-    "Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen " + ttWhere("eurem", true) + "): Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit eure Lehrkraft bei Auffälligkeiten mit euch über eure Arbeitsweise sprechen kann; " +
-      "die Tippzeiten dienen " + TT_USE + ". Der Messung könnt ihr widersprechen – mit dem Schalter „" + TT_SWITCH_G + "“ (siehe „" + TT_OBJ_HEAD + "“).",
+    "Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand (auch der online gesicherte), der Erstversuch und die Abgabe – und das KI-Feedback, wenn ihr es anfordert, sowie die finale KI-Rückmeldung nach der Abgabe: Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert das KI-Feedback selbst an; die finale KI-Rückmeldung könnt ihr beim Abgeben abwählen.",
     "Rechtschreibprüfung (LanguageTool): eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Ihr gebt sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und eurer Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr die Prüfung nicht mehr nutzt.",
     "Aufruf und Auslieferung dieser Seite (" + DELIVER_WORKER + ") und Schutz vor Missbrauch und Überlastung (Zähler mit unkenntlich gemachter IP-Adresse): Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, die Seite sicher und zuverlässig bereitzustellen. Dagegen könnt ihr Widerspruch einlegen (siehe „Eure Rechte“).",
-    "Speichern im Browser eures Geräts (euer Zwischenstand" + (TT_KEEP ? " – außer den Tippzeiten darin –" : "") + ", die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."]);
+    "Speichern im Browser eures Geräts (euer Zwischenstand, die Häkchen einer Checkliste): § 25 Abs. 2 Nr. 2 TDDDG – für die von euch gewünschte Funktion unbedingt erforderlich."]);
   await expect(page.locator("#p-privfull")).toContainText("Wendet euch dafür an den Betreiber (E-Mail: " + OP.email + ").");
-  await expect(page.locator('#p-privfull h2.privh:text-is("Welche Daten?") + p + p')).toHaveText(TT_ACCESS_G);
-  await expect(page.locator("#p-privfull")).toContainText("Der Tippzeit-Messung könnt ihr direkt mit einem Schalter widersprechen – siehe „" + TT_OBJ_HEAD + "“.");
-  await expect(page.locator(`#p-privfull h2.privh:text-is("${TT_OBJ_HEAD}") + .ttoptbox + h2`)).toHaveText("Eure Rechte");
+  // Partner- und Gruppenarbeit: nichts zur Tippzeit-Messung (kein Absatz, kein Abschnitt, kein Schalter) – dafür die Absätze zur Live-Gruppenarbeit
+  expect(await page.locator("#p-privfull").textContent()).not.toMatch(NO_TT_ANY);
+  await expect(page.locator("#p-privfull .ttopt, #p-privfull .ttoptbox")).toHaveCount(0);
+  await expect(page.locator('#p-privfull h2.privh:text-is("Welche Daten?") + p + p')).toHaveText(/^Bei Partner- und Gruppenarbeit gehören zum gemeinsamen Stand eure Antworten \(auch Fotos\), .* Zugangswort und Zahlencode erhält der Server nie\. .* Rechtsgrundlage ist wie beim Bearbeiten und Abgeben Art\. 6 Abs\. 1 Buchst\. b DSGVO\.$/);
+  await expect(page.locator("#p-privfull")).toContainText("Den gemeinsamen Stand einer Partner- oder Gruppenarbeit speichert Cloudflare in einem eigenen Speicher je Gruppe – nur verschlüsselt; dieser Speicher liegt in der EU.");
+  await expect(page.locator("#p-privfull")).toContainText("Partner- und Gruppenarbeit gibt es nur live: Möchtet ihr nicht, dass der gemeinsame Stand auf dem Server gespeichert wird, wählt Einzelarbeit.");
   await expect(page.locator("#p-privfull")).toContainText("Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren – für den Betreiber zuständig ist: " + OP_AUTH + ", datenschutz.hessen.de (öffnet in neuem Tab).");
   expect(await page.locator("#p-privfull").textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
   await page.locator("#p-privfull summary").click();
-  await expectOnlyTtShort(page, "Angaben (Partner- / Gruppenarbeit)");
+  await expectOnlyTtShort(page, "Angaben (Partner- / Gruppenarbeit)", 0);   // nirgends ein Wort zur Messung
 
   // Prüfungen: leeres Feld, eine Person, Zeichen, doppeltes Kürzel, Form; Fehler in #p-err, Feld markiert und fokussiert
   const err = page.locator("#p-err");
@@ -2206,7 +2216,14 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   if (SHOTS_OUT) await page.evaluate(() => { document.getElementById("p-err").textContent = ""; document.getElementById("p-klasse").classList.remove("invalid"); document.activeElement.blur(); });   // Foto ohne die alte Meldung
   await shots(page, "2-gruppe-angaben");
   await page.press("#p-klasse", "Enter");
+  // die Live-Verbindung lässt sich nicht einrichten: Meldung samt dem Grund des Servers, darunter zwei Wege – hier: an diesem einen Gerät
+  await expect(page.locator("#p-live-fail")).toBeVisible({ timeout: 30_000 });
+  await expect(err).toHaveText(LIVE_SETUP_FAIL + " " + LIVE_OFF_MSG);
+  await expect(page.locator("#p-live-retry")).toBeFocused();
+  await shots(page, "2c-gruppe-ohne-live", [375]);
+  await page.click("#p-live-local");
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#live-bar")).toBeHidden();
   await expect(page.locator("#who-lbl")).toHaveText("Gruppe");
   await expect(page.locator("#who-name")).toHaveText("MaxMu, LiMu, TimBe · Klasse 8b");
   await shots(page, "2b-editor", [375]);
@@ -2259,10 +2276,11 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   const tab2 = await s.context.newPage();
   await tab2.goto("/");
   await enterCode(tab2, shown);
-  await tab2.click("#mode-group");
+  await tab2.click("#mode-group"); await tab2.click("#live-host");
   await tab2.fill("#p-m-1", "TimBe"); await tab2.click("#p-add"); await tab2.keyboard.type("limu"); await tab2.click("#p-add"); await tab2.keyboard.type("Max Mu");
   await tab2.fill("#p-klasse", "8b");
   await tab2.click("#p-btn");
+  await tab2.click("#p-live-local");
   await expect(tab2.locator("#screen-editor")).toHaveClass(/active/);
   await expect(tab2.locator("#save-state")).toHaveText("Zwischenstand von diesem Gerät wiederhergestellt");
   await expect(tab2.locator("#who-name")).toHaveText("TimBe, Limu, MaxMu · Klasse 8b");   // „limu“ ohne Groß-/Kleinwechsel bleibt ein Teil – gleich ohne Groß-/Kleinschreibung
@@ -2289,11 +2307,13 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
 
   // Ein anderes Gerät: dieselbe Gruppe in anderer Reihenfolge holt ebenfalls KI-Feedback (eigener Erstversuch), gibt aber nicht ab
   const o = await openPage(browser);
+  await liveUnavailable(o.context);
   await enterCode(o.page, shown);
-  await o.page.click("#mode-group");
+  await o.page.click("#mode-group"); await o.page.click("#live-host");
   await o.page.fill("#p-m-1", "TimBe"); await o.page.click("#p-add"); await o.page.keyboard.type("LiMu"); await o.page.click("#p-add"); await o.page.keyboard.type("maxmu");
   await o.page.fill("#p-klasse", "8b");
   await o.page.click("#p-btn");
+  await o.page.click("#p-live-local");
   await expect(o.page.locator("#screen-editor")).toHaveClass(/active/);
   for (let i = 0; i < 2; i++) await typeAt(o.page, "#a-" + (i + 1), "Unsere erste Idee " + (i + 1) + ".");
   await requestFeedback(o.page);
@@ -2355,6 +2375,9 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await mains.nth(1).click();
   const det = tp.locator("#t-subs-body tr.details:visible");
   await expect(det.locator(".detbox:not(.older) > .dgroup")).toHaveText("Gruppenarbeit: MaxMu, LiMu, TimBe");
+  // Partner- und Gruppenarbeit misst nie Tippzeiten – auch ohne Live-Verbindung an einem Gerät
+  await expect(det.locator(".detbox:not(.older) > .dtt-sum")).toHaveText("Tippzeiten: ohne Messung (Partner- oder Gruppenarbeit).");
+  await expect(det.locator(".detbox:not(.older) .tt-r, .detbox:not(.older) .tt-y, .detbox:not(.older) .tt-g")).toHaveCount(0);
   const older = det.locator("details.dolder");
   await expect(older.locator("summary")).toHaveText("1 älterer Erstversuch dieser Gruppe (in der Liste ausgeblendet)");
   await older.locator("summary").click();
@@ -2371,6 +2394,504 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await tp.click("#t-del-sheet");
   await confirmDialog(tp, "Feibeitsblatt löschen?");
   await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
+
+/* ---------- 2c Live-Gruppenarbeit ---------- */
+const LIVE_HINT_WRITE = "Hier schreibt gerade jemand aus eurer Gruppe – du siehst den Text mitwachsen.";
+const LIVE_ASK_TEXT_FB = "Das KI-Feedback zum Überarbeiten gibt es für eure ganze Gruppe zu jeder Aufgabe nur einmal – egal, auf welchem Gerät es angefordert wird. Hol dir deshalb zuerst die Zusage aller Gruppenmitglieder.";
+const LIVE_ASK_TEXT_SUB = "Abgeben kann eure Gruppe nur einmal – egal, auf welchem Gerät. Danach lässt sich auf keinem Gerät mehr etwas ändern. Hol dir deshalb zuerst die Zusage aller Gruppenmitglieder.";
+const LIVE_SHORT = "Bei Partner- und Gruppenarbeit arbeitet ihr live zusammen: Was ihr schreibt, wird laufend verschlüsselt auf dem Server dieser Seite gespeichert, damit alle Geräte eurer Gruppe denselben Stand sehen. " +
+  "Lesen und ändern kann ihn, wer den Code des Feibeitsblattes, euer Zugangswort und euren Zahlencode kennt – gebt beides nur an eure Gruppe weiter.";
+const LIVE_INFO_TEXT = "Zeige das deinen Gruppenmitgliedern. Sie öffnen Feibeitsblatt, geben den Code des Feibeitsblattes ein, wählen „Partner- / Gruppenarbeit“ und dann „Ich schalte mich dazu“. " +
+  "Zugangswort und Zahlencode stehen auch während der Arbeit oben in der Kopfzeile. Gebt beides nur an eure Gruppe weiter: Wer beides und den Code des Feibeitsblattes kennt, kann euren Stand lesen und ändern.";
+const LIVE_GONE_SERVER = "Zu diesem Zugangswort und Zahlencode gibt es bei diesem Feibeitsblatt keine Gruppenarbeit (mehr). Prüft beides und den Code des Feibeitsblattes.";
+// LIVE_SHOTS_OUT=<Ordner> npm run test:e2e speichert Bildschirmfotos (Zugang, Dazuschalten, Schreibbereich mit Sperr-Hinweis, Abgabe-Ansicht; 375 und 1280 px)
+const LIVE_SHOTS = process.env.LIVE_SHOTS_OUT || "";
+// im ausführlichen Hinweis einer Gruppe steht nichts zur Tippzeit-Messung (das Wort „Widerspruch“ kommt dort bei anderen Rechten vor)
+const NO_TT_ANY = /Tippzeit|Zeitmess|Schreibprozess|gemessen|\bmisst\b/i;
+// Verbindung eines Geräts zum Raum unter Kontrolle des Tests (vor dem Verbinden einrichten): ctl.sock.close() trennt sie, ctl.block lässt
+// neue Verbindungen sofort wieder enden, ctl.drop(nachricht) → true verschluckt eine Nachricht des Raums
+async function liveWire(context) {
+  const ctl = { sock: null, block: false, drop: null };
+  await context.routeWebSocket(/\/api\/live\/ws/, (ws) => {
+    if (ctl.block) { ws.close({ code: 4000, reason: "test" }); return; }
+    const server = ws.connectToServer();
+    ctl.sock = ws;
+    ws.onMessage((m) => server.send(m));
+    server.onMessage((m) => { if (ctl.drop && ctl.drop(m)) return; ws.send(m); });
+  });
+  return ctl;
+}
+const wsFrames = (page, log) => page.on("websocket", (ws) => { ws.on("framesent", (f) => log.push(String(f.payload))); });
+
+test("2c Live-Gruppenarbeit: Gruppensprecher:in bekommt Zugangswort und Zahlencode → ein zweites Gerät schaltet sich dazu (falsche Eingaben: Meldung) → Tippen auf A kommt auf B an (Vorschau, Sperre mit Hinweis), gleichzeitig in einer anderen Aufgabe, Freigabe nach einer Pause; Tabelle und Foto; Verbindung weg und wieder da; KI-Feedback und Abgabe je nur einmal für die Gruppe – immer erst „Erst die Gruppe fragen“; die anderen Geräte sehen „Diese Gruppenarbeit wurde abgegeben“ mit den Lösungen als PDF (ohne Abgabe kein Knopf); Lehrkraft: ohne Messung (Live-Gruppenarbeit); ohne Live-Verbindung an einem Gerät", async ({ browser, request }) => {
+  test.setTimeout(300_000);
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  // eigenes Blatt: 1 Text (Auftrag), 2 Tabelle, 3 Text (Auftrag), 4 Foto – am Ende gelöscht
+  const LTITLE = "Live-Gruppenarbeit – Gewissen";
+  await tp.click("#t-new");
+  await tp.fill("#b-title", LTITLE);
+  await tp.click("#b-add"); await expect(tp.locator("#bq-4")).toBeFocused();
+  await tp.fill("#bq-1", TASKS[0].text); await tp.fill("#bs-1", TASKS[0].solution);
+  await tp.fill("#bq-2", "Tragt zwei Begriffe in die Tabelle ein.");
+  await tp.selectOption("#bt-2", "table"); await tp.fill("#bc-2", "Begriff; Erklärung"); await tp.fill("#br-2", "2");
+  await tp.fill("#bq-3", TASKS[1].text); await tp.fill("#bs-3", TASKS[1].solution);
+  await tp.fill("#bq-4", "Fotografiert euer Plakat."); await tp.selectOption("#bt-4", "photo");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  await expect(tp.locator("#ck-state")).toContainText("Vorschlag der KI");
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const NAMES = ["MaxMu", "LiMu"];
+  const T1 = "Das Gewissen ist eine innere Instanz.", T1B = " Sie meldet sich bei Unrecht.", T3 = "Wir haben einmal geflunkert.", CELLS = ["Gewissen", "innere Stimme"];
+  const shot = async (page, name) => shots(page, name, [375, 1280], LIVE_SHOTS);
+
+  /* ---- Gerät A: Gruppensprecher:in ---- */
+  const a = await openPage(browser);
+  const A = a.page, aFrames = [];
+  wsFrames(A, aFrames);
+  await enterCode(A, shown);
+  await expect(A.locator("#mode-group-d")).toHaveText("Ihr arbeitet zu zweit oder in einer Gruppe (bis zu 10 Personen) live zusammen – an einem oder an mehreren Geräten – und gebt gemeinsam ab.");
+  await A.click("#mode-group");
+  await expect(A.locator("#screen-live")).toHaveClass(/active/);
+  await expect(A.locator("#live-h")).toHaveText("Partner- / Gruppenarbeit");
+  await expect(A.locator("#lv-sheet small")).toHaveText("Code " + shown + " · 4 Aufgaben");
+  await expect(A.locator("#live-host")).toBeFocused();
+  await expect(A.getByRole("button", { name: "Ich bin Gruppensprecherin / Gruppensprecher", exact: true })).toHaveAttribute("id", "live-host");
+  await expect(A.getByRole("button", { name: "Ich schalte mich dazu", exact: true })).toHaveAttribute("id", "live-join");
+  await expect(A.locator("#live-host-d")).toHaveText("Du startest die Gruppenarbeit, trägst die Namenskürzel aller Gruppenmitglieder ein und bekommst ein Zugangswort und einen Zahlencode für deine Gruppe.");
+  await expect(A.locator("#live-join-d")).toHaveText("Deine Gruppe arbeitet schon. Du brauchst das Zugangswort und den Zahlencode von eurer Gruppensprecherin oder eurem Gruppensprecher.");
+  await expect(A.locator("#live-host")).toHaveAccessibleDescription("Du startest die Gruppenarbeit, trägst die Namenskürzel aller Gruppenmitglieder ein und bekommst ein Zugangswort und einen Zahlencode für deine Gruppe.");
+  await shot(A, "1-sprecher-oder-dazuschalten");
+  // zurück zur Auswahl (Fokus auf „Partner- / Gruppenarbeit“) und wieder hin; per Tastatur weiter
+  await expect(A.locator("#lv-back")).toHaveText("← zurück zur Auswahl");
+  await A.click("#lv-back");
+  await expect(A.locator("#screen-mode")).toHaveClass(/active/);
+  await expect(A.locator("#mode-group")).toBeFocused();
+  await A.keyboard.press("Enter");
+  await expect(A.locator("#screen-live")).toHaveClass(/active/);
+  await expect(A.locator("#live-host")).toBeFocused();
+  await A.keyboard.press("Enter");
+  await expect(A.locator("#screen-person")).toHaveClass(/active/);
+  await expect(A.locator("#person-h")).toHaveText("Eure Angaben");
+  await expect(A.locator("#p-sub")).toHaveText("Bitte tragt eure Angaben ein. Danach bekommt ihr ein Zugangswort und einen Zahlencode für eure Gruppe.");
+  await expect(A.locator("#p-btn")).toHaveText("Weiter");
+  await expect(A.locator("#p-privacy-live")).toHaveText(LIVE_SHORT);
+  expect(await A.locator("#p-privacy-short").textContent()).not.toMatch(NO_TT);   // Gruppen: keine Messung, kein Satz, kein Abschnitt, kein Schalter
+  expect(await A.locator("#p-privacy").textContent()).not.toMatch(NO_TT_ANY);
+  await expect(A.locator("#p-privfull .ttopt")).toHaveCount(0);
+  // der Backlink führt zurück zu „Gruppensprecher:in oder dazuschalten“
+  await A.click("#p-back");
+  await expect(A.locator("#screen-live")).toHaveClass(/active/);
+  await expect(A.locator("#live-host")).toBeFocused();
+  await A.click("#live-host");
+  await fillGroup(A, NAMES, "8b");
+  await A.click("#p-btn");
+  await expect(A.locator("#screen-liveinfo")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(A.locator("#li-h")).toHaveText("Euer Zugang zur Gruppenarbeit");
+  await expect(A.locator("#li-h")).toBeFocused();
+  const word = (await A.locator("#li-word").textContent()).trim(), num = (await A.locator("#li-num").textContent()).trim();
+  expect(word).toMatch(/^[a-z]{4,9}$/);
+  expect(num).toMatch(/^[1-9]\d{4}$/);
+  await expect(A.locator("#li-code")).toHaveText(shown);
+  await expect(A.locator("#li-text")).toHaveText(LIVE_INFO_TEXT);
+  await expect(A.locator("#li-go")).toHaveText("Zum Feibeitsblatt");
+  expect(await A.$eval("#li-word", (e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(34);   // groß und gut ablesbar
+  await shot(A, "2-zugang");
+  // an den Server gingen nur die abgeleitete Kennung und verschlüsselte Angaben – weder Zugangswort noch Zahlencode noch Kürzel
+  const [create] = await a.calls((r) => r.path === "/api/live/create");
+  expect(create.status).toBe(200);
+  const cb = JSON.parse(create.reqBody);
+  expect(Object.keys(cb).sort()).toEqual(["code", "meta", "room"]);
+  expect(cb.code).toBe(code); expect(cb.room).toMatch(/^[0-9a-f]{64}$/); expect(cb.meta).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+  for (const w of [word, num, ...NAMES]) expect(create.reqBody).not.toContain(w);
+  // dieselbe Ableitung wie im Smoke-Test (so prüft er den Server): Kennung des Raums und die Angaben der Gruppe
+  const keys = await deriveLiveKeys(code, word, num);
+  expect(cb.room).toBe(keys.room);
+  const meta = await openLive(keys.key, cb.meta);
+  expect(Object.keys(meta).sort()).toEqual(["attempt", "gruppe", "klasse", "v"]);
+  expect([meta.v, meta.gruppe, meta.klasse]).toEqual([1, NAMES, "8b"]);
+  expect(meta.attempt).toMatch(/^[0-9a-f]{16}$/);
+  // „Weiterschreiben?“ merkt sich nur Zugangswort und Zahlencode (keine Kürzel)
+  expect(await A.evaluate(() => { const d = JSON.parse(localStorage.getItem("feibeitsblatt:last")); return [Object.keys(d).sort(), d.live]; })).toEqual([["code", "live", "t", "title", "v"], { word, num }]);
+  await A.keyboard.press("Tab");
+  await expect(A.locator("#li-go")).toBeFocused();
+  await A.keyboard.press("Enter");
+  await expect(A.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(A.locator("#live-bar")).toBeVisible();
+  await expect(A.locator("#live-word")).toHaveText(word);
+  await expect(A.locator("#live-num")).toHaveText(num);
+  await expect(A.locator("#live-bar .live-acc")).toHaveText("Zugangswort: " + word + " · Zahlencode: " + num);
+  await expect(A.locator("#live-state")).toHaveText("Live verbunden · nur dieses Gerät");
+  await expect(A.locator("#live-state")).toHaveAttribute("role", "status");
+  await expect(A.locator("#who-lbl")).toHaveText("Gruppe");
+  await expect(A.locator("#who-name")).toHaveText("MaxMu, LiMu · Klasse 8b");
+  await expect(A.locator("#ed-pdf")).toHaveText("Stand als PDF-Datei sichern");
+  await expect(A.locator("#ed-cancel")).toHaveText("Gruppenarbeit verlassen");
+  await expect(A.locator("#draft-code")).toBeHidden();
+  await expect(A.locator("#privacy-live")).toHaveText(LIVE_SHORT);
+  await expect(A.locator("#privacy")).toContainText("Euer gemeinsamer Stand liegt nicht auf diesem Gerät, sondern verschlüsselt auf dem Server dieser Seite");
+  await expect(A.locator("#privacy")).not.toContainText("Zwischenstand");
+  expect(await A.locator("#privacy").textContent()).not.toMatch(NO_TT);
+  await expect(A.locator("#privfull-ed .ttopt")).toHaveCount(0);
+  await expect(A.locator("#privfull-ed")).toContainText("Zugangswort und Zahlencode erhält der Server nie.");
+  await expect(A.locator(".fbtbtn")).toHaveCount(2);   // Aufgaben 1 und 3 mit Auftrag an die KI
+
+  /* ---- Gerät B: schaltet sich dazu ---- */
+  const b = await openPage(browser);
+  const B = b.page, wire = await liveWire(b.context);
+  await B.reload();   // die Steuerung der Verbindung gilt für Seiten, die danach laden
+  await enterCode(B, shown);
+  await B.click("#mode-group");
+  await B.click("#live-join");
+  await expect(B.locator("#screen-livejoin")).toHaveClass(/active/);
+  await expect(B.locator("#lj-h")).toHaveText("Zur Gruppenarbeit dazuschalten");
+  await expect(B.locator("#lj-word")).toBeFocused();
+  expect(await B.$eval("#lj-word", (e) => [e.labels[0].textContent, e.getAttribute("autocapitalize"), e.autocomplete, e.spellcheck])).toEqual(["Zugangswort", "none", "off", false]);
+  expect(await B.$eval("#lj-num", (e) => [e.labels[0].textContent, e.inputMode, e.maxLength, e.autocomplete])).toEqual(["Zahlencode", "numeric", 5, "off"]);
+  await expect(B.locator("#lj-err")).toHaveAttribute("role", "alert");
+  await expect(B.locator("#lj-go")).toHaveText("Zum Feibeitsblatt");
+  await expect(B.locator("#lj-privacy-live")).toHaveText(LIVE_SHORT);
+  await expect(B.locator("#lj-privacy-short")).toContainText("Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert");
+  expect(await B.locator("#lj-privacy-short").textContent()).not.toMatch(NO_TT);
+  expect(await B.locator("#lj-privacy").textContent()).not.toMatch(NO_TT_ANY);
+  await B.locator("#lj-privfull summary").click();
+  await expect(B.locator("#lj-privfull")).toContainText("die Kürzel trägt die Gruppensprecherin oder der Gruppensprecher für alle ein");
+  await expect(B.locator("#lj-privfull")).toContainText("dieser Speicher liegt in der EU");
+  await expect(B.locator("#lj-privfull")).toContainText("30 Tage nach der letzten Änderung gelöscht");
+  expect(await B.locator("#lj-privfull").textContent()).not.toMatch(/Server in der EU/);
+  await B.locator("#lj-privfull summary").click();
+  await shot(B, "3-dazuschalten");
+  // leer, Zahlencode zu kurz, falsches Zugangswort (Meldung des Servers) – erst dann richtig (Großbuchstaben und Leerzeichen sind egal)
+  await B.click("#lj-go");
+  await expect(B.locator("#lj-err")).toHaveText("Bitte gib das Zugangswort deiner Gruppe ein.");
+  await expect(B.locator("#lj-word")).toBeFocused(); await expect(B.locator("#lj-word")).toHaveClass(/invalid/);
+  await B.fill("#lj-word", word);
+  await B.press("#lj-word", "Enter");
+  await expect(B.locator("#lj-num")).toBeFocused();
+  await B.fill("#lj-num", "123");
+  await B.press("#lj-num", "Enter");
+  await expect(B.locator("#lj-err")).toHaveText("Bitte gib den Zahlencode deiner Gruppe ein – er hat genau 5 Ziffern.");
+  await expect(B.locator("#lj-num")).toBeFocused(); await expect(B.locator("#lj-num")).toHaveClass(/invalid/);
+  await B.fill("#lj-word", word === "falke" ? "adler" : "falke");
+  await B.fill("#lj-num", num);
+  await B.click("#lj-go");
+  await expect(B.locator("#lj-err")).toHaveText(LIVE_GONE_SERVER);
+  await expect(B.locator("#screen-livejoin")).toHaveClass(/active/);
+  await B.fill("#lj-word", " " + word.toUpperCase() + " ");
+  await B.press("#lj-num", "Enter");
+  await expect(B.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(B.locator("#live-bar .live-acc")).toHaveText("Zugangswort: " + word + " · Zahlencode: " + num);
+  await expect(B.locator("#who-name")).toHaveText("MaxMu, LiMu · Klasse 8b");   // aus den verschlüsselten Angaben des Raums
+  await expect(B.locator("#live-state")).toHaveText("Live verbunden · 2 Geräte");
+  await expect(A.locator("#live-state")).toHaveText("Live verbunden · 2 Geräte");
+  const joins = await b.calls((r) => r.path === "/api/live/join");
+  expect(joins.map((r) => r.status)).toEqual([404, 200]);
+  for (const j of joins) { expect(Object.keys(JSON.parse(j.reqBody)).sort()).toEqual(["code", "room"]); expect(j.reqBody).not.toContain(word); expect(j.reqBody).not.toContain(num); }
+
+  /* ---- A tippt → B sieht den Text mitwachsen, das Feld ist gesperrt, der Hinweis steht darunter ---- */
+  await A.click("#a-1");
+  await A.keyboard.type(T1.slice(0, 20), { delay: 60 });
+  await expect(B.locator("#lh-1")).toHaveText(LIVE_HINT_WRITE);   // schon mit der ersten Vorschau
+  await expect(B.locator("#lh-1")).toHaveAttribute("role", "status");
+  await expect(B.locator("#t-1")).toHaveClass(/live-locked/);
+  expect(await B.$eval("#a-1", (e) => e.readOnly)).toBe(true);
+  // B schreibt währenddessen in einer anderen Aufgabe – beide gleichzeitig
+  await B.click("#a-3");
+  await B.keyboard.type(T3.slice(0, 10), { delay: 60 });
+  await A.click("#a-1"); await A.keyboard.press("Control+End");
+  await A.keyboard.type(T1.slice(20), { delay: 60 });
+  await B.keyboard.type(T3.slice(10), { delay: 60 });
+  await expect(B.locator("#a-1")).toHaveValue(T1);
+  await expect(A.locator("#a-3")).toHaveValue(T3);
+  expect(await A.inputValue("#a-1")).toBe(T1);   // der Schreibende wird nie überschrieben
+  expect(await B.inputValue("#a-3")).toBe(T3);
+  await shot(B, "4-schreibbereich-gesperrt");
+  // nach einer Pause sind beide Aufgaben wieder frei („Live gespeichert“), der Hinweis ist weg
+  await expect(B.locator("#lh-1")).toHaveText("", { timeout: 15_000 });
+  expect(await B.$eval("#a-1", (e) => e.readOnly)).toBe(false);
+  await expect(B.locator("#t-1")).not.toHaveClass(/live-locked/);
+  await expect(A.locator("#lh-3")).toHaveText("", { timeout: 15_000 });
+  await expect(A.locator("#save-state")).toHaveText("Live gespeichert");
+  await expect(B.locator("#save-state")).toHaveText("Live gespeichert");
+  // sparsamer Takt: für die 37 Zeichen von A nur wenige Vorschauen und Speicherungen, kein Wert im Klartext
+  const sentA = aFrames.filter((f) => f !== "ping").map((f) => JSON.parse(f));
+  expect(sentA.filter((m) => m.t === "pv").length).toBeLessThanOrEqual(8);
+  expect(sentA.filter((m) => m.t === "set").length).toBeLessThanOrEqual(4);
+  expect(sentA.filter((m) => m.t === "unlock").length).toBeGreaterThanOrEqual(1);
+  expect(aFrames.join("\n")).not.toContain("Gewissen");
+  for (const m of sentA.filter((x) => x.t === "set" || x.t === "pv")) expect(m.v).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+  // B übernimmt Aufgabe 1 und schreibt weiter; A sieht es
+  await typeAt(B, "#a-1", T1B, { delay: 30 });
+  await expect(A.locator("#a-1")).toHaveValue(T1 + T1B);
+  await expect(A.locator("#lh-1")).toHaveText(LIVE_HINT_WRITE);
+  // Feld verlassen → sofort gespeichert und frei
+  await B.click("#sheet-title");
+  await expect(A.locator("#lh-1")).toHaveText("", { timeout: 10_000 });
+
+  /* ---- Tabelle (ein Feld) und Foto ---- */
+  await A.locator("#a-2 textarea.tcell:not(.measure)").nth(0).click(); await A.keyboard.type(CELLS[0], { delay: 30 });
+  await A.keyboard.press("Tab"); await A.keyboard.type(CELLS[1], { delay: 30 });
+  await expect(B.locator("#a-2 textarea.tcell:not(.measure)").nth(1)).toHaveValue(CELLS[1]);
+  await expect(B.locator("#a-2 textarea.tcell:not(.measure)").nth(0)).toHaveValue(CELLS[0]);
+  expect(await B.locator("#a-2 textarea.tcell:not(.measure)").evaluateAll((l) => l.every((c) => c.readOnly))).toBe(true);   // die ganze Tabelle ist ein Feld
+  await expect(B.locator("#lh-2")).toHaveText(LIVE_HINT_WRITE);
+  await B.locator("#a-4 input.photo-file").nth(1).setInputFiles({ name: "plakat.png", mimeType: "image/png", buffer: makePng(800, 600, [200, 120, 40]) });
+  await expect(B.locator("#a-4 .photo-stat")).toHaveText("Foto übernommen.");
+  await expect(A.locator("#a-4 .photo-view img")).toHaveAttribute("src", /^data:image\/jpeg;base64,\/9j\//, { timeout: 15_000 });
+  expect(await A.getAttribute("#a-4 .photo-view img", "src")).toBe(await B.getAttribute("#a-4 .photo-view img", "src"));   // dasselbe Foto
+  await expect(A.locator("#a-4 .photo-meta")).toHaveText(/^800 × 600 Pixel · \d+ KB$/);
+  await expect(B.locator("#lh-2")).toHaveText("", { timeout: 15_000 });
+
+  const A1 = T1 + T1B, A3 = T3 + " Danach ging es uns schlecht.", A2 = "Begriff | Erklärung\n" + CELLS[0] + " | " + CELLS[1];
+
+  /* ---- „Stand als PDF-Datei sichern“: lesbar, Zugangswort und Zahlencode rot ganz oben, kein eingebetteter Datensatz, nichts an /api/draft ---- */
+  const [ldl] = await Promise.all([A.waitForEvent("download"), A.click("#ed-pdf")]);
+  expect(ldl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Gruppenarbeit-" + shown + "-\\d{4}-\\d\\d-\\d\\d_\\d\\d-\\d\\d\\.pdf$"));
+  const lpdf = await readFile(await ldl.path()), ltext = pdfShownText(lpdf);
+  expect(ltext.indexOf("Zugangswort: " + word + " · Zahlencode: " + num + " (Code des Feibeitsblattes: " + shown + ")")).toBe(0);
+  expect(pdfTextOps(lpdf.toString("latin1"))[0]).toMatchObject({ color: "0.75 0.1 0.1", bold: true });
+  expect(ltext).toContain("Gruppe: MaxMu, LiMu · Klasse 8b · Stand: ");
+  expect(ltext).toContain(A1); expect(ltext).toContain(CELLS[0] + " | " + CELLS[1]);
+  expect(lpdf.includes("/DCTDecode")).toBe(true);
+  expect(lpdf.includes("/FbDraft")).toBe(false); expect(lpdf.includes("/EmbeddedFile")).toBe(false);
+  await expect(A.locator("#save-state")).toHaveText("Stand als PDF-Datei gesichert");
+  expect((await a.calls((r) => r.path.startsWith("/api/draft"))).length).toBe(0);
+  expect(await A.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")).length)).toBe(0);   // kein Zwischenstand auf dem Gerät
+
+  /* ---- KI-Feedback: immer erst „Erst die Gruppe fragen“, dann der bisherige Dialog; je Aufgabe nur einmal für die ganze Gruppe ---- */
+  await mockReset();
+  // B erfährt vom KI-Feedback zu Aufgabe 1 zunächst nichts (die Nachricht des Raums geht im Test verloren) – so fragt B gleich selbst
+  wire.drop = (m) => typeof m === "string" && m.startsWith('{"t":"set","k":"f0"');
+  await A.click("#fbt-btn-1");
+  await expect(A.locator("#dlg-cancel")).toBeFocused();
+  await expect(A.locator("#dlg-ok")).toHaveText("Alle sind einverstanden");
+  await expect(A.locator("#dlg-cancel")).toHaveText("Noch nicht");
+  expect(await confirmDialog(A, "Erst die Gruppe fragen", false)).toBe(LIVE_ASK_TEXT_FB);
+  await expect(A.locator("#dlg.open")).toHaveCount(0);   // „Noch nicht“: kein weiterer Dialog, nichts gesendet
+  expect((await a.calls((r) => r.path === "/api/feedback")).length).toBe(0);
+  await A.click("#fbt-btn-1");
+  await confirmDialog(A, "Erst die Gruppe fragen", true, { then: "KI-Feedback zu Aufgabe 1 anfordern?" });
+  expect(await confirmDialog(A, "KI-Feedback zu Aufgabe 1 anfordern?")).toContain("Das KI-Feedback zum Überarbeiten gibt es zu jeder Aufgabe nur einmal");
+  await expect(A.locator("#fb-1")).toBeVisible({ timeout: 60_000 });
+  expect(await mockCount("feedback")).toBe(1);
+  // B fordert dieselbe Aufgabe an: beide Fenster – dann lehnt der Raum ab, und nichts geht an die KI
+  await expect(B.locator("#fb-1")).toBeHidden();
+  await B.click("#fbt-btn-1");
+  await confirmDialog(B, "Erst die Gruppe fragen", true, { then: "KI-Feedback zu Aufgabe 1 anfordern?" });
+  await confirmDialog(B, "KI-Feedback zu Aufgabe 1 anfordern?");
+  await expect(B.locator("#fbt-st-1")).toHaveText("Zu dieser Aufgabe hat eure Gruppe schon KI-Feedback bekommen.");
+  expect((await b.calls((r) => r.path === "/api/feedback")).length).toBe(0);
+  expect(await mockCount("feedback")).toBe(1);
+
+  /* ---- Verbindung von B weg: Felder und Knöpfe gesperrt; wieder da: der Stand des Raums ist da (auch das KI-Feedback) ---- */
+  wire.drop = null; wire.block = true;
+  await wire.sock.close({ code: 4001, reason: "test" });
+  await expect(B.locator("#live-state")).toHaveText("Verbindung unterbrochen – wird wiederhergestellt …", { timeout: 15_000 });
+  await expect(B.locator("#save-state")).toHaveText("nicht verbunden");
+  expect(await B.$eval("#a-1", (e) => e.readOnly)).toBe(true);
+  expect(await B.locator("#a-2 textarea.tcell:not(.measure)").evaluateAll((l) => l.every((c) => c.readOnly))).toBe(true);
+  await expect(B.locator("#fb-btn")).toBeDisabled();
+  await expect(B.locator("#submit-btn")).toBeDisabled();
+  await expect(A.locator("#live-state")).toHaveText("Live verbunden · nur dieses Gerät");
+  await typeAt(A, "#a-3", " Danach ging es uns schlecht.", { delay: 20 });
+  wire.block = false;
+  await expect(B.locator("#live-state")).toHaveText("Live verbunden · 2 Geräte", { timeout: 40_000 });
+  await expect(B.locator("#a-3")).toHaveValue(A3);
+  await expect(B.locator("#lh-3")).toHaveText("", { timeout: 15_000 });
+  expect(await B.$eval("#a-1", (e) => e.readOnly)).toBe(false);
+  await expect(B.locator("#submit-btn")).toBeEnabled();
+  // B: Box sichtbar, Button der Aufgabe gesperrt („erhalten“), der Button unten fragt nur noch die übrigen
+  await expect(B.locator("#fb-1")).toBeVisible({ timeout: 15_000 });
+  await expect(B.locator("#fbt-st-1")).toHaveText("");
+  expect(await feedbackOf(B, 1)).toEqual(await feedbackOf(A, 1));
+  await expect(B.locator("#fbt-btn-1")).toBeDisabled();
+  await expect(B.locator("#fbt-btn-1")).toHaveText("KI-Feedback zu dieser Aufgabe erhalten");
+  await expect(B.locator("#fb-btn")).toHaveText("KI-Feedback zu den übrigen Aufgaben");
+  const fbA = JSON.parse((await a.calls((r) => r.path === "/api/feedback"))[0].reqBody);
+  expect(fbA.only).toEqual([1]); expect(fbA.answers).toEqual([A1, "", "", ""]);
+  // Erstversuch der Gruppe (gemeinsame Kennung): vom Gerät, das das Feedback bekommen hat
+  await expect.poll(async () => (await a.calls((r) => r.path === "/api/submit" && r.status === 200)).length, { timeout: 30_000 }).toBe(1);
+  const priv = await teacherPriv();
+  let rows = await subRowsOf(code, meta.attempt);
+  expect(rows.map((r) => r.stage)).toEqual(["first"]);
+  const first = await openEnvelope(priv, JSON.parse(rows[0].envelope));
+  expect(first.person).toEqual({ gruppe: NAMES, klasse: "8b" });
+  expect(first.typing).toEqual({ v: 1, omitted: "live" });
+  expect(first.answers.map((x) => x.first)).toEqual([A1, null, null, null]);
+  // B fordert über den Button unten die übrige Aufgabe an (wieder beide Fenster) – zu Aufgabe 1 gibt es kein zweites Feedback
+  await B.click("#fb-btn");
+  await confirmDialog(B, "Erst die Gruppe fragen", true, { then: "KI-Feedback zu Aufgabe 3 anfordern?" });
+  await confirmDialog(B, "KI-Feedback zu Aufgabe 3 anfordern?");
+  await expect(B.locator("#fb-3")).toBeVisible({ timeout: 60_000 });
+  await expect(A.locator("#fb-3")).toBeVisible({ timeout: 15_000 });
+  await expect(A.locator("#fb-btn")).toBeDisabled();
+  await expect(A.locator("#fb-btn")).toHaveText("KI-Feedback erhalten");
+  expect(await mockCount("feedback")).toBe(2);
+  const prompts = (await mockRequests("feedback")).map((r) => JSON.stringify(r.messages));
+  expect(prompts[0]).toContain(A1); expect(prompts[0]).not.toContain(T3);
+  expect(prompts[1]).toContain(T3); expect(prompts[1]).not.toContain(A1);
+  for (const pr of prompts) for (const w of [...NAMES, "Klasse 8b", "Zugangswort", "Zahlencode"]) expect(pr).not.toContain(w);
+  // der Erstversuch wurde ersetzt (dieselbe Zeile, jetzt mit beiden Aufgaben)
+  await expect.poll(async () => { const r = await subRowsOf(code, meta.attempt); return r.length === 1 ? (await openEnvelope(priv, JSON.parse(r[0].envelope))).answers.map((x) => x.first) : null; }, { timeout: 30_000 }).toEqual([A1, null, A3, null]);
+
+  /* ---- Abgabe durch B: erst „Erst die Gruppe fragen“, dann der bisherige Dialog; A sieht die Abgabe-Ansicht mit den Lösungen ---- */
+  await typeAt(A, "#a-1", " Überarbeitet.", { delay: 20 });
+  await expect(B.locator("#a-1")).toHaveValue(A1 + " Überarbeitet.");
+  await expect(B.locator("#lh-1")).toHaveText("", { timeout: 15_000 });
+  await B.click("#submit-btn");
+  expect(await confirmDialog(B, "Erst die Gruppe fragen", false)).toBe(LIVE_ASK_TEXT_SUB);
+  await expect(B.locator("#screen-editor")).toHaveClass(/active/);
+  await B.click("#submit-btn");
+  await confirmDialog(B, "Erst die Gruppe fragen", true, { then: "Jetzt abgeben?" });
+  // die finale KI-Rückmeldung von B hält der Test kurz an: so lange sagt die Abgabe-Ansicht der anderen, dass sie noch erstellt wird
+  let letFinal; const finalHeld = new Promise((r) => { letFinal = r; });
+  await B.route("**/api/feedback", async (route) => { await finalHeld; await route.continue(); });
+  await confirmDialog(B, "Jetzt abgeben?", true, { check: true });
+  await expect(B.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(B.locator("#done-group")).toHaveText(`Die anderen Mitglieder deiner Gruppe können die Lösungen selbst herunterladen: Sie öffnen die Gruppenarbeit mit dem Code des Feibeitsblattes, dem Zugangswort „${word}“ und dem Zahlencode ${num}.`);
+  await expect(A.locator("#screen-livedone")).toHaveClass(/active/, { timeout: 15_000 });
+  await expect(A.locator("#ld-h")).toHaveText("Diese Gruppenarbeit wurde abgegeben");
+  await expect(A.locator("#ld-h")).toBeFocused();
+  await expect(A.locator("#ld-sub")).toHaveText(/^Ein Mitglied eurer Gruppe hat das Feibeitsblatt am \d\d\.\d\d\.\d{4} um \d\d:\d\d Uhr abgegeben\. Ändern lässt sich nichts mehr\.$/);
+  await expect(A.locator("#ld-pdf")).toBeVisible();
+  await expect(A.locator("#ld-pdf")).toHaveText("Abgegebene Lösungen als PDF-Datei herunterladen");
+  await expect(A.locator("#ld-pdf-note")).toHaveText("Es ist möglich, dass du mit diesen Aufgaben für die Klausur / Klassenarbeit relevante Inhalte erlernt hast.");
+  await expect(A.locator("#ld-none")).toBeHidden();
+  await expect(A.locator("#ld-wait-text")).toHaveText("Die finale KI-Rückmeldung wird gerade erstellt – sie steht in der PDF-Datei, sobald dieser Hinweis verschwindet.");
+  await expect(A.locator("#ld-wait-text")).toHaveAttribute("role", "status");
+  // die finale KI-Rückmeldung kommt beim abgebenden Gerät an und wird für die PDF der anderen nachgereicht
+  letFinal();
+  await expect(B.locator("#done-fb .fbbox")).toHaveCount(3, { timeout: 60_000 });
+  await expect(A.locator("#ld-wait")).toBeHidden({ timeout: 30_000 });
+  await shot(A, "5-abgegeben");
+  const [adl] = await Promise.all([A.waitForEvent("download"), A.click("#ld-pdf")]);
+  expect(adl.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Loesungen-" + shown + "-\\d{4}-\\d\\d-\\d\\d\\.pdf$"));
+  const apdf = await readFile(await adl.path()), atext = pdfShownText(apdf);
+  expect(atext).toMatch(/Gruppe: MaxMu, LiMu · Klasse 8b · abgegeben am \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr · Code /);
+  expect(atext).toContain(A1 + " Überarbeitet."); expect(atext).toContain(A3); expect(atext).toContain(CELLS[0] + " | " + CELLS[1]);
+  expect(atext).toContain("Finale KI-Rückmeldung:");
+  expect(apdf.includes("/DCTDecode")).toBe(true);   // das Foto steht mit darin
+  await expect(A.locator("#ld-status")).toHaveText("Die PDF-Datei wird heruntergeladen – speichere sie in deinen Unterlagen.");
+  // dieselbe Datei wie beim abgebenden Gerät (gleicher Text)
+  const [bdl] = await Promise.all([B.waitForEvent("download"), B.click("#done-pdf")]);
+  expect(pdfShownText(await readFile(await bdl.path()))).toBe(atext);
+  // D1: genau eine Abgabe der Gruppe (der Erstversuch wurde ersetzt), ohne Tippzeit-Werte; die finale Rückmeldung liegt beim Server
+  rows = await subRowsOf(code, meta.attempt);
+  expect(rows.map((r) => r.stage)).toEqual(["final"]);
+  expect((await d1Query(`SELECT COUNT(*) AS n FROM submissions WHERE sheet_code='${code}'`))[0].n).toBe(1);
+  const fin = await openEnvelope(priv, JSON.parse(rows[0].envelope));
+  expect(fin.person).toEqual({ gruppe: NAMES, klasse: "8b" });
+  expect(fin.typing).toEqual({ v: 1, omitted: "live" });
+  expect(fin.answers.map((x) => x.final)).toEqual([A1 + " Überarbeitet.", A2, A3, "[Foto]"]);
+  expect(fin.answers.map((x) => x.first)).toEqual([A1, A2, A3, "[Foto]"]);
+  expect(fin.answers[3].photo).toMatch(/^data:image\/jpeg;base64,\/9j\//);
+  expect(fin.feedback.map((f) => !!f)).toEqual([true, false, true, false]);
+  expect(typeof rows[0].final_env).toBe("string");
+  // weder im Speicher des Raums noch in der Datenbank steht etwas davon im Klartext
+  const scan = await scanState([A1.slice(0, 30), T3, CELLS[1], word + "|" + num, "MaxMu"]);
+  expect(Object.values(scan.count).every((n) => n === 0), JSON.stringify(scan.count)).toBe(true);
+  // A: „Neues Feibeitsblatt öffnen“ → Startseite, Zugangswort und Zahlencode sind von diesem Gerät entfernt
+  await A.click("#ld-home");
+  await expect(A.locator("#screen-start")).toHaveClass(/active/);
+  await expect(A.locator("#resume-box")).toBeHidden();
+  expect(await A.evaluate(() => localStorage.getItem("feibeitsblatt:last"))).toBeNull();
+  await closePage(a);
+  await closePage(b);
+
+  /* ---- ein drittes Gerät öffnet später mit Zugangswort und Zahlencode: abgegeben, Lösungen als PDF ---- */
+  const c = await openPage(browser);
+  const C = c.page;
+  await enterCode(C, shown);
+  await joinGroup(C, word, num);
+  await expect(C.locator("#screen-livedone")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(C.locator("#ld-pdf")).toBeVisible();
+  await expect(C.locator("#ld-wait")).toBeHidden();
+  const [cdl] = await Promise.all([C.waitForEvent("download"), C.click("#ld-pdf")]);
+  expect(pdfShownText(await readFile(await cdl.path()))).toBe(atext);
+  // nach dem Neuladen: „Weiterarbeiten an eurer Gruppenarbeit …?“ führt ohne erneute Eingabe wieder dorthin
+  await C.reload();
+  await expect(C.locator("#resume-box")).toBeVisible();
+  await expect(C.locator("#resume-text")).toHaveText(`Weiterarbeiten an eurer Gruppenarbeit zu „${LTITLE}“? (Zugangswort ${word}, Zahlencode ${num})`);
+  await expect(C.locator("#resume-btn")).toHaveText("Weiterarbeiten");
+  await expect(C.locator("#resume-del")).toHaveText("Nein, Zugangswort und Zahlencode von diesem Gerät entfernen");
+  await C.click("#resume-btn");
+  await expect(C.locator("#screen-livedone")).toHaveClass(/active/, { timeout: 30_000 });
+
+  /* ---- Lehrkraft: eine Gruppenzeile, „ohne Messung (Live-Gruppenarbeit)“; sie löscht den Eintrag ---- */
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  const mains = tp.locator("#t-subs-body tr.main");
+  await expect(mains).toHaveCount(1);
+  await expect(mains.nth(0).locator("td:not(.arrowcol)")).toHaveText(["MaxMu, LiMu Gruppe (2)", "–", "8b"]);
+  await mains.nth(0).click();
+  const det = tp.locator("#t-subs-body tr.details:visible");
+  await expect(det.locator(".dtt-sum")).toHaveText("Tippzeiten: ohne Messung (Live-Gruppenarbeit).");
+  await expect(det.locator(".dtt")).toHaveCount(0);
+  await expect(det.locator(".tt-r, .tt-y, .tt-g")).toHaveCount(0);
+  await expect(det).toContainText("Finale KI-Rückmeldung");
+  await expect(tp.locator("#t-tt-hint")).toContainText("Bei Partner- und Gruppenarbeit wird nicht gemessen");
+  await det.getByRole("button", { name: "Diesen Eintrag löschen" }).click();
+  await confirmDialog(tp, "Diesen Eintrag löschen?");
+  await expect(tp.locator("#t-subs-status")).toHaveText("1 Eintrag gelöscht.");
+  // beim nächsten Öffnen erkennt der Raum das sofort: weiter „abgegeben“, aber kein Knopf mehr
+  await C.reload();
+  await C.click("#resume-btn");
+  await expect(C.locator("#screen-livedone")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(C.locator("#ld-pdf")).toBeHidden();
+  await expect(C.locator("#ld-none")).toHaveText("Die Abgabe wurde inzwischen gelöscht – die Lösungen lassen sich hier nicht mehr herunterladen.");
+  await expect(C.locator("#ld-none")).toHaveAttribute("role", "status");
+  await shot(C, "6-abgegeben-geloescht");
+  await C.click("#ld-home");
+  await expect(C.locator("#screen-start")).toHaveClass(/active/);
+  // „Weiterarbeiten“ mit einem Zugang, den es nicht mehr gibt: Meldung des Servers, der Eintrag verschwindet
+  await C.evaluate(([code, t]) => localStorage.setItem("feibeitsblatt:last", JSON.stringify({ v: 1, t: Date.now(), code, title: t, live: { word: "zebra", num: "12345" } })), [code, LTITLE]);
+  await C.reload();
+  await expect(C.locator("#resume-text")).toHaveText(`Weiterarbeiten an eurer Gruppenarbeit zu „${LTITLE}“? (Zugangswort zebra, Zahlencode 12345)`);
+  await C.click("#resume-btn");
+  await expect(C.locator("#start-err")).toHaveText(LIVE_GONE_SERVER);
+  await expect(C.locator("#resume-box")).toBeHidden();
+  expect(await C.evaluate(() => localStorage.getItem("feibeitsblatt:last"))).toBeNull();
+  await closePage(c);
+
+  /* ---- Rückfall: die Live-Verbindung lässt sich nicht einrichten → Meldung, „Erneut versuchen“, „Ohne Live-Verbindung an diesem Gerät arbeiten“ ---- */
+  const d = await openPage(browser);
+  const D = d.page;
+  await liveUnavailable(d.context);
+  await enterCode(D, shown);
+  await chooseGroupHost(D);
+  await fillGroup(D, ["EvaZo", "TimBe"], "8c");
+  await D.click("#p-btn");
+  await expect(D.locator("#p-err")).toHaveText(LIVE_SETUP_FAIL + " " + LIVE_OFF_MSG);
+  await expect(D.locator("#p-live-fail")).toBeVisible();
+  await expect(D.locator("#p-live-hint")).toHaveText("Ohne Live-Verbindung arbeitet ihr gemeinsam an diesem einen Gerät: Nur dieses Gerät hat dann euren Stand – dazuschalten kann sich niemand.");
+  await expect(D.locator("#p-live-fail button")).toHaveText(["Erneut versuchen", "Ohne Live-Verbindung an diesem Gerät arbeiten"]);
+  await D.click("#p-live-retry");
+  await expect(D.locator("#p-err")).toHaveText(LIVE_SETUP_FAIL + " " + LIVE_OFF_MSG);
+  expect((await d.calls((r) => r.path === "/api/live/create")).length).toBe(2);
+  await D.click("#p-live-local");
+  await expect(D.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(D.locator("#live-bar")).toBeHidden();
+  await expect(D.locator("#who-name")).toHaveText("EvaZo, TimBe · Klasse 8c");
+  await expect(D.locator("#ed-pdf")).toHaveText("Zwischenstand sichern (online und als PDF-Datei)");
+  await expect(D.locator("#ed-cancel")).toHaveText("Abbrechen und Zwischenstand von diesem Gerät löschen");
+  await expect(D.locator("#privacy-live")).toBeHidden();
+  await expect(D.locator("#privacy")).toContainText("Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät");
+  expect(await D.locator("#privacy").textContent()).not.toMatch(NO_TT);   // auch ohne Live-Verbindung: Gruppen messen keine Tippzeiten
+  await typeAt(D, "#a-1", "Nur an diesem Gerät.", { delay: 20 });
+  await expect(D.locator("#save-state")).toHaveText("Zwischenstand auf diesem Gerät gespeichert");
+  expect(await D.$eval("#a-1", (e) => [e.value.length, e._tt])).toEqual([20, null]);   // nichts gemessen
+  await D.click("#ed-cancel");
+  await confirmDialog(D, "Zwischenstand löschen?");
+  await closePage(d);
+
+  // aufräumen: das Blatt löschen – der Raum der Gruppe verschwindet mit ihm
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  expect((await request.post("/api/live/join", { data: { code, room: keys.room } })).status()).toBe(404);
   await closePage(t);
 });
 
@@ -6557,24 +7078,21 @@ test("7q YouTube-Videos: Lehrkraft bettet unter dem Material Videos ein (Link, S
   const gp = g.page;
   await enterCode(gp, shown);
   await expect(gp.locator("#screen-mode")).toHaveClass(/active/);
-  await gp.click("#mode-group");
-  await expect(gp.locator("#screen-person")).toHaveClass(/active/);
+  await chooseGroupHost(gp);   // Partner- / Gruppenarbeit → Gruppensprecher:in → „Eure Angaben“
   await expect(gp.locator("#p-privacy-yt")).toHaveText(YT_SHORT_G);
   const gpf = gp.locator("#p-privfull");
   await gpf.locator("summary").click();
   await expect(gpf.locator("h2.privh")).toHaveText(PRIV_HEADS_GROUP);
-  await expect(gpf.locator('h2.privh:text-is("Rechtsgrundlage") + ul > li').nth(3)).toHaveText(YT_BASIS_G);
+  await expect(gpf.locator('h2.privh:text-is("Rechtsgrundlage") + ul > li').nth(2)).toHaveText(YT_BASIS_G);   // Gruppen: kein Punkt zu Tippzeiten davor
   await expect(recipients(gpf, "h2").filter({ hasText: "Google" })).toHaveCount(1);
   await expect(recipients(gpf, "h2").filter({ hasText: "Google" })).toContainText("Nur wenn ihr ein Video ladet (freiwillig, mit dem Klick auf „Video von YouTube laden“): Google Ireland Limited (Dublin, Irland), Anbieter von YouTube im EWR.");
   expect(await gpf.textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
   await gpf.locator("summary").click();
-  await expectOnlyTtShort(gp, "Angaben einer Gruppe (Videos)");
-  await gp.fill("#p-m-1", "MaxMu");
-  await gp.click("#p-add");
-  await gp.keyboard.type("LiMu");
-  await gp.fill("#p-klasse", "6a");
+  await expectOnlyTtShort(gp, "Angaben einer Gruppe (Videos)", 0);   // Partner- und Gruppenarbeit: kein Satz zur Messung
+  await fillGroup(gp, ["MaxMu", "LiMu"], "6a");
   await gp.click("#p-btn");
-  await expect(gp.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(gp.locator("#screen-liveinfo")).toHaveClass(/active/, { timeout: 30_000 });   // Live-Gruppenarbeit: Zugangswort und Zahlencode
+  await openGroupSheet(gp);
   await expect(gp.locator("#privacy-yt")).toHaveText(YT_SHORT);
   await expect(gp.locator("#tasks .yt-note")).toHaveText([YT_CONSENT, YT_CONSENT, YT_CONSENT]);
   expect(g.yt).toEqual([]);
@@ -7022,7 +7540,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await expect(tp.locator("#t-subs-sum")).toHaveText("3 Abgaben · 1 älterer Erstversuch von Schüler:innen, die inzwischen abgegeben haben, wird nicht angezeigt");
   await expect(tp.locator("#t-tt")).toBeVisible();
   await expect(tp.locator("#t-tt-legend")).toHaveText("Tippzeiten in den aufgeklappten Lösungen (je Zeichen der Abstand zum vorangehenden Zeichen): rot (unterstrichen) = höchstens 15 ms oder zusammen mit anderen Zeichen in einem Zug eingegeben (z. B. Wortvorschlag, Autokorrektur, Diktat, ein übernommener Korrekturvorschlag des Browsers) · gelb = über 15 bis 70 ms · grün = mehr als 70 ms oder erstes Zeichen · ohne Färbung = Text ohne Messung (" + (TT_KEEP ? "z. B. ältere Stände oder nach einem Widerspruch" : "z. B. ältere Stände, nach einem Widerspruch oder vor einem Neuladen der Seite geschrieben – der Zwischenstand speichert keine Tippzeiten") + "); Leerzeichen zählen nicht mit. Den Rot-Anteil nennen die Details unter jeder Aufgabe (ab 50 % mit „hoch“).");
-  await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung " + TT_USE + ". Schüler:innen können der Messung widersprechen: Die Kurzfassung des Datenschutzhinweises nennt die Messung in einem Satz, im ausführlichen Hinweis („Alle Informationen zum Datenschutz“) steht im Abschnitt „" + TT_OBJ_HEAD + "“ der Schalter „" + TT_SWITCH + "“. Nach einem Widerspruch steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht.");
+  await expect(tp.locator("#t-tt-hint")).toHaveText("Die Färbung zeigt nur, wie schnell Zeichen eingegeben wurden – nicht, wer sie verfasst hat. Rot entsteht z. B. durch Wortvorschläge, Wischen, Autokorrektur oder Diktat der Tastatur, durch einen per Rechtsklick übernommenen Korrekturvorschlag des Browsers, durch sehr schnelles Tippen oder gedrückt gehaltene Tasten, und wer sich technisch auskennt, kann die Messung verändern. Nutzen Sie die Färbung " + TT_USE + ". Schüler:innen können der Messung widersprechen: Die Kurzfassung des Datenschutzhinweises nennt die Messung in einem Satz, im ausführlichen Hinweis („Alle Informationen zum Datenschutz“) steht im Abschnitt „" + TT_OBJ_HEAD + "“ der Schalter „" + TT_SWITCH + "“. Nach einem Widerspruch steht in den Details „ohne Messung (widersprochen)“ – das ist ihr Recht und kein Anlass für einen Verdacht. Bei Partner- und Gruppenarbeit wird nicht gemessen: Dort steht „ohne Messung (Live-Gruppenarbeit)“ bzw. „ohne Messung (Partner- oder Gruppenarbeit)“.");
   const off = tp.locator("#t-tt-off");
   await expect(off).toHaveAttribute("aria-pressed", "false");
   const mains = tp.locator("#t-subs-body tr.main");
@@ -7193,7 +7711,7 @@ test("7l Tippzeiten und Ablauf-Kasten: Schüler:in tippt (langsam), fügt per Wo
   await closePage(t);
 });
 
-test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis (Schreibbereich; Angaben-Bildschirm, auch einer Gruppe in der „ihr“-Form) → keine Tippzeiten mehr im Zwischenstand und in der Zwischenstand-PDF, ein schon gesendeter Erstversuch wird mit derselben Kennung ohne sie ersetzt (scheitert das, beim nächsten Öffnen; auch beim Öffnen über „Deine Angaben“), Zurücknehmen misst nur ab dann, auch während einer laufenden KI-Anfrage; gilt sofort im zweiten Tab (nach der Abgabe im ersten bleibt die Abgabe, wie sie ist – nichts wird nachgereicht, die finale Rückmeldung speichert der Server ohne Tippzeiten), bleibt beim Neuladen ohne Eingabe und beim Hochladen einer älteren Zwischenstand-PDF; während des Sendens abgelehnt; Abgabe trägt optOut, die Lehrkraft sieht „ohne Messung (widersprochen)“ – auch beim Erstversuch und beim ausgeblendeten älteren Erstversuch", async ({ browser }) => {
+test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis (Schreibbereich und Angaben-Bildschirm; bei Partner- und Gruppenarbeit gibt es ihn nicht – dort wird nie gemessen) → keine Tippzeiten mehr im Zwischenstand und in der Zwischenstand-PDF, ein schon gesendeter Erstversuch wird mit derselben Kennung ohne sie ersetzt (scheitert das, beim nächsten Öffnen; auch beim Öffnen über „Deine Angaben“), Zurücknehmen misst nur ab dann, auch während einer laufenden KI-Anfrage; gilt sofort im zweiten Tab (nach der Abgabe im ersten bleibt die Abgabe, wie sie ist – nichts wird nachgereicht, die finale Rückmeldung speichert der Server ohne Tippzeiten), bleibt beim Neuladen ohne Eingabe und beim Hochladen einer älteren Zwischenstand-PDF; während des Sendens abgelehnt; Abgabe trägt optOut, die Lehrkraft sieht „ohne Messung (widersprochen)“ – auch beim Erstversuch und beim ausgeblendeten älteren Erstversuch", async ({ browser }) => {
   const t = await openPage(browser);
   const tp = t.page;
   await teacherLogin(tp, PW);
@@ -7226,7 +7744,6 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
   const ttStateOf = (pg) => pg.evaluate(() => [document.getElementById("a-1")._tt, Array.from(document.querySelectorAll("#a-2 textarea.tcell:not(.measure)"), (c) => c._tt)]);
   const NONE = [null, [null, null, null, null]];
   const ON = "Widerspruch eingetragen: Auf diesem Gerät misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr.";
-  const ON_G = "Widerspruch eingetragen: Auf diesem Gerät misst diese Seite bei eurem Feibeitsblatt keine Tippzeiten mehr.";
   const OFF = "Widerspruch zurückgenommen: Ab jetzt misst diese Seite die Tippzeiten wieder.";
   const TAB = "Widerspruch eingetragen (in einem anderen Tab mit diesem Feibeitsblatt): Auf diesem Gerät misst diese Seite bei diesem Feibeitsblatt keine Tippzeiten mehr.";
   const LATE = "Deine Abgabe wird gerade gesendet – für sie gilt ein Widerspruch nicht mehr. Scheitert das Senden, kannst du den Haken danach setzen. " +
@@ -7509,67 +8026,54 @@ test("7m Widerspruch gegen die Tippzeit-Messung: Schalter im Datenschutzhinweis 
   expect(await ttStateOf(vp)).toEqual(NONE);
   await closePage(v);
 
-  /* ---------- Gruppe: Widerspruch schon auf dem Angaben-Bildschirm („ihr“-Form) → sofort gespeichert, auch ohne Eingabe ---------- */
+  /* ---------- Gruppe: Partner- und Gruppenarbeit misst nie Tippzeiten – kein Satz, kein Abschnitt, kein Schalter (weder auf „Eure
+   * Angaben“ noch im Schreibbereich); die Abgabe trägt statt Werten „ohne Messung (Live-Gruppenarbeit)“ ---------- */
   const g = await openPage(browser);
   const gp = g.page;
   await enterCode(gp, shown);
-  await expect(gp.locator("#screen-mode")).toHaveClass(/active/);
-  await gp.click("#mode-group");
-  await expect(gp.locator("#screen-person")).toHaveClass(/active/);
-  await gp.fill("#p-m-1", "max mu");
-  await gp.click("#p-add");
-  await gp.fill("#p-m-2", "li mu");
-  await gp.fill("#p-klasse", "7a");
+  await chooseGroupHost(gp);
   const pf = gp.locator("#p-privfull");
   await pf.locator("summary").click();
-  const gsw = pf.getByRole("checkbox", { name: TT_SWITCH_G });
-  await expect(gsw).not.toBeChecked();
-  expect(await gsw.evaluate((e) => [e.getAttribute("aria-describedby").split(" ").map((id) => document.getElementById(id).textContent), e.closest(".ttoptbox").firstElementChild.textContent]))
-    .toEqual([[TT_EFFECT_G, TT_SCOPE_G], "Der Messung der Tippzeiten könnt ihr direkt hier widersprechen – es genügt, wenn eine oder einer von euch das möchte:"]);
-  await expect(pf).toContainText("Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (siehe „" + TT_OBJ_HEAD + "“).");
-  await gsw.click();
-  await expect(gsw).toBeChecked();
-  await expect(pf.locator(".ttopt-st")).toHaveText(ON_G);
+  await expect(pf.getByRole("checkbox")).toHaveCount(0);
+  await expect(pf.locator(".ttoptbox, .ttopt")).toHaveCount(0);
+  await expect(pf.locator("h2.privh")).toHaveText(PRIV_HEADS_GROUP);   // ohne „Widerspruch gegen die Tippzeit-Messung“
+  expect(await pf.textContent()).not.toMatch(NO_TT_ANY);
   expect(await pf.textContent()).not.toMatch(/\b(du|dein\w*|dir|dich)\b/i);
+  await pf.locator("summary").click();
+  expect(await gp.locator("#p-privacy").textContent()).not.toMatch(NO_TT_ANY);   // (der Titel dieses Blattes enthält selbst das Wort „Widerspruch“)
+  await fillGroup(gp, ["max mu", "li mu"], "7a");
   await gp.click("#p-btn");
-  await expect(gp.locator("#screen-editor")).toHaveClass(/active/);
-  d = await draftWhen(gp, (x) => x.ttOptOut === true);   // ohne eine Eingabe gespeichert
-  expect(d.answers.every((a) => a === "")).toBe(true);
-  // neu geladen, bevor jemand tippt; dieselbe Gruppe (andere Reihenfolge) öffnet wieder über „Eure Angaben“ → der Widerspruch gilt
-  await gp.reload();
-  await enterCode(gp, shown);
-  await gp.click("#mode-group");
-  await gp.fill("#p-m-1", "li mu");
-  await gp.click("#p-add");
-  await gp.fill("#p-m-2", "max mu");
-  await gp.fill("#p-klasse", "7a");
-  await gp.click("#p-btn");
-  await expect(gp.locator("#screen-editor")).toHaveClass(/active/);
-  // im Schreibbereich derselbe Schalter („du“-Form wie der ganze Schreibbereich), schon gesetzt
-  await gp.locator("#privfull-ed summary").click();
-  await expect(gp.locator("#privfull-ed").getByRole("checkbox", { name: TT_SWITCH })).toBeChecked();
+  await expect(gp.locator("#screen-liveinfo")).toHaveClass(/active/, { timeout: 30_000 });
+  await openGroupSheet(gp);
+  await expect(gp.locator("#privfull-ed").getByRole("checkbox")).toHaveCount(0);
+  expect(await gp.locator("#privfull-ed").textContent()).not.toMatch(NO_TT_ANY);
+  expect(await gp.locator("#privacy").textContent()).not.toMatch(NO_TT);
+  expect(await ttStateOf(gp)).toEqual(NONE);
   await typeAt(gp, "#a-1", "Wir", { delay: 120 });
   await gp.locator("#a-2 textarea.tcell:not(.measure)").nth(0).click();
   await gp.keyboard.type("Ort", { delay: 120 });
-  d = await draftWhen(gp, (x) => x.answers[0] === "Wir" && x.answers[1] === "Begriff | Erklärung\nOrt |");
-  expect([d.ttOptOut, d.typing]).toEqual([true, undefined]);
   expect(await ttStateOf(gp)).toEqual(NONE);   // in keinem Feld gemessen
+  expect(await gp.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")).length)).toBe(0);   // kein Zwischenstand auf dem Gerät
+  await gp.click("#sheet-title");
+  await expect(gp.locator("#save-state")).toHaveText("Live gespeichert");
   await gp.click("#submit-btn");
+  await confirmDialog(gp, "Erst die Gruppe fragen", true, { then: "Ohne KI-Feedback abgeben?" });
   await confirmDialog(gp, "Ohne KI-Feedback abgeben?", true, { check: false });
   await expect(gp.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
   await expect.poll(async () => (await rows()).filter((x) => x.p.person.gruppe).length, { timeout: 30_000 }).toBe(1);
   const grp = (await rows()).find((x) => x.p.person.gruppe).p;
-  expect([grp.person.gruppe, grp.typing]).toEqual([["LiMu", "MaxMu"], { v: 1, optOut: true }]);
+  expect([grp.person.gruppe, grp.typing]).toEqual([["MaxMu", "LiMu"], { v: 1, omitted: "live" }]);
+  expect(grp.answers.map((x) => x.final).slice(0, 2)).toEqual(["Wir", "Begriff | Erklärung\nOrt |"]);
   await closePage(g);
 
-  /* ---------- Lehrkraft: „ohne Messung (widersprochen)“ bei Abgaben, beim Erstversuch und beim ausgeblendeten älteren Erstversuch ---------- */
+  /* ---------- Lehrkraft: „ohne Messung (widersprochen)“ bei Abgaben, beim Erstversuch und beim ausgeblendeten älteren Erstversuch; bei der Gruppe „ohne Messung (Live-Gruppenarbeit)“ ---------- */
   await tp.click("#t-refresh");
   const mains = tp.locator("#t-subs-body tr.main");
   await expect(mains).toHaveCount(4);   // Wil, Zwe (Erstversuch von Gerät 1 ausgeblendet), Vie (Erstversuch), Gruppe
   await tp.click("#t-expand-all");
   const dets = tp.locator("#t-subs-body tr.details:visible");
   await expect(dets).toHaveCount(4);
-  await expect(dets.locator(".detbox > .dtt-sum")).toHaveText(Array(4).fill("Tippzeiten: ohne Messung (widersprochen)."));
+  await expect(dets.locator(".detbox > .dtt-sum")).toHaveText([...Array(3).fill("Tippzeiten: ohne Messung (widersprochen)."), "Tippzeiten: ohne Messung (Live-Gruppenarbeit)."]);   // die Gruppe zuletzt: nie gemessen
   await expect(dets.locator(".dtt, .tt-r, .tt-y, .tt-g")).toHaveCount(0);
   const wil = dets.filter({ hasText: "Ich tippe neu ja" });
   expect(await wil.locator(".dtask").nth(0).locator("table.cmp tbody td").nth(1).textContent()).toBe("Ich tippe neu ja");

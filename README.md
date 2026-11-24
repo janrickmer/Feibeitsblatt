@@ -62,18 +62,22 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Datenschutz“ (Link in der Fußzeile jeder Seite; er öffnet die Seite in einem neuen Tab, damit nichts verloren geht)
    und nach dem Code passend zum Feibeitsblatt.
 2. **Arbeitsform wählen.** Nach dem Code fragt die Seite „Wie arbeitest du?“: **„Einzelarbeit“** oder **„Partner- /
-   Gruppenarbeit“** (zu zweit oder in einer Gruppe von bis zu 10 Personen an einem Gerät, gemeinsame Abgabe).
+   Gruppenarbeit“** (zu zweit oder in einer Gruppe von bis zu 10 Personen – **live an einem oder an mehreren Geräten**,
+   gemeinsame Abgabe; siehe [Partner- und Gruppenarbeit live](#partner--und-gruppenarbeit-live)).
    „← anderen Code eingeben“ führt zurück zur Startseite. Wer über „Weiterschreiben“, einen Zwischenstand-Code oder
    eine Zwischenstand-PDF kommt, sieht diese Frage nicht – die Arbeitsform steht dann schon fest.
 3. **Angaben machen.** Bei **Einzelarbeit**: die ersten drei Buchstaben des Vornamens (bei einem kürzeren Vornamen den
    ganzen Vornamen), die ersten zwei Buchstaben des Nachnamens, den Geburtstag – nur Tag und Monat, ohne Jahr (er hilft,
-   gleiche Kürzel auseinanderzuhalten) – und die Klasse (z. B. „8b“). Bei **Partner- oder Gruppenarbeit** („Eure
-   Angaben“, in der „ihr“-Form): je Person ein Feld mit den ersten drei Buchstaben des Vornamens und den ersten zwei des
+   gleiche Kürzel auseinanderzuhalten) – und die Klasse (z. B. „8b“). Bei **Partner- oder Gruppenarbeit** fragt die Seite
+   zuerst, ob man **Gruppensprecherin bzw. Gruppensprecher** ist oder sich **dazuschaltet** (dann genügen Zugangswort und
+   Zahlencode der Gruppe – keine eigenen Angaben). Die Gruppensprecherin bzw. der Gruppensprecher trägt die Angaben der
+   ganzen Gruppe ein („Eure Angaben“, in der „ihr“-Form): je Person ein Feld mit den ersten drei Buchstaben des Vornamens und den ersten zwei des
    Nachnamens, z. B. „MaxMu“ (Leerzeichen oder Bindestrich dazwischen sind erlaubt, „max mu“ wird zu „MaxMu“), weitere
    Personen über „Person hinzufügen“ (mindestens 2, höchstens 10; ab Person 2 lässt sich jedes Feld wieder entfernen),
    dann einmal die Klasse – **kein Geburtstag**. Doppelte Kürzel in einer Gruppe lehnt die Seite ab. Wer die Angaben
    einträgt, trägt die Kürzel der anderen mit ein; der Hinweis unter den Feldern bittet, nur Personen einzutragen, die
-   mitarbeiten und davon wissen. „← zurück zur Auswahl“ führt zur Arbeitsform zurück. Dann „Schreibbereich öffnen“.
+   mitarbeiten und davon wissen. „← zurück zur Auswahl“ führt zur Arbeitsform zurück. Dann „Schreibbereich öffnen“
+   (Gruppe: „Weiter“ – es folgen Zugangswort und Zahlencode).
    Unter den Feldern steht – zum Zeitpunkt, an dem die Angaben erhoben werden – ein kurzer
    Datenschutzhinweis mit dem Betreiber (verantwortlich) und der Löschfrist; „Alle Informationen zum Datenschutz“ klappt den
    vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Betreiber und Löschfrist](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen));
@@ -257,8 +261,10 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Abgabe käme ja trotzdem an. War die Abgabe technisch erfolgreich, erscheint die
    Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt; ist eine Löschfrist
    festgelegt, steht darunter, an welchem Tag die Abgabe bei Ihnen automatisch gelöscht wird („… oder kurz danach“,
-   mit dem Rat, die Lösungen herunterzuladen). Bei Partner- und Gruppenarbeit steht danach rot und fett **„Schicke die
-   Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!“** (die Lösungen hat nur das Gerät, auf dem
+   mit dem Rat, die Lösungen herunterzuladen). Bei Partner- und Gruppenarbeit steht danach rot und fett, wie die anderen an die Lösungen kommen: live
+   **„Die anderen Mitglieder deiner Gruppe können die Lösungen selbst herunterladen: Sie öffnen die Gruppenarbeit mit dem
+   Code des Feibeitsblattes, dem Zugangswort „…“ und dem Zahlencode ….“**, ohne Live-Verbindung **„Schicke die
+   Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!“** (dann hat sie nur das Gerät, auf dem
    abgegeben wurde). Direkt darunter – noch über
    der finalen KI-Rückmeldung – steht der deutlich als Knopf gestaltete Button (mit Download-Symbol) **„Lade dir deine
    Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, abgegebenen
@@ -383,6 +389,59 @@ ein neuer Versuch nicht klappt – per E-Mail an die Adresse aus `window.FEIBEIT
 Server die Abgabe als fehlerhaft ab, erscheint dieser Weg nicht. Kommen gerade zu viele Abgaben aus demselben Netz, erscheint
 er erst, wenn ein neuer Versuch nach der genannten Wartezeit wieder scheitert; ist das Blatt voll (400 Abgaben bzw. 40 MB),
 erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie wenden (Sie können Einträge löschen).
+
+### Partner- und Gruppenarbeit live
+
+Auf Wunsch des Betreibers (24.11.2026) arbeiten Gruppen **live zusammen** – an einem oder an mehreren Geräten
+(z. B. jede Person an ihrem iPad):
+
+1. **Gruppensprecherin / Gruppensprecher:** wählt „Partner- / Gruppenarbeit“ → „Ich bin Gruppensprecherin /
+   Gruppensprecher“, trägt die Namenskürzel aller Gruppenmitglieder und die Klasse ein und klickt „Weiter“. Die Seite
+   richtet den Zugang ein und zeigt groß ein zufälliges **Zugangswort** (ein einfaches Wort wie „birke“) und einen
+   fünfstelligen **Zahlencode** – beides zusammen gibt es je Feibeitsblatt nur einmal. Mit „Zum Feibeitsblatt“ öffnet
+   sich der Schreibbereich.
+2. **Dazuschalten:** Die anderen öffnen Feibeitsblatt, geben den Code des Feibeitsblattes ein, wählen „Partner- /
+   Gruppenarbeit“ → „Ich schalte mich dazu“ und geben Zugangswort und Zahlencode ein (Groß- und Kleinschreibung sind
+   egal) → „Zum Feibeitsblatt“. Eigene Angaben machen sie nicht.
+3. **Gemeinsam schreiben:** Zugangswort und Zahlencode stehen immer oben in der Kopfzeile (so kann sich jederzeit noch
+   jemand dazuschalten), daneben „Live verbunden · n Geräte“. **In einer Aufgabe schreibt immer nur ein Gerät:** Wer zu
+   tippen beginnt, hält die Aufgabe; die anderen sehen den Text mitwachsen und darunter „Hier schreibt gerade jemand aus
+   eurer Gruppe – du siehst den Text mitwachsen.“ Einige Sekunden nach der letzten Eingabe (oder beim Verlassen des
+   Feldes) ist die Aufgabe wieder frei. In verschiedenen Aufgaben können alle gleichzeitig schreiben; eine Tabelle zählt
+   als ein Feld, Fotos und Weltkarten-Zuordnungen erscheinen sofort bei allen. Der Stand wird laufend gespeichert („Live
+   gespeichert“) – einen Zwischenstand auf dem Gerät oder einen Zwischenstand-Code gibt es dabei nicht; „Stand als
+   PDF-Datei sichern“ lädt den lesbaren Stand mit Zugangswort und Zahlencode (rot ganz oben) herunter.
+4. **Verbindung weg** (iPad schläft ein, WLAN wechselt): Die Seite verbindet sich von selbst neu („Verbindung
+   unterbrochen – wird wiederhergestellt …“); solange sind Felder und Knöpfe gesperrt. Eine noch nicht gespeicherte
+   Eingabe wird danach nachgereicht – außer jemand anderes hat dieselbe Aufgabe inzwischen geändert (dann gilt dessen
+   Stand, und die Seite sagt es).
+5. **KI-Feedback und Abgabe gibt es je Gruppe nur einmal** – egal, auf welchem Gerät: Vor dem gewohnten Dialog erscheint
+   deshalb immer zuerst das Fenster **„Erst die Gruppe fragen“** („Alle sind einverstanden“ / „Noch nicht“). Das
+   KI-Feedback zu einer Aufgabe erscheint danach auf allen Geräten; fordert es ein zweites Gerät noch einmal an, lehnt der
+   Server ab, und nichts geht an die KI.
+6. **Nach der Abgabe** sieht das abgebende Gerät die gewohnte Bestätigung; alle anderen Geräte – und wer die
+   Gruppenarbeit später mit Code, Zugangswort und Zahlencode wieder öffnet – sehen **„Diese Gruppenarbeit wurde
+   abgegeben“** mit dem Knopf „Abgegebene Lösungen als PDF-Datei herunterladen“ (samt finaler KI-Rückmeldung, sobald sie
+   da ist). Haben Sie die Abgabe gelöscht oder ist die Löschfrist abgelaufen, bleibt nur der Hinweis – der Knopf
+   verschwindet.
+7. **Wieder öffnen:** Auf dem Gerät bietet die Startseite „Weiterarbeiten an eurer Gruppenarbeit …?“ an (gemerkt werden
+   dort nur Zugangswort und Zahlencode, höchstens 7 Tage); auf jedem anderen Gerät geht es über „Ich schalte mich dazu“.
+   „Gruppenarbeit verlassen“ trennt nur dieses Gerät – der gemeinsame Stand bleibt.
+
+**Lässt sich die Live-Verbindung nicht einrichten** (Server nicht erreichbar, Tagesgrenze des kostenlosen Tarifs,
+WebSocket im Schulnetz gesperrt), sagt die Seite das und bietet „Erneut versuchen“ und **„Ohne Live-Verbindung an diesem
+Gerät arbeiten“** an: Dann arbeitet die Gruppe wie früher gemeinsam an einem Gerät (Zwischenstand auf diesem Gerät,
+Zwischenstand-Code und Zwischenstand-PDF wie bei der Einzelarbeit).
+
+**Keine Tippzeit-Messung bei Gruppen:** Bei Partner- und Gruppenarbeit misst die Seite nie Tippzeiten (auch nicht ohne
+Live-Verbindung) – mehrere schreiben am selben Text. In Ihrer Übersicht steht dann „Tippzeiten: ohne Messung
+(Live-Gruppenarbeit).“ bzw. „… (Partner- oder Gruppenarbeit).“
+
+**Wichtig für den Unterricht:** Wer den Code des Feibeitsblattes, das Zugangswort und den Zahlencode kennt, kann den Stand
+der Gruppe lesen und ändern – sagen Sie den Gruppen, dass sie beides nur untereinander weitergeben. Für die Lehrkraft gibt
+es keinen eigenen Zugang zum laufenden Stand (er ist mit dem Zugangswort der Gruppe verschlüsselt); Sie sehen wie sonst
+Erstversuch und Abgabe. Technik, Grenzen und Datenschutz: [Kapazität und Grenzen](#kapazität-und-grenzen) und
+[Live-Gruppenarbeit](#live-gruppenarbeit).
 
 ## So arbeiten Sie als Lehrkraft
 
@@ -574,7 +633,8 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    steht der Rot-Anteil in Prozent (ab 50 % mit „hoch“), über den Aufgaben der Anteil der ganzen Abgabe – in der Liste
    selbst nie. „Färbung aus“ schaltet die Farben für diese Sitzung ab. Hat die Schülerin bzw. der Schüler der Messung
    widersprochen, steht dort nur „Tippzeiten: ohne Messung (widersprochen).“ – das ist ihr Recht und kein Anlass für einen
-   Verdacht. Der Widerspruch gilt für die Bearbeitung auf dem jeweiligen Gerät: Ein älterer Erstversuch, der auf einem
+   Verdacht. Bei Partner- und Gruppenarbeit wird nie gemessen: Dort steht „Tippzeiten: ohne Messung
+   (Live-Gruppenarbeit).“ bzw. – ohne Live-Verbindung an einem Gerät – „… (Partner- oder Gruppenarbeit).“ Der Widerspruch gilt für die Bearbeitung auf dem jeweiligen Gerät: Ein älterer Erstversuch, der auf einem
    anderen Gerät gesendet wurde, kann noch Tippzeiten tragen – auf Wunsch löschen Sie ihn. Die Färbung zeigt nur, wie
    schnell Zeichen eingegeben wurden, nicht, wer sie verfasst hat: Rot entsteht auch ohne Täuschung, und die Messung lässt
    sich mit technischem Wissen verändern. Nutzen Sie sie nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für
@@ -1261,6 +1321,8 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
 | Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher –, bei Foto-Aufgaben das Foto, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; nach dem ersten Sichern der Zwischenstand-Code samt Zeitpunkt und Frist; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen; Kürzel, Geburtstag und Klasse bzw. die Kürzel der Gruppe und die Klasse liegen daneben im Eintrag zum zuletzt geöffneten Blatt, mit dem die Startseite „Weiterschreiben“ anbietet) | im Browser des benutzten Geräts (localStorage) – **ohne Klick auf „Zwischenstand sichern (online und als PDF-Datei)“ nur dort** | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
 | Online gesicherter Zwischenstand (derselbe Datensatz wie in der Zwischenstand-PDF: Antworten, Kürzel, Geburtstag und Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback, Fotos, bei einem Escape-Room-Finale der Datensatz aus dem Escape-Room – ohne Tippzeiten), **nur auf Klick** „Zwischenstand sichern (online und als PDF-Datei)“ | Cloudflare D1 (EU), Tabelle `drafts`: ein Hash der Kennung, Blatt-Code, Zeitpunkt, Größe und der Umschlag – kein Name, keine Kennung der Bearbeitung | **nur verschlüsselt** (AES-GCM) mit einem Schlüssel, den der Browser aus dem Zwischenstand-Code ableitet; der Server erhält den Code nie und kann den Stand nicht lesen – Sie als Lehrkraft auch nicht. Laden kann ihn, wer den Zwischenstand-Code kennt (er steht in der Zwischenstand-PDF und oben im Schreibbereich) | 30 Tage nach dem letzten Sichern (jedes Sichern derselben Bearbeitung ersetzt die Zeile und beginnt die Frist neu); schon vorher, wenn die Seite ihn nach der Abgabe löscht (von dem Gerät aus, das den Code kennt; scheitert das, bleibt es bei den 30 Tagen) oder Sie das Blatt löschen. „Abbrechen und Zwischenstand löschen“ löscht ihn nicht |
+| Gemeinsamer Stand einer Live-Gruppenarbeit (Antworten samt Fotos, KI-Feedback mit erster Fassung, Namenskürzel und Klasse der Gruppe, die gemeinsame Kennung der Bearbeitung; nach der Abgabe die Lösungen samt finaler KI-Rückmeldung und Checkliste für die PDF-Datei – nie Tippzeiten) | Cloudflare Durable Objects (ein eigener Speicher je Gruppe, EU-Jurisdiktion); in D1 nur ein Verzeichnis-Eintrag je Gruppe (abgeleitete Kennung, Blatt-Code, Zeitpunkt – kein Inhalt, kein Name) | im Browser verschlüsselt (AES-GCM); den Schlüssel bildet der Browser aus Blatt-Code, Zugangswort und Zahlencode, der Server erhält nur eine daraus abgeleitete Kennung. Lesen und ändern kann, wer alle drei kennt – nicht Sie, nicht der Betreiber. Der Server sieht IP-Adresse, Zeitpunkte, Größen und in welcher Aufgabe gerade geschrieben wird | ohne Abgabe 30 Tage nach der letzten Änderung; nach der Abgabe die Lösungen so lange wie die Abgabe (täglich geprüft und bei jedem Öffnen), der Vermerk „abgegeben“ bis das Blatt gelöscht wird; mit dem Blatt alles (Cloudflare kann den Speicher technisch noch bis zu 30 Tage wiederherstellen) |
+| Zugangswort und Zahlencode einer Live-Gruppenarbeit („Weiterarbeiten an eurer Gruppenarbeit …?“) samt Blatt-Code und Titel | Browser des benutzten Geräts (`localStorage`) | unverschlüsselt, keine Namenskürzel | höchstens 7 Tage; „Gruppenarbeit verlassen“, „Neues Feibeitsblatt öffnen“ nach der Abgabe und „Nein, Zugangswort und Zahlencode von diesem Gerät entfernen“ löschen sofort |
 | Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale samt Datensatz aus dem Escape-Room; nach gelungenem Online-Sichern mit dem Zwischenstand-Code sichtbar oben und im Datensatz), nur auf Klick „Zwischenstand sichern (online und als PDF-Datei)“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); die Datei selbst sieht der Server nie – auch nicht, wenn Unterricks sie an Feibeitsblatt übergibt (von Tab zu Tab im selben Browser); ihren Datensatz bekommt er beim Sichern nur verschlüsselt (Zeile darüber) | unverschlüsselt und lesbar (eingebettete Datei im PDF) – samt Zwischenstand-Code: wer die Datei hat, kann auch den online gesicherten Stand laden | bis die Datei gelöscht wird – die Seite weist darauf hin, Datei und Code nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | Cookies und ähnliche Daten von YouTube – nur nach einem Klick auf „Video von YouTube laden“ | im Browser des benutzten Geräts, gesetzt und gelesen von Google (YouTube), nicht von Feibeitsblatt | nach den Bedingungen von Google; Feibeitsblatt speichert weder die Einwilligung noch, welche Videos geladen wurden | bis sie ablaufen oder im Browser gelöscht werden |
@@ -1331,6 +1393,49 @@ ausdrücklichen Klick, ist aber mit der PDF-Datei in einem Knopf verbunden – e
 es nur, wenn das Speichern scheitert); ob eine Löschmöglichkeit für den Online-Stand ohne Abgabe nötig ist (Art. 17
 DSGVO); ob bei einem Escape-Room-Finale voller Name, Geburtsdatum und Bestätigungscode im online gesicherten Stand
 liegen sollen (sie stehen im Zwischenstand und damit auch dort – verschlüsselt); und ob 30 Tage die richtige Frist sind.
+
+### Live-Gruppenarbeit
+
+Bei Partner- und Gruppenarbeit (siehe [Partner- und Gruppenarbeit live](#partner--und-gruppenarbeit-live)) liegt der
+gemeinsame Stand der Gruppe laufend auf dem Server – anders als der Zwischenstand der Einzelarbeit, der auf dem Gerät
+bleibt. Dafür gilt:
+
+- **Verschlüsselung im Browser:** Aus Blatt-Code, Zugangswort und Zahlencode bildet der Browser (PBKDF2-HMAC-SHA256,
+  600 000 Iterationen, dann HKDF) eine Kennung des Raums und einen AES-GCM-Schlüssel. An den Server gehen nur die
+  Kennung und verschlüsselte Werte (Antworten je Aufgabe, erste Fassung mit KI-Feedback je Aufgabe, nach der Abgabe die
+  Lösungen für die PDF-Datei, die Angaben der Gruppe). Zugangswort und Zahlencode erhält der Server nie. Der Schutz ist
+  so stark wie die beiden: Ein Wort aus einer Liste von gut 400 Wörtern und fünf Ziffern ergeben etwa 25 Bit – das
+  schützt vor Erraten über die Oberfläche (unbekannte Zugänge zählen beim Server als Fehlversuche, 30 in 10 Minuten je
+  Netzwerk) und vor Mitlesen, nicht aber vor jemandem, der den gespeicherten Stand **und** den Blatt-Code hat und alle
+  Kombinationen durchprobiert. Die Hinweise sagen deshalb nur „verschlüsselt“ und nennen, wer lesen kann: wer Code,
+  Zugangswort und Zahlencode kennt.
+- **Was der Server sieht:** IP-Adresse (technisch bedingt), Zeitpunkte, Größe der Einträge, wie viele Geräte verbunden
+  sind und in welcher Aufgabe gerade geschrieben wird (er ordnet die Sperren) – nicht die Inhalte, nicht die Kürzel.
+- **Wo:** Cloudflare Durable Objects, ein eigener Speicher je Gruppe in der EU-Jurisdiktion; der Worker selbst läuft wie
+  immer im nächstgelegenen Cloudflare-Rechenzentrum (nie „Server in der EU“ zusagen).
+- **Wie lange:** ohne Abgabe 30 Tage nach der letzten Änderung; nach der Abgabe bleiben die Lösungen für die PDF-Datei,
+  bis es die Abgabe nicht mehr gibt (Löschfrist oder „Diesen Eintrag löschen“ – der Raum sieht täglich und bei jedem
+  Öffnen nach), der Vermerk „abgegeben“ bis zum Löschen des Blattes. Schüler:innen können den gemeinsamen Stand nicht
+  selbst löschen.
+- **Keine Tippzeit-Messung** bei Partner- und Gruppenarbeit; der Datenschutzhinweis der Gruppe nennt die Messung deshalb
+  nirgends (kein Satz in der Kurzfassung, kein Abschnitt „Widerspruch …“, kein Schalter).
+- **KI-Feedback und Abgabe** laufen wie bei der Einzelarbeit über `/api/feedback` und `/api/submit` (Antworten ohne
+  Angaben an die KI; Erstversuch und Abgabe verschlüsselt für die Lehrkraft, mit den Kürzeln der Gruppe).
+- **Hinweise für die Schüler:innen:** ein eigener Absatz in den Kurzfassungen („Bei Partner- und Gruppenarbeit arbeitet
+  ihr live zusammen: …“), eigene Absätze im ausführlichen Hinweis (Wozu, Welche Daten, Wer bekommt, Wie lange, Müsst ihr,
+  Rechte) und der Abschnitt „Partner- und Gruppenarbeit live“ auf „Impressum & Datenschutz“.
+
+**Weiter vom Betreiber zu prüfen:** ob Art. 6 Abs. 1 Buchst. b DSGVO die laufende Speicherung auf dem Server trägt und
+ob sie erforderlich ist (Partner- und Gruppenarbeit gibt es nur so; die Alternative ist die Einzelarbeit – der Weg ohne
+Live-Verbindung an einem Gerät wird nur angeboten, wenn die Verbindung scheitert); dass Mitschüler:innen mit Code,
+Zugangswort und Zahlencode den Stand der Gruppe mitlesen und ändern können (auch Personen, die nicht zur Gruppe gehören,
+wenn die Gruppe beides weitergibt) und dass die Kürzel aller Mitglieder von einer Person eingetragen werden; ob 30 Tage
+ohne eigene Löschmöglichkeit der Gruppe angemessen sind (Art. 17 DSGVO) und wie Auskunfts- und Löschwünsche einzelner
+Mitglieder zu einem gemeinsamen, für den Betreiber nicht lesbaren Stand erfüllt werden; die Stärke des Schlüssels (etwa
+25 Bit, siehe oben) – ob Zugangswort und Zahlencode länger werden sollen; die Wiederherstellbarkeit gelöschter
+Durable-Object-Speicher bei Cloudflare (laut Cloudflare bis zu 30 Tage – im Hinweis so genannt, bitte am aktuellen Stand
+der Cloudflare-Dokumentation prüfen); und die Fragen zu Art. 26/28 DSGVO für Durable Objects – unverändert wie beim
+übrigen Einsatz von Cloudflare.
 
 ### Was wohin gesendet wird
 
@@ -1488,11 +1593,13 @@ tippen die Schüler:innen, sie werden normal gemessen.
 - **Widerspruch (Art. 21 DSGVO):** Im ausführlichen Datenschutzhinweis – auf dem Angaben-Bildschirm und im
   Schreibbereich unter den Aufgaben – hat der Widerspruch einen eigenen Abschnitt **„Widerspruch gegen die
   Tippzeit-Messung“** (getrennt von „Deine Rechte“, dort steht ein Verweis) mit dem Schalter **„Tippzeiten für dieses
-  Feibeitsblatt nicht messen“** (auf dem Angaben-Bildschirm einer Partner- oder Gruppenarbeit „… für euer Feibeitsblatt
-  …“; es genügt, wenn eine Person der Gruppe widerspricht); die Seite „Impressum & Datenschutz“ sagt, wo er steht. Die
+  Feibeitsblatt nicht messen“**; die Seite „Impressum & Datenschutz“ sagt, wo er steht. **Bei Partner- und
+  Gruppenarbeit wird nie gemessen** (Entscheidung des Betreibers vom 24.11.2026) – dort gibt es weder den Satz noch den
+  Abschnitt noch den Schalter, und Ihre Übersicht zeigt „ohne Messung (Live-Gruppenarbeit)“ bzw. „ohne Messung (Partner-
+  oder Gruppenarbeit)“. Die
   Kurzfassungen auf dem Angaben-Bildschirm und im Schreibbereich nennen die Messung in genau einem neutralen Satz:
   „Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen kannst du unter „Alle Informationen zum
-  Datenschutz“.“ (bei einer Gruppe „… könnt ihr …“; Entscheidung des Betreibers vom 27.10.2026 nach Rechtsprüfung).
+  Datenschutz“.“ (Entscheidung des Betreibers vom 27.10.2026 nach Rechtsprüfung; nicht bei Gruppen).
   Mit dem Haken misst die Seite nicht mehr und verwirft die schon gemessenen Werte (der
   Zwischenstand merkt sich den Widerspruch, auch in einem danach gesicherten – online wie als Zwischenstand-PDF); ein schon
   gesendeter Erstversuch wird mit derselben Kennung ohne Tippzeiten ersetzt – scheitert das, beim nächsten Öffnen. Die
@@ -1564,8 +1671,9 @@ Worker-Adresse und über GitHub Pages), ob es abspielt: Die Tests ersetzen YouTu
 - **Freiwilligkeit:** Eine Einwilligung muss freiwillig sein (Art. 7 Abs. 4 DSGVO). Setzt eine Aufgabe das Video voraus,
   ist das fraglich; der Hinweis verspricht deshalb kein „ohne Nachteil“. Lehrkräften wird empfohlen, Aufgaben auch ohne das
   Video lösbar zu stellen.
-- **Gruppenarbeit:** Bei Partner- oder Gruppenarbeit klickt eine Person für das gemeinsame Gerät; die Hinweise stehen auf
-  dem Angaben-Bildschirm in der „ihr“-Form.
+- **Gruppenarbeit:** Bei Partner- oder Gruppenarbeit lädt jedes Gerät ein Video für sich (der Klick gilt nur dort; an
+  einem gemeinsamen Gerät klickt eine Person für alle); die Hinweise stehen auf dem Angaben-Bildschirm und beim
+  Dazuschalten in der „ihr“-Form.
 - **Stand der Übermittlungsgrundlage:** ob die Google LLC weiterhin nach dem EU-US Data Privacy Framework zertifiziert ist
   und was Google zu `youtube-nocookie.com` (Cookies und ähnliche Daten trotz des Namens) und zur Speicherdauer sagt.
 
@@ -1707,7 +1815,12 @@ Schüler:innen.
 > Gruppenarbeit die Namenskürzel aller Mitglieder und die Klasse, ohne Geburtstag; wer sie einträgt, trägt die Kürzel der
 > anderen mit ein –, verschlüsselt, nur für die Lehrkraft lesbar, auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
 > gelöscht (danach noch bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung). Bis zur Abgabe liegt der
-> Zwischenstand im Browser des benutzten Geräts. Nur wenn die Schülerin bzw. der Schüler auf „Zwischenstand sichern (online
+> Zwischenstand im Browser des benutzten Geräts. [Bei Partner- oder Gruppenarbeit arbeiten die Schüler:innen live an einem
+> oder an mehreren Geräten: Der gemeinsame Stand der Gruppe (Antworten, KI-Feedback, Namenskürzel und Klasse) wird dann
+> laufend auf dem Server gespeichert – verschlüsselt mit einem Schlüssel, der aus dem Code des Arbeitsblattes, einem
+> Zugangswort und einem Zahlencode der Gruppe entsteht; lesen und ändern kann ihn, wer alle drei kennt, die Lehrkraft
+> nicht. Er wird 30 Tage nach der letzten Änderung gelöscht; nach der Abgabe bleiben die Lösungen zum Herunterladen, bis
+> die Abgabe gelöscht ist. Tippzeiten werden bei Partner- und Gruppenarbeit nicht erfasst.] Nur wenn die Schülerin bzw. der Schüler auf „Zwischenstand sichern (online
 > und als PDF-Datei)“ klickt, wird er zusätzlich verschlüsselt auf dem Server gespeichert – ohne Namen daneben: Den
 > Schlüssel bildet ein Zwischenstand-Code, den der Server nie erhält und der oben in der dabei heruntergeladenen PDF-Datei
 > steht. Wer den Code kennt, kann den Stand auf jedem Gerät laden; die Lehrkraft kann ihn nicht lesen. Der Server löscht
@@ -1928,6 +2041,7 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Finale KI-Rückmeldung | der Download wartet höchstens 30, 60 oder 90 Sekunden auf sie (Ihre Einstellung, Vorgabe 30; danach mit Ihrer Checkliste); anfordern – und damit für Sie gespeichert – nur in den ersten 15 Minuten nach der Abgabe; einmal je Abgabe – danach lässt sich die Abgabe nicht mehr durch eine neue derselben Bearbeitung ersetzen |
 | Checkliste (Lösungs-PDF, analoges Arbeitsblatt) | höchstens 8 Punkte je Aufgabe, je 160 Zeichen; KI-Vorschläge 60 pro Stunde je Netzwerk (IP-Adresse) – jedes neue Feibeitsblatt fragt einmal |
 | Online gesicherte Zwischenstände | je Stand so groß wie eine Abgabe (400 KB, bei Blättern mit Foto-Aufgabe 1000 KB – größer: nur die PDF-Datei); je Feibeitsblatt 600 Stände bzw. 40 MB; je Netzwerk (IP-Adresse) 300 Sicherungen bzw. 60 MB pro Stunde; aufbewahrt 30 Tage nach dem letzten Sichern. Ein unbekannter Zwischenstand-Code zählt wie ein unbekannter Blatt-Code (30 Fehlversuche in 10 Minuten je Netzwerk) |
+| Live-Gruppenarbeit | je Feibeitsblatt höchstens 300 Gruppen; je Gruppe höchstens 24 gleichzeitig verbundene Geräte (die Gruppe selbst bis zu 10 Personen); neue Gruppen 120 pro Stunde je Netzwerk (IP-Adresse); je Aufgabe 64 KB (verschlüsselt), Foto-Aufgabe 640 KB, Lösungen nach der Abgabe 1536 KB; je Gerät höchstens 150 Vorschauen und Speicherungen pro Minute (die Seite sendet beim Tippen etwa eine Vorschau je Sekunde und speichert erst nach einer Schreibpause von 1,5 Sekunden, bei Dauertippen alle 8 Sekunden). Kostenloser Cloudflare-Tarif (Stand 13.11.2026): je Tag 100 000 gespeicherte Änderungen und 100 000 Anfragen an Durable Objects (20 eingehende WebSocket-Nachrichten zählen als eine), 13 000 GB-s Laufzeit, 5 GB Speicher – das reicht für etliche Klassen am Tag; ist eine Grenze erreicht, melden die Live-Routen „Die Live-Gruppenarbeit ist gerade nicht erreichbar …“, und Gruppen können ohne Live-Verbindung an einem Gerät arbeiten (alles andere läuft weiter) |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner); dasselbe gilt für die Überblick-PDF eines Escape-Rooms |
 | Datensatz aus einem Escape-Room (Link oder Überblick-PDF) | höchstens 96 KB (ein größerer wird abgelehnt); darin Texte je 2000 Zeichen, Lösungserläuterungen je 4000, höchstens 20 Stationen mit je 30 Fehlern, 20 Lösungserläuterungen und 20 Zwischenstand-Dateien – mehr wird gekappt. Passt eine Abgabe sonst nicht in den Umschlag, geht sie erst ohne Tippzeiten, dann ohne die Einzelheiten der Fehler („nicht übermittelt“) – sie scheitert nie an diesen Daten |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
@@ -1988,6 +2102,12 @@ gespeichert.
 | „Zwischenstand konnte auf diesem Gerät nicht gespeichert werden“ (oben im Schreibbereich) | Der Browser lässt nichts mehr speichern – meist ist der Speicher für Website-Daten voll oder gesperrt (z. B. privates Fenster). Die Antworten bleiben erhalten, solange die Seite offen ist; zur Sicherheit „Zwischenstand sichern (online und als PDF-Datei)“ oder gleich abgeben. Nach einem Neuladen wäre ein nicht gespeicherter Stand weg. |
 | „Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.“ | Tag und Monat passen nicht zusammen (der 29. Februar ist erlaubt). Gefragt sind nur Tag und Monat des Geburtstags, kein Jahr. |
 | „Für Partner- oder Gruppenarbeit tragt bitte mindestens zwei Personen ein. Arbeitest du allein, wähle „Einzelarbeit“.“ | Bei „Partner- / Gruppenarbeit“ ist nur eine Person eingetragen. Mit „Person hinzufügen“ ein weiteres Feld öffnen – oder mit „← zurück zur Auswahl“ „Einzelarbeit“ wählen. |
+| „Die Live-Verbindung für eure Gruppe ließ sich gerade nicht einrichten. …“ (auf „Eure Angaben“) | Der Server konnte die Live-Gruppenarbeit nicht anlegen oder die Verbindung kam nicht zustande: Tagesgrenze des kostenlosen Cloudflare-Tarifs, Server nicht erreichbar, WebSocket-Verbindungen im (Schul-)Netz gesperrt oder zu viele neue Gruppen aus diesem Netz in einer Stunde. „Erneut versuchen“ – oder „Ohne Live-Verbindung an diesem Gerät arbeiten“ (dann hat nur dieses Gerät den Stand). |
+| „Zu diesem Zugangswort und Zahlencode gibt es bei diesem Feibeitsblatt keine Gruppenarbeit (mehr). …“ | Zugangswort, Zahlencode oder der Code des Feibeitsblattes sind vertippt – oder die Gruppenarbeit wurde gelöscht (30 Tage ohne Änderung bzw. mit dem Blatt). Nach vielen Fehlversuchen aus einem Netz bremst der Server (wie bei unbekannten Blatt-Codes). |
+| „Verbindung unterbrochen – wird wiederhergestellt …“ (oben im Schreibbereich einer Gruppe) | Das Gerät hat gerade keine Verbindung zur Gruppe (WLAN, Ruhezustand). Die Seite verbindet sich von selbst neu; bis dahin sind die Felder gesperrt. Bleibt es dabei, die Internetverbindung prüfen. |
+| „Hier schreibt gerade jemand aus eurer Gruppe …“ und das Feld lässt sich nicht bearbeiten | Kein Fehler: In einer Aufgabe schreibt immer nur ein Gerät. Einige Sekunden nach der letzten Eingabe des anderen ist die Aufgabe wieder frei. |
+| „Mit dieser Gruppenarbeit sind schon zu viele Geräte verbunden.“ | Mehr als 24 Geräte bzw. Tabs sind mit derselben Gruppenarbeit verbunden – nicht benötigte Tabs schließen. |
+| „Diese Gruppenarbeit wurde abgegeben“ ohne Knopf zum Herunterladen | Die Abgabe gibt es nicht mehr (Löschfrist oder von Ihnen gelöscht) – dann sind auch die Lösungen für die PDF-Datei gelöscht. |
 | „Person 1 und Person 2 haben dasselbe Kürzel („MaxMu“) …“ | Zwei Felder ergeben dasselbe Kürzel (Groß- und Kleinschreibung zählen nicht). Meist ist eine Person doppelt eingetragen; heißen zwei wirklich so, lässt eine einen Buchstaben weg (z. B. „MaMu“). |
 | „Dieses Feibeitsblatt gehört zum Escape-Room „…“. Öffne es über den Arena-Tunnel …“ nach dem Eintippen eines Codes | Kein Fehler: Ein Feibeitsblatt für einen Escape-Room öffnet sich nur über den Arena-Tunnel oder die Überblick-PDF (siehe [Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)). |
 | „Dieses Escape-Room-Finale ist noch nicht freigeschaltet …“ | Als die Überblick-PDF bzw. der Link entstand, stand im Quelltext des Escape-Rooms noch kein `FEIBEITSBLATT_CODE`. Code eintragen und veröffentlichen; die Schüler:innen gehen mit der Zwischenstand-Datei des Escape-Rooms zurück in den Raum und durch den Arena-Tunnel (eine Überblick-PDF aus dieser Zeit bleibt ohne Code). |
@@ -2139,7 +2259,32 @@ sonst lassen sich alle online gesicherten Stände nicht mehr laden; eine Änderu
 Datensatz ist derselbe wie in der Zwischenstand-PDF (dort kommen nach gelungenem Sichern nur Zeitpunkt und Frist dazu).
 Browser-Test 3h prüft den ganzen Weg gegen den echten Worker (Anfrage ohne Klartext und ohne den Code, Zeile in der
 Datenbank, zweites Gerät, Ersetzen, falscher Code, gescheitertes Speichern, „Abbrechen“, Löschen nach der Abgabe und mit
-dem Blatt).
+dem Blatt). Server: `PUT /api/draft` speichert unter `sha256("draft|" + id)` (erneutes Sichern ersetzt; über 400 KB nur
+bei Blättern mit Foto-Aufgabe, nie über 1000 KB; 409 `too_many_drafts` bei 600 Ständen bzw. 40 MB je Blatt; je Netzwerk
+300 Sicherungen und 60 MB pro Stunde), `POST /api/draft/load` liefert `{code, savedAt, expiresAt, days, envelope}` (404
+`draft_not_found` zählt wie ein unbekannter Blatt-Code), `DELETE /api/draft` löscht; Tabelle `drafts(id, sheet_code,
+saved_at, bytes, data)`, gelöscht nach 30 Tagen und mit dem Blatt.
+
+**Live-Gruppenarbeit:** Server = `worker/live.js`, das Durable Object `LiveRoom` (ein Raum je Gruppe, SQLite-gestützt,
+WebSocket-Hibernation, EU-Jurisdiktion; `wrangler.jsonc`: Binding `LIVE`, Migration `v1` mit `new_sqlite_classes` – nie
+ändern). Routen: `POST /api/live/create` `{code, room, meta}` (409 `room_taken` → der Browser würfelt neu, 409
+`too_many_rooms`, 503 `live_unavailable`), `POST /api/live/join` `{code, room}` (404 `room_not_found`), `GET /api/live/ws`
+als WebSocket. Das Protokoll (Sperren je Aufgabe, Vorschau `pv` ohne Speichern, `set` mit Version, Zusagen für
+KI-Feedback und Abgabe, Schließcodes 4404/4409) steht im Kopf von `worker/live.js`. In D1 liegt nur das Verzeichnis
+`live_rooms(rid, sheet_code, created_at)` (kein Inhalt). Browser: Block `LIVE:BEGIN … LIVE:END` in `index.html`
+(Wortliste, Zahlencode, Ableitung, Wert-Format, Takt, Prüfung entschlüsselter Werte, alle Texte; Unit-Test
+`test/unit/liveclient.test.mjs` – Ableitung und Wert-Format werden gegen die Helfer des Smoke-Tests geprüft) und der
+Abschnitt „Live-Gruppenarbeit“ vor dem Lehrkraft-Teil (Verbindung, Abgleich, Sperren, Abgabe-Ansicht). **Parameter der
+Ableitung nie ändern** (PBKDF2-HMAC-SHA256, 600 000 Durchläufe, Passwort `feibeitsblatt/live/v1|` + Blatt-Code + `|` +
+Zugangswort + `|` + Zahlencode, Salt `feibeitsblatt/live/v1`; HKDF-SHA256 mit `feibeitsblatt/live/id/v1` bzw.
+`feibeitsblatt/live/enc/v1`; je Wert Base64 aus 12 Byte IV und AES-GCM-Chiffrat) – sonst lässt sich kein Raum mehr
+öffnen. Die Wortliste darf wachsen (gewürfelt wird nur beim Anlegen). Tests: `test/unit/live.test.mjs` (Raum mit
+nachgebauter Laufzeit `test/live-fake.mjs`), Smoke-Schritt „Live-Gruppenarbeit“ (echtes Durable Object, zwei WebSockets),
+Browser-Test 2c (zwei bzw. drei Geräte: Zugang, Dazuschalten, Tippen mit Sperre und Vorschau, Tabelle, Foto, Abbruch und
+Wiederverbinden, KI-Feedback und Abgabe nur einmal, Abgabe-Ansicht mit PDF, gelöschte Abgabe, Rückfall ohne
+Live-Verbindung; `LIVE_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos) und 2b (Gruppe ohne Live-Verbindung an einem
+Gerät). `wrangler dev --local` kennt das Durable Object (ohne Jurisdiktionen); die Content-Security-Policy erlaubt
+`wss://` zur Worker-Adresse (`_headers` und `<meta>` in `index.html`).
 
 **Tippzeiten im Zwischenstand:** `TT_KEEP_IN_DRAFT` in `index.html` (eingecheckt `false` – Annahme des Betreibers: das
 Speichern im Zwischenstand bräuchte eine Einwilligung nach § 25 Abs. 1 TDDDG) legt fest, ob die Tippzeiten im
@@ -2201,7 +2346,8 @@ Ausrollen einmal von Hand prüfen.
 | `worker/index.js` | Cloudflare Worker: API unter `/api/…`, Datenbank, Sperren, Lehrkraft-Anmeldung |
 | `worker/lib.js` | Hilfsfunktionen: Prüfung der Eingaben, Codes, Lastbegrenzung, Verschlüsselung des API-Schlüssels und der finalen KI-Rückmeldung für die Lehrkraft, Wartezeit |
 | `worker/ai.js` | KI-Anbieter, Prompt für das Feedback, Auswertung der Antworten, Ausweichmodelle |
-| `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, Workers AI ohne AI Gateway, statische Seite aus `dist/`, täglicher Zeitplan für die Löschfrist, Protokolle aus) |
+| `worker/live.js` | Live-Gruppenarbeit: Durable Object `LiveRoom` (ein Raum je Gruppe: verschlüsselter Stand, Sperren, Zusagen für KI-Feedback und Abgabe) |
+| `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, Workers AI ohne AI Gateway, Durable Object `LiveRoom` für die Live-Gruppenarbeit, statische Seite aus `dist/`, täglicher Zeitplan für die Löschfrist, Protokolle aus) |
 | `scripts/build.mjs` | Build-Skript für `dist/` |
 | `scripts/worldmap.mjs` | erzeugt die eingebettete Weltkarte (Natural Earth über world-atlas, Equal Earth, deutsche Namen) |
 | `test/` | Unit-Tests, API-Durchlauf, Test-KI, Browser-Tests |

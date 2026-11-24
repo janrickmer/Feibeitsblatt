@@ -367,7 +367,7 @@ test("fbtask: KI-Feedback zu einer Aufgabe, danach Tageskontingent aufgebraucht 
   const submit = body("async function submitAll()", "\n}\n");
   assert.ok(submit.includes("const known = withFb ? fb2Known() : said;"));
   assert.ok(submit.includes("const offer = fb2Offer(finals, known);"));
-  assert.ok(submit.includes("const ok = await askConfirm(submitDialog(withFb, finals, known, offer));"));
+  assert.ok(submit.includes("const ok = await askConfirm(Object.assign({ guard: !!S.live }, submitDialog(withFb, finals, known, offer)));"));   // guard: nur in der Live-Gruppenarbeit (Folgedialog)
   const rfs = body("function renderFeedbackState() {", "\n}\n");
   assert.ok(rfs.includes("const known = has ? fb2Known() : null;"));
   assert.ok(rfs.includes('(!recipientParts().any || (known && known.reason === FB_NO_AI) ? FB2_NO_AI + "." : known ? FB2_QUOTA + "."'));
