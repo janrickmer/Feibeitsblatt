@@ -19,6 +19,8 @@ import {
   CF_NO_BINDING, CF_DAILY_NEURONS, utcDay, nextUtcMidnight, recipientTransfer,
   buildChecklistMessages, normalizeChecklist, checklistAcceptor, CHECKLIST_SCHEMA_GEMINI,
 } from "./ai.js";
+import { LiveRoom, LIVE, ROOM_RE, isLiveValue } from "./live.js";
+export { LiveRoom };   // Durable Object der Live-Gruppenarbeit (wrangler.jsonc: durable_objects, migrations)
 
 const MSG = {
   unknownCode: "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code.",
@@ -54,6 +56,12 @@ const MSG = {
   ckNoAi: "Es ist kein KI-Dienst eingerichtet, der gerade genutzt werden kann. Bitte prüfen Sie die KI-Einstellungen – die Punkte der Checkliste können Sie auch selbst eintragen.",
   ckQuota: "Das kostenlose Tageskontingent von Cloudflare Workers AI ist aufgebraucht (es gilt für das ganze Cloudflare-Konto). Ab 0:00 Uhr UTC (1:00 Uhr MEZ bzw. 2:00 Uhr MESZ) geht es wieder.",
   // Finale KI-Rückmeldung nach der Abgabe (POST /api/feedback mit final:true) und die damit abgeschlossene Abgabe
+  // Live-Gruppenarbeit (/api/live/*)
+  liveGone: "Zu diesem Zugangswort und Zahlencode gibt es bei diesem Feibeitsblatt keine Gruppenarbeit (mehr). Prüft beides und den Code des Feibeitsblattes.",
+  liveTaken: "Dieses Zugangswort mit diesem Zahlencode ist schon vergeben.",
+  liveFull: "Zu diesem Feibeitsblatt laufen schon sehr viele Gruppenarbeiten. Bitte sagt eurer Lehrkraft Bescheid.",
+  liveOff: "Die Live-Gruppenarbeit ist gerade nicht erreichbar. Bitte versucht es später erneut.",
+  liveNoGroup: "Bei diesem Feibeitsblatt gibt es keine Partner- oder Gruppenarbeit.",
   // Online gesicherter Zwischenstand (PUT/POST/DELETE /api/draft)
   draftGone: "Zu diesem Zwischenstand-Code ist kein Zwischenstand gespeichert (mehr). Online gesicherte Zwischenstände werden " + LIMITS.draftDays + " Tage nach dem letzten Sichern gelöscht.",
   draftsFull: "Zu diesem Feibeitsblatt sind schon sehr viele Zwischenstände online gesichert. Deine PDF-Datei enthält deinen Zwischenstand trotzdem – bitte sag deiner Lehrkraft Bescheid.",
@@ -121,6 +129,11 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS drafts (id TEXT PRIMARY KEY, sheet_code TEXT NOT NULL, saved_at INTEGER NOT NULL, bytes INTEGER NOT NULL, data TEXT NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_drafts_sheet ON drafts(sheet_code, bytes)",
   "CREATE INDEX IF NOT EXISTS idx_drafts_saved ON drafts(saved_at)",
+  // Live-Gruppenarbeit: Verzeichnis der Räume (Durable Objects) je Blatt – rid = sha256 aus Blatt-Code und der vom Browser aus
+  // Zugangswort und Zahlencode abgeleiteten Raum-Kennung. Kein Inhalt, keine Namen: nur damit Zugangswort + Zahlencode je Blatt
+  // einmalig sind, die Zahl der Räume begrenzt bleibt und sie mit dem Blatt gelöscht werden können.
+  "CREATE TABLE IF NOT EXISTS live_rooms (rid TEXT PRIMARY KEY, sheet_code TEXT NOT NULL, created_at INTEGER NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS idx_live_rooms_sheet ON live_rooms(sheet_code)",
 ];
 // Belegter Speicher für Bilder und PDF-Dateien aller Blätter (roh, Bytes) – als SQL-Ausdruck für Bedingungen und Listen
 const STORAGE_SQL = "((SELECT COALESCE(SUM(bytes),0) FROM sheet_files WHERE n=0)+(SELECT COALESCE(SUM(bytes),0) FROM sheet_images))";
@@ -450,6 +463,9 @@ async function routeSheetDelete(c, codeRaw) {
   await requireTeacher(c);
   const code = codeParam(codeRaw);
   if (!isValidCode(code)) throw sheetGone();
+  // Live-Gruppenarbeiten dieses Blattes: Räume (Durable Objects) gleich leeren – höchstens 30 je Aufruf (Subrequests), weitere
+  // löschen sich selbst, sobald sie das nächste Mal nachsehen (alarm bzw. nächste Verbindung: Blatt fehlt)
+  const rooms = c.env.LIVE ? ((await c.db.prepare("SELECT rid FROM live_rooms WHERE sheet_code=?1 LIMIT 30").bind(code).all()).results || []) : [];
   const [subs, , sh] = await c.db.batch([
     c.db.prepare("DELETE FROM submissions WHERE sheet_code=?1").bind(code),
     c.db.prepare("DELETE FROM sheet_images WHERE sheet_code=?1").bind(code),
@@ -457,8 +473,10 @@ async function routeSheetDelete(c, codeRaw) {
     c.db.prepare("DELETE FROM sheet_files WHERE sheet_code=?1").bind(code),
     c.db.prepare("DELETE FROM sheet_checklists WHERE sheet_code=?1").bind(code),
     c.db.prepare("DELETE FROM drafts WHERE sheet_code=?1").bind(code),   // online gesicherte Zwischenstände dieses Blattes
+    c.db.prepare("DELETE FROM live_rooms WHERE sheet_code=?1").bind(code),
   ]);
   if (!sh.meta || !sh.meta.changes) throw sheetGone();
+  if (rooms.length) c.waitUntil(Promise.all(rooms.map((x) => liveFetch(c.env, x.rid, "/wipe", { method: "POST" }).catch(() => {}))));
   return json({ ok: true, deletedSubmissions: (subs.meta && subs.meta.changes) || 0 });
 }
 
@@ -1226,6 +1244,93 @@ async function routeDraftDelete(c) {
   return json({ ok: true, deleted: (r.meta && r.meta.changes) || 0 });
 }
 
+/* ---------- Live-Gruppenarbeit (Wunsch des Betreibers vom 24.11.2026; Durable Object LiveRoom in live.js) ----------
+ * Bei Partner- und Gruppenarbeit arbeiten alle Geräte der Gruppe live am selben Stand. Die Gruppensprecherin bzw. der Gruppensprecher
+ * bekommt im Browser ein zufälliges Zugangswort und einen Zahlencode; daraus (und dem Blatt-Code) leitet der Browser eine Raum-Kennung
+ * (64 Hex, geht an den Server) und einen Schlüssel ab (verlässt ihn nie). Der Server sieht also weder Zugangswort noch Zahlencode und
+ * speichert im Raum nur verschlüsselte Werte. Ein Raum = ein Durable Object, benannt nach rid = sha256("live|Code|Kennung"), in der
+ * EU (jurisdiction "eu"). Das Verzeichnis live_rooms (D1) sorgt dafür, dass Zugangswort + Zahlencode je Blatt nur einmal vergeben sind
+ * (409 room_taken → der Browser würfelt neu), begrenzt die Räume je Blatt und erlaubt das Löschen mit dem Blatt.
+ *   POST /api/live/create {code, room, meta} – Raum anlegen (meta = verschlüsselte Angaben der Gruppe)
+ *   POST /api/live/join {code, room}         – gibt es den Raum? (unbekannt zählt wie ein unbekannter Code) → {createdAt, submitted}
+ *   GET  /api/live/ws?code=…&room=…          – WebSocket zum Raum (Protokoll siehe live.js); ohne D1-Abfrage, damit das Neuverbinden
+ *                                              nichts kostet. Gibt es den Raum nicht (mehr), schließt er mit Code 4404.
+ * Fällt der Baustein aus (Tagesgrenzen des kostenlosen Tarifs), antworten die Routen mit 503 live_unavailable – alles andere läuft weiter. */
+const liveRid = (code, room) => sha256Hex("live|" + code + "|" + room);
+function liveStub(env, rid) {
+  if (!env.LIVE) throw new HttpError(503, "live_unavailable", MSG.liveOff);
+  const ns = typeof env.LIVE.jurisdiction === "function" ? env.LIVE.jurisdiction("eu") : env.LIVE;   // Speicherung und Ausführung in der EU
+  return ns.get(ns.idFromName(rid));
+}
+const liveFetch = (env, rid, path, init) => liveStub(env, rid).fetch(new Request("https://live" + path, init));
+async function liveCall(env, rid, path, init) {
+  try { return await liveFetch(env, rid, path, init); }
+  catch (e) { if (e instanceof HttpError) throw e; throw new HttpError(503, "live_unavailable", MSG.liveOff); }
+}
+function liveRoomParam(v) {
+  if (typeof v !== "string" || !ROOM_RE.test(v)) throw new InputError("Zugangswort oder Zahlencode sind ungültig.", "bad_request");
+  return v;
+}
+async function routeLiveCreate(c) {
+  const body = await readJson(c.request);
+  const code = normalizeCode(body.code);
+  if (!isValidCode(code)) throw sheetNotFound();
+  const room = liveRoomParam(body.room);
+  if (!isLiveValue(body.meta, LIVE.metaValue)) throw new InputError("Die Angaben der Gruppe fehlen oder sind zu lang.", "bad_request");
+  const rid = await liveRid(code, room);
+  const [sh, cnt] = await c.db.batch([
+    // Aufgabenzahl und Foto-Aufgaben (größere Werte) für den Raum – in SQL, ohne die Aufgaben im Worker zu parsen
+    c.db.prepare("SELECT escape_id, CASE WHEN json_valid(tasks) THEN json_array_length(tasks) ELSE 0 END AS n, " +
+      "CASE WHEN json_valid(tasks) THEN (SELECT json_group_array(key) FROM json_each(sheets.tasks) WHERE json_extract(value,'$.answer.type')='photo') ELSE '[]' END AS photo " +
+      "FROM sheets WHERE code=?1").bind(code),
+    c.db.prepare("SELECT COUNT(*) AS n FROM live_rooms WHERE sheet_code=?1").bind(code),
+  ]);
+  const s = firstRow(sh);
+  if (!s) throw sheetNotFound();
+  if (s.escape_id) throw new InputError(MSG.liveNoGroup, "bad_request");   // Finale eines Escape-Rooms: nur Einzelarbeit
+  if (((firstRow(cnt) || {}).n || 0) >= LIMITS.liveRoomsPerSheet) throw new HttpError(409, "too_many_rooms", MSG.liveFull);
+  liveStub(c.env, rid);   // ohne Baustein gleich 503, bevor etwas gezählt oder eingetragen wird
+  await countAll(c, [{ kind: "live_create" }]);
+  const ins = await c.db.prepare("INSERT INTO live_rooms(rid,sheet_code,created_at) SELECT ?1,?2,?3 WHERE EXISTS(SELECT 1 FROM sheets WHERE code=?2) ON CONFLICT(rid) DO NOTHING")
+    .bind(rid, code, c.now).run();
+  if (!ins.meta || !ins.meta.changes) throw new HttpError(409, "room_taken", MSG.liveTaken);
+  let photo = []; try { photo = JSON.parse(s.photo || "[]").map(Number); } catch {}
+  let r;
+  try { r = await liveFetch(c.env, rid, "/init", { method: "POST", body: JSON.stringify({ code, rid, n: Number(s.n), photo, meta: body.meta }) }); }
+  catch { r = null; }
+  if (!r || !r.ok) {
+    if (r && r.status === 409) throw new HttpError(409, "room_taken", MSG.liveTaken);   // Raum gibt es schon (Verzeichnis-Zeile fehlte)
+    await c.db.prepare("DELETE FROM live_rooms WHERE rid=?1").bind(rid).run().catch(() => {});
+    throw new HttpError(503, "live_unavailable", MSG.liveOff);
+  }
+  return json({ ok: true, createdAt: c.now, idleDays: LIVE.idleDays });
+}
+async function routeLiveJoin(c) {
+  const body = await readJson(c.request);
+  const code = normalizeCode(body.code);
+  if (!isValidCode(code)) { await countFailure(c, "lookup_miss"); throw sheetNotFound(); }
+  const rid = await liveRid(code, liveRoomParam(body.room));
+  const row = await c.db.prepare("SELECT 1 AS x FROM live_rooms r WHERE r.rid=?1 AND r.sheet_code=?2 AND EXISTS(SELECT 1 FROM sheets WHERE code=?2)").bind(rid, code).first();
+  const miss = async () => { await countFailure(c, "lookup_miss"); return new HttpError(404, "room_not_found", MSG.liveGone); };
+  if (!row) throw await miss();
+  const r = await liveCall(c.env, rid, "/info");
+  if (r.status === 404) {   // Raum hat sich selbst gelöscht (30 Tage ohne Änderung): Verzeichnis nachziehen
+    await c.db.prepare("DELETE FROM live_rooms WHERE rid=?1").bind(rid).run().catch(() => {});
+    throw await miss();
+  }
+  if (!r.ok) throw new HttpError(503, "live_unavailable", MSG.liveOff);
+  const info = await r.json();
+  return json({ ok: true, createdAt: info.createdAt, submitted: !!info.submitted, idleDays: LIVE.idleDays });
+}
+async function routeLiveWs(c) {
+  if ((c.request.headers.get("Upgrade") || "").toLowerCase() !== "websocket") throw new HttpError(426, "upgrade_required", "Hier wird eine WebSocket-Verbindung erwartet.");
+  const url = new URL(c.request.url);
+  const code = normalizeCode(url.searchParams.get("code") || "");
+  if (!isValidCode(code)) throw sheetNotFound();
+  const rid = await liveRid(code, liveRoomParam(url.searchParams.get("room")));
+  return liveCall(c.env, rid, "/ws", { headers: c.request.headers });
+}
+
 /* ---------- Checkliste (zu jedem Feibeitsblatt, auch zum Finale eines Escape-Rooms) ----------
  * Die KI schlägt aus den Aufträgen an die KI einmal je Blatt Punkte vor (draft, nur für die Lehrkraft – die Seite fragt beim Anlegen
  * jedes Blattes danach); erst was die Lehrkraft speichert (final), ist öffentlich (z. B. über den QR-Code des analogen
@@ -1334,6 +1439,9 @@ const ROUTES = [
   ["/api/submit", { POST: routeSubmit }],
   ["/api/draft", { PUT: routeDraftPut, DELETE: routeDraftDelete }],
   ["/api/draft/load", { POST: routeDraftLoad }],
+  ["/api/live/create", { POST: routeLiveCreate }],
+  ["/api/live/join", { POST: routeLiveJoin }],
+  ["/api/live/ws", { GET: routeLiveWs }, { noDb: true }],
   ["/api/teacher/door", { POST: routeDoor }],
   ["/api/teacher/setup", { POST: routeSetup }],
   ["/api/teacher/login", { POST: routeLogin }],

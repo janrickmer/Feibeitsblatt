@@ -10,6 +10,8 @@ import { RATE, LIMITS, cleanFileName, sha256Hex, bucketOf, sealSecret } from "..
 import { nextUtcMidnight, TTL, FEEDBACK_FINAL_SYSTEM, FEEDBACK_SYSTEM, buildFeedbackMessages } from "../../worker/ai.js";
 import { makePng } from "../png.mjs";
 import { createTeacher, makeEnvelope, openEnvelope, openPrivateKey, deriveTeacherKeys, b64 } from "../smoke.mjs";
+import { installWebSocketPair, fakeLiveNamespace } from "../live-fake.mjs";
+import { LIVE, CLOSE } from "../../worker/live.js";
 
 /* ---------- D1-Nachbau (gleiche Aufrufform wie die Workers-API) ---------- */
 function makeD1() {
@@ -1560,6 +1562,169 @@ test("Online-Zwischenstand (PUT/POST load/DELETE /api/draft): nur verschlüsselt
   r = await call("POST", "/api/draft/load", { body: { id: idPhoto }, ip: ip2 });
   assert.equal(r.status, 404); assert.equal(r.json.code, "draft_not_found");
   d1.db.prepare("DELETE FROM drafts").run();
+});
+
+test("Live-Gruppenarbeit (/api/live/*): Raum je Zugangswort + Zahlencode einmalig je Blatt, nur verschlüsselte Werte, WebSocket ohne D1-Abfrage; Grenzen; gelöscht mit dem Blatt", async () => {
+  installWebSocketPair();
+  const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const val = (s) => b64(new TextEncoder().encode(s.padEnd(40, ".")));
+  const ns = fakeLiveNamespace(() => ENV);
+  const env = { ...ENV, LIVE: ns };
+  const reg = (c) => d1.db.prepare("SELECT rid, sheet_code, created_at FROM live_rooms WHERE sheet_code=? ORDER BY created_at, rid").all(c).map((r) => ({ ...r }));
+  // WebSocket-Aufruf wie vom Browser: GET mit Upgrade; die Antwort des Raums wird unverändert durchgereicht
+  const ws = async (c, room, e = env) => {
+    d1.queries = 0;
+    const res = await worker.fetch(new Request("https://feibeitsblatt.example.workers.dev/api/live/ws?code=" + c + "&room=" + room, { headers: { Upgrade: "websocket", "CF-Connecting-IP": "203.0.113.160" } }), e, { waitUntil() {} });
+    return { res, queries: d1.queries, client: res.webSocket };
+  };
+  let r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Live-Gruppe", tasks: [...tasks, { text: "Plakat", answer: { type: "photo" } }, { text: "Noch ein Text", solution: "" }] } });
+  assert.equal(r.status, 200, r.text); const c = r.json.code;
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Anderes Blatt", tasks } });
+  assert.equal(r.status, 200, r.text); const c2 = r.json.code;
+  r = await call("POST", "/api/teacher/sheets", { auth, body: { title: "Finale", tasks, escape: { id: "raum-live", name: "Raum" } } });
+  assert.equal(r.status, 200, r.text); const cEsc = r.json.code;
+  const room = hex(32), meta = val("Gruppe"), ip = "203.0.113.160";
+  // Ohne den Baustein (Binding fehlt): 503, nichts gezählt, nichts eingetragen
+  r = await call("POST", "/api/live/create", { body: { code: c, room, meta }, ip });
+  assert.equal(r.status, 503); assert.equal(r.json.code, "live_unavailable"); assert.match(r.json.error, /Live-Gruppenarbeit ist gerade nicht erreichbar/);
+  r = await call("POST", "/api/live/join", { body: { code: c, room }, ip });
+  assert.equal(r.status, 404, "ohne Raum im Verzeichnis: unbekannt");
+  let w = await ws(c, room, ENV);
+  assert.equal(w.res.status, 503); assert.equal((await w.res.json()).code, "live_unavailable");
+  d1.db.prepare("DELETE FROM rate_limits").run();
+  // Eingaben
+  for (const [body, status, codeWant] of [
+    [{ code: "ZZZ999", room, meta }, 404, "not_found"], [{ code: c, room: "abc", meta }, 400, "bad_request"], [{ code: c, room: room.toUpperCase(), meta }, 400, "bad_request"],
+    [{ code: c, room }, 400, "bad_request"], [{ code: c, room, meta: "kein base64!".repeat(3) }, 400, "bad_request"], [{ code: c, room, meta: "A".repeat(LIVE.metaValue + 4) }, 400, "bad_request"],
+    [{ code: cEsc, room, meta }, 400, "bad_request"],
+  ]) {
+    r = await call("POST", "/api/live/create", { body, ip, env });
+    assert.equal(r.status, status, r.text); assert.equal(r.json.code, codeWant);
+  }
+  assert.match(r.json.error, /keine Partner- oder Gruppenarbeit/);
+  assert.deepEqual(reg(c), []); assert.equal(ns.rooms.size, 0);
+  assert.equal(d1.db.prepare("SELECT COUNT(*) AS n FROM rate_limits WHERE bucket LIKE 'live%'").get().n, 0, "ungültige Anfragen zählen nicht");
+  // Anlegen: Verzeichnis-Zeile nur mit sha256("live|Code|Kennung"); der Raum kennt Aufgabenzahl und Foto-Aufgaben; EU-Jurisdiktion
+  r = await call("POST", "/api/live/create", { body: { code: c.slice(0, 3) + "-" + c.slice(3).toLowerCase(), room, meta, name: "MaxMu" }, ip, env });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(Object.keys(r.json).sort(), ["createdAt", "idleDays", "ok"]); assert.equal(r.json.idleDays, 30); assert.ok(r.queries <= 8, "D1-Abfragen: " + r.queries);
+  const rid = await sha256Hex("live|" + c + "|" + room);
+  assert.deepEqual(reg(c).map((x) => x.rid), [rid]); assert.notEqual(rid, room);
+  assert.deepEqual(d1.db.prepare("PRAGMA table_info(live_rooms)").all().map((x) => x.name), ["rid", "sheet_code", "created_at"]);
+  assert.deepEqual([...ns.rooms.keys()], [rid]); assert.ok(ns.jurisdictions.length > 0 && ns.jurisdictions.every((j) => j === "eu"));
+  const head = ns.rooms.get(rid).ctx.data.get("m");
+  assert.deepEqual({ code: head.code, rid: head.rid, n: head.n, photo: head.photo, meta: head.meta, sub: head.sub }, { code: c, rid, n: 4, photo: [2], meta, sub: null });
+  assert.equal(JSON.stringify([...ns.rooms.get(rid).ctx.data]).includes("MaxMu"), false);
+  // Dasselbe Zugangswort + Zahlencode noch einmal: vergeben (der Browser würfelt neu); bei einem anderen Blatt frei
+  r = await call("POST", "/api/live/create", { body: { code: c, room, meta }, ip, env });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "room_taken"); assert.equal(reg(c).length, 1);
+  r = await call("POST", "/api/live/create", { body: { code: c2, room, meta }, ip, env });
+  assert.equal(r.status, 200, r.text); assert.equal(reg(c2).length, 1); assert.equal(ns.rooms.size, 2);
+  assert.equal(d1.db.prepare("SELECT count FROM rate_limits WHERE bucket=?").get(await bucketOf("live_create", ip, SECRET)).count, 3, "auch „vergeben“ zählt");
+  // Dazuschalten: Vorab-Frage; unbekannt wie ein unbekannter Code (gezählt), richtige Angaben gehen immer
+  r = await call("POST", "/api/live/join", { body: { code: c, room }, ip, env });
+  assert.equal(r.status, 200, r.text); assert.deepEqual(r.json, { ok: true, createdAt: head.createdAt, submitted: false, idleDays: 30 }); assert.equal(r.queries, 1);
+  const ip2 = "203.0.113.161";
+  for (let i = 0; i < RATE.lookup_miss.max; i++) {
+    r = await call("POST", "/api/live/join", { body: i % 2 ? { code: c, room: hex(32) } : { code: "ZZZ999", room }, ip: ip2, env });
+    assert.equal(r.status, 404);
+    if (i % 2) { assert.equal(r.json.code, "room_not_found"); assert.match(r.json.error, /Zugangswort und Zahlencode/); }
+  }
+  r = await call("POST", "/api/live/join", { body: { code: c, room: hex(32) }, ip: ip2, env });
+  assert.equal(r.status, 429); assert.equal(r.json.code, "rate_limited");
+  r = await call("POST", "/api/live/join", { body: { code: c, room }, ip: ip2, env });
+  assert.equal(r.status, 200, r.text);
+  r = await call("POST", "/api/live/join", { body: { code: c, room: "x" }, ip, env });
+  assert.equal(r.status, 400);
+  // WebSocket: ohne Upgrade 426; sonst die Antwort des Raums, ohne eine einzige D1-Abfrage (Neuverbinden kostet nichts)
+  r = await call("GET", "/api/live/ws?code=" + c + "&room=" + room, { ip, env });
+  assert.equal(r.status, 426); assert.equal(r.json.code, "upgrade_required"); assert.equal(r.queries, 0);
+  w = await ws(c, room);
+  assert.equal(w.res.status, 101); assert.equal(w.queries, 0);
+  const init = w.client.got[0];
+  assert.equal(init.t, "init"); assert.equal(init.m.meta, meta); assert.equal(init.m.tasks, 4); assert.equal(init.m.sub, null);
+  w = await ws("ZZ", room); assert.equal(w.res.status, 404);                 // kein gültiger Code
+  w = await ws(c, "kurz"); assert.equal(w.res.status, 400);
+  w = await ws("ZZZ999", room);   // unbekanntes Blatt: wie ein unbekannter Raum (keine D1-Abfrage) – angenommen und mit 4404 geschlossen
+  assert.equal(w.res.status, 101); assert.equal(w.client.closed.code, CLOSE.gone); assert.equal(w.queries, 0);
+  const other = await ws(c, hex(32));   // unbekannter Raum: Verbindung wird angenommen und sofort mit 4404 geschlossen, nichts gespeichert
+  assert.equal(other.res.status, 101); assert.equal(other.client.closed.code, CLOSE.gone); assert.equal(other.queries, 0);
+  assert.equal([...ns.rooms.values()].filter((x) => x.ctx.data.size === 0).length, 2, "für unbekannte Räume wird nichts gespeichert");
+  // Zwei Geräte arbeiten live: der Server reicht nur undurchsichtige Werte weiter; Foto-Aufgabe darf größer sein
+  const A = ns.rooms.get(rid), dev1 = (await ws(c, room)).client, dev2 = (await ws(c, room)).client;
+  const say = async (dev, msg) => { await A.room.webSocketMessage(dev.peer, JSON.stringify(msg)); };
+  dev1.got.length = 0; dev2.got.length = 0;
+  await say(dev1, { t: "set", k: "a0", v: val("Antwort von Gerät 1") });
+  assert.deepEqual(dev1.got, [{ t: "ack", k: "a0", ver: 1 }]); assert.equal(dev2.got[0].v, val("Antwort von Gerät 1"));
+  await say(dev2, { t: "set", k: "a2", v: "A".repeat(LIVE.textValue + 400) });
+  assert.equal(dev2.got.at(-1).t, "ack", "Foto-Aufgabe: größerer Wert");
+  await say(dev2, { t: "set", k: "a1", v: "A".repeat(LIVE.textValue + 400) });
+  assert.deepEqual(dev2.got.at(-1), { t: "deny", k: "a1", why: "big" });
+  // Abgabe: der Raum glaubt „abgegeben“ nur, wenn es die Abgabe in D1 gibt (dieselbe Kennung, derselbe Eingang)
+  const attempt = hex(8);
+  await say(dev1, { t: "unlock", k: "a0" }); await say(dev2, { t: "unlock", k: "a2" });
+  await say(dev1, { t: "claimsub" });
+  await say(dev1, { t: "sub", attempt, receivedAt: Date.now() });
+  assert.deepEqual(dev1.got.at(-1), { t: "deny", sub: true, why: "nosub" });
+  const sub = await call("POST", "/api/submit", { body: { code: c, envelope: await makeEnvelope(T.publicKey, { v: 1, answers: [] }), stage: "final", attempt }, ip });
+  assert.equal(sub.status, 200, sub.text);
+  await say(dev1, { t: "sub", attempt, receivedAt: sub.json.receivedAt, sol: val("Lösungen der Gruppe") });
+  assert.equal(dev1.got.at(-1).t, "sub"); assert.equal(dev2.got.at(-1).t, "sub"); assert.equal(dev2.got.at(-1).sol.v, val("Lösungen der Gruppe"));
+  r = await call("POST", "/api/live/join", { body: { code: c, room }, ip, env });
+  assert.equal(r.json.submitted, true);
+  // Löschfrist: Abgabe weg → beim nächsten Verbinden (frühestens eine Minute nach der Abgabe) sind die Lösungen weg, der Vermerk bleibt
+  const m = A.ctx.data.get("m"); m.sub.at -= 120e3; A.ctx.data.set("m", m); A.room.m = undefined;
+  let again = (await ws(c, room)).client;
+  assert.equal(again.got[0].m.sub.gone, false); assert.ok(again.got[0].st.sol);
+  d1.db.prepare("DELETE FROM submissions WHERE sheet_code=? AND attempt=?").run(c, attempt);
+  again = (await ws(c, room)).client;
+  assert.equal(again.got[0].m.sub.gone, true); assert.equal("sol" in again.got[0].st, false); assert.equal(A.ctx.data.has("k:sol"), false);
+  // Grenze je Blatt und je IP
+  const ins = d1.db.prepare("INSERT INTO live_rooms(rid,sheet_code,created_at) VALUES(?,?,?)");
+  for (let i = 1; i < LIMITS.liveRoomsPerSheet; i++) ins.run("fill-" + i, c, Date.now());
+  r = await call("POST", "/api/live/create", { body: { code: c, room: hex(32), meta }, ip, env });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "too_many_rooms"); assert.match(r.json.error, /sehr viele Gruppenarbeiten/);
+  d1.db.prepare("DELETE FROM live_rooms WHERE rid LIKE 'fill-%'").run();
+  d1.db.prepare("UPDATE rate_limits SET count=? WHERE bucket=?").run(RATE.live_create.max, await bucketOf("live_create", ip, SECRET));
+  r = await call("POST", "/api/live/create", { body: { code: c, room: hex(32), meta }, ip, env });
+  assert.equal(r.status, 429); assert.equal(r.json.code, "rate_limited"); assert.match(r.json.error, /sehr viele Gruppenarbeiten gestartet/); assert.equal(reg(c).length, 1);
+  // Baustein fällt aus (z. B. Tagesgrenze): 503, die Verzeichnis-Zeile wird wieder entfernt – das Zugangswort bleibt frei
+  const ip3 = "203.0.113.162", room3 = hex(32);
+  ns.fail = "Exceeded allowed duration in Durable Objects free tier.";
+  r = await call("POST", "/api/live/create", { body: { code: c, room: room3, meta }, ip: ip3, env });
+  assert.equal(r.status, 503); assert.equal(r.json.code, "live_unavailable"); assert.equal(reg(c).length, 1);
+  r = await call("POST", "/api/live/join", { body: { code: c, room }, ip: ip3, env });
+  assert.equal(r.status, 503); assert.equal(r.json.code, "live_unavailable");
+  w = await ws(c, room); assert.equal(w.res.status, 503);
+  ns.fail = null;
+  r = await call("POST", "/api/live/create", { body: { code: c, room: room3, meta }, ip: ip3, env });
+  assert.equal(r.status, 200, r.text); assert.equal(reg(c).length, 2);
+  // Raum hat sich selbst gelöscht (30 Tage ohne Änderung), die Zeile im Verzeichnis noch da: Dazuschalten → 404 und Zeile weg;
+  // ein Raum, den es schon gibt, obwohl die Zeile fehlt: „vergeben“
+  const rid3 = await sha256Hex("live|" + c + "|" + room3);
+  await ns.rooms.get(rid3).room.wipe(false);
+  r = await call("POST", "/api/live/join", { body: { code: c, room: room3 }, ip: ip3, env });
+  assert.equal(r.status, 404); assert.equal(r.json.code, "room_not_found"); assert.equal(reg(c).length, 1);
+  d1.db.prepare("DELETE FROM live_rooms WHERE rid=?").run(rid);
+  r = await call("POST", "/api/live/create", { body: { code: c, room, meta }, ip: ip3, env });
+  assert.equal(r.status, 409); assert.equal(r.json.code, "room_taken");
+  assert.equal(A.ctx.data.get("m").meta, meta, "der vorhandene Raum bleibt unberührt");
+  assert.deepEqual(reg(c).map((x) => x.rid), [rid], "die fehlende Verzeichnis-Zeile ist dabei wieder entstanden");
+  // Mit dem Blatt gelöscht: Verzeichnis leer, Räume geleert, Geräte mit 4404 getrennt; danach nichts mehr anlegbar
+  const live = (await ws(c, room)).client;
+  assert.equal(live.closed, null);
+  r = await call("DELETE", "/api/teacher/sheets/" + c, { auth, env });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(reg(c), []); assert.equal(A.ctx.data.size, 0); assert.equal(live.closed.code, CLOSE.gone);
+  assert.equal(reg(c2).length, 1, "andere Blätter unberührt");
+  r = await call("POST", "/api/live/create", { body: { code: c, room: hex(32), meta }, ip: ip3, env });
+  assert.equal(r.status, 404);
+  w = await ws(c, room); assert.equal(w.client.closed.code, CLOSE.gone);
+  // Löschen eines Blattes geht auch ohne den Baustein (Verzeichnis-Zeilen weg, die Räume räumen sich selbst auf)
+  r = await call("DELETE", "/api/teacher/sheets/" + c2, { auth });
+  assert.equal(r.status, 200, r.text); assert.deepEqual(reg(c2), []);
+  await call("DELETE", "/api/teacher/sheets/" + cEsc, { auth });
+  d1.db.prepare("DELETE FROM rate_limits").run();
 });
 
 test("schema upgrade: old submissions/sheets tables without the later columns get them added (idempotent)", async () => {

@@ -77,6 +77,48 @@ export async function openDraft(key, env) {
   return JSON.parse(td.decode(await subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, key, unb64(env.ct))));
 }
 
+/* Live-Gruppenarbeit: Raum-Kennung und Schlüssel aus Blatt-Code, Zugangswort und Zahlencode, genau wie im Browser –
+   PBKDF2-HMAC-SHA256 (600 000 Iterationen, Passwort "feibeitsblatt/live/v1|" + Code + "|" + Zugangswort + "|" + Zahlencode, Salt
+   "feibeitsblatt/live/v1"), daraus per HKDF-SHA256 die Raum-Kennung (64 Hex, geht an den Server) und der AES-GCM-Schlüssel (verlässt
+   den Browser nie). Jeder Wert im Raum ist Base64(IV 12 Byte ‖ AES-GCM-Chiffrat) über UTF-8-JSON. */
+export async function deriveLiveKeys(code6, word, number, iterations = 600000) {
+  const base = await subtle.importKey("raw", te.encode("feibeitsblatt/live/v1|" + code6 + "|" + word + "|" + number), "PBKDF2", false, ["deriveBits"]);
+  const master = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: te.encode("feibeitsblatt/live/v1"), iterations }, base, 256);
+  const hk = await subtle.importKey("raw", master, "HKDF", false, ["deriveBits", "deriveKey"]);
+  const idRaw = await subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode("feibeitsblatt/live/id/v1") }, hk, 256);
+  const key = await subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode("feibeitsblatt/live/enc/v1") },
+    hk, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  return { room: Buffer.from(idRaw).toString("hex"), key };
+}
+export async function sealLive(key, value) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv }, key, te.encode(JSON.stringify(value))));
+  const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+  return b64(all);
+}
+export async function openLive(key, text) {
+  const all = unb64(text);
+  return JSON.parse(td.decode(await subtle.decrypt({ name: "AES-GCM", iv: all.slice(0, 12) }, key, all.slice(12))));
+}
+// WebSocket zum Raum (Node ≥ 22 hat WebSocket eingebaut): Nachrichten der Reihe nach, until(pred) überspringt andere
+export function liveSocket(url) {
+  const ws = new WebSocket(url), q = [], waiters = [];
+  const s = { ws, closed: null };
+  const push = (m) => { const w = waiters.shift(); if (w) w(m); else q.push(m); };
+  ws.addEventListener("message", (e) => push(typeof e.data === "string" && e.data[0] === "{" ? JSON.parse(e.data) : e.data));
+  s.closedP = new Promise((res) => ws.addEventListener("close", (e) => { s.closed = { code: e.code, reason: e.reason }; res(s.closed); }));
+  s.opened = new Promise((res, rej) => { ws.addEventListener("open", res); ws.addEventListener("error", () => rej(new Error("WebSocket-Fehler: " + url.replace(/\?.*/, "")))); });
+  s.next = (ms = 8000) => (q.length ? Promise.resolve(q.shift()) : new Promise((res, rej) => {
+    const w = (m) => { clearTimeout(t); res(m); };
+    const t = setTimeout(() => { const i = waiters.indexOf(w); if (i >= 0) waiters.splice(i, 1); rej(new Error("keine Nachricht vom Raum")); }, ms);
+    waiters.push(w);
+  }));
+  s.until = async (pred) => { for (;;) { const m = await s.next(); if (pred(m)) return m; } };
+  s.send = (m) => ws.send(typeof m === "string" ? m : JSON.stringify(m));
+  s.close = () => { try { ws.close(); } catch {} };
+  return s;
+}
+
 /* ---------- Durchlauf ---------- */
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -753,6 +795,102 @@ async function main() {
       // der erste Stand bleibt für die Prüfung „Datenbank ohne Klartext“ gespeichert
     }
     ok("Online-Zwischenstand: Kennung und Schlüssel aus dem Zwischenstand-Code (PBKDF2 + HKDF), gespeichert und geladen nur verschlüsselt, erneutes Sichern ersetzt, Löschen");
+
+    step = "Live-Gruppenarbeit";
+    {
+      // echtes Durable Object unter workerd: Raum anlegen, zwei Geräte per WebSocket, Sperre, Vorschau, Speichern, Zusagen, Abgabe
+      const WS = "ws://127.0.0.1:" + PORT + "/api/live/ws";
+      r = await api("POST", "/api/teacher/sheets", { title: "Live-Smoke", tasks: [{ text: "Aufgabe A", solution: "- Punkt eins" }, { text: "Aufgabe B", solution: "" }] }, { auth });
+      assert.equal(r.status, 200, r.text); const lc = r.json.code;
+      const lk = await deriveLiveKeys(lc, "smokewortqx", "4711");
+      assert.match(lk.room, /^[0-9a-f]{64}$/);
+      assert.notEqual((await deriveLiveKeys(lc, "smokewortqx", "4712")).room, lk.room); assert.notEqual((await deriveLiveKeys("ZZZ999", "smokewortqx", "4711")).room, lk.room);
+      const lAttempt = "aabbccddeeff0011";
+      const meta = await sealLive(lk.key, { v: 1, gruppe: ["MaxMu", "LiMu"], klasse: "8b", attempt: lAttempt });
+      expectErr(await api("POST", "/api/live/join", { code: lc, room: lk.room }), 404, "room_not_found"); misses++;
+      r = await api("POST", "/api/live/create", { code: lc, room: lk.room, meta });
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.idleDays, 30);
+      expectErr(await api("POST", "/api/live/create", { code: lc, room: lk.room, meta }), 409, "room_taken");
+      expectErr(await api("POST", "/api/live/create", { code: lc, room: "kurz", meta }), 400, "bad_request");
+      expectErr(await api("POST", "/api/live/create", { code: "ZZZ999", room: lk.room, meta }), 404, "not_found");
+      r = await api("POST", "/api/live/join", { code: lc, room: lk.room });
+      assert.equal(r.status, 200, r.text); assert.equal(r.json.submitted, false);
+      expectErr(await api("GET", "/api/live/ws?code=" + lc + "&room=" + lk.room), 426, "upgrade_required");
+      const q = "?code=" + lc + "&room=" + lk.room;
+      const s1 = liveSocket(WS + q); await s1.opened;
+      const i1 = await s1.next();
+      assert.equal(i1.t, "init"); assert.equal(i1.n, 1); assert.equal(i1.m.tasks, 2); assert.equal(i1.m.sub, null); assert.deepEqual(i1.st, {});
+      assert.deepEqual(await openLive(lk.key, i1.m.meta), { v: 1, gruppe: ["MaxMu", "LiMu"], klasse: "8b", attempt: lAttempt });
+      const s2 = liveSocket(WS + q); await s2.opened;
+      const i2 = await s2.next();
+      assert.equal(i2.n, 2); assert.notEqual(i2.you, i1.you);
+      assert.deepEqual(await s1.next(), { t: "peers", n: 2 });
+      s1.send("ping"); assert.equal(await s1.next(), "pong");   // beantwortet die Laufzeit selbst (kein Wecken des Raums)
+      // Gerät 1 schreibt in Aufgabe 1: Gerät 2 sieht Sperre, Vorschau und den gespeicherten Wert – und kann selbst dort nichts ändern
+      s1.send({ t: "lock", k: "a0" });
+      assert.deepEqual(await s1.next(), { t: "lock", k: "a0", by: i1.you, ms: 30000 });
+      assert.deepEqual(await s2.next(), { t: "lock", k: "a0", by: i1.you, ms: 30000 });
+      s1.send({ t: "pv", k: "a0", v: await sealLive(lk.key, "Live-Marker-Zr4 Vor") });
+      const pv = await s2.next();
+      assert.equal(pv.t, "pv"); assert.equal(await openLive(lk.key, pv.v), "Live-Marker-Zr4 Vor");
+      const v1 = await sealLive(lk.key, "Live-Marker-Zr4 Antwort der Gruppe");
+      s1.send({ t: "set", k: "a0", v: v1, base: 0 });
+      assert.deepEqual(await s1.next(), { t: "ack", k: "a0", ver: 1 });
+      const set = await s2.next();
+      assert.deepEqual({ ...set, v: 0 }, { t: "set", k: "a0", v: 0, ver: 1, by: i1.you, ms: 30000 }); assert.equal(await openLive(lk.key, set.v), "Live-Marker-Zr4 Antwort der Gruppe");
+      s2.send({ t: "set", k: "a0", v: await sealLive(lk.key, "dazwischen"), base: 1 });
+      assert.deepEqual(await s2.next(), { t: "deny", k: "a0", why: "locked", by: i1.you, cur: { v: v1, ver: 1 } });
+      s2.send({ t: "set", k: "a1", v: await sealLive(lk.key, "zweite Aufgabe") });   // andere Aufgabe: gleichzeitig möglich
+      assert.deepEqual(await s2.next(), { t: "ack", k: "a1", ver: 1 });
+      await s1.until((m) => m.t === "lock" && m.k === "a1");
+      s1.send({ t: "unlock", k: "a0" }); await s2.until((m) => m.t === "lock" && m.k === "a0" && m.by === null); await s1.until((m) => m.t === "lock" && m.k === "a0");
+      s2.send({ t: "unlock", k: "a1" }); await s1.until((m) => m.t === "lock" && m.k === "a1" && m.by === null); await s2.until((m) => m.t === "lock" && m.k === "a1");
+      // KI-Feedback: je Aufgabe nur einmal für die ganze Gruppe
+      s1.send({ t: "claim", ks: ["f0"] }); assert.equal((await s1.next()).t, "claim"); assert.equal((await s2.next()).t, "claim");
+      s2.send({ t: "claim", ks: ["f0"] }); assert.deepEqual(await s2.next(), { t: "deny", claim: true, ks: ["f0"], k: "f0", why: "claimed", by: i1.you });
+      s1.send({ t: "set", k: "f0", v: await sealLive(lk.key, { first: "Live-Marker-Zr4 Antwort der Gruppe", fb: { covered: ["Punkt eins"], missing: [] } }) });
+      assert.deepEqual(await s1.next(), { t: "ack", k: "f0", ver: 1 });
+      await s2.until((m) => m.t === "lock" && m.k === "a0" && m.by === null); await s1.until((m) => m.t === "lock" && m.k === "a0");
+      s2.send({ t: "claim", ks: ["f0"] }); assert.deepEqual(await s2.next(), { t: "deny", claim: true, ks: ["f0"], k: "f0", why: "set" });
+      // unbekannter Raum: Verbindung wird sofort mit 4404 geschlossen
+      const s3 = liveSocket(WS + "?code=" + lc + "&room=" + (await deriveLiveKeys(lc, "smokewortqx", "4712")).room);
+      assert.equal((await s3.closedP).code, 4404);
+      // Abgabe: nur einmal – und nur, wenn es sie in der Datenbank gibt
+      s2.send({ t: "claimsub" }); assert.equal((await s2.next()).t, "subclaim"); assert.equal((await s1.next()).t, "subclaim");
+      s1.send({ t: "lock", k: "a1" }); assert.deepEqual(await s1.next(), { t: "deny", k: "a1", why: "submitting", by: i2.you });
+      s2.send({ t: "sub", attempt: lAttempt, receivedAt: Date.now() }); assert.deepEqual(await s2.next(), { t: "deny", sub: true, why: "nosub" });
+      r = await api("POST", "/api/submit", { code: lc, envelope: await makeEnvelope(T.publicKey, { v: 1, stage: "final", answers: [] }), stage: "final", attempt: lAttempt }); submitCount++;
+      assert.equal(r.status, 200, r.text);
+      const sol = await sealLive(lk.key, { answers: ["Live-Marker-Zr4 Antwort der Gruppe", "zweite Aufgabe"] });
+      s2.send({ t: "sub", attempt: lAttempt, receivedAt: r.json.receivedAt, sol });
+      const done = await s2.next();
+      assert.equal(done.t, "sub"); assert.equal(done.sub.receivedAt, r.json.receivedAt); assert.deepEqual(done.sol, { v: sol, ver: 1 });
+      assert.equal((await s1.next()).t, "sub");
+      s1.send({ t: "set", k: "a0", v: v1, base: 1 }); assert.equal((await s1.next()).why, "submitted");
+      r = await api("POST", "/api/live/join", { code: lc, room: lk.room });
+      assert.equal(r.json.submitted, true);
+      // wer später wieder öffnet: abgegeben, samt Lösungen für die PDF
+      const s4 = liveSocket(WS + q); await s4.opened;
+      const i4 = await s4.next();
+      assert.equal(i4.m.sub.receivedAt, done.sub.receivedAt); assert.equal(i4.m.sub.gone, false);
+      assert.deepEqual(Object.keys(i4.st).sort(), ["a0", "a1", "f0", "sol"]);
+      assert.deepEqual(await openLive(lk.key, i4.st.sol.v), { answers: ["Live-Marker-Zr4 Antwort der Gruppe", "zweite Aufgabe"] });
+      // gespeichert ist alles nur verschlüsselt (Speicher des Raums und Datenbank); Gegenprobe: der verschlüsselte Wert steht dort
+      await sleep(700);
+      let seen = 0;
+      for (const f of await filesUnder(STATE)) {
+        const buf = await readFile(f).catch(() => null); if (!buf) continue;
+        for (const needle of ["Live-Marker-Zr4", "smokewortqx", "MaxMu", "LiMu"]) assert.equal(buf.includes(Buffer.from(needle)), false, needle + " im Klartext in " + f);
+        if (buf.includes(Buffer.from(sol.slice(0, 48)))) seen++;
+      }
+      assert.ok(seen > 0, "Gegenprobe: der Speicher des Raums wurde nicht gefunden");
+      // Blatt gelöscht: Raum leer, alle Geräte getrennt (4404), Dazuschalten nicht mehr möglich
+      assert.equal((await api("DELETE", "/api/teacher/sheets/" + lc, undefined, { auth })).status, 200);
+      for (const s of [s1, s2, s4]) assert.equal((await s.closedP).code, 4404);
+      expectErr(await api("POST", "/api/live/join", { code: lc, room: lk.room }), 404, "room_not_found"); misses++;
+      const s5 = liveSocket(WS + q); assert.equal((await s5.closedP).code, 4404);
+    }
+    ok("Live-Gruppenarbeit: Raum (Durable Object) aus Zugangswort + Zahlencode, zwei Geräte per WebSocket – Sperre je Aufgabe, Vorschau, Versionen, KI-Feedback und Abgabe nur einmal, alles nur verschlüsselt gespeichert, gelöscht mit dem Blatt");
 
     step = "Erstversuch";
     const attempt = "0123456789abcdef";
