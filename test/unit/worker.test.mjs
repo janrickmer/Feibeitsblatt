@@ -1664,12 +1664,13 @@ test("Live-Gruppenarbeit (/api/live/*): Raum je Zugangswort + Zahlencode einmali
   const attempt = hex(8);
   await say(dev1, { t: "unlock", k: "a0" }); await say(dev2, { t: "unlock", k: "a2" });
   await say(dev1, { t: "claimsub" });
-  await say(dev1, { t: "sub", attempt, receivedAt: Date.now() });
+  await say(dev1, { t: "sub", attempt });
   assert.deepEqual(dev1.got.at(-1), { t: "deny", sub: true, why: "nosub" });
   const sub = await call("POST", "/api/submit", { body: { code: c, envelope: await makeEnvelope(T.publicKey, { v: 1, answers: [] }), stage: "final", attempt }, ip });
   assert.equal(sub.status, 200, sub.text);
-  await say(dev1, { t: "sub", attempt, receivedAt: sub.json.receivedAt, sol: val("Lösungen der Gruppe") });
+  await say(dev1, { t: "sub", attempt, sol: val("Lösungen der Gruppe") });
   assert.equal(dev1.got.at(-1).t, "sub"); assert.equal(dev2.got.at(-1).t, "sub"); assert.equal(dev2.got.at(-1).sol.v, val("Lösungen der Gruppe"));
+  assert.equal(dev2.got.at(-1).sub.receivedAt, sub.json.receivedAt, "Eingang aus der Datenbank");
   r = await call("POST", "/api/live/join", { body: { code: c, room }, ip, env });
   assert.equal(r.json.submitted, true);
   // Löschfrist: Abgabe weg → beim nächsten Verbinden (frühestens eine Minute nach der Abgabe) sind die Lösungen weg, der Vermerk bleibt

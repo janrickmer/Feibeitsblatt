@@ -172,6 +172,8 @@ async function main() {
     step = "wrangler dev";
     wrangler = spawn(join(ROOT, "node_modules", ".bin", "wrangler"),
       ["dev", "--local", "--ip", "127.0.0.1", "--port", String(PORT), "--persist-to", STATE, "--show-interactive-dev-session=false",
+        // läuft daneben schon ein wrangler dev (z. B. die E2E-Tests), ist dessen Inspektor-Port belegt: SMOKE_INSPECTOR_PORT setzen
+        ...(process.env.SMOKE_INSPECTOR_PORT ? ["--inspector-port", process.env.SMOKE_INSPECTOR_PORT] : []),
         "--var", "SETTINGS_SECRET:" + SECRET],
       { cwd: ROOT, detached: true, env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" }, stdio: ["ignore", "pipe", "pipe"] });
     wrangler.stdout.on("data", (d) => { log += d; });
