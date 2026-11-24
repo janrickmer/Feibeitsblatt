@@ -2121,6 +2121,241 @@ const DC_NEWER_OK = "Online gesicherten Stand";
 // Dialog „Abbrechen und Zwischenstand von diesem Gerät löschen“: der online gesicherte Stand bleibt (z. B. geteiltes Gerät aufräumen, zu Hause weiter)
 const dcCancelText = (code, at, until) => ` Dein online gesicherter Zwischenstand (Stand vom ${dcDay(at)} um ${dcClock(at)} Uhr) wird dabei nicht gelöscht: Mit deinem Zwischenstand-Code ${dcFmt(code)} kannst du ihn bis zum ${dcDate(until)} auf der Startseite wieder laden.`;
 /* DRAFTCODE:END */
+/* ---------- Live-Gruppenarbeit (Wunsch des Betreibers vom 24.11.2026) ----------
+ * Jede neue Partner- / Gruppenarbeit ist live: Die Gruppensprecherin bzw. der Gruppensprecher trägt die Kürzel aller Mitglieder und die
+ * Klasse ein und bekommt im Browser ein zufälliges Zugangswort (aus LIVE_WORDS) und einen Zahlencode (5 Ziffern). Wer sich dazuschaltet,
+ * gibt nach dem Code des Feibeitsblattes nur beides ein. Aus Blatt-Code, Zugangswort und Zahlencode leitet der Browser per
+ * PBKDF2-HMAC-SHA256 (600 000 Iterationen) und HKDF-SHA256 die Raum-Kennung (64 Hex, geht an den Server) und den AES-GCM-256-Schlüssel ab
+ * (verlässt den Browser nie) – Parameter und info-Texte nie ändern, sonst findet keine Gruppe ihren Stand wieder. Der gemeinsame Stand
+ * liegt nur verschlüsselt im Raum (Durable Object, worker/live.js; Protokoll dort im Kopfkommentar): jeder Wert ist
+ * Base64(IV 12 Byte ‖ AES-GCM-Chiffrat) über UTF-8-JSON. Schlüssel: a<i> = Antwort zu Aufgabe i {t, p?}, f<i> = erste Fassung und
+ * KI-Feedback {first, fb, at} (nur einmal setzbar), fs = {sig} des gesendeten Erstversuchs, sol = Lösungen nach der Abgabe; meta = {v:1,
+ * gruppe, klasse, attempt}. Regeln (Entscheidungen des Betreibers): in einer Aufgabe schreibt immer nur ein Gerät (Sperre, die anderen
+ * sehen den Text mitwachsen), KI-Feedback gibt es je Aufgabe und die Abgabe überhaupt nur einmal für die ganze Gruppe, Gruppen messen nie
+ * Tippzeiten. Takt: Vorschau (pv, nicht gespeichert) oft, Speichern (set) selten – die Grenzen des kostenlosen Tarifs zählen jedes
+ * Speichern. Alles Entschlüsselte ist fremde Eingabe und wird wie ein Zwischenstand geprüft und gekappt. */
+/* LIVE:BEGIN – reine Funktionen; brauchen nur asciiDigits aus dem Block BDAY (test/unit/liveclient.test.mjs liest diesen Block) */
+// Zugangswörter: deutsche Substantive nur aus a–z (ohne Umlaute und ß), 4–9 Buchstaben, leicht zu lesen und zu schreiben – Tiere, Pflanzen,
+// Dinge, Natur; keine Namen, keine Marken, nichts, was als Spott taugt. Die Liste darf sich ändern (gewürfelt wird nur beim Anlegen;
+// eingegeben und auf dem Gerät gemerkt wird das Wort selbst).
+const LIVE_WORDS = ("adler ameise amsel antilope biber biene bison dachs dackel drossel eidechse elch ente eule falke falter fasan fink fisch fliege fohlen forelle frosch fuchs " +
+  "gazelle gepard giraffe grille hamster hase hecht hirsch hummel igel iltis karpfen katze koala kolibri krabbe kranich lachs lama leopard libelle luchs marder maus molch " +
+  "muschel otter panda panther papagei pferd pinguin pony pudel qualle rabe raupe robbe schwalbe schwan seestern specht spatz spinne storch taube tiger tukan walross wolf zander zebra " +
+  "ahorn apfel aster bambus banane beere birke birne blume bohne brombeere distel efeu eiche erbse erdbeere erle farn fenchel fichte flieder gerste gras hafer himbeere " +
+  "ingwer kaktus kakao kamille karotte kastanie kiefer kirsche klee kohl kresse krokus lavendel lilie linde linse mais mandel melone minze mohn moos nelke olive palme pappel paprika pilz primel " +
+  "rettich roggen rose salat salbei schilf spinat tanne tomate traube tulpe ulme vanille walnuss weizen zeder zimt zitrone zwiebel " +
+  "ampel angel anker balken balkon ball bank becher bild block boot brief brille brot brunnen buch burg dach decke dose drachen draht eimer fahne fahrrad fass feder fenster " +
+  "gabel garage garten geige gitarre glas glocke hafen hammer harfe haus heft herd insel jacke kamera kamin kanne karte kasten keller kerze kette kissen kiste klavier knopf koffer kompass korb kreide krone kugel kutsche " +
+  "lampe laterne leiter lineal mantel mappe nadel nagel netz ofen orgel paket perle pfanne pinsel platte pumpe puppe radio rahmen rakete regal ring rolle ruder " +
+  "sattel schal schere schiff schirm schlitten schrank schuh segel seife sessel sieb sofa spaten spiegel stempel stiefel stift stuhl tafel tasche tasse teller teppich tisch topf treppe trommel tuch tunnel turm " +
+  "vase wagen wecker zange zaun zelt zettel ziegel zimmer zirkel " +
+  "abend acker bach berg blitz brise bucht delta donner dorf dunst ebbe eisen erde feld fels fluss flut forst frost galaxie gipfel gletscher gold granit grotte hagel hain hang herbst himmel horizont " +
+  "kern kies klippe knospe komet krater kristall kupfer lagune land lawine lehm licht luft marmor mittag mond morgen nacht nebel oase orkan ozean planet quarz quelle " +
+  "regen riff rinde salz samen sand savanne schatten schlucht schnee silber sommer sonne stein steppe stern strand strom sturm teich tundra ufer urwald vulkan wald wasser welle wiese wind winter wolke wurzel zinn zweig " +
+  "brezel butter honig keks kuchen mehl milch nudel pudding quark saft suppe torte waffel zucker " +
+  "ecke farbe ferien kante kegel kreis linie minute monat musik punkt pyramide reise sekunde spiel stunde tanz woche").split(" ");
+const LIVE_NUM_LEN = 5, LIVE_NUM_MIN = 10000, LIVE_NUM_SPAN = 90000;   // Zahlencode 10000–99999
+const LIVE_WORD_MAX = 20;
+const LIVE_ROOM_RE = /^[0-9a-f]{64}$/;                    // Raum-Kennung für den Server (= ROOM_RE in worker/live.js)
+const LIVE_KDF_PREFIX = "feibeitsblatt/live/v1|", LIVE_KDF_SALT = "feibeitsblatt/live/v1", LIVE_KDF_ITER = 600000;
+const LIVE_INFO_ID = "feibeitsblatt/live/id/v1", LIVE_INFO_ENC = "feibeitsblatt/live/enc/v1";
+const LIVE_CREATE_TRIES = 6;                              // „schon vergeben“ (409 room_taken): so oft neu würfeln
+/* Takt (ms): Vorschau beim Tippen höchstens alle LIVE_PV_MS; Speichern LIVE_SET_IDLE_MS nach der letzten Eingabe, bei Dauertippen
+   spätestens alle LIVE_SET_MAX_MS; die Aufgabe wird LIVE_UNLOCK_MS nach der letzten Eingabe wieder frei (erst nach der Bestätigung des
+   Speicherns), sofort beim Verlassen des Feldes */
+const LIVE_PV_MS = 1000, LIVE_SET_IDLE_MS = 1500, LIVE_SET_MAX_MS = 8000, LIVE_UNLOCK_MS = 4000;
+// Verbindung: Lebenszeichen alle 25 s, bleibt die Antwort 10 s aus → neu verbinden; Begrüßung (init) höchstens 12 s; bleibt die
+// Bestätigung eines Speicherns so lange aus, gilt die Verbindung als tot
+const LIVE_PING_MS = 25000, LIVE_PONG_MS = 10000, LIVE_INIT_MS = 12000, LIVE_ACK_MS = 10000;
+const LIVE_RETRY_MAX_MS = 15000;                          // Neuverbinden: 1 s, 2 s, 4 s, … höchstens so lange
+// Kurze Unterbrechungen (WLAN-Wechsel, iPad wacht auf) sollen beim Tippen nicht stören: erst nach dieser Frist werden die Felder gesperrt
+const LIVE_GRACE_MS = 3000;
+// Der Raum trennt eine Verbindung nach 150 Vorschauen + Speicherungen je Minute – die Seite bleibt deutlich darunter: Vorschauen entfallen
+// ab LIVE_PV_BUDGET, Speicherungen warten ab LIVE_SET_BUDGET (je LIVE_MSG_WINDOW_MS)
+const LIVE_MSG_WINDOW_MS = 60000, LIVE_PV_BUDGET = 100, LIVE_SET_BUDGET = 140;
+const LIVE_SOL_MAX = 1536 * 1024, LIVE_TEXT_MAX = 64 * 1024, LIVE_PHOTO_MAX = 640 * 1024, LIVE_META_MAX = 4096;   // = LIVE in worker/live.js (verschlüsselter Base64-Text)
+const LIVE_IDLE_DAYS = 30;   // Raum ohne Abgabe: so lange nach der letzten Änderung gelöscht (= LIVE.idleDays in worker/live.js)
+const LIVE_FB2_PENDING_MS = 16 * 60e3;   // „finale KI-Rückmeldung wird gerade erstellt“ gilt höchstens so lange nach der Abgabe (der Server nimmt nach 15 min keine Anfrage mehr an)
+// Zufall ohne Modulo-Bias: rnd(n) liefert n Zufallsbytes (crypto.getRandomValues)
+function liveRandom(rnd, span) {
+  const bytes = span <= 65536 ? 2 : 3, max = Math.pow(256, bytes), limit = max - (max % span);
+  for (;;) {
+    const u = rnd(bytes); let x = 0;
+    for (let i = 0; i < bytes; i++) x = x * 256 + u[i];
+    if (x < limit) return x % span;
+  }
+}
+const liveWord = (rnd) => LIVE_WORDS[liveRandom(rnd, LIVE_WORDS.length)];
+const liveNumber = (rnd) => String(LIVE_NUM_MIN + liveRandom(rnd, LIVE_NUM_SPAN));
+// Eingabe des Zugangsworts: Groß-/Kleinschreibung und Umlaute sind egal (die Wörter der Liste haben keine), alles außer a–z fällt weg
+function normLiveWord(s) {
+  return String(s == null ? "" : s).normalize("NFC").trim().toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .replace(/[^a-z]/g, "").slice(0, LIVE_WORD_MAX);
+}
+// Eingabe des Zahlencodes: Ziffern anderer Schriften → 0–9, alles andere (Leerzeichen, Bindestriche) fällt weg; gültig sind genau 5 Ziffern
+function normLiveNumber(s) { return asciiDigits(s == null ? "" : s).replace(/[^0-9]/g, "").slice(0, 12); }
+const liveWordOk = (w) => typeof w === "string" && /^[a-z]{2,20}$/.test(w);
+const liveNumberOk = (n) => typeof n === "string" && /^[0-9]{5}$/.test(n);
+const liveB64 = (u) => { let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+function liveUnB64(s) {
+  if (typeof s !== "string" || !s || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s.length > 4096 ? s.slice(0, 256) + s.slice(-256) : s)) throw new Error("Base64");
+  const bin = atob(s), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+/* Ableitung (WebCrypto als Parameter): master = PBKDF2-HMAC-SHA256(Passwort "feibeitsblatt/live/v1|" + Code + "|" + Zugangswort + "|" +
+   Zahlencode, Salt "feibeitsblatt/live/v1", 600 000 Iterationen, 256 Bit); daraus per HKDF-SHA256 (leeres Salt) die Raum-Kennung (hex, 64
+   Zeichen) und der AES-GCM-256-Schlüssel (nicht exportierbar). code6 = Blatt-Code ohne Bindestrich in Großbuchstaben. */
+async function liveDerive(subtle, code6, word, num, iterations = LIVE_KDF_ITER) {
+  if (!liveWordOk(word) || !liveNumberOk(num) || typeof code6 !== "string" || !/^[A-Z0-9]{6}$/.test(code6)) throw new Error("Zugang");
+  const enc = new TextEncoder(), hk = (info) => ({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode(info) });
+  const base = await subtle.importKey("raw", enc.encode(LIVE_KDF_PREFIX + code6 + "|" + word + "|" + num), "PBKDF2", false, ["deriveBits"]);
+  const bits = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(LIVE_KDF_SALT), iterations }, base, 256);
+  const master = await subtle.importKey("raw", bits, "HKDF", false, ["deriveKey", "deriveBits"]);
+  const room = Array.from(new Uint8Array(await subtle.deriveBits(hk(LIVE_INFO_ID), master, 256)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const key = await subtle.deriveKey(hk(LIVE_INFO_ENC), master, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  return { room, key };
+}
+// Wert verschlüsseln: Base64(IV ‖ AES-GCM-Chiffrat) über das UTF-8-JSON (iv = 12 Zufallsbytes aus rnd)
+async function liveSeal(subtle, key, value, rnd) {
+  const iv = rnd(12), ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(value))));
+  const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+  return liveB64(all);
+}
+// … und zurück (wirft bei falscher Form, falschem Schlüssel oder verändertem Inhalt) – das Ergebnis ist fremde Eingabe
+async function liveOpen(subtle, key, text) {
+  const all = liveUnB64(text);
+  if (all.length < 12 + 16) throw new Error("Wert");
+  const pt = await subtle.decrypt({ name: "AES-GCM", iv: all.slice(0, 12) }, key, all.slice(12));
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(pt));
+}
+// Adresse des WebSockets: bei api === "" dieselbe Herkunft wie die Seite (ws: bzw. wss:), sonst die Worker-Adresse (https → wss)
+function liveWsUrl(api, loc, code6, room) {
+  const base = api ? String(api).replace(/^http/i, "ws").replace(/\/+$/, "") : (loc.protocol === "https:" ? "wss://" : "ws://") + loc.host;
+  return base + "/api/live/ws?code=" + encodeURIComponent(code6) + "&room=" + encodeURIComponent(room);
+}
+const liveRetryMs = (n) => Math.min(LIVE_RETRY_MAX_MS, 1000 * Math.pow(2, Math.max(0, Math.min(10, n | 0))));   // 1 s, 2 s, 4 s, 8 s, 15 s, 15 s …
+/* Sperren und Zusagen anderer Geräte: {by, until} mit until auf der Uhr dieses Geräts (der Raum nennt nur die Restdauer ms – die Uhren
+   gehen verschieden – und meldet den Ablauf nicht: der Eintrag verfällt hier von selbst). own = die Kennungen der eigenen Verbindungen
+   (auch früherer: eine gerade abgerissene Verbindung hält ihre Sperre beim Raum noch kurz – das ist kein fremdes Gerät). */
+const liveHold = (by, ms, now) => ({ by: String(by), until: now + (Number.isFinite(ms) && ms > 0 ? Math.min(ms, 10 * 60e3) : 0) });
+const liveHeld = (e, now, own) => !!e && e.until > now && !(own && own.has(e.by));
+// abgelaufene Einträge entfernen → true, wenn sich etwas geändert hat
+function liveExpire(map, now) {
+  let changed = false;
+  for (const k of Object.keys(map)) if (!(map[k] && map[k].until > now)) { delete map[k]; changed = true; }
+  return changed;
+}
+// Höchstens limit Nachrichten je Fenster: times = Zeitpunkte der gesendeten (wird hier bereinigt) → true = noch Platz
+function liveBudget(times, now, limit, win = LIVE_MSG_WINDOW_MS) {
+  while (times.length && times[0] <= now - win) times.shift();
+  return times.length < limit;
+}
+/* Nach einer Unterbrechung (oder einer Ablehnung): Was geschieht mit der eigenen, noch nicht bestätigten Eingabe einer Aufgabe?
+   mine = {text (jetzt im Feld), dirty (seit dem letzten Senden geändert), sent (Text des noch unbestätigten Speicherns | null), base
+   (Version, auf der die Eingabe aufsetzt)} | null; ver/text = Stand des Raums. → "take" (keine eigene Eingabe: Stand des Raums
+   übernehmen), "send" (der Raum ist unverändert: erneut senden), "same" (der Raum hat schon genau diesen Text), "acked" (das Speichern
+   kam an, nur die Bestätigung nicht – es gibt aber schon neuere Eingaben: senden), sonst "lost" (jemand hat inzwischen geändert: der
+   Raum gewinnt, die eigene Eingabe wird verworfen und gemeldet). */
+function liveReconcile(mine, ver, text) {
+  if (!mine || (!mine.dirty && mine.sent == null)) return "take";
+  if (ver === mine.base) return "send";
+  if (text === mine.text) return "same";
+  if (mine.sent != null && text === mine.sent && ver === mine.base + 1) return "acked";
+  return "lost";
+}
+/* Entschlüsselte Werte prüfen (fremde Eingabe): jedes Objekt neu aus einzeln gelesenen, typgeprüften Feldern. cleanGroup, normFb und
+   cleanPhoto kommen als Parameter (Blöcke GROUP und PHOTO bzw. KI-Feedback). */
+function liveCleanMeta(o, cleanGroup) {
+  if (!o || typeof o !== "object" || Array.isArray(o) || o.v !== 1) return null;
+  const g = cleanGroup({ gruppe: Array.isArray(o.gruppe) ? o.gruppe.slice(0, 12) : null, klasse: typeof o.klasse === "string" ? o.klasse.slice(0, 20) : "" });
+  return g && typeof o.attempt === "string" && /^[0-9a-f]{16}$/.test(o.attempt) ? { gruppe: g.gruppe, klasse: g.klasse, attempt: o.attempt } : null;
+}
+// Antwort einer Aufgabe: {t: Textform, p: Foto als data:-URL oder ""} – leer, wenn der Wert unlesbar ist
+function liveCleanAnswer(o, max, cleanPhoto) {
+  const ok = !!o && typeof o === "object" && !Array.isArray(o);
+  return { t: ok && typeof o.t === "string" ? o.t.slice(0, max) : "", p: ok && typeof o.p === "string" && cleanPhoto ? cleanPhoto(o.p) || "" : "" };
+}
+// Erste Fassung + KI-Feedback einer Aufgabe → {first, fb, at} | null
+function liveCleanFb(o, max, normFb) {
+  if (!o || typeof o !== "object" || Array.isArray(o) || typeof o.first !== "string" || !o.fb || typeof o.fb !== "object" || Array.isArray(o.fb)) return null;
+  return { first: o.first.slice(0, max), fb: normFb(o.fb), at: typeof o.at === "string" && o.at ? o.at.slice(0, 40) : null };
+}
+// Signatur des gesendeten Erstversuchs („1,3“ wie fbtSig) → Text oder null
+const liveCleanSig = (o) => (o && typeof o === "object" && typeof o.sig === "string" && /^(\d{1,2}(,\d{1,2}){0,29})?$/.test(o.sig) ? o.sig : null);
+// Vermerk „abgegeben“ aus der Begrüßung bzw. der Nachricht sub → {receivedAt, at, gone} | null
+function liveCleanSub(o) {
+  if (!o || typeof o !== "object") return null;
+  const num = (x) => (Number.isSafeInteger(x) && x > 0 ? x : 0);
+  return { receivedAt: num(o.receivedAt), at: num(o.at), gone: o.gone === true };
+}
+/* Eintrag für „Weiterschreiben?“ (feibeitsblatt:last): statt Angaben der Person Zugangswort und Zahlencode, dazu der Titel des Blattes
+   (kein Name – die Kürzel stehen nur verschlüsselt im Raum) */
+const liveLastOut = (code, title, word, num, t) => ({ v: 1, t, code, title: String(title || "").slice(0, 200), live: { word, num } });
+function liveLastIn(d) {
+  const l = d && typeof d === "object" && d.live && typeof d.live === "object" ? d.live : null;
+  return l && liveWordOk(l.word) && liveNumberOk(l.num) && typeof d.code === "string" && /^[A-Z0-9]{6}$/.test(d.code)
+    ? { code: d.code, title: typeof d.title === "string" ? d.title.slice(0, 200) : "", word: l.word, num: l.num } : null;
+}
+// Größe in KB (für Grenzen): verschlüsselter Wert passt in den Raum?
+const liveFits = (v, max) => typeof v === "string" && v.length <= max;
+/* Texte (du-Form; wo es um alle geht „ihr“; keine Wörter zur Tippzeit-Messung – bei Gruppen wird nie gemessen) */
+const LIVE_MODE_D = "Ihr arbeitet zu zweit oder in einer Gruppe (bis zu 10 Personen) live zusammen – an einem oder an mehreren Geräten – und gebt gemeinsam ab.";
+const LIVE_SETUP = "Der Zugang für eure Gruppe wird eingerichtet …";
+const LIVE_SETUP_FAIL = "Die Live-Verbindung für eure Gruppe ließ sich gerade nicht einrichten.";
+const LIVE_LOCAL_HINT = "Ohne Live-Verbindung arbeitet ihr gemeinsam an diesem einen Gerät: Nur dieses Gerät hat dann euren Stand – dazuschalten kann sich niemand.";
+const LIVE_INFO_TEXT = "Zeige das deinen Gruppenmitgliedern. Sie öffnen Feibeitsblatt, geben den Code des Feibeitsblattes ein, wählen „Partner- / Gruppenarbeit“ und dann „Ich schalte mich dazu“. " +
+  "Zugangswort und Zahlencode stehen auch während der Arbeit oben in der Kopfzeile. Gebt beides nur an eure Gruppe weiter: Wer beides und den Code des Feibeitsblattes kennt, kann euren Stand lesen und ändern.";
+const LIVE_JOINING = "Du wirst mit deiner Gruppe verbunden …";
+const LIVE_JOIN_WORD = "Bitte gib das Zugangswort deiner Gruppe ein.";
+const LIVE_JOIN_NUM = "Bitte gib den Zahlencode deiner Gruppe ein – er hat genau 5 Ziffern.";
+const LIVE_JOIN_WRONG = "Zugangswort oder Zahlencode stimmen nicht.";
+const LIVE_JOIN_FAIL = "Die Live-Verbindung zu deiner Gruppe ließ sich gerade nicht herstellen. Bitte versuche es gleich noch einmal.";
+const LIVE_OTHER_SHEET = "Diese Gruppenarbeit passt nicht zu diesem Feibeitsblatt. Bitte prüft den Code des Feibeitsblattes.";
+const LIVE_GONE = "Diese Gruppenarbeit gibt es nicht mehr.";
+const LIVE_FULL = "Mit dieser Gruppenarbeit sind schon zu viele Geräte verbunden.";
+const liveResumeParts = (title, word, num) => ["Weiterarbeiten an eurer Gruppenarbeit zu ", "„" + (title || "Feibeitsblatt") + "“", `? (Zugangswort ${word}, Zahlencode ${num})`];
+const LIVE_RESUME_BTN = "Weiterarbeiten", LIVE_RESUME_DEL = "Nein, Zugangswort und Zahlencode von diesem Gerät entfernen";
+const liveStateText = (open, n, grace) => (open ? "Live verbunden · " + (n > 1 ? n + " Geräte" : "nur dieses Gerät") : grace ? "Verbindung wird hergestellt …" : "Verbindung unterbrochen – wird wiederhergestellt …");
+const LIVE_SAVED = "Live gespeichert", LIVE_SAVING = "wird gespeichert …", LIVE_OFFLINE = "nicht verbunden";
+const LIVE_HINT_WRITE = "Hier schreibt gerade jemand aus eurer Gruppe – du siehst den Text mitwachsen.";
+const LIVE_HINT_AI = "Ein anderes Gerät eurer Gruppe fordert gerade KI-Feedback zu dieser Aufgabe an.";
+const LIVE_HINT_SUBMIT = "Ein anderes Gerät eurer Gruppe gibt gerade ab.";
+const LIVE_HINT_STALE = "Jemand aus eurer Gruppe hat diese Aufgabe inzwischen geändert – deine letzte Eingabe wurde nicht übernommen.";
+const LIVE_HINT_UNSAVED = "Diese Eingabe ließ sich gerade nicht für eure Gruppe speichern – sie wird erneut gesendet, sobald die Verbindung steht.";
+const LIVE_LEAVE_BTN = "Gruppenarbeit verlassen";
+const LIVE_LEAVE = { title: "Gruppenarbeit verlassen?", text: "Der gemeinsame Stand bleibt für eure Gruppe erhalten. Mit dem Code des Feibeitsblattes, dem Zugangswort und dem Zahlencode kannst du dich wieder dazuschalten.",
+  ok: "Verlassen", cancel: "Weiterarbeiten" };
+const LIVE_PDF_BTN = "Stand als PDF-Datei sichern", LIVE_PDF_BUSY = "PDF-Datei wird erstellt …", LIVE_PDF_DONE = "Stand als PDF-Datei gesichert";
+// „Erst die Gruppe fragen“ – immer vor dem bisherigen Dialog zum KI-Feedback bzw. zur Abgabe
+const LIVE_ASK_FB = { title: "Erst die Gruppe fragen", text: "Das KI-Feedback zum Überarbeiten gibt es für eure ganze Gruppe zu jeder Aufgabe nur einmal – egal, auf welchem Gerät es angefordert wird. " +
+  "Hol dir deshalb zuerst die Zusage aller Gruppenmitglieder.", ok: "Alle sind einverstanden", cancel: "Noch nicht", safeFirst: true };
+const LIVE_ASK_SUBMIT = { title: "Erst die Gruppe fragen", text: "Abgeben kann eure Gruppe nur einmal – egal, auf welchem Gerät. Danach lässt sich auf keinem Gerät mehr etwas ändern. " +
+  "Hol dir deshalb zuerst die Zusage aller Gruppenmitglieder.", ok: "Alle sind einverstanden", cancel: "Noch nicht", safeFirst: true };
+// Der Raum lehnt die Zusage ab: why (set, claimed, locked, submitting, …), n = Aufgabe (1-basiert, 0 = unbekannt), sub = Abgabe (sonst KI-Feedback)
+function liveDenyText(why, n, sub) {
+  const task = n ? "Aufgabe " + n : "einer Aufgabe";
+  if (why === "submitting") return LIVE_HINT_SUBMIT;
+  if (why === "locked") return `In ${task} schreibt gerade jemand aus eurer Gruppe – ` + (sub ? "wartet kurz und gebt dann ab." : "wartet, bis die Eingabe fertig ist.");
+  if (why === "claimed") return sub ? "Ein anderes Gerät fordert gerade KI-Feedback an – wartet kurz und gebt dann ab." : LIVE_HINT_AI;
+  if (why === "set") return "Zu dieser Aufgabe hat eure Gruppe schon KI-Feedback bekommen.";
+  if (why === "offline") return "Dieses Gerät ist gerade nicht mit eurer Gruppe verbunden – bitte warte, bis die Verbindung wieder steht.";
+  if (why === "unsaved") return "Deine letzte Eingabe ließ sich gerade nicht für eure Gruppe speichern – bitte versuche es gleich noch einmal.";
+  return "Das hat gerade nicht geklappt – bitte versuche es gleich noch einmal.";
+}
+// Abgabe-Ansicht der übrigen Geräte (und später beim Wiederöffnen)
+const liveDoneText = (day, clock) => (day ? `Ein Mitglied eurer Gruppe hat das Feibeitsblatt am ${day} um ${clock} Uhr abgegeben.` : "Ein Mitglied eurer Gruppe hat das Feibeitsblatt abgegeben.") + " Ändern lässt sich nichts mehr.";
+const LIVE_DONE_PDF = "Abgegebene Lösungen als PDF-Datei herunterladen";
+const LIVE_DONE_WAIT = "Die finale KI-Rückmeldung wird gerade erstellt – sie steht in der PDF-Datei, sobald dieser Hinweis verschwindet.";
+const LIVE_DONE_GONE = "Die Abgabe wurde inzwischen gelöscht – die Lösungen lassen sich hier nicht mehr herunterladen.";
+const LIVE_DONE_NONE = "Die Lösungen liegen hier noch nicht vor.";
+// Bestätigungsseite des abgebenden Geräts (#done-group, rot): die anderen holen sich die Lösungen selbst
+const liveDoneGroup = (word, num) => `Die anderen Mitglieder deiner Gruppe können die Lösungen selbst herunterladen: Sie öffnen die Gruppenarbeit mit dem Code des Feibeitsblattes, dem Zugangswort „${word}“ und dem Zahlencode ${num}.`;
+// „Stand als PDF-Datei sichern“: ganz oben rot und fett der Zugang, darunter, wie man sich wieder dazuschaltet
+const livePdfHead = (word, num, code) => `Zugangswort: ${word} · Zahlencode: ${num} (Code des Feibeitsblattes: ${code})`;
+const LIVE_PDF_LINE = "So schaltest du dich wieder dazu: Öffne Feibeitsblatt, gib den Code des Feibeitsblattes ein, wähle „Partner- / Gruppenarbeit“ und dann „Ich schalte mich dazu“ – und gib dort Zugangswort und Zahlencode ein. " +
+  "Diese Datei zeigt nur den Stand zum Zeitpunkt des Sicherns; hochladen lässt sie sich nicht. Gebt Zugangswort und Zahlencode nur an eure Gruppe weiter.";
+/* LIVE:END */
 /* ---------- Tippzeiten (wie im Feiditor): je Zeichen der Abstand zum im Text vorangehenden Zeichen ----------
  * Je UTF-16-Einheit der Textform ein Byte: 0–70 = Abstand in ms (aufgerundet), 71 = mehr als 70 ms, erstes Zeichen oder
  * unbekannter Vorgänger, 255 = ohne Messung (Leerraum, Tabellenkopf und Trenner, wiederhergestellter Text ohne Daten); jeder
