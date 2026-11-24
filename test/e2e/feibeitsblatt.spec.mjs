@@ -12,7 +12,7 @@ import jsQR from "jsqr";
 import { deriveTeacherKeys, makeEnvelope, openPrivateKey, openEnvelope } from "../smoke.mjs";
 import { makePng } from "../png.mjs";
 import { escHull, b64url, overviewPdf } from "../escape-fixture.mjs";
-import { MOCK_URL, BASE_URL } from "./env.mjs";
+import { MOCK_URL, MOCK_PORT, BASE_URL } from "./env.mjs";
 import {
   PASTE_MSG, UNKNOWN_CODE_MSG, NO_SOLUTION_NOTE, GREEN, RED, openPage, closePage, confirmDialog, teacherLogin,
   lineHeightOf, gapAfterTask, mockState, mockReset, mockMode, mockRequests, mockCount, d1Query, scanState, isYouTubeUrl, FINAL_CHECK_LABEL,
@@ -337,7 +337,7 @@ const subRowsOf = (code, attempt) => d1Query(`SELECT id, stage, envelope, final_
 // stage „feedback2“ (Nachreichen älterer Seiten) sendet diese Seite nie
 const fb2Posts = async (x) => (await x.calls((e) => e.path === "/api/submit")).map((e) => JSON.parse(e.reqBody || "{}")).filter((b) => b.stage === "feedback2");
 
-const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [], pdf: null };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe, pdf: PDF-Datei zu Aufgabe 2)
+const S = { code: "", shown: "", sheetBodies: [], imgs: [], material: [], pdf: null, utPdf: null };   // gemeinsamer Zustand der Tests (imgs: Bilder, material: Material je Aufgabe, pdf: PDF-Datei zu Aufgabe 2, utPdf: Zwischenstand-PDF aus 3f für 3g)
 // PDF-Datei der Lehrkraft zu Aufgabe 2 (600 KB → zwei Teile beim Hochladen und Herunterladen)
 const PDF_BUF = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(600 * 1024, 0x41), Buffer.from("\n%%EOF\n")]);
 const PDF_NAME = "Arbeitsblatt- Zelle.pdf";   // aus „Arbeitsblatt: Zelle.pdf“ – Doppelpunkt ist in Dateinamen nicht erlaubt
@@ -2771,6 +2771,256 @@ test("3e Übergang: Zwischenstände und Zwischenstand-PDFs mit vollem Geburtsdat
   expect(await stored()).toEqual([oldKey]);   // bleibt liegen, bis cleanupDrafts ihn nach DRAFT_DAYS löscht
   await page.evaluate(() => localStorage.clear());
   expect(await s.calls((r) => r.path === "/api/submit")).toEqual([]);   // nichts beim Server
+  await closePage(s);
+});
+
+/* ---------- Unterricks-Attrappe (Zwischenstand-PDF aus Unterricks: Tests 3f, 3g, 7n) ----------
+   Eine kleine Seite per Route (kein Server) unter einer frei gewählten Adresse: lokal (3f, 7n – Feibeitsblatt läuft in den Tests auf 127.0.0.1
+   und nimmt dann auch lokale Herkünfte an), unter der Adresse von Unterricks selbst (3g) oder fremd. Wie Unterricks öffnet sie das
+   Feibeitsblatt per window.open ohne noopener (mit bzw. ohne #von-unterricks), sammelt die Nachrichten des neuen Tabs und schickt die gewählte
+   PDF als ArrayBuffer – übertragen wird eine Kopie, die gewählte Datei bleibt für einen weiteren Klick auf „Im Feibeitsblatt weiterarbeiten“. */
+const UT_PATH = "/unterricks-attrappe/sitzung";
+const UT_LOCAL = MOCK_URL + UT_PATH;                                  // lokal: 127.0.0.1, anderer Port als Feibeitsblatt
+const UT_LOCAL_FOREIGN = "http://127.0.0.2:" + MOCK_PORT + UT_PATH;   // lokal, aber weder 127.0.0.1 noch localhost → fremd
+const UT_ONLINE = "https://unterricks.janrickmer.de/sitzung", UT_ONLINE_FOREIGN = "https://unterricks.example.org/sitzung";
+const UT_ROUTE_RE = /^(?:http:\/\/127\.0\.0\.[12]:\d+\/unterricks-attrappe\/|https:\/\/unterricks\.(?:janrickmer\.de|example\.org)\/)/;
+const UT_FB_ORIGIN = new URL(BASE_URL).origin;
+const UT_READY = { origin: UT_FB_ORIGIN, fromW: true, data: { kind: "feibeitsblatt-bereit", v: 1 } };
+const UT_ARRIVED = (x) => ({ origin: UT_FB_ORIGIN, fromW: true, data: { kind: "feibeitsblatt-zwischenstand-angekommen", v: 1, ...x } });
+const UT_PAGE = `<!doctype html><html lang="de"><meta charset="utf-8"><title>Unterricks (Attrappe)</title>
+<button type="button" id="open">Im Feibeitsblatt weiterarbeiten</button> <button type="button" id="open-plain">Feibeitsblatt öffnen</button>
+<script>
+  const FB_URL = ${JSON.stringify(BASE_URL + "/")}, FB_ORIGIN = new URL(FB_URL).origin;
+  window.__msgs = []; window.__w = null; window.__file = null;
+  const open = (hash) => { window.__msgs = []; window.__w = window.open(FB_URL + hash, "_blank"); };
+  document.getElementById("open").addEventListener("click", () => open("#von-unterricks"));
+  document.getElementById("open-plain").addEventListener("click", () => open(""));
+  window.addEventListener("message", (e) => { window.__msgs.push({ origin: e.origin, fromW: !!window.__w && e.source === window.__w, data: e.data }); });
+  // Datei wählen (Bytes als Base64) – wie Unterricks einmal in den Arbeitsspeicher gelesen
+  window.__choose = (b64) => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); window.__file = u.buffer; return u.length; };
+  // what: "pdf" (die gewählte Datei) | "too-big" (5 MB + 1 Byte) | "string" (kein ArrayBuffer) | "other" (andere Nachricht)
+  //  → [Länge der gewählten Datei, Länge der übertragenen Kopie] danach (übertragen: 0) bzw. -1
+  window.__send = (what) => {
+    if (what === "other") { window.__w.postMessage({ kind: "etwas-anderes", v: 1 }, FB_ORIGIN); return -1; }
+    if (what === "string") { window.__w.postMessage({ kind: "unterricks-zwischenstand", v: 1, name: "Zwischenstand.pdf", pdf: "%PDF-1.7" }, FB_ORIGIN); return -1; }
+    const file = what === "too-big" ? new ArrayBuffer(5 * 1024 * 1024 + 1) : window.__file, pdf = file.slice(0);
+    window.__w.postMessage({ kind: "unterricks-zwischenstand", v: 1, name: "Zwischenstand.pdf", pdf }, FB_ORIGIN, [pdf]);
+    return [file.byteLength, pdf.byteLength];
+  };
+</script>`;
+async function unterricksStandIn(context, url = UT_LOCAL) {
+  // Fehler und Anfragen aller Tabs dieses Kontexts von Anfang an: Ein neuer Tab kann sein Skript schon ausgeführt haben, bevor das „page“-Ereignis
+  // im Test ankommt – an der Seite angemeldete Listener verpassten Fehler beim Start
+  const errors = [], reqs = [];
+  context.on("weberror", (e) => errors.push(String(e.error())));
+  context.on("request", (r) => {
+    let page = null;
+    try { page = r.frame().page(); } catch (e) { page = null; }   // Navigation, bevor der Rahmen existiert
+    reqs.push({ page, method: r.method(), url: r.url() });
+  });
+  await context.route(UT_ROUTE_RE, (route) => route.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: UT_PAGE }));
+  const op = await context.newPage();
+  const ut = {
+    op, errors,
+    async goto(u) { await op.goto(u); await expect(op.locator("#open")).toBeVisible(); },
+    msgs: () => op.evaluate(() => window.__msgs),
+    choose: (buf) => op.evaluate((b64) => window.__choose(b64), Buffer.from(buf).toString("base64")),
+    send: (what = "pdf") => op.evaluate((what) => window.__send(what), what),
+    // Feibeitsblatt im neuen Tab („#open“ mit #von-unterricks, „#open-plain“ ohne)
+    async openFb(btn = "#open") {
+      const [page] = await Promise.all([context.waitForEvent("page"), op.click(btn)]);
+      await expect(page, "Feibeitsblatt im neuen Tab, ohne #von-unterricks in der Adresse (auch nicht im Verlauf des Tabs)").toHaveURL(BASE_URL + "/");
+      await expect(page.locator("#screen-start")).toHaveClass(/active/);
+      return { page };
+    },
+    api: (t) => reqs.filter((r) => (!t || r.page === t.page) && r.url.startsWith(BASE_URL + "/api/")),
+    sheetLoads: (t, code = S.code) => ut.api(t).filter((r) => r.method === "GET" && r.url === BASE_URL + "/api/sheet/" + code).length,
+    async quiet(t, n) { await t.page.waitForTimeout(1000); expect(await ut.msgs()).toHaveLength(n); },   // keine (weitere) Antwort
+    async closeFb(t) {
+      expect(errors, "keine JavaScript-Fehler in den Tabs (auch nicht beim Start eines neuen Tabs)").toEqual([]);
+      expect(await t.page.evaluate(() => window.__csp), "keine CSP-Verstöße").toEqual([]);
+      await t.page.close();
+    },
+  };
+  await ut.goto(url);
+  return ut;
+}
+
+test("3f Zwischenstand-PDF aus Unterricks: Unterricks öffnet das Feibeitsblatt mit #von-unterricks in einem neuen Tab → Hash sofort weg, bereit gemeldet → genau eine Nachricht mit der PDF (nur vom öffnenden Tab, nur von einer erlaubten Herkunft, nur auf der Startseite) öffnet den Zwischenstand wie „Zwischenstand-PDF hochladen“ und meldet ok – mit einem neueren Stand auf dem Gerät erst nach der Rückfrage (ok bei beiden Antworten); eine zweite Nachricht, eine fremde Herkunft und eine Seite ohne Hash bleiben ohne Wirkung; zu groß, kein PDF, beschäftigt → ok:false mit Grund; nichts geht an einen Server (Attrappe unter einer lokalen Adresse, die Adressen von Unterricks selbst: 3g)", async ({ browser }) => {
+  // 1) Eine echte Zwischenstand-PDF: Schüler:in U schreibt und sichert mit „Zwischenstand als PDF-Datei sichern“ (eigenes Gerät)
+  const U = { input: { vorname: "uma", nachname: "RE", geb: "--06-11", klasse: "7c" }, label: "Uma · Re · 11.06. · Klasse 7c",
+    answers: ["Mein Gewissen meldet sich, wenn ich lüge.", "", "Ich entschuldige mich danach."] };
+  const LATER = "Später auf diesem Gerät weitergeschrieben.";
+  const w = await openPage(browser);
+  await enterCode(w.page, S.shown);
+  await fillPerson(w.page, U.input);
+  await typeAt(w.page, "#a-1", U.answers[0]);
+  await typeAt(w.page, "#a-3", U.answers[2]);
+  const [dl] = await Promise.all([w.page.waitForEvent("download"), w.page.click("#ed-pdf")]);
+  const pdf = await readFile(await dl.path());
+  expect(pdf.includes("/FbDraft 1")).toBe(true);
+  expect(await w.calls((r) => r.method !== "GET")).toEqual([]);
+  await closePage(w);
+  S.utPdf = pdf;   // auch für 3g
+  const FOREIGN_PDF = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");   // eine PDF ohne Zwischenstand
+
+  // 2) Unterricks als Attrappe unter einer lokalen Adresse – so hängt der Ablauf nicht davon ab, ob Chromium ein Pop-up von einer öffentlichen
+  //    Adresse auf den lokalen Server zulässt (das prüft 3g mit den Adressen von Unterricks selbst)
+  const s = await openPage(browser);
+  const ut = await unterricksStandIn(s.context);
+  expect(await ut.choose(pdf)).toBe(pdf.length);
+
+  // A) Von Unterricks: bereit (lokal an „*“, online genau an die Adressen von Unterricks) → eine andere Nachricht zählt nicht → die PDF öffnet
+  //    den Zwischenstand wie „Zwischenstand-PDF hochladen“ → Antwort ok:true; eine zweite Nachricht bleibt ohne Wirkung und ohne Antwort
+  let t = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  expect(await ut.send("other")).toBe(-1);
+  expect(await ut.send()).toEqual([pdf.length, 0]);   // übertragen wird eine Kopie – die gewählte Datei bleibt in Unterricks
+  await expect(t.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(t.page.locator("#who-name")).toHaveText(U.label);
+  for (let n = 0; n < 3; n++) expect(await t.page.inputValue("#a-" + (n + 1))).toBe(U.answers[n]);
+  await expect(t.page.locator("#save-state")).toHaveText("Zwischenstand aus der PDF-Datei übernommen");
+  await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: true })]);
+  expect(await ut.send()).toEqual([pdf.length, 0]);
+  await ut.quiet(t, 2);
+  await expect(t.page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(t.page.locator("#dlg.open")).toHaveCount(0);   // nicht noch einmal hochgeladen (sonst die Rückfrage zum neueren Stand auf diesem Gerät)
+  expect(ut.sheetLoads(t)).toBe(1);                            // an den Server nur das Laden des Blattes per Code
+  // weitergeschrieben: der Stand auf diesem Gerät ist jetzt neuer als die PDF-Datei
+  await typeAt(t.page, "#a-2", LATER);
+  await expect.poll(async () => ((await draftOfPage(t.page)) || { answers: [] }).answers[1]).toBe(LATER);
+  await ut.closeFb(t);
+
+  // A2) Noch einmal „Im Feibeitsblatt weiterarbeiten“ mit derselben Datei: auf diesem Gerät liegt ein neuerer Stand → dieselbe Rückfrage wie
+  //     beim eigenen Hochladen; die Antwort an Unterricks kommt erst danach – ok:true bei beiden Antworten
+  for (const usePdf of [false, true]) {
+    t = await ut.openFb();
+    await expect.poll(ut.msgs).toEqual([UT_READY]);
+    expect(await ut.send()).toEqual([pdf.length, 0]);
+    await expect(t.page.locator("#dlg-title")).toHaveText("Neuerer Zwischenstand auf diesem Gerät");
+    await ut.quiet(t, 1);   // keine Antwort, solange die Rückfrage offen ist
+    await confirmDialog(t.page, "Neuerer Zwischenstand auf diesem Gerät", usePdf);   // „Stand aus der PDF-Datei“ bzw. „Neueren Stand von diesem Gerät“
+    await expect(t.page.locator("#screen-editor")).toHaveClass(/active/);
+    await expect(t.page.locator("#save-state")).toHaveText(usePdf ? "Zwischenstand aus der PDF-Datei übernommen" : "Zwischenstand von diesem Gerät wiederhergestellt");
+    expect(await t.page.inputValue("#a-1")).toBe(U.answers[0]);
+    expect(await t.page.inputValue("#a-2")).toBe(usePdf ? U.answers[1] : LATER);
+    await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: true })]);
+    expect(ut.sheetLoads(t)).toBe(1);
+    if (usePdf) {   // Zwischenstand vom Gerät löschen – die weiteren Tabs beginnen ohne ihn
+      await t.page.click("#ed-cancel");
+      await confirmDialog(t.page, "Zwischenstand löschen?");
+      await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+    }
+    await ut.closeFb(t);
+  }
+
+  // B) Nicht mehr auf der Startseite (Code schon eingegeben) → ok:false „beschaeftigt“, der Bildschirm bleibt; zurück auf der Startseite gilt
+  //    auch eine weitere Nachricht nicht mehr (eine je Seitenaufruf)
+  t = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  await enterCode(t.page, S.shown);
+  await expect(t.page.locator("#screen-mode")).toHaveClass(/active/);
+  await ut.send();
+  await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: false, grund: "beschaeftigt" })]);
+  await expect(t.page.locator("#screen-mode")).toHaveClass(/active/);
+  await t.page.click("#m-back");
+  await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+  await ut.send();
+  await ut.quiet(t, 2);
+  await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+  await expect(t.page.locator("#start-err")).toHaveText("");
+  expect(ut.sheetLoads(t)).toBe(1);   // nur durch den eingegebenen Code
+  await ut.closeFb(t);
+
+  // C) Zu groß → ok:false „zu-gross“ mit derselben Meldung wie beim eigenen Hochladen; danach gilt keine Nachricht mehr
+  t = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  await ut.send("too-big");
+  await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: false, grund: "zu-gross" })]);
+  await expect(t.page.locator("#start-err")).toHaveText(/^Diese Datei ist zu groß für einen Zwischenstand\. In dieser Datei steckt kein Feibeitsblatt-Zwischenstand\./);
+  await ut.send();
+  await ut.quiet(t, 2);
+  await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+  expect(ut.sheetLoads(t)).toBe(0);
+  await ut.closeFb(t);
+
+  // D) Kein ArrayBuffer → „kein-pdf“; eine PDF ohne Zwischenstand geht den Weg des Hochladens und scheitert dort → ok:false ohne Grund
+  t = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  await ut.send("string");
+  await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: false, grund: "kein-pdf" })]);
+  await expect(t.page.locator("#start-err")).toHaveText(/^In dieser Datei steckt kein Feibeitsblatt-Zwischenstand\./);
+  await ut.closeFb(t);
+  await ut.choose(FOREIGN_PDF);
+  t = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  await ut.send();
+  await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: false })]);
+  await expect(t.page.locator("#start-err")).toHaveText(/^In dieser Datei steckt kein Feibeitsblatt-Zwischenstand\./);
+  await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+  await ut.closeFb(t);
+  await ut.choose(pdf);
+
+  // E) Ohne #von-unterricks (normaler Aufruf, auch aus einem Tab von Unterricks): keine Bereitschaftsnachricht, eine PDF bleibt ohne Wirkung
+  t = await ut.openFb("#open-plain");
+  await ut.quiet(t, 0);
+  await ut.send();
+  await ut.quiet(t, 0);
+  await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+  await expect(t.page.locator("#start-err")).toHaveText("");
+  expect(ut.api(t)).toEqual([]);
+  await ut.closeFb(t);
+
+  // F) Fremde Herkunft (lokal, aber weder 127.0.0.1 noch localhost): die PDF wird nicht angenommen und nicht beantwortet. Lokal (nur Tests)
+  //    geht die Bereitschaftsnachricht an „*“ (der Port einer lokalen Unterricks-Seite lässt sich nicht erkennen) – sie enthält nichts außer
+  //    kind und v; online geht sie nur an die Adressen von Unterricks (Unit-Test)
+  await ut.goto(UT_LOCAL_FOREIGN);
+  await ut.choose(pdf);
+  t = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  await ut.send();
+  await ut.quiet(t, 1);
+  await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+  await expect(t.page.locator("#start-err")).toHaveText("");
+  expect(ut.api(t)).toEqual([]);
+  await ut.closeFb(t);
+
+  // Nichts an einen Server außer dem Laden des Blattes (GET), keine fremden Adressen außer den Attrappen von Unterricks
+  expect(ut.api().filter((r) => r.method !== "GET")).toEqual([]);
+  expect(s.foreign.filter((u) => !UT_ROUTE_RE.test(u))).toEqual([]);
+  await closePage(s);
+});
+
+test("3g Zwischenstand-PDF aus Unterricks unter den Adressen von Unterricks: von https://unterricks.janrickmer.de angenommen (ok:true), von https://unterricks.example.org nicht (keine Antwort)", async ({ browser }) => {
+  // Hier öffnet eine öffentliche Adresse (Attrappe per Route) den lokalen Server (127.0.0.1) in einem neuen Tab. Bleibt der Test schon beim
+  // Öffnen hängen, lässt diese Chromium-Version das womöglich nicht zu (Local Network Access) – der Ablauf selbst ist in 3f geprüft.
+  expect(S.utPdf, "Zwischenstand-PDF aus 3f").toBeTruthy();
+  const s = await openPage(browser);
+  const ut = await unterricksStandIn(s.context, UT_ONLINE);
+  await ut.choose(S.utPdf);
+  let t = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  await ut.send();
+  await expect(t.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(t.page.locator("#save-state")).toHaveText("Zwischenstand aus der PDF-Datei übernommen");
+  await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: true })]);
+  expect(ut.sheetLoads(t)).toBe(1);
+  await t.page.click("#ed-cancel");
+  await confirmDialog(t.page, "Zwischenstand löschen?");
+  await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+  await ut.closeFb(t);
+  // fremde Herkunft: nicht angenommen, keine Antwort
+  await ut.goto(UT_ONLINE_FOREIGN);
+  await ut.choose(S.utPdf);
+  t = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);   // lokal an „*“ (siehe 3f)
+  await ut.send();
+  await ut.quiet(t, 1);
+  await expect(t.page.locator("#screen-start")).toHaveClass(/active/);
+  await expect(t.page.locator("#start-err")).toHaveText("");
+  expect(ut.api(t)).toEqual([]);
+  await ut.closeFb(t);
+  expect(s.foreign.filter((u) => !UT_ROUTE_RE.test(u))).toEqual([]);
   await closePage(s);
 });
 
@@ -7336,6 +7586,28 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
   await expect(up.locator("#p-gtag")).toHaveAttribute("aria-describedby", "p-escape");
   await expect(up.locator("#p-btn")).not.toHaveAttribute("aria-describedby", /p-escape/);
   await up.click("#p-back");
+  // … auch von Unterricks übergeben (#von-unterricks, Attrappe wie in 3f): derselbe Weg; Antwort ok:true, sobald die Angaben offen sind –
+  // nicht freigeschaltet → ok:false (die Meldung steht auf der Startseite des neuen Tabs)
+  const ut = await unterricksStandIn(u.context);
+  await ut.choose(overviewPdf(hull));
+  let ft = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  await ut.send();
+  await expect(ft.page.locator("#screen-person")).toHaveClass(/active/);
+  expect(await personValues(ft.page)).toEqual(["Max", "Mu", "4", "5", "10b"]);
+  await expect(ft.page.locator("#p-escape")).toHaveText(ESC_NOTE);
+  await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: true })]);
+  expect(ut.sheetLoads(ft, ESCT.code)).toBe(1);
+  await ut.closeFb(ft);
+  await ut.choose(overviewPdf(escHull(escRec(""))));
+  ft = await ut.openFb();
+  await expect.poll(ut.msgs).toEqual([UT_READY]);
+  await ut.send();
+  await expect(ft.page.locator("#start-err")).toHaveText(ESC_NOT_OPEN);
+  await expect.poll(ut.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: false })]);
+  expect(ut.api(ft)).toEqual([]);
+  await ut.closeFb(ft);
+  await ut.op.close();
 
   /* ---------- 7. Link-Varianten ---------- */
   await up.goto("about:blank"); await up.goto("/#escape=%%%");
@@ -7459,6 +7731,19 @@ test("7n Escape-Room-Finale (1): Lehrkraft legt das Blatt an (Name und Kennung g
   await expect(page.locator("#screen-editor")).toHaveClass(/active/);
   expect(await page.inputValue("#a-1")).toBe(TXT);
   expect((await draftOfPage(page)).escape).toEqual(other);
+  // … auch über Unterricks (Überblick-PDF, #von-unterricks): vorhandener Zwischenstand → direkt in den Schreibbereich, Antwort ok:true
+  const ut8 = await unterricksStandIn(s.context);
+  await ut8.choose(overviewPdf(other));
+  const ft8 = await ut8.openFb();
+  await expect.poll(ut8.msgs).toEqual([UT_READY]);
+  await ut8.send();
+  await expect(ft8.page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await ft8.page.inputValue("#a-1")).toBe(TXT);
+  await expect.poll(ut8.msgs).toEqual([UT_READY, UT_ARRIVED({ ok: true })]);
+  await expect(ft8.page.locator("#esc-updated")).toBeHidden();   // dieselben Daten wie im Zwischenstand
+  expect((await draftOfPage(ft8.page)).escape).toEqual(other);
+  await ut8.closeFb(ft8);
+  await ut8.op.close();
   await closePage(s);
 });
 

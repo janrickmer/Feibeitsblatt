@@ -10,7 +10,7 @@ Lösungs-PDF) → Lehrkräfte-Übersicht (Türcode 1104 + Passwort); nach „Cod
 schlägt die KI eine Checkliste vor, die die Lehrkraft bestätigt; Blätter lassen sich als PDF-Datei
 sichern und mit neuem Code wieder laden (z. B. für Parallelklassen) oder als analoges Arbeitsblatt mit QR-Code zu dieser
 Checkliste drucken; ein Blatt kann auch das Finale eines Escape-Rooms sein (Ankunft per Link oder Überblick-PDF, siehe
-Escape-Room-Anbindung). Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
+Escape-Room-Anbindung); eine Zwischenstand-PDF kann auch Unterricks direkt übergeben (siehe Zwischenstand-PDF aus Unterricks). Privates, nicht kommerzielles Angebot: verantwortlich ist der Betreiber (fest in `index.html`), keine
 Schule; Seite „Impressum & Datenschutz“ (`#impressum`). Oberfläche und Doku deutsch;
 Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografische Anführungszeichen („…“).
 
@@ -200,7 +200,9 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Tippzeiten `typing` per `ttCleanDraft` nur passend, Widerspruch `ttOptOut`/`ttResend` per `ttDraftFlags` – dann `typing: null`, Fotos `photos` nur
   als geprüfte JPEG-data:-URLs per `cleanPhoto`, an `answers` ausgerichtet). Startseite: `#start-pdf` →
   `#start-pdf-file` → `importDraftPdf` (≤ `PDF_MAX_BYTES` 5 MB, Blatt laden, Aufgabenzahl prüfen, bei neuerem
-  lokalen Stand nachfragen; ein Widerspruch gegen die Tippzeit-Messung im lokalen Stand bleibt – `ttKeepOptOut`) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal). Dateiname nur
+  lokalen Stand nachfragen; ein Widerspruch gegen die Tippzeit-Messung im lokalen Stand bleibt – `ttKeepOptOut`) → `S.importDraft` → `openEditor` (importiert, speichert sofort lokal;
+  `importDraftPdf` liefert `true`, wenn danach der Schreibbereich – bei einer Überblick-PDF die Angaben bzw. der Schreibbereich – offen ist; dieselbe
+  Funktion nimmt die von Unterricks übergebene PDF, siehe Zwischenstand-PDF aus Unterricks). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
   **Bestätigung nach der Abgabe** (`#screen-done`, nur nach HTTP 200 von `/api/submit`): großer grüner Haken
   (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, `#done-del` (nur mit Frist: Löschdatum =
@@ -1543,6 +1545,48 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (Rückmeldung aus `finalEnv`) nur mit den Lösungsseiten; `#b-import` folgt
   dem Haken; `ESCAPE_PDF_OUT=<Ordner>` speichert die PDF-Dateien und Bildschirmfotos). Testdaten frei erfunden, `confirm` in Tests eine beliebige
   Ziffernfolge; keine Datei aus einem echten Escape-Room als Fixture.
+- **Zwischenstand-PDF aus Unterricks (Übergabe-Protokoll v1, Nachtrag 45 – Wunsch der Lehrkraft vom 23.11.2026):** Unterricks (die
+  Unterrichtsplattform derselben Lehrkraft, eigenes Repository) zeigt ein Feibeitsblatt aus einer früheren Sitzung erneut an; Schüler:innen wählen
+  dort ihre Zwischenstand-PDF, Unterricks liest sie (≤ 5 MB = `PDF_MAX_BYTES`, beginnt mit `%PDF-`) und öffnet beim Klick auf „Im Feibeitsblatt
+  weiterarbeiten“ `FB_URL + "#von-unterricks"` per `window.open` **ohne** noopener. **Feibeitsblatt:** ganz oben im großen Skript (neben dem
+  Escape-Link) `unterricksHash(location.hash)` (genau `#von-unterricks`) → `fromUnterricks`, der Hash sofort per `history.replaceState` weg (auch
+  ohne öffnenden Tab); nach dem Aufbau der Seite (nach `showResume` bzw. Checkliste/Impressum) `if (fromUnterricks) unterricksListen()`: ohne
+  `window.opener` nichts; sonst **erst** der `message`-Listener (der einzige im Skript), **dann** `opener.postMessage({kind: "feibeitsblatt-bereit",
+  v: 1}, t)` für jedes `t` aus `unterricksReadyTargets(local)` = genau `UNTERRICKS_ORIGINS` (`https://unterricks.janrickmer.de`,
+  `https://unterricks.feindt.workers.dev`); läuft die Seite selbst lokal (`unterricksLocal`: Hostname genau `127.0.0.1` oder `localhost`, nur
+  Tests) stattdessen `"*"` – der Port einer lokalen Unterricks-Seite lässt sich nicht erkennen, die Nachricht enthält nichts außer `kind` und `v`
+  (Entscheidung bei der Umsetzung). **Angenommen** wird (`unterricksDecide`) nur eine Nachricht mit `event.source === window.opener`,
+  `unterricksOriginOk(event.origin, local)` (exakter Vergleich mit `UNTERRICKS_ORIGINS`; lokal zusätzlich `http://127.0.0.1` bzw.
+  `http://localhost` mit beliebigem Port), `kind: "unterricks-zwischenstand"` und `v: 1` – andere Nachrichten werden nicht beachtet (keine
+  Antwort) – und nur **eine** je Seitenaufruf: die erste mit passender Quelle, Herkunft, `kind` und `v` zählt, auch wenn sie abgelehnt wird; danach
+  ist der Listener weg, spätere Nachrichten bleiben ohne Wirkung und ohne Antwort. Abgelehnt (`ok: false`): `pdf` kein bzw. ein leerer
+  ArrayBuffer → `kein-pdf` (Meldung `PDF_NOT_DRAFT` in `#start-err`), größer als `PDF_MAX_BYTES` → `zu-gross` (`PDF_TOO_BIG`, dieselbe Meldung
+  wie beim eigenen Hochladen), nicht auf `screen-start` oder ein Dialog offen (`dlgResolve`) → `beschaeftigt` (der Bildschirm bleibt, wie er ist).
+  Sonst `importDraftPdf(new Blob([pdf], {type: "application/pdf"}))` – **genau der Weg von „Zwischenstand-PDF hochladen“** (alle Prüfungen,
+  Rückfrage bei einem neueren Stand auf diesem Gerät, dieselben Meldungen, auch eine Überblick-PDF eines Escape-Rooms). Die Antwort kommt erst
+  danach, nur an `event.source` mit `event.origin` (nie `"*"`): `unterricksReply(ok, grund)` = `{kind: "feibeitsblatt-zwischenstand-angekommen",
+  v: 1, ok, grund?}` (`ok` = Rückgabe von `importDraftPdf`; `grund` nur `zu-gross` | `kein-pdf` | `beschaeftigt` – ein gescheitertes Hochladen
+  antwortet `ok: false` ohne Grund, die Meldung steht auf der Startseite). `name` der Nachricht wird nicht gelesen. An einen Server geht dabei
+  nur das Laden des Blattes per Code (wie beim eigenen Hochladen); die PDF geht nur von Tab zu Tab im selben Browser (postMessage) – deshalb
+  bleiben die Datenschutztexte unverändert (dieselben Daten, derselbe Weg wie eine selbst gewählte Datei). Ohne Hash oder ohne öffnenden Tab
+  ändert sich nichts. Unterricks zeigt bei `ok: true` „Dein Zwischenstand ist im Feibeitsblatt geöffnet.“, sonst (und ohne Bereitschaft binnen
+  10 s, z. B. eine ältere Feibeitsblatt-Seite) den Rückfall „Tippe im Feibeitsblatt auf „Zwischenstand-PDF hochladen“ …“. Adressen und Nachrichten
+  ändern sich nur zusammen mit Unterricks (dort `feibeitsblattUrl`) und mit einer neuen Version `v`. Reine Helfer zwischen
+  `/* UNTERRICKS:BEGIN` und `/* UNTERRICKS:END */` (`test/unit/unterricks.test.mjs`: Hash, Hosts, Herkünfte, Ziele, Nachrichten, Antwort,
+  `unterricksListen` mit nachgebauter Umgebung; `importDraftPdf`/`escArrive`/`escLoad` mit nachgebauter Umgebung: das Ergebnis ist `true` genau
+  dann, wenn danach der Schreibbereich bzw. die Angaben offen sind, bei einem neueren Stand auf dem Gerät erst nach der Rückfrage); E2E-Helfer
+  `unterricksStandIn(context, url)` (Attrappe per `context.route`: öffnet wie Unterricks, wählt die Datei einmal und überträgt je Klick eine
+  Kopie; Fehler und Anfragen aller Tabs des Kontexts per `context.on("weberror")`/`context.on("request")` von Anfang an – ein neuer Tab kann
+  sein Skript ausgeführt haben, bevor das `page`-Ereignis im Test ankommt), E2E 3f (Attrappe unter einer lokalen Adresse `MOCK_URL` +
+  `/unterricks-attrappe/sitzung`, als fremde Herkunft `http://127.0.0.2:<MOCK_PORT>`; echte Zwischenstand-PDF aus „Zwischenstand als PDF-Datei
+  sichern“; zweiter Klick mit derselben Datei bei neuerem Stand auf dem Gerät → Rückfrage, Antwort erst danach, `ok:true` bei beiden
+  Antworten), 3g (unter `https://unterricks.janrickmer.de`, fremd `https://unterricks.example.org` – ein Pop-up von einer öffentlichen
+  Adresse auf 127.0.0.1; bleibt 3g beim Öffnen hängen, womöglich Chromiums „Local Network Access“; braucht die PDF aus 3f in `S.utPdf`), 7n
+  (Überblick-PDF über die Attrappe → Angaben bzw. vorhandener Zwischenstand, `ok:true`; nicht freigeschaltet → `ok:false`). **Von Unterricks
+  erwartet** (Prüfbefund vom 23.11.2026, dort umzusetzen): je Klick eine Kopie übertragen (`pdf.slice(0)`) – sonst ist seine Datei nach dem
+  ersten Senden leer und ein zweiter Klick bekäme `kein-pdf` –, und nach den 10 s weiter auf eine späte Bereitschaft hören und dann noch senden
+  (eine langsam ladende Seite bekäme den Zwischenstand sonst nie; der Rückfall-Satz steht im Tab von Unterricks, den die Schüler:innen gerade
+  nicht sehen).
 - **Frontend-Regeln:** Nutzerdaten nur per `textContent`/DOM-APIs, **nie `innerHTML` mit fremden Daten**.
   Einfügesperre in Schichten (`paste`, `drop`/`dragover`, `beforeinput` `insertFrom…`, `typedTooBig`: ein
   `insertText` über 40 Zeichen / mehrere Wörter ab 20 Zeichen / mit Zeilenumbruch gilt als Zwischenablage (Gboard-
@@ -1755,7 +1799,8 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
 - **Tests:** `npm test` (Unit, `node --test test/unit/*.test.mjs`; Antwortart Foto: `photo.test.mjs` liest den Block PHOTO – Grenzen gegen
   `LIMITS`, `cleanPhoto`, `jpegInfo`/`pdfPhotoOk`, `photoBudget` und ein echter Umschlag mit 1–3 größten Fotos samt 150 KB Text ≤
   `LIMITS.photoEnvelopeBytes` und Body ≤ `bodyBytes`; lib/ai/worker/typing.test für Validierung, Prompt, große Umschläge nur bei Foto-Blättern
-  und die Liste nach Bytes – der Test zählt die Zeilen, die D1 liefert; Smoke-Schritt „Antwortart Foto“ gegen echtes D1); `node test/smoke.mjs` (API gegen echten
+  und die Liste nach Bytes – der Test zählt die Zeilen, die D1 liefert; Smoke-Schritt „Antwortart Foto“ gegen echtes D1; Übergabe aus Unterricks:
+  `unterricks.test.mjs`, E2E 3f, 3g und 7n); `node test/smoke.mjs` (API gegen echten
   `wrangler dev --local` + `test/mock-ai.mjs`, Ports 8811/8812, am Ende auch der Zeitplan); `npm run test:e2e` (Playwright 1.56.1, Ports
   8787/8790, frischer Zustand je Lauf – nicht parallel zu `npm run dev`). Workers AI ist lokal nie erreichbar: Unit-Tests
   nutzen ein gefälschtes `env.AI` (`fakeAI` in ai.test.mjs, `mockAIBinding(mock)` aus `test/mock-ai.mjs` mit `mode`
