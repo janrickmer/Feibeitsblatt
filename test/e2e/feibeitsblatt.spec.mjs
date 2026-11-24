@@ -6,7 +6,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { inflateSync, deflateSync } from "node:zlib";
-import { createHash } from "node:crypto";
+import { createHash, pbkdf2Sync, hkdfSync, createDecipheriv } from "node:crypto";
 import { expectedResults, expectedChecklist, parseFeedbackPrompt } from "../mock-ai.mjs";
 import jsQR from "jsqr";
 import { deriveTeacherKeys, makeEnvelope, openPrivateKey, openEnvelope } from "../smoke.mjs";
@@ -165,7 +165,7 @@ const ESC_TEACHER = "Bei einem Escape-Room-Finale bekommt deine Lehrkraft versch
   "An einen KI-Dienst gehen die Daten aus dem Escape-Room nie.";
 const ESC_MAIL = "Nur wenn deine Abgabe bei einem Escape-Room-Finale wegen eines technischen Fehlers scheitert und du deine Abschluss-PDF per E-Mail schickst: der Betreiber (" + OP.name + ", E-Mail " + OP.email + "). " +
   "Die Datei enthält deinen vollen Namen, dein Geburtsdatum, deinen Bestätigungscode, deine Antworten, das KI-Feedback und deine Ergebnisse aus dem Escape-Room; sie geht unverschlüsselt über deinen E-Mail-Anbieter und den des Betreibers.";
-const ESC_STAY = "Bei einem Escape-Room-Finale stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode bis zur Abgabe auch in deinem Zwischenstand und in jeder Zwischenstand-PDF-Datei, " +
+const ESC_STAY = "Bei einem Escape-Room-Finale stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode bis zur Abgabe auch in deinem Zwischenstand (sicherst du ihn online, verschlüsselt auch auf dem Server) und in jeder Zwischenstand-PDF-Datei, " +
   "die du sicherst, und – wenn du sie herunterlädst – in deiner Abschluss-PDF; diese Dateien löschst du selbst. Der Link aus dem Escape-Room enthält dieselben Daten: Diese Seite entfernt ihn " +
   "sofort aus der Adresszeile, im Verlauf deines Browsers bleibt er aber in der Regel stehen – lösche ihn dort auf einem geteilten Gerät. " +
   "Ist die Synchronisierung des Verlaufs eingeschaltet (z. B. über ein Google- oder Firefox-Konto), gelangt er auch dorthin. " +
@@ -237,7 +237,7 @@ const ttWhere = (your, withAi) => [TT_KEEP && "in " + your + " Zwischenstand", w
 // Buchst. b nimmt die Tippzeiten aus – ohne TT_KEEP nur bei Erstversuch und Abgabe (im Zwischenstand stehen dann keine)
 const ttOutB = (withAi) => " (" + (TT_KEEP ? "" : withAi ? "bei Erstversuch und Abgabe " : "bei der Abgabe ") + "außer den Tippzeiten darin, siehe nächster Punkt)";
 const privBases = (withAi, deliver) => [
-  "Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand" + (withAi ? ", der Erstversuch" : "") + " und die Abgabe" + ttOutB(withAi) +
+  "Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand (auch der online gesicherte)" + (withAi ? ", der Erstversuch" : "") + " und die Abgabe" + ttOutB(withAi) +
     (withAi ? " – und das KI-Feedback, wenn du es anforderst, sowie die finale KI-Rückmeldung nach der Abgabe: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " +
     (withAi ? "das KI-Feedback selbst an; die finale KI-Rückmeldung kannst du beim Abgeben abwählen." : "es selbst an."),
   "Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen " + ttWhere("deinem", withAi) + "): " +
@@ -255,11 +255,11 @@ const PRIV_HEADS = ["Wer ist verantwortlich?", "Wozu werden deine Daten verarbei
 // Angaben-Bildschirm einer Partner- / Gruppenarbeit: derselbe Hinweis in der „ihr“-Form
 const PRIV_HEADS_GROUP = ["Wer ist verantwortlich?", "Wozu werden eure Daten verarbeitet?", "Rechtsgrundlage", "Welche Daten?",
   "Wer bekommt die Daten?", "Wie lange werden die Daten gespeichert?", "Müsst ihr mitmachen?", "Entscheidet die KI über euch?", TT_OBJ_HEAD, "Eure Rechte"];
-const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
+const KLASSE_HINT = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.";
 const AI_SOURCE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
 // Partner- / Gruppenarbeit: Texte in der „ihr“-Form dort, wo es um alle geht (Angaben, Datenschutz-Kurzfassung, Rechtschreibprüfung)
 const MEMBERS_HINT = "Tragt für jede Person die ersten drei Buchstaben des Vornamens und die ersten zwei des Nachnamens in ein Feld ein, z. B. „MaxMu“ für Max Mustermann (bei kürzerem Vornamen den ganzen Vornamen). Tragt nur Personen ein, die mitarbeiten – alle sollten wissen, dass ihre Kürzel mit eurer Abgabe an die Lehrkraft gehen.";
-const KLASSE_HINT_GROUP = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät.";
+const KLASSE_HINT_GROUP = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät – außer ihr sichert ihn selbst online.";
 const LT_CONSENT_GROUP = "Die Prüfung übernimmt LanguageTool (languagetool.org, Betreiber Learneo, Inc., USA). Dabei wird nur der Text dieser Antwort an LanguageTool gesendet – ohne eure Namen oder eure Angaben, aber mit der Internetadresse eures Geräts. Die Prüfung ist freiwillig.\n\n" +
   "Laut Anbieter darf LanguageTool nur nutzen, wer\n• mindestens 18 Jahre alt ist oder\n• 16 oder 17 Jahre alt ist und die Erlaubnis der Eltern hat.\n\n" +
   "Trifft das auf alle in eurer Gruppe zu? Wenn nicht, wählt „Trifft nicht auf alle zu“ – ihr schreibt und gebt ganz normal ab, ohne Nachteil.\nDie Bestätigung gilt, solange dieses Feibeitsblatt geöffnet ist.";
@@ -1178,6 +1178,7 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await expect(sp.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT);   // die Angaben gehen schon mit dem KI-Feedback (Erstversuch) an die Lehrkraft
   const short = sp.locator("#p-privacy-short");
   await expect(short).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden deine Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur deine Lehrkraft\\. Nach 30 Tagen werden sie automatisch gelöscht\\. " +
+    "Nur wenn du deinen Zwischenstand online sicherst, liegt auch er verschlüsselt auf dem Server – laden kann ihn nur, wer deinen Zwischenstand-Code kennt\\. " +
     "Das KI-Feedback ist freiwillig\\. Deine Antworten gehen – ohne deine Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, wenn du das KI-Feedback anforderst, und nach der Abgabe für die finale KI-Rückmeldung – außer du wählst sie beim Abgeben ab\\. Auch die Rechtschreibprüfung ist freiwillig\\. " +
     reEsc(TT_SHORT) + "$"));
   await expectTtShort(short);   // zur Tippzeit-Messung nur dieser eine Satz – Schalter, Wirkung und Geltungsbereich im ausführlichen Hinweis darunter
@@ -1212,7 +1213,8 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
   await expect(full).toContainText(TT_PURPOSE);
   await expect(full.locator('h2.privh:text-is("Welche Daten?") + p + p')).toHaveText(TT_ACCESS);
   await expect(full).toContainText("Außerdem deine Antworten mit ihren Tippzeiten (je eingegebenem Zeichen, wie viele Millisekunden seit dem vorangehenden Zeichen vergangen sind – längere Pausen nur als „mehr als 70 Millisekunden“, keine Uhrzeiten; nach einem Widerspruch keine), die KI-Rückmeldungen");
-  await expect(recipients(full, "h2").first()).toHaveText("Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen. Sie sieht auch die Tippzeiten – als Färbung deiner Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie.");
+  await expect(recipients(full, "h2").first()).toHaveText("Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen. Sie sieht auch die Tippzeiten – als Färbung deiner Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie. " +
+    "Einen Zwischenstand, den du online sicherst, kann auch sie nicht lesen – ihn kann nur laden, wer deinen Zwischenstand-Code kennt.");   // online gesicherter Zwischenstand (3h)
   await expect(full).toContainText("Gespeichert werden deine Angaben und Antworten (samt Tippzeiten) dort nur verschlüsselt.");
   await expect(full).toContainText(TT_STAY);
   await expect(full).toContainText("Die Tippzeiten misst diese Seite, solange du nicht widersprichst (siehe „" + TT_OBJ_HEAD + "“).");
@@ -1302,7 +1304,7 @@ test("1b Datenschutz: verantwortlich ist der Betreiber (privates Angebot) – �
     "Bei Feibeitsblättern nur mit Weltkarten-Zuordnung entfallen der Satz zur Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „" + TT_OBJ_HEAD + "“ – dort wird nichts gemessen. " +
     "Bei Feibeitsblättern ohne Auftrag an die KI entfallen die Angaben zum KI-Feedback. " +
     "Bei Feibeitsblättern für einen Escape-Room kommen Sätze zu den Daten aus dem Escape-Room hinzu (voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät " +
-    "der Schüler:innen – außer sie schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie). " +
+    "der Schüler:innen – außer sie sichern ihren Zwischenstand online (dann liegen sie verschlüsselt mit darin) oder schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie). " +
     PV_VIDEO_NOTE + " " +
     "Bei Partner- oder Gruppenarbeit stehen auf dem Angaben-Bildschirm die Kurzfassung und dieser Hinweis in der „ihr“-Form („Auf dem Server werden eure Angaben …“, „Eure Rechte“).");
   // Vorschau mit der (noch ungespeicherten) Frist – derselbe Baustein wie bei den Schüler:innen
@@ -1788,7 +1790,8 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(draft).toMatchObject({ v: 1, kind: "feibeitsblatt-draft", code: S.code, sheetTitle: TITLE, person: A.person, answers: A.final, first: A.first, attempt: fp.attempt, firstSent: true });
   expectDraftTyping(draft, A.final, A.first);   // Tippzeiten im selben Datensatz (unverschlüsselt in der PDF – zeigen nur das Tempo)
   expect(draft.feedback.map((f) => ({ covered: f.covered, missing: f.missing, ...noteOf(f) }))).toEqual(exp);
-  await expect(page.locator("#save-state")).toHaveText("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf");
+  await expect(page.locator("#save-state")).toHaveText(/^Zwischenstand online und als PDF-Datei gesichert – dein Zwischenstand-Code: [A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);   // online gesichert: siehe 3h
+  expect(draft.saveCode).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
   // … auf einem „frischen“ Gerät (neuer Kontext ohne Browserdaten) hochgeladen: erst eine fremde PDF → Meldung, dann die echte →
   // Antworten, Feedback und Kennung sind zurück, kein neuer Erstversuch, Abgabe möglich
   const fresh = await openPage(browser);
@@ -2076,7 +2079,8 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-add-hint")).toBeHidden();
   await expect(page.locator("#p-klasse-hint")).toHaveText(KLASSE_HINT_GROUP);
   await expect(page.locator("#p-privacy-short")).toHaveText(new RegExp("^Datenschutz: " + OP_SHORT.replace(/[.()]/g, "\\$&") + " Auf dem Server werden eure Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur eure Lehrkraft\\. " +
-    "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Das KI-Feedback ist freiwillig\\. Eure Antworten gehen – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, " +
+    "Nach " + DAYS + " Tagen werden sie automatisch gelöscht\\. Nur wenn ihr euren Zwischenstand online sichert, liegt auch er verschlüsselt auf dem Server – laden kann ihn nur, wer euren Zwischenstand-Code kennt\\. " +
+    "Das KI-Feedback ist freiwillig\\. Eure Antworten gehen – ohne eure Angaben – an den KI-Dienst „127\\.0\\.0\\.1:\\d+ \\(Betreiber und Sitz: vom Betreiber dieser Seite zu prüfen\\)“, " +
     "wenn ihr das KI-Feedback anfordert, und nach der Abgabe für die finale KI-Rückmeldung – außer ihr wählt sie beim Abgeben ab\\. Auch die Rechtschreibprüfung ist freiwillig\\. " + reEsc(TT_SHORT_G) + "$"));
   await expectTtShort(page.locator("#p-privacy-short"), TT_SHORT_G);   // zur Messung nur der eine Satz in der „ihr“-Form, alles Weitere im ausführlichen Hinweis
   // auch alle Informationen zum Datenschutz in der „ihr“-Form (derselbe Inhalt; „Welche Daten?“ nennt beide Arbeitsformen)
@@ -2089,7 +2093,7 @@ test("2b Partner- / Gruppenarbeit: nach dem Code Einzel- oder Gruppenarbeit → 
   await expect(page.locator("#p-privfull")).toContainText("– ohne eure Namenskürzel und die Klasse –");
   await expect(page.locator("#p-privfull")).toContainText(OP_RESP + " Eure Angaben und Antworten liest eure Lehrkraft, die das Feibeitsblatt mit dem Lehrkraft-Zugang dieser Seite angelegt hat. Bei Fragen könnt ihr euch an den Betreiber oder an eure Lehrkraft wenden.");
   await expect(page.locator('#p-privfull h2.privh:text-is("Rechtsgrundlage") + ul > li')).toHaveText([
-    "Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand, der Erstversuch und die Abgabe" + ttOutB(true) + " – und das KI-Feedback, wenn ihr es anfordert, sowie die finale KI-Rückmeldung nach der Abgabe: Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert das KI-Feedback selbst an; die finale KI-Rückmeldung könnt ihr beim Abgeben abwählen.",
+    "Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand (auch der online gesicherte), der Erstversuch und die Abgabe" + ttOutB(true) + " – und das KI-Feedback, wenn ihr es anfordert, sowie die finale KI-Rückmeldung nach der Abgabe: Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert das KI-Feedback selbst an; die finale KI-Rückmeldung könnt ihr beim Abgeben abwählen.",
     "Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen " + ttWhere("eurem", true) + "): Art. 6 Abs. 1 Buchst. f DSGVO – das berechtigte Interesse, den Schreibprozess sichtbar zu machen, damit eure Lehrkraft bei Auffälligkeiten mit euch über eure Arbeitsweise sprechen kann; " +
       "die Tippzeiten dienen " + TT_USE + ". Der Messung könnt ihr widersprechen – mit dem Schalter „" + TT_SWITCH_G + "“ (siehe „" + TT_OBJ_HEAD + "“).",
     "Rechtschreibprüfung (LanguageTool): eure Einwilligung, Art. 6 Abs. 1 Buchst. a DSGVO. Ihr gebt sie mit dem Klick auf „Rechtschreibung und Grammatik prüfen“ und eurer Bestätigung im Dialog – ohne Bestätigung wird nichts gesendet. Ihr könnt sie jederzeit für die Zukunft widerrufen, indem ihr die Prüfung nicht mehr nutzt.",
@@ -2859,7 +2863,7 @@ test("3f Zwischenstand-PDF aus Unterricks: Unterricks öffnet das Feibeitsblatt 
   const [dl] = await Promise.all([w.page.waitForEvent("download"), w.page.click("#ed-pdf")]);
   const pdf = await readFile(await dl.path());
   expect(pdf.includes("/FbDraft 1")).toBe(true);
-  expect(await w.calls((r) => r.method !== "GET")).toEqual([]);
+  expect((await w.calls((r) => r.method !== "GET")).map((r) => r.method + " " + r.path + " " + r.status)).toEqual(["PUT /api/draft 200"]);   // nur der verschlüsselte Zwischenstand (siehe 3h)
   await closePage(w);
   S.utPdf = pdf;   // auch für 3g
   const FOREIGN_PDF = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");   // eine PDF ohne Zwischenstand
@@ -3022,6 +3026,300 @@ test("3g Zwischenstand-PDF aus Unterricks unter den Adressen von Unterricks: von
   await ut.closeFb(t);
   expect(s.foreign.filter((u) => !UT_ROUTE_RE.test(u))).toEqual([]);
   await closePage(s);
+});
+
+/* ---------- Online-Zwischenstand mit Zwischenstand-Code (DRAFTCODE in index.html; Server: PUT /api/draft, POST /api/draft/load, DELETE) ---------- */
+const DC_BTN = "Zwischenstand sichern (online und als PDF-Datei)";
+const DC_CODE_RE = /^[A-HJKMNP-Z2-9]{8}$/;   // Alphabet der Blatt-Codes (ohne I, L, O, 0, 1)
+const DC_NOT_FOUND = "Zu diesem Zwischenstand-Code ist kein Zwischenstand gespeichert (mehr). Prüfe den Code – online gesicherte Zwischenstände werden 30 Tage nach dem letzten Sichern gelöscht. " +
+  "Hast du die Zwischenstand-PDF noch, lade sie unter „Zwischenstand-PDF hochladen“ hoch.";
+const DC_LEN_ERR = "Ein Code hat 6 Zeichen (z. B. K7Q-M4X), ein Zwischenstand-Code 8 (z. B. 7KQM-4XWP). Bitte prüfe deine Eingabe.";
+const DC_BAD = "Diesen Zwischenstand-Code gibt es nicht. Bitte prüfe den Code. (In Codes kommen I, L, O, 0 und 1 nicht vor.)";
+const dcShown = (c) => c.slice(0, 4) + "-" + c.slice(4);
+const deClock = (ms) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));
+const dcNote = (c, at, until) => `Zwischenstand-Code: ${dcShown(c)} – online gesichert am ${deDate(at).slice(0, 6)} um ${deClock(at)} Uhr, abrufbar bis ${deDate(until)}. Was du danach schreibst, ist erst nach erneutem Sichern online.`;
+// Ableitung wie in der Spezifikation (unabhängig von index.html nachgerechnet): PBKDF2-HMAC-SHA256 → HKDF-SHA256 → Kennung (hex) und AES-GCM-256-Schlüssel
+function dcKeysOf(code8) {
+  const master = pbkdf2Sync(Buffer.from("feibeitsblatt/draft/v1|" + code8, "utf8"), Buffer.from("feibeitsblatt/draft/v1", "utf8"), 600000, 32, "sha256");
+  const hk = (info) => Buffer.from(hkdfSync("sha256", master, Buffer.alloc(0), Buffer.from(info, "utf8"), 32));
+  return { id: hk("feibeitsblatt/draft/id/v1").toString("hex"), key: hk("feibeitsblatt/draft/enc/v1") };
+}
+function dcDecrypt(key, env) {
+  const ct = Buffer.from(env.ct, "base64"), dec = createDecipheriv("aes-256-gcm", key, Buffer.from(env.iv, "base64"));
+  dec.setAuthTag(ct.subarray(ct.length - 16));
+  return JSON.parse(Buffer.concat([dec.update(ct.subarray(0, ct.length - 16)), dec.final()]).toString("utf8"));
+}
+const draftDataset = (pdf) => { const i0 = pdf.indexOf("/FbDraft 1"), d0 = pdf.indexOf("stream\n", i0) + 7, d1 = pdf.indexOf("\nendstream", d0); return JSON.parse(pdf.subarray(d0, d1).toString("utf8")); };
+const draftCalls = (p, method) => p.calls((r) => r.path === "/api/draft" && (!method || r.method === method));
+
+test("3h Online-Zwischenstand: „Zwischenstand sichern (online und als PDF-Datei)“ speichert den Stand verschlüsselt auf dem Server (nur Kennung, Blatt-Code, Umschlag – kein Name, nie der Zwischenstand-Code) und nennt den Code im Schreibbereich und rot oben in der PDF → auf einem frischen Gerät lädt der Code genau diesen Stand, erneutes Sichern ersetzt ihn; falscher Code, gescheitertes Online-Speichern, „Abbrechen“ behält den Online-Stand, nach der Abgabe und mit dem Blatt gelöscht", async ({ browser }) => {
+  test.setTimeout(240_000);
+  // eigenes Blatt ohne Auftrag an die KI (zwei Textaufgaben): so stören weder Abgaben noch die KI die übrigen Tests; am Ende gelöscht
+  const t = await openPage(browser);
+  await teacherLogin(t.page, PW);
+  await t.page.click("#t-new");
+  await t.page.fill("#b-title", "Online sichern");
+  await t.page.fill("#bq-1", "Was bedeutet Verantwortung?");
+  await t.page.fill("#bq-2", "Nenne ein Beispiel aus deinem Alltag.");
+  await t.page.click("#b-gen");
+  await expect(t.page.locator("#b-result")).toBeVisible();
+  const shown = (await t.page.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const rowsOf = () => d1Query(`SELECT id, sheet_code, saved_at, bytes, data FROM drafts WHERE sheet_code='${code}' ORDER BY saved_at, id`);
+  const V = { input: { vorname: "vio", nachname: "la", geb: "--09-21", klasse: "9c" }, person: { vorname: "Vio", nachname: "La", geburtsdatum: "--09-21", klasse: "9c" },
+    a1: "Verantwortung bedeutet, für die Folgen des eigenen Handelns einzustehen.", a2: "Ich füttere jeden Morgen unseren Hund.", more: " Außerdem gieße ich die Pflanzen." };
+
+  /* ---------- A. Gerät 1: Startseite nennt den Zwischenstand-Code; schreiben und sichern ---------- */
+  const s1 = await openPage(browser), p1 = s1.page;
+  await expect(p1.locator("#screen-start .sub")).toHaveText("Gib den Code ein, den du von deiner Lehrkraft bekommen hast – oder deinen Zwischenstand-Code.");
+  await expect(p1.locator("#code-hint")).toHaveText("6 Zeichen, z. B. K7Q-M4X. Dein Zwischenstand-Code (8 Zeichen, steht oben in deiner Zwischenstand-PDF) gehört auch hierher.");
+  await expect(p1.locator("#screen-start .pdfrow .fhint")).toHaveText("Am einfachsten gibst du oben deinen Zwischenstand-Code ein. Ohne Code kannst du hier die PDF-Datei hochladen, mit der du deinen Zwischenstand gesichert hast, und weiterarbeiten. Kommst du aus einem Escape-Room, lade hier deine Überblick-PDF hoch.");
+  // weder 6 noch 8 Zeichen: die Meldung nennt beide Längen; 8 Zeichen, die kein Code sein können: ohne Anfrage
+  await enterCode(p1, "K7QM4");
+  await expect(p1.locator("#start-err")).toHaveText(DC_LEN_ERR);
+  await enterCode(p1, "7KQM4XW");
+  await expect(p1.locator("#start-err")).toHaveText(DC_LEN_ERR);
+  await enterCode(p1, "7KQM-4XW0");
+  await expect(p1.locator("#start-err")).toHaveText(DC_BAD);
+  expect(await s1.calls((r) => r.path.startsWith("/api/draft"))).toEqual([]);
+  await enterCode(p1, shown);
+  await fillPerson(p1, V.input);
+  await expect(p1.locator("#ed-pdf")).toHaveText(DC_BTN);
+  await expect(p1.locator("#draft-code")).toBeHidden();
+  // Datenschutz im Schreibbereich: online nur auf Klick, verschlüsselt, Schlüssel aus dem Code, 30 Tage – und weiter „nur auf diesem Gerät“ ohne Klick
+  const priv1 = await p1.locator("#privacy").textContent();
+  expect(priv1).toContain("Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (ist er älter als 7 Tage, löscht ihn diese Seite beim nächsten Aufruf in diesem Browser) – " +
+    "auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen. " +
+    "Nur wenn du oben auf „" + DC_BTN + "“ klickst, wird er zusätzlich verschlüsselt auf dem Server dieser Seite gespeichert, und du bekommst eine PDF-Datei mit deinem Zwischenstand-Code – mit dem Code lädst du den Stand auf jedem Gerät wieder. " +
+    "Den Schlüssel bildet der Code, den der Server nie erhält: Wer den Code kennt, kann den Stand laden; die Datei enthält außerdem deine Antworten lesbar – gib Datei und Code nicht weiter. " +
+    "Online wird der Stand 30 Tage nach dem letzten Sichern gelöscht, schon vorher nach deiner Abgabe oder mit dem Feibeitsblatt; „Abbrechen und Zwischenstand löschen“ löscht ihn dort nicht.");
+  expect(priv1).not.toContain("Server in der EU");
+  const full1 = await p1.locator("#privfull-ed").textContent();
+  for (const x of ["Nur wenn du auf „" + DC_BTN + "“ klickst, wird er zusätzlich verschlüsselt auf dem Server gespeichert. Dort wird er 30 Tage nach dem letzten Sichern gelöscht – schon vorher, wenn du deine Arbeit abgibst " +
+      "(dann löscht ihn diese Seite von dem Gerät aus, auf dem du mit ihm weitergearbeitet hast) oder wenn deine Lehrkraft das Feibeitsblatt löscht – und liegt danach noch " + BACKUP + " in der Datensicherung der Datenbank; " +
+      "„Abbrechen und Zwischenstand löschen“ löscht nur den Stand auf diesem Gerät. Die PDF-Datei mit deinem Zwischenstand, die du dabei herunterlädst, löschst du selbst.",
+    "Sicherst du deinen Zwischenstand online („" + DC_BTN + "“), liegt auch er dort – verschlüsselt mit einem Schlüssel, den diese Seite in deinem Browser aus deinem Zwischenstand-Code bildet; den Code erhält der Server nie. " +
+      "Er speichert dazu nur den Code des Feibeitsblattes, den Zeitpunkt und die Größe – keinen Namen. Wer den Zwischenstand-Code kennt (er steht auch in der Zwischenstand-PDF-Datei), kann den Stand laden.",
+    "Sicherst du deinen Zwischenstand online, kannst du ihn mit deinem Zwischenstand-Code auf jedem Gerät wieder laden und weiterarbeiten – ohne eine Datei hochzuladen.",
+    "Ob du deinen Zwischenstand online sicherst, entscheidest du selbst – ohne deinen Klick bleibt er nur auf diesem Gerät.",
+    "Einen online gesicherten Zwischenstand kann auch der Betreiber nur mit deinem Zwischenstand-Code finden und löschen."]) expect(full1, x).toContain(x);
+  await typeAt(p1, "#a-1", V.a1);
+  await typeAt(p1, "#a-2", V.a2);
+  await expect(p1.locator("#save-state")).toHaveText("Zwischenstand auf diesem Gerät gespeichert");
+  expect(await s1.calls((r) => r.path.startsWith("/api/draft"))).toEqual([]);   // nie automatisch – erst auf Klick
+  expect((await draftOfPage(p1)).saveCode).toBeUndefined();
+  const [dl1] = await Promise.all([p1.waitForEvent("download"), p1.click("#ed-pdf")]);
+  expect(dl1.suggestedFilename()).toMatch(new RegExp("^Feibeitsblatt-Zwischenstand-" + shown + "-\\d{4}-\\d\\d-\\d\\d_\\d\\d-\\d\\d\\.pdf$"));
+  const pdf1 = await readFile(await dl1.path());
+  await expect(p1.locator("#ed-pdf")).toBeEnabled();
+  await expect(p1.locator("#ed-pdf")).toHaveText(DC_BTN);
+  // die Anfrage: PUT /api/draft mit genau {id, code, envelope} – Kennung 64 Hex, Umschlag {v, iv, ct}; kein Klartext, kein Name
+  const [put1] = await draftCalls(s1);
+  expect([put1.method, put1.status]).toEqual(["PUT", 200]);
+  const b1 = JSON.parse(put1.reqBody), r1 = JSON.parse(put1.body);
+  expect(Object.keys(b1).sort()).toEqual(["code", "envelope", "id"]);
+  expect(b1.id).toMatch(/^[0-9a-f]{64}$/);
+  expect(b1.code).toBe(code);
+  expect(Object.keys(b1.envelope).sort()).toEqual(["ct", "iv", "v"]);
+  expect(b1.envelope.v).toBe(1);
+  expect(b1.envelope.iv).toMatch(/^[A-Za-z0-9+/]{16}$/);
+  expect(b1.envelope.ct).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+  for (const x of ["Verantwortung", "Hund", "vorname", "nachname", "klasse", V.person.geburtsdatum, "answers", "saveCode"]) expect(put1.reqBody, x).not.toContain(x);
+  expect(Object.keys(r1).sort()).toEqual(["days", "expiresAt", "ok", "savedAt"]);
+  expect([r1.days, r1.expiresAt - r1.savedAt]).toEqual([30, 30 * 864e5]);
+  // Statuszeile und – dauerhaft sichtbar im Kopf des Blattes – der Zwischenstand-Code mit Zeitpunkt und Frist
+  const state1 = await p1.locator("#save-state").textContent();
+  expect(state1).toMatch(/^Zwischenstand online und als PDF-Datei gesichert – dein Zwischenstand-Code: [A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+  await expect(p1.locator("#save-state")).not.toHaveClass(/\bbad\b/);
+  const code8 = state1.slice(-9).replace("-", "");
+  expect(code8).toMatch(DC_CODE_RE);
+  expect(/[A-Z]/.test(code8) && /[2-9]/.test(code8)).toBe(true);
+  expect(put1.reqBody).not.toContain(code8);   // der Code verlässt den Browser nie
+  const note = p1.locator("#draft-code");
+  await expect(note).toHaveText(dcNote(code8, r1.savedAt, r1.expiresAt));
+  await expect(note).toHaveAttribute("role", "status");
+  await expect(note.locator("b.dcode")).toHaveText(dcShown(code8));
+  expect(await note.evaluate((e) => e.closest("header.sheet-head") !== null && e.getBoundingClientRect().height > 0)).toBe(true);
+  await expectOnlyTtShort(p1, "Schreibbereich nach dem Online-Sichern");   // zur Tippzeit-Messung weiter nur der eine Satz der Kurzfassung
+  // die Kennung ist aus dem Code abgeleitet (hier unabhängig nachgerechnet), der Umschlag enthält genau den Datensatz der PDF
+  const k = dcKeysOf(code8);
+  expect(b1.id).toBe(k.id);
+  const ds1 = draftDataset(pdf1), { savedOnlineAt: at1, savedOnlineUntil: until1, ...ds1Rest } = ds1;
+  expect(ds1).toMatchObject({ v: 1, kind: "feibeitsblatt-draft", code, sheetTitle: "Online sichern", person: V.person, answers: [V.a1, V.a2], saveCode: code8 });
+  expect([at1, until1]).toEqual([r1.savedAt, r1.expiresAt]);
+  expect(dcDecrypt(k.key, b1.envelope)).toEqual(ds1Rest);
+  expect(ds1.typing).toBeUndefined();   // Tippzeiten stehen nicht im Zwischenstand – also auch nicht online (TT_KEEP_IN_DRAFT aus)
+  // … und so steht er auch im Zwischenstand dieses Geräts (Code, Zeitpunkt, Frist)
+  expect(await draftOfPage(p1)).toMatchObject({ saveCode: code8, savedOnlineAt: r1.savedAt, savedOnlineUntil: r1.expiresAt });
+  // die PDF: ganz oben rot und fett der Code (deutlich größer als der Fließtext), darunter rot die Frist – sonst wie bisher, weiter eine Seite
+  const txt1 = pdf1.toString("latin1"), ops1 = pdfTextOps(txt1), RED_PDF = "0.75 0.1 0.1";
+  pdfStructure(pdf1, 10);
+  expect(txt1).toContain("/Type /Pages /Kids [3 0 R] /Count 1");
+  expect(ops1[0]).toEqual({ color: RED_PDF, bold: true, size: 20, text: "Zwischenstand-Code: " + dcShown(code8) });
+  const title1 = ops1.findIndex((o) => o.text === "Zwischenstand für ein Feibeitsblatt");
+  expect(title1).toBeGreaterThan(1);
+  expect(ops1.slice(1, title1).every((o) => o.color === RED_PDF && !o.bold && o.size === 11)).toBe(true);
+  expect(ops1.slice(1, title1).map((o) => o.text).join(" ")).toBe("Mit diesem Code lädst du diesen Zwischenstand bis zum " + deDate(r1.expiresAt) +
+    " auf der Startseite von Feibeitsblatt wieder – ohne die Datei hochzuladen. Gib ihn dort in das Feld „Code“ ein.");
+  expect(ops1.slice(title1).some((o) => o.color === RED_PDF)).toBe(false);   // danach geht es wie bisher weiter
+  expect([ops1[title1].color, ops1[title1].bold, ops1[title1].size]).toEqual(["0.1 0.1 0.1", true, 21]);
+  const shown1 = pdfShownText(pdf1);
+  for (const x of ["So arbeitest du weiter:", "Klicke dort auf „Zwischenstand-PDF hochladen“ und wähle diese Datei aus.",
+    "Die Datei enthält deine Antworten lesbar und deinen Zwischenstand-Code: Wer den Code kennt, kann deinen online gesicherten Zwischenstand laden. Gib Datei und Code nicht weiter und lade die Datei nirgendwo sonst hoch.",
+    "Online liegt der Stand vom " + deDate(r1.savedAt) + ", " + deClock(r1.savedAt) + " Uhr – was du danach schreibst, erst nach erneutem Sichern.", "Dein Zwischenstand-Code bleibt derselbe, eine ältere Datei enthält nur den älteren Stand.",
+    "Diese Datei kannst du weiterhin hochladen (siehe oben) – zum Beispiel, wenn der online gesicherte Stand schon gelöscht ist."]) expect(shown1, x).toContain(x);
+  // der Server: eine Zeile zu diesem Blatt – unter einem Hash der Kennung (nicht der Kennung selbst), mit Zeitpunkt, Größe und genau dem Umschlag; kein Klartext
+  let rows = await rowsOf();
+  expect(rows.length).toBe(1);
+  expect(rows[0].id).toMatch(/^[0-9a-f]{64}$/);
+  expect(rows[0].id).not.toBe(b1.id);
+  expect([rows[0].sheet_code, rows[0].saved_at, rows[0].bytes]).toEqual([code, r1.savedAt, rows[0].data.length]);
+  expect(JSON.parse(rows[0].data)).toEqual(b1.envelope);
+  expect(Object.keys((await d1Query("SELECT * FROM drafts LIMIT 1"))[0]).sort()).toEqual(["bytes", "data", "id", "saved_at", "sheet_code"]);   // kein Name, keine Kennung der Bearbeitung
+  for (const x of ["Verantwortung", "Hund", "Vio", code8]) expect(JSON.stringify(rows), x).not.toContain(x);
+
+  /* ---------- B. frisches Gerät: der Code (klein, mit Bindestrich) lädt genau diesen Stand; weiterschreiben, erneut sichern → ersetzt ---------- */
+  const s2 = await openPage(browser), p2 = s2.page;
+  await enterCode(p2, dcShown(code8).toLowerCase());
+  await expect(p2.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(p2.locator("#who-name")).toHaveText("Vio · La · 21.09. · Klasse 9c");
+  await expect(p2.locator("#sheet-title")).toHaveText("Online sichern");
+  expect([await p2.inputValue("#a-1"), await p2.inputValue("#a-2")]).toEqual([V.a1, V.a2]);
+  await expect(p2.locator("#save-state")).toHaveText("Online gesicherten Zwischenstand übernommen");
+  await expect(p2.locator("#draft-code")).toHaveText(dcNote(code8, r1.savedAt, r1.expiresAt));   // derselbe Code gilt hier weiter
+  const [load2] = await s2.calls((r) => r.path === "/api/draft/load");
+  expect([load2.method, load2.status, JSON.parse(load2.reqBody)]).toEqual(["POST", 200, { id: k.id }]);   // an den Server geht nur die Kennung
+  const l2 = JSON.parse(load2.body);
+  expect(Object.keys(l2).sort()).toEqual(["code", "days", "envelope", "expiresAt", "ok", "savedAt"]);
+  expect([l2.code, l2.savedAt, l2.expiresAt, l2.envelope]).toEqual([code, r1.savedAt, r1.expiresAt, b1.envelope]);
+  expect(await draftOfPage(p2)).toMatchObject({ answers: [V.a1, V.a2], attempt: ds1.attempt, saveCode: code8, savedOnlineAt: r1.savedAt, savedOnlineUntil: r1.expiresAt });   // sofort auf diesem Gerät gespeichert
+  await typeAt(p2, "#a-2", V.more);
+  const [dl2] = await Promise.all([p2.waitForEvent("download"), p2.click("#ed-pdf")]);
+  const pdf2 = await readFile(await dl2.path()), ds2 = draftDataset(pdf2);
+  const [put2] = await draftCalls(s2, "PUT");
+  const b2 = JSON.parse(put2.reqBody), r2 = JSON.parse(put2.body);
+  expect([put2.status, b2.id, b2.code]).toEqual([200, k.id, code]);   // dieselbe Kennung: der Online-Stand wird ersetzt
+  expect(r2.savedAt).toBeGreaterThan(r1.savedAt);
+  await expect(p2.locator("#save-state")).toHaveText("Zwischenstand online und als PDF-Datei gesichert – dein Zwischenstand-Code: " + dcShown(code8));
+  await expect(p2.locator("#draft-code")).toHaveText(dcNote(code8, r2.savedAt, r2.expiresAt));
+  expect(ds2).toMatchObject({ answers: [V.a1, V.a2 + V.more], saveCode: code8, savedOnlineAt: r2.savedAt, savedOnlineUntil: r2.expiresAt });
+  expect(pdfShownText(pdf2).startsWith("Zwischenstand-Code: " + dcShown(code8) + " ")).toBe(true);
+  expect(dcDecrypt(k.key, b2.envelope).answers).toEqual([V.a1, V.a2 + V.more]);
+  rows = await rowsOf();
+  expect(rows.length).toBe(1);   // ersetzt, nicht zusätzlich
+  expect([rows[0].saved_at, JSON.parse(rows[0].data)]).toEqual([r2.savedAt, b2.envelope]);
+
+  /* ---------- C. Gerät 1 hat inzwischen weitergeschrieben (neuerer Stand auf dem Gerät): Rückfrage wie bei der PDF-Datei ---------- */
+  await typeAt(p1, "#a-1", " Nachtrag auf Gerät 1.");
+  await expect.poll(async () => (await draftOfPage(p1)).answers[0]).toBe(V.a1 + " Nachtrag auf Gerät 1.");
+  await p1.reload();
+  await expect(p1.locator("#resume-box")).toBeVisible();
+  await enterCode(p1, code8);   // ohne Bindestrich
+  expect(await confirmDialog(p1, "Neuerer Zwischenstand auf diesem Gerät", false)).toMatch(/^Auf diesem Gerät liegt schon ein Zwischenstand von \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr; der online gesicherte Stand ist von \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr\. Welchen Stand möchtest du verwenden\?$/);
+  await expect(p1.locator("#screen-editor")).toHaveClass(/active/);   // „Neueren Stand von diesem Gerät“: der Stand des Geräts, sein Code bleibt
+  await expect(p1.locator("#save-state")).toHaveText("Zwischenstand von diesem Gerät wiederhergestellt");
+  expect(await p1.inputValue("#a-1")).toBe(V.a1 + " Nachtrag auf Gerät 1.");
+  // der Code ist nach dem Neuladen wieder da (aus dem Zwischenstand des Geräts) – mit dem Zeitpunkt, zu dem der Online-Stand zuletzt gesichert wurde (laut Server: auf dem anderen Gerät)
+  await expect(p1.locator("#draft-code")).toHaveText(dcNote(code8, r2.savedAt, r2.expiresAt));
+  await expect.poll(async () => (await draftOfPage(p1)).savedOnlineAt).toBe(r2.savedAt);
+  // „Abbrechen“: löscht nur den Stand dieses Geräts – der Dialog sagt, dass der online gesicherte bleibt (mit Code und Frist)
+  await p1.click("#ed-cancel");
+  expect(await confirmDialog(p1, "Zwischenstand löschen?")).toBe("Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen. " +
+    "Dein online gesicherter Zwischenstand (Stand vom " + deDate(r2.savedAt).slice(0, 6) + " um " + deClock(r2.savedAt) + " Uhr) wird dabei nicht gelöscht: Mit deinem Zwischenstand-Code " + dcShown(code8) +
+    " kannst du ihn bis zum " + deDate(r2.expiresAt) + " auf der Startseite wieder laden.");
+  await expect(p1.locator("#screen-start")).toHaveClass(/active/);
+  await expect(p1.locator("#resume-box")).toBeHidden();
+  expect(await p1.evaluate(() => Object.keys(localStorage).filter((x) => x.startsWith("feibeitsblatt:")))).toEqual([]);
+  expect(await draftCalls(s1, "DELETE")).toEqual([]);
+  expect((await rowsOf()).length).toBe(1);
+  // … und er lädt sich mit dem Code wieder: jetzt der zuletzt (auf dem anderen Gerät) gesicherte Stand, ohne Rückfrage
+  await enterCode(p1, dcShown(code8));
+  await expect(p1.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  expect([await p1.inputValue("#a-1"), await p1.inputValue("#a-2")]).toEqual([V.a1, V.a2 + V.more]);
+  await expect(p1.locator("#save-state")).toHaveText("Online gesicherten Zwischenstand übernommen");
+  await expect(p1.locator("#draft-code")).toHaveText(dcNote(code8, r2.savedAt, r2.expiresAt));
+
+  /* ---------- D. falscher Code: Meldung auf der Startseite, nichts geöffnet ---------- */
+  const s3 = await openPage(browser), p3 = s3.page;
+  const wrong = code8.slice(0, 7) + (code8[7] === "A" ? "B" : "A");
+  await enterCode(p3, wrong);
+  await expect(p3.locator("#start-err")).toHaveText(DC_NOT_FOUND);
+  await expect(p3.locator("#start-status")).toHaveText("");
+  await expect(p3.locator("#screen-start")).toHaveClass(/active/);
+  await expect(p3.locator("#start-btn")).toBeEnabled();
+  const [miss] = await s3.calls((r) => r.path === "/api/draft/load");
+  expect([miss.status, JSON.parse(miss.body).code]).toEqual([404, "draft_not_found"]);
+  expect(JSON.parse(miss.reqBody).id).not.toBe(k.id);
+  await closePage(s3);
+
+  /* ---------- E. Online-Speichern scheitert: die PDF entsteht trotzdem – ohne Code-Zeile, die Statuszeile sagt es ---------- */
+  await typeAt(p2, "#a-1", " Später.");
+  await p2.route("**/api/draft", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Auf dem Server ist ein Fehler aufgetreten.", code: "server_error" }) }));
+  const [dl3] = await Promise.all([p2.waitForEvent("download"), p2.click("#ed-pdf")]);
+  const pdf3 = await readFile(await dl3.path()), txt3 = pdf3.toString("latin1");
+  await expect(p2.locator("#save-state")).toHaveText("Zwischenstand nur als PDF-Datei gesichert – online hat es nicht geklappt (der Server hat ihn nicht angenommen). Die Datei kannst du wie bisher unter „Zwischenstand-PDF hochladen“ hochladen.");
+  await expect(p2.locator("#save-state")).toHaveClass(/\bbad\b/);
+  pdfStructure(pdf3, 10);
+  expect(txt3).not.toContain("0.75 0.1 0.1 rg");
+  expect(pdfShownText(pdf3)).not.toMatch(/Zwischenstand-Code|online/i);
+  expect(pdfShownText(pdf3).startsWith("Zwischenstand für ein Feibeitsblatt ")).toBe(true);
+  expect(pdfShownText(pdf3)).toContain("Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.");
+  // der Datensatz der Datei: der neue Stand, weiter mit dem Code (und dem Zeitpunkt des letzten gelungenen Sicherns) – sie bleibt hochladbar
+  expect(draftDataset(pdf3)).toMatchObject({ answers: [V.a1 + " Später.", V.a2 + V.more], saveCode: code8, savedOnlineAt: r2.savedAt, savedOnlineUntil: r2.expiresAt });
+  await expect(p2.locator("#draft-code")).toHaveText(dcNote(code8, r2.savedAt, r2.expiresAt));   // online liegt weiter der Stand von vorhin
+  await p2.unroute("**/api/draft");
+  // … ebenso ohne Verbindung
+  await p2.route("**/api/draft", (route) => route.abort("failed"));
+  const [dl4] = await Promise.all([p2.waitForEvent("download"), p2.click("#ed-pdf")]);
+  expect((await readFile(await dl4.path())).toString("latin1")).not.toContain("0.75 0.1 0.1 rg");
+  await expect(p2.locator("#save-state")).toHaveText("Zwischenstand nur als PDF-Datei gesichert – online hat es nicht geklappt (keine Verbindung zum Server). Die Datei kannst du wie bisher unter „Zwischenstand-PDF hochladen“ hochladen.");
+  await p2.unroute("**/api/draft");
+  expect((await rowsOf())[0].saved_at).toBe(r2.savedAt);
+  // die Datei ohne Code-Zeile lässt sich wie bisher hochladen (frisches Gerät) – dort gilt derselbe Code weiter
+  const s4 = await openPage(browser), p4 = s4.page;
+  await p4.setInputFiles("#start-pdf-file", { name: "stand.pdf", mimeType: "application/pdf", buffer: pdf3 });
+  await expect(p4.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect(p4.locator("#save-state")).toHaveText("Zwischenstand aus der PDF-Datei übernommen");
+  expect(await p4.inputValue("#a-1")).toBe(V.a1 + " Später.");
+  await expect(p4.locator("#draft-code")).toHaveText(dcNote(code8, r2.savedAt, r2.expiresAt));
+  expect(await s4.calls((r) => r.path.startsWith("/api/draft"))).toEqual([]);
+  await closePage(s4);
+
+  /* ---------- F. nach der Abgabe: die Seite löscht den Online-Stand (DELETE mit der Kennung), der Code lädt nichts mehr ---------- */
+  await p2.click("#submit-btn");
+  await confirmDialog(p2, "Jetzt abgeben?", true, { check: "none" });
+  await expect(p2.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await expect.poll(async () => (await draftCalls(s2, "DELETE")).length).toBe(1);
+  const [del] = await draftCalls(s2, "DELETE");
+  expect([del.status, JSON.parse(del.reqBody), JSON.parse(del.body)]).toEqual([200, { id: k.id }, { ok: true, deleted: 1 }]);
+  expect(await rowsOf()).toEqual([]);
+  await expectOnlyTtShort(p2, "Bestätigung", 0);
+  await p2.click("#done-btn");
+  await expect(p2.locator("#screen-start")).toHaveClass(/active/);
+  await enterCode(p2, dcShown(code8));
+  await expect(p2.locator("#start-err")).toHaveText(DC_NOT_FOUND);
+  await closePage(s2);
+
+  /* ---------- G. mit dem Blatt gelöscht: Gerät 1 (weiß nichts von der Abgabe) sichert noch einmal – dann löscht die Lehrkraft das Blatt ---------- */
+  const [dl5] = await Promise.all([p1.waitForEvent("download"), p1.click("#ed-pdf")]);
+  expect(draftDataset(await readFile(await dl5.path())).saveCode).toBe(code8);
+  await expect(p1.locator("#save-state")).toHaveText("Zwischenstand online und als PDF-Datei gesichert – dein Zwischenstand-Code: " + dcShown(code8));
+  expect((await rowsOf()).length).toBe(1);
+  await t.page.click("#b-res-back");
+  await expect(t.page.locator("#t-sel-code")).toHaveText(shown);
+  await t.page.click("#t-del-sheet");
+  await confirmDialog(t.page, "Feibeitsblatt löschen?");
+  await expect(t.page.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  expect(await rowsOf()).toEqual([]);
+  const s5 = await openPage(browser);
+  await enterCode(s5.page, code8);
+  await expect(s5.page.locator("#start-err")).toHaveText(DC_NOT_FOUND);
+  await closePage(s5);
+  // Gerät 1 sichert danach noch einmal: das Blatt gibt es nicht mehr – nur die Datei
+  const [dl6] = await Promise.all([p1.waitForEvent("download"), p1.click("#ed-pdf")]);
+  expect((await readFile(await dl6.path())).toString("latin1")).not.toContain("0.75 0.1 0.1 rg");
+  await expect(p1.locator("#save-state")).toHaveText("Zwischenstand nur als PDF-Datei gesichert – online hat es nicht geklappt (dieses Feibeitsblatt gibt es auf dem Server nicht mehr). Die Datei kannst du wie bisher unter „Zwischenstand-PDF hochladen“ hochladen.");
+  await closePage(s1);
+  await closePage(t);
 });
 
 test("4 Lehrkraft: Anmelden → Abgaben eingeklappt (4 Spalten, sortiert) → Aufklappen zeigt erste und überarbeitete Fassung", async ({ browser }) => {
@@ -4362,7 +4660,7 @@ test("7f Freiwilliges KI-Feedback: G gibt ohne KI ab (nichts an die KI, kein Ers
   await expect(p3.locator("#privacy")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
   await expect(p3.locator("#privacy")).not.toContainText("KI-Dienst");
   // ausführlicher Hinweis und Klasse-Hinweis ohne KI: kein KI-Dienst, kein Abschnitt zur KI, Angaben erst bei der Abgabe
-  await expect(p3.locator("#p-klasse-hint")).toHaveText("z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.");
+  await expect(p3.locator("#p-klasse-hint")).toHaveText("z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.");
   await expect(p3.locator("#privfull-ed h3.privh")).toHaveText(PRIV_HEADS.filter((x) => x !== "Entscheidet die KI über dich?"));
   await expect(p3.locator("#privfull-ed")).toContainText("Zu diesem Feibeitsblatt gibt es kein KI-Feedback – deine Antworten gehen an keine KI.");
   await expect(p3.locator("#privfull-ed")).not.toContainText("kurz unverschlüsselt");   // keine Verarbeitung für eine KI
@@ -7375,8 +7673,8 @@ const ESC_BACK_LINK = "Diese Seite hat deine Daten aus dem Escape-Room nicht ges
   "auf einem geteilten Gerät lösche ihn dort. Du kannst jederzeit über den Arena-Tunnel oder mit deiner Überblick-PDF zurückkommen.";
 const ESC_UPDATED = "Die Daten aus dem Escape-Room „FastFashion-Test“ in deinem Zwischenstand wurden durch die gerade mitgebrachten ersetzt (Escape-Room abgeschlossen am 27.10.2026, 11:15 Uhr).";
 const ESC_NOTE = "Du kommst aus dem Escape-Room „FastFashion-Test“ – deine Angaben sind schon eingetragen.";
-const ESC_SHORT = "Aus dem Escape-Room „FastFashion-Test“ bleiben dein voller Name, dein Geburtsdatum und dein Bestätigungscode auf diesem Gerät; nur deine Ergebnisse dort gehen verschlüsselt an deine Lehrkraft.";
-const ESC_EDITOR = "Aus dem Escape-Room „FastFashion-Test“ stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode nur in deinem Zwischenstand auf diesem Gerät und in PDF-Dateien, die du herunterlädst; " +
+const ESC_SHORT = "Aus dem Escape-Room „FastFashion-Test“ bleiben dein voller Name, dein Geburtsdatum und dein Bestätigungscode auf diesem Gerät – außer du sicherst deinen Zwischenstand online (dann liegen sie verschlüsselt mit darin); nur deine Ergebnisse dort gehen verschlüsselt an deine Lehrkraft.";
+const ESC_EDITOR = "Aus dem Escape-Room „FastFashion-Test“ stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode nur in deinem Zwischenstand (auf diesem Gerät und – wenn du ihn online sicherst – verschlüsselt auf dem Server) und in PDF-Dateien, die du herunterlädst; " +
   "an deine Lehrkraft gehen davon nur deine Ergebnisse aus dem Escape-Room – verschlüsselt mit Erstversuch und Abgabe, nie an eine KI.";
 const ESC_STEP_LAST = "Lösungen, finale KI-Rückmeldung und Escape-Room-Überblick herunterladen " + STEP_LATE;
 const DONE_PDF_ESC = "Lade dir deine Lösungen und deinen Escape-Room-Überblick herunter und speichere sie in deinen Unterlagen zu unserem Unterricht";

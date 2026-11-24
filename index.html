@@ -219,6 +219,9 @@
   /* Ankunft aus einem Escape-Room (Startseite, Angaben) und gescheiterte Abgabe eines Escape-Room-Finales */
   #p-escape{margin:0 0 16px}
   #esc-updated{margin:12px 0 0}
+  /* Zwischenstand-Code eines online gesicherten Stands (Kopf des Blattes, bleibt sichtbar) */
+  #draft-code{margin:12px 0 0; font-family:var(--sans)}
+  #draft-code .dcode{font-family:var(--mono); font-size:1.08em; letter-spacing:.06em; white-space:nowrap}
   #start-esc-retry{margin:10px 0 0}
   #submit-esc{border-left-color:var(--red); text-align:left}
   #submit-esc p{margin:0 0 8px}
@@ -905,7 +908,7 @@
     <div class="card">
       <p class="brand">Feibeitsblatt</p>
       <h1 id="start-h">Bevor du beginnst</h1>
-      <p class="sub">Gib den Code ein, den du von deiner Lehrkraft bekommen hast.</p>
+      <p class="sub">Gib den Code ein, den du von deiner Lehrkraft bekommen hast – oder deinen Zwischenstand-Code.</p>
       <div class="resumebox hidden" id="resume-box">
         <span id="resume-text"></span>
         <div class="row">
@@ -916,7 +919,7 @@
       <div class="field">
         <label for="code-input">Code</label>
         <input type="text" id="code-input" class="code-input" maxlength="16" placeholder="z. B. K7Q-M4X" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="code-hint">
-        <p class="fhint" id="code-hint">6 Zeichen, z. B. K7Q-M4X.</p>
+        <p class="fhint" id="code-hint">6 Zeichen, z. B. K7Q-M4X. Dein Zwischenstand-Code (8 Zeichen, steht oben in deiner Zwischenstand-PDF) gehört auch hierher.</p>
       </div>
       <p class="err" id="start-err" aria-live="polite"></p>
       <p class="status" id="start-status" aria-live="polite"></p>
@@ -925,7 +928,7 @@
       <div class="pdfrow">
         <button type="button" class="btn ghost small" id="start-pdf">Zwischenstand-PDF hochladen</button>
         <input type="file" id="start-pdf-file" class="sr-only" accept="application/pdf,.pdf" tabindex="-1" aria-hidden="true">
-        <p class="fhint">Hast du deinen Zwischenstand als PDF-Datei gesichert, kannst du ihn hier hochladen und weiterarbeiten. Kommst du aus einem Escape-Room, lade hier deine Überblick-PDF hoch.</p>
+        <p class="fhint">Am einfachsten gibst du oben deinen Zwischenstand-Code ein. Ohne Code kannst du hier die PDF-Datei hochladen, mit der du deinen Zwischenstand gesichert hast, und weiterarbeiten. Kommst du aus einem Escape-Room, lade hier deine Überblick-PDF hoch.</p>
       </div>
       <p class="startpriv" id="start-privacy"></p>
     </div>
@@ -1002,7 +1005,7 @@
       <div class="field">
         <label for="p-klasse">Klasse</label>
         <input type="text" id="p-klasse" maxlength="10" placeholder="z. B. 8b" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="p-klasse-hint">
-        <p class="fhint" id="p-klasse-hint">z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.</p>
+        <p class="fhint" id="p-klasse-hint">z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.</p>
       </div>
       <div class="pprivacy" id="p-privacy"></div>
       <p class="err" id="p-err" aria-live="polite"></p>
@@ -1019,7 +1022,7 @@
     <div class="right">
       <div class="stitle" id="ed-title"></div>
       <div class="count" id="save-state"></div>
-      <button type="button" class="linkbtn" id="ed-pdf">Zwischenstand als PDF-Datei sichern</button>
+      <button type="button" class="linkbtn" id="ed-pdf">Zwischenstand sichern (online und als PDF-Datei)</button>
       <button type="button" class="linkbtn" id="ed-cancel">Abbrechen und Zwischenstand von diesem Gerät löschen</button>
     </div>
   </div>
@@ -1029,6 +1032,7 @@
       <header class="sheet-head">
         <h1 class="sheet-title" id="sheet-title"></h1>
         <p class="sheet-meta" id="sheet-meta"></p>
+        <p class="notebox hidden" id="draft-code" role="status"></p>
         <p class="notebox hidden" id="esc-updated" role="status"></p>
       </header>
       <section class="steps" id="ed-steps" aria-labelledby="ed-steps-h">
@@ -1989,6 +1993,134 @@ const escHasDetails = (x) => !!(x && Array.isArray(x.stations) && x.stations.som
 // Notfall: wäre die Abgabe sonst zu groß, ohne die Fehler-Einzelheiten (eine Abgabe scheitert nie an den Daten aus dem Raum)
 const escTrim = (x) => Object.assign({}, x, { stations: x.stations.map((st) => ({ label: st.label, attempts: st.attempts, errors: [] })), omitted: "too_large" });
 /* ESCAPE:END */
+/* ---------- Online-Zwischenstand mit Zwischenstand-Code (Wunsch des Betreibers vom 24.11.2026) ----------
+ * Nur auf Klick auf „Zwischenstand sichern (online und als PDF-Datei)“ (#ed-pdf) speichert der Browser den Datensatz der
+ * Zwischenstand-PDF zusätzlich verschlüsselt auf dem Server (PUT /api/draft); die PDF nennt ganz oben den Zwischenstand-Code, mit dem
+ * sich genau dieser Stand auf der Startseite wieder laden lässt (POST /api/draft/load) – ohne Datei. Der Code (8 Zeichen aus dem
+ * Alphabet der Blatt-Codes, mindestens ein Buchstabe und eine Ziffer, Anzeige XXXX-XXXX) entsteht im Browser und verlässt ihn nie:
+ * Aus ihm werden per PBKDF2-HMAC-SHA256 (600 000 Iterationen) und HKDF-SHA256 die Kennung für den Server (64 Hex) und der
+ * AES-GCM-256-Schlüssel abgeleitet (Parameter und info-Texte nie ändern – sonst sind alle online gesicherten Stände verloren).
+ * Umschlag {v:1, iv, ct} (Standard-Base64). Ein Code je Bearbeitung: Er steht als saveCode im Zwischenstand (samt savedOnlineAt und
+ * savedOnlineUntil des letzten Sicherns) und wird bei jedem weiteren Sichern wiederverwendet – der Online-Stand wird ersetzt. Der Server
+ * kennt weder den Code noch einen Namen; er löscht den Stand 30 Tage nach dem letzten Sichern, mit dem Blatt und – auf Wunsch des
+ * Browsers (DELETE /api/draft) – nach der Abgabe. „Abbrechen und Zwischenstand von diesem Gerät löschen“ löscht ihn nicht. */
+/* DRAFTCODE:BEGIN – reine Funktionen ohne Abhängigkeiten (test/unit/draftcode.test.mjs liest diesen Block) */
+const DC_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";   // wie die Blatt-Codes (ohne I, L, O, 0, 1)
+const DC_LEN = 8;
+const DC_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/;
+const DC_ID_RE = /^[0-9a-f]{64}$/;                       // Kennung für den Server (= DRAFT_ID_RE in worker/lib.js)
+const DC_DAYS = 30;                                      // so lange bleibt ein online gesicherter Stand nach dem letzten Sichern (= LIMITS.draftDays)
+const DC_KDF_PREFIX = "feibeitsblatt/draft/v1|", DC_KDF_SALT = "feibeitsblatt/draft/v1", DC_KDF_ITER = 600000;
+const DC_INFO_ID = "feibeitsblatt/draft/id/v1", DC_INFO_ENC = "feibeitsblatt/draft/enc/v1";
+const DC_BTN = "Zwischenstand sichern (online und als PDF-Datei)";   // Beschriftung von #ed-pdf – die Hinweise zitieren sie
+const DC_BUSY = "Zwischenstand wird gesichert …";
+const DC_EXAMPLE = "7KQM-4XWP";
+// Eingabe normalisieren wie einen Blatt-Code (Großbuchstaben, nur A–Z und 0–9 – Bindestriche und Leerzeichen sind egal)
+function dcNorm(s) { return String(s == null ? "" : s).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+function dcValid(c) { return typeof c === "string" && DC_RE.test(c) && /[A-Z]/.test(c) && /[0-9]/.test(c); }
+function dcFmt(c) { c = String(c || ""); return c.length === DC_LEN ? c.slice(0, 4) + "-" + c.slice(4) : c; }
+// Neuer Code: rnd(n) liefert n Zufallsbytes (crypto.getRandomValues). Ohne Modulo-Bias: 248 = 8 × 31, Bytes ab 248 werden verworfen.
+function dcNew(rnd) {
+  for (;;) {
+    let c = "";
+    while (c.length < DC_LEN) for (const b of rnd(16)) { if (b < 248 && c.length < DC_LEN) c += DC_ALPHABET[b % DC_ALPHABET.length]; }
+    if (dcValid(c)) return c;
+  }
+}
+// Angaben zum online gesicherten Stand aus einem Zwischenstand (fremde Daten: Gerät, PDF-Datei, entschlüsselter Online-Stand):
+// der Code nur in gültiger Form, die Zeitpunkte (ms) nur zusammen, als Ganzzahlen und mit until nach at – sonst 0
+function dcState(o) {
+  const code = o && typeof o === "object" && dcValid(o.saveCode) ? o.saveCode : "";
+  const at = code && Number.isSafeInteger(o.savedOnlineAt) && o.savedOnlineAt > 0 ? o.savedOnlineAt : 0;
+  const until = at && Number.isSafeInteger(o.savedOnlineUntil) && o.savedOnlineUntil > at ? o.savedOnlineUntil : 0;
+  return { code, at: until ? at : 0, until };
+}
+// … und so stehen sie im Zwischenstand (draftRecord): nur mit Code, die Zeitpunkte nur nach einem gelungenen Online-Sichern
+function dcOut(code, at, until) {
+  const s = dcState({ saveCode: code, savedOnlineAt: at, savedOnlineUntil: until });
+  return s.code ? Object.assign({ saveCode: s.code }, s.at ? { savedOnlineAt: s.at, savedOnlineUntil: s.until } : null) : {};
+}
+// Antwort des Servers auf PUT /api/draft bzw. POST /api/draft/load → {at, until} (ms) oder null
+function dcTimes(r) {
+  const at = r && Number.isSafeInteger(r.savedAt) && r.savedAt > 0 ? r.savedAt : 0;
+  return at && Number.isSafeInteger(r.expiresAt) && r.expiresAt > at ? { at, until: r.expiresAt } : null;
+}
+const dcB64 = (u) => { let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+function dcUnB64(s) {
+  if (typeof s !== "string" || !s || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) throw new Error("Base64");
+  const bin = atob(s), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+// Ableitung aus dem Code (WebCrypto als Parameter): master = PBKDF2-HMAC-SHA256(Passwort "feibeitsblatt/draft/v1|" + Code, Salt
+// "feibeitsblatt/draft/v1", 600 000 Iterationen, 256 Bit); daraus per HKDF-SHA256 (leeres Salt, wie beim Lehrkraft-Zugang) die Kennung
+// für den Server (hex, 64 Zeichen) und der AES-GCM-256-Schlüssel (nicht exportierbar – er verlässt den Browser nie)
+async function dcDerive(subtle, code) {
+  if (!dcValid(code)) throw new Error("Code");
+  const enc = new TextEncoder(), hk = (info) => ({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode(info) });
+  const base = await subtle.importKey("raw", enc.encode(DC_KDF_PREFIX + code), "PBKDF2", false, ["deriveBits"]);
+  const bits = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(DC_KDF_SALT), iterations: DC_KDF_ITER }, base, 256);
+  const master = await subtle.importKey("raw", bits, "HKDF", false, ["deriveKey", "deriveBits"]);
+  const id = Array.from(new Uint8Array(await subtle.deriveBits(hk(DC_INFO_ID), master, 256)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const key = await subtle.deriveKey(hk(DC_INFO_ENC), master, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  return { id, key };
+}
+// Umschlag {v:1, iv, ct}: AES-GCM über das UTF-8-JSON des Datensatzes (iv = 12 Zufallsbytes aus rnd)
+async function dcSeal(subtle, key, rec, rnd) {
+  const iv = rnd(12), ct = await subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(rec)));
+  return { v: 1, iv: dcB64(iv), ct: dcB64(new Uint8Array(ct)) };
+}
+// … und zurück (wirft bei falscher Form, falschem Schlüssel oder verändertem Inhalt); das Ergebnis geht immer durch cleanDraft
+async function dcOpen(subtle, key, env) {
+  if (!env || typeof env !== "object" || env.v !== 1) throw new Error("Umschlag");
+  const iv = dcUnB64(env.iv);
+  if (iv.length !== 12) throw new Error("Umschlag");
+  const pt = await subtle.decrypt({ name: "AES-GCM", iv }, key, dcUnB64(env.ct));
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(pt));
+}
+const dcEnvFits = (env, max) => !!env && JSON.stringify({ v: 1, iv: env.iv, ct: env.ct }).length <= max;   // wie der Server misst (JSON-Text)
+// Datum und Uhrzeit in Ortszeit: TT.MM. / TT.MM.JJJJ / HH:MM
+const dc2 = (n) => String(n).padStart(2, "0");
+const dcDay = (ms) => { const d = new Date(ms); return dc2(d.getDate()) + "." + dc2(d.getMonth() + 1) + "."; };
+const dcDate = (ms) => dcDay(ms) + new Date(ms).getFullYear();
+const dcClock = (ms) => { const d = new Date(ms); return dc2(d.getHours()) + ":" + dc2(d.getMinutes()); };
+/* Texte (du-Form; keine Wörter zur Tippzeit-Messung – an sichtbaren Stellen steht dazu nur der eine Satz der Kurzfassung) */
+// Schreibbereich, dauerhaft sichtbar (#draft-code): [Text vor dem Code, Code, Text danach]
+const dcNoteParts = (code, at, until) => ["Zwischenstand-Code: ", dcFmt(code),
+  ` – online gesichert am ${dcDay(at)} um ${dcClock(at)} Uhr, abrufbar bis ${dcDate(until)}. Was du danach schreibst, ist erst nach erneutem Sichern online.`];
+// Statuszeile oben nach dem Sichern
+const dcSavedText = (code) => `Zwischenstand online und als PDF-Datei gesichert – dein Zwischenstand-Code: ${dcFmt(code)}`;
+// Online-Speichern gescheitert: die PDF-Datei entsteht trotzdem (ohne Code-Zeile). code/status = Fehlercode bzw. HTTP-Status der Antwort
+function dcFailReason(code, status) {
+  return code === "network" || code === "timeout" ? "keine Verbindung zum Server"
+    : code === "too_large" || status === 413 ? "der Zwischenstand ist dafür zu groß"
+    : code === "rate_limited" || status === 429 ? "gerade kommen zu viele Anfragen aus diesem Netz"
+    : code === "too_many_drafts" ? "zu diesem Feibeitsblatt sind schon sehr viele Zwischenstände online gesichert"
+    : code === "not_found" ? "dieses Feibeitsblatt gibt es auf dem Server nicht mehr"
+    : code === "crypto" ? "dieser Browser konnte ihn nicht verschlüsseln"
+    : "der Server hat ihn nicht angenommen";
+}
+const dcFailText = (code, status) => `Zwischenstand nur als PDF-Datei gesichert – online hat es nicht geklappt (${dcFailReason(code, status)}). Die Datei kannst du wie bisher unter „Zwischenstand-PDF hochladen“ hochladen.`;
+// Zwischenstand-PDF: ganz oben rot und fett der Code, darunter rot, wie und bis wann er sich einlösen lässt; dazu die Punkte unter „Bitte beachte“
+const dcPdfHead = (code) => "Zwischenstand-Code: " + dcFmt(code);
+const dcPdfLine = (until) => `Mit diesem Code lädst du diesen Zwischenstand bis zum ${dcDate(until)} auf der Startseite von Feibeitsblatt wieder – ohne die Datei hochzuladen. Gib ihn dort in das Feld „Code“ ein.`;
+const dcPdfSecret = (photos) => `Die Datei enthält deine Antworten lesbar${photos ? " – auch deine Fotos –" : ""} und deinen Zwischenstand-Code: Wer den Code kennt, kann deinen online gesicherten Zwischenstand laden. Gib Datei und Code nicht weiter und lade die Datei nirgendwo sonst hoch.`;
+const dcPdfFresh = (at) => `Online liegt der Stand vom ${dcDate(at)}, ${dcClock(at)} Uhr – was du danach schreibst, erst nach erneutem Sichern. Sichere deshalb nach jeder Arbeitsphase neu: Dein Zwischenstand-Code bleibt derselbe, eine ältere Datei enthält nur den älteren Stand.`;
+const DC_PDF_UPLOAD = "Diese Datei kannst du weiterhin hochladen (siehe oben) – zum Beispiel, wenn der online gesicherte Stand schon gelöscht ist.";
+// Startseite
+const DC_LEN_ERR = `Ein Code hat 6 Zeichen (z. B. K7Q-M4X), ein Zwischenstand-Code 8 (z. B. ${DC_EXAMPLE}). Bitte prüfe deine Eingabe.`;
+const DC_BAD = "Diesen Zwischenstand-Code gibt es nicht. Bitte prüfe den Code. (In Codes kommen I, L, O, 0 und 1 nicht vor.)";
+const DC_LOADING = "Dein online gesicherter Zwischenstand wird geladen …";
+const DC_NOT_FOUND = `Zu diesem Zwischenstand-Code ist kein Zwischenstand gespeichert (mehr). Prüfe den Code – online gesicherte Zwischenstände werden ${DC_DAYS} Tage nach dem letzten Sichern gelöscht. ` +
+  "Hast du die Zwischenstand-PDF noch, lade sie unter „Zwischenstand-PDF hochladen“ hoch.";
+const DC_BROKEN = "Der online gesicherte Zwischenstand zu diesem Code lässt sich nicht lesen. Hast du die Zwischenstand-PDF noch, lade sie unter „Zwischenstand-PDF hochladen“ hoch.";
+const DC_LOADED = "Online gesicherten Zwischenstand übernommen";   // Statuszeile im Schreibbereich
+// Rückfrage, wenn auf dem Gerät schon ein neuerer Stand derselben Person liegt (wie bei einer hochgeladenen PDF-Datei)
+const dcNewerText = (localAt, onlineAt) => `Auf diesem Gerät liegt schon ein Zwischenstand von ${localAt} Uhr; der online gesicherte Stand ist von ${onlineAt} Uhr. Welchen Stand möchtest du verwenden?`;
+const DC_NEWER_OK = "Online gesicherten Stand";
+// Dialog „Abbrechen und Zwischenstand von diesem Gerät löschen“: der online gesicherte Stand bleibt (z. B. geteiltes Gerät aufräumen, zu Hause weiter)
+const dcCancelText = (code, at, until) => ` Dein online gesicherter Zwischenstand (Stand vom ${dcDay(at)} um ${dcClock(at)} Uhr) wird dabei nicht gelöscht: Mit deinem Zwischenstand-Code ${dcFmt(code)} kannst du ihn bis zum ${dcDate(until)} auf der Startseite wieder laden.`;
+/* DRAFTCODE:END */
 /* ---------- Tippzeiten (wie im Feiditor): je Zeichen der Abstand zum im Text vorangehenden Zeichen ----------
  * Je UTF-16-Einheit der Textform ein Byte: 0–70 = Abstand in ms (aufgerundet), 71 = mehr als 70 ms, erstes Zeichen oder
  * unbekannter Vorgänger, 255 = ohne Messung (Leerraum, Tabellenkopf und Trenner, wiederhergestellter Text ohne Daten); jeder
@@ -3441,6 +3573,10 @@ const S = {
   busyFeedback: false, ltCache: new Map(),
   ltConsent: false, ltDeclined: false,   // Rechtschreibprüfung: Selbstauskunft im Dialog je geöffnetem Blatt („Trifft nicht zu“ → Buttons weg); nie gespeichert
   attempt: "", firstSent: false, importDraft: null,   // Kennung der Bearbeitung (Erstversuch ↔ Abgabe), Erstversuch übermittelt?, Zwischenstand aus PDF
+  // Online gesicherter Zwischenstand (DRAFTCODE): saveCode = Zwischenstand-Code dieser Bearbeitung (im Zwischenstand gemerkt, bei jedem
+  // Sichern wiederverwendet), savedOnlineAt/-Until = Zeitpunkt des letzten Online-Sicherns und bis wann der Server ihn aufbewahrt (ms; 0 =
+  // noch nie online gesichert); importFrom = woher importDraft kommt ("pdf" | "code"), importCode = dcState des geladenen Stands
+  saveCode: "", savedOnlineAt: 0, savedOnlineUntil: 0, importFrom: "", importCode: null,
   firstSentSig: "",   // Aufgaben mit KI-Feedback im zuletzt gesendeten Erstversuch (fbtSig) – kommt weiteres Feedback, wird er ersetzt
   fbRun: 0, fbStop: null, fbAbort: null,   // laufende Feedback-Anfrage: Lauf-Kennung (gegen späte Antworten nach Abbruch/Wechsel), Warten abbrechen, Anfrage abbrechen
   lastSubmission: null,   // die soeben abgegebene Lösung (nur im Arbeitsspeicher, bis „Neues Feibeitsblatt öffnen“) – für die PDF der Lösungen
@@ -3582,9 +3718,11 @@ const authorityTail = () => (AUTH_TEXT ? [" – für den Betreiber zuständig is
 // im eigenen Abschnitt des ausführlichen Hinweises, privacyNoticeDom)
 function privacyShortText(p, list, withAi, group, typing) {
   const days = p && p.retentionDays;
-  const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert", wa: "wählt" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst", wa: "wählst" };
+  const w = group ? { d: "eure", D: "Eure", du: "ihr", anf: "anfordert", wa: "wählt", zw: "euren", si: "sichert" } : { d: "deine", D: "Deine", du: "du", anf: "anforderst", wa: "wählst", zw: "deinen", si: "sicherst" };
   return `Verantwortlich ist ${OP_NAME} – Feibeitsblatt ist ein privates, kostenloses Angebot. Auf dem Server werden ${w.d} Angaben und Antworten nur verschlüsselt gespeichert – lesen kann sie dort nur ${w.d} Lehrkraft. ` +
     (days ? `Nach ${days} Tagen werden sie automatisch gelöscht. ` : `${w.D} Lehrkraft löscht sie nach der Durchsicht. `) +
+    // online gesicherter Zwischenstand (nur auf Klick, siehe DRAFTCODE): liegt dann ebenfalls auf dem Server – lesbar nicht für die Lehrkraft, sondern mit dem Code
+    `Nur wenn ${w.du} ${w.zw} Zwischenstand online ${w.si}, liegt auch er verschlüsselt auf dem Server – laden kann ihn nur, wer ${w.zw} Zwischenstand-Code kennt. ` +
     (!withAi ? "Zu diesem Feibeitsblatt gibt es kein KI-Feedback. Die Rechtschreibprüfung ist freiwillig."
       : list.length ? `Das KI-Feedback ist freiwillig. ${w.D} Antworten gehen – ohne ${w.d} Angaben – an den KI-Dienst „${list[0].label}“` +
         (list.length > 1 ? ` (wenn er ${RESERVE_WHEN}, an eine Reserve)` : "") +
@@ -3592,10 +3730,27 @@ function privacyShortText(p, list, withAi, group, typing) {
       : "Das KI-Feedback und die Rechtschreibprüfung sind freiwillig.") +
     (typing ? " " + TT_SHORT(group) : "");
 }
-// Zwischenstand auf dem Gerät: gelöscht wird nur beim nächsten Aufruf der Seite (cleanupDrafts) – nie „höchstens 7 Tage“ zusagen
+// Zwischenstand auf dem Gerät: gelöscht wird nur beim nächsten Aufruf der Seite (cleanupDrafts) – nie „höchstens 7 Tage“ zusagen.
+// Online gesichert (nur auf Klick auf DC_BTN, siehe DRAFTCODE): der Server löscht ihn DC_DAYS Tage nach dem letzten Sichern und mit dem
+// Blatt; nach der Abgabe schickt die Seite das Löschen von dem Gerät aus, das den Zwischenstand-Code kennt (best effort – deshalb „dann
+// löscht ihn diese Seite von dem Gerät aus …“, nie mehr zusagen); „Abbrechen“ löscht ihn nicht
 const DRAFT_STAY = `Dein Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
   `Ist er älter als ${DRAFT_DAYS} Tage, löscht diese Seite ihn beim nächsten Aufruf in diesem Browser; bis dahin bleibt er gespeichert. ` +
-  `Auf einem geteilten Gerät gib deshalb ab oder lösche ihn („Abbrechen und Zwischenstand löschen“).`;
+  `Auf einem geteilten Gerät gib deshalb ab oder lösche ihn („Abbrechen und Zwischenstand löschen“). ` +
+  `Nur wenn du auf „${DC_BTN}“ klickst, wird er zusätzlich verschlüsselt auf dem Server gespeichert. Dort wird er ${DC_DAYS} Tage nach dem letzten Sichern gelöscht – ` +
+  `schon vorher, wenn du deine Arbeit abgibst (dann löscht ihn diese Seite von dem Gerät aus, auf dem du mit ihm weitergearbeitet hast) oder wenn deine Lehrkraft das Feibeitsblatt löscht – ` +
+  `und liegt danach noch ${BACKUP_DAYS} in der Datensicherung der Datenbank; „Abbrechen und Zwischenstand löschen“ löscht nur den Stand auf diesem Gerät. ` +
+  `Die PDF-Datei mit deinem Zwischenstand, die du dabei herunterlädst, löschst du selbst.`;
+// Zweck, Empfänger (Cloudflare-Punkt), Lehrkraft-Punkt, Freiwilligkeit und Löschen auf Wunsch – je ein Satz an der passenden Stelle des
+// ausführlichen Hinweises (privacyNoticeDom); „ihr“-Form in PRIV_IHR
+const DRAFT_ONLINE_DU = {
+  draftPurpose: " Sicherst du deinen Zwischenstand online, kannst du ihn mit deinem Zwischenstand-Code auf jedem Gerät wieder laden und weiterarbeiten – ohne eine Datei hochzuladen.",
+  draftTeacher: " Einen Zwischenstand, den du online sicherst, kann auch sie nicht lesen – ihn kann nur laden, wer deinen Zwischenstand-Code kennt.",
+  draftCloud: ` Sicherst du deinen Zwischenstand online („${DC_BTN}“), liegt auch er dort – verschlüsselt mit einem Schlüssel, den diese Seite in deinem Browser aus deinem Zwischenstand-Code bildet; ` +
+    "den Code erhält der Server nie. Er speichert dazu nur den Code des Feibeitsblattes, den Zeitpunkt und die Größe – keinen Namen. Wer den Zwischenstand-Code kennt (er steht auch in der Zwischenstand-PDF-Datei), kann den Stand laden.",
+  draftChoice: " Ob du deinen Zwischenstand online sicherst, entscheidest du selbst – ohne deinen Klick bleibt er nur auf diesem Gerät.",
+  draftRights: " Einen online gesicherten Zwischenstand kann auch der Betreiber nur mit deinem Zwischenstand-Code finden und löschen.",
+};
 // Checklisten-Seite hinter dem QR-Code eines ausgedruckten Arbeitsblattes (#screen-check): der Satz dort verweist auf diesen Hinweis.
 // Der QR-Code führt immer zu PUBLIC_URL. Kommt diese Seite vom Worker und ist PUBLIC_URL eine andere Adresse (GitHub Pages), ist die
 // Checklisten-Seite nicht „diese Seite“: eigener Speicher im Browser, GitHub als Empfänger (CHECK_GITHUB_ITEM; so auch renderPvPreview).
@@ -3664,23 +3819,24 @@ const YT_PRIV_IHR = {
 };
 /* Antwortart Foto (nur bei Blättern mit Foto-Aufgabe – sheetPhotoCount): ein eigener Absatz unter „Welche Daten?“ (privacyNoticeDom mit der
    Option photos) und ein eigener Absatz neben der Kurzfassung (photoShort in #p-privacy-photo bzw. #privacy-photo – die Kurzfassung selbst
-   bleibt unverändert). Die Sätze stimmen nur, solange das Foto nie an den Server geht außer verschlüsselt in der Abgabe (KI-Anfragen tragen
-   nur die Textform PHOTO_TEXT, die Aufgabe selbst geht nie an die KI) und der Browser es neu kodiert (preparePhoto: ohne EXIF). */
+   bleibt unverändert). Die Sätze stimmen nur, solange das Foto nie an den Server geht außer verschlüsselt in der Abgabe und – nur auf
+   Klick – im online gesicherten Zwischenstand (DRAFTCODE; KI-Anfragen tragen nur die Textform PHOTO_TEXT, die Aufgabe selbst geht nie an
+   die KI) und der Browser es neu kodiert (preparePhoto: ohne EXIF). */
 const photoShort = (g) => (g
-  ? "Zu eurem Feibeitsblatt gehört eine Foto-Aufgabe: Euer Foto wird auf eurem Gerät verkleinert (ohne Angaben wie den Aufnahmeort), steht bis zur Abgabe in eurem Zwischenstand auf diesem Gerät " +
+  ? "Zu eurem Feibeitsblatt gehört eine Foto-Aufgabe: Euer Foto wird auf eurem Gerät verkleinert (ohne Angaben wie den Aufnahmeort), steht bis zur Abgabe in eurem Zwischenstand (auf diesem Gerät und – wenn ihr ihn online sichert – verschlüsselt auf dem Server) " +
     "und geht nur verschlüsselt mit eurer Abgabe an eure Lehrkraft – nie an eine KI und nie an die Rechtschreibprüfung."
-  : "Zu diesem Feibeitsblatt gehört eine Foto-Aufgabe: Dein Foto wird auf deinem Gerät verkleinert (ohne Angaben wie den Aufnahmeort), steht bis zur Abgabe in deinem Zwischenstand auf diesem Gerät " +
+  : "Zu diesem Feibeitsblatt gehört eine Foto-Aufgabe: Dein Foto wird auf deinem Gerät verkleinert (ohne Angaben wie den Aufnahmeort), steht bis zur Abgabe in deinem Zwischenstand (auf diesem Gerät und – wenn du ihn online sicherst – verschlüsselt auf dem Server) " +
     "und geht nur verschlüsselt mit deiner Abgabe an deine Lehrkraft – nie an eine KI und nie an die Rechtschreibprüfung.");
 const PHOTO_PRIV_DU = {
   photoData: "Bei einer Foto-Aufgabe gehört das Foto, das du aufnimmst oder auswählst, zu deinen Antworten – fotografiere nur deine eigene Arbeit, möglichst ohne Personen. " +
     "Diese Seite verkleinert es in deinem Browser und entfernt dabei Zusatzangaben wie Aufnahmeort und Kamera. Bis zur Abgabe steht das Foto in deinem Zwischenstand auf diesem Gerät " +
-    `(und in jeder Zwischenstand-PDF-Datei, die du sicherst); an deine Lehrkraft geht es nur verschlüsselt mit deiner Abgabe. An eine KI geht es nie – für das KI-Feedback und die finale ` +
+    `(und in jeder Zwischenstand-PDF-Datei, die du sicherst – sicherst du ihn online, verschlüsselt auch auf dem Server); an deine Lehrkraft geht es nur verschlüsselt mit deiner Abgabe. An eine KI geht es nie – für das KI-Feedback und die finale ` +
     `KI-Rückmeldung bekommt der Server statt des Fotos nur den Vermerk „${PHOTO_TEXT}“, und die Foto-Aufgabe selbst geht nicht an die KI.`,
 };
 const PHOTO_PRIV_IHR = {
   photoData: "Bei einer Foto-Aufgabe gehört das Foto, das ihr aufnehmt oder auswählt, zu euren Antworten – fotografiert nur eure eigene Arbeit, möglichst ohne Personen. " +
     "Diese Seite verkleinert es in eurem Browser und entfernt dabei Zusatzangaben wie Aufnahmeort und Kamera. Bis zur Abgabe steht das Foto in eurem Zwischenstand auf diesem Gerät " +
-    `(und in jeder Zwischenstand-PDF-Datei, die ihr sichert); an eure Lehrkraft geht es nur verschlüsselt mit eurer Abgabe. An eine KI geht es nie – für das KI-Feedback und die finale ` +
+    `(und in jeder Zwischenstand-PDF-Datei, die ihr sichert – sichert ihr ihn online, verschlüsselt auch auf dem Server); an eure Lehrkraft geht es nur verschlüsselt mit eurer Abgabe. An eine KI geht es nie – für das KI-Feedback und die finale ` +
     `KI-Rückmeldung bekommt der Server statt des Fotos nur den Vermerk „${PHOTO_TEXT}“, und die Foto-Aufgabe selbst geht nicht an die KI.`,
 };
 // Dieselben Bausteine in der „ihr“-Form – nur für den ausführlichen Hinweis auf dem Angaben-Bildschirm einer Gruppe (privacyNoticeDom
@@ -3688,7 +3844,17 @@ const PHOTO_PRIV_IHR = {
 const PRIV_IHR = {
   draftStay: `Euer Zwischenstand liegt bis zur Abgabe unverschlüsselt in diesem Browser auf diesem Gerät – wer denselben Browser nutzt, kann ihn lesen. ` +
     `Ist er älter als ${DRAFT_DAYS} Tage, löscht diese Seite ihn beim nächsten Aufruf in diesem Browser; bis dahin bleibt er gespeichert. ` +
-    `Auf einem geteilten Gerät gebt deshalb ab oder löscht ihn („Abbrechen und Zwischenstand löschen“).`,
+    `Auf einem geteilten Gerät gebt deshalb ab oder löscht ihn („Abbrechen und Zwischenstand löschen“). ` +
+    `Nur wenn ihr auf „${DC_BTN}“ klickt, wird er zusätzlich verschlüsselt auf dem Server gespeichert. Dort wird er ${DC_DAYS} Tage nach dem letzten Sichern gelöscht – ` +
+    `schon vorher, wenn ihr eure Arbeit abgebt (dann löscht ihn diese Seite von dem Gerät aus, auf dem ihr mit ihm weitergearbeitet habt) oder wenn eure Lehrkraft das Feibeitsblatt löscht – ` +
+    `und liegt danach noch ${BACKUP_DAYS} in der Datensicherung der Datenbank; „Abbrechen und Zwischenstand löschen“ löscht nur den Stand auf diesem Gerät. ` +
+    `Die PDF-Datei mit eurem Zwischenstand, die ihr dabei herunterladet, löscht ihr selbst.`,
+  draftPurpose: " Sichert ihr euren Zwischenstand online, könnt ihr ihn mit eurem Zwischenstand-Code auf jedem Gerät wieder laden und weiterarbeiten – ohne eine Datei hochzuladen.",
+  draftTeacher: " Einen Zwischenstand, den ihr online sichert, kann auch sie nicht lesen – ihn kann nur laden, wer euren Zwischenstand-Code kennt.",
+  draftCloud: ` Sichert ihr euren Zwischenstand online („${DC_BTN}“), liegt auch er dort – verschlüsselt mit einem Schlüssel, den diese Seite in eurem Browser aus eurem Zwischenstand-Code bildet; ` +
+    "den Code erhält der Server nie. Er speichert dazu nur den Code des Feibeitsblattes, den Zeitpunkt und die Größe – keinen Namen. Wer den Zwischenstand-Code kennt (er steht auch in der Zwischenstand-PDF-Datei), kann den Stand laden.",
+  draftChoice: " Ob ihr euren Zwischenstand online sichert, entscheidet ihr selbst – ohne euren Klick bleibt er nur auf diesem Gerät.",
+  draftRights: " Einen online gesicherten Zwischenstand kann auch der Betreiber nur mit eurem Zwischenstand-Code finden und löschen.",
   checkPurpose: " Bekommt ihr ein Feibeitsblatt ausgedruckt, kann ein QR-Code darauf zu einer Checkliste eurer Lehrkraft führen: Dort hakt ihr ab, " +
     `was eure Antwort schon erfüllt. Dafür lädt ${CHECK_PAGE} nur die Checkliste vom Server – ohne Angaben zu euch; die Internetadresse eures Geräts wird dabei ` +
     "wie beim Laden der Seite verarbeitet. Eure Häkchen bleiben auf diesem Gerät und werden nicht gesendet. Dieselbe Checkliste lädt diese Seite nach " +
@@ -3703,14 +3869,15 @@ const PRIV_IHR = {
   noAiSet: "Ein KI-Dienst ist für dieses Feibeitsblatt gerade nicht eingerichtet – eure Antworten gehen an keine KI.",
   ...YT_PRIV_IHR, ...PHOTO_PRIV_IHR,
 };
-const PRIV_DU = { draftStay: DRAFT_STAY, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET, ...YT_PRIV_DU, ...PHOTO_PRIV_DU };
+const PRIV_DU = { draftStay: DRAFT_STAY, ...DRAFT_ONLINE_DU, checkPurpose: CHECK_PURPOSE, checkStay: CHECK_STAY, checkGithub: CHECK_GITHUB_ITEM, github: GITHUB_ITEM, fb2Send: FB2_SEND, noAiSet: NO_AI_SET, ...YT_PRIV_DU, ...PHOTO_PRIV_DU };
 /* Feibeitsblatt als Finale eines Escape-Rooms (nur Einzelarbeit, also nur die du-Form): eigene Absätze bzw. Listenpunkte neben den
    übrigen – nie in deren Sätze gemischt. Voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät (Zwischenstand,
-   Zwischenstand-PDF, Abschluss-PDF); an die Lehrkraft gehen nur die Ergebnisse, verschlüsselt, nie an eine KI. Ausnahme auf Wunsch der
-   Schülerin: die Abschluss-PDF per E-Mail nach einer technisch gescheiterten Abgabe (ESC_MAIL_ITEM). */
+   Zwischenstand-PDF, Abschluss-PDF) – außer die Schülerin sichert den Zwischenstand online: dann liegen sie verschlüsselt mit auf dem
+   Server (lesbar nur mit dem Zwischenstand-Code, siehe DRAFTCODE); an die Lehrkraft gehen nur die Ergebnisse, verschlüsselt, nie an eine
+   KI. Ausnahme auf Wunsch der Schülerin: die Abschluss-PDF per E-Mail nach einer technisch gescheiterten Abgabe (ESC_MAIL_ITEM). */
 const ESC_MAIL_TO = OPERATOR.email ? "an den Betreiber" : "an deine Lehrkraft";
-const escPrivacyShort = (name) => `Aus dem Escape-Room „${name}“ bleiben dein voller Name, dein Geburtsdatum und dein Bestätigungscode auf diesem Gerät; nur deine Ergebnisse dort gehen verschlüsselt an deine Lehrkraft.`;
-const escPrivacyEditor = (name) => `Aus dem Escape-Room „${name}“ stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode nur in deinem Zwischenstand auf diesem Gerät und in PDF-Dateien, die du herunterlädst; ` +
+const escPrivacyShort = (name) => `Aus dem Escape-Room „${name}“ bleiben dein voller Name, dein Geburtsdatum und dein Bestätigungscode auf diesem Gerät – außer du sicherst deinen Zwischenstand online (dann liegen sie verschlüsselt mit darin); nur deine Ergebnisse dort gehen verschlüsselt an deine Lehrkraft.`;
+const escPrivacyEditor = (name) => `Aus dem Escape-Room „${name}“ stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode nur in deinem Zwischenstand (auf diesem Gerät und – wenn du ihn online sicherst – verschlüsselt auf dem Server) und in PDF-Dateien, die du herunterlädst; ` +
   "an deine Lehrkraft gehen davon nur deine Ergebnisse aus dem Escape-Room – verschlüsselt mit Erstversuch und Abgabe, nie an eine KI.";
 const ESC_PRIV = {
   // name = Name des Raums (Blatt) bzw. "" auf „Impressum & Datenschutz“ (kein bestimmtes Blatt)
@@ -3724,7 +3891,7 @@ const ESC_PRIV = {
   teacher: "Bei einem Escape-Room-Finale bekommt deine Lehrkraft verschlüsselt auch deine Ergebnisse aus dem Escape-Room und ob die Prüfsumme des Datensatzes stimmt – nicht deinen vollen Namen, " +
     "dein Geburtsdatum, deinen Bestätigungscode oder die Lösungserläuterungen. Gespeichert werden diese Ergebnisse wie deine Antworten nur verschlüsselt bei Cloudflare (Server und Datenbank dieser Seite). " +
     "An einen KI-Dienst gehen die Daten aus dem Escape-Room nie.",
-  stay: "Bei einem Escape-Room-Finale stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode bis zur Abgabe auch in deinem Zwischenstand und in jeder Zwischenstand-PDF-Datei, " +
+  stay: "Bei einem Escape-Room-Finale stehen dein voller Name, dein Geburtsdatum und dein Bestätigungscode bis zur Abgabe auch in deinem Zwischenstand (sicherst du ihn online, verschlüsselt auch auf dem Server) und in jeder Zwischenstand-PDF-Datei, " +
     "die du sicherst, und – wenn du sie herunterlädst – in deiner Abschluss-PDF; diese Dateien löschst du selbst. Der Link aus dem Escape-Room enthält dieselben Daten: Diese Seite entfernt ihn " +
     "sofort aus der Adresszeile, im Verlauf deines Browsers bleibt er aber in der Regel stehen – lösche ihn dort auf einem geteilten Gerät. " +
     "Ist die Synchronisierung des Verlaufs eingeschaltet (z. B. über ein Google- oder Firefox-Konto), gelangt er auch dorthin. " +
@@ -3838,11 +4005,13 @@ function privacyNoticeDom(p, list, opts) {
   const items = [h("li", { text: t("Deine Lehrkraft – nur sie kann deine auf dem Server gespeicherten Angaben und Antworten lesen.",
     "Eure Lehrkraft – nur sie kann eure auf dem Server gespeicherten Angaben und Antworten lesen.") +
     (tt ? t(" Sie sieht auch die Tippzeiten – als Färbung deiner Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie.",
-      " Sie sieht auch die Tippzeiten – als Färbung eurer Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie.") : "") })];
+      " Sie sieht auch die Tippzeiten – als Färbung eurer Antworten; an einen KI-Dienst oder an die Rechtschreibprüfung gehen die Tippzeiten nie.") : "") +
+    B.draftTeacher })];   // online gesicherter Zwischenstand: für die Lehrkraft nicht lesbar
   if (esc) items.push(h("li", { text: ESC_PRIV.teacher }));
   // Cloudflare betreibt Server und Datenbank; mit Workers AI ist Cloudflare zugleich der KI-Dienst (ein Eintrag statt zwei)
   items.push(h("li", { text: "Cloudflare, Inc. (San Francisco, USA) betreibt den Server und die Datenbank dieser Seite; die Datenbank liegt in der EU. " +
     t(`Gespeichert werden deine Angaben und Antworten${tt ? " (samt Tippzeiten)" : ""} dort nur verschlüsselt.`, `Gespeichert werden eure Angaben und Antworten${tt ? " (samt Tippzeiten)" : ""} dort nur verschlüsselt.`) +
+    B.draftCloud +   // online gesicherter Zwischenstand (nur auf Klick): Schlüssel aus dem Zwischenstand-Code, den der Server nie erhält
     (withAi ? t(" Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server deine Antworten – ohne deine Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht. " +
         "Die finale KI-Rückmeldung verschlüsselt der Server für deine Lehrkraft und speichert sie nur verschlüsselt zu deiner Abgabe.",
       " Für das KI-Feedback und die finale KI-Rückmeldung verarbeitet der Server eure Antworten – ohne eure Angaben – kurz unverschlüsselt, um sie an den KI-Dienst weiterzugeben; er speichert sie nicht. " +
@@ -3889,10 +4058,10 @@ function privacyNoticeDom(p, list, opts) {
   const ttOut = !tt ? "" : " (" + (ttInDraft ? "" : withAi ? "bei Erstversuch und Abgabe " : "bei der Abgabe ") + "außer den Tippzeiten darin, siehe nächster Punkt)";
   const ttWhere = (your) => [ttInDraft && `in ${your} Zwischenstand`, withAi && "im Erstversuch", "in der Abgabe"].filter(Boolean).join(", ").replace(/, (?=[^,]*$)/, " und ");
   const bases = [
-    t(`Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
+    t(`Bearbeiten und Abgeben – deine Angaben (bei Partner- oder Gruppenarbeit auch die Kürzel der anderen), dein Zwischenstand (auch der online gesicherte)${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
       (withAi ? " – und das KI-Feedback, wenn du es anforderst, sowie die finale KI-Rückmeldung nach der Abgabe: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Du nutzt dieses kostenlose Angebot und forderst " +
       (withAi ? "das KI-Feedback selbst an; die finale KI-Rückmeldung kannst du beim Abgeben abwählen." : "es selbst an."),
-    `Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
+    `Bearbeiten und Abgeben – eure Angaben (die Kürzel aller in der Gruppe und die Klasse), euer Zwischenstand (auch der online gesicherte)${withAi ? ", der Erstversuch" : ""} und die Abgabe${ttOut}` +
       (withAi ? " – und das KI-Feedback, wenn ihr es anfordert, sowie die finale KI-Rückmeldung nach der Abgabe: " : ": ") + "Art. 6 Abs. 1 Buchst. b DSGVO. Ihr nutzt dieses kostenlose Angebot und fordert " +
       (withAi ? "das KI-Feedback selbst an; die finale KI-Rückmeldung könnt ihr beim Abgeben abwählen." : "es selbst an.")),
     tt ? t(`Tippzeiten (wie viel Zeit zwischen zwei eingegebenen Zeichen vergeht; sie stehen ${ttWhere("deinem")}): ` +
@@ -3927,7 +4096,7 @@ function privacyNoticeDom(p, list, opts) {
       "eine finale KI-Rückmeldung, die zu jeder Aufgabe nennt, was gelungen ist und was gefehlt hat. " +
       "Eure Lehrkraft sieht eure Antworten (mit KI-Feedback eure erste und eure überarbeitete Fassung) und die KI-Rückmeldungen – auch die finale zu eurer abgegebenen Fassung.")
       : t("Damit du die Aufgaben deiner Lehrkraft bearbeiten und abgeben kannst. Deine Lehrkraft sieht deine Antworten.", "Damit ihr die Aufgaben eurer Lehrkraft bearbeiten und abgeben könnt. Eure Lehrkraft sieht eure Antworten.")) +
-      (tt ? TT_PURPOSE(g) : "") + B.checkPurpose),
+      (tt ? TT_PURPOSE(g) : "") + B.checkPurpose + B.draftPurpose),
     esc ? para(ESC_PRIV.purpose(esc)) : null,
     yt ? para(B.ytPurpose) : null,
     head("Rechtsgrundlage"),
@@ -3973,6 +4142,7 @@ function privacyNoticeDom(p, list, opts) {
       "Eure Angaben sind nötig, damit eure Lehrkraft die Abgabe euch zuordnen kann – ohne sie könnt ihr nicht abgeben. ") +
       (withAi ? "Das KI-Feedback, die finale KI-Rückmeldung (beim Abgeben abwählbar) und die Rechtschreibprüfung sind freiwillig: " : "Die Rechtschreibprüfung ist freiwillig: ") +
       t("Du kannst auch ohne sie abgeben, ohne dass dir daraus ein Nachteil entsteht.", "Ihr könnt auch ohne sie abgeben, ohne dass euch daraus ein Nachteil entsteht.") +
+      B.draftChoice +
       (tt ? t(` Die Tippzeiten misst diese Seite, solange du nicht widersprichst (siehe „${TT_OBJ_HEAD}“).`, ` Die Tippzeiten misst diese Seite, solange ihr nicht widersprecht (siehe „${TT_OBJ_HEAD}“).`) : "") +
       (yt ? B.ytChoice : "")),   // kein „ohne Nachteil“ zusagen: eine Aufgabe kann das Video voraussetzen
     withAi ? head(t("Entscheidet die KI über dich?", "Entscheidet die KI über euch?")) : null,
@@ -3997,7 +4167,7 @@ function privacyNoticeDom(p, list, opts) {
       t(" Deine Abgaben liegen auf dem Server verschlüsselt – lesen und einzeln löschen kann sie nur deine Lehrkraft; du kannst dich deshalb auch an sie wenden. " +
         "Was nur auf deinem Gerät liegt (Zwischenstand, Häkchen), löschst du selbst.",
       " Eure Abgaben liegen auf dem Server verschlüsselt – lesen und einzeln löschen kann sie nur eure Lehrkraft; ihr könnt euch deshalb auch an sie wenden. " +
-        "Was nur auf eurem Gerät liegt (Zwischenstand, Häkchen), löscht ihr selbst.")),
+        "Was nur auf eurem Gerät liegt (Zwischenstand, Häkchen), löscht ihr selbst.") + B.draftRights),
     yt ? para(B.ytRights) : null,   // Widerruf der Einwilligung zum Laden von Videos; Rechte auch direkt bei Google
     paraN(t("Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren", "Außerdem könnt ihr euch bei einer Datenschutz-Aufsichtsbehörde beschweren"),
       ...authorityTail()),
@@ -4007,10 +4177,10 @@ function privacyNoticeDom(p, list, opts) {
   return h("details", { class: "privfull", id: o.id || null, open: o.open ? true : null }, [h("summary", { text: o.summary || "Alle Informationen zum Datenschutz" }), ...kids]);
 }
 // Angaben-Bildschirm: Kurzfassung + alle Informationen (Zeitpunkt der Erhebung); Klasse-Hinweis passend zum Blatt
-const KLASSE_HINT_AI = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
-const KLASSE_HINT_NO_AI = "z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät.";
-const KLASSE_HINT_AI_G = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät.";
-const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der Abgabe verschlüsselt an eure Lehrkraft. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät.";
+const KLASSE_HINT_AI = "z. B. 8b oder E1. Deine Angaben gehen verschlüsselt an deine Lehrkraft, sobald du das KI-Feedback bekommst (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.";
+const KLASSE_HINT_NO_AI = "z. B. 8b oder E1. Deine Angaben gehen erst bei der Abgabe verschlüsselt an deine Lehrkraft. Bis dahin bleibt dein Zwischenstand nur auf diesem Gerät – außer du sicherst ihn selbst online.";
+const KLASSE_HINT_AI_G = "z. B. 8b oder E1. Eure Angaben gehen verschlüsselt an eure Lehrkraft, sobald ihr das KI-Feedback bekommt (als „Erstversuch“) – ohne KI-Feedback erst bei der Abgabe. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät – außer ihr sichert ihn selbst online.";
+const KLASSE_HINT_NO_AI_G = "z. B. 8b oder E1. Eure Angaben gehen erst bei der Abgabe verschlüsselt an eure Lehrkraft. Bis dahin bleibt euer Zwischenstand nur auf diesem Gerät – außer ihr sichert ihn selbst online.";
 function renderPersonPrivacy() {
   const sh = S.sheet, list = sh.aiRecipients || [], box = $("p-privacy"), g = S.groupMode;
   box.textContent = "";
@@ -4062,7 +4232,11 @@ function renderPrivacy() {
     // Abschnitt des ausführlichen Hinweises darunter
     (ttMeasured(S.sheet) ? TT_SHORT(false) + " " : "") +
     `Dein Zwischenstand liegt bis zur Abgabe nur auf diesem Gerät (ist er älter als ${DRAFT_DAYS} Tage, löscht ihn diese Seite beim nächsten Aufruf in diesem Browser) – ` +
-    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen; mit „Zwischenstand als PDF-Datei sichern“ kannst du ihn mitnehmen (die Datei enthält deine Antworten lesbar, gib sie nicht weiter).` +
+    `auf einem geteilten Gerät also bitte abgeben oder oben „Abbrechen und Zwischenstand löschen“ wählen. ` +
+    // online gesicherter Zwischenstand (nur auf Klick, DRAFTCODE): Server, Schlüssel aus dem Code, wer ihn laden kann, wann er gelöscht wird
+    `Nur wenn du oben auf „${DC_BTN}“ klickst, wird er zusätzlich verschlüsselt auf dem Server dieser Seite gespeichert, und du bekommst eine PDF-Datei mit deinem Zwischenstand-Code – mit dem Code lädst du den Stand auf jedem Gerät wieder. ` +
+    `Den Schlüssel bildet der Code, den der Server nie erhält: Wer den Code kennt, kann den Stand laden; die Datei enthält außerdem deine Antworten lesbar – gib Datei und Code nicht weiter. ` +
+    `Online wird der Stand ${DC_DAYS} Tage nach dem letzten Sichern gelöscht, schon vorher nach deiner Abgabe oder mit dem Feibeitsblatt; „Abbrechen und Zwischenstand löschen“ löscht ihn dort nicht.` +
     (withAi ? ` Die KI kann sich irren: Prüfe ihr Feedback selbst.` : ""));
   // darunter alle Informationen nach Art. 13 (beim Weiterschreiben gab es keinen Angaben-Bildschirm) – samt eigenem Abschnitt mit dem Schalter
   const full = $("privfull-ed");
@@ -4097,7 +4271,8 @@ async function startGo() {
   const code = normCode($("code-input").value);
   if (!code) { err.textContent = "Bitte gib den Code ein."; $("code-input").focus(); return; }
   if (DOOR_RE.test(code)) return teacherDoor(code);
-  if (code.length !== 6) { err.textContent = "Ein Code hat 6 Zeichen, z. B. K7Q-M4X. Bitte prüfe deine Eingabe."; return; }
+  if (code.length === DC_LEN) return loadDraftByCode(code);   // 8 Zeichen: Zwischenstand-Code eines online gesicherten Stands (Blatt-Codes haben 6)
+  if (code.length !== 6) { err.textContent = DC_LEN_ERR; return; }
   if (!CODE_RE.test(code) || !/[A-Z]/.test(code) || !/[0-9]/.test(code)) {
     err.textContent = "Zu diesem Code gibt es kein Feibeitsblatt. Bitte prüfe den Code. (In Codes kommen I, L, O, 0 und 1 nicht vor.)"; return;
   }
@@ -4117,6 +4292,52 @@ async function startGo() {
 }
 $("start-btn").addEventListener("click", startGo);
 onEnter($("code-input"), startGo, $("start-btn"));
+
+/* ---------- Online gesicherten Zwischenstand laden (Startseite: Zwischenstand-Code im Feld „Code“, siehe DRAFTCODE) ----------
+ * Kennung und Schlüssel aus dem Code ableiten (je Code im Arbeitsspeicher gemerkt – PBKDF2 dauert spürbar), den Umschlag holen
+ * (POST /api/draft/load – an den Server geht nur die Kennung, nie der Code), entschlüsseln und dann genau wie eine hochgeladene
+ * Zwischenstand-PDF weiter (cleanDraft, openLoadedDraft). */
+const dcKeyCache = new Map();   // Zwischenstand-Code → Promise<{id, key}>
+function draftKeys(code) {
+  let p = dcKeyCache.get(code);
+  if (!p) {
+    if (dcKeyCache.size >= 8) dcKeyCache.clear();
+    p = dcDerive(subtle, code);
+    dcKeyCache.set(code, p);
+    p.catch(() => { if (dcKeyCache.get(code) === p) dcKeyCache.delete(code); });   // gescheitert: beim nächsten Mal neu versuchen
+  }
+  return p;
+}
+// → true, wenn danach der Schreibbereich offen ist; sonst steht die Meldung auf der Startseite
+async function loadDraftByCode(code8) {
+  const err = $("start-err"), st = $("start-status"), btn = $("start-btn");
+  if (!dcValid(code8)) { err.textContent = DC_BAD; return; }
+  escDrop(); $("start-esc-retry").classList.add("hidden");
+  const run = ESC.run;   // ein späterer Weg von der Startseite (Code, Zwischenstand-PDF, „Weiterschreiben“, Escape-Room) macht diesen hinfällig
+  busy(btn, true, "Einen Moment …");
+  setStatus(st, DC_LOADING, "busy");
+  try {
+    let k = null, r = null, d = null;
+    try { k = await draftKeys(code8); } catch (e) { if (run === ESC.run) err.textContent = NO_CRYPTO; return; }
+    if (run !== ESC.run) return;
+    try { r = await api("POST", "/api/draft/load", { body: { id: k.id }, timeout: 60000 }); }
+    catch (e) {   // unbekannt, abgelaufen, nach der Abgabe oder mit dem Blatt gelöscht – sonst die übliche Meldung (Netz, zu viele Anfragen)
+      if (run === ESC.run) err.textContent = e instanceof ApiError && (e.code === "draft_not_found" || e.status === 404) ? DC_NOT_FOUND : startErr(e);
+      return;
+    }
+    if (run !== ESC.run) return;
+    // entschlüsselt geht der Datensatz wie der einer Datei durch cleanDraft; sein Blatt-Code muss zu dem des Servers passen
+    try { d = cleanDraft(await dcOpen(subtle, k.key, r.envelope)); } catch (e) { d = null; }
+    if (run !== ESC.run) return;
+    if (!d || d.code !== normCode(r.code)) { err.textContent = DC_BROKEN; return; }
+    // dieser Stand gehört zu diesem Code (auch wenn im Datensatz keiner oder ein anderer stünde); die Zeitpunkte nennt der Server
+    const at = dcTimes(r);
+    Object.assign(d, { saveCode: code8, savedOnlineAt: at ? at.at : 0, savedOnlineUntil: at ? at.until : 0 });
+    setStatus(st, "", "");
+    return await openLoadedDraft(d, run, "code");
+  } catch (e) { if (run === ESC.run) { resetStudent(); err.textContent = startErr(e); } }
+  finally { busy(btn, false); if (run === ESC.run && screen === "screen-start") setStatus(st, "", ""); }
+}
 
 /* ---------- Weiterschreiben nach Neuladen (zuletzt geöffnetes Blatt dieses Geräts) ---------- */
 function lastSession() {
@@ -4169,7 +4390,7 @@ $("resume-del").addEventListener("click", async () => {
 });
 
 /* ---------- Zwischenstand-PDF hochladen (Startseite) ---------- */
-const PDF_NOT_DRAFT = "In dieser Datei steckt kein Feibeitsblatt-Zwischenstand. Lade genau die PDF-Datei hoch, die du mit „Zwischenstand als PDF-Datei sichern“ gespeichert hast – kein Screenshot und kein Ausdruck davon.";
+const PDF_NOT_DRAFT = "In dieser Datei steckt kein Feibeitsblatt-Zwischenstand. Lade genau die PDF-Datei hoch, die du mit „" + DC_BTN + "“ gespeichert hast – kein Screenshot und kein Ausdruck davon.";
 const PDF_TOO_BIG = "Diese Datei ist zu groß für einen Zwischenstand. " + PDF_NOT_DRAFT;
 // → true, wenn danach der Schreibbereich offen ist (bei einer Überblick-PDF aus einem Escape-Room: die Angaben bzw. der Schreibbereich);
 // sonst steht die Meldung auf der Startseite (für die Antwort an Unterricks, siehe unterricksListen)
@@ -4191,32 +4412,43 @@ async function importDraftPdf(file) {
     if (r.kind === "escape-bad") { err.textContent = ESC_PDF_BAD; showResume(); return; }
     if (r.kind === "draft") d = cleanDraft(r.o);
     if (!d) { err.textContent = PDF_NOT_DRAFT; return; }
-    const x = await fetchSheet(d.code);
-    if (run !== ESC.run) return;
-    useSheet(x);
-    if (S.sheet.tasks.length !== d.answers.length) { resetStudent(); err.textContent = "Der Zwischenstand passt nicht zu diesem Feibeitsblatt (andere Anzahl Aufgaben). Bitte frag deine Lehrkraft."; return; }
-    // Finale eines Escape-Rooms: nur mit den Daten aus dem Raum (in der Datei); bei anderen Blättern zählen mitgebrachte Daten nicht
-    if (S.sheet.escape) { if (!escFromHull(d.escape, S.sheet, S.code, d.person)) { resetStudent(); err.textContent = ESC_NEED; showResume(); return; } }
-    else d.escape = null;
-    // Liegt auf diesem Gerät schon ein neuerer Zwischenstand derselben Person? Dann nachfragen, welcher gelten soll.
-    const person = d.person;
-    let local = null;
-    try { local = JSON.parse((await draftRaw(d.code, person)) || "null"); } catch (e) { local = null; }
-    if (local && local.v === 1 && local.t > d.t && Array.isArray(local.answers) && local.answers.some((a) => String(a || "").trim())) {
-      const usePdf = await askConfirm({ title: "Neuerer Zwischenstand auf diesem Gerät",
-        text: `Auf diesem Gerät liegt schon ein Zwischenstand von ${fmtDT(local.t)} Uhr; die PDF-Datei ist von ${fmtDT(d.t)} Uhr. Welchen Stand möchtest du verwenden?`,
-        ok: "Stand aus der PDF-Datei", cancel: "Neueren Stand von diesem Gerät", safeFirst: true });
-      if (!usePdf) d = null;
-    }
-    if (run !== ESC.run) return;   // während der Rückfrage ein anderer Weg von der Startseite
-    // Ein Widerspruch gegen die Tippzeit-Messung, der auf diesem Gerät gespeichert ist, gilt weiter – auch mit einer älteren Datei
-    if (d) d = ttKeepOptOut(d, local);
-    S.person = person; S.importDraft = d;
-    $("code-input").value = "";
-    await openEditor();
-    return screen === "screen-editor";
+    return await openLoadedDraft(d, run, "pdf");
   } catch (e) { if (run === ESC.run) { resetStudent(); err.textContent = startErr(e); } }
   finally { busy(btn, false); }
+}
+/* Geladener Zwischenstand d (Ergebnis von cleanDraft) – aus einer Zwischenstand-PDF (src "pdf") oder über den Zwischenstand-Code vom
+   Server (src "code"): Blatt laden, Aufgabenzahl und Escape-Room-Daten prüfen, bei einem neueren Stand auf diesem Gerät nachfragen, dann
+   den Schreibbereich öffnen. run = Lauf-Kennung der Startseite (ESC.run) des Aufrufers, der auch Fehler abfängt und den Knopf freigibt.
+   → true, wenn danach der Schreibbereich offen ist. */
+async function openLoadedDraft(d, run, src) {
+  const err = $("start-err"), online = src === "code", loaded = d;
+  const x = await fetchSheet(d.code);
+  if (run !== ESC.run) return;
+  useSheet(x);
+  if (S.sheet.tasks.length !== d.answers.length) { resetStudent(); err.textContent = "Der Zwischenstand passt nicht zu diesem Feibeitsblatt (andere Anzahl Aufgaben). Bitte frag deine Lehrkraft."; return; }
+  // Finale eines Escape-Rooms: nur mit den Daten aus dem Raum (im Zwischenstand); bei anderen Blättern zählen mitgebrachte Daten nicht
+  if (S.sheet.escape) { if (!escFromHull(d.escape, S.sheet, S.code, d.person)) { resetStudent(); err.textContent = ESC_NEED; showResume(); return; } }
+  else d.escape = null;
+  // Liegt auf diesem Gerät schon ein neuerer Zwischenstand derselben Person? Dann nachfragen, welcher gelten soll.
+  const person = d.person;
+  let local = null;
+  try { local = JSON.parse((await draftRaw(d.code, person)) || "null"); } catch (e) { local = null; }
+  if (local && local.v === 1 && local.t > d.t && Array.isArray(local.answers) && local.answers.some((a) => String(a || "").trim())) {
+    const useLoaded = await askConfirm({ title: "Neuerer Zwischenstand auf diesem Gerät",
+      text: online ? dcNewerText(fmtDT(local.t), fmtDT(d.t))
+        : `Auf diesem Gerät liegt schon ein Zwischenstand von ${fmtDT(local.t)} Uhr; die PDF-Datei ist von ${fmtDT(d.t)} Uhr. Welchen Stand möchtest du verwenden?`,
+      ok: online ? DC_NEWER_OK : "Stand aus der PDF-Datei", cancel: "Neueren Stand von diesem Gerät", safeFirst: true });
+    if (!useLoaded) d = null;
+  }
+  if (run !== ESC.run) return;   // während der Rückfrage ein anderer Weg von der Startseite
+  // Ein Widerspruch gegen die Tippzeit-Messung, der auf diesem Gerät gespeichert ist, gilt weiter – auch mit einem älteren Stand
+  if (d) d = ttKeepOptOut(d, local);
+  S.person = person; S.importDraft = d; S.importFrom = d ? src : "";
+  // Zwischenstand-Code des geladenen Stands: gilt auch, wenn der neuere Stand dieses Geräts weitergeführt wird und selbst noch keinen hat
+  S.importCode = dcState(loaded);
+  $("code-input").value = "";
+  await openEditor();
+  return screen === "screen-editor";
 }
 $("start-pdf").addEventListener("click", () => { const f = $("start-pdf-file"); f.value = ""; f.click(); });
 $("start-pdf-file").addEventListener("change", () => { const f = $("start-pdf-file").files && $("start-pdf-file").files[0]; if (f) importDraftPdf(f); });
@@ -4604,6 +4836,7 @@ async function openEditor(fromPerson) {
   // zurück zur Startseite. Neu angekommene Daten (Link, Überblick-PDF) gewinnen immer gegenüber denen im Zwischenstand.
   const key = await draftKeyFor(S.code, p);
   const imported = S.importDraft; S.importDraft = null;
+  const importFrom = S.importFrom, importCode = S.importCode; S.importFrom = ""; S.importCode = null;
   let d = imported;
   if (!d) { const raw = await draftRaw(S.code, p, key); if (raw) { try { d = JSON.parse(raw); } catch (e) { d = null; } } }
   const pending = escPendingFor(sh, S.code), arrived = !!pending;
@@ -4624,6 +4857,7 @@ async function openEditor(fromPerson) {
   S.ttOptOut = false; S.ttResend = false; S.firstSending = null; S.ttLastRaw = null; S.ttGen++;
   S.submitted = false; S.first = null; S.firstTyping = null; S.feedback = null; S.feedbackAt = null; S.fbFails = 0; S.fbUnavailable = ""; S.fbUnavailableDay = ""; S.fbPending = false; S.ltCache = new Map();
   S.attempt = ""; S.firstSent = false; S.firstSentSig = ""; S.feedbackAts = null;
+  S.saveCode = ""; S.savedOnlineAt = 0; S.savedOnlineUntil = 0;
   stopFeedbackRun();   // eine evtl. noch laufende Feedback-Anfrage einer früheren Bearbeitung darf hier nichts mehr schreiben
   S.ltConsent = false; S.ltDeclined = false;   // Selbstauskunft zu LanguageTool gilt nur, solange dieses Blatt geöffnet ist
   S.draftKey = key;
@@ -4635,6 +4869,7 @@ async function openEditor(fromPerson) {
     " · Schreibe deine Antwort jeweils in das Feld unter der Aufgabe." + (sheetPhotoCount(sh) ? " Bei einer Foto-Aufgabe nimmst du ein Foto auf oder wählst ein Bild aus." : "");
   $("submit-esc").classList.add("hidden");
   const upd = $("esc-updated"); upd.textContent = ""; upd.classList.add("hidden");
+  renderDraftCode();   // Zwischenstand-Code einer früheren Bearbeitung weg (der dieser Bearbeitung folgt unten)
   renderPrivacy();
   buildTasks();
   // Zwischenstand wiederherstellen
@@ -4669,9 +4904,17 @@ async function openEditor(fromPerson) {
       S.firstSent = !!d.firstSent;
       // welche Aufgaben der gesendete Erstversuch enthält; ältere Stände (Feedback zu allen Aufgaben auf einmal): genau die jetzigen
       S.firstSentSig = !S.firstSent ? "" : typeof d.firstSentSig === "string" ? d.firstSentSig.slice(0, 200) : fbtSig(S.feedback);
+      // Zwischenstand-Code dieser Bearbeitung und wann sie zuletzt online gesichert wurde (nur in gültiger Form)
+      const dc = dcState(d);
+      S.saveCode = dc.code; S.savedOnlineAt = dc.at; S.savedOnlineUntil = dc.until;
       restored = d.answers.some((a) => String(a || "").trim());
     }
   } catch (e) { /* kaputter Entwurf: ignorieren */ }
+  // Über einen Zwischenstand-Code bzw. eine Zwischenstand-PDF gekommen, weitergeführt wird aber der neuere Stand dieses Geräts: Hat er
+  // noch keinen Code, gilt der des geladenen Stands weiter (ein Code je Bearbeitung – das nächste Sichern ersetzt den Online-Stand); hat er
+  // denselben, zählt der spätere Zeitpunkt des Online-Sicherns (z. B. inzwischen auf einem anderen Gerät gesichert)
+  const adopted = !!(importCode && importCode.code) && (!S.saveCode || (S.saveCode === importCode.code && importCode.at > S.savedOnlineAt));
+  if (adopted) { S.saveCode = importCode.code; S.savedOnlineAt = importCode.at; S.savedOnlineUntil = importCode.until; }
   // Widerspruch gegen die Tippzeit-Messung: aus dem Zwischenstand oder – über den Angaben-Bildschirm geöffnet – von dort. Kam er erst
   // dort, sofort speichern (auch ohne bisherigen Stand: sonst ginge er bei einem Neuladen vor der ersten Eingabe verloren); trägt der
   // Stand dieses Geräts Tippzeiten bzw. einen gesendeten Erstversuch: verwerfen, Erstversuch ersetzen
@@ -4701,15 +4944,16 @@ async function openEditor(fromPerson) {
   // nur im Arbeitsspeicher erneut sichern – scheitert es, sagt die Statuszeile das (statt „übernommen“/„wiederhergestellt“)
   const quotaOver = quotaExpired();   // Stand von einem früheren Tag: das Tageskontingent ist inzwischen erneuert
   // arrived: aus einem Escape-Room angekommen – die Daten aus dem Raum sofort sichern (bis hierher nur im Arbeitsspeicher)
-  const saveFailed = (imported || pendingLost || held || quotaOver || ttChanged || arrived) && !saveDraft();
+  const saveFailed = (imported || pendingLost || held || quotaOver || ttChanged || arrived || adopted) && !saveDraft();
   S.tas.forEach(updateCounter);
   renderFeedbackState();
-  setSaveState(saveFailed ? SAVE_FAILED : imported ? "Zwischenstand aus der PDF-Datei übernommen" : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", saveFailed);
+  setSaveState(saveFailed ? SAVE_FAILED : imported ? (importFrom === "code" ? DC_LOADED : "Zwischenstand aus der PDF-Datei übernommen") : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", saveFailed);
   // Erstversuch nachholen, falls die Übermittlung damals scheiterte – bzw. ohne Tippzeiten ersetzen (Widerspruch, S.ttResend)
   if (S.feedback && (!S.firstSent || S.ttResend || fbtSig(S.feedback) !== S.firstSentSig)) sendFirstAttempt();
   setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
   show("screen-editor");
   $("paperwrap").scrollTop = 0;
+  renderDraftCode();   // online gesicherter Stand: der Zwischenstand-Code bleibt im Kopf des Blattes sichtbar (erst einblenden, dann füllen)
   growAll();
   setTimeout(() => { if (S.tas[0]) S.tas[0].focus({ preventScroll: true }); }, 60);
   // erst einblenden, dann füllen: so sagt ein Screenreader die Statusmeldung an
@@ -4721,6 +4965,19 @@ async function openEditor(fromPerson) {
 function liveFill(box, el, text, still) {
   box.classList.remove("hidden"); el.textContent = "";
   setTimeout(() => { if (!box.classList.contains("hidden") && (!still || still())) el.textContent = text; }, 80);
+}
+/* Zwischenstand-Code eines online gesicherten Stands (DRAFTCODE), dauerhaft sichtbar im Kopf des Blattes (#draft-code, role="status"):
+   „Zwischenstand-Code: XXXX-XXXX – online gesichert am … um … Uhr, abrufbar bis …“. Wie liveFill erst einblenden, dann füllen; steht er
+   schon da (erneut gesichert), wird nur der Text ersetzt. Ohne online gesicherten Stand verborgen. */
+function renderDraftCode() {
+  const box = $("draft-code"), on = !!(S.saveCode && S.savedOnlineAt && S.savedOnlineUntil);
+  const seq = box._seq = (box._seq || 0) + 1;
+  if (!on) { box.classList.add("hidden"); box.textContent = ""; return; }
+  const parts = dcNoteParts(S.saveCode, S.savedOnlineAt, S.savedOnlineUntil);
+  const fill = () => { box.textContent = ""; box.append(parts[0], h("b", { class: "dcode", text: parts[1] }), parts[2]); };
+  if (!box.classList.contains("hidden")) { fill(); return; }
+  box.classList.remove("hidden"); box.textContent = "";
+  setTimeout(() => { if (box._seq === seq && !box.classList.contains("hidden")) fill(); }, 80);
 }
 
 /* Button „KI-Feedback nur zu dieser Aufgabe“ samt Statuszeile und Warteanzeige („Nicht länger warten“) an der Aufgabe n (FBTASK) */
@@ -4793,7 +5050,7 @@ function buildTasks() {
  * speichert es als JPEG – Zusatzangaben wie Aufnahmeort und Kamera (EXIF) entfallen dabei, die Drehung aus EXIF wird übernommen. Keine
  * Einfügesperre, keine Tippzeiten, keine Rechtschreibprüfung. value = Textform (PHOTO_TEXT mit Foto, sonst ""); photo = data:-URL oder "". */
 const PHOTO_HINT = "Fotografiere nur deine eigene Arbeit, möglichst ohne Personen. Das Foto wird auf deinem Gerät verkleinert (ohne Angaben wie den Aufnahmeort) " +
-  "und geht nur verschlüsselt mit deiner Abgabe an deine Lehrkraft – nie an eine KI.";
+  "und geht nur verschlüsselt mit deiner Abgabe an deine Lehrkraft – nie an eine KI.";   // stimmt auch mit online gesichertem Zwischenstand (verschlüsselt, nicht für die Lehrkraft lesbar)
 const PHOTO_LOST = "Dein Foto zu dieser Aufgabe passte nicht in den Speicher dieses Geräts und ist nach dem Neuladen nicht mehr da – bitte nimm es noch einmal auf oder wähle es erneut aus.";
 const photoKB = (n) => Math.max(1, Math.round(n / 1024)).toLocaleString("de-DE") + " KB";
 async function preparePhoto(file, maxBytes) {
@@ -5455,7 +5712,9 @@ function draftRecord() {
     fbUnavailable: S.fbUnavailable || "", fbUnavailableDay: S.fbUnavailable ? S.fbUnavailableDay || "" : "", fbFails: S.fbFails || 0, fbPending: !!S.fbPending, attempt: S.attempt, firstSent: S.firstSent,
     ...(S.firstSent ? { firstSentSig: S.firstSentSig } : {}),
     ...(typing ? { typing } : {}), ...(S.ttOptOut ? { ttOptOut: true } : {}), ...(S.ttResend ? { ttResend: true } : {}),
-    ...(S.escape ? { escape: S.escape.hull } : {}) };   // Escape-Room-Finale: die Hülle unverändert (die Prüfsumme lässt sich so jederzeit neu rechnen)
+    ...(S.escape ? { escape: S.escape.hull } : {}),   // Escape-Room-Finale: die Hülle unverändert (die Prüfsumme lässt sich so jederzeit neu rechnen)
+    // Online gesicherter Zwischenstand (DRAFTCODE): der Zwischenstand-Code dieser Bearbeitung, nach dem ersten gelungenen Sichern mit Zeitpunkt und Frist
+    ...dcOut(S.saveCode, S.savedOnlineAt, S.savedOnlineUntil) };
 }
 const SAVE_FAILED = "Zwischenstand konnte auf diesem Gerät nicht gespeichert werden";
 const SAVE_NO_PHOTOS = "Zwischenstand ohne Foto gespeichert – der Speicher dieses Geräts ist voll (das Foto bleibt nur, bis du die Seite schließt oder neu lädst)";
@@ -5558,8 +5817,11 @@ const pdfUtf16 = (str) => { let x = "<FEFF"; for (let i = 0; i < str.length; i++
 const latin1 = (str) => { const u = new Uint8Array(str.length); for (let i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 0xFF; return u; };
 /* Zwischenstand d (siehe draftRecord + kind/code/sheetTitle/person) → PDF-Bytes */
 // withAi = false: Blatt ohne Auftrag an die KI (kein Hinweis zum KI-Feedback); escName: Finale eines Escape-Rooms (d.escape trägt die Daten aus dem Raum);
-// perTask: Blatt mit Buttons „KI-Feedback nur zu dieser Aufgabe“ bzw. Feedback nur zu einzelnen Aufgaben (Hinweis „nur einmal“ je Aufgabe)
-function makeDraftPdf(d, withAi = true, escName = "", perTask = false) {
+// perTask: Blatt mit Buttons „KI-Feedback nur zu dieser Aufgabe“ bzw. Feedback nur zu einzelnen Aufgaben (Hinweis „nur einmal“ je Aufgabe);
+// online = {code, at, until}: dieser Stand ist gerade online gesichert worden (DRAFTCODE) – dann steht ganz oben rot und fett der
+// Zwischenstand-Code, darunter rot, wie und bis wann er sich einlösen lässt, und die Punkte unter „Bitte beachte“ nennen ihn; ohne
+// (Online-Speichern gescheitert) sieht die Datei aus wie bisher. Hochladen lässt sie sich in jedem Fall.
+function makeDraftPdf(d, withAi = true, escName = "", perTask = false, online = null) {
   const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M;   // A4, Ränder
   const ops = [];
   const put = (x, yTop, str, size, bold, color) => ops.push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - yTop).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
@@ -5569,6 +5831,12 @@ function makeDraftPdf(d, withAi = true, escName = "", perTask = false) {
   const nPhotos = Array.isArray(d.photos) ? d.photos.filter(Boolean).length : 0;   // Antwortart Foto: die Fotos stecken mit im Datensatz
   const when = toDate(d.t) || new Date();
   let y = 96;
+  if (online) {
+    const RED = "0.75 0.1 0.1";   // jede Zeile setzt ihre Farbe selbst (put) – danach geht es schwarz weiter
+    y = 64;
+    put(M, y, dcPdfHead(online.code), 20, true, RED); y += 21;
+    y = para(M, y, dcPdfLine(online.until), 11, false, TW, 15, RED) + 22;
+  }
   put(M, y, "Zwischenstand für ein Feibeitsblatt", 21, true, "0.1 0.1 0.1"); y += 24;
   y = para(M, y, "Diese Datei ist kein fertiges Arbeitsblatt und keine Abgabe, sondern ein gesicherter Zwischenstand: Die Antworten stecken als Daten in der Datei, damit du später weiterschreiben kannst.", 11, false, TW, 15, "0.3 0.3 0.3") + 12;
   const row = (label, val) => { put(M, y, label, 11, true); y = para(M + 100, y, val, 11, false, TW - 100, 15); };
@@ -5597,8 +5865,10 @@ function makeDraftPdf(d, withAi = true, escName = "", perTask = false) {
   const linkRect = [M + pad - 2, H - y - urlDy - 5, M + pad + uw + 2, H - y - urlDy + 12];
   y += bh + 28;
   put(M, y, "Bitte beachte", 12.5, true); y += 18;
-  [nPhotos ? "Die Datei enthält deine Antworten lesbar – auch deine Fotos. Gib sie nicht weiter und lade sie nirgendwo sonst hoch." : "Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
-    "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
+  [online ? dcPdfSecret(nPhotos > 0)
+    : nPhotos ? "Die Datei enthält deine Antworten lesbar – auch deine Fotos. Gib sie nicht weiter und lade sie nirgendwo sonst hoch." : "Die Datei enthält deine Antworten lesbar. Gib sie nicht weiter und lade sie nirgendwo sonst hoch.",
+    online ? dcPdfFresh(online.at) : "Sichere nach jeder Arbeitsphase eine neue Datei – eine ältere Datei enthält nur den älteren Stand.",
+    online ? DC_PDF_UPLOAD : "",
     withAi ? (perTask ? FBT_PDF_ONCE : "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites KI-Feedback zum Überarbeiten gibt es nicht.") : "",
     esc ? "Die Datei enthält auch deine Daten aus dem Escape-Room (voller Name, Geburtsdatum, Bestätigungscode und Ergebnisse) – damit kannst du hier weitermachen." : ""
   ].filter(Boolean).forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
@@ -5774,8 +6044,10 @@ function cleanDraft(o) {
   // je Aufgabe erste Fassung und Feedback – oder beide null (KI-Feedback nur zu einzelnen Aufgaben; ältere Dateien haben überall beide)
   const { first, feedback } = fbtPairs(o.first, o.feedback, answers.length, normFb, MAX_ANSWER);
   const fl = ttDraftFlags(o);
+  const dc = dcState(o);   // Zwischenstand-Code eines online gesicherten Stands – nur in gültiger Form (sonst ohne)
   return {
     v: 1, code, sheetTitle: String(o.sheetTitle || "").slice(0, 200), t: Number.isFinite(o.t) ? o.t : 0,
+    saveCode: dc.code, savedOnlineAt: dc.at, savedOnlineUntil: dc.until,
     person, answers, photos: photos && photos.some(Boolean) ? photos : null, first, feedback, feedbackAt: feedback && typeof o.feedbackAt === "string" ? o.feedbackAt.slice(0, 40) : null,
     feedbackAts: fbtAts(o.feedbackAts, feedback),
     fbUnavailable: typeof o.fbUnavailable === "string" ? o.fbUnavailable.slice(0, 200) : "",
@@ -5796,18 +6068,56 @@ function downloadBlob(blob, name) {
   document.body.appendChild(a); a.click();
   setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
 }
-$("ed-pdf").addEventListener("click", () => {
-  if (S.submitted || !S.sheet || !S.person) return;
+/* Online gesicherten Stand auf dem Server löschen (nach der Abgabe): best effort – ein Fehler bleibt still, der Server löscht den Stand
+   sonst DC_DAYS Tage nach dem letzten Sichern. dcGone merkt die Codes abgegebener Bearbeitungen: Kommt ein noch laufendes Sichern erst
+   nach der Abgabe beim Server an, wird der Stand gleich wieder gelöscht. */
+const dcGone = new Set();
+function dropOnlineDraft(code8) {
+  if (!subtle || !dcValid(code8)) return;
+  draftKeys(code8).then((k) => api("DELETE", "/api/draft", { body: { id: k.id } })).catch(() => { /* still */ });
+}
+/* „Zwischenstand sichern (online und als PDF-Datei)“ – nur auf diesen Klick, nie automatisch (siehe DRAFTCODE): lokal speichern → den
+   Zwischenstand-Code dieser Bearbeitung holen bzw. erzeugen → Kennung und Schlüssel ableiten → den Datensatz der PDF verschlüsseln →
+   PUT /api/draft (an den Server gehen nur Kennung, Blatt-Code und Umschlag – kein Name, nie der Zwischenstand-Code) → die PDF bauen und
+   herunterladen: mit dem Code rot ganz oben, wenn das Online-Speichern geklappt hat, sonst wie bisher ohne (die Statuszeile sagt es). Die
+   PDF enthält genau den Stand, der online liegt (der Datensatz vom Klick); sie bleibt in jedem Fall hochladbar. */
+$("ed-pdf").addEventListener("click", async () => {
+  const btn = $("ed-pdf");
+  if (btn.disabled || S.submitted || S.submitting || !S.sheet || !S.person) return;
+  const key = S.draftKey, attempt = S.attempt;
+  busy(btn, true, DC_BUSY);
   try {
     saveDraft();
-    const d = Object.assign(draftRecord(), { kind: "feibeitsblatt-draft", code: S.code, sheetTitle: S.sheet.title, person: personOut(S.person) });
-    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
+    // ein Code je Bearbeitung: beim ersten Sichern erzeugt und sofort im Zwischenstand gemerkt, danach wiederverwendet
+    if (!S.saveCode) { S.saveCode = dcNew(rand); saveDraft(); }
+    const code8 = S.saveCode, sheetCode = S.code, envMax = sheetPhotoCount(S.sheet) ? PHOTO_ENV_MAX : TT_ENV_MAX;
+    const d = Object.assign(draftRecord(), { kind: "feibeitsblatt-draft", code: sheetCode, sheetTitle: S.sheet.title, person: personOut(S.person) });
     // Escape-Room-Finale: die Datei enthält vollen Namen, Geburtsdatum und Bestätigungscode – wie die übrigen Escape-PDFs nur zum
     // Speichern (application/octet-stream), nie als Vorschau im Tab (z. B. iOS)
     const escName = S.escape && S.sheet.escape ? S.sheet.escape.name : "";
-    downloadBlob(new Blob([makeDraftPdf(d, S.sheet.aiFeedback || !!S.feedback, escName, perTaskOn() || fbtPartial(S.feedback))], { type: escName ? "application/octet-stream" : "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(S.code)}-${stamp}.pdf`);
-    setSaveState("Zwischenstand als PDF-Datei gesichert – bewahre die Datei gut auf", false);
+    const withAi = S.sheet.aiFeedback || !!S.feedback, perTask = perTaskOn() || fbtPartial(S.feedback);
+    let online = null, fail = null;
+    try {
+      const k = await draftKeys(code8);
+      const envelope = await dcSeal(subtle, k.key, d, rand);
+      if (!dcEnvFits(envelope, envMax)) throw new ApiError("too_large", "", 413);   // der Server nähme ihn nicht an – gar nicht erst senden
+      online = dcTimes(await api("PUT", "/api/draft", { body: { id: k.id, code: sheetCode, envelope }, timeout: 60000 }));
+      if (!online) throw new ApiError("server_error", "", 500);
+    } catch (e) { online = null; fail = e instanceof ApiError ? e : new ApiError("crypto"); }
+    // Inzwischen abgegeben: der Stand soll nicht online liegen bleiben, eine Zwischenstand-PDF braucht es nicht mehr
+    if (dcGone.has(code8)) { if (online) dropOnlineDraft(code8); return; }
+    // noch dieselbe Bearbeitung im Schreibbereich? (sonst – „Abbrechen“ während des Sicherns – nur noch die gewünschte Datei)
+    const same = S.draftKey === key && S.attempt === attempt && S.saveCode === code8 && !S.submitted;
+    if (online) {
+      d.savedOnlineAt = online.at; d.savedOnlineUntil = online.until;   // steht so auch in der Datei (und im Zwischenstand dieses Geräts)
+      if (same) { S.savedOnlineAt = online.at; S.savedOnlineUntil = online.until; saveDraft(); renderDraftCode(); }
+    }
+    const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
+    downloadBlob(new Blob([makeDraftPdf(d, withAi, escName, perTask, online ? { code: code8, at: online.at, until: online.until } : null)],
+      { type: escName ? "application/octet-stream" : "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(sheetCode)}-${stamp}.pdf`);
+    if (same) setSaveState(online ? dcSavedText(code8) : dcFailText(fail.code, fail.status), !online);
   } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
+  finally { busy(btn, false); }
 });
 /* ---------- „Meine Lösungen“ als PDF nach der Abgabe (mehrseitig, zum Aufbewahren und Lernen) ----------
  * Inhalt: Blatt, Angaben, Abgabezeitpunkt, je Aufgabe die Aufgabenstellung, die abgegebene Lösung und die KI-Rückmeldung zur
@@ -6191,7 +6501,9 @@ $("ed-cancel").addEventListener("click", async () => {
   const ok = await askConfirm({ title: "Zwischenstand löschen?", text: "Deine Antworten und Angaben werden von diesem Gerät gelöscht und nicht abgegeben. Das lässt sich nicht rückgängig machen." +
     (S.feedback && S.firstSent ? " Deine erste Fassung mit dem KI-Feedback und deinen Angaben hat deine Lehrkraft schon verschlüsselt als Erstversuch bekommen; waren deine Angaben falsch, sag ihr Bescheid – sie kann den Eintrag löschen." : "") +
     (S.busyFeedback ? " Die laufende KI-Anfrage wird verworfen. Was schon gesendet wurde, hat der KI-Dienst bereits erhalten." : "") +
-    (S.escape ? " Auch deine Daten aus dem Escape-Room werden von diesem Gerät gelöscht – mit deiner Überblick-PDF kannst du jederzeit wieder hierherkommen." : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
+    (S.escape ? " Auch deine Daten aus dem Escape-Room werden von diesem Gerät gelöscht – mit deiner Überblick-PDF kannst du jederzeit wieder hierherkommen." : "") +
+    // online gesicherter Stand (DRAFTCODE): bleibt auf dem Server – z. B. ein geteiltes Gerät aufräumen und zu Hause mit dem Code weiterarbeiten
+    (S.saveCode && S.savedOnlineAt && S.savedOnlineUntil ? dcCancelText(S.saveCode, S.savedOnlineAt, S.savedOnlineUntil) : ""), ok: "Löschen", cancel: "Weiterschreiben", danger: true });
   if (!ok || submitBusy($("submit-status"), SENDING_CANCEL)) return;
   clearTimeout(saveTimer);
   delDraft(S.draftKey); store.del(LAST_KEY);
@@ -7510,6 +7822,9 @@ async function submitAll() {
     const r = await sendSealed(payload, (envelope) => ({ code: S.code, envelope, stage: "final", attempt: S.attempt || undefined }));
     S.submitted = true;
     delDraft(S.draftKey); store.del(LAST_KEY);
+    // online gesicherter Zwischenstand dieser Bearbeitung: auf dem Server löschen (best effort), der Zwischenstand-Code gilt nicht mehr
+    if (S.saveCode) { dcGone.add(S.saveCode); dropOnlineDraft(S.saveCode); }
+    S.saveCode = ""; S.savedOnlineAt = 0; S.savedOnlineUntil = 0;
     const d = toDate(r.receivedAt) || new Date();
     const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
     $("done-time").textContent = `Abgegeben am ${WD[d.getDay()]}, ${fmtD(d)} um ${pad2(d.getHours())}:${pad2(d.getMinutes())} Uhr.`;
@@ -7625,6 +7940,7 @@ function clearEditor() {
   S.tas = []; S.outs = []; S.fbs = []; S.fbts = [];
   $("who-name").textContent = ""; $("ed-title").textContent = ""; $("sheet-title").textContent = "";
   $("ed-steps-list").textContent = ""; $("ed-steps-list")._key = "";
+  const dcb = $("draft-code"); dcb._seq = (dcb._seq || 0) + 1; dcb.classList.add("hidden"); dcb.textContent = "";   // Zwischenstand-Code der Bearbeitung
 }
 /* Laufende Feedback-Anfrage samt Warten beenden: späte Antworten werden anhand der Lauf-Kennung verworfen */
 function stopFeedbackRun() {
@@ -7643,7 +7959,8 @@ function resetStudent() {
   stopFeedbackRun();   // beendet auch eine noch laufende finale Rückmeldung (gleiche Lauf-Kennung)
   resetFinalFeedback();
   clearEditor();
-  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, feedbackAts: null, fbTarget: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, firstSentSig: "", importDraft: null, lastSubmission: null, escPending: null, escape: null, escSoft: null });
+  Object.assign(S, { code: "", sheet: null, pub: null, person: null, groupMode: false, draftKey: "", first: null, firstTyping: null, ttOptOut: false, ttResend: false, firstSending: null, ttLastRaw: null, feedback: null, feedbackAt: null, feedbackAts: null, fbTarget: null, fbFails: 0, fbUnavailable: "", fbUnavailableDay: "", fbPending: false, submitted: false, submitting: false, busyFeedback: false, ltCache: new Map(), ltConsent: false, ltDeclined: false, attempt: "", firstSent: false, firstSentSig: "", importDraft: null, lastSubmission: null, escPending: null, escape: null, escSoft: null,
+    saveCode: "", savedOnlineAt: 0, savedOnlineUntil: 0, importFrom: "", importCode: null });
   PERSON_FIELDS.forEach((id) => { $(id).value = ""; $(id).classList.remove("invalid"); });
   resetMembers();   // Kürzelfelder der Gruppe: wieder ein leeres Feld beim nächsten Öffnen
   $("p-err").textContent = ""; $("start-err").textContent = ""; setStatus($("start-status"), "", "");
@@ -10840,7 +11157,7 @@ function renderPvEffect() {
 /* Vorschau: derselbe Baustein wie bei den Schüler:innen, mit der (auch ungespeicherten) Frist – für ein Blatt mit KI-Feedback und so,
    wie der Hinweis unter dieser Adresse erscheint. Darunter, was bei anderen Blättern bzw. über die andere Adresse abweicht. */
 const PV_ESC_NOTE = "Bei Feibeitsblättern für einen Escape-Room kommen Sätze zu den Daten aus dem Escape-Room hinzu (voller Name, Geburtsdatum und Bestätigungscode bleiben auf dem Gerät " +
-  "der Schüler:innen – außer sie schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie).";
+  "der Schüler:innen – außer sie sichern ihren Zwischenstand online (dann liegen sie verschlüsselt mit darin) oder schicken nach einer technisch gescheiterten Abgabe ihre Abschluss-PDF per E-Mail; ihre Ergebnisse gehen verschlüsselt an Sie).";
 const PV_VIDEO_NOTE = "Bei Feibeitsblättern mit Videos von YouTube kommen Sätze zu YouTube hinzu: Ein Video wird erst nach einem Klick der Schüler:innen geladen (Einwilligung, " +
   "Art. 6 Abs. 1 Buchst. a DSGVO und § 25 Abs. 1 TDDDG); dann erhält Google Ireland Limited unter anderem die IP-Adresse und kann Cookies setzen, Daten können in die USA gelangen.";
 function renderPvPreview() {
@@ -11157,8 +11474,8 @@ const legalHash = () => /^#impressum$/i.test(location.hash || "");
   $("legal-photo").append(h("h2", { class: "legal-h2", id: "legal-photo-h", text: "Feibeitsblätter mit Foto-Aufgaben" }),
     h("p", { text: "Bei manchen Aufgaben ist die Antwort ein Foto, zum Beispiel von deinem Plakat. Zusätzlich zu den Angaben oben gilt dann:" }),
     h("p", { text: PRIV_DU.photoData }),
-    h("p", { text: "Gespeichert wird das Foto wie deine übrigen Antworten nur verschlüsselt mit deiner Abgabe und mit ihr gelöscht; in deiner Lösungs-PDF steht es mit, " +
-      "wenn du sie herunterlädst." }));
+    h("p", { text: "Auf dem Server gespeichert wird das Foto wie deine übrigen Antworten nur verschlüsselt: mit deiner Abgabe (und mit ihr gelöscht) und – wenn du deinen Zwischenstand online sicherst – mit ihm; " +
+      "in deiner Lösungs-PDF steht es mit, wenn du sie herunterlädst." }));
 })();
 async function openLegal() {
   escDrop();   // angekommene Daten aus einem Escape-Room gelten nicht mehr
