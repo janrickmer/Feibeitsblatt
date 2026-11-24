@@ -19,6 +19,10 @@ Weltkarten-Zuordnung oder ein **Foto** sein (z. B. vom eigenen Plakat – der Br
 verschlüsselt mit der Abgabe an Sie, nie an eine KI). Ein Feibeitsblatt kann auch das Finale eines
 Escape-Rooms der Reihe sein: Dann kommen die Schüler:innen über den Link am Ende des Escape-Rooms (oder dessen
 Überblick-PDF) mit ihren Angaben und Ergebnissen aus dem Raum an (siehe [Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)).
+Wer nicht fertig wird, klickt auf **„Zwischenstand sichern (online und als PDF-Datei)“**: Der Stand wird verschlüsselt
+online gespeichert, und die PDF-Datei nennt oben rot einen **Zwischenstand-Code** – auf der Startseite eingetippt, lädt
+er genau diesen Stand auf jedem Gerät wieder, ohne dass die Datei hochgeladen werden muss (siehe
+[Online gesicherter Zwischenstand](#online-gesicherter-zwischenstand)).
 Wie im Feiditor misst Feibeitsblatt beim Schreiben die **Tippzeiten** (je Zeichen den Abstand zum vorangehenden Zeichen).
 In der Lehrkräfte-Übersicht sehen Sie die Antworten farbig markiert. Nutzen Sie die Färbung nur als Anlass für ein
 Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem Täuschungsverdacht. Die Schüler:innen sehen die
@@ -51,23 +55,29 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
 
 1. **Code eingeben.** Die Seite öffnen und den Code der Lehrkraft eintragen, z. B. `K7Q-M4X`. Groß- und
    Kleinschreibung, Leerzeichen und Bindestrich spielen keine Rolle. Codes haben sechs Zeichen und enthalten nie
-   die leicht verwechselbaren Zeichen I, L, O, 0 und 1. Ein Satz unter dem Formular sagt, dass schon beim Laden der
+   die leicht verwechselbaren Zeichen I, L, O, 0 und 1. In dasselbe Feld gehört auch ein **Zwischenstand-Code** (acht
+   Zeichen, z. B. `7KQM-4XWP`): Er lädt einen online gesicherten Zwischenstand und öffnet gleich den Schreibbereich
+   (siehe Schritt 4). Ein Satz unter dem Formular sagt, dass schon beim Laden der
    Seite die IP-Adresse verarbeitet wird und wo alle Informationen zum Datenschutz stehen: unter „Impressum &
    Datenschutz“ (Link in der Fußzeile jeder Seite; er öffnet die Seite in einem neuen Tab, damit nichts verloren geht)
    und nach dem Code passend zum Feibeitsblatt.
 2. **Arbeitsform wählen.** Nach dem Code fragt die Seite „Wie arbeitest du?“: **„Einzelarbeit“** oder **„Partner- /
-   Gruppenarbeit“** (zu zweit oder in einer Gruppe von bis zu 10 Personen an einem Gerät, gemeinsame Abgabe).
-   „← anderen Code eingeben“ führt zurück zur Startseite. Wer über „Weiterschreiben“ oder eine Zwischenstand-PDF
-   kommt, sieht diese Frage nicht – die Arbeitsform steht dann schon fest.
+   Gruppenarbeit“** (zu zweit oder in einer Gruppe von bis zu 10 Personen – **live an einem oder an mehreren Geräten**,
+   gemeinsame Abgabe; siehe [Partner- und Gruppenarbeit live](#partner--und-gruppenarbeit-live)).
+   „← anderen Code eingeben“ führt zurück zur Startseite. Wer über „Weiterschreiben“, einen Zwischenstand-Code oder
+   eine Zwischenstand-PDF kommt, sieht diese Frage nicht – die Arbeitsform steht dann schon fest.
 3. **Angaben machen.** Bei **Einzelarbeit**: die ersten drei Buchstaben des Vornamens (bei einem kürzeren Vornamen den
    ganzen Vornamen), die ersten zwei Buchstaben des Nachnamens, den Geburtstag – nur Tag und Monat, ohne Jahr (er hilft,
-   gleiche Kürzel auseinanderzuhalten) – und die Klasse (z. B. „8b“). Bei **Partner- oder Gruppenarbeit** („Eure
-   Angaben“, in der „ihr“-Form): je Person ein Feld mit den ersten drei Buchstaben des Vornamens und den ersten zwei des
+   gleiche Kürzel auseinanderzuhalten) – und die Klasse (z. B. „8b“). Bei **Partner- oder Gruppenarbeit** fragt die Seite
+   zuerst, ob man **Gruppensprecherin bzw. Gruppensprecher** ist oder sich **dazuschaltet** (dann genügen Zugangswort und
+   Zahlencode der Gruppe – keine eigenen Angaben). Die Gruppensprecherin bzw. der Gruppensprecher trägt die Angaben der
+   ganzen Gruppe ein („Eure Angaben“, in der „ihr“-Form): je Person ein Feld mit den ersten drei Buchstaben des Vornamens und den ersten zwei des
    Nachnamens, z. B. „MaxMu“ (Leerzeichen oder Bindestrich dazwischen sind erlaubt, „max mu“ wird zu „MaxMu“), weitere
    Personen über „Person hinzufügen“ (mindestens 2, höchstens 10; ab Person 2 lässt sich jedes Feld wieder entfernen),
    dann einmal die Klasse – **kein Geburtstag**. Doppelte Kürzel in einer Gruppe lehnt die Seite ab. Wer die Angaben
    einträgt, trägt die Kürzel der anderen mit ein; der Hinweis unter den Feldern bittet, nur Personen einzutragen, die
-   mitarbeiten und davon wissen. „← zurück zur Auswahl“ führt zur Arbeitsform zurück. Dann „Schreibbereich öffnen“.
+   mitarbeiten und davon wissen. „← zurück zur Auswahl“ führt zur Arbeitsform zurück. Dann „Schreibbereich öffnen“
+   (Gruppe: „Weiter“ – es folgen Zugangswort und Zahlencode).
    Unter den Feldern steht – zum Zeitpunkt, an dem die Angaben erhoben werden – ein kurzer
    Datenschutzhinweis mit dem Betreiber (verantwortlich) und der Löschfrist; „Alle Informationen zum Datenschutz“ klappt den
    vollständigen Hinweis nach Art. 13 DSGVO auf (siehe [Betreiber und Löschfrist](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen));
@@ -91,16 +101,33 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    laufend auf dem Gerät gespeichert („Zwischenstand auf diesem Gerät gespeichert“). Wird die Seite neu geladen
    oder versehentlich geschlossen, bietet die Startseite an, mit den gespeicherten Angaben weiterzuschreiben
    („Weiterschreiben“); mit „Abbrechen und Zwischenstand von diesem Gerät löschen“ oben rechts lässt sich ein
-   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten). Wer seine Browserdaten regelmäßig löscht
-   oder das Gerät wechselt, klickt oben rechts auf **„Zwischenstand als PDF-Datei sichern“**: Der Browser lädt eine
-   PDF-Datei herunter (`Feibeitsblatt-Zwischenstand-<Code>-<Datum>.pdf`). In einem PDF-Programm geöffnet zeigt sie
+   Zwischenstand auch bewusst entfernen (wichtig auf geteilten Geräten). Wer das Gerät wechselt oder in der nächsten
+   Stunde weiterarbeiten will, klickt oben rechts auf **„Zwischenstand sichern (online und als PDF-Datei)“**. Nur auf
+   diesen Klick – nie automatisch – geschieht zweierlei: Der Zwischenstand wird **verschlüsselt auf dem Server
+   gespeichert**, und der Browser lädt eine PDF-Datei herunter (`Feibeitsblatt-Zwischenstand-<Code>-<Datum>.pdf`), die
+   **ganz oben rot und fett den Zwischenstand-Code** nennt (acht Zeichen, z. B. `7KQM-4XWP`) und darunter, bis wann er
+   gilt. Der Code steht danach auch dauerhaft oben auf dem Blatt („Zwischenstand-Code: 7KQM-4XWP – online gesichert am
+   … um … Uhr, abrufbar bis …“) und in der Statuszeile. **Weiterarbeiten:** auf der Startseite den Zwischenstand-Code
+   in das Feld „Code“ eintippen (Bindestrich und Groß-/Kleinschreibung sind egal) – der Schreibbereich öffnet sich mit
+   genau diesem Stand, ohne Angaben und ohne Datei, auf jedem Gerät. Ein Code gehört zu einer Bearbeitung: Jedes
+   weitere Sichern ersetzt den online gesicherten Stand, der Code bleibt derselbe (auch auf dem anderen Gerät).
+   Online liegt immer nur der Stand vom letzten Sichern – was danach geschrieben wird, erst nach erneutem Sichern.
+   Der Server bewahrt ihn **30 Tage nach dem letzten Sichern** auf und löscht ihn schon vorher nach der Abgabe (das
+   veranlasst die Seite von dem Gerät aus, auf dem abgegeben wird) oder wenn Sie das Feibeitsblatt löschen.
+   „Abbrechen und Zwischenstand von diesem Gerät löschen“ löscht ihn dagegen **nicht** (der Dialog sagt es): So lässt
+   sich ein geteiltes Schul-iPad aufräumen und zu Hause mit dem Code weiterarbeiten. Der Server erfährt dabei weder
+   den Zwischenstand-Code noch einen Namen (siehe [Datenschutz](#datenschutz)); wer den Code kennt, kann den Stand
+   laden – Code und Datei gehören deshalb nicht in fremde Hände. Klappt das Online-Speichern einmal nicht (kein Netz,
+   Stand zu groß, zu viele Anfragen), entsteht die PDF-Datei trotzdem – dann ohne die rote Code-Zeile, und die
+   Statuszeile sagt, dass nur die Datei gesichert wurde.
+   Die PDF-Datei bleibt in jedem Fall wie bisher verwendbar: In einem PDF-Programm geöffnet zeigt sie
    eine einzige Seite mit dem Hinweis, dass es sich um einen Zwischenstand für ein Feibeitsblatt handelt, und einen
    orangen Kasten: Genau diese PDF-Datei (kein Screenshot davon) kann auf <https://feibeitsblatt.janrickmer.de/>
    hochgeladen werden, um weiterzuarbeiten – der Link darin öffnet sich im Browser. Der eigentliche Zwischenstand
-   (Antworten, Angaben, ggf. KI-Feedback – keine Tippzeiten) steckt unsichtbar als eingebettete Datei in der PDF. Auf der Startseite
+   (Antworten, Angaben, ggf. KI-Feedback, der Zwischenstand-Code – keine Tippzeiten) steckt unsichtbar als eingebettete Datei in der PDF. Auf der Startseite
    stellt **„Zwischenstand-PDF hochladen“** aus genau dieser Datei alles wieder her (ein Screenshot oder Ausdruck
-   enthält die Daten nicht). Die Datei enthält die Antworten lesbar – sie gehört nicht in fremde Hände. Liegt auf
-   dem Gerät schon ein neuerer Zwischenstand derselben Person, fragt die Seite, welcher Stand gelten soll. Zeigt
+   enthält die Daten nicht) – etwa, wenn der online gesicherte Stand schon gelöscht ist. Die Datei enthält die Antworten lesbar – sie gehört nicht in fremde Hände. Liegt auf
+   dem Gerät schon ein neuerer Zwischenstand derselben Person, fragt die Seite (beim Code wie bei der Datei), welcher Stand gelten soll. Zeigt
    **Unterricks** (die Unterrichtsplattform derselben Lehrkraft) ein Feibeitsblatt aus einer früheren Sitzung erneut an,
    können die Schüler:innen ihre Zwischenstand-PDF auch dort auswählen: Unterricks öffnet das Feibeitsblatt in einem neuen
    Tab und übergibt ihm die Datei direkt im Browser (von Tab zu Tab, nicht über einen Server); danach geht es genau so weiter
@@ -149,7 +176,8 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    (längste Seite höchstens 1280 Pixel, als JPEG je höchstens 200 KB – bei drei Foto-Aufgaben je etwa 133 KB) und
    zeichnet es dabei neu: Zusatzangaben wie Aufnahmeort und Kamera (EXIF) entfallen. Danach erscheint eine Vorschau
    (Klick vergrößert) mit Größe; „Neues Foto aufnehmen“, „Anderes Bild auswählen“ und „Foto entfernen“ (mit Rückfrage)
-   ersetzen bzw. entfernen es. Das Foto steht im Zwischenstand auf dem Gerät (und in der Zwischenstand-PDF) und geht nur
+   ersetzen bzw. entfernen es. Das Foto steht im Zwischenstand auf dem Gerät (und in der Zwischenstand-PDF; wird der
+   Zwischenstand online gesichert, verschlüsselt auch dort) und geht nur
    verschlüsselt mit der Abgabe an die Lehrkraft – nie an eine KI, nie an die Rechtschreibprüfung und nicht schon mit dem
    Erstversuch. Ist der Speicher des Browsers voll, sichert die Seite die Texte ohne das Foto und sagt es („Zwischenstand
    ohne Foto gespeichert …“); bis die Seite neu lädt, bleibt das Foto trotzdem da, danach muss es neu aufgenommen werden
@@ -233,8 +261,10 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Abgabe käme ja trotzdem an. War die Abgabe technisch erfolgreich, erscheint die
    Bestätigung **„Abgabe erfolgreich“ mit einem großen grünen Haken** und dem Zeitpunkt; ist eine Löschfrist
    festgelegt, steht darunter, an welchem Tag die Abgabe bei Ihnen automatisch gelöscht wird („… oder kurz danach“,
-   mit dem Rat, die Lösungen herunterzuladen). Bei Partner- und Gruppenarbeit steht danach rot und fett **„Schicke die
-   Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!“** (die Lösungen hat nur das Gerät, auf dem
+   mit dem Rat, die Lösungen herunterzuladen). Bei Partner- und Gruppenarbeit steht danach rot und fett, wie die anderen an die Lösungen kommen: live
+   **„Die anderen Mitglieder deiner Gruppe können die Lösungen selbst herunterladen: Sie öffnen die Gruppenarbeit mit dem
+   Code des Feibeitsblattes, dem Zugangswort „…“ und dem Zahlencode ….“**, ohne Live-Verbindung **„Schicke die
+   Lösungen nach dem Herunterladen auch an die anderen Mitglieder deiner Gruppe!“** (dann hat sie nur das Gerät, auf dem
    abgegeben wurde). Direkt darunter – noch über
    der finalen KI-Rückmeldung – steht der deutlich als Knopf gestaltete Button (mit Download-Symbol) **„Lade dir deine
    Lösungen herunter und speichere sie in deinen Unterlagen zu unserem Unterricht“** (PDF-Datei mit Aufgaben, abgegebenen
@@ -290,7 +320,8 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Auftrag an die KI (also ohne KI-Rückmeldung) Ihre Checkliste, sofern Sie dort Punkte eingetragen haben. Die Datei entsteht im Browser und enthält keinen Geburtstag. Stehen
    KI-Rückmeldungen darin, sagt die erste Seite das („Die Rückmeldungen in dieser Datei hat eine KI erzeugt …“), und die
    Metadaten der Datei kennzeichnen sie maschinenlesbar (siehe [Sicherheit](#sicherheit), KI-Kennzeichnung). Der
-   Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht; die
+   Zwischenstand auf dem Gerät wird nach der Abgabe gelöscht, ebenso ein online gesicherter Zwischenstand dieser
+   Bearbeitung (sein Zwischenstand-Code lädt danach nichts mehr); die
    Lösungen bleiben nur bis „Neues Feibeitsblatt öffnen“ für den Download im Arbeitsspeicher.
 
 > **Wichtig:** Das KI-Feedback ist freiwillig. Die Handreichung „Künstliche Intelligenz (KI) in Schule und
@@ -342,7 +373,7 @@ drei bzw. zwei Buchstaben der Namen, Geburtstag ohne Jahr, Klasse – mit dem Hi
 deine Angaben sind schon eingetragen.“ (fehlt etwas, nennt er die Lücke); „← zur Startseite“ verwirft die Daten wieder. Liegt
 auf dem Gerät schon ein Zwischenstand derselben Person, geht es direkt dort weiter (bringt sie andere Daten aus dem
 Escape-Room mit als die gespeicherten, gelten die neuen, und die Seite sagt das über den Aufgaben). Zwischenstand und Zwischenstand-PDF
-tragen den Datensatz mit, damit **eine** Datei zum Fortsetzen genügt. Den Code eines solchen Blattes auf der Startseite
+tragen den Datensatz mit, damit **eine** Datei – oder der Zwischenstand-Code eines online gesicherten Stands – zum Fortsetzen genügt. Den Code eines solchen Blattes auf der Startseite
 einzutippen führt nicht weiter – die Seite verweist auf den Arena-Tunnel und die Überblick-PDF. Ist das Finale noch nicht
 freigeschaltet (im Escape-Room steht noch kein Code), gehört der Datensatz zu einem anderen Escape-Room oder gibt es das
 Blatt nicht mehr, sagt die Startseite das; bricht nur die Verbindung ab, holt „Erneut versuchen“ das Blatt nach. Nach der
@@ -358,6 +389,59 @@ ein neuer Versuch nicht klappt – per E-Mail an die Adresse aus `window.FEIBEIT
 Server die Abgabe als fehlerhaft ab, erscheint dieser Weg nicht. Kommen gerade zu viele Abgaben aus demselben Netz, erscheint
 er erst, wenn ein neuer Versuch nach der genannten Wartezeit wieder scheitert; ist das Blatt voll (400 Abgaben bzw. 40 MB),
 erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie wenden (Sie können Einträge löschen).
+
+### Partner- und Gruppenarbeit live
+
+Auf Wunsch des Betreibers (24.11.2026) arbeiten Gruppen **live zusammen** – an einem oder an mehreren Geräten
+(z. B. jede Person an ihrem iPad):
+
+1. **Gruppensprecherin / Gruppensprecher:** wählt „Partner- / Gruppenarbeit“ → „Ich bin Gruppensprecherin /
+   Gruppensprecher“, trägt die Namenskürzel aller Gruppenmitglieder und die Klasse ein und klickt „Weiter“. Die Seite
+   richtet den Zugang ein und zeigt groß ein zufälliges **Zugangswort** (ein einfaches Wort wie „birke“) und einen
+   fünfstelligen **Zahlencode** – beides zusammen gibt es je Feibeitsblatt nur einmal. Mit „Zum Feibeitsblatt“ öffnet
+   sich der Schreibbereich.
+2. **Dazuschalten:** Die anderen öffnen Feibeitsblatt, geben den Code des Feibeitsblattes ein, wählen „Partner- /
+   Gruppenarbeit“ → „Ich schalte mich dazu“ und geben Zugangswort und Zahlencode ein (Groß- und Kleinschreibung sind
+   egal) → „Zum Feibeitsblatt“. Eigene Angaben machen sie nicht.
+3. **Gemeinsam schreiben:** Zugangswort und Zahlencode stehen immer oben in der Kopfzeile (so kann sich jederzeit noch
+   jemand dazuschalten), daneben „Live verbunden · n Geräte“. **In einer Aufgabe schreibt immer nur ein Gerät:** Wer zu
+   tippen beginnt, hält die Aufgabe; die anderen sehen den Text mitwachsen und darunter „Hier schreibt gerade jemand aus
+   eurer Gruppe – du siehst den Text mitwachsen.“ Einige Sekunden nach der letzten Eingabe (oder beim Verlassen des
+   Feldes) ist die Aufgabe wieder frei. In verschiedenen Aufgaben können alle gleichzeitig schreiben; eine Tabelle zählt
+   als ein Feld, Fotos und Weltkarten-Zuordnungen erscheinen sofort bei allen. Der Stand wird laufend gespeichert („Live
+   gespeichert“) – einen Zwischenstand auf dem Gerät oder einen Zwischenstand-Code gibt es dabei nicht; „Stand als
+   PDF-Datei sichern“ lädt den lesbaren Stand mit Zugangswort und Zahlencode (rot ganz oben) herunter.
+4. **Verbindung weg** (iPad schläft ein, WLAN wechselt): Die Seite verbindet sich von selbst neu („Verbindung
+   unterbrochen – wird wiederhergestellt …“); solange sind Felder und Knöpfe gesperrt. Eine noch nicht gespeicherte
+   Eingabe wird danach nachgereicht – außer jemand anderes hat dieselbe Aufgabe inzwischen geändert (dann gilt dessen
+   Stand, und die Seite sagt es).
+5. **KI-Feedback und Abgabe gibt es je Gruppe nur einmal** – egal, auf welchem Gerät: Vor dem gewohnten Dialog erscheint
+   deshalb immer zuerst das Fenster **„Erst die Gruppe fragen“** („Alle sind einverstanden“ / „Noch nicht“). Das
+   KI-Feedback zu einer Aufgabe erscheint danach auf allen Geräten; fordert es ein zweites Gerät noch einmal an, lehnt der
+   Server ab, und nichts geht an die KI.
+6. **Nach der Abgabe** sieht das abgebende Gerät die gewohnte Bestätigung; alle anderen Geräte – und wer die
+   Gruppenarbeit später mit Code, Zugangswort und Zahlencode wieder öffnet – sehen **„Diese Gruppenarbeit wurde
+   abgegeben“** mit dem Knopf „Abgegebene Lösungen als PDF-Datei herunterladen“ (samt finaler KI-Rückmeldung, sobald sie
+   da ist). Haben Sie die Abgabe gelöscht oder ist die Löschfrist abgelaufen, bleibt nur der Hinweis – der Knopf
+   verschwindet.
+7. **Wieder öffnen:** Auf dem Gerät bietet die Startseite „Weiterarbeiten an eurer Gruppenarbeit …?“ an (gemerkt werden
+   dort nur Zugangswort und Zahlencode, höchstens 7 Tage); auf jedem anderen Gerät geht es über „Ich schalte mich dazu“.
+   „Gruppenarbeit verlassen“ trennt nur dieses Gerät – der gemeinsame Stand bleibt.
+
+**Lässt sich die Live-Verbindung nicht einrichten** (Server nicht erreichbar, Tagesgrenze des kostenlosen Tarifs,
+WebSocket im Schulnetz gesperrt), sagt die Seite das und bietet „Erneut versuchen“ und **„Ohne Live-Verbindung an diesem
+Gerät arbeiten“** an: Dann arbeitet die Gruppe wie früher gemeinsam an einem Gerät (Zwischenstand auf diesem Gerät,
+Zwischenstand-Code und Zwischenstand-PDF wie bei der Einzelarbeit).
+
+**Keine Tippzeit-Messung bei Gruppen:** Bei Partner- und Gruppenarbeit misst die Seite nie Tippzeiten (auch nicht ohne
+Live-Verbindung) – mehrere schreiben am selben Text. In Ihrer Übersicht steht dann „Tippzeiten: ohne Messung
+(Live-Gruppenarbeit).“ bzw. „… (Partner- oder Gruppenarbeit).“
+
+**Wichtig für den Unterricht:** Wer den Code des Feibeitsblattes, das Zugangswort und den Zahlencode kennt, kann den Stand
+der Gruppe lesen und ändern – sagen Sie den Gruppen, dass sie beides nur untereinander weitergeben. Für die Lehrkraft gibt
+es keinen eigenen Zugang zum laufenden Stand (er ist mit dem Zugangswort der Gruppe verschlüsselt); Sie sehen wie sonst
+Erstversuch und Abgabe. Technik, Grenzen und Datenschutz: [Kapazität und Grenzen](#kapazität-und-grenzen) und
+[Live-Gruppenarbeit](#live-gruppenarbeit).
 
 ## So arbeiten Sie als Lehrkraft
 
@@ -549,7 +633,8 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    steht der Rot-Anteil in Prozent (ab 50 % mit „hoch“), über den Aufgaben der Anteil der ganzen Abgabe – in der Liste
    selbst nie. „Färbung aus“ schaltet die Farben für diese Sitzung ab. Hat die Schülerin bzw. der Schüler der Messung
    widersprochen, steht dort nur „Tippzeiten: ohne Messung (widersprochen).“ – das ist ihr Recht und kein Anlass für einen
-   Verdacht. Der Widerspruch gilt für die Bearbeitung auf dem jeweiligen Gerät: Ein älterer Erstversuch, der auf einem
+   Verdacht. Bei Partner- und Gruppenarbeit wird nie gemessen: Dort steht „Tippzeiten: ohne Messung
+   (Live-Gruppenarbeit).“ bzw. – ohne Live-Verbindung an einem Gerät – „… (Partner- oder Gruppenarbeit).“ Der Widerspruch gilt für die Bearbeitung auf dem jeweiligen Gerät: Ein älterer Erstversuch, der auf einem
    anderen Gerät gesendet wurde, kann noch Tippzeiten tragen – auf Wunsch löschen Sie ihn. Die Färbung zeigt nur, wie
    schnell Zeichen eingegeben wurden, nicht, wer sie verfasst hat: Rot entsteht auch ohne Täuschung, und die Messung lässt
    sich mit technischem Wissen verändern. Nutzen Sie sie nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für
@@ -642,7 +727,8 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    ansehen“ klappt je Station die Versuche und die Fehler im ersten Versuch (Aufgabe, Antwort, richtige Lösung) und die
    genutzten Zwischenstand-Dateien auf; „Überblick als PDF herunterladen“ macht daraus eine PDF-Datei mit den Kürzeln.
    Vollen Namen, Geburtsdatum, Bestätigungscode und Lösungserläuterungen bekommen Sie nicht – sie bleiben auf dem Gerät
-   der Schüler:innen und stehen in deren Abschluss-PDF. Die Prüfsumme lässt sich mit dem öffentlichen Quelltext
+   der Schüler:innen und stehen in deren Abschluss-PDF (sichern Schüler:innen ihren Zwischenstand online, liegen sie
+   verschlüsselt mit darin – lesbar nur mit dem Zwischenstand-Code, nicht für Sie). Die Prüfsumme lässt sich mit dem öffentlichen Quelltext
    nachrechnen und zeigt nur versehentliche oder plumpe Änderungen. Auch die vorausgefüllten Angaben lassen sich ändern:
    Wer einen fremden Link oder eine fremde Überblick-PDF benutzt, gibt deren Ergebnisse unter den Kürzeln ab, die er
    einträgt – erkennen lässt sich das nicht.
@@ -663,7 +749,9 @@ erst beim nächsten Fehlschlag – zuerst sollen sich die Schüler:innen an Sie 
    Person werden dabei mitgelöscht, alle anderen Einträge bleiben. Ein Eintrag, der sich nicht entschlüsseln lässt,
    hat in der Liste einen eigenen Knopf „Eintrag löschen“.
    Notieren Sie, was Sie länger brauchen (z. B. Bewertungen), außerhalb von Feibeitsblatt. Darunter: „Feibeitsblatt
-   selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu. Wollen Sie ein Blatt später
+   selbst löschen (Code wird ungültig)“ – das löscht das Blatt und alle Abgaben dazu, außerdem die Zwischenstände, die
+   Schüler:innen zu diesem Blatt online gesichert haben (ihre Zwischenstand-Codes laden dann nichts mehr; der Dialog sagt
+   es). Wollen Sie ein Blatt später
    wieder verwenden, sichern Sie es vorher als PDF-Datei (Schritt 6). Mit dem Blatt wird auch seine Checkliste gelöscht.
 9. **Weitere Schaltflächen** oben: „Datenschutz und Löschfrist“ (der Betreiber zum Ansehen und die automatische
    Löschung, siehe [Schritt 9](#schritt-9-betreiber-prüfen-und-löschfrist-festlegen)),
@@ -868,7 +956,7 @@ der Server beim nächsten Aufräumen.
    Zwischenstand-PDF oder den QR-Code des analogen Arbeitsblattes), nennt der Hinweis GitHub als Empfänger für die ganze
    Seite (unter der Worker-Adresse nur für die Checklisten-Seite hinter dem QR-Code); bei Blättern ohne Auftrag an die KI
    entfallen die Angaben zum KI-Feedback; bei Blättern mit Foto-Aufgabe kommt je ein Absatz zum Foto hinzu (verkleinert
-   ohne Aufnahmeort, im Zwischenstand, nur verschlüsselt mit der Abgabe, nie an eine KI); bei Blättern nur mit
+   ohne Aufnahmeort, im Zwischenstand – online gesichert verschlüsselt auch auf dem Server –, an Sie nur verschlüsselt mit der Abgabe, nie an eine KI); bei Blättern nur mit
    Weltkarten-Zuordnung und Fotos entfallen der Satz zur
    Tippzeit-Messung in der Kurzfassung und alle Angaben dazu im ausführlichen Hinweis samt dem Abschnitt „Widerspruch gegen
    die Tippzeit-Messung“ (dort wird nichts gemessen); bei Partner- oder Gruppenarbeit stehen Kurzfassung und Hinweis auf dem
@@ -1047,7 +1135,8 @@ Passwortfeld. Der Server prüft ihn; falsche Codes zählen als Fehlversuche.
   Danach kann auch der Server sie nicht mehr lesen – nur Sie, wie die Abgabe.
 - Technisch: PBKDF2-SHA-256 mit 600 000 Durchläufen und zufälligem Salt, daraus per HKDF-SHA-256 der
   Anmeldeschlüssel und ein AES-GCM-256-Schlüssel; Schlüsselpaar RSA-OAEP mit 3072 Bit (SHA-256); Abgaben mit
-  AES-GCM-256 verschlüsselt, der Abgabeschlüssel mit RSA-OAEP. Alle Verfahren stammen aus der eingebauten Web
+  AES-GCM-256 verschlüsselt, der Abgabeschlüssel mit RSA-OAEP; ein online gesicherter Zwischenstand mit AES-GCM-256
+  unter einem Schlüssel aus dem Zwischenstand-Code (siehe [Online gesicherter Zwischenstand](#online-gesicherter-zwischenstand)). Alle Verfahren stammen aus der eingebauten Web
   Crypto API des Browsers; die finale KI-Rückmeldung verschlüsselt der Server mit denselben Verfahren (Web Crypto im Worker,
   mit einem Zufallsschlüssel je Rückmeldung und Ihrem öffentlichen Schlüssel – ein Schlüsselpaar erzeugt der Server nie, und
   Abgaben oder Rückmeldungen entschlüsseln kann er nicht).
@@ -1171,7 +1260,8 @@ Feindt; bei einer eigenen Installation Sie selbst, siehe [Schritt 9](#schritt-9-
 Abgaben lesen kann nur die Lehrkraft mit dem Lehrkraft-Zugang. Einen Datenschutzbeauftragten nennt der Hinweis nicht.
 Als Rechtsgrundlagen nennt der Datenschutzhinweis (sachlich, ohne Gewähr):
 
-- **Bearbeiten und Abgeben** – Angaben (bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder), Zwischenstand,
+- **Bearbeiten und Abgeben** – Angaben (bei Partner- oder Gruppenarbeit die Kürzel aller Mitglieder), Zwischenstand
+  (auch der online gesicherte, siehe [Online gesicherter Zwischenstand](#online-gesicherter-zwischenstand)),
   Erstversuch und Abgabe (bei Erstversuch und Abgabe außer den Tippzeiten darin; der Zwischenstand enthält keine) – und das **freiwillige KI-Feedback**, das nur auf Klick angefordert wird, sowie die
   **finale KI-Rückmeldung** nach der Abgabe (im Abgabe-Dialog vorausgewählt, abwählbar): Art. 6 Abs. 1 Buchst. b
   DSGVO (Nutzung dieses kostenlosen Angebots; das KI-Feedback fordern die Schüler:innen selbst an, die finale
@@ -1229,8 +1319,11 @@ machen kann – Feibeitsblatt speichert nicht, wer welches Video geladen hat.
 | Verbrauch je KI und Tag (Zahl der Anfragen und Token, bei Workers AI geschätzte Neurons, bei Groq die zuletzt gemeldete Grenze für Anfragen pro Tag je Modell; keine Inhalte, keine Personendaten) | Cloudflare D1 (EU) | Tabelle `ai_usage` | etwa zwei Tage, danach gelegentlich gelöscht |
 | Zähler für Sperren und Lastbegrenzung | Cloudflare D1 (EU) | keine IP-Adressen im Klartext, nur ein gekürzter Hash mit geheimem Zusatzwert (`SETTINGS_SECRET`) | höchstens einen Tag gültig (je nach Zähler 10 Minuten bis 24 Stunden), danach beim täglichen Aufräumen gelöscht (ohne Zeitplan: beim Öffnen der Übersicht) |
 | IP-Adresse beim Aufruf der Seite | Cloudflare (Server), bei Auslieferung über GitHub Pages auch GitHub | technisch bedingt beim Hoster; Feibeitsblatt selbst speichert sie nur gehasht in den Zählern (Zeile darüber), Protokolle sind abgeschaltet | nach den Bedingungen der Hoster |
-| Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher –, Kürzel, Geburtstag, Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen) | **nur im Browser des benutzten Geräts** (localStorage) | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
-| Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale samt Datensatz aus dem Escape-Room), nur auf Klick „Zwischenstand als PDF-Datei sichern“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); der Server sieht sie nie – auch nicht, wenn Unterricks sie an Feibeitsblatt übergibt (von Tab zu Tab im selben Browser) | unverschlüsselt und lesbar (eingebettete Datei im PDF) | bis die Datei gelöscht wird – die Seite weist darauf hin, sie nicht weiterzugeben |
+| Zwischenstand der Schüler:innen (Antworten – ohne Tippzeiten, solange `TT_KEEP_IN_DRAFT` aus ist, wie eingecheckt; bis zur Abgabe hält die Seite sie nur im Arbeitsspeicher –, bei Foto-Aufgaben das Foto, ggf. KI-Feedback; nach einem Widerspruch mit Vermerk; nach dem ersten Sichern der Zwischenstand-Code samt Zeitpunkt und Frist; bei einem Escape-Room-Finale außerdem der ganze Datensatz aus dem Escape-Room: voller Name, Geburtsdatum, Klasse, Bestätigungscode und Ergebnisse samt Lösungserläuterungen; Kürzel, Geburtstag und Klasse bzw. die Kürzel der Gruppe und die Klasse liegen daneben im Eintrag zum zuletzt geöffneten Blatt, mit dem die Startseite „Weiterschreiben“ anbietet) | im Browser des benutzten Geräts (localStorage) – **ohne Klick auf „Zwischenstand sichern (online und als PDF-Datei)“ nur dort** | unverschlüsselt; der Speicherschlüssel ist ein Hash, die Angaben stehen aber lesbar im Inhalt | bis zur erfolgreichen Abgabe oder zum Löschen über „Abbrechen und Zwischenstand löschen“; Reste werden nach 7 Tagen beim nächsten Öffnen der Seite gelöscht |
+| Online gesicherter Zwischenstand (derselbe Datensatz wie in der Zwischenstand-PDF: Antworten, Kürzel, Geburtstag und Klasse bzw. die Kürzel der Gruppe und die Klasse, ggf. KI-Feedback, Fotos, bei einem Escape-Room-Finale der Datensatz aus dem Escape-Room – ohne Tippzeiten), **nur auf Klick** „Zwischenstand sichern (online und als PDF-Datei)“ | Cloudflare D1 (EU), Tabelle `drafts`: ein Hash der Kennung, Blatt-Code, Zeitpunkt, Größe und der Umschlag – kein Name, keine Kennung der Bearbeitung | **nur verschlüsselt** (AES-GCM) mit einem Schlüssel, den der Browser aus dem Zwischenstand-Code ableitet; der Server erhält den Code nie und kann den Stand nicht lesen – Sie als Lehrkraft auch nicht. Laden kann ihn, wer den Zwischenstand-Code kennt (er steht in der Zwischenstand-PDF und oben im Schreibbereich) | 30 Tage nach dem letzten Sichern (jedes Sichern derselben Bearbeitung ersetzt die Zeile und beginnt die Frist neu); schon vorher, wenn die Seite ihn nach der Abgabe löscht (von dem Gerät aus, das den Code kennt; scheitert das, bleibt es bei den 30 Tagen) oder Sie das Blatt löschen. „Abbrechen und Zwischenstand löschen“ löscht ihn nicht |
+| Gemeinsamer Stand einer Live-Gruppenarbeit (Antworten samt Fotos, KI-Feedback mit erster Fassung, Namenskürzel und Klasse der Gruppe, die gemeinsame Kennung der Bearbeitung; nach der Abgabe die Lösungen samt finaler KI-Rückmeldung und Checkliste für die PDF-Datei – nie Tippzeiten) | Cloudflare Durable Objects (ein eigener Speicher je Gruppe, EU-Jurisdiktion); in D1 nur ein Verzeichnis-Eintrag je Gruppe (abgeleitete Kennung, Blatt-Code, Zeitpunkt – kein Inhalt, kein Name) | im Browser verschlüsselt (AES-GCM); den Schlüssel bildet der Browser aus Blatt-Code, Zugangswort und Zahlencode, der Server erhält nur eine daraus abgeleitete Kennung. Lesen und ändern kann, wer alle drei kennt – nicht Sie, nicht der Betreiber. Der Server sieht IP-Adresse, Zeitpunkte, Größen und in welcher Aufgabe gerade geschrieben wird | ohne Abgabe 30 Tage nach der letzten Änderung; nach der Abgabe die Lösungen so lange wie die Abgabe (täglich geprüft und bei jedem Öffnen), der Vermerk „abgegeben“ bis das Blatt gelöscht wird; mit dem Blatt alles (Cloudflare kann den Speicher technisch noch bis zu 30 Tage wiederherstellen) |
+| Zugangswort und Zahlencode einer Live-Gruppenarbeit („Weiterarbeiten an eurer Gruppenarbeit …?“) samt Blatt-Code und Titel | Browser des benutzten Geräts (`localStorage`) | unverschlüsselt, keine Namenskürzel | höchstens 7 Tage; „Gruppenarbeit verlassen“, „Neues Feibeitsblatt öffnen“ nach der Abgabe und „Nein, Zugangswort und Zahlencode von diesem Gerät entfernen“ löschen sofort |
+| Zwischenstand als PDF-Datei (dieselben Angaben, ohne Tippzeiten; nach einem Widerspruch mit Vermerk; bei einem Escape-Room-Finale samt Datensatz aus dem Escape-Room; nach gelungenem Online-Sichern mit dem Zwischenstand-Code sichtbar oben und im Datensatz), nur auf Klick „Zwischenstand sichern (online und als PDF-Datei)“ | dort, wo die Schülerin bzw. der Schüler die Datei speichert (Download-Ordner, Stick, Cloud …); die Datei selbst sieht der Server nie – auch nicht, wenn Unterricks sie an Feibeitsblatt übergibt (von Tab zu Tab im selben Browser); ihren Datensatz bekommt er beim Sichern nur verschlüsselt (Zeile darüber) | unverschlüsselt und lesbar (eingebettete Datei im PDF) – samt Zwischenstand-Code: wer die Datei hat, kann auch den online gesicherten Stand laden | bis die Datei gelöscht wird – die Seite weist darauf hin, Datei und Code nicht weiterzugeben |
 | Häkchen auf der Checkliste (welche Punkte abgehakt sind, keine Angaben zur Person) | **nur im Browser des benutzten Geräts** (localStorage `feibeitsblatt:check:<Code>`) | unverschlüsselt | bis „Alle Häkchen entfernen“; nach 7 Tagen ohne Änderung beim nächsten Öffnen der Seite gelöscht |
 | Cookies und ähnliche Daten von YouTube – nur nach einem Klick auf „Video von YouTube laden“ | im Browser des benutzten Geräts, gesetzt und gelesen von Google (YouTube), nicht von Feibeitsblatt | nach den Bedingungen von Google; Feibeitsblatt speichert weder die Einwilligung noch, welche Videos geladen wurden | bis sie ablaufen oder im Browser gelöscht werden |
 | „Meine Lösungen“ als PDF nach der Abgabe (Kürzel bzw. die Kürzel der Gruppe, Klasse, Abgabezeitpunkt, Aufgaben, Lösungen, finale KI-Rückmeldung oder – ohne sie – Ihre Checkliste; kein Geburtstag), nur auf Klick | dort, wo die Schülerin bzw. der Schüler die Datei speichert; im Browser erzeugt, der Server sieht sie nie | unverschlüsselt, lesbar (zum Lernen gedacht) | bis die Datei gelöscht wird |
@@ -1253,7 +1346,96 @@ daran nichts. Für Übermittlungen in die USA stützt sich Cloudflare laut seine
 Pages ausgeliefert, verarbeitet zusätzlich GitHub, Inc. (USA) beim Laden der Seite die IP-Adresse (Übermittlung laut
 GitHub ebenfalls über das Data Privacy Framework bzw. Standardvertragsklauseln); der Datenschutzhinweis nennt GitHub
 dann automatisch. Auf gemeinsam genutzten Geräten kann, wer denselben Browser benutzt, einen nicht abgegebenen Zwischenstand
-sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen abgeben oder den Zwischenstand löschen.
+sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen abgeben oder den Zwischenstand löschen
+(ein online gesicherter Stand bleibt dabei erhalten und lässt sich mit dem Zwischenstand-Code woanders weiterführen).
+
+### Online gesicherter Zwischenstand
+
+Auf Wunsch des Betreibers (24.11.2026) müssen Schüler:innen ihre Zwischenstand-PDF nicht mehr herunter- und wieder
+hochladen: **Nur wenn** sie im Schreibbereich auf „Zwischenstand sichern (online und als PDF-Datei)“ klicken – nie
+automatisch –, speichert die Seite den Zwischenstand zusätzlich auf dem Server. So ist es gebaut:
+
+- **Zwischenstand-Code:** acht Zeichen aus dem Alphabet der Blatt-Codes (ohne I, L, O, 0, 1; mindestens ein Buchstabe
+  und eine Ziffer), angezeigt als `XXXX-XXXX`. Der **Browser** erzeugt ihn (Zufallszahlen des Browsers) – der Server
+  bekommt ihn nie. Ein Code je Bearbeitung: Er steht im Zwischenstand des Geräts und in der Zwischenstand-PDF und wird
+  bei jedem weiteren Sichern wiederverwendet, auch auf einem anderen Gerät.
+- **Verschlüsselung im Browser:** Aus dem Code leitet der Browser (PBKDF2-HMAC-SHA256 mit 600 000 Durchläufen, dann
+  HKDF-SHA256) zwei Werte ab: eine Kennung (64 Hex-Zeichen), unter der der Server den Stand ablegt, und den
+  AES-GCM-256-Schlüssel, der den Browser nie verlässt. Verschlüsselt wird genau der Datensatz, der auch in der
+  Zwischenstand-PDF steckt. Der Server speichert nur einen Hash der Kennung, den Blatt-Code, den Zeitpunkt, die Größe
+  und den verschlüsselten Umschlag – **keinen Namen** und nichts, was den Stand mit einer Abgabe verknüpft. Lesen kann
+  ihn weder der Server noch die Lehrkraft, sondern nur, wer den Zwischenstand-Code kennt.
+- **Wie stark der Schutz ist:** Der Code hat knapp 40 Bit Zufall – genug gegen Erraten über die Seite (unbekannte Codes
+  zählen wie falsche Blatt-Codes gegen eine Grenze je Netzwerk), aber kein Ersatz für ein langes Passwort: Wer die
+  Datenbank selbst in die Hand bekäme (Cloudflare, der Betreiber), könnte Codes mit Rechenaufwand durchprobieren. Der
+  Zwischenstand ist deshalb vor allem gegen andere Schüler:innen und gegen zufälliges Mitlesen geschützt; in den
+  Datenschutztexten steht nicht mehr als „verschlüsselt, den Schlüssel bildet der Code“.
+- **Aufbewahrung:** 30 Tage nach dem letzten Sichern (tägliches Aufräumen), gelöscht auch mit dem Blatt und – von der
+  Seite veranlasst – nach der Abgabe von dem Gerät aus, das den Code kennt. „Abbrechen und Zwischenstand von diesem
+  Gerät löschen“ löscht ihn bewusst nicht (geteiltes Gerät aufräumen, mit dem Code woanders weiterarbeiten); der Dialog
+  sagt das. Danach liegt er wie alles Gelöschte noch bis zu 7 Tage (bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage)
+  in der Wiederherstellungsfunktion der Datenbank.
+  Eine eigene Möglichkeit, den Online-Stand vor Ablauf der 30 Tage zu löschen, ohne abzugeben, gibt es bisher nicht –
+  der Betreiber könnte ihn nur anhand des Zwischenstand-Codes finden (so sagt es der Hinweis unter „Deine Rechte“).
+- **Grenzen:** je Zwischenstand so groß wie eine Abgabe (400 KB, bei Blättern mit Foto-Aufgabe 1000 KB), je Blatt und
+  je Netzwerk begrenzt (siehe [Kapazität und Grenzen](#kapazität-und-grenzen)). Scheitert das Online-Speichern, entsteht
+  die PDF-Datei wie bisher ohne Code-Zeile.
+- **Im Datenschutzhinweis** steht das an jeder Stelle, die bisher sagte, der Zwischenstand liege nur auf dem Gerät:
+  Kurzfassung („Nur wenn du deinen Zwischenstand online sicherst, liegt auch er verschlüsselt auf dem Server – laden
+  kann ihn nur, wer deinen Zwischenstand-Code kennt.“), Hinweis an der Klasse („… nur auf diesem Gerät – außer du
+  sicherst ihn selbst online.“), Hinweis unter den Aufgaben, im ausführlichen Hinweis unter Wozu, Rechtsgrundlage (erster
+  Punkt: „dein Zwischenstand (auch der online gesicherte)“), Empfänger (Lehrkraft und Cloudflare), Speicherdauer,
+  Freiwilligkeit und Rechte; bei Escape-Room-Finale und Foto-Aufgaben der Zusatz, dass die Daten im online gesicherten
+  Zwischenstand verschlüsselt mit auf dem Server liegen.
+
+**Weiter vom Betreiber zu prüfen:** ob Art. 6 Abs. 1 Buchst. b DSGVO das Online-Speichern trägt (es geschieht nur auf
+ausdrücklichen Klick, ist aber mit der PDF-Datei in einem Knopf verbunden – eine PDF-Datei ohne Online-Speichern gibt
+es nur, wenn das Speichern scheitert); ob eine Löschmöglichkeit für den Online-Stand ohne Abgabe nötig ist (Art. 17
+DSGVO); ob bei einem Escape-Room-Finale voller Name, Geburtsdatum und Bestätigungscode im online gesicherten Stand
+liegen sollen (sie stehen im Zwischenstand und damit auch dort – verschlüsselt); und ob 30 Tage die richtige Frist sind.
+
+### Live-Gruppenarbeit
+
+Bei Partner- und Gruppenarbeit (siehe [Partner- und Gruppenarbeit live](#partner--und-gruppenarbeit-live)) liegt der
+gemeinsame Stand der Gruppe laufend auf dem Server – anders als der Zwischenstand der Einzelarbeit, der auf dem Gerät
+bleibt. Dafür gilt:
+
+- **Verschlüsselung im Browser:** Aus Blatt-Code, Zugangswort und Zahlencode bildet der Browser (PBKDF2-HMAC-SHA256,
+  600 000 Iterationen, dann HKDF) eine Kennung des Raums und einen AES-GCM-Schlüssel. An den Server gehen nur die
+  Kennung und verschlüsselte Werte (Antworten je Aufgabe, erste Fassung mit KI-Feedback je Aufgabe, nach der Abgabe die
+  Lösungen für die PDF-Datei, die Angaben der Gruppe). Zugangswort und Zahlencode erhält der Server nie. Der Schutz ist
+  so stark wie die beiden: Ein Wort aus einer Liste von gut 400 Wörtern und fünf Ziffern ergeben etwa 25 Bit – das
+  schützt vor Erraten über die Oberfläche (unbekannte Zugänge zählen beim Server als Fehlversuche, 30 in 10 Minuten je
+  Netzwerk) und vor Mitlesen, nicht aber vor jemandem, der den gespeicherten Stand **und** den Blatt-Code hat und alle
+  Kombinationen durchprobiert. Die Hinweise sagen deshalb nur „verschlüsselt“ und nennen, wer lesen kann: wer Code,
+  Zugangswort und Zahlencode kennt.
+- **Was der Server sieht:** IP-Adresse (technisch bedingt), Zeitpunkte, Größe der Einträge, wie viele Geräte verbunden
+  sind und in welcher Aufgabe gerade geschrieben wird (er ordnet die Sperren) – nicht die Inhalte, nicht die Kürzel.
+- **Wo:** Cloudflare Durable Objects, ein eigener Speicher je Gruppe in der EU-Jurisdiktion; der Worker selbst läuft wie
+  immer im nächstgelegenen Cloudflare-Rechenzentrum (nie „Server in der EU“ zusagen).
+- **Wie lange:** ohne Abgabe 30 Tage nach der letzten Änderung; nach der Abgabe bleiben die Lösungen für die PDF-Datei,
+  bis es die Abgabe nicht mehr gibt (Löschfrist oder „Diesen Eintrag löschen“ – der Raum sieht täglich und bei jedem
+  Öffnen nach), der Vermerk „abgegeben“ bis zum Löschen des Blattes. Schüler:innen können den gemeinsamen Stand nicht
+  selbst löschen.
+- **Keine Tippzeit-Messung** bei Partner- und Gruppenarbeit; der Datenschutzhinweis der Gruppe nennt die Messung deshalb
+  nirgends (kein Satz in der Kurzfassung, kein Abschnitt „Widerspruch …“, kein Schalter).
+- **KI-Feedback und Abgabe** laufen wie bei der Einzelarbeit über `/api/feedback` und `/api/submit` (Antworten ohne
+  Angaben an die KI; Erstversuch und Abgabe verschlüsselt für die Lehrkraft, mit den Kürzeln der Gruppe).
+- **Hinweise für die Schüler:innen:** ein eigener Absatz in den Kurzfassungen („Bei Partner- und Gruppenarbeit arbeitet
+  ihr live zusammen: …“), eigene Absätze im ausführlichen Hinweis (Wozu, Welche Daten, Wer bekommt, Wie lange, Müsst ihr,
+  Rechte) und der Abschnitt „Partner- und Gruppenarbeit live“ auf „Impressum & Datenschutz“.
+
+**Weiter vom Betreiber zu prüfen:** ob Art. 6 Abs. 1 Buchst. b DSGVO die laufende Speicherung auf dem Server trägt und
+ob sie erforderlich ist (Partner- und Gruppenarbeit gibt es nur so; die Alternative ist die Einzelarbeit – der Weg ohne
+Live-Verbindung an einem Gerät wird nur angeboten, wenn die Verbindung scheitert); dass Mitschüler:innen mit Code,
+Zugangswort und Zahlencode den Stand der Gruppe mitlesen und ändern können (auch Personen, die nicht zur Gruppe gehören,
+wenn die Gruppe beides weitergibt) und dass die Kürzel aller Mitglieder von einer Person eingetragen werden; ob 30 Tage
+ohne eigene Löschmöglichkeit der Gruppe angemessen sind (Art. 17 DSGVO) und wie Auskunfts- und Löschwünsche einzelner
+Mitglieder zu einem gemeinsamen, für den Betreiber nicht lesbaren Stand erfüllt werden; die Stärke des Schlüssels (etwa
+25 Bit, siehe oben) – ob Zugangswort und Zahlencode länger werden sollen; die Wiederherstellbarkeit gelöschter
+Durable-Object-Speicher bei Cloudflare (laut Cloudflare bis zu 30 Tage – im Hinweis so genannt, bitte am aktuellen Stand
+der Cloudflare-Dokumentation prüfen); und die Fragen zu Art. 26/28 DSGVO für Durable Objects – unverändert wie beim
+übrigen Einsatz von Cloudflare.
 
 ### Was wohin gesendet wird
 
@@ -1308,6 +1490,13 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   nach seinen eigenen Bedingungen; bei kostenlosen Kontingenten oft auch zur Verbesserung seiner Dienste (siehe
   [KI-Anbieter](#ki-anbieter)). Der Datenschutzhinweis unter dem Button und der Dialog vor dem Senden nennen jeden
   möglichen Empfänger mit Rechtsträger und Sitz.
+- **Zwischenstand online sichern (nur auf Klick):** Beim Klick auf „Zwischenstand sichern (online und als PDF-Datei)“
+  schickt der Browser an den Server dieser Seite (Cloudflare) genau drei Dinge: eine aus dem Zwischenstand-Code
+  abgeleitete Kennung (64 Hex-Zeichen), den Blatt-Code und den verschlüsselten Zwischenstand – **nicht** den
+  Zwischenstand-Code, keinen Namen und nichts Unverschlüsseltes aus dem Zwischenstand. Beim Laden mit dem Code geht nur
+  die Kennung an den Server, nach der Abgabe noch einmal die Kennung (zum Löschen). Ohne diesen Klick wird der
+  Zwischenstand nicht auf dem Server gespeichert (Antworten gehen sonst nur mit dem KI-Feedback, dem Erstversuch und der
+  Abgabe dorthin). Einzelheiten: [Online gesicherter Zwischenstand](#online-gesicherter-zwischenstand).
 - **Rechtschreibprüfung:** Sie ist freiwillig und arbeitet erst nach einer ausdrücklichen Bestätigung im Browser
   (Hinweis, wohin der Text geht, und Selbstauskunft „mindestens 18 – oder 16 bzw. 17 mit Erlaubnis der Eltern“; einmal
   je geöffnetem Blatt; wer „Trifft nicht zu“ wählt, sieht für dieses Blatt keine Prüf-Buttons mehr). Nur auf Klick schickt der Browser dann **nur den Text dieser einen
@@ -1340,7 +1529,8 @@ sehen und weiterschreiben – Schüler:innen sollten deshalb vor dem Verlassen a
   Kamera-Freigabe für die Seite – `Permissions-Policy: camera=()` bleibt). Der Browser verkleinert es auf dem Gerät und
   zeichnet es dabei neu (canvas → JPEG), Zusatzangaben wie Aufnahmeort, Kamera und Aufnahmezeit (EXIF) entfallen. Bis zur
   Abgabe steht es unverschlüsselt im Zwischenstand dieses Browsers und in jeder Zwischenstand-PDF; an den Server geht es
-  nur verschlüsselt in der Abgabe (nicht im Erstversuch). Für das KI-Feedback und die finale KI-Rückmeldung schickt der
+  nur verschlüsselt: in der Abgabe (nicht im Erstversuch) und – nur auf Klick – im online gesicherten Zwischenstand, den
+  weder der Server noch Sie lesen können. Für das KI-Feedback und die finale KI-Rückmeldung schickt der
   Browser statt des Fotos nur den Vermerk „[Foto]“, und die Foto-Aufgabe selbst steht nie im Prompt. Der
   Datenschutzhinweis eines Blattes mit Foto-Aufgabe sagt das in einem eigenen Absatz (Kurzfassung und „Welche Daten?“),
   die Seite „Impressum & Datenschutz“ in einem eigenen Abschnitt.
@@ -1392,24 +1582,26 @@ tippen die Schüler:innen, sie werden normal gemessen.
   Entscheidung.
   Die Schüler:innen erfahren im Hinweis auch, dass Sie je Aufgabe und für die ganze Abgabe den Anteil roter Zeichen sehen.
 - **Wo die Tippzeiten liegen:** bis zur Abgabe nur im Arbeitsspeicher der geöffneten Seite – nicht im Zwischenstand auf
-  dem Gerät und nicht in der Zwischenstand-PDF –, dann im Erstversuch und in der Abgabe (nur verschlüsselt, lesbar nur für
+  dem Gerät, nicht in der Zwischenstand-PDF und damit auch nicht in einem online gesicherten Zwischenstand –, dann im Erstversuch und in der Abgabe (nur verschlüsselt, lesbar nur für
   Sie). Nach der Abgabe hält die Seite sie nicht mehr: Die finale KI-Rückmeldung legt der Server selbst ab, die Abgabe wird
-  nicht mehr ersetzt. Wird die Seite neu geladen oder mit einer Zwischenstand-PDF weitergeschrieben, gilt der bis dahin geschriebene
+  nicht mehr ersetzt. Wird die Seite neu geladen oder mit einem Zwischenstand-Code bzw. einer Zwischenstand-PDF weitergeschrieben, gilt der bis dahin geschriebene
   Text deshalb als „ohne Messung“ (ohne Färbung); gemessen wird ab dann neu. Sie gehen nie an einen KI-Dienst oder an
   LanguageTool, stehen nie in der Lösungs-PDF der Schüler:innen, und beim Schreiben zeigt die Seite sie nicht an.
   Gelöscht werden sie mit dem Eintrag (Löschfrist). Das gilt mit der eingecheckten Einstellung
   `TT_KEEP_IN_DRAFT = false`; mit `true` stünden sie zusätzlich unverschlüsselt im Zwischenstand und in der
-  Zwischenstand-PDF (siehe [Entwicklung](#entwicklung)).
+  Zwischenstand-PDF und verschlüsselt in einem online gesicherten Zwischenstand (siehe [Entwicklung](#entwicklung)).
 - **Widerspruch (Art. 21 DSGVO):** Im ausführlichen Datenschutzhinweis – auf dem Angaben-Bildschirm und im
   Schreibbereich unter den Aufgaben – hat der Widerspruch einen eigenen Abschnitt **„Widerspruch gegen die
   Tippzeit-Messung“** (getrennt von „Deine Rechte“, dort steht ein Verweis) mit dem Schalter **„Tippzeiten für dieses
-  Feibeitsblatt nicht messen“** (auf dem Angaben-Bildschirm einer Partner- oder Gruppenarbeit „… für euer Feibeitsblatt
-  …“; es genügt, wenn eine Person der Gruppe widerspricht); die Seite „Impressum & Datenschutz“ sagt, wo er steht. Die
+  Feibeitsblatt nicht messen“**; die Seite „Impressum & Datenschutz“ sagt, wo er steht. **Bei Partner- und
+  Gruppenarbeit wird nie gemessen** (Entscheidung des Betreibers vom 24.11.2026) – dort gibt es weder den Satz noch den
+  Abschnitt noch den Schalter, und Ihre Übersicht zeigt „ohne Messung (Live-Gruppenarbeit)“ bzw. „ohne Messung (Partner-
+  oder Gruppenarbeit)“. Die
   Kurzfassungen auf dem Angaben-Bildschirm und im Schreibbereich nennen die Messung in genau einem neutralen Satz:
   „Beim Schreiben misst diese Seite außerdem die Tippzeiten; widersprechen kannst du unter „Alle Informationen zum
-  Datenschutz“.“ (bei einer Gruppe „… könnt ihr …“; Entscheidung des Betreibers vom 27.10.2026 nach Rechtsprüfung).
+  Datenschutz“.“ (Entscheidung des Betreibers vom 27.10.2026 nach Rechtsprüfung; nicht bei Gruppen).
   Mit dem Haken misst die Seite nicht mehr und verwirft die schon gemessenen Werte (der
-  Zwischenstand merkt sich den Widerspruch, auch in einer danach gesicherten Zwischenstand-PDF); ein schon
+  Zwischenstand merkt sich den Widerspruch, auch in einem danach gesicherten – online wie als Zwischenstand-PDF); ein schon
   gesendeter Erstversuch wird mit derselben Kennung ohne Tippzeiten ersetzt – scheitert das, beim nächsten Öffnen. Die
   alte Fassung bleibt dabei (verschlüsselt) noch bis zu 7 Tage, bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage, in
   der Datensicherung der Datenbank. Erstversuch und Abgabe tragen dann nur den Vermerk, und Sie sehen „Tippzeiten: ohne
@@ -1417,9 +1609,10 @@ tippen die Schüler:innen, sie werden normal gemessen.
   wieder entfernt, misst die Seite erst ab dann wieder.
   **Geltungsbereich:** Der Server kennt die Person nicht – der Widerspruch steht im Zwischenstand des Geräts. Er gilt für
   die Bearbeitung auf diesem Gerät, in jedem weiteren Tab mit demselben Stand (dort sofort; zurücknehmen lässt er sich
-  nur in dem Tab, in dem man es tut) und in Zwischenstand-PDF-Dateien, die danach gesichert werden; eine ältere
-  Zwischenstand-PDF nimmt ihn beim Hochladen auf diesem Gerät nicht zurück. Auf einem anderen Gerät oder nach
-  „Abbrechen und Zwischenstand löschen“ muss der Haken erneut gesetzt werden; ein Erstversuch, der auf einem anderen
+  nur in dem Tab, in dem man es tut) und in Zwischenständen, die danach gesichert werden (online und als PDF-Datei – wer so
+  einen Stand auf einem anderen Gerät lädt, bringt den Widerspruch mit); ein älterer Stand (Zwischenstand-Code oder
+  Zwischenstand-PDF) nimmt ihn beim Laden auf diesem Gerät nicht zurück. Wer auf einem anderen Gerät oder nach
+  „Abbrechen und Zwischenstand löschen“ neu anfängt, muss den Haken erneut setzen; ein Erstversuch, der auf einem anderen
   Gerät gesendet wurde, lässt sich vom Browser nicht ersetzen (Sie können ihn löschen). Während die Abgabe gesendet wird,
   wirkt der Schalter nicht (die Seite sagt das; scheitert das Senden, gilt er wieder). Nach der Abgabe lassen sich die
   Tippzeiten nur zusammen mit der ganzen Abgabe löschen: den Eintrag löschen und – wenn gewünscht – mit gesetztem Haken
@@ -1478,8 +1671,9 @@ Worker-Adresse und über GitHub Pages), ob es abspielt: Die Tests ersetzen YouTu
 - **Freiwilligkeit:** Eine Einwilligung muss freiwillig sein (Art. 7 Abs. 4 DSGVO). Setzt eine Aufgabe das Video voraus,
   ist das fraglich; der Hinweis verspricht deshalb kein „ohne Nachteil“. Lehrkräften wird empfohlen, Aufgaben auch ohne das
   Video lösbar zu stellen.
-- **Gruppenarbeit:** Bei Partner- oder Gruppenarbeit klickt eine Person für das gemeinsame Gerät; die Hinweise stehen auf
-  dem Angaben-Bildschirm in der „ihr“-Form.
+- **Gruppenarbeit:** Bei Partner- oder Gruppenarbeit lädt jedes Gerät ein Video für sich (der Klick gilt nur dort; an
+  einem gemeinsamen Gerät klickt eine Person für alle); die Hinweise stehen auf dem Angaben-Bildschirm und beim
+  Dazuschalten in der „ihr“-Form.
 - **Stand der Übermittlungsgrundlage:** ob die Google LLC weiterhin nach dem EU-US Data Privacy Framework zertifiziert ist
   und was Google zu `youtube-nocookie.com` (Cookies und ähnliche Daten trotz des Namens) und zur Speicherdauer sagt.
 
@@ -1620,7 +1814,18 @@ Schüler:innen.
 > Aufruf der Seite und den Schutz vor Missbrauch (sichere Bereitstellung). Gespeichert werden Namenskürzel, Geburtstag (Tag und Monat, ohne Jahr), Klasse und die Texte samt ihren Tippzeiten – bei Partner- oder
 > Gruppenarbeit die Namenskürzel aller Mitglieder und die Klasse, ohne Geburtstag; wer sie einträgt, trägt die Kürzel der
 > anderen mit ein –, verschlüsselt, nur für die Lehrkraft lesbar, auf Servern von Cloudflare, Inc. (USA; Datenbank in der EU) und [Frist] Tage nach dem Eingang automatisch
-> gelöscht (danach noch bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung). Cloudflare stützt Übermittlungen in die USA auf das EU-US
+> gelöscht (danach noch bis zu 7 Tage – bei einem bezahlten Cloudflare-Tarif bis zu 30 Tage – in der Datensicherung). Bis zur Abgabe liegt der
+> Zwischenstand im Browser des benutzten Geräts. [Bei Partner- oder Gruppenarbeit arbeiten die Schüler:innen live an einem
+> oder an mehreren Geräten: Der gemeinsame Stand der Gruppe (Antworten, KI-Feedback, Namenskürzel und Klasse) wird dann
+> laufend auf dem Server gespeichert – verschlüsselt mit einem Schlüssel, der aus dem Code des Arbeitsblattes, einem
+> Zugangswort und einem Zahlencode der Gruppe entsteht; lesen und ändern kann ihn, wer alle drei kennt, die Lehrkraft
+> nicht. Er wird 30 Tage nach der letzten Änderung gelöscht; nach der Abgabe bleiben die Lösungen zum Herunterladen, bis
+> die Abgabe gelöscht ist. Tippzeiten werden bei Partner- und Gruppenarbeit nicht erfasst.] Nur wenn die Schülerin bzw. der Schüler auf „Zwischenstand sichern (online
+> und als PDF-Datei)“ klickt, wird er zusätzlich verschlüsselt auf dem Server gespeichert – ohne Namen daneben: Den
+> Schlüssel bildet ein Zwischenstand-Code, den der Server nie erhält und der oben in der dabei heruntergeladenen PDF-Datei
+> steht. Wer den Code kennt, kann den Stand auf jedem Gerät laden; die Lehrkraft kann ihn nicht lesen. Der Server löscht
+> ihn 30 Tage nach dem letzten Sichern, schon vorher nach der Abgabe oder wenn die Lehrkraft das Feibeitsblatt löscht
+> (danach liegt er ebenfalls noch bis zu 7 Tage bzw. 30 Tage in der Datensicherung). Cloudflare stützt Übermittlungen in die USA auf das EU-US
 > Data Privacy Framework, ersatzweise auf Standardvertragsklauseln. [Falls die Seite über GitHub Pages aufgerufen wird:
 > Beim Laden der Seite verarbeitet auch GitHub, Inc. (USA) die IP-Adresse.] [Falls Sie ausgedruckte Arbeitsblätter mit
 > QR-Code ausgeben: Der QR-Code führt zu einer Checkliste der Lehrkraft auf feibeitsblatt.janrickmer.de; beim Aufruf
@@ -1630,7 +1835,8 @@ Schüler:innen.
 > (z. B. wenn die finale KI-Rückmeldung nicht rechtzeitig kommt). [Falls ein Feibeitsblatt das Finale eines Escape-Rooms
 > ist: Über den Link am Ende des Escape-Rooms oder die Überblick-PDF übernimmt Feibeitsblatt den vollen Namen, das
 > Geburtsdatum, die Klasse, den Bestätigungscode und die Ergebnisse aus dem Escape-Room. Voller Name, Geburtsdatum und
-> Bestätigungscode bleiben auf dem Gerät (Zwischenstand und heruntergeladene PDF-Dateien); an die Lehrkraft gehen nur
+> Bestätigungscode bleiben auf dem Gerät (Zwischenstand und heruntergeladene PDF-Dateien) – außer der Zwischenstand
+> wird online gesichert: dann liegen sie verschlüsselt mit darin; an die Lehrkraft gehen nur
 > die Ergebnisse, verschlüsselt, an einen KI-Dienst nie. Scheitert die Abgabe aus technischen Gründen, kann die
 > Abschluss-PDF (mit diesen Daten und den Antworten) auf eigenen Wunsch per E-Mail an [Betreiber, E-Mail] geschickt
 > werden – unverschlüsselt.] [Falls Feibeitsblätter YouTube-Videos enthalten: Ein Video lädt die Seite erst nach einem
@@ -1660,7 +1866,7 @@ Schüler:innen.
 > Beweis: Die Färbung dient nur als Anlass für ein Gespräch über die Arbeitsweise – nicht für Noten und nicht bei einem
 > Täuschungsverdacht. Für die Messung liest die Seite beim Schreiben im Browser die Zeitpunkte der Eingaben aus (ein
 > Zugriff auf das Gerät im Sinne von § 25 TDDDG); bis zur Abgabe hält sie die Tippzeiten nur im Arbeitsspeicher (nicht im Zwischenstand auf
-> dem Gerät und nicht in einer Zwischenstand-PDF-Datei); sie gehen nur verschlüsselt mit Erstversuch und Abgabe an die
+> dem Gerät, nicht in einer Zwischenstand-PDF-Datei und nicht in einem online gesicherten Zwischenstand); sie gehen nur verschlüsselt mit Erstversuch und Abgabe an die
 > Lehrkraft, nie an einen KI-Dienst; beim Schreiben zeigt die Seite sie nicht an. Der Messung kann man jederzeit bis zur
 > Abgabe selbst widersprechen – mit dem Schalter „Tippzeiten für dieses Feibeitsblatt nicht messen“ im ausführlichen
 > Datenschutzhinweis („Alle Informationen zum Datenschutz“, Abschnitt „Widerspruch gegen die Tippzeit-Messung“; dann werden auch die schon
@@ -1834,6 +2040,8 @@ Limits sind Angaben Dritter, Stand Oktober 2026 – bitte in der Groq-Konsole pr
 | Abgaben und Erstversuche je Netzwerk (IP-Adresse) | 720 pro Stunde (bis zum 17.11.2026: 360) bzw. 60 MB pro Stunde (je Schüler:in bis zu n + 1 Übermittlungen: nach jedem KI-Feedback ein Erstversuch, der den vorigen ersetzt, und die Abgabe; nur mit dem Button unten bis zu zwei; die finale KI-Rückmeldung legt der Server selbst ab) |
 | Finale KI-Rückmeldung | der Download wartet höchstens 30, 60 oder 90 Sekunden auf sie (Ihre Einstellung, Vorgabe 30; danach mit Ihrer Checkliste); anfordern – und damit für Sie gespeichert – nur in den ersten 15 Minuten nach der Abgabe; einmal je Abgabe – danach lässt sich die Abgabe nicht mehr durch eine neue derselben Bearbeitung ersetzen |
 | Checkliste (Lösungs-PDF, analoges Arbeitsblatt) | höchstens 8 Punkte je Aufgabe, je 160 Zeichen; KI-Vorschläge 60 pro Stunde je Netzwerk (IP-Adresse) – jedes neue Feibeitsblatt fragt einmal |
+| Online gesicherte Zwischenstände | je Stand so groß wie eine Abgabe (400 KB, bei Blättern mit Foto-Aufgabe 1000 KB – größer: nur die PDF-Datei); je Feibeitsblatt 600 Stände bzw. 40 MB; je Netzwerk (IP-Adresse) 300 Sicherungen bzw. 60 MB pro Stunde; aufbewahrt 30 Tage nach dem letzten Sichern. Ein unbekannter Zwischenstand-Code zählt wie ein unbekannter Blatt-Code (30 Fehlversuche in 10 Minuten je Netzwerk) |
+| Live-Gruppenarbeit | je Feibeitsblatt höchstens 300 Gruppen; je Gruppe höchstens 24 gleichzeitig verbundene Geräte (die Gruppe selbst bis zu 10 Personen); neue Gruppen 120 pro Stunde je Netzwerk (IP-Adresse); je Aufgabe 64 KB (verschlüsselt), Foto-Aufgabe 640 KB, Lösungen nach der Abgabe 1536 KB; je Gerät höchstens 150 Vorschauen und Speicherungen pro Minute (die Seite sendet beim Tippen etwa eine Vorschau je Sekunde und speichert erst nach einer Schreibpause von 1,5 Sekunden, bei Dauertippen alle 8 Sekunden). Kostenloser Cloudflare-Tarif (Stand 13.11.2026): je Tag 100 000 gespeicherte Änderungen und 100 000 Anfragen an Durable Objects (20 eingehende WebSocket-Nachrichten zählen als eine), 13 000 GB-s Laufzeit, 5 GB Speicher – das reicht für etliche Klassen am Tag; ist eine Grenze erreicht, melden die Live-Routen „Die Live-Gruppenarbeit ist gerade nicht erreichbar …“, und Gruppen können ohne Live-Verbindung an einem Gerät arbeiten (alles andere läuft weiter) |
 | Hochgeladene Zwischenstand-PDF | 5 MB (die von Feibeitsblatt erzeugten Dateien sind viel kleiner); dasselbe gilt für die Überblick-PDF eines Escape-Rooms |
 | Datensatz aus einem Escape-Room (Link oder Überblick-PDF) | höchstens 96 KB (ein größerer wird abgelehnt); darin Texte je 2000 Zeichen, Lösungserläuterungen je 4000, höchstens 20 Stationen mit je 30 Fehlern, 20 Lösungserläuterungen und 20 Zwischenstand-Dateien – mehr wird gekappt. Passt eine Abgabe sonst nicht in den Umschlag, geht sie erst ohne Tippzeiten, dann ohne die Einzelheiten der Fehler („nicht übermittelt“) – sie scheitert nie an diesen Daten |
 | Hochgeladene Feibeitsblatt-PDF (Lehrkraft) | 80 MB (ein volles Blatt mit 12 MB Bildern und 20 MB PDF-Dateien ergibt höchstens etwa 45 MB) |
@@ -1887,11 +2095,19 @@ gespeichert.
 | „Diese Abgabe ist schon abgeschlossen und lässt sich nicht mehr ändern.“ | Zu dieser Abgabe gab es schon die finale KI-Rückmeldung; eine erneute Abgabe derselben Bearbeitung (etwa aus einem zweiten Tab mit demselben Zwischenstand) nimmt der Server nicht mehr an. Die erste Abgabe gilt. |
 | „Die Lehrkraft hat die KI-Einstellungen geändert – es wurde nichts gesendet. Lies bitte den Datenschutzhinweis …“ (nach automatischen Wiederholungen: „… – dieser Versuch wurde nicht gesendet; frühere automatische Versuche hat der bisherige KI-Dienst möglicherweise schon erhalten. …“) | Sie haben den ersten Anbieter geändert, erster Anbieter und Reserve getauscht oder den ersten Anbieter entfernt, während das Blatt geöffnet war (eine neu eingetragene Reserve allein löst das nicht aus – sie wird auf dieser Seite nur nicht genutzt). Die Seite hat den Hinweis neu geladen; die Schülerin bzw. der Schüler liest ihn und klickt erneut. Die Antworten bleiben erhalten. In der zweiten Form zählt der Lauf als Fehlversuch, weil frühere Versuche schon beim bisherigen Dienst angekommen sein können. |
 | „Die KI hat diese Antworten nicht bewertet. Bitte frag deine Lehrkraft.“ | Der KI-Anbieter hat die Anfrage mit seinem Inhaltsfilter abgelehnt. Absichtlich geht sie dann **nicht** an die Reserve. Sehen Sie sich die Antworten an; abgeben (ohne KI-Feedback) geht trotzdem. |
-| „In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.“ beim Hochladen einer PDF | Es wurde nicht die Original-PDF aus „Zwischenstand als PDF-Datei sichern“ hochgeladen, sondern z. B. ein Screenshot, ein Ausdruck oder eine „Drucken als PDF“-Kopie – die enthalten die eingebetteten Daten nicht. Nur die heruntergeladene Datei selbst (unverändert) funktioniert; ein Neuspeichern in einem PDF-Programm, das die eingebettete Datei behält, ist unproblematisch. |
+| „Zu diesem Zwischenstand-Code ist kein Zwischenstand gespeichert (mehr). …“ auf der Startseite | Der Code ist vertippt (acht Zeichen, ohne I, L, O, 0 und 1), der Stand ist älter als 30 Tage seit dem letzten Sichern, die Arbeit wurde inzwischen abgegeben oder das Feibeitsblatt gelöscht. Mit der Zwischenstand-PDF geht es weiter („Zwischenstand-PDF hochladen“) – sie enthält den Stand vom Zeitpunkt des Sicherns. Nach vielen Fehlversuchen aus einem Netzwerk bittet die Seite, etwas zu warten. |
+| „Zwischenstand nur als PDF-Datei gesichert – online hat es nicht geklappt (…)“ (oben im Schreibbereich) | Das Online-Speichern ist gescheitert, die Klammer nennt den Grund: keine Verbindung, Stand zu groß (sehr lange Texte), zu viele Sicherungen aus diesem Netzwerk in kurzer Zeit, sehr viele online gesicherte Stände zu diesem Blatt oder das Blatt gibt es nicht mehr. Die heruntergeladene PDF-Datei enthält den Stand trotzdem (ohne rote Code-Zeile) und lässt sich wie bisher hochladen; später noch einmal sichern. Ein früher online gesicherter Stand bleibt unverändert – oben auf dem Blatt steht, von wann er ist. |
+| „In dieser Datei steckt kein Feibeitsblatt-Zwischenstand.“ beim Hochladen einer PDF | Es wurde nicht die Original-PDF aus „Zwischenstand sichern (online und als PDF-Datei)“ hochgeladen, sondern z. B. ein Screenshot, ein Ausdruck oder eine „Drucken als PDF“-Kopie – die enthalten die eingebetteten Daten nicht. Nur die heruntergeladene Datei selbst (unverändert) funktioniert; ein Neuspeichern in einem PDF-Programm, das die eingebettete Datei behält, ist unproblematisch. |
 | „Rechtschreibprüfung (LanguageTool): erst ab 16 Jahren – mit 16 und 17 nur mit Erlaubnis deiner Eltern.“ (statt der Buttons, darunter ggf. „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) | Kein Fehler: Im Dialog vor der ersten Rechtschreibprüfung wurde „Trifft nicht zu“ gewählt oder Esc gedrückt. Für dieses geöffnete Blatt gibt es dann keine Prüf-Buttons mehr; Schreiben und Abgeben gehen ganz normal weiter. (Ein Klick neben den Dialog schließt ihn nur: Die Buttons bleiben, darunter steht dann nur „Ohne Bestätigung wird nichts an LanguageTool gesendet.“) Wer sich vertan hat, lädt die Seite neu und öffnet das Blatt wieder (z. B. über „Weiterschreiben“) – dann fragt der Dialog wieder. |
-| „Zwischenstand konnte auf diesem Gerät nicht gespeichert werden“ (oben im Schreibbereich) | Der Browser lässt nichts mehr speichern – meist ist der Speicher für Website-Daten voll oder gesperrt (z. B. privates Fenster). Die Antworten bleiben erhalten, solange die Seite offen ist; zur Sicherheit „Zwischenstand als PDF-Datei sichern“ oder gleich abgeben. Nach einem Neuladen wäre ein nicht gespeicherter Stand weg. |
+| „Zwischenstand konnte auf diesem Gerät nicht gespeichert werden“ (oben im Schreibbereich) | Der Browser lässt nichts mehr speichern – meist ist der Speicher für Website-Daten voll oder gesperrt (z. B. privates Fenster). Die Antworten bleiben erhalten, solange die Seite offen ist; zur Sicherheit „Zwischenstand sichern (online und als PDF-Datei)“ oder gleich abgeben. Nach einem Neuladen wäre ein nicht gespeicherter Stand weg. |
 | „Den 31. April gibt es nicht. Bitte prüfe deinen Geburtstag.“ | Tag und Monat passen nicht zusammen (der 29. Februar ist erlaubt). Gefragt sind nur Tag und Monat des Geburtstags, kein Jahr. |
 | „Für Partner- oder Gruppenarbeit tragt bitte mindestens zwei Personen ein. Arbeitest du allein, wähle „Einzelarbeit“.“ | Bei „Partner- / Gruppenarbeit“ ist nur eine Person eingetragen. Mit „Person hinzufügen“ ein weiteres Feld öffnen – oder mit „← zurück zur Auswahl“ „Einzelarbeit“ wählen. |
+| „Die Live-Verbindung für eure Gruppe ließ sich gerade nicht einrichten. …“ (auf „Eure Angaben“) | Der Server konnte die Live-Gruppenarbeit nicht anlegen oder die Verbindung kam nicht zustande: Tagesgrenze des kostenlosen Cloudflare-Tarifs, Server nicht erreichbar, WebSocket-Verbindungen im (Schul-)Netz gesperrt oder zu viele neue Gruppen aus diesem Netz in einer Stunde. „Erneut versuchen“ – oder „Ohne Live-Verbindung an diesem Gerät arbeiten“ (dann hat nur dieses Gerät den Stand). |
+| „Zu diesem Zugangswort und Zahlencode gibt es bei diesem Feibeitsblatt keine Gruppenarbeit (mehr). …“ | Zugangswort, Zahlencode oder der Code des Feibeitsblattes sind vertippt – oder die Gruppenarbeit wurde gelöscht (30 Tage ohne Änderung bzw. mit dem Blatt). Nach vielen Fehlversuchen aus einem Netz bremst der Server (wie bei unbekannten Blatt-Codes). |
+| „Verbindung unterbrochen – wird wiederhergestellt …“ (oben im Schreibbereich einer Gruppe) | Das Gerät hat gerade keine Verbindung zur Gruppe (WLAN, Ruhezustand). Die Seite verbindet sich von selbst neu; bis dahin sind die Felder gesperrt. Bleibt es dabei, die Internetverbindung prüfen. |
+| „Hier schreibt gerade jemand aus eurer Gruppe …“ und das Feld lässt sich nicht bearbeiten | Kein Fehler: In einer Aufgabe schreibt immer nur ein Gerät. Einige Sekunden nach der letzten Eingabe des anderen ist die Aufgabe wieder frei. |
+| „Mit dieser Gruppenarbeit sind schon zu viele Geräte verbunden.“ | Mehr als 24 Geräte bzw. Tabs sind mit derselben Gruppenarbeit verbunden – nicht benötigte Tabs schließen. |
+| „Diese Gruppenarbeit wurde abgegeben“ ohne Knopf zum Herunterladen | Die Abgabe gibt es nicht mehr (Löschfrist oder von Ihnen gelöscht) – dann sind auch die Lösungen für die PDF-Datei gelöscht. |
 | „Person 1 und Person 2 haben dasselbe Kürzel („MaxMu“) …“ | Zwei Felder ergeben dasselbe Kürzel (Groß- und Kleinschreibung zählen nicht). Meist ist eine Person doppelt eingetragen; heißen zwei wirklich so, lässt eine einen Buchstaben weg (z. B. „MaMu“). |
 | „Dieses Feibeitsblatt gehört zum Escape-Room „…“. Öffne es über den Arena-Tunnel …“ nach dem Eintippen eines Codes | Kein Fehler: Ein Feibeitsblatt für einen Escape-Room öffnet sich nur über den Arena-Tunnel oder die Überblick-PDF (siehe [Lehrkraft, Schritt 8](#so-arbeiten-sie-als-lehrkraft)). |
 | „Dieses Escape-Room-Finale ist noch nicht freigeschaltet …“ | Als die Überblick-PDF bzw. der Link entstand, stand im Quelltext des Escape-Rooms noch kein `FEIBEITSBLATT_CODE`. Code eintragen und veröffentlichen; die Schüler:innen gehen mit der Zwischenstand-Datei des Escape-Rooms zurück in den Raum und durch den Arena-Tunnel (eine Überblick-PDF aus dieser Zeit bleibt ohne Code). |
@@ -2031,11 +2247,51 @@ sie ist von Git ausgeschlossen. Ohne `SETTINGS_SECRET` lässt sich auch lokal ke
 **Nie `wrangler deploy` von Hand vor dem ersten Lauf des Workflows „Deploy“** – sonst entsteht die Datenbank
 außerhalb der EU (siehe Schritt 5).
 
+**Online-Zwischenstand (Zwischenstand-Code):** Die reinen Hilfsfunktionen stehen im Block `DRAFTCODE:BEGIN …
+DRAFTCODE:END` von `index.html` (Code erzeugen, prüfen und anzeigen, Ableitung von Kennung und Schlüssel, Umschlag
+`{v: 1, iv, ct}`, alle Texte; Unit-Test `test/unit/draftcode.test.mjs` – die Ableitung wird dort gegen `node:crypto`
+nachgerechnet, der Umschlag gegen die Prüfung des Servers). Ablauf: Klick auf `#ed-pdf` → `PUT /api/draft`
+`{id, code, envelope}` → PDF; Startseite: acht Zeichen im Feld „Code“ → `POST /api/draft/load` `{id}` → entschlüsseln →
+derselbe Weg wie eine hochgeladene Zwischenstand-PDF (`openLoadedDraft`); nach der Abgabe `DELETE /api/draft` `{id}`.
+**Parameter der Ableitung nie ändern** (PBKDF2-HMAC-SHA256, 600 000 Durchläufe, Passwort `feibeitsblatt/draft/v1|` +
+Code, Salt `feibeitsblatt/draft/v1`; HKDF-SHA256 mit `feibeitsblatt/draft/id/v1` bzw. `feibeitsblatt/draft/enc/v1`) –
+sonst lassen sich alle online gesicherten Stände nicht mehr laden; eine Änderung bräuchte eine neue Version. Der
+Datensatz ist derselbe wie in der Zwischenstand-PDF (dort kommen nach gelungenem Sichern nur Zeitpunkt und Frist dazu).
+Browser-Test 3h prüft den ganzen Weg gegen den echten Worker (Anfrage ohne Klartext und ohne den Code, Zeile in der
+Datenbank, zweites Gerät, Ersetzen, falscher Code, gescheitertes Speichern, „Abbrechen“, Löschen nach der Abgabe und mit
+dem Blatt). Server: `PUT /api/draft` speichert unter `sha256("draft|" + id)` (erneutes Sichern ersetzt; über 400 KB nur
+bei Blättern mit Foto-Aufgabe, nie über 1000 KB; 409 `too_many_drafts` bei 600 Ständen bzw. 40 MB je Blatt; je Netzwerk
+300 Sicherungen und 60 MB pro Stunde), `POST /api/draft/load` liefert `{code, savedAt, expiresAt, days, envelope}` (404
+`draft_not_found` zählt wie ein unbekannter Blatt-Code), `DELETE /api/draft` löscht; Tabelle `drafts(id, sheet_code,
+saved_at, bytes, data)`, gelöscht nach 30 Tagen und mit dem Blatt.
+
+**Live-Gruppenarbeit:** Server = `worker/live.js`, das Durable Object `LiveRoom` (ein Raum je Gruppe, SQLite-gestützt,
+WebSocket-Hibernation, EU-Jurisdiktion; `wrangler.jsonc`: Binding `LIVE`, Migration `v1` mit `new_sqlite_classes` – nie
+ändern). Routen: `POST /api/live/create` `{code, room, meta}` (409 `room_taken` → der Browser würfelt neu, 409
+`too_many_rooms`, 503 `live_unavailable`), `POST /api/live/join` `{code, room}` (404 `room_not_found`), `GET /api/live/ws`
+als WebSocket. Das Protokoll (Sperren je Aufgabe, Vorschau `pv` ohne Speichern, `set` mit Version, Zusagen für
+KI-Feedback und Abgabe, Schließcodes 4404/4409) steht im Kopf von `worker/live.js`. In D1 liegt nur das Verzeichnis
+`live_rooms(rid, sheet_code, created_at)` (kein Inhalt). Browser: Block `LIVE:BEGIN … LIVE:END` in `index.html`
+(Wortliste, Zahlencode, Ableitung, Wert-Format, Takt, Prüfung entschlüsselter Werte, alle Texte; Unit-Test
+`test/unit/liveclient.test.mjs` – Ableitung und Wert-Format werden gegen die Helfer des Smoke-Tests geprüft) und der
+Abschnitt „Live-Gruppenarbeit“ vor dem Lehrkraft-Teil (Verbindung, Abgleich, Sperren, Abgabe-Ansicht). **Parameter der
+Ableitung nie ändern** (PBKDF2-HMAC-SHA256, 600 000 Durchläufe, Passwort `feibeitsblatt/live/v1|` + Blatt-Code + `|` +
+Zugangswort + `|` + Zahlencode, Salt `feibeitsblatt/live/v1`; HKDF-SHA256 mit `feibeitsblatt/live/id/v1` bzw.
+`feibeitsblatt/live/enc/v1`; je Wert Base64 aus 12 Byte IV und AES-GCM-Chiffrat) – sonst lässt sich kein Raum mehr
+öffnen. Die Wortliste darf wachsen (gewürfelt wird nur beim Anlegen). Tests: `test/unit/live.test.mjs` (Raum mit
+nachgebauter Laufzeit `test/live-fake.mjs`), Smoke-Schritt „Live-Gruppenarbeit“ (echtes Durable Object, zwei WebSockets),
+Browser-Test 2c (zwei bzw. drei Geräte: Zugang, Dazuschalten, Tippen mit Sperre und Vorschau, Tabelle, Foto, Abbruch und
+Wiederverbinden, KI-Feedback und Abgabe nur einmal, Abgabe-Ansicht mit PDF, gelöschte Abgabe, Rückfall ohne
+Live-Verbindung; `LIVE_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos) und 2b (Gruppe ohne Live-Verbindung an einem
+Gerät). `wrangler dev --local` kennt das Durable Object (ohne Jurisdiktionen); die Content-Security-Policy erlaubt
+`wss://` zur Worker-Adresse (`_headers` und `<meta>` in `index.html`).
+
 **Tippzeiten im Zwischenstand:** `TT_KEEP_IN_DRAFT` in `index.html` (eingecheckt `false` – Annahme des Betreibers: das
 Speichern im Zwischenstand bräuchte eine Einwilligung nach § 25 Abs. 1 TDDDG) legt fest, ob die Tippzeiten im
 Zwischenstand auf dem Gerät und in der Zwischenstand-PDF mitgespeichert werden. Mit `false` bleiben sie nur im
 Arbeitsspeicher (nach dem Neuladen gilt der Text als „ohne Messung“), und beim Laden der Seite werden sie aus vorhandenen
-Zwischenständen entfernt; mit `true` stehen sie zusätzlich im Zwischenstand (vorher die Einwilligungsfrage klären).
+Zwischenständen entfernt; mit `true` stehen sie zusätzlich im Zwischenstand – und damit auch in einem online gesicherten
+(vorher die Einwilligungsfrage klären und die Sätze zum Online-Zwischenstand anpassen: sie sagen bisher nichts von Tippzeiten).
 Erstversuch und Abgabe tragen sie in beiden Fällen. Die Sätze im Datenschutzhinweis, die den
 Zwischenstand und die Zwischenstand-PDF betreffen (Rechtsgrundlage, Speicherdauer, Wirkung des Schalters), folgen dem
 Schalter von selbst; **beim Umlegen von Hand anpassen:** diese README (Tabelle „Was gespeichert wird“, Abschnitt
@@ -2090,7 +2346,8 @@ Ausrollen einmal von Hand prüfen.
 | `worker/index.js` | Cloudflare Worker: API unter `/api/…`, Datenbank, Sperren, Lehrkraft-Anmeldung |
 | `worker/lib.js` | Hilfsfunktionen: Prüfung der Eingaben, Codes, Lastbegrenzung, Verschlüsselung des API-Schlüssels und der finalen KI-Rückmeldung für die Lehrkraft, Wartezeit |
 | `worker/ai.js` | KI-Anbieter, Prompt für das Feedback, Auswertung der Antworten, Ausweichmodelle |
-| `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, Workers AI ohne AI Gateway, statische Seite aus `dist/`, täglicher Zeitplan für die Löschfrist, Protokolle aus) |
+| `worker/live.js` | Live-Gruppenarbeit: Durable Object `LiveRoom` (ein Raum je Gruppe: verschlüsselter Stand, Sperren, Zusagen für KI-Feedback und Abgabe) |
+| `wrangler.jsonc` | Worker-Konfiguration (Datenbank `feibeitsblatt-db`, Workers AI ohne AI Gateway, Durable Object `LiveRoom` für die Live-Gruppenarbeit, statische Seite aus `dist/`, täglicher Zeitplan für die Löschfrist, Protokolle aus) |
 | `scripts/build.mjs` | Build-Skript für `dist/` |
 | `scripts/worldmap.mjs` | erzeugt die eingebettete Weltkarte (Natural Earth über world-atlas, Equal Earth, deutsche Namen) |
 | `test/` | Unit-Tests, API-Durchlauf, Test-KI, Browser-Tests |

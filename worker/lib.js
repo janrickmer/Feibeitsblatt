@@ -79,6 +79,9 @@ export const LIMITS = {
   tasks: 30, taskText: 4000, solution: 8000, title: 200,
   answer: 8000, answersTotal: 40000,
   submissionsPerSheet: 400,        // Schutz vor Vollschreiben der Datenbank (eine Klasse braucht ≤ ~100)
+  // Online gesicherte Zwischenstände (auf Klick „Zwischenstand sichern“, siehe validateDraftEnvelope): je Blatt, Tage ab dem letzten Sichern
+  draftsPerSheet: 600, draftSheetBytes: 40 * 1024 * 1024, draftDays: 30,
+  liveRoomsPerSheet: 300,          // Live-Gruppenarbeit: Räume (Gruppen) je Blatt
   sheetBytes: 40 * 1024 * 1024,    // Summe aller Umschläge je Blatt
   submissionsPage: 50,             // Abgaben je Seite der Lehrkraft-Liste (Arbeitsspeicher des Workers)
   deleteIds: 50,                   // Einträge je Löschauftrag einer Person (DELETE …/submissions mit {ids}; gebunden ≤ 100 Parameter)
@@ -159,6 +162,26 @@ export function validateEnvelope(env, max = LIMITS.envelopeBytes) {
     throw new InputError("Die Abgabe ist beschädigt (Verschlüsselung ungültig).", "bad_envelope");
   const json = JSON.stringify({ v: 1, ek: env.ek, iv: env.iv, ct: env.ct });   // nur bekannte Felder speichern
   if (json.length > max) throw new InputError("Die Abgabe ist zu groß.", "too_large", 413);
+  return json;
+}
+
+/* Online gesicherter Zwischenstand (Wunsch des Betreibers vom 24.11.2026): Der Browser verschlüsselt den Datensatz der
+   Zwischenstand-PDF mit einem Schlüssel aus dem Zwischenstand-Code (8 Zeichen, vom Browser erzeugt, verlässt ihn nie) und schickt
+   nur {v:1, iv, ct} (AES-GCM, kein RSA-Teil wie bei Abgaben) samt einer aus dem Code abgeleiteten Kennung (64 Hex). Der Server kann
+   weder den Code noch den Inhalt lesen und speichert unter sha256(Kennung). max wie bei Abgaben (Blätter mit Foto-Aufgabe mehr). */
+export const DRAFT_ID_RE = /^[0-9a-f]{64}$/;
+export function validateDraftId(v) {
+  if (typeof v !== "string" || !DRAFT_ID_RE.test(v)) throw new InputError("Der Zwischenstand-Code ist ungültig.", "bad_request");
+  return v;
+}
+export function validateDraftEnvelope(env, max = LIMITS.envelopeBytes) {
+  if (!isObj(env)) throw new InputError("Der Zwischenstand ist unvollständig (Umschlag fehlt).", "bad_envelope");
+  if (env.v !== 1) throw new InputError("Unbekanntes Format des Zwischenstands.", "bad_envelope");
+  if (typeof env.ct === "string" && env.ct.length > max) throw new InputError("Der Zwischenstand ist zu groß für das Online-Speichern.", "too_large", 413);
+  if (!isB64(env.iv, 12, 12) || !isB64(env.ct, 17, Infinity))
+    throw new InputError("Der Zwischenstand ist beschädigt (Verschlüsselung ungültig).", "bad_envelope");
+  const json = JSON.stringify({ v: 1, iv: env.iv, ct: env.ct });   // nur bekannte Felder speichern
+  if (json.length > max) throw new InputError("Der Zwischenstand ist zu groß für das Online-Speichern.", "too_large", 413);
   return json;
 }
 
@@ -842,6 +865,10 @@ export const RATE = {
   submit: { max: 720, windowMs: 3600e3 },          // Abgaben und Erstversuche je IP („feedback2“ älterer Seiten und final_locked zählen nicht)
   submit_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
   checklist: { max: 60, windowMs: 3600e3 },        // KI-Vorschläge für die Checkliste je IP (Lehrkraft; jedes neue Blatt fragt einmal)
+  // Online gesicherte Zwischenstände je IP (nur auf Klick der Schüler:innen; eine Klasse sichert am Stundenende etwa 30-mal)
+  live_create: { max: 120, windowMs: 3600e3 },     // Live-Gruppenarbeit: neu angelegte Gruppen je IP (eine Klasse: etwa 15)
+  draft: { max: 300, windowMs: 3600e3 },
+  draft_bytes: { max: 60 * 1024 * 1024, windowMs: 3600e3 },   // … gewichtet nach Umschlag-Bytes
 };
 const minutes = (s) => { const m = Math.max(1, Math.ceil(s / 60)); return m + (m === 1 ? " Minute" : " Minuten"); };
 export function rateMessage(kind, retryAfter) {
@@ -853,6 +880,8 @@ export function rateMessage(kind, retryAfter) {
     case "feedback": case "feedback_chars": return "Gerade wurden von diesem Netzwerk sehr viele KI-Rückmeldungen angefordert. Bitte versuche es in etwa " + t + " erneut.";
     case "sheet_feedback": return "Für dieses Feibeitsblatt wurden heute schon sehr viele KI-Rückmeldungen angefordert. Bitte sag deiner Lehrkraft Bescheid.";
     case "submit": case "submit_bytes": return "Gerade wurden von diesem Netzwerk sehr viele Abgaben gesendet. Bitte versuche es in etwa " + t + " erneut – deine Antworten bleiben auf diesem Gerät gespeichert.";
+    case "live_create": return "Gerade wurden von diesem Netzwerk sehr viele Gruppenarbeiten gestartet. Bitte versucht es in etwa " + t + " erneut.";
+    case "draft": case "draft_bytes": return "Gerade wurden von diesem Netzwerk sehr viele Zwischenstände online gesichert. Bitte versuche es in etwa " + t + " erneut – dein Zwischenstand bleibt auf diesem Gerät gespeichert.";
     case "checklist": return "Gerade wurden sehr viele Checklisten bei der KI angefragt. Bitte versuchen Sie es in etwa " + t + " erneut – Sie können die Punkte auch selbst eintragen.";
     default: return "Zu viele Anfragen. Bitte versuche es in etwa " + t + " erneut.";
   }

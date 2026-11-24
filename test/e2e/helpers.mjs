@@ -137,7 +137,10 @@ export async function confirmDialog(page, title, accept = true, opts = {}) {
     await page.locator("#dlg-check").setChecked(!!opts.check);
   }
   await page.click(accept ? "#dlg-ok" : "#dlg-cancel");
-  await expect(dlg).toBeHidden();
+  // opts.then: gleich danach öffnet sich ein zweiter Dialog mit diesem Titel (Live-Gruppenarbeit: erst „Erst die Gruppe fragen“, dann der
+  // bisherige) – sein „OK“ wirkt erst nach einem Augenblick (Schutz vor einem Doppelklick)
+  if (opts.then) { await expect(page.locator("#dlg-title")).toHaveText(opts.then); await page.waitForTimeout(600); }
+  else await expect(dlg).toBeHidden();
   return text;
 }
 export const FINAL_CHECK_LABEL = "Nach der Abgabe eine finale KI-Rückmeldung erhalten";
@@ -206,4 +209,66 @@ export async function scanState(needles) {
     for (const n of needles) if (buf.includes(Buffer.from(n, "utf8"))) count[n]++;
   }
   return { files, count };
+}
+
+/* ---------- Partner- / Gruppenarbeit (Live-Gruppenarbeit) ----------
+ * Nach „Partner- / Gruppenarbeit“ fragt die Seite: Gruppensprecherin / Gruppensprecher (trägt die Kürzel ein, bekommt Zugangswort und
+ * Zahlencode) oder dazuschalten (Zugangswort und Zahlencode eingeben). Ohne Live-Verbindung arbeitet die Gruppe an einem Gerät (lokaler Weg). */
+export const LIVE_OFF_MSG = "Die Live-Gruppenarbeit ist gerade nicht erreichbar. Bitte versucht es später erneut.";
+export const LIVE_SETUP_FAIL = "Die Live-Verbindung für eure Gruppe ließ sich gerade nicht einrichten.";
+// Der Server kann gerade keine Live-Gruppenarbeit anlegen (503 wie ohne den Baustein) – für alle Seiten dieses Kontexts
+export async function liveUnavailable(context) {
+  await context.route("**/api/live/create", (r) => r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, code: "live_unavailable", error: LIVE_OFF_MSG }) }));
+}
+// von „Wie arbeitest du?“ zu „Eure Angaben“ (Gruppensprecher:in)
+export async function chooseGroupHost(page) {
+  await expect(page.locator("#screen-mode")).toHaveClass(/active/);
+  await page.click("#mode-group");
+  await expect(page.locator("#screen-live")).toHaveClass(/active/);
+  await expect(page.locator("#live-host")).toBeFocused();
+  await page.click("#live-host");
+  await expect(page.locator("#screen-person")).toHaveClass(/active/);
+  await expect(page.locator("#p-m-1")).toBeFocused();
+}
+// Kürzel (eines je Feld) und Klasse eintragen
+export async function fillGroup(page, names, klasse) {
+  await page.fill("#p-m-1", names[0]);
+  for (const n of names.slice(1)) { await page.click("#p-add"); await page.keyboard.type(n); }
+  await page.fill("#p-klasse", klasse);
+}
+// Gruppensprecher:in: Angaben → Zugangswort und Zahlencode (Bildschirm „Euer Zugang zur Gruppenarbeit“) → {word, num}
+export async function startGroupHost(page, names, klasse) {
+  await chooseGroupHost(page);
+  await fillGroup(page, names, klasse);
+  await page.click("#p-btn");
+  await expect(page.locator("#screen-liveinfo")).toHaveClass(/active/, { timeout: 30_000 });
+  return { word: (await page.locator("#li-word").textContent()).trim(), num: (await page.locator("#li-num").textContent()).trim() };
+}
+// „Zum Feibeitsblatt“ → Schreibbereich der Gruppe, live verbunden
+export async function openGroupSheet(page) {
+  await page.click("#li-go");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#live-state")).toHaveText(/^Live verbunden · /);
+}
+// Dazuschalten: von „Wie arbeitest du?“ über „Ich schalte mich dazu“ mit Zugangswort und Zahlencode (ohne zu prüfen, wohin es führt)
+export async function joinGroup(page, word, num) {
+  await expect(page.locator("#screen-mode")).toHaveClass(/active/);
+  await page.click("#mode-group");
+  await expect(page.locator("#screen-live")).toHaveClass(/active/);
+  await page.click("#live-join");
+  await expect(page.locator("#screen-livejoin")).toHaveClass(/active/);
+  await expect(page.locator("#lj-word")).toBeFocused();
+  await page.fill("#lj-word", word);
+  await page.fill("#lj-num", num);
+  await page.click("#lj-go");
+}
+// Gruppe ohne Live-Verbindung an einem Gerät (vorher liveUnavailable(context)): Angaben → Meldung → „Ohne Live-Verbindung …“ → Schreibbereich
+export async function startGroupLocal(page, names, klasse) {
+  await chooseGroupHost(page);
+  await fillGroup(page, names, klasse);
+  await page.click("#p-btn");
+  await expect(page.locator("#p-live-fail")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("#p-err")).toHaveText(LIVE_SETUP_FAIL + " " + LIVE_OFF_MSG);
+  await page.click("#p-live-local");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
 }

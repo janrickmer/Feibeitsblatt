@@ -245,7 +245,8 @@ test("unterricks: lokal (Tests) bereit an „*“ und lokale Herkunft erlaubt", 
    dann, wenn danach der Schreibbereich (bei einer Überblick-PDF aus einem Escape-Room: die Angaben bzw. der Schreibbereich) offen ist; sonst
    steht die Meldung auf der Startseite. Dieselben Funktionen nimmt auch „Zwischenstand-PDF hochladen“ (dort zählt das Ergebnis nicht). */
 const fnSrc = (head) => { const a = html.indexOf(head); assert.ok(a > 0, head); return html.slice(a, html.indexOf("\n}\n", a) + 3); };
-const IMPORT_SRC = fnSrc("async function importDraftPdf(file) {") + fnSrc("async function escArrive(hull, src) {") + fnSrc("async function escLoad(run) {");
+// ab dem geprüften Datensatz geht importDraftPdf denselben Weg wie ein über den Zwischenstand-Code geladener Stand (openLoadedDraft)
+const IMPORT_SRC = fnSrc("async function importDraftPdf(file) {") + fnSrc("async function openLoadedDraft(d, run, src) {") + fnSrc("async function escArrive(hull, src) {") + fnSrc("async function escLoad(run) {");
 function importHarness(o = {}) {
   return new Function("o", `
 let screen = "screen-start";
@@ -253,6 +254,7 @@ const S = {}, ESC = { run: 0 }, CHK = { run: 0 }, LEGAL = { run: 0 }, subtle = o
 const $ = (id) => els[id] || (els[id] = { id, textContent: "", value: "x", classList: { add() {}, remove() {} }, focus() {} });
 const document = { activeElement: null };
 const busy = () => {}, setStatus = () => {}, fmtDT = (t) => String(t), ttKeepOptOut = (d) => d, escCheck = () => "ok";
+const dcState = (x) => ({ code: (x && x.saveCode) || "", at: 0, until: 0 }), dcNewerText = () => "ONLINE NEUER", DC_NEWER_OK = "ONLINE";   // Zwischenstand-Code (DRAFTCODE)
 const showResume = () => log.push("showResume");
 const escDrop = () => { ESC.run++; };
 const resetStudent = () => { log.push("resetStudent"); screen = "screen-start"; };
@@ -286,6 +288,7 @@ test("unterricks: importDraftPdf liefert true, sobald der Schreibbereich offen i
   assert.equal(await h.importDraftPdf(PDF()), true);
   assert.equal(h.state().screen, "screen-editor");
   assert.deepEqual(h.state().S.importDraft.answers, ["a", ""]);
+  assert.equal(h.state().S.importFrom, "pdf");   // (der andere Weg: über den Zwischenstand-Code vom Server, siehe draftcode.test.mjs)
   assert.deepEqual(h.state().log.filter((x) => /^(fetch|openEditor)/.test(x)), ["fetch:K7QM4X", "openEditor"]);
   // nicht geklappt: Ergebnis nie true, die Meldung steht auf der Startseite
   const fails = [
