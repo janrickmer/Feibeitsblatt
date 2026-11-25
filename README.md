@@ -141,8 +141,9 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Links darin öffnen sich immer in einem neuen Tab, das Feibeitsblatt bleibt geöffnet. Auch die Aufgabenstellung
    selbst kann Hervorhebungen (fett, kursiv, unterstrichen) und Links enthalten – diese Links öffnen sich ebenfalls in
    einem neuen Tab. Hat die Lehrkraft
-   PDF-Dateien zu einer Aufgabe hinterlegt, stehen sie als „Material zum Herunterladen“ unter der Aufgabenstellung:
-   Ein Klick auf eine Datei lädt sie herunter (sie landet im Download-Ordner und wird nicht im Tab geöffnet); dabei
+   PDF-Dateien zu einer Aufgabe hinterlegt, stehen sie als „Material als PDF-Datei“ unter der Aufgabenstellung:
+   Ein Klick auf eine Datei öffnet sie in einem neuen Tab – das Feibeitsblatt bleibt im bisherigen Tab offen und lässt
+   sich weiter bearbeiten (lässt der Browser keinen neuen Tab zu, wird die Datei stattdessen heruntergeladen); dabei
    wird nichts gesendet außer der Anfrage nach der Datei.
    **YouTube-Videos:** Hat die Lehrkraft unter dem Material Videos von YouTube eingebettet, steht dort je Video zuerst nur
    ein Platzhalter – kein Vorschaubild, sondern der Titel, der Hinweis „Erst nach diesem Klick wird das Video von YouTube
@@ -508,8 +509,8 @@ Erstversuch und Abgabe. Technik, Grenzen und Datenschutz: [Kapazität und Grenze
    **PDF-Dateien:** Mit „+ PDF-Datei hinzufügen“ laden Sie zu jeder Aufgabe bis zu drei PDF-Dateien als Material
    hoch (je höchstens 6 MB, alle PDF-Dateien eines Blattes zusammen höchstens 20 MB; die Seite prüft beides vor dem
    Anlegen). Andere Dateiformate nimmt die Seite nicht an. Schüler:innen sehen die Dateien unter der
-   Aufgabenstellung als „Material zum Herunterladen“ und laden eine Datei mit einem Klick herunter; der Dateiname
-   bleibt erhalten (Zeichen wie `/`, `:` oder `?` werden durch `-` ersetzt). Wie Bilder sind die PDF-Dateien für
+   Aufgabenstellung als „Material als PDF-Datei“; ein Klick öffnet die Datei in einem neuen Tab, das Feibeitsblatt
+   bleibt dabei offen und bearbeitbar (Zeichen wie `/`, `:` oder `?` im Dateinamen werden durch `-` ersetzt). Wie Bilder sind die PDF-Dateien für
    alle abrufbar, die den Code kennen, nicht verschlüsselt und gehen nie an die KI – laden Sie keine Dateien mit
    personenbezogenen Daten hoch.
    **YouTube-Videos:** Unter dem Material jeder Aufgabe öffnet **„YouTube-Video im Feibeitsblatt einbetten“** einen Dialog

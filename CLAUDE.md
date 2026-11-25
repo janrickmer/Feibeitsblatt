@@ -889,8 +889,13 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   Aufruf** (eine 6-MB-Datei in einem Stück zu lesen/serialisieren sprengt die 10 ms CPU), Body per String-Verkettung,
   `Cache-Control: public, max-age=31536000, immutable`, unvollständige Dateien → 404, fehlendes Blatt zählt
   `lookup_miss`. Browser: `loadFile(code, id)` holt die Teile nacheinander (`api` cache "default", `b64ToBytes` →
-  `Blob`, Cache ≤ 6 Einträge), `fileButton` (`.filebtn`, Spinner/„erneut versuchen“, Klick → `downloadBlob(blob,
-  name)` – nie im Tab öffnen) unter der Aufgabe als `.task-files` mit Sublabel „Material zum Herunterladen“;
+  `Blob`, Cache ≤ 6 Einträge), `fileButton` (`.filebtn`, Spinner/„erneut versuchen“; **Klick öffnet die Datei in einem
+  neuen Tab** – Wunsch der Lehrkraft vom 25.11.2026, das Feibeitsblatt bleibt im bisherigen Tab bearbeitbar: `window.open("", "_blank")`
+  sofort im Klick (nach dem Laden ließe der Browser kein Pop-up mehr zu; `opener = null`, Text `FILE_TAB_LOADING`), nach `loadFile`
+  `tab.location.replace(fileUrl(r))` = blob:-Adresse dieser Seite, eine je geladener Datei, keine weitere Anfrage; Fehler → der neue Tab
+  schließt sich, „erneut versuchen“; lässt der Browser keinen Tab zu → wie früher `downloadBlob(blob, name)`; Beschriftung „PDF, 600 KB ·
+  in neuem Tab öffnen“ (`FILE_OPEN`), aria-label „<Name> (PDF, …) in neuem Tab öffnen – Datei zu Aufgabe n“) unter der Aufgabe als
+  `.task-files` mit Sublabel „Material als PDF-Datei“ (das analoge Arbeitsblatt sagt weiter „Material zum Herunterladen (nur digital)“);
   Lehrkraft: `teacherFiles` (`.tfiles`) in Blattdetails und Abgaben-Details. Editor: je Zeile `tr._files`
   (`{blob, name, size}`), `input.bfile-input` (Bild-Input heißt `input.bimg-input`), `.bfile-add`, `.bfile-stat`,
   `addPdfFiles` liest die Datei **sofort** in den Arbeitsspeicher (`arrayBuffer` → neuer `Blob`; eine danach auf dem Gerät
