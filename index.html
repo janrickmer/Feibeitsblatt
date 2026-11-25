@@ -367,7 +367,7 @@
   /* Material zur Aufgabe: Text der Lehrkraft mit Fett/Kursiv/Unterstrichen und Links (neuer Tab) */
   .task-material{margin:0 0 12px; padding:10px 14px 4px; background:var(--paper); border-left:3px solid var(--line); border-radius:6px; font-size:17px; line-height:1.65}
   .task-material > .sublabel{display:block; margin:0 0 4px}
-  /* PDF-Dateien der Lehrkraft: Klick lädt die Datei herunter */
+  /* PDF-Dateien der Lehrkraft: Klick öffnet die Datei in einem neuen Tab, das Download-Symbol daneben speichert sie */
   .task-files{margin:0 0 12px}
   .task-files > .sublabel{display:block; margin:0 0 6px}
   .filelist,.tfiles{display:flex; flex-wrap:wrap; gap:8px}
@@ -382,6 +382,17 @@
   .filebtn.failed .filebtn-meta{color:inherit}
   .filebtn .spinner{display:none; margin:0}
   .filebtn.loading .spinner{display:inline-block}
+  /* daneben ein kleines Download-Symbol: speichert die Datei, ohne das Feibeitsblatt zu verlassen */
+  .fileitem{display:inline-flex; align-items:stretch; gap:4px; max-width:100%}
+  .fileitem > .filebtn{min-width:0}
+  .filedl{flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 8px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); cursor:pointer}
+  .filedl:hover{border-color:var(--accent2); background:var(--paper)}
+  .filedl .dl-ico{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round}
+  .filedl .spinner{display:none; margin:0}
+  .filedl.loading{cursor:progress}
+  .filedl.loading .spinner{display:inline-block}
+  .filedl.loading .dl-ico{display:none}
+  .filedl.failed{border-color:var(--red); color:var(--red)}
   /* YouTube-Videos unter dem Material: zuerst nur ein Platzhalter (kein Vorschaubild, keine Anfrage an YouTube); erst der Klick lädt
      das Video. Der Platzhalter wächst mit dem Text (kein festes Seitenverhältnis – der Hinweis wird nie abgeschnitten), nur der Player 16:9. */
   .task-videos{margin:0 0 12px}
@@ -3681,7 +3692,8 @@ function loadFile(code, id) {
    Feibeitsblatt bleibt im bisherigen Tab offen und bearbeitbar. Der neue Tab muss sofort beim Klick entstehen (nach dem Laden ließe ihn
    der Browser als Pop-up nicht mehr zu): erst mit dem Satz FILE_TAB_LOADING, nach dem Laden zeigt er die Datei (blob:-Adresse dieser
    Seite, keine weitere Anfrage). Lässt der Browser keinen neuen Tab zu, wird die Datei wie früher gespeichert. Während des Ladens ein
-   Spinner, bei einem Fehler schließt sich der neue Tab wieder und der Knopf sagt „erneut versuchen“. */
+   Spinner, bei einem Fehler schließt sich der neue Tab wieder und der Knopf sagt „erneut versuchen“. Daneben das Download-Symbol
+   (fileDlButton); beide stecken in span.fileitem. */
 const FILE_OPEN = "in neuem Tab öffnen";
 const FILE_TAB_LOADING = "Die PDF-Datei wird geladen …";
 const fileUrl = (r) => r.url || (r.url = URL.createObjectURL(r.blob));   // eine Adresse je geladener Datei; sie gilt, solange diese Seite offen ist
@@ -3713,6 +3725,34 @@ function fileButton(code, f, n) {
     catch (e) {
       try { if (tab && !tab.closed) tab.close(); } catch (e2) { /* egal */ }
       btn.classList.add("failed"); meta.textContent = "konnte nicht geladen werden – erneut versuchen"; btn.setAttribute("aria-label", `${f.name} konnte nicht geladen werden, erneut versuchen – Datei zu Aufgabe ${n}`);
+    }
+    finally { running = false; btn.classList.remove("loading"); btn.removeAttribute("aria-busy"); }
+  });
+  return h("span", { class: "fileitem" }, [btn, fileDlButton(code, f, n)]);
+}
+/* Kleines Download-Symbol neben dem Knopf (Wunsch der Lehrkraft vom 25.11.2026): speichert die Datei, das Feibeitsblatt bleibt, wo es ist.
+   Ein unsichtbarer Link mit download-Attribut auf die blob:-Adresse – keine weitere Anfrage. Er trägt zusätzlich target="_blank": Beachtet
+   ein Browser „download“ nicht, öffnet sich die Datei in einem neuen Tab, nie an Stelle des Feibeitsblattes. */
+const FILE_DL = "herunterladen";
+function fileDlButton(code, f, n) {
+  const label = `${f.name} herunterladen – Datei zu Aufgabe ${n}`;
+  const ico = svgEl("svg", { class: "dl-ico", viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false" },
+    [svgEl("path", { d: "M12 3.5v11.5" }), svgEl("path", { d: "M7 10.5l5 5 5-5" }), svgEl("path", { d: "M4.5 16.5v3h15v-3" })]);
+  const btn = h("button", { type: "button", class: "filedl", "aria-label": label, title: "PDF-Datei " + FILE_DL }, [h("span", { class: "spinner", "aria-hidden": "true" }), ico]);
+  let running = false;
+  btn.addEventListener("click", async () => {
+    if (running) return;
+    running = true; btn.classList.add("loading"); btn.classList.remove("failed"); btn.setAttribute("aria-busy", "true");
+    btn.setAttribute("aria-label", `${f.name} wird geladen – Datei zu Aufgabe ${n}`);
+    try {
+      const r = await loadFile(code, f.id);
+      const a = h("a", { href: fileUrl(r), download: f.name || r.name || "Datei.pdf", target: "_blank", rel: "noopener", class: "sr-only", text: f.name });
+      document.body.appendChild(a); a.click(); a.remove();   // fileUrl bleibt gültig, solange diese Seite offen ist (wie beim Öffnen im neuen Tab)
+      btn.setAttribute("aria-label", label); btn.title = "PDF-Datei " + FILE_DL;
+    }
+    catch (e) {
+      btn.classList.add("failed"); btn.title = "Konnte nicht geladen werden – erneut versuchen";
+      btn.setAttribute("aria-label", `${f.name} konnte nicht geladen werden, erneut herunterladen – Datei zu Aufgabe ${n}`);
     }
     finally { running = false; btn.classList.remove("loading"); btn.removeAttribute("aria-busy"); }
   });

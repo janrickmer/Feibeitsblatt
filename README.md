@@ -143,7 +143,8 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    einem neuen Tab. Hat die Lehrkraft
    PDF-Dateien zu einer Aufgabe hinterlegt, stehen sie als „Material als PDF-Datei“ unter der Aufgabenstellung:
    Ein Klick auf eine Datei öffnet sie in einem neuen Tab – das Feibeitsblatt bleibt im bisherigen Tab offen und lässt
-   sich weiter bearbeiten (lässt der Browser keinen neuen Tab zu, wird die Datei stattdessen heruntergeladen); dabei
+   sich weiter bearbeiten (lässt der Browser keinen neuen Tab zu, wird die Datei stattdessen heruntergeladen). Das kleine
+   Download-Symbol neben jeder Datei speichert sie direkt, ohne das Feibeitsblatt zu verlassen. Dabei
    wird nichts gesendet außer der Anfrage nach der Datei.
    **YouTube-Videos:** Hat die Lehrkraft unter dem Material Videos von YouTube eingebettet, steht dort je Video zuerst nur
    ein Platzhalter – kein Vorschaubild, sondern der Titel, der Hinweis „Erst nach diesem Klick wird das Video von YouTube
@@ -510,7 +511,7 @@ Erstversuch und Abgabe. Technik, Grenzen und Datenschutz: [Kapazität und Grenze
    hoch (je höchstens 6 MB, alle PDF-Dateien eines Blattes zusammen höchstens 20 MB; die Seite prüft beides vor dem
    Anlegen). Andere Dateiformate nimmt die Seite nicht an. Schüler:innen sehen die Dateien unter der
    Aufgabenstellung als „Material als PDF-Datei“; ein Klick öffnet die Datei in einem neuen Tab, das Feibeitsblatt
-   bleibt dabei offen und bearbeitbar (Zeichen wie `/`, `:` oder `?` im Dateinamen werden durch `-` ersetzt). Wie Bilder sind die PDF-Dateien für
+   bleibt dabei offen und bearbeitbar, das Download-Symbol daneben speichert sie (Zeichen wie `/`, `:` oder `?` im Dateinamen werden durch `-` ersetzt). Wie Bilder sind die PDF-Dateien für
    alle abrufbar, die den Code kennen, nicht verschlüsselt und gehen nie an die KI – laden Sie keine Dateien mit
    personenbezogenen Daten hoch.
    **YouTube-Videos:** Unter dem Material jeder Aufgabe öffnet **„YouTube-Video im Feibeitsblatt einbetten“** einen Dialog
