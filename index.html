@@ -3677,22 +3677,43 @@ function loadFile(code, id) {
   })().catch((e) => { fileCache.delete(key); throw e; }));
   return fileCache.get(key);
 }
-// Download-Button für eine PDF-Datei der Lehrkraft: Klick holt die Teile und speichert die Datei unter ihrem Namen (kein
-// Öffnen im Tab). Während des Ladens ein Spinner, bei einem Fehler „erneut versuchen“ – ein zweiter Klick lädt neu.
+/* Knopf für eine PDF-Datei der Lehrkraft (Wunsch der Lehrkraft vom 25.11.2026): Die Datei öffnet sich in einem neuen Tab – das
+   Feibeitsblatt bleibt im bisherigen Tab offen und bearbeitbar. Der neue Tab muss sofort beim Klick entstehen (nach dem Laden ließe ihn
+   der Browser als Pop-up nicht mehr zu): erst mit dem Satz FILE_TAB_LOADING, nach dem Laden zeigt er die Datei (blob:-Adresse dieser
+   Seite, keine weitere Anfrage). Lässt der Browser keinen neuen Tab zu, wird die Datei wie früher gespeichert. Während des Ladens ein
+   Spinner, bei einem Fehler schließt sich der neue Tab wieder und der Knopf sagt „erneut versuchen“. */
+const FILE_OPEN = "in neuem Tab öffnen";
+const FILE_TAB_LOADING = "Die PDF-Datei wird geladen …";
+const fileUrl = (r) => r.url || (r.url = URL.createObjectURL(r.blob));   // eine Adresse je geladener Datei; sie gilt, solange diese Seite offen ist
 function fileButton(code, f, n) {
   const size = f.bytes ? `PDF, ${fmtKB(f.bytes)}` : "PDF";
-  const meta = h("span", { class: "filebtn-meta", text: size + " · herunterladen" });
-  const label = `${f.name} (${size}) herunterladen – Datei zu Aufgabe ${n}`;
+  const meta = h("span", { class: "filebtn-meta", text: size + " · " + FILE_OPEN });
+  const label = `${f.name} (${size}) ${FILE_OPEN} – Datei zu Aufgabe ${n}`;
   const btn = h("button", { type: "button", class: "filebtn", "aria-label": label }, [
     h("span", { class: "spinner", "aria-hidden": "true" }), h("span", { class: "filebtn-icon", "aria-hidden": "true", text: "PDF" }), h("span", { class: "filebtn-name", text: f.name }), meta
   ]);
   let running = false;
   btn.addEventListener("click", async () => {
     if (running) return;
+    let tab = null;
+    try { tab = window.open("", "_blank"); } catch (e) { tab = null; }
+    if (tab) {
+      try { tab.opener = null; } catch (e) { /* egal */ }
+      try { tab.document.title = f.name; tab.document.body.style.cssText = "margin:2em; font:16px/1.5 system-ui, sans-serif; color:#333"; tab.document.body.textContent = FILE_TAB_LOADING; } catch (e) { /* egal */ }
+    }
     running = true; btn.classList.add("loading"); btn.classList.remove("failed"); btn.setAttribute("aria-busy", "true"); meta.textContent = "wird geladen …";
     btn.setAttribute("aria-label", `${f.name} wird geladen – Datei zu Aufgabe ${n}`);
-    try { const r = await loadFile(code, f.id); downloadBlob(r.blob, f.name || r.name); meta.textContent = size + " · herunterladen"; btn.setAttribute("aria-label", label); }
-    catch (e) { btn.classList.add("failed"); meta.textContent = "konnte nicht geladen werden – erneut versuchen"; btn.setAttribute("aria-label", `${f.name} konnte nicht geladen werden, erneut versuchen – Datei zu Aufgabe ${n}`); }
+    try {
+      const r = await loadFile(code, f.id);
+      let shown = false;
+      if (tab) { try { if (!tab.closed) tab.location.replace(fileUrl(r)); shown = true; } catch (e) { shown = false; } }   // inzwischen selbst geschlossen: nichts weiter
+      if (!shown) downloadBlob(r.blob, f.name || r.name);
+      meta.textContent = size + " · " + FILE_OPEN; btn.setAttribute("aria-label", label);
+    }
+    catch (e) {
+      try { if (tab && !tab.closed) tab.close(); } catch (e2) { /* egal */ }
+      btn.classList.add("failed"); meta.textContent = "konnte nicht geladen werden – erneut versuchen"; btn.setAttribute("aria-label", `${f.name} konnte nicht geladen werden, erneut versuchen – Datei zu Aufgabe ${n}`);
+    }
     finally { running = false; btn.classList.remove("loading"); btn.removeAttribute("aria-busy"); }
   });
   return btn;
@@ -5543,7 +5564,7 @@ function buildTasks() {
       h("div", { class: "task-body" }, [
         mat.length ? h("div", { class: "task-material" }, [h("span", { class: "sublabel", text: "Material" }), materialDom(mat, { links: true })]) : null,
         vids.length ? h("div", { class: "task-videos" }, vids.map((v, k) => videoBlock(v, k, n))) : null,
-        files.length ? h("div", { class: "task-files" }, [h("span", { class: "sublabel", text: "Material zum Herunterladen" }), h("div", { class: "filelist" }, files.map((f) => fileButton(S.code, f, n)))]) : null,
+        files.length ? h("div", { class: "task-files" }, [h("span", { class: "sublabel", text: "Material als PDF-Datei" }), h("div", { class: "filelist" }, files.map((f) => fileButton(S.code, f, n)))]) : null,
         figs.length ? h("div", { class: "task-figs" }, figs) : null,
         isText ? ta : ta.el, lh, pe, cnt,
         isText ? h("div", { class: "checkrow" }, [ltBtn, ltStat, fbt && fbt.btn]) : fbt ? h("div", { class: "checkrow fbt-row" }, [fbt.btn]) : null,

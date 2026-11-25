@@ -1032,7 +1032,7 @@ test("1 Lehrkraft: 1104 → Passwort festlegen → KI-Einstellungen (Mock) + Ver
   const si1 = page.locator("#t-sel-tasks .si").nth(1);
   await expect(si1.locator(".tfiles .filebtn")).toHaveCount(1);
   await expect(si1.locator(".tfiles .filebtn .filebtn-name")).toHaveText(PDF_NAME);
-  await expect(si1.locator(".tfiles .filebtn .filebtn-meta")).toHaveText("PDF, 600 KB · herunterladen");
+  await expect(si1.locator(".tfiles .filebtn .filebtn-meta")).toHaveText("PDF, 600 KB · in neuem Tab öffnen");
   await expect(page.locator("#t-sel-tasks .si").nth(0).locator(".tfiles")).toHaveCount(0);
   await expect(page.locator("#t-sel-tasks .si").nth(2).locator(".tfiles")).toHaveCount(0);
   await expect(page.locator("#t-sel-tasks .tvideos, #t-sel-tasks iframe")).toHaveCount(0);   // ohne Videos
@@ -1471,27 +1471,32 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.material)).toEqual(S.material);
   expect(lookup.body).not.toContain("<b>");
 
-  // PDF-Datei der Lehrkraft unter Aufgabe 2: Klick lädt sie in zwei Teilen und speichert sie unter ihrem Namen (Inhalt gleich)
+  // PDF-Datei der Lehrkraft unter Aufgabe 2: Klick lädt sie in zwei Teilen und öffnet sie in einem neuen Tab (Wunsch der Lehrkraft vom 25.11.2026)
   await expect(page.locator("#t-1 .task-files, #t-3 .task-files")).toHaveCount(0);
   const fileBtn = page.locator("#t-2 .task-files .filebtn");
   await expect(fileBtn).toHaveCount(1);
-  await expect(page.locator("#t-2 .task-files .sublabel")).toHaveText("Material zum Herunterladen");
-  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) herunterladen – Datei zu Aufgabe 2`);
+  await expect(page.locator("#t-2 .task-files .sublabel")).toHaveText("Material als PDF-Datei");
+  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) in neuem Tab öffnen – Datei zu Aufgabe 2`);
   await expect(fileBtn.locator(".filebtn-name")).toHaveText(PDF_NAME);
   expect(await s.calls((r) => r.path.includes("/files/"))).toEqual([]);   // vor dem Klick wird nichts geladen
   // erster Klick scheitert (simulierter Serverfehler) → „erneut versuchen“, auch für Screenreader; der zweite Klick lädt
   await page.route("**/api/sheet/*/files/**", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Testfehler", code: "server_error" }) }));
-  await fileBtn.click();
+  const [pop0] = await Promise.all([page.waitForEvent("popup"), fileBtn.click()]);
   await expect(fileBtn).toHaveClass(/failed/);
   await expect(fileBtn.locator(".filebtn-meta")).toHaveText("konnte nicht geladen werden – erneut versuchen");
   await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} konnte nicht geladen werden, erneut versuchen – Datei zu Aufgabe 2`);
+  await expect.poll(() => pop0.isClosed()).toBe(true);   // der neue Tab schließt sich wieder
   await page.unroute("**/api/sheet/*/files/**");
-  const [fdl] = await Promise.all([page.waitForEvent("download"), fileBtn.click()]);
-  expect(fdl.suggestedFilename()).toBe(PDF_NAME);
-  expect(Buffer.compare(await readFile(await fdl.path()), PDF_BUF)).toBe(0);
+  const [pop] = await Promise.all([page.waitForEvent("popup"), fileBtn.click()]);
   await expect(fileBtn).not.toHaveClass(/loading|failed/);
-  await expect(fileBtn.locator(".filebtn-meta")).toHaveText("PDF, 600 KB · herunterladen");
-  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) herunterladen – Datei zu Aufgabe 2`);
+  // der neue Tab zeigt die Datei (blob:-Adresse dieser Seite, keine weitere Anfrage, kein Download); das Feibeitsblatt bleibt offen und bearbeitbar
+  await expect.poll(() => pop.url()).toMatch(new RegExp("^blob:" + new URL(page.url()).origin.replace(/[.]/g, "\\.") + "/"));
+  expect(await pop.evaluate(() => document.contentType).catch(() => "application/pdf")).toBe("application/pdf");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#a-2")).toBeEditable();
+  await pop.close();
+  await expect(fileBtn.locator(".filebtn-meta")).toHaveText("PDF, 600 KB · in neuem Tab öffnen");
+  await expect(fileBtn).toHaveAttribute("aria-label", `${PDF_NAME} (PDF, 600 KB) in neuem Tab öffnen – Datei zu Aufgabe 2`);
   const fGets = await s.calls((r) => r.path.includes("/files/"));
   expect(fGets.map((r) => [r.method, r.status, r.path.endsWith("/files/" + S.pdf.id), r.query])).toEqual([["GET", 500, true, ""], ["GET", 200, true, ""], ["GET", 200, true, "?part=1"]]);
   expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.files)).toEqual([[], [S.pdf], []]);
