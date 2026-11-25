@@ -1500,6 +1500,21 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   const fGets = await s.calls((r) => r.path.includes("/files/"));
   expect(fGets.map((r) => [r.method, r.status, r.path.endsWith("/files/" + S.pdf.id), r.query])).toEqual([["GET", 500, true, ""], ["GET", 200, true, ""], ["GET", 200, true, "?part=1"]]);
   expect(JSON.parse(lookup.body).sheet.tasks.map((x) => x.files)).toEqual([[], [S.pdf], []]);
+  // daneben das Download-Symbol (Wunsch der Lehrkraft vom 25.11.2026): speichert die Datei byte-genau, ohne neuen Tab, ohne das
+  // Feibeitsblatt zu verlassen und ohne weitere Anfrage (schon geladen)
+  const dlBtn = page.locator("#t-2 .task-files .fileitem .filedl");
+  await expect(dlBtn).toHaveCount(1);
+  await expect(dlBtn).toHaveAttribute("aria-label", `${PDF_NAME} herunterladen – Datei zu Aufgabe 2`);
+  const pagesBefore = page.context().pages().length, urlBefore = page.url();
+  const [fdl] = await Promise.all([page.waitForEvent("download"), dlBtn.click()]);
+  expect(fdl.suggestedFilename()).toBe(PDF_NAME);
+  expect(Buffer.compare(await readFile(await fdl.path()), PDF_BUF)).toBe(0);
+  await expect(dlBtn).not.toHaveClass(/loading|failed/);
+  expect(page.context().pages().length).toBe(pagesBefore);
+  expect(page.url()).toBe(urlBefore);
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  await expect(page.locator("#a-2")).toBeEditable();
+  expect((await s.calls((r) => r.path.includes("/files/"))).length).toBe(3);
 
   // Bilder der Lehrkraft: Miniatur rechts neben Aufgabe 1 und Antwortfeld, das zweite größer zwischen Aufgabenstellung und Antwortfeld
   const t1 = page.locator("#t-1");

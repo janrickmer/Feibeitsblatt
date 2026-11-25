@@ -894,7 +894,11 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   sofort im Klick (nach dem Laden ließe der Browser kein Pop-up mehr zu; `opener = null`, Text `FILE_TAB_LOADING`), nach `loadFile`
   `tab.location.replace(fileUrl(r))` = blob:-Adresse dieser Seite, eine je geladener Datei, keine weitere Anfrage; Fehler → der neue Tab
   schließt sich, „erneut versuchen“; lässt der Browser keinen Tab zu → wie früher `downloadBlob(blob, name)`; Beschriftung „PDF, 600 KB ·
-  in neuem Tab öffnen“ (`FILE_OPEN`), aria-label „<Name> (PDF, …) in neuem Tab öffnen – Datei zu Aufgabe n“) unter der Aufgabe als
+  in neuem Tab öffnen“ (`FILE_OPEN`), aria-label „<Name> (PDF, …) in neuem Tab öffnen – Datei zu Aufgabe n“; daneben – beide in
+  `span.fileitem` – das Download-Symbol `button.filedl` (Wunsch der Lehrkraft vom 25.11.2026; `fileDlButton`, SVG `.dl-ico`, ≥ 44 px, nie Klasse
+  `filebtn` – Tests zählen `.filebtn`; aria-label „<Name> herunterladen – Datei zu Aufgabe n“): `loadFile` → unsichtbarer Link mit `download`
+  auf `fileUrl(r)` und `target="_blank"` – beachtet ein Browser `download` nicht, öffnet sich die Datei in einem neuen Tab, nie an Stelle
+  des Feibeitsblattes; Spinner bzw. `.failed` wie beim Knopf) unter der Aufgabe als
   `.task-files` mit Sublabel „Material als PDF-Datei“ (das analoge Arbeitsblatt sagt weiter „Material zum Herunterladen (nur digital)“);
   Lehrkraft: `teacherFiles` (`.tfiles`) in Blattdetails und Abgaben-Details. Editor: je Zeile `tr._files`
   (`{blob, name, size}`), `input.bfile-input` (Bild-Input heißt `input.bimg-input`), `.bfile-add`, `.bfile-stat`,
