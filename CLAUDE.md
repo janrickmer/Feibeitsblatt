@@ -954,7 +954,7 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`/FbEscape 1` ohne Blatt-Datensatz) je eine eigene Meldung. `pdfWrap` trennt
   überlange Wörter hart. E2E-Test 4b prüft Export (Datensatz, Anhänge byte-genau, keine Abgaben), Import einer „neu
   gespeicherten“ Variante (`resavePdf`), neues Blatt byte-genau und löscht es wieder.
-- **Antwortarten je Aufgabe** (`answer` im `tasks`-JSON; fehlt = Textfeld): `{type:"table", columns:[1–8 × ≤ 60], rows:1–30}` bzw.
+- **Antwortarten je Aufgabe** (`answer` im `tasks`-JSON; fehlt = Textfeld): `{type:"table", columns:[1–8 × ≤ 60], rows:1–30, cells?}` bzw.
   `{type:"map", map:"world", items:[1–40 × {id [a-z0-9-]{1,40} je Aufgabe eindeutig, label ≤ 120, hint? ≤ 400, image? (16 Hex,
   Kartenbild), countries:[1–10 × {id: ISO 3166-1 numerisch "\d{3}" wie world-atlas, name ≤ 80}]}]}` – eine richtige Zuordnung
   genügt. Grenzen in `LIMITS` (`tableColumns`, `columnName`, `tableRows`, `mapItems`, `itemId`, `itemLabel`, `itemHint`,
@@ -1002,7 +1002,27 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   (`sheetPdfData`: Kartenbilder als `images` mit `mode:"card"`, die Karte zeigt per `image` auf die Ref; sichtbar nur als Liste
   „Antwortart: …“) und Import (`cleanSheetRecord` mit `cleanAnswer(…, true, SHEET_REF_RE)`, ≤ 5 Bilder + ≤ 40 Kartenbilder,
   `builderAnswer` setzt Ref → Bild-Eintrag) tragen `answer` mit. Blattdetails `answerSpecDom`, Abgaben `answerDom` (Tabelle als
-  `<table>`, Weltkarte als Liste; nur `textContent`). **Weltkarte:** `node scripts/worldmap.mjs` erzeugt aus world-atlas@2
+  `<table>`, Weltkarte als Liste; nur `textContent`). **Tabellen-Vorgaben** (Wunsch der Lehrkraft vom 26.11.2026; per Konnektor über
+  Unterricks `propose_feibeitsblatt` und von Hand im Blatt-Editor): `cells` = je Zeile so viele Texte wie Spalten, `""` = offene Zelle
+  (`validateTablePrefill` in lib.js: einzeilig, „|“ → „/“, je Zelle ≤ `LIMITS.tableCell` 200, zusammen ≤ `tablePrefill` 3000, ≤ `tableRows`
+  Zeilen – `rows` wächst mit –, leere Zeilen am Ende entfallen, ganz leer → kein Feld, mindestens eine Zelle muss offen bleiben, sonst 400
+  „Aufgabe n: In der Tabelle muss mindestens eine Zelle zum Ausfüllen leer bleiben.“); `teacherAnswer`/`publicAnswer` liefern `cells` nur in
+  dieser Form. **Die Textform bleibt unverändert** (vorgegebene Zellen stehen darin; leere Zeilen entfallen weiter), nur ohne eigenen
+  Eintrag in einer offenen Zelle ist `value` `""` (leere Aufgabe wie bisher). Prompt (`tablePrefillText` in ai.js): bei der Aufgabe – im
+  gecachten Präfix, nach dem Material – „Vorgaben der Lehrkraft in der Tabelle (… beurteile nur die übrigen Einträge):“ mit offenen Zellen
+  „(offen)“; der Checklisten-Prompt ebenso („Punkte nur zu den offenen Zellen“); ohne Vorgaben byte-gleich wie bisher. Browser: Block
+  `/* TABLEPRE:BEGIN` … `/* TABLEPRE:END */` (reine Funktionen, `test/unit/tablepre.test.mjs`: `PRE_LIMITS` = LIMITS, `cleanPrefill` (fremde
+  Daten wie der Server), `prefillCheck` (Blatt-Editor), `tablePlace`/`tableFill` (Zeilen der Textform → Zeilen der Vorlage: je Vorgabe-Zeile
+  die spätestmögliche passende Datenzeile, für die die freien Zeilen davor reichen, die übrigen in die Zeilen ohne Vorgaben, Überzählige
+  hinten), `preOwn`, Texte `PRE_NOTE_STUDENT`/`PRE_NOTE_TEACHER`/`PRE_BUILDER_HINT`); `cleanAnswer` trägt `cells`. `tableWidget`: gesperrte
+  Zellen `textarea.tcell.tpre` (readonly, `tabindex -1`, aria-label „…, Zeile n (vorgegeben)“, `_pre`, nie gemessen – `ttSync`/`ttResetAll`,
+  255 in der Kodierung; `readOnly`-Setter lässt sie gesperrt), Enter springt zur nächsten offenen Zelle der Spalte, `w.focus` zur ersten
+  offenen, Setter/`_apply`/`_ttRestore` über `tableFill`/`tablePlace`, `_ttTable` bei `""` leer; Hinweis `p#tp-n` (per `aria-describedby`).
+  Blatt-Editor: Raster `input.bans-pre` unter der Vorschau (aria-label „Vorgabe für „Spalte“, Zeile r (Aufgabe n)“, `tr._ans.cells`),
+  `b-gen` → `prefillCheck`. Lehrkraft: Blattdetails `table.ansinfo-pre` mit `td.tpre`, Abgaben `answerDom` → `td.tpre` (textContent bleibt
+  der Antworttext) + `p.anspre-note`; Vorlage (`builderAnswer`), Sicherung (Datensatz `cells`, sichtbar „mit Vorgaben in diesen Zellen:“ je
+  Zeile) und Import tragen sie mit; analoges Arbeitsblatt: Vorgaben kursiv (`/F3` 10 pt) in ihren Zellen, die Zeile so hoch wie nötig, ohne
+  Hilfslinie. E2E 7u (eigenes Blatt, wird gelöscht; `TABLE_SHOTS_OUT=<Ordner>` speichert Bildschirmfotos). **Weltkarte:** `node scripts/worldmap.mjs` erzeugt aus world-atlas@2
   (`countries-110m.json`, Natural Earth 1:110m, gemeinfrei; ISC) mit d3-geo (Equal Earth, `viewBox 0 0 1000 520`, eine
   Nachkommastelle) die Konstante `WORLD_MAP = {w, h, aliases, countries:[[id, Name, Pfad, Anker x, y]]}` zwischen
   `/* WORLDMAP:BEGIN … */` und `/* WORLDMAP:END */` am Ende des Skripts in `index.html` (`--check` prüft; Unit-Test

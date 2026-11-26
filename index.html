@@ -502,6 +502,13 @@
     font:inherit; color:var(--ink); background:transparent; outline:none; overflow-wrap:break-word}
   textarea.tcell:focus{background:#fff; box-shadow:inset 0 0 0 2px var(--accent2)}
   textarea.tcell[readonly]{background:var(--soft)}
+  textarea.tcell.tpre{background:var(--soft); color:var(--ink); font-style:italic; cursor:default}   /* Vorgabe der Lehrkraft (gesperrt) */
+  textarea.tcell.tpre:focus{box-shadow:none}
+  table.anstable td.tpre{background:var(--soft); font-style:italic}
+  table.anstable.ro.bans-pre-table td{padding:0}
+  input.bans-pre{display:block; width:100%; min-width:120px; border:0; padding:6px 8px; font:inherit; font-size:15px; background:transparent}
+  input.bans-pre:focus{outline:none; box-shadow:inset 0 0 0 2px var(--accent2); background:#fff}
+  .tpre-hint{margin:6px 0 0}
   .tablew-bar{margin:6px 0 0}
   /* Antwortart Foto (Schreibbereich: Vorschau, Knöpfe, Hinweis; Lehrkraft: Vorschau in den Details) */
   .photow{font-family:var(--sans)}
@@ -2951,6 +2958,79 @@ function ttDetail(p, types, n, isFirst, noFb) {
   return out;
 }
 /* TYPING:END */
+/* TABLEPRE:BEGIN – Vorgaben der Lehrkraft in Tabellen (Wunsch der Lehrkraft vom 26.11.2026), reine Funktionen ohne Abhängigkeiten
+ * (test/unit/tablepre.test.mjs liest diesen Block). spec.cells = je Zeile so viele Texte wie Spalten, "" = offene Zelle; vorgegebene
+ * Zellen sind für die Schüler:innen gesperrt. Die Textform der Antwort bleibt wie bei jeder Tabelle (erste Zeile Überschriften, dann
+ * je nicht leerer Zeile „Zelle | Zelle“, vorgegebene Zellen stehen darin) – leere Zeilen entfallen, deshalb ordnet tablePlace die
+ * Zeilen der Textform beim Wiederherstellen den Zeilen der Vorlage zu. Ohne eigenen Eintrag ist die Antwort "" (wie eine leere
+ * Tabelle: leere Aufgaben, „Schreibe zuerst eine Antwort …“, x von n bearbeitet). */
+const PRE_LIMITS = { cell: 200, total: 3000, rows: 30 };
+const PRE_NOTE_STUDENT = "Grau hinterlegte Zellen hat deine Lehrkraft schon ausgefüllt – trage deine Antworten in die leeren Zellen ein.";
+const PRE_BUILDER_HINT = "Vorgaben (optional): Was Sie hier in eine Zelle eintragen, steht schon in der Tabelle der Schüler:innen – sie können es nicht ändern und füllen nur die leeren Zellen aus.";
+const PRE_NOTE_TEACHER = "Grau und kursiv: Vorgaben aus Ihrer Tabelle – die Schüler:innen konnten sie nicht ändern.";   // = LIMITS.tableCell, tablePrefill, tableRows im Worker
+const preCell = (s) => String(s == null ? "" : s).normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").replace(/\|/g, "/").replace(/\s+/g, " ").trim();
+// Fremde Daten (Server, Sicherung, Unterricks) → Zeilen aus nCols Texten (gekappt) oder null, wenn nichts vorgegeben ist
+function cleanPrefill(raw, nCols) {
+  if (!Array.isArray(raw) || !nCols) return null;
+  let total = 0;
+  const rows = raw.slice(0, PRE_LIMITS.rows).map((r) => Array.from({ length: nCols }, (_, k) => {
+    let t = Array.isArray(r) && typeof r[k] === "string" ? preCell(r[k]).slice(0, PRE_LIMITS.cell) : "";
+    if (total + t.length > PRE_LIMITS.total) t = "";
+    total += t.length;
+    return t;
+  }));
+  while (rows.length && !rows[rows.length - 1].some(Boolean)) rows.pop();
+  return rows.length ? rows : null;
+}
+// Eingaben im Blatt-Editor → {cells | null, err} mit denselben Grenzen wie der Server; rows = Zeilen der Tabelle
+function prefillCheck(grid, nCols, rows) {
+  const g = (Array.isArray(grid) ? grid : []).slice(0, rows).map((r) => Array.from({ length: nCols }, (_, k) => preCell(Array.isArray(r) ? r[k] : "")));
+  const long = g.findIndex((r) => r.some((c) => c.length > PRE_LIMITS.cell));
+  if (long >= 0) return { cells: null, err: `Eine Vorgabe in Zeile ${long + 1} der Tabelle ist zu lang (höchstens ${PRE_LIMITS.cell} Zeichen).` };
+  if (g.reduce((n, r) => n + r.reduce((m, c) => m + c.length, 0), 0) > PRE_LIMITS.total) return { cells: null, err: `Die Vorgaben der Tabelle sind zusammen zu lang (höchstens ${PRE_LIMITS.total.toLocaleString("de-DE")} Zeichen).` };
+  while (g.length && !g[g.length - 1].some(Boolean)) g.pop();
+  if (!g.length) return { cells: null, err: "" };
+  if (g.length >= rows && g.every((r) => r.every(Boolean))) return { cells: null, err: "In der Tabelle muss mindestens eine Zelle zum Ausfüllen leer bleiben." };
+  return { cells: g, err: "" };
+}
+const preHas = (pre, r) => !!(pre && Array.isArray(pre[r]) && pre[r].some(Boolean));
+const preLocked = (pre, r, k) => !!(pre && Array.isArray(pre[r]) && pre[r][k]);
+/* Zeilen der Textform (data = je Zeile die Zellen, ohne Kopf) → Zeile der Vorlage je Datenzeile. Zeilen mit Vorgaben stehen immer in der
+   Textform (sie sind nie leer); gesucht wird je Vorgabe-Zeile die passende Datenzeile, die spätestmögliche, für die die freien Zeilen
+   davor reichen (eine Zeile ohne Vorgaben, in die jemand zufällig denselben Text geschrieben hat, wird so nicht verwechselt). Die übrigen
+   Datenzeilen füllen die Zeilen ohne Vorgaben in ihrer Reihenfolge; was nicht passt, kommt ans Ende. */
+function tablePlace(pre, data) {
+  const out = data.map(() => -1);
+  if (!pre || !pre.length) return data.map((_, d) => d);
+  const P = pre.length, match = (r, d) => pre[r].every((v, k) => !v || String((d && d[k]) || "") === v);
+  const free = (a, b) => { const f = []; for (let r = a; r < b; r++) if (!preHas(pre, r)) f.push(r); return f; };
+  let j = 0, prevR = -1;
+  const place = (from, to, slots) => { for (let d = from; d < to; d++) if (slots.length) out[d] = slots.shift(); };
+  for (let r = 0; r < P; r++) {
+    if (!preHas(pre, r)) continue;
+    const slots = free(prevR + 1, r);
+    let hit = -1;
+    for (let d = Math.min(data.length - 1, j + slots.length); d >= j; d--) if (match(r, data[d])) { hit = d; break; }
+    for (let d = j + slots.length + 1; hit < 0 && d < data.length; d++) if (match(r, data[d])) hit = d;   // mehr Zeilen als Platz: die nächste passende
+    if (hit < 0) continue;
+    place(j, hit, slots); out[hit] = r; j = hit + 1; prevR = r;
+  }
+  let next = Math.max(P, prevR + 1);
+  const tail = free(prevR + 1, P);
+  for (let d = j; d < data.length; d++) out[d] = tail.length ? tail.shift() : next++;
+  let end = Math.max(P, ...out.map((x) => x + 1));
+  return out.map((x) => (x < 0 ? end++ : x));
+}
+// Textform-Zeilen → Zellwerte je Zeile der Vorlage (vorgegebene Zellen immer mit ihrer Vorgabe), mindestens nRows Zeilen, höchstens 30
+function tableFill(pre, data, nRows, nCols) {
+  const at = tablePlace(pre, data), len = Math.min(PRE_LIMITS.rows, Math.max(nRows, pre ? pre.length : 0, ...at.map((x) => x + 1)));
+  const grid = Array.from({ length: len }, (_, r) => Array.from({ length: nCols }, (_, k) => (preLocked(pre, r, k) ? pre[r][k] : "")));
+  data.forEach((d, i) => { const r = at[i]; if (r < len) for (let k = 0; k < nCols; k++) if (!preLocked(pre, r, k)) grid[r][k] = String((d && d[k]) || ""); });
+  return grid;
+}
+// Hat die Schülerin bzw. der Schüler selbst etwas eingetragen (eine offene Zelle nicht leer)?
+const preOwn = (pre, grid) => grid.some((r, ri) => r.some((c, k) => !preLocked(pre, ri, k) && preCell(c)));
+/* TABLEPRE:END */
 /* Angaben zeigen (Topbar, „Weiterschreiben?“, Zwischenstand-PDF): „Max · Mu · 04.05. · Klasse 8b“ bzw. „MaxMu, LiMu · Klasse 8b“ */
 function personLabel(p) {
   return isGroup(p) ? `${p.gruppe.join(", ")} · Klasse ${p.klasse}` : `${p.vorname} · ${p.nachname} · ${fmtBday(p.geburtsdatum)} · Klasse ${p.klasse}`;
@@ -3815,7 +3895,9 @@ function cleanAnswer(a, full, imageRe) {   // imageRe: Kennung eines Kartenbilde
   if (a.type === "photo") return { type: "photo" };
   if (a.type === "table") {
     const columns = (Array.isArray(a.columns) ? a.columns : []).slice(0, ANS_LIMITS.columns).map((c) => oneLine(c, ANS_LIMITS.columnName).replace(/\|/g, "/")).filter(Boolean);
-    return columns.length ? { type: "table", columns, rows: Math.max(1, Math.min(ANS_LIMITS.rows, Number.isInteger(a.rows) ? a.rows : 1)) } : { type: "text" };
+    if (!columns.length) return { type: "text" };
+    const rows = Math.max(1, Math.min(ANS_LIMITS.rows, Number.isInteger(a.rows) ? a.rows : 1)), cells = cleanPrefill(a.cells, columns.length);   // Vorgaben (Block TABLEPRE)
+    return cells ? { type: "table", columns, rows: Math.max(rows, cells.length), cells } : { type: "table", columns, rows };
   }
   if (a.type !== "map") return { type: "text" };
   const ids = new Set(), items = [];
@@ -3939,9 +4021,17 @@ function answerDom(text, spec, codes, info) {
     if (!lines || !lines.length) lines = t.split("\n").filter((l) => l.trim()).map((l) => l.split("|").map((x) => ({ v: x.trim(), codes: null })));
     const n = Math.max(1, Math.min(ANS_LIMITS.columns, lines[0].length));
     const row = (c) => Array.from({ length: n }, (_, k) => c[k] || { v: "", codes: null });
-    return h("div", { class: "tablew-scroll" }, [h("table", { class: "anstable ro" }, [
+    const body = lines.slice(1, 1 + ANS_LIMITS.rows + 5), pre = spec.cells || null;
+    const at = pre ? tablePlace(pre, body.map((l) => l.map((c) => c.v))) : null;   // Vorgaben der Lehrkraft (Block TABLEPRE): grau und kursiv
+    const cell = (c, d, k) => {
+      const locked = at && preLocked(pre, at[d], k) && c.v === pre[at[d]][k];
+      if (locked) return h("td", { class: "tpre", text: c.v });   // textContent bleibt der Antworttext
+      return c.codes ? h("td", null, [ttDom(c.v, c.codes, info)]) : h("td", { text: c.v });
+    };
+    const tbl = h("div", { class: "tablew-scroll" }, [h("table", { class: "anstable ro" }, [
       h("thead", null, [h("tr", null, row(lines[0]).map((c) => h("th", { scope: "col", text: c.v })))]),
-      h("tbody", null, lines.slice(1, 1 + ANS_LIMITS.rows + 5).map((l) => h("tr", null, row(l).map((c) => (c.codes ? h("td", null, [ttDom(c.v, c.codes, info)]) : h("td", { text: c.v }))))))])]);
+      h("tbody", null, body.map((l, d) => h("tr", null, row(l).map((c, k) => cell(c, d, k)))))])]);
+    return pre ? h("div", { class: "anspre" }, [tbl, h("p", { class: "fhint anspre-note", text: PRE_NOTE_TEACHER })]) : tbl;
   }
   if (spec && spec.type === "map" && t.trim()) {
     const pairs = mapLines(t), last = t.split("\n").filter((l) => /^Zugeordnet: /.test(l)).pop();
@@ -5729,19 +5819,25 @@ function photoWidget(i, budget) {
  * Tab/Umschalt+Tab wandern durch die Zellen, Enter springt in die Zeile darunter (am Ende kommt eine Zeile dazu, höchstens 30). */
 const TABLE_CELL_MAX = 500;
 function tableWidget(i, spec, pe) {
-  const n = i + 1, cols = spec.columns, rows = [];
+  const n = i + 1, cols = spec.columns, rows = [], pre = spec.cells || null;   // pre: Vorgaben der Lehrkraft (Block TABLEPRE), gesperrt
   const tbody = h("tbody");
   const add = h("button", { type: "button", class: "btn ghost small tbl-add", text: "+ Zeile", "aria-label": `Zeile zur Tabelle in Aufgabe ${n} hinzufügen` });
-  const el = h("div", { class: "tablew", id: "a-" + n, role: "group", "aria-labelledby": "l-" + n, "aria-describedby": "q-" + n }, [
+  const el = h("div", { class: "tablew", id: "a-" + n, role: "group", "aria-labelledby": "l-" + n, "aria-describedby": "q-" + n + (pre ? " tp-" + n : "") }, [
     h("div", { class: "tablew-scroll" }, [h("table", { class: "anstable" }, [
       h("caption", { class: "sr-only", text: `Tabelle zu Aufgabe ${n}` }),
       h("thead", null, [h("tr", null, cols.map((c) => h("th", { scope: "col", text: c })))]), tbody])]),
+    pre ? h("p", { class: "fhint tpre-hint", id: "tp-" + n, text: PRE_NOTE_STUDENT }) : null,
     h("div", { class: "tablew-bar" }, [add])
   ]);
   let ro = false;
   const w = { el, _rows: rows };
   const full = () => `Die Tabelle ist voll (höchstens ${MAX_ANSWER.toLocaleString("de-DE")} Zeichen) – bitte kürze deine Einträge.`;
   const mkCell = (r, k) => {
+    if (preLocked(pre, r, k)) {   // Vorgabe: schreibgeschützt, außerhalb der Tab-Reihenfolge, ohne Messung und ohne Prüfung
+      const v = h("textarea", { class: "tcell tpre", rows: "1", tabindex: "-1", readonly: true, "aria-readonly": "true", spellcheck: "false", "aria-label": `${cols[k]}, Zeile ${r + 1} (vorgegeben)` });
+      v.value = pre[r][k]; v._w = w; v._r = r; v._k = k; v._pre = true; v._tt = null; v._last = v.value; v._ok = v.value;
+      return v;
+    }
     const c = h("textarea", { class: "tcell", rows: "1", maxlength: String(TABLE_CELL_MAX), autocomplete: "off", autocapitalize: "sentences", spellcheck: "true",
       writingsuggestions: "false", "aria-label": `${cols[k]}, Zeile ${r + 1}` });
     c._w = w; c._pe = pe; c._r = r; c._k = k; c._last = ""; c.readOnly = ro; c._tt = ttOff() ? null : ttNew("", null);   // widersprochen bzw. Gruppe: keine Messung
@@ -5754,14 +5850,16 @@ function tableWidget(i, spec, pe) {
       if (e.key !== "Enter" || e.isComposing) return;
       e.preventDefault();   // keine Zeilenumbrüche in Zellen
       if (ro) return;
-      const next = rows[c._r + 1] || (rows.length < ANS_LIMITS.rows ? addRow() : null);
+      let next = null;   // die nächste offene Zelle darunter (Vorgaben werden übersprungen), sonst eine neue Zeile
+      for (let r = c._r + 1; r < rows.length && !next; r++) if (!rows[r][c._k]._pre) next = rows[r];
+      if (!next) next = rows.length < ANS_LIMITS.rows ? addRow() : null;
       if (next) { growAll(); next[c._k].focus(); }
     });
     return c;
   };
   function addRow(vals) {
     const r = rows.length, cells = cols.map((_, k) => mkCell(r, k));
-    if (vals) cells.forEach((c, k) => { c.value = String(vals[k] || "").slice(0, TABLE_CELL_MAX); c._last = c.value; c._ok = c.value; c._tt = ttOff() ? null : ttNew(c.value, null); });   // Werte setzt danach _ttRestore
+    if (vals) cells.forEach((c, k) => { if (c._pre) return; c.value = String(vals[k] || "").slice(0, TABLE_CELL_MAX); c._last = c.value; c._ok = c.value; c._tt = ttOff() ? null : ttNew(c.value, null); });   // Werte setzt danach _ttRestore
     rows.push(cells);
     tbody.appendChild(h("tr", null, cells.map((c) => h("td", null, [c]))));
     add.disabled = ro || rows.length >= ANS_LIMITS.rows;
@@ -5769,22 +5867,26 @@ function tableWidget(i, spec, pe) {
   }
   Object.defineProperties(w, {
     value: {
-      get: () => tableText(cols, rows.map((r) => r.map((c) => c.value))),
+      // mit Vorgaben: "" solange keine offene Zelle etwas enthält (wie eine leere Tabelle)
+      get: () => { const g = rows.map((r) => r.map((c) => c.value)); return pre && !preOwn(pre, g) ? "" : tableText(cols, g); },
       set: (v) => {
         tbody.textContent = ""; rows.length = 0;
-        const data = tableRows(v, cols.length).slice(0, ANS_LIMITS.rows);
+        const data = gridOf(v);
         for (let r = 0; r < Math.max(spec.rows, data.length); r++) addRow(data[r]);
         growAll();
       }
     },
-    readOnly: { get: () => ro, set: (b) => { ro = !!b; rows.forEach((r) => r.forEach((c) => { c.readOnly = ro; })); add.disabled = ro || rows.length >= ANS_LIMITS.rows; } }
+    readOnly: { get: () => ro, set: (b) => { ro = !!b; rows.forEach((r) => r.forEach((c) => { c.readOnly = ro || !!c._pre; })); add.disabled = ro || rows.length >= ANS_LIMITS.rows; } }
   });
-  w.focus = (o) => { if (rows[0]) rows[0][0].focus(o); };
+  // Textform → Zellwerte je Zeile (mit Vorgaben passend zur Vorlage zugeordnet, Block TABLEPRE)
+  const gridOf = (v) => { const data = tableRows(v, cols.length).slice(0, ANS_LIMITS.rows); return pre ? tableFill(pre, data, spec.rows, cols.length) : data; };
+  w.focus = (o) => { const c = [].concat(...rows).find((x) => !x._pre); if (c) c.focus(o); };
   // Live-Gruppenarbeit: Stand eines anderen Geräts übernehmen, ohne die Zellen neu zu bauen (der Fokus bleibt, wo er ist)
   w._apply = (v) => {
-    const data = tableRows(v, cols.length).slice(0, ANS_LIMITS.rows);
+    const data = gridOf(v);
     while (rows.length < Math.max(spec.rows, data.length)) addRow();
     rows.forEach((r, ri) => r.forEach((c, k) => {
+      if (c._pre) return;
       const x = String((data[ri] && data[ri][k]) || "").slice(0, TABLE_CELL_MAX);
       if (c.value !== x) { c.value = x; c._last = x; c._ok = x; }
     }));
@@ -5794,13 +5896,15 @@ function tableWidget(i, spec, pe) {
   const syncCells = () => rows.forEach((r) => r.forEach((c) => ttSync(c)));
   w._ttTable = () => {
     syncCells();
-    const res = ttTableText(cols, rows.map((r) => r.map((c) => c.value)), rows.map((r) => r.map((c) => (c._tt && c._tt.text === c.value ? ttCodes(c._tt) : null))));
+    if (w.value === "") return new Uint8Array(0);   // mit Vorgaben, aber ohne eigenen Eintrag
+    const res = ttTableText(cols, rows.map((r) => r.map((c) => c.value)), rows.map((r) => r.map((c) => (c._tt && c._tt.text === c.value ? ttCodes(c._tt) : null))));   // Vorgaben: ohne Messung (255)
     return res.text === w.value ? res.codes : null;
   };
   w._ttKey = () => { syncCells(); return rows.map((r) => r.map((c) => (c._tt ? c._tt.ver : 0)).join(",")).join(";"); };   // Stand aller Zellen
   w._ttRestore = (text, codes) => {   // nach dem Setter (Zellen neu gebaut): gespeicherte Werte je Zelle, wo der Zelltext passt
-    const cells = ttTableCells(text, codes, cols.length);
-    rows.forEach((r, ri) => r.forEach((c, k) => { const x = cells[ri] && cells[ri][k]; c._tt = ttNew(c.value, x && x.codes && x.v === c.value ? x.codes : null); }));
+    const cells = ttTableCells(text, codes, cols.length), at = pre ? tablePlace(pre, cells.map((l) => l.map((x) => x.v))) : cells.map((_, d) => d);
+    const byRow = new Map(at.map((r, d) => [r, cells[d]]));
+    rows.forEach((r, ri) => r.forEach((c, k) => { if (c._pre) return; const x = byRow.get(ri) && byRow.get(ri)[k]; c._tt = ttNew(c.value, x && x.codes && x.v === c.value ? x.codes : null); }));
   };
   add.addEventListener("click", () => { if (ro || rows.length >= ANS_LIMITS.rows) return; const cells = addRow(); growAll(); cells[0].focus(); });
   for (let r = 0; r < spec.rows; r++) addRow();
@@ -6129,7 +6233,7 @@ const ttOff = () => S.ttOptOut || isGroup(S.person);
 // Nutzlast-Teil typing von Erstversuch und Abgabe einer Gruppe: ohne Werte – live (gemeinsam an mehreren Geräten) bzw. group; sonst null
 const ttGroupPayload = () => (isGroup(S.person) ? { v: 1, omitted: S.live ? "live" : "group" } : null);
 function ttSync(el) {   // Textfeld oder Tabellenzelle: Messung an den aktuellen Text angleichen
-  if (!el || el.tagName !== "TEXTAREA" || el.classList.contains("measure")) return;
+  if (!el || el.tagName !== "TEXTAREA" || el.classList.contains("measure") || el._pre) return;   // Vorgaben einer Tabelle: nie gemessen
   if (ttOff()) { el._evTs = el._evType = undefined; return; }   // widersprochen bzw. Gruppe: keine Messung (el._tt bleibt verworfen)
   const ev = el._evTs > 0, now = ev ? el._evTs : performance.now(), type = ev ? el._evType || "" : "";
   el._evTs = el._evType = undefined;
@@ -6182,7 +6286,7 @@ function ttResetAll(fresh) {   // alle Messungen verwerfen (fresh: neu ab dem je
     try {
       if (!t || NO_TYPING_KINDS.has(t._kind)) continue;
       t._ttMemo = null;
-      for (const el of t._kind === "table" ? [].concat(...(t._rows || [])) : [t]) { el._evTs = el._evType = undefined; el._tt = fresh ? ttNew(el.value, null) : null; }
+      for (const el of t._kind === "table" ? [].concat(...(t._rows || [])) : [t]) { el._evTs = el._evType = undefined; el._tt = fresh && !el._pre ? ttNew(el.value, null) : null; }
     } catch (e) { /* egal: höchstens „ohne Messung“ */ }
   }
 }
@@ -9580,7 +9684,10 @@ function teacherImgs(code, metas, n) {
 const PHOTO_SPEC_TEXT = "Die Schüler:innen nehmen ein Foto auf oder wählen ein Bild aus (z. B. ihr Plakat). Es wird auf ihrem Gerät verkleinert und geht nur verschlüsselt mit der Abgabe an Sie – nie an die KI; deshalb gibt es zu dieser Aufgabe weder einen Auftrag an die KI noch KI-Feedback.";
 function answerSpecDom(code, spec, cards) {
   if (spec.type === "table") return h("div", { class: "ansinfo" }, [h("span", { class: "task-label", text: "Antwortart: Tabelle" }),
-    h("p", { text: `Spalten: ${spec.columns.join(" · ")} – ${spec.rows} ${spec.rows === 1 ? "Zeile" : "Zeilen"} vorgegeben` })]);
+    h("p", { text: `Spalten: ${spec.columns.join(" · ")} – ${spec.rows} ${spec.rows === 1 ? "Zeile" : "Zeilen"} vorgegeben` + (spec.cells ? " – mit Vorgaben (grau und kursiv, für die Schüler:innen gesperrt):" : "") }),
+    spec.cells ? h("div", { class: "tablew-scroll" }, [h("table", { class: "anstable ro ansinfo-pre" }, [
+      h("thead", null, [h("tr", null, spec.columns.map((c) => h("th", { scope: "col", text: c })))]),
+      h("tbody", null, Array.from({ length: spec.rows }, (_, r) => h("tr", null, spec.columns.map((_, k) => (preLocked(spec.cells, r, k) ? h("td", { class: "tpre", text: spec.cells[r][k] }) : h("td"))))))])]) : null]);
   if (spec.type === "photo") return h("div", { class: "ansinfo" }, [h("span", { class: "task-label", text: "Antwortart: Foto" }), h("p", { text: PHOTO_SPEC_TEXT })]);
   if (spec.type !== "map") return null;
   const known = new Set((cards || []).map((m) => m.id));
@@ -10442,7 +10549,7 @@ async function sheetPdfData(code, sheet, onStep) {
     // YouTube-Videos nur als {id, start?, title?} und nur, wenn vorhanden (ältere Sicherungen bleiben gleich) – keine Anhänge, kein Vorschaubild
     const videos = cleanVideos(t.videos);
     const task = { text: String(t.text || ""), ...(textFmt.length ? { textFmt } : null), solution: String(t.solution || ""), material, ...(videos.length ? { videos } : null), images, files };
-    if (spec.type === "table") task.answer = { type: "table", columns: spec.columns, rows: spec.rows };
+    if (spec.type === "table") task.answer = Object.assign({ type: "table", columns: spec.columns, rows: spec.rows }, spec.cells ? { cells: spec.cells } : null);
     if (spec.type === "photo") task.answer = { type: "photo" };
     if (spec.type === "map") task.answer = { type: "map", map: "world", items: spec.items.map((it) => Object.assign({ id: it.id, label: it.label }, it.hint ? { hint: it.hint } : null,
       refOf.has(it.image) ? { image: refOf.get(it.image) } : null, { countries: it.countries })) };
@@ -10531,7 +10638,8 @@ async function makeSheetPdf(rec, blobs, shows) {
       para("Antwortart: Foto – die Schüler:innen nehmen ein Foto auf oder wählen ein Bild aus (kein Auftrag an die KI)", 10.5, true, { color: "0.35 0.35 0.35" });
     } else if (an && an.type === "table") {
       gap(8);
-      para(`Antwortart: Tabelle mit den Spalten ${an.columns.map((c) => "„" + c + "“").join(", ")} (${an.rows} ${an.rows === 1 ? "Zeile" : "Zeilen"} vorgegeben)`, 10.5, true, { color: "0.35 0.35 0.35" });
+      para(`Antwortart: Tabelle mit den Spalten ${an.columns.map((c) => "„" + c + "“").join(", ")} (${an.rows} ${an.rows === 1 ? "Zeile" : "Zeilen"} vorgegeben)${an.cells ? " – mit Vorgaben in diesen Zellen:" : ""}`, 10.5, true, { color: "0.35 0.35 0.35" });
+      (an.cells || []).forEach((row, r) => { if (row.some(Boolean)) para(`• Zeile ${r + 1}: ${row.map((v, k) => (v ? `${an.columns[k]}: ${v}` : "")).filter(Boolean).join("; ")}`, 10.5, false, { indent: 10, color: "0.2 0.2 0.2" }); });
     } else if (an && an.type === "map") {
       gap(8);
       para(`Antwortart: Weltkarten-Zuordnung mit ${an.items.length} ${an.items.length === 1 ? "Karte" : "Karten"} – richtige Länder je Karte (die Kartenbilder stecken als Anhänge in der Datei):`, 10.5, true, { color: "0.35 0.35 0.35" });
@@ -11510,9 +11618,13 @@ async function makeAnalogPdf(o) {
     };
     head();
     for (let r = 0; r < spec.rows; r++) {
-      if (y + ANALOG_ROW_PT > MAXY) { grid(); newPage(); top = y; head(); }
-      hline(ML, ML + TW, y + ANALOG_LINE_PT, "0.8", 0.4);   // helle Hilfslinie zwischen den beiden Schreibzeilen
-      y += ANALOG_ROW_PT; bottoms.push(y);
+      // Vorgaben der Lehrkraft (Block TABLEPRE): kursiv in ihrer Zelle, die Zeile so hoch wie nötig; offene Zellen bleiben leer
+      const wrapped = preHas(spec.cells, r) ? cols.map((_, k) => (preLocked(spec.cells, r, k) ? pdfWrap(pdfPlain(spec.cells[r][k]), 10, false, cw - 2 * pad) : [])) : null;
+      const rh = wrapped ? Math.max(ANALOG_ROW_PT, Math.max(...wrapped.map((l) => l.length)) * 12.5 + 12) : ANALOG_ROW_PT;
+      if (y + rh > MAXY) { grid(); newPage(); top = y; head(); }
+      if (wrapped) wrapped.forEach((ls, k) => ls.forEach((l, j) => text(ML + k * cw + pad, y + 15 + j * 12.5, l, 10, { i: true }, "0.2 0.2 0.2")));
+      else hline(ML, ML + TW, y + ANALOG_LINE_PT, "0.8", 0.4);   // helle Hilfslinie zwischen den beiden Schreibzeilen
+      y += rh; bottoms.push(y);
     }
     grid();
   }
@@ -11834,12 +11946,12 @@ const countryKnown = (id) => worldIndex().byId.has(id);
 function builderAnswer(spec, cards) {
   if (!spec || spec.type === "text") return { type: "text" };
   if (spec.type === "photo") return { type: "photo" };
-  if (spec.type === "table") return { type: "table", columns: spec.columns.slice(), rows: spec.rows };
+  if (spec.type === "table") return { type: "table", columns: spec.columns.slice(), rows: spec.rows, cells: (spec.cells || []).map((r) => r.slice()) };
   return { type: "map", items: spec.items.map((it) => ({ label: it.label, hint: it.hint || "", img: (it.image && cards && cards.get(it.image)) || null, countries: (it.countries || []).slice(0, ANS_LIMITS.countries) })) };
 }
 function answerEditor(tr, init) {
   const a = tr._ans = { type: init && (init.type === "table" || init.type === "map" || init.type === "photo") ? init.type : "text", columns: init && init.columns ? init.columns.slice(0, ANS_LIMITS.columns) : [],
-    rows: init && Number.isInteger(init.rows) ? init.rows : 3, items: ((init && init.items) || []).slice(0, ANS_LIMITS.items).map((it) => ({ label: it.label || "", hint: it.hint || "", img: it.img || null, countries: (it.countries || []).slice() })) };
+    rows: init && Number.isInteger(init.rows) ? init.rows : 3, cells: ((init && init.cells) || []).map((r) => (Array.isArray(r) ? r.map(String) : [])), items: ((init && init.items) || []).slice(0, ANS_LIMITS.items).map((it) => ({ label: it.label || "", hint: it.hint || "", img: it.img || null, countries: (it.countries || []).slice() })) };
   const dirty = () => { T.builderDirty = true; };
   const sel = h("select", { class: "bans-type" }, [h("option", { value: "text", text: "Textfeld (Vorgabe)" }), h("option", { value: "table", text: "Tabelle" }), h("option", { value: "map", text: "Weltkarten-Zuordnung" }),
     h("option", { value: "photo", text: "Foto" })]);
@@ -11871,7 +11983,18 @@ function answerEditor(tr, init) {
     if (!c.length) { prev.appendChild(h("p", { class: "fhint", text: "Noch keine Spalten eingetragen." })); return; }
     prev.appendChild(h("div", { class: "tablew-scroll" }, [h("table", { class: "anstable ro" }, [h("thead", null, [h("tr", null, c.slice(0, ANS_LIMITS.columns).map((x) => h("th", { scope: "col", text: x })))])])]));
     const bad = c.length > ANS_LIMITS.columns ? `Zu viele Spalten (${c.length}, höchstens ${ANS_LIMITS.columns}).` : c.some((x) => x.length > ANS_LIMITS.columnName) ? `Eine Überschrift ist zu lang (höchstens ${ANS_LIMITS.columnName} Zeichen).` : "";
-    if (bad) prev.appendChild(h("p", { class: "fhint bad", text: bad }));
+    if (bad) { prev.appendChild(h("p", { class: "fhint bad", text: bad })); return; }
+    // Vorgaben (optional): je Zelle ein Feld; was hier steht, ist bei den Schüler:innen gesperrt (Block TABLEPRE)
+    const nr = renumberOf(tr), cs = c.slice(0, ANS_LIMITS.columns);
+    prev.textContent = "";
+    prev.appendChild(h("p", { class: "fhint bans-pre-hint", text: PRE_BUILDER_HINT }));
+    const body = h("tbody", null, Array.from({ length: a.rows }, (_, r) => h("tr", null, cs.map((col, k) => {
+      const inp = h("input", { type: "text", class: "bans-pre", maxlength: String(PRE_LIMITS.cell), autocomplete: "off", spellcheck: "true", value: (a.cells[r] && a.cells[r][k]) || "",
+        "aria-label": `Vorgabe für „${col}“, Zeile ${r + 1} (Aufgabe ${nr})` });
+      inp.addEventListener("input", () => { while (a.cells.length <= r) a.cells.push([]); a.cells[r][k] = inp.value; inp.classList.remove("invalid"); dirty(); });
+      return h("td", null, [inp]);
+    }))));
+    prev.appendChild(h("div", { class: "tablew-scroll" }, [h("table", { class: "anstable ro bans-pre-table" }, [h("thead", null, [h("tr", null, cs.map((x) => h("th", { scope: "col", text: x })))]), body])]));
   };
   const sync = () => {
     tbl.classList.toggle("hidden", a.type !== "table"); map.classList.toggle("hidden", a.type !== "map"); photo.classList.toggle("hidden", a.type !== "photo");
@@ -11882,7 +12005,7 @@ function answerEditor(tr, init) {
   };
   sel.addEventListener("change", () => { a.type = sel.value; if (a.type === "map" && !a.items.length) a.items.push({ label: "", hint: "", img: null, countries: [] }); dirty(); sync(); });
   cols.addEventListener("input", () => { a.columns = splitColumns(cols.value); renderPrev(); dirty(); });
-  rowsIn.addEventListener("input", () => { const v = parseInt(rowsIn.value, 10); a.rows = Number.isInteger(v) ? Math.max(1, Math.min(ANS_LIMITS.rows, v)) : 3; dirty(); });
+  rowsIn.addEventListener("input", () => { const v = parseInt(rowsIn.value, 10); a.rows = Number.isInteger(v) ? Math.max(1, Math.min(ANS_LIMITS.rows, v)) : 3; renderPrev(); dirty(); });
   addItem.addEventListener("click", () => {
     if (a.items.length >= ANS_LIMITS.items) return;
     a.items.push({ label: "", hint: "", img: null, countries: [] }); dirty(); renderItems();
@@ -12041,7 +12164,7 @@ function addRow(text, solution, images, material, files, answer, textFmt, videos
     tr._ans.items.forEach((it) => { if (it.img) URL.revokeObjectURL(it.img.url); });
     if (tb.children.length <= 1) {
       qEd._clear(); ta2.value = ""; matEd._clear(); tr._images = []; renderImages(tr); tr._files = []; renderFiles(tr); tr._videos = []; renderVideos(tr);
-      Object.assign(tr._ans, { type: "text", columns: [], rows: 3, items: [] }); tr._ansSel.value = "text"; tr._colsIn.value = ""; tr._rowsIn.value = "3"; tr._ansSync();
+      Object.assign(tr._ans, { type: "text", columns: [], rows: 3, cells: [], items: [] }); tr._ansSel.value = "text"; tr._colsIn.value = ""; tr._rowsIn.value = "3"; tr._ansSync();
       growAll(); T.builderDirty = true; return;
     }
     tr.remove(); renumber(); T.builderDirty = true;
@@ -12147,7 +12270,9 @@ $("b-gen").addEventListener("click", async () => {
       if (!columns.length) fail(tr._colsIn, "Bitte mindestens eine Spaltenüberschrift für die Tabelle eintragen.");
       else if (columns.length > ANS_LIMITS.columns) fail(tr._colsIn, `Die Tabelle hat zu viele Spalten (höchstens ${ANS_LIMITS.columns}).`);
       else if (columns.some((c) => c.length > ANS_LIMITS.columnName)) fail(tr._colsIn, `Eine Spaltenüberschrift ist zu lang (höchstens ${ANS_LIMITS.columnName} Zeichen).`);
-      answer = { type: "table", columns, rows: ans.rows };
+      const pc = prefillCheck(ans.cells, columns.length, ans.rows);   // Vorgaben: dieselben Grenzen wie der Server
+      if (pc.err) fail(tr.querySelector(".bans-pre") || tr._colsIn, pc.err);
+      answer = Object.assign({ type: "table", columns, rows: ans.rows }, pc.cells ? { cells: pc.cells } : null);
     } else if (ans.type === "photo") {
       photos++;
       if (photos > ANS_LIMITS.photoTasks) fail(tr._ansSel, `Höchstens ${ANS_LIMITS.photoTasks} Aufgaben mit der Antwortart Foto je Feibeitsblatt – die Fotos gehen zusammen mit der Abgabe an Sie.`);

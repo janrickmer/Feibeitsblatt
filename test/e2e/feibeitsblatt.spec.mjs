@@ -9841,6 +9841,126 @@ test("7t KI-Feedback je Aufgabe: Buttons „KI-Feedback nur zu dieser Aufgabe“
   await closePage(t);
 });
 
+test("7u Tabellen-Vorgaben: Lehrkraft trägt Zellen vor → öffentlich als cells, Schüler:innen sehen sie gesperrt (grau, nicht in der Tab-Reihenfolge) und füllen nur die offenen Zellen; Neuladen stellt die Zeilen richtig wieder her; die KI bekommt die Vorgaben markiert; Lehrkraft sieht sie in Blattdetails und Abgabe", async ({ browser, request }) => {
+  const t = await openPage(browser);
+  const tp = t.page;
+  await teacherLogin(tp, PW);
+  await tp.click("#t-new");
+  await tp.fill("#b-title", "Hauptstädte");
+  await tp.fill("#bq-1", "Trage die Hauptstädte ein.");
+  await tp.fill("#bs-1", "- Rom\n- Madrid");
+  await tp.selectOption("#bt-1", "table");
+  await tp.fill("#bc-1", "Land; Hauptstadt");
+  await tp.fill("#br-1", "3");
+  const pre = tp.locator("#b-rows > tr").nth(0).locator("input.bans-pre");
+  await expect(pre).toHaveCount(6);
+  await expect(tp.locator("#b-rows > tr").nth(0).locator(".bans-pre-hint")).toHaveText("Vorgaben (optional): Was Sie hier in eine Zelle eintragen, steht schon in der Tabelle der Schüler:innen – sie können es nicht ändern und füllen nur die leeren Zellen aus.");
+  await expect(pre.nth(0)).toHaveAttribute("aria-label", "Vorgabe für „Land“, Zeile 1 (Aufgabe 1)");
+  // alle Zellen vorgegeben → Meldung, nichts angelegt
+  for (let k = 0; k < 6; k++) await pre.nth(k).fill("x" + k);
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-err")).toHaveText("Zeile 1: In der Tabelle muss mindestens eine Zelle zum Ausfüllen leer bleiben.");
+  for (let k = 0; k < 6; k++) await pre.nth(k).fill("");
+  await pre.nth(0).fill("Italien"); await pre.nth(2).fill(" Frankreich ");
+  const shots = process.env.TABLE_SHOTS_OUT;   // TABLE_SHOTS_OUT=<Ordner>: Bildschirmfotos (Blatt-Editor, Schüler:in, Lehrkraft)
+  if (shots) { await mkdir(shots, { recursive: true }); await tp.locator("#b-rows > tr").nth(0).screenshot({ path: join(shots, "7u-editor.png") }); }
+  await tp.fill("#bq-2", "Warum liegen Hauptstädte oft an Flüssen?");
+  await tp.fill("#bs-2", "- Handel");
+  await tp.click("#b-gen");
+  await expect(tp.locator("#b-result")).toBeVisible();
+  const shown = (await tp.locator("#b-res-code").textContent()).trim(), code = shown.replace("-", "");
+  const pub = await (await request.get("/api/sheet/" + code)).json();
+  expect(pub.sheet.tasks[0].answer).toEqual({ type: "table", columns: ["Land", "Hauptstadt"], rows: 3, cells: [["Italien", ""], ["Frankreich", ""]] });
+  await expect(tp.locator("#ck-state")).toContainText("Vorschlag der KI");
+  const ckPrompt = (await mockRequests("checklist")).pop().messages.map((m) => m.content).join("\n");
+  expect(ckPrompt).toContain("Diese Zellen der Tabelle hat die Lehrkraft schon ausgefüllt – Punkte nur zu den offenen Zellen:\n<<<\nLand | Hauptstadt\nItalien | (offen)\nFrankreich | (offen)\n>>>");
+  await tp.click("#ck-save");   // Checkliste bestätigen – dann gibt es das analoge Arbeitsblatt direkt
+  await expect(tp.locator("#ck-status")).toHaveText("Checkliste bestätigt.");
+  await tp.click("#b-res-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  await expect(tp.locator(".ansinfo-pre td.tpre")).toHaveText(["Italien", "Frankreich"]);
+  // Analoges Arbeitsblatt: die Vorgaben kursiv (/F3) in ihren Zellen
+  const [adl] = await Promise.all([tp.waitForEvent("download"), tp.click("#t-analog")]);
+  const pieces = pdfStreams(await readFile(await adl.path())).filter((x) => !/\/Type \/(XObject|Metadata|EmbeddedFile)/.test(x.dict)).flatMap((x) => pdfPieces(x.data.toString("latin1")));
+  expect(pieces.filter((p) => p.font === "F3" && p.size === 10).map((p) => p.t)).toEqual(["Italien", "Frankreich"]);
+
+  // Schüler:in
+  const s = await openPage(browser);
+  const { page } = s;
+  await enterCode(page, shown);
+  await fillPerson(page, { vorname: "Pia", nachname: "Vogt", geb: "--03-04", klasse: "7a" });
+  const all = page.locator("#a-1 textarea.tcell:not(.measure)"), open = page.locator("#a-1 textarea.tcell:not(.measure):not(.tpre)");
+  await expect(all).toHaveCount(6);
+  await expect(page.locator("#a-1 textarea.tcell.tpre:not(.measure)")).toHaveCount(2);
+  expect(await page.locator("#a-1 textarea.tcell.tpre:not(.measure)").evaluateAll((l) => l.map((c) => [c.value, c.readOnly, c.tabIndex, c.getAttribute("aria-label")]))).toEqual([
+    ["Italien", true, -1, "Land, Zeile 1 (vorgegeben)"], ["Frankreich", true, -1, "Land, Zeile 2 (vorgegeben)"]]);
+  await expect(page.locator("#tp-1")).toHaveText("Grau hinterlegte Zellen hat deine Lehrkraft schon ausgefüllt – trage deine Antworten in die leeren Zellen ein.");
+  await expect(page.locator("#a-1")).toHaveAttribute("aria-describedby", "q-1 tp-1");
+  // Der Schreibbereich setzt den Fokus in die erste offene Zelle (nicht auf eine Vorgabe); Tab springt über die Vorgaben, Enter in die offene Zelle darunter
+  await expect(open.nth(0)).toBeFocused();
+  await page.keyboard.type("Rom");
+  await page.keyboard.press("Tab");
+  await expect(open.nth(1)).toBeFocused();   // Zeile 2, „Hauptstadt“ (die Vorgabe „Frankreich“ übersprungen)
+  await page.keyboard.press("Shift+Tab");
+  await expect(open.nth(0)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(open.nth(1)).toBeFocused();
+  await open.nth(2).click(); await page.keyboard.type("Spanien"); await page.keyboard.press("Tab"); await page.keyboard.type("Madrid");
+  // die Vorgaben lassen sich nicht ändern
+  await all.nth(0).click({ force: true }); await page.keyboard.type("XYZ");
+  await expect(all.nth(0)).toHaveValue("Italien");
+  const answer = "Land | Hauptstadt\nItalien | Rom\nFrankreich |\nSpanien | Madrid";
+  if (shots) await page.locator("#t-1").screenshot({ path: join(shots, "7u-schueler.png") });
+  await page.waitForTimeout(700);
+  await page.reload();
+  await expect(page.locator("#resume-box")).toBeVisible();
+  await page.click("#resume-btn");
+  await expect(page.locator("#screen-editor")).toHaveClass(/active/);
+  expect(await all.evaluateAll((l) => l.map((c) => c.value))).toEqual(["Italien", "Rom", "Frankreich", "", "Spanien", "Madrid"]);
+  await expect(page.locator("#a-1 textarea.tcell.tpre:not(.measure)")).toHaveCount(2);
+  // KI-Feedback: die Vorgaben stehen markiert bei der Aufgabe, die Antwort in der gewohnten Textform
+  await page.fill("#a-2", "Wegen des Handels.");
+  await mockReset();
+  await page.click("#fb-btn");
+  await confirmDialog(page, "KI-Feedback anfordern?");
+  await expect(page.locator("#t-1 .fbbox")).toBeVisible({ timeout: 60_000 });
+  const prompt = (await mockRequests("feedback"))[0].messages.map((m) => m.content).join("\n");
+  expect(prompt).toContain("Vorgaben der Lehrkraft in der Tabelle (sie stehen schon in der Antwort und stammen nicht von der Schülerin bzw. dem Schüler – beurteile nur die übrigen Einträge):\n<<<\nLand | Hauptstadt\nItalien | (offen)\nFrankreich | (offen)\n>>>");
+  expect(prompt).toContain("### Antwort zu Aufgabe 1\nAntwort als Tabelle mit den Spalten: Land, Hauptstadt\n<<<\n" + answer + "\n>>>");
+  // Nur Vorgaben, nichts selbst eingetragen: die Aufgabe gilt als leer
+  for (let k = 0; k < 4; k++) await open.nth(k).fill("");
+  await page.fill("#a-2", "");
+  await page.click("#submit-btn");
+  await expect(page.locator("#submit-status")).toHaveText("Bitte beantworte zuerst die Aufgaben – alle Felder sind noch leer.");
+  await expect(page.locator("#dlg.open")).toHaveCount(0);
+  await open.nth(0).fill("Rom"); await open.nth(2).fill("Spanien"); await open.nth(3).fill("Madrid");
+  await page.click("#submit-btn");
+  await confirmDialog(page, "Jetzt abgeben?", true, { check: false });
+  await expect(page.locator("#screen-done")).toHaveClass(/active/, { timeout: 30_000 });
+  await closePage(s);
+
+  // Lehrkraft: die Abgabe mit den Vorgaben grau und kursiv
+  await tp.click("#t-refresh");
+  await expect(tp.locator("#t-subs-sum")).toHaveText("1 Abgabe");
+  await tp.locator("#t-subs-body tr.main").first().click();
+  const det = tp.locator("#t-subs-body tr.details:visible");
+  const lastCol = det.locator(".dtask").nth(0).locator("table.cmp > tbody > tr > td").last();
+  await expect(lastCol.locator("td.tpre")).toHaveText(["Italien", "Frankreich"]);
+  await expect(lastCol.locator("tbody td:not(.tpre)")).toHaveText(["Rom", "", "Spanien", "Madrid"]);
+  if (shots) await det.locator(".dtask").nth(0).screenshot({ path: join(shots, "7u-lehrkraft.png") });
+  await expect(lastCol.locator(".anspre-note")).toHaveText("Grau und kursiv: Vorgaben aus Ihrer Tabelle – die Schüler:innen konnten sie nicht ändern.");
+  // „Als Vorlage verwenden“ übernimmt die Vorgaben
+  await tp.click("#t-template");
+  await expect(tp.locator("#tv-builder")).toBeVisible();
+  expect(await tp.locator("#b-rows > tr").nth(0).locator("input.bans-pre").evaluateAll((l) => l.map((x) => x.value))).toEqual(["Italien", "", "Frankreich", "", "", ""]);
+  await tp.click("#b-back");
+  await expect(tp.locator("#t-sel-code")).toHaveText(shown);
+  // aufräumen
+  await tp.click("#t-del-sheet");
+  await confirmDialog(tp, "Feibeitsblatt löschen?");
+  await expect(tp.locator("#t-list-status")).toHaveText("Feibeitsblatt gelöscht.");
+  await closePage(t);
+});
 test("8 Passwort ändern: neues Passwort gilt, altes nicht mehr; bisherige Abgaben bleiben lesbar", async ({ browser, request }) => {
   const t = await openPage(browser);
   const { page } = t;

@@ -811,16 +811,26 @@ const MATERIAL_CAP = 4000;   // Zeichen Material je Aufgabe im Prompt
 const answerType = (t) => (t && t.answer && typeof t.answer === "object" ? t.answer.type : "text");
 // Weltkarten-Zuordnung und Foto: nie an die KI (NO_AI_ANSWER_TYPES; auch nicht, wenn eine ältere Zeile doch einen Auftrag trägt)
 export const wantsFeedback = (t) => !!str(t.solution).trim() && !NO_AI_ANSWER_TYPES.has(answerType(t));
+// Vorgaben der Lehrkraft in einer Tabelle (answer.cells, offene Zellen "") als Textform wie die Antwort – offene Zellen „(offen)“; ohne Vorgaben ""
+export function tablePrefillText(t) {
+  const a = t && t.answer;
+  if (answerType(t) !== "table" || !Array.isArray(a.columns) || !Array.isArray(a.cells) || !a.cells.length) return "";
+  const cols = a.columns.map((c) => str(c).trim());
+  const rows = a.cells.filter(Array.isArray).map((r) => cols.map((_, k) => str(r[k]).trim() || "(offen)").join(" | "));
+  return rows.length ? [cols.join(" | "), ...rows].join("\n") : "";
+}
 export function buildFeedbackMessages(tasks, answers, only, { final = false } = {}) {
   const nrs = [], blocks = [], replies = [], pick = Array.isArray(only) ? new Set(only) : null;
   tasks.forEach((t, i) => {
     const brief = str(t.solution).trim();   // Auftrag der Lehrkraft an die KI
     if (!wantsFeedback(t) || (pick && !pick.has(i + 1))) return;   // nicht gewählte Aufgaben: weder Aufgabe noch Antwort
     const nr = i + 1; nrs.push(nr);
+    const pre = tablePrefillText(t);   // Tabelle mit Vorgaben der Lehrkraft (ohne Vorgaben: Prompt byte-gleich wie bisher)
     let material = materialText(t.material);   // Material der Lehrkraft (Text, Zitat, Hinweise) als Kontext – gekürzt
     if (material.length > MATERIAL_CAP) material = material.slice(0, MATERIAL_CAP).trimEnd() + " …";
     blocks.push("### Aufgabe " + nr + "\nAufgabenstellung:\n<<<\n" + safeData(str(t.text).trim()) + "\n>>>\n" +
       (material ? "Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\n" + safeData(material) + "\n>>>\n" : "") +
+      (pre ? "Vorgaben der Lehrkraft in der Tabelle (sie stehen schon in der Antwort und stammen nicht von der Schülerin bzw. dem Schüler – beurteile nur die übrigen Einträge):\n<<<\n" + safeData(pre) + "\n>>>\n" : "") +
       "Auftrag der Lehrkraft für das Feedback:\n<<<\n" + safeData(brief) + "\n>>>");
     // Tabelle: Die Antwort ist ihre Textform (erste Zeile Überschriften, dann je Zeile „Zelle | Zelle“) – die Spalten davor nennen
     const cols = answerType(t) === "table" && Array.isArray(t.answer.columns) ? t.answer.columns.map((c) => str(c).trim()).filter(Boolean) : [];
@@ -981,6 +991,7 @@ export function buildChecklistMessages(tasks) {
     blocks.push("### Aufgabe " + nr + "\nAufgabenstellung:\n<<<\n" + safeData(str(t.text).trim()) + "\n>>>\n" +
       (material ? "Material zur Aufgabe (von der Lehrkraft bereitgestellt):\n<<<\n" + safeData(material) + "\n>>>\n" : "") +
       (cols.length ? "Die Antwort ist eine Tabelle mit den Spalten:\n<<<\n" + safeData(cols.join(" | ")) + "\n>>>\n" : "") +
+      (tablePrefillText(t) ? "Diese Zellen der Tabelle hat die Lehrkraft schon ausgefüllt – Punkte nur zu den offenen Zellen:\n<<<\n" + safeData(tablePrefillText(t)) + "\n>>>\n" : "") +
       "Auftrag der Lehrkraft für das Feedback:\n<<<\n" + safeData(str(t.solution).trim()) + "\n>>>");
   });
   const user = "Aufgaben, Material und Aufträge der Lehrkraft (Nummern: " + nrs.join(", ") + "):\n\n" + blocks.join("\n\n") +
