@@ -104,6 +104,7 @@ export const LIMITS = {
   videosPerTask: 3, videoTitle: 120, videoStart: 86400,
   // Antwortarten (answer je Aufgabe): Tabelle und Weltkarten-Zuordnung
   tableColumns: 8, columnName: 60, tableRows: 30,
+  tableCell: 200, tablePrefill: 3000,   // Vorgaben der Lehrkraft in einer Tabelle: je Zelle bzw. je Tabelle zusammen (Zeichen)
   mapItems: 40, itemId: 40, itemLabel: 120, itemHint: 400, itemCountries: 10, countryName: 80,
   mapChecks: 400,                  // Prüfwerte (Länder aller Karten) je Blatt – der Worker hasht sie beim Anlegen
   cardsPerTask: 40,                // Kartenbilder (mode "card") je Aufgabe – zählen nicht zu imagesPerTask
@@ -334,7 +335,10 @@ export const escapeOut = (id, name) => (typeof id === "string" && ESCAPE_ID_RE.t
   ? { id, name: cleanLine(name).slice(0, LIMITS.escapeName) } : null);
 
 /* ---------- Antwortarten: answer je Aufgabe (fehlt = Textfeld). Unbekannte Felder entfallen, Fehlerhaftes → 400. ----------
- * {type:"table", columns:[1–8 Überschriften], rows:1–30}
+ * {type:"table", columns:[1–8 Überschriften], rows:1–30, cells?} – cells = Vorgaben der Lehrkraft (Wunsch vom 26.11.2026): je Zeile so
+ *   viele Texte wie Spalten, "" = offene Zelle; vorgegebene Zellen sind für die Schüler:innen gesperrt. Höchstens tableRows Zeilen,
+ *   rows wird mindestens so groß; je Zelle ≤ tableCell, zusammen ≤ tablePrefill Zeichen; leere Zeilen am Ende entfallen, ganz leer →
+ *   kein Feld; mindestens eine Zelle muss offen bleiben.
  * {type:"map", map:"world", items:[1–40 × {id, label, hint?, image? (16 Hex, Kartenbild mode "card"), countries:[1–10 × {id (ISO 3166-1
  *   numerisch, 3 Ziffern), name}]}]} – eine richtige Zuordnung genügt; Schüler:innen bekommen die Länder nur als Prüfwerte.
  * {type:"photo"} – die Antwort ist ein Foto (im Browser verkleinert, als JPEG nur im verschlüsselten Umschlag der Abgabe; höchstens
@@ -344,6 +348,28 @@ export const COUNTRY_ID_RE = /^\d{3}$/;
 // Antwortarten, die nie an die KI gehen: kein Auftrag an die KI (solution wird ""), kein KI-Feedback, kein Checklisten-Vorschlag
 export const NO_AI_ANSWER_TYPES = new Set(["map", "photo"]);
 const oneLine = (v) => cleanText(v).replace(/\s+/g, " ").trim();   // einzeilig: Leerraum und Zeilenumbrüche → ein Leerzeichen
+// Vorgaben einer Tabelle: null/fehlt = keine; sonst Zeilen aus Texten (bzw. null = offen) → bereinigt oder null, wenn alles leer ist
+const cellLine = (c) => oneLine(c).replace(/\|/g, "/");   // wie eine Spalte: „|“ trennt in der Textform die Zellen
+function validateTablePrefill(raw, nCols, bad) {
+  if (raw == null) return null;
+  if (!Array.isArray(raw) || raw.length > LIMITS.tableRows) throw bad("Die Vorgaben der Tabelle haben ein ungültiges Format.");
+  let total = 0;
+  const cells = raw.map((row, r) => {
+    if (!Array.isArray(row) || row.length > nCols) throw bad("Die Vorgaben der Tabelle haben ein ungültiges Format.");
+    return Array.from({ length: nCols }, (_, k) => {
+      const c = row[k];
+      if (c == null) return "";
+      if (typeof c !== "string" || c.length > LIMITS.tableCell * 4) throw bad("Die Vorgaben der Tabelle haben ein ungültiges Format.");
+      const t = cellLine(c);
+      if (t.length > LIMITS.tableCell) throw bad("Eine Vorgabe in Zeile " + (r + 1) + " der Tabelle ist zu lang (höchstens " + LIMITS.tableCell + " Zeichen).");
+      total += t.length;
+      return t;
+    });
+  });
+  if (total > LIMITS.tablePrefill) throw bad("Die Vorgaben der Tabelle sind zusammen zu lang (höchstens " + LIMITS.tablePrefill + " Zeichen).");
+  while (cells.length && !cells[cells.length - 1].some(Boolean)) cells.pop();
+  return cells.length ? cells : null;
+}
 export function validateAnswerSpec(raw, n) {
   if (raw == null) return null;
   const where = n ? "Aufgabe " + n + ": " : "";
@@ -362,9 +388,13 @@ export function validateAnswerSpec(raw, n) {
       if (t.length > LIMITS.columnName) throw bad("Die Überschrift von Spalte " + (k + 1) + " ist zu lang (höchstens " + LIMITS.columnName + " Zeichen).");
       return t;
     });
-    const rows = raw.rows;
+    let rows = raw.rows;
     if (!Number.isInteger(rows) || rows < 1 || rows > LIMITS.tableRows) throw bad("Die Tabelle braucht 1 bis " + LIMITS.tableRows + " Zeilen.");
-    return { type: "table", columns, rows };
+    const cells = validateTablePrefill(raw.cells, columns.length, bad);
+    if (!cells) return { type: "table", columns, rows };
+    rows = Math.max(rows, cells.length);
+    if (rows === cells.length && cells.every((r) => r.every(Boolean))) throw bad("In der Tabelle muss mindestens eine Zelle zum Ausfüllen leer bleiben.");
+    return { type: "table", columns, rows, cells };
   }
   if (raw.type === "map") {
     if (raw.map != null && raw.map !== "world") throw bad("Unbekannte Karte (möglich ist nur die Weltkarte).");
@@ -426,7 +456,12 @@ export async function withMapChecks(tasks, code) {
 export function teacherAnswer(a) {
   if (isObj(a) && a.type === "photo") return { type: "photo" };
   if (!isObj(a) || (a.type !== "table" && a.type !== "map")) return { type: "text" };
-  if (a.type === "table") return { type: "table", columns: Array.isArray(a.columns) ? a.columns.map(String) : [], rows: Number(a.rows) || 1 };
+  if (a.type === "table") {
+    const columns = Array.isArray(a.columns) ? a.columns.map(String) : [], o = { type: "table", columns, rows: Number(a.rows) || 1 };
+    // Vorgaben nur in der gespeicherten Form (Zeilen aus Texten, so viele wie Spalten) – sonst ohne
+    if (Array.isArray(a.cells) && a.cells.length && a.cells.every((r) => Array.isArray(r) && r.length === columns.length && r.every((c) => typeof c === "string"))) o.cells = a.cells.map((r) => r.slice());
+    return o;
+  }
   return { type: "map", map: "world", items: (Array.isArray(a.items) ? a.items : []).filter(isObj).map((it) => {
     const o = { id: String(it.id), label: String(it.label || "") };
     if (it.hint) o.hint = String(it.hint);

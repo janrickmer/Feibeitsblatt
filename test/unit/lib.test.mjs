@@ -685,3 +685,19 @@ test("escapeOut prüft die gespeicherten Spalten erneut; validateSheetInput lief
   assert.deepEqual(validateSheetInput({ title: "t", tasks, escape: { id: "Raum-1", name: "Raum" } }).escape, { id: "raum-1", name: "Raum" });
   assert.throws(() => validateSheetInput({ title: "t", tasks, escape: { id: "r", name: "Raum" } }), InputError);
 });
+test("validateAnswerSpec: Tabellen-Vorgaben (cells) – bereinigt, gekappt, mindestens eine offene Zelle, teacherAnswer/publicAnswer liefern sie", async () => {
+  const t = (cells, rows = 3, columns = ["Land", "Hauptstadt"]) => validateAnswerSpec({ type: "table", columns, rows, cells }, 2);
+  assert.deepEqual(t([["  Italien ", null], ["", "a | b"], ["", ""]]), { type: "table", columns: ["Land", "Hauptstadt"], rows: 3, cells: [["Italien", ""], ["", "a / b"]] });
+  assert.deepEqual(t([["", ""]]), { type: "table", columns: ["Land", "Hauptstadt"], rows: 3 });   // ganz leer → kein Feld
+  assert.deepEqual(t(null), { type: "table", columns: ["Land", "Hauptstadt"], rows: 3 });
+  assert.deepEqual(t([["A"], ["B"], ["C"], ["D", ""]], 2), { type: "table", columns: ["Land", "Hauptstadt"], rows: 4, cells: [["A", ""], ["B", ""], ["C", ""], ["D", ""]] });   // rows wächst mit
+  const bad = (cells, re, rows = 3, columns = ["Land", "Hauptstadt"]) => assert.throws(() => t(cells, rows, columns), (e) => e instanceof InputError && e.status === 400 && /^Aufgabe 2: /.test(e.message) && (!re || re.test(e.message)));
+  bad("x"); bad([["a", "b", "c"]]); bad([[1]]); bad(Array(31).fill(["a"])); bad([["x".repeat(201)]], /Zeile 1 .*höchstens 200/);
+  bad(Array(16).fill(0).map(() => ["x".repeat(200)]), /zusammen zu lang/, 30);
+  bad([["a", "b"]], /mindestens eine Zelle zum Ausfüllen leer/, 1);
+  assert.doesNotThrow(() => t([["a", ""]], 1));
+  const v = t([["Italien", ""]]);
+  assert.deepEqual(teacherAnswer(v), v);
+  assert.deepEqual(await publicAnswer(v, "ABC234", new Set()), v);
+  assert.deepEqual(teacherAnswer({ type: "table", columns: ["A", "B"], rows: 2, cells: [["x"]] }), { type: "table", columns: ["A", "B"], rows: 2 });   // falsche Form → ohne
+});

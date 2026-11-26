@@ -159,7 +159,10 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    **Tabelle:** Hat die Lehrkraft als Antwort eine Tabelle vorgesehen, stehen unter der Aufgabe die Spaltenüberschriften
    und leere Zellen. Mit der Tab-Taste geht es zur nächsten Zelle (Umschalt+Tab zurück), Enter springt in die Zelle
    darunter und legt am Ende eine neue Zeile an; „+ Zeile“ ergänzt ebenfalls eine (höchstens 30). Auf schmalen
-   Bildschirmen lässt sich die Tabelle seitlich schieben. Auch in den Zellen ist Einfügen gesperrt.
+   Bildschirmen lässt sich die Tabelle seitlich schieben. Auch in den Zellen ist Einfügen gesperrt. Hat die Lehrkraft
+   Zellen vorausgefüllt, sind diese grau hinterlegt und kursiv und lassen sich nicht ändern („Grau hinterlegte Zellen hat
+   deine Lehrkraft schon ausgefüllt …“); die Tab-Taste und Enter überspringen sie. Solange in keiner offenen Zelle etwas
+   steht, gilt die Aufgabe als leer.
    **Weltkarten-Zuordnung:** Oben stehen Karten (mit Bild, Bezeichnung und ggf. einem Hinweis), darunter eine
    Weltkarte. Zuerst eine Karte anklicken (ein zweiter Klick oder Esc hebt die Wahl auf), dann das passende Land.
    Stimmt es nicht, werden Karte und Land drei Sekunden lang rot, und die Karte bleibt gewählt. Stimmt es, bekommen
@@ -531,8 +534,14 @@ Erstversuch und Abgabe. Technik, Grenzen und Datenschutz: [Kapazität und Grenze
    **Antwortart:** Unter „Antwortart“ wählen Sie je Aufgabe, wie die Schüler:innen antworten: **Textfeld** (Vorgabe),
    **Tabelle**, **Weltkarten-Zuordnung** oder **Foto**. Bei der Tabelle tragen Sie die Spaltenüberschriften ein (eine je Zeile
    oder durch „;“ getrennt, höchstens 8 mit je 60 Zeichen) und die Zahl der vorgegebenen Zeilen (1 bis 30); eine
-   Vorschau zeigt den Tabellenkopf. Die ausgefüllte Tabelle geht wie ein Text an die KI – mit dem Hinweis, welche
-   Spalten sie hat –, das KI-Feedback funktioniert also wie beim Textfeld. Bei der Weltkarten-Zuordnung legen Sie bis
+   Vorschau zeigt den Tabellenkopf. Darunter können Sie in einem Raster **Vorgaben** eintragen (optional, je Zelle
+   höchstens 200 Zeichen, zusammen höchstens 3.000): Was dort steht, sehen die Schüler:innen schon in ihrer Tabelle – grau
+   hinterlegt und gesperrt –, sie füllen nur die leeren Zellen aus (mindestens eine Zelle muss offen bleiben). Die
+   ausgefüllte Tabelle geht wie ein Text an die KI – mit dem Hinweis, welche Spalten sie hat, und mit Vorgaben zusätzlich
+   mit dem Hinweis, welche Zellen von Ihnen stammen (die KI beurteilt nur die übrigen) –, das KI-Feedback funktioniert also
+   wie beim Textfeld. Auch der Vorschlag der Checkliste nennt der KI die Vorgaben. In den Blattdetails, bei „Als Vorlage
+   verwenden“, in der Sicherung als PDF-Datei und auf dem analogen Arbeitsblatt (kursiv in ihren Zellen) sind die Vorgaben
+   dabei; in den Abgaben stehen sie grau und kursiv. Bei der Weltkarten-Zuordnung legen Sie bis
    zu 40 Karten an: je Karte eine Bezeichnung (z. B. „Kaffee“), auf Wunsch einen kurzen Hinweis und ein Bild, und ein
    oder mehrere richtige Länder (höchstens 10, eines davon genügt), die Sie über die deutschen Ländernamen suchen; alle
    Weltkarten-Aufgaben eines Blattes zusammen haben höchstens 400 richtige Länder. Karten lassen sich verschieben und
@@ -680,7 +689,7 @@ Erstversuch und Abgabe. Technik, Grenzen und Datenschutz: [Kapazität und Grenze
    (`https://www.youtube.com/watch?v=…`, in Schreibmaschinenschrift, damit sich „I“ und „l“ unterscheiden lassen; der
    QR-Code führt direkt zu YouTube, ohne den Platzhalter mit dem Datenschutzhinweis), die Namen angehängter PDF-Dateien
    („nur digital“) und Platz für die Antwort: **8 Schreiblinien** im Abstand von 24 pt (etwa 8,5 mm, passend für Handschrift
-   in Schriftgröße 14), bei einer Tabelle ein Gitter mit **zwei Schreibzeilen je Tabellenzeile** (der Kopf wiederholt
+   in Schriftgröße 14), bei einer Tabelle ein Gitter mit **zwei Schreibzeilen je Tabellenzeile** (Vorgaben kursiv in ihren Zellen; der Kopf wiederholt
    sich auf jeder neuen Seite; bei vielen Spalten wird seine Schrift kleiner, bis jedes Wort in seine Spalte passt), bei
    der Weltkarten-Zuordnung eine Umrisskarte ohne Ländernamen und darunter die Karten mit einer Linie für das Land, bei
    einer Foto-Aufgabe ein leerer Rahmen („Hier kannst du zeichnen oder ein Foto einkleben.“). Am

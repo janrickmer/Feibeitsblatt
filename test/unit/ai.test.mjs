@@ -905,3 +905,15 @@ test("KI-Feedback je Aufgabe: wantsFeedback je Antwortart (= aiTasks); only [n] 
   assert.deepEqual(res, [{ covered: ["Licht"], missing: [] }, { covered: [], missing: [], note: NO_SOLUTION_NOTE }, null,
     { covered: [], missing: ["Nenne Weizen."] }, { covered: [], missing: [], note: NO_SOLUTION_NOTE }, null, null]);
 });
+test("Prompt: Tabellen-Vorgaben stehen bei der Aufgabe (Präfix), offene Zellen „(offen)“; ohne Vorgaben unverändert", () => {
+  const base = { text: "Fülle aus.", solution: "Achte auf Hauptstädte.", answer: { type: "table", columns: ["Land", "Hauptstadt"], rows: 2 } };
+  const pre = { ...base, answer: { ...base.answer, cells: [["Italien", ""], ["", "Paris"]] } };
+  const ans = ["Land | Hauptstadt\nItalien | Rom\nFrankreich | Paris"];
+  const a = buildFeedbackMessages([base], ans, null).messages[1].content, b = buildFeedbackMessages([pre], ans, null).messages[1].content;
+  assert.equal(b.replace("Vorgaben der Lehrkraft in der Tabelle (sie stehen schon in der Antwort und stammen nicht von der Schülerin bzw. dem Schüler – beurteile nur die übrigen Einträge):\n<<<\nLand | Hauptstadt\nItalien | (offen)\n(offen) | Paris\n>>>\n", ""), a);
+  assert.ok(b.indexOf("Vorgaben der Lehrkraft") < b.indexOf("### Antwort zu Aufgabe 1"));
+  assert.deepEqual(parseFeedbackPrompt(b).map((x) => x.solution), ["Achte auf Hauptstädte."]);
+  const c = buildChecklistMessages([pre]).messages[1].content;
+  assert.match(c, /schon ausgefüllt – Punkte nur zu den offenen Zellen:\n<<<\nLand \| Hauptstadt\nItalien \| \(offen\)\n\(offen\) \| Paris\n>>>/);
+  assert.equal(buildChecklistMessages([base]).messages[1].content.includes("schon ausgefüllt"), false);
+});
