@@ -1800,7 +1800,9 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   const pdf = await readFile(pdfPath);
   const pdfText = pdf.toString("latin1");
   expect(pdfText.startsWith("%PDF-1.7")).toBe(true);
-  expect(pdfText).toContain("/Type /Pages /Kids [3 0 R] /Count 1");                         // genau eine Seite
+  expect(pdfText).toMatch(/\/Type \/Pages \/Kids \[3 0 R 11 0 R[\d R]*\] \/Count \d+ >>/);   // Seite 1 wie bisher, ab Seite 2 die Antworten
+  expect(pdfShownText(pdf)).toContain("Deine Antworten (Stand beim Sichern)");
+  pdfStructure(pdf, 10);
   expect(pdfText).toContain("/Subtype /Link /Rect [");
   expect(pdfText).toContain("/A << /S /URI /URI (https://feibeitsblatt.janrickmer.de/) >>");   // Link klickbar (öffnet im Browser)
   expect(pdfText).toContain("1 0.93 0.82 rg 0.86 0.45 0 RG 1.5 w");                            // orangener Hinweiskasten
@@ -3698,10 +3700,10 @@ test("3h Online-Zwischenstand: „Zwischenstand sichern (online und als PDF-Date
   expect(ds1.typing).toBeUndefined();   // Tippzeiten stehen nicht im Zwischenstand – also auch nicht online (TT_KEEP_IN_DRAFT aus)
   // … und so steht er auch im Zwischenstand dieses Geräts (Code, Zeitpunkt, Frist)
   expect(await draftOfPage(p1)).toMatchObject({ saveCode: code8, savedOnlineAt: r1.savedAt, savedOnlineUntil: r1.expiresAt });
-  // die PDF: ganz oben rot und fett der Code (deutlich größer als der Fließtext), darunter rot die Frist – sonst wie bisher, weiter eine Seite
+  // die PDF: ganz oben rot und fett der Code (deutlich größer als der Fließtext), darunter rot die Frist – sonst wie bisher, Seite 1 wie bisher
   const txt1 = pdf1.toString("latin1"), ops1 = pdfTextOps(txt1), RED_PDF = "0.75 0.1 0.1";
   pdfStructure(pdf1, 10);
-  expect(txt1).toContain("/Type /Pages /Kids [3 0 R] /Count 1");
+  expect(txt1).toMatch(/\/Type \/Pages \/Kids \[3 0 R 11 0 R[\d R]*\] \/Count \d+ >>/);
   expect(ops1[0]).toEqual({ color: RED_PDF, bold: true, size: 20, text: "Zwischenstand-Code: " + dcShown(code8) });
   const title1 = ops1.findIndex((o) => o.text === "Zwischenstand für ein Feibeitsblatt");
   expect(title1).toBeGreaterThan(1);
