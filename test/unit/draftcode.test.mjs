@@ -432,19 +432,26 @@ function fmtCode(c) { c = String(c || ""); return c.length === 6 ? c.slice(0, 3)
 const isGroup = (p) => !!(p && Array.isArray(p.gruppe));
 const personLabel = (p) => (isGroup(p) ? p.gruppe.join(", ") + " · Klasse " + p.klasse : p.vorname + " · " + p.nachname + " · Klasse " + p.klasse);
 const PUBLIC_URL = "https://feibeitsblatt.janrickmer.de/", FB_NOT_DONE = "Anfrage nicht abgeschlossen";
-${block}${blk("FBTASK")}
+${block}${blk("FBTASK")}${blk("PHOTO")}
+${body("function normFb(r) {", "\n}\n")}
+}
+${body("function pdfPager() {", "\n}\n")}
+}
 ${body("const PDF_W_REG = ", "/* PDF-Leser (Zwischenstand")}
-return { makeDraftPdf };`)();
+return { makeDraftPdf, DRAFT_PDF_ANSWERS, DRAFT_PDF_FB_ONCE, DRAFT_PDF_DATA_HEAD };`)();
 const pdfText = (u) => Buffer.from(u).toString("latin1");
 const pdfOps = (s) => [...s.matchAll(/BT ([\d. ]+) rg \/(F[12]) ([\d.]+) Tf ([\d.]+) ([\d.]+) Td \((.*?)\) Tj ET/g)].map((m) => ({ color: m[1], font: m[2], size: Number(m[3]), x: Number(m[4]), y: Number(m[5]), text: m[6] }));
 const pdfDraft = (u) => { const b = Buffer.from(u), i0 = b.indexOf("/FbDraft 1"), d0 = b.indexOf("stream\n", i0) + 7, d1 = b.indexOf("\nendstream", d0); return JSON.parse(b.subarray(d0, d1).toString("utf8")); };
 // Aufbau: jede Stelle der Querverweistabelle zeigt auf ihr Objekt
 function pdfXrefOk(u) {
-  const s = pdfText(u), x = Number(s.match(/startxref\n(\d+)\n%%EOF\n$/)[1]);
-  assert.ok(s.startsWith("xref\n0 11\n", x));
-  const offs = s.slice(x).split("\n").slice(3, 13).map((l) => Number(l.slice(0, 10)));
+  const s = pdfText(u), x = Number(s.match(/startxref\n(\d+)\n%%EOF\n$/)[1]), n = Number(s.slice(x).match(/^xref\n0 (\d+)\n/)[1]);
+  assert.ok(n >= 11, "Objekte: " + n);   // 1–10 wie bisher, dazu je weitere Seite Seite + Inhalt (und Fotos)
+  assert.ok(s.includes(`trailer\n<< /Size ${n} /Root 1 0 R /Info 10 0 R >>`));
+  const offs = s.slice(x).split("\n").slice(3, 2 + n).map((l) => Number(l.slice(0, 10)));
   offs.forEach((o, k) => assert.ok(s.startsWith(`${k + 1} 0 obj\n`, o), "Objekt " + (k + 1)));
 }
+// Inhalt der ersten Seite (Objekt 6)
+const page1 = (u) => { const s = pdfText(u), a = s.indexOf("6 0 obj\n"); return s.slice(a, s.indexOf("endstream", a)); };
 
 test("draftcode: Zwischenstand-PDF – online gesichert: ganz oben rot und fett der Code, darunter rot die Frist; sonst wie bisher; der Datensatz bleibt hochladbar", () => {
   const rec = (x) => ({ v: 1, t: AT, kind: "feibeitsblatt-draft", code: "K7QM4X", sheetTitle: "Die wehrhafte Demokratie", person: PERSON, answers: ["a", "b", ""], first: null, feedback: null, ...x });
@@ -454,14 +461,14 @@ test("draftcode: Zwischenstand-PDF – online gesichert: ganz oben rot und fett 
   for (const u of [on, off, old]) {
     const s = pdfText(u);
     assert.ok(s.startsWith("%PDF-1.7"));
-    assert.ok(s.includes("/Type /Pages /Kids [3 0 R] /Count 1"));   // weiter genau eine Seite
+    assert.ok(/\/Type \/Pages \/Kids \[3 0 R 11 0 R[\d R]*\] \/Count \d+/.test(s));   // Seite 1 wie bisher, ab Seite 2 die Antworten
     assert.ok(s.includes("(Zwischenstand f\\374r ein Feibeitsblatt) Tj"));
     assert.ok(s.includes("(So arbeitest du weiter:) Tj"));
     assert.ok(s.includes("/A << /S /URI /URI (https://feibeitsblatt.janrickmer.de/) >>"));
     pdfXrefOk(u);
   }
   // online: die erste Textzeile ist der Code – rot (rg 0.75 0.1 0.1), fett (F2), deutlich größer als der Fließtext (11 pt) und über dem Titel
-  const ops = pdfOps(pdfText(on)), RED = "0.75 0.1 0.1";
+  const ops = pdfOps(page1(on)), RED = "0.75 0.1 0.1";
   assert.deepEqual({ ...ops[0] }, { color: RED, font: "F2", size: 20, x: 56, y: ops[0].y, text: "Zwischenstand-Code: 7KQM-4XWP" });
   const title = ops.find((o) => o.text.startsWith("Zwischenstand f"));
   assert.ok(ops[0].y > title.y && ops[0].y < 841.89 - 40);
@@ -480,7 +487,7 @@ test("draftcode: Zwischenstand-PDF – online gesichert: ganz oben rot und fett 
   assert.ok(!all.includes("Sichere nach jeder Arbeitsphase eine neue Datei"));
   // ohne Online-Speicherung (gescheitert): keine rote Zeile, kein Wort vom Code – die Datei sieht aus wie bisher
   for (const u of [off, old]) {
-    const o2 = pdfOps(pdfText(u));
+    const o2 = pdfOps(page1(u));
     assert.ok(!pdfText(u).includes(RED + " rg"));
     assert.ok(o2[0].text.startsWith("Zwischenstand f") && o2[0].y === 841.89 - 96);
     const t2 = o2.map((o) => plain(o.text)).join(" ");
@@ -499,10 +506,21 @@ test("draftcode: Zwischenstand-PDF – online gesichert: ganz oben rot und fett 
   const worst = PDF.makeDraftPdf(rec({ saveCode: online.code, sheetTitle: "Ein sehr langer Titel eines Feibeitsblattes, der in der Zeile ganz sicher umbrochen werden muss, weil er so lang ist", escape: { d: "{}" },
     photos: ["x", null, null], first: ["a", null, "c"], feedback: [{ covered: ["x"], missing: [] }, null, { covered: [], missing: ["y"] }], fbPending: true,
     person: { gruppe: ["MaxMu", "LiMu", "AnnBe", "TimKr", "UmaRe", "JonSc", "EvaLo", "BenHa", "MiaWe", "TomBa"], klasse: "10b" } }), true, "FastFashion – der lange Weg eines T-Shirts um die Welt", true, online);
-  const wo = pdfOps(pdfText(worst)), foot = wo.find((o) => o.text.startsWith("Erstellt mit Feibeitsblatt"));
+  const wo = pdfOps(page1(worst)), foot = wo.find((o) => o.text.startsWith("Erstellt mit Feibeitsblatt"));
   assert.ok(wo.filter((o) => o !== foot).every((o) => o.y > foot.y + 30 && o.y < 841.89 - 40), "Text über der Fußzeile und unter dem oberen Rand");
   assert.ok(wo.map((o) => plain(o.text)).join(" ").includes(D.dcPdfSecret(true)));
   pdfXrefOk(worst);
+  // ab Seite 2: je Aufgabe die Antwort, bei Feedback die erste Fassung, das KI-Feedback und der Satz „kein weiteres“; danach die Sicherungszeilen
+  const lines = ["FBZS1:0:2:QUJD:01234567#", "FBZS1:1:2:REVG:89abcdef#"];
+  const full = PDF.makeDraftPdf(rec({ answers: ["Meine Antwort zu eins", "", "Dritte"], first: ["Erste Fassung eins", null, null], feedback: [{ covered: ["Gut begonnen"], missing: ["Nenne ein Beispiel"] }, null, null] }), true, "", true, null,
+    { tasks: ["Erkläre A.", "Erkläre B.", "Erkläre C."], kinds: ["text", "text", "text"], lines });
+  pdfXrefOk(full);
+  const ft = pdfText(full), txt = pdfOps(ft).map((o) => plain(o.text)).join(" ");
+  assert.match(ft, /\/Count 3 >>/);
+  for (const x of [PDF.DRAFT_PDF_ANSWERS, "Aufgabe 1", "Erkläre A.", "Meine Antwort zu eins", "Erste Fassung eins", "Das gelingt dir schon: Gut begonnen", "Tipp: Nenne ein Beispiel", "Aufgabe 2", "(noch leer)", "Dritte", PDF.DRAFT_PDF_DATA_HEAD, ...lines, "Seite 1 von 3", "Seite 3 von 3"])
+    assert.ok(txt.includes(x), x);
+  assert.equal(txt.split("Zu dieser Aufgabe hast du das KI-Feedback zum Überarbeiten schon bekommen.").length - 1, 1);   // nur bei Aufgabe 1
+  assert.deepEqual(pdfDraft(full).answers, ["Meine Antwort zu eins", "", "Dritte"]);
 });
 
 test("draftcode: im Skript – online nur auf Klick; Reihenfolge auf der Startseite; nach der Abgabe wird gelöscht, bei „Abbrechen“ nicht", () => {
@@ -524,7 +542,7 @@ test("draftcode: im Skript – online nur auf Klick; Reihenfolge auf der Startse
   const order = ["busy(btn, true, DC_BUSY);", "saveDraft();", "if (!S.saveCode) { S.saveCode = dcNew(rand); saveDraft(); }", "const d = Object.assign(draftRecord(), { kind: \"feibeitsblatt-draft\", code: sheetCode, sheetTitle: S.sheet.title, person: personOut(S.person) });",
     "const k = await draftKeys(code8);", "const envelope = await dcSeal(subtle, k.key, d, rand);", "if (!dcEnvFits(envelope, envMax)) throw new ApiError(\"too_large\", \"\", 413);", 'api("PUT", "/api/draft"',
     "if (dcGone.has(code8)) { if (online) dropOnlineDraft(code8); return; }", "S.savedOnlineAt = online.at; S.savedOnlineUntil = online.until; saveDraft(); renderDraftCode();",
-    "makeDraftPdf(d, withAi, escName, perTask, online ? { code: code8, at: online.at, until: online.until } : null)", "if (same) setSaveState(online ? dcSavedText(code8) : dcFailText(fail.code, fail.status), !online);", "finally { busy(btn, false); }"]
+    "makeDraftPdf(d, withAi, escName, perTask, online ? { code: code8, at: online.at, until: online.until } : null, extra)", "if (same) setSaveState(online ? dcSavedText(code8) : dcFailText(fail.code, fail.status), !online);", "finally { busy(btn, false); }"]
     .map((x) => { const k = click.indexOf(x); assert.ok(k > 0, x); return k; });
   assert.deepEqual(order, [...order].sort((a, b) => a - b));
   assert.ok(click.includes("const code8 = S.saveCode, sheetCode = S.code, envMax = sheetPhotoCount(S.sheet) ? PHOTO_ENV_MAX : TT_ENV_MAX;"));
@@ -551,7 +569,7 @@ test("draftcode: im Skript – online nur auf Klick; Reihenfolge auf der Startse
   assert.doesNotMatch(note, /innerHTML/);
   const ed = body("async function openEditor(fromPerson) {", "\n}\n");
   assert.equal(ed.split("renderDraftCode();").length - 1, 2);
-  assert.ok(ed.includes('imported ? (importFrom === "code" ? DC_LOADED : "Zwischenstand aus der PDF-Datei übernommen")'));
+  assert.ok(ed.includes('imported ? (importFrom === "code" ? DC_LOADED : importFrom === "pdf-text" ? pdfTextLoaded(photosLost) : "Zwischenstand aus der PDF-Datei übernommen")'));
   // ein über Code oder PDF geladener Code gilt auch, wenn der neuere Stand dieses Geräts weitergeführt wird und noch keinen hat (bei demselben
   // Code zählt der spätere Zeitpunkt des Online-Sicherns) – dann sofort speichern
   assert.ok(ed.includes("const adopted = !!(importCode && importCode.code) && (!S.saveCode || (S.saveCode === importCode.code && importCode.at > S.savedOnlineAt));"));

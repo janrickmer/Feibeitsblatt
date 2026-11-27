@@ -10,7 +10,7 @@ const block = (name) => { const i = html.indexOf("/* " + name + ":BEGIN"), j = h
 // Blöcke BDAY, GROUP, ESCAPE und PDFREAD (der PDF-Leser braucht nur td = TextDecoder)
 const E = new Function("td", block("BDAY") + block("GROUP") + block("ESCAPE") + block("PDFREAD") +
   "\nreturn { fbEscapeHash, escCheck, escLine, escText, escIso, cleanEscapeSpec, escCleanPayload, escSummary, ESC_KIND, ESC_MAX_BYTES, ESC_ID_RE, " +
-  "escB64urlBytes, escHull, escBirth, cleanEscape, escKuerzel, escPerson, escPayload, escTrim, escHasDetails, readStartPdf, feibeitsblattPdfKind };")(new TextDecoder());
+  "escB64urlBytes, escHull, escBirth, cleanEscape, escKuerzel, escPerson, escPayload, escTrim, escHasDetails, readStartPdf, feibeitsblattPdfKind, draftTextLines, dtSum };")(new TextDecoder());
 const pdfPlain = new Function(block("PDFPLAIN") + "return pdfPlain;")();
 
 test("escape: Prüfsumme – Testvektoren der Schnittstelle v1 und dieselben Werte wie die Kopie des Raums", () => {
@@ -306,4 +306,47 @@ test("escape: readStartPdf – Überblick-PDF des Raums (unkomprimiert, neu gesp
   await fails(rawPdf([["/Type /EmbeddedFile", JSON.stringify({ kind: "anderes" })]]), "nodraft");
   await fails(Buffer.from("Hallo"), "nopdf");
   assert.equal(await E.feibeitsblattPdfKind(u8(rawPdf([["/Type /EmbeddedFile", JSON.stringify({ kind: "anderes" })]]))), null);
+});
+
+/* Sicherungszeilen der Zwischenstand-PDF (Rückfall ohne Datenanhang) */
+import { deflateSync } from "node:zlib";
+const minPdf = (objs) => {   // kleine PDF aus [Wörterbuch, Stream-Bytes?] – Objektnummern ab 1, ohne Querverweistabelle (der Leser braucht keine)
+  const parts = ["%PDF-1.7\n"];
+  objs.forEach(([dict, data], k) => {
+    if (data == null) parts.push(`${k + 1} 0 obj\n${dict}\nendobj\n`);
+    else { parts.push(`${k + 1} 0 obj\n${dict.replace("LEN", data.length)}\nstream\n`); parts.push(Buffer.from(data)); parts.push("\nendstream\nendobj\n"); }
+  });
+  parts.push("%%EOF\n");
+  return new Uint8Array(Buffer.concat(parts.map((x) => typeof x === "string" ? Buffer.from(x, "latin1") : x)));
+};
+const REC = { v: 1, t: 1, kind: "feibeitsblatt-draft", code: "K7QM4X", sheetTitle: "Größe – „Test“", answers: ["Erste Antwort mit Umlauten äöü", "", "x".repeat(3000)], first: null, feedback: null, photos: null, photosOmitted: 1 };
+const esc = (t) => t.replace(/[\\()]/g, (c) => "\\" + c);
+
+test("escape/PDFREAD: Sicherungszeilen – Zeilen aus dem Datensatz, Prüfsumme je Zeile; ohne Datenanhang liest readStartPdf den Stand daraus", async () => {
+  const lines = await E.draftTextLines(REC);
+  assert.ok(lines.length >= 2 && lines.every((l) => /^FBZS1:\d+:\d+:[A-Za-z0-9+/=]{1,96}:[0-9a-f]{8}#$/.test(l)));
+  lines.forEach((l, k) => { const m = l.split(":"); assert.equal(+m[1], k + 1); assert.equal(+m[2], lines.length); assert.equal(m[4], E.dtSum(`${m[1]}:${m[2]}:${m[3]}`) + "#"); });
+  // 1) unsere Schrift: je Zeile ein Tj, unkomprimiert, in umgekehrter Reihenfolge und mit anderem Text dazwischen
+  const raw = ["BT /F1 9 Tf (Anderer Text) Tj ET", ...[...lines].reverse().map((l) => `BT /F1 6.5 Tf 56 700 Td (${esc(l)}) Tj ET`)].join("\n");
+  const r1 = await E.readStartPdf(minPdf([["<< /Type /Catalog >>"], ["<< /Length LEN >>", raw]]).buffer);
+  assert.equal(r1.kind, "draft"); assert.equal(r1.text, true); assert.deepEqual(r1.o, REC);
+  // 2) neu gedruckt: komprimiert, Schrift mit eigenen 2-Byte-Codes (ToUnicode), Zeilen in TJ-Stücke mit Abständen zerlegt
+  const chars = [...new Set(lines.join(""))], code = new Map(chars.map((c, k) => [c, 3 + k]));
+  const hex = (t) => [...t].map((c) => code.get(c).toString(16).padStart(4, "0")).join("");
+  const cmap = "/CIDInit /ProcSet findresource begin\nbegincmap\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n" + chars.length + " beginbfchar\n" +
+    chars.map((c) => `<${code.get(c).toString(16).padStart(4, "0")}> <${c.charCodeAt(0).toString(16).padStart(4, "0")}>`).join("\n") + "\nendbfchar\nendcmap\n";
+  const printed = lines.map((l) => `BT /F7 6.5 Tf 56 700 Td [<${hex(l.slice(0, 40))}> -12 <${hex(l.slice(40))}>] TJ ET`).join("\n");
+  const r2 = await E.readStartPdf(minPdf([["<< /Type /Catalog >>"], ["<< /Length LEN /Filter /FlateDecode >>", deflateSync(Buffer.from(cmap, "latin1"))], ["<< /Length LEN /Filter /FlateDecode >>", deflateSync(Buffer.from(printed, "latin1"))]]).buffer);
+  assert.equal(r2.text, true); assert.deepEqual(r2.o, REC);
+  // 3) eine Zeile fehlt oder ist verändert → kein Zwischenstand
+  for (const bad of [lines.slice(1), lines.map((l, k) => (k ? l : l.replace(/:([A-Za-z0-9])/, (_, c) => ":" + (c === "A" ? "B" : "A"))))]) {
+    const t = bad.map((l) => `BT /F1 6.5 Tf 56 700 Td (${esc(l)}) Tj ET`).join("\n");
+    await assert.rejects(E.readStartPdf(minPdf([["<< /Type /Catalog >>"], ["<< /Length LEN >>", t]]).buffer), /nodraft/);
+  }
+  // 4) PDF einer Live-Gruppenarbeit (Kennzeichen oder Überschrift) → eigener Grund
+  await assert.rejects(E.readStartPdf(minPdf([["<< /Title (x) /FbLive 1 >>"]]).buffer), /^Error: live$/);
+  await assert.rejects(E.readStartPdf(minPdf([["<< /Type /Catalog >>"], ["<< /Length LEN >>", "BT /F2 17 Tf (Stand der Gruppenarbeit \\226 Test) Tj ET"]]).buffer), /^Error: live$/);
+  // ein großer Datensatz: höchstens 540 Zeilen, sonst keine
+  const { randomBytes } = await import("node:crypto");
+  assert.equal(await E.draftTextLines({ ...REC, answers: [randomBytes(60000).toString("base64")] }), null);
 });

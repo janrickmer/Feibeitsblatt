@@ -1800,7 +1800,9 @@ test("2 Schüler:in A: Code → Einzelarbeit → Angaben → Schreiben, Einfüge
   const pdf = await readFile(pdfPath);
   const pdfText = pdf.toString("latin1");
   expect(pdfText.startsWith("%PDF-1.7")).toBe(true);
-  expect(pdfText).toContain("/Type /Pages /Kids [3 0 R] /Count 1");                         // genau eine Seite
+  expect(pdfText).toMatch(/\/Type \/Pages \/Kids \[3 0 R 11 0 R[\d R]*\] \/Count \d+ >>/);   // Seite 1 wie bisher, ab Seite 2 die Antworten
+  expect(pdfShownText(pdf)).toContain("Deine Antworten (Stand beim Sichern)");
+  pdfStructure(pdf, 10);
   expect(pdfText).toContain("/Subtype /Link /Rect [");
   expect(pdfText).toContain("/A << /S /URI /URI (https://feibeitsblatt.janrickmer.de/) >>");   // Link klickbar (öffnet im Browser)
   expect(pdfText).toContain("1 0.93 0.82 rg 0.86 0.45 0 RG 1.5 w");                            // orangener Hinweiskasten
@@ -2677,6 +2679,13 @@ test("2c Live-Gruppenarbeit: Gruppensprecher:in bekommt Zugangswort und Zahlenco
   expect(ltext).toContain(A1); expect(ltext).toContain(CELLS[0] + " | " + CELLS[1]);
   expect(lpdf.includes("/DCTDecode")).toBe(true);
   expect(lpdf.includes("/FbDraft")).toBe(false); expect(lpdf.includes("/EmbeddedFile")).toBe(false);
+  expect(lpdf.includes("/FbLive 1")).toBe(true);
+  { // als Zwischenstand hochgeladen: eigener Hinweis, wie man sich dazuschaltet (statt „kein Zwischenstand“)
+    const up = await openPage(browser);
+    await up.page.setInputFiles("#start-pdf-file", { name: "gruppe.pdf", mimeType: "application/pdf", buffer: lpdf });
+    await expect(up.page.locator("#start-err")).toHaveText(/^Diese PDF-Datei ist ein Stand einer Live-Gruppenarbeit – sie enthält keinen Zwischenstand zum Hochladen\. .*„Ich schalte mich dazu“/);
+    await closePage(up);
+  }
   await expect(A.locator("#save-state")).toHaveText("Stand als PDF-Datei gesichert");
   expect((await a.calls((r) => r.path.startsWith("/api/draft"))).length).toBe(0);
   expect(await A.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")).length)).toBe(0);   // kein Zwischenstand auf dem Gerät
@@ -3691,10 +3700,10 @@ test("3h Online-Zwischenstand: „Zwischenstand sichern (online und als PDF-Date
   expect(ds1.typing).toBeUndefined();   // Tippzeiten stehen nicht im Zwischenstand – also auch nicht online (TT_KEEP_IN_DRAFT aus)
   // … und so steht er auch im Zwischenstand dieses Geräts (Code, Zeitpunkt, Frist)
   expect(await draftOfPage(p1)).toMatchObject({ saveCode: code8, savedOnlineAt: r1.savedAt, savedOnlineUntil: r1.expiresAt });
-  // die PDF: ganz oben rot und fett der Code (deutlich größer als der Fließtext), darunter rot die Frist – sonst wie bisher, weiter eine Seite
+  // die PDF: ganz oben rot und fett der Code (deutlich größer als der Fließtext), darunter rot die Frist – sonst wie bisher, Seite 1 wie bisher
   const txt1 = pdf1.toString("latin1"), ops1 = pdfTextOps(txt1), RED_PDF = "0.75 0.1 0.1";
   pdfStructure(pdf1, 10);
-  expect(txt1).toContain("/Type /Pages /Kids [3 0 R] /Count 1");
+  expect(txt1).toMatch(/\/Type \/Pages \/Kids \[3 0 R 11 0 R[\d R]*\] \/Count \d+ >>/);
   expect(ops1[0]).toEqual({ color: RED_PDF, bold: true, size: 20, text: "Zwischenstand-Code: " + dcShown(code8) });
   const title1 = ops1.findIndex((o) => o.text === "Zwischenstand für ein Feibeitsblatt");
   expect(title1).toBeGreaterThan(1);
@@ -9625,6 +9634,36 @@ test("7t KI-Feedback je Aufgabe: Buttons „KI-Feedback nur zu dieser Aufgabe“
   await fresh.page.waitForTimeout(500);
   expect(await fresh.calls((r) => r.path === "/api/submit")).toEqual([]);   // der Erstversuch mit diesem Stand ist schon gesendet
   await closePage(fresh);
+  // ab Seite 2 lesbar: je Aufgabe die Antwort, bei den Aufgaben 1 und 2 die erste Fassung samt KI-Feedback und „kein weiteres“; dann die Sicherungszeilen
+  for (const x of ["Deine Antworten (Stand beim Sichern)", "Aufgabe 1", ANS.a1, "Begriff | Erklärung", ANS.a5, "Deine erste Fassung (an die KI geschickt):", "KI-Feedback (von einer KI erzeugt):", "Sicherungsdaten", "Seite 1 von "])
+    expect(dtext).toContain(x);
+  expect(dtext.split("Zu dieser Aufgabe hast du das KI-Feedback zum Überarbeiten schon bekommen.").length - 1).toBe(2);
+  for (const c of drec.feedback[0].covered) expect(dtext).toContain(c.split(" ").slice(0, 3).join(" "));
+  const dlines = dtext.match(/FBZS1:\d+:\d+:[A-Za-z0-9+/=]+:[0-9a-f]{8}#/g);
+  expect(dlines.length).toBeGreaterThan(0);
+  // eine App hat den Datenanhang entfernt → der Stand kommt aus den Sicherungszeilen (gleiche Antworten, Feedback bleibt, kein zweites)
+  const strip = Buffer.from(dpdf); strip.fill(0x20, d0, d1); strip.write("/FbXxxx 1", i0, "latin1");
+  const restoreCheck = async (buf, name) => {
+    const g = await openPage(browser);
+    await g.page.setInputFiles("#start-pdf-file", { name, mimeType: "application/pdf", buffer: buf });
+    await expect(g.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+    await expect(g.page.locator("#save-state")).toContainText("Zwischenstand aus der PDF-Datei übernommen – aus den Sicherungsdaten, weil der Datenanhang der Datei fehlte");
+    await expect(g.page.locator("#a-1")).toHaveValue(ANS.a1);
+    await expect(g.page.locator("#a-5")).toHaveValue(ANS.a5);
+    await expect(g.page.locator("#t-1 .fbbox")).toBeVisible();
+    await expect(g.page.locator("#t-2 .fbbox")).toBeVisible();
+    for (const n of [1, 2]) await expectBtn(g.page, n, true, false);
+    for (const n of [3, 4]) await expectBtn(g.page, n, false, true);
+    await closePage(g);
+  };
+  await restoreCheck(strip, "ohne-anhang.pdf");
+  // „als PDF gedruckt“: nur die Sicherungszeilen, von Chromium neu gesetzt (eigene Schrift, komprimiert, ToUnicode)
+  const printer = await browser.newPage();
+  await printer.setContent(`<pre style="font: 7px monospace">${dlines.join("\n")}</pre>`);
+  const printed = await printer.pdf({ format: "A4" });
+  await printer.close();
+  expect(printed.includes("FBZS1")).toBe(false);   // kein lesbarer Text im Rohformat – nur über die Schrift-Tabelle
+  await restoreCheck(printed, "gedruckt.pdf");
 
   // Button unten: nur noch die übrigen Aufgaben mit Auftrag (3 und 4) – erst ist Aufgabe 4 leer
   await page.click("#fb-btn");

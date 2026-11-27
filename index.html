@@ -5049,6 +5049,9 @@ $("resume-del").addEventListener("click", async () => {
 /* ---------- Zwischenstand-PDF hochladen (Startseite) ---------- */
 const PDF_NOT_DRAFT = "In dieser Datei steckt kein Feibeitsblatt-Zwischenstand. Lade genau die PDF-Datei hoch, die du mit „" + DC_BTN + "“ gespeichert hast – kein Screenshot und kein Ausdruck davon.";
 const PDF_TOO_BIG = "Diese Datei ist zu groß für einen Zwischenstand. " + PDF_NOT_DRAFT;
+const PDF_LIVE_NOT_DRAFT = "Diese PDF-Datei ist ein Stand einer Live-Gruppenarbeit – sie enthält keinen Zwischenstand zum Hochladen. Ihr arbeitet weiter, indem ihr den Code des Feibeitsblattes eingebt, „Partner- / Gruppenarbeit“ und dann „Ich schalte mich dazu“ wählt und Zugangswort und Zahlencode eingebt (sie stehen oben in der Datei).";
+const PDF_TEXT_LOADED = "Zwischenstand aus der PDF-Datei übernommen – aus den Sicherungsdaten, weil der Datenanhang der Datei fehlte";
+const pdfTextLoaded = (n) => PDF_TEXT_LOADED + (n ? (n === 1 ? ". Dein Foto war darin nicht enthalten – bitte füge es neu hinzu." : ". Deine Fotos waren darin nicht enthalten – bitte füge sie neu hinzu.") : "");
 // → true, wenn danach der Schreibbereich offen ist (bei einer Überblick-PDF aus einem Escape-Room: die Angaben bzw. der Schreibbereich);
 // sonst steht die Meldung auf der Startseite (für die Antwort an Unterricks, siehe unterricksListen)
 async function importDraftPdf(file) {
@@ -5062,14 +5065,16 @@ async function importDraftPdf(file) {
   busy(btn, true, "Datei wird gelesen …");
   try {
     let d = null, r = null;
-    try { r = await readStartPdf(await file.arrayBuffer()); } catch (e) { r = { kind: e && e.message === "escape-bad" ? "escape-bad" : "" }; }
+    try { r = await readStartPdf(await file.arrayBuffer()); } catch (e) { r = { kind: e && (e.message === "escape-bad" || e.message === "live") ? e.message : "" }; }
     // Überblick-PDF aus einem Escape-Room: derselbe Weg wie über den Link am Ende des Raums
     if (run !== ESC.run) return;
     if (r.kind === "escape") { busy(btn, false); $("code-input").value = ""; return (await escArrive(r.o, "pdf")) === true; }
     if (r.kind === "escape-bad") { err.textContent = ESC_PDF_BAD; showResume(); return; }
     if (r.kind === "draft") d = cleanDraft(r.o);
-    if (!d) { err.textContent = PDF_NOT_DRAFT; return; }
-    return await openLoadedDraft(d, run, "pdf");
+    if (!d) { err.textContent = r.kind === "live" ? PDF_LIVE_NOT_DRAFT : PDF_NOT_DRAFT; return; }
+    // aus den Sicherungszeilen (ohne Datenanhang): ohne Fotos – das sagt die Statuszeile im Schreibbereich
+    S.importPhotosLost = r.text && Number.isInteger(r.o.photosOmitted) ? r.o.photosOmitted : 0;
+    return await openLoadedDraft(d, run, r.text ? "pdf-text" : "pdf");
   } catch (e) { if (run === ESC.run) { resetStudent(); err.textContent = startErr(e); } }
   finally { busy(btn, false); }
 }
@@ -5611,7 +5616,8 @@ async function openEditor(fromPerson) {
   const saveFailed = (imported || pendingLost || held || quotaOver || ttChanged || arrived || adopted) && !saveDraft();
   S.tas.forEach(updateCounter);
   renderFeedbackState();
-  setSaveState(saveFailed ? SAVE_FAILED : imported ? (importFrom === "code" ? DC_LOADED : "Zwischenstand aus der PDF-Datei übernommen") : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", saveFailed);
+  const photosLost = S.importPhotosLost; S.importPhotosLost = 0;
+  setSaveState(saveFailed ? SAVE_FAILED : imported ? (importFrom === "code" ? DC_LOADED : importFrom === "pdf-text" ? pdfTextLoaded(photosLost) : "Zwischenstand aus der PDF-Datei übernommen") : restored ? "Zwischenstand von diesem Gerät wiederhergestellt" : "Zwischenstand wird auf diesem Gerät gespeichert", saveFailed);
   // Erstversuch nachholen, falls die Übermittlung damals scheiterte – bzw. ohne Tippzeiten ersetzen (Widerspruch, S.ttResend)
   if (S.feedback && (!S.firstSent || S.ttResend || fbtSig(S.feedback) !== S.firstSentSig)) sendFirstAttempt();
   setStatus($("fb-status"), "", ""); setStatus($("submit-status"), "", "");
@@ -6516,7 +6522,14 @@ const latin1 = (str) => { const u = new Uint8Array(str.length); for (let i = 0; 
 // online = {code, at, until}: dieser Stand ist gerade online gesichert worden (DRAFTCODE) – dann steht ganz oben rot und fett der
 // Zwischenstand-Code, darunter rot, wie und bis wann er sich einlösen lässt, und die Punkte unter „Bitte beachte“ nennen ihn; ohne
 // (Online-Speichern gescheitert) sieht die Datei aus wie bisher. Hochladen lässt sie sich in jedem Fall.
-function makeDraftPdf(d, withAi = true, escName = "", perTask = false, online = null) {
+/* Ab Seite 2 (Wunsch der Lehrkraft vom 27.11.2026): je Aufgabe die Aufgabenstellung, die Antwort (Fotos als Bild) und – falls es zu ihr
+   schon KI-Feedback gibt – die erste Fassung und das Feedback; danach die Sicherungszeilen (draftTextLines). x = {tasks: Aufgabentexte,
+   kinds: Antwortarten, lines: Sicherungszeilen | null}. */
+const DRAFT_PDF_ANSWERS = "Deine Antworten (Stand beim Sichern)";
+const DRAFT_PDF_FB_ONCE = "Zu dieser Aufgabe hast du das KI-Feedback zum Überarbeiten schon bekommen. Lädst du diese Datei wieder hoch, gibt es dazu kein weiteres KI-Feedback.";
+const DRAFT_PDF_DATA_HEAD = "Sicherungsdaten";
+const DRAFT_PDF_DATA_NOTE = "Diese Zeilen enthalten deinen Zwischenstand noch einmal (ohne Fotos). Entfernt eine App beim Speichern oder Drucken den Datenanhang dieser Datei, liest Feibeitsblatt deinen Stand aus diesen Zeilen. Bitte nicht verändern.";
+function makeDraftPdf(d, withAi = true, escName = "", perTask = false, online = null, x = {}) {
   const W = 595.28, H = 841.89, M = 56, TW = W - 2 * M;   // A4, Ränder
   const ops = [];
   const put = (x, yTop, str, size, bold, color) => ops.push(`BT ${color || "0 0 0"} rg /${bold ? "F2" : "F1"} ${size} Tf ${x.toFixed(2)} ${(H - yTop).toFixed(2)} Td ${pdfStr(str)} Tj ET`);
@@ -6533,7 +6546,7 @@ function makeDraftPdf(d, withAi = true, escName = "", perTask = false, online = 
     y = para(M, y, dcPdfLine(online.until), 11, false, TW, 15, RED) + 22;
   }
   put(M, y, "Zwischenstand für ein Feibeitsblatt", 21, true, "0.1 0.1 0.1"); y += 24;
-  y = para(M, y, "Diese Datei ist kein fertiges Arbeitsblatt und keine Abgabe, sondern ein gesicherter Zwischenstand: Die Antworten stecken als Daten in der Datei, damit du später weiterschreiben kannst.", 11, false, TW, 15, "0.3 0.3 0.3") + 12;
+  y = para(M, y, "Diese Datei ist kein fertiges Arbeitsblatt und keine Abgabe, sondern ein gesicherter Zwischenstand: Ab Seite 2 stehen deine Antworten zum Nachlesen, und sie stecken als Daten in der Datei, damit du später weiterschreiben kannst.", 11, false, TW, 15, "0.3 0.3 0.3") + 12;
   const row = (label, val) => { put(M, y, label, 11, true); y = para(M + 100, y, val, 11, false, TW - 100, 15); };
   row("Feibeitsblatt:", `${d.sheetTitle || "Feibeitsblatt"} (Code ${fmtCode(d.code)})`);
   const esc = !!(d.escape && escName);
@@ -6567,8 +6580,46 @@ function makeDraftPdf(d, withAi = true, escName = "", perTask = false, online = 
     withAi ? (perTask ? FBT_PDF_ONCE : "Hast du das KI-Feedback schon bekommen, bleibt es in der Datei erhalten; ein zweites KI-Feedback zum Überarbeiten gibt es nicht.") : "",
     esc ? "Die Datei enthält auch deine Daten aus dem Escape-Room (voller Name, Geburtsdatum, Bestätigungscode und Ergebnisse) – damit kannst du hier weitermachen." : ""
   ].filter(Boolean).forEach((n) => { put(M, y, "•", 11, false); y = para(M + 14, y, n, 11, false, TW - 14, 15) + 4; });
-  put(M, H - 40, "Erstellt mit Feibeitsblatt · " + url, 9, false, "0.45 0.45 0.45");
-  // Objekte zusammensetzen
+  // Ab Seite 2: die Antworten lesbar, danach die Sicherungszeilen
+  const pg = pdfPager(), pp = pg.para, gap = pg.gap, GREY = { color: "0.35 0.35 0.35" };
+  const tasks = Array.isArray(x.tasks) ? x.tasks : [], kinds = Array.isArray(x.kinds) ? x.kinds : [];
+  pp(DRAFT_PDF_ANSWERS, 16, true); gap(10);
+  answers.forEach((ans, i) => {
+    const kind = kinds[i] || "text", text = String(ans || "");
+    const f = Array.isArray(d.feedback) && d.feedback[i] ? normFb(d.feedback[i]) : null, first = Array.isArray(d.first) ? d.first[i] : null;
+    pg.room(70);
+    pp("Aufgabe " + (i + 1), 13, true); gap(2);
+    if (tasks[i]) pp(String(tasks[i]), 10.5, false, { color: "0.25 0.25 0.25" });
+    gap(6); pp("Deine Antwort:", 10.5, true);
+    if (kind === "photo") {
+      const ph = Array.isArray(d.photos) ? d.photos[i] : null;
+      let info = null, bytes = null;
+      if (ph) { try { bytes = photoBytes(ph); info = jpegInfo(bytes); } catch (e) { info = null; } }
+      if (ph && pdfPhotoOk(info)) pg.image(pg.addImage(bytes, info), pg.TW, 330);
+      else pp(ph ? "[Foto – kann in dieser Datei nicht angezeigt werden]" : "(noch kein Foto)", 11, false, GREY);
+    } else pp(text.trim() ? text : "(noch leer)", 11, false, text.trim() ? {} : GREY);
+    if (f) {
+      gap(6); pp("Deine erste Fassung (an die KI geschickt):", 10.5, true, GREY);
+      pp(String(first || "").trim() ? String(first) : "(leer)", 10.5, false, GREY);
+      gap(4); pp("KI-Feedback (von einer KI erzeugt):", 10.5, true);
+      for (const c of f.covered) pp("• Das gelingt dir schon: " + c, 10.5, false, { indent: 10 });
+      for (const m of f.missing) pp("• Tipp: " + m, 10.5, false, { indent: 10 });
+      if (f.note) pp(f.note, 10.5, false, { indent: 10, ...GREY });
+      gap(3); pp(DRAFT_PDF_FB_ONCE, 10, false, GREY);
+    }
+    gap(14);
+  });
+  if (Array.isArray(x.lines) && x.lines.length) {
+    pg.newPage();
+    pp(DRAFT_PDF_DATA_HEAD, 12, true); gap(2);
+    pp(DRAFT_PDF_DATA_NOTE, 9.5, false, GREY); gap(8);
+    for (const l of x.lines) pp(l, 6.5, false, { lh: 8, color: "0.4 0.4 0.4" });
+  }
+  const more = pg.pages.filter((p, i) => i === 0 || p.length), total = more.length + 1;
+  put(M, H - 40, "Erstellt mit Feibeitsblatt · " + url + " · Seite 1 von " + total, 9, false, "0.45 0.45 0.45");
+  more.forEach((p, i) => p.push(`BT 0.45 0.45 0.45 rg /F1 9 Tf ${M.toFixed(2)} 36 Td ${pdfStr("Feibeitsblatt · Zwischenstand " + fmtCode(d.code) + " · Seite " + (i + 2) + " von " + total)} Tj ET`));
+  // Objekte zusammensetzen: 1–10 wie bisher (Seite 1, Datenanhang, Link, Info), ab 11 je weitere Seite Seite + Inhalt, dann die Fotos
+  const pageNo = (i) => 11 + 2 * i, ims = pg.images.map((im, k) => Object.assign({ obj: 11 + 2 * more.length + k }, im)), imNo = new Map(ims.map((im) => [im.name, im.obj]));
   const content = ops.join("\n"), json = te.encode(JSON.stringify(d)), parts = [], offsets = [];
   let pos = 0;
   const push = (x) => { const b = typeof x === "string" ? latin1(x) : x; parts.push(b); pos += b.length; };
@@ -6576,7 +6627,7 @@ function makeDraftPdf(d, withAi = true, escName = "", perTask = false, online = 
   const t = new Date(), stamp = `${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}${pad2(t.getHours())}${pad2(t.getMinutes())}${pad2(t.getSeconds())}`;
   push("%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
   obj(1, "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(zwischenstand.json) 7 0 R] >> >> /AF [7 0 R] >>");
-  obj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  obj(2, `<< /Type /Pages /Kids [3 0 R${more.map((_, i) => ` ${pageNo(i)} 0 R`).join("")}] /Count ${total} >>`);
   obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R /Annots [8 0 R] >>`);
   obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
   obj(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
@@ -6585,10 +6636,16 @@ function makeDraftPdf(d, withAi = true, escName = "", perTask = false, online = 
   obj(8, `<< /Type /Annot /Subtype /Link /Rect [${linkRect.map((v) => v.toFixed(2)).join(" ")}] /Border [0 0 0] /A << /S /URI /URI ${pdfStr(url)} >> >>`);
   obj(9, [`<< /Type /EmbeddedFile /Subtype /application#2Fjson /FbDraft 1 /Params << /Size ${json.length} >> /Length ${json.length} >>\nstream\n`, json, "\nendstream"]);
   obj(10, `<< /Title ${pdfUtf16("Feibeitsblatt – Zwischenstand " + fmtCode(d.code))} /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
-  const xref = pos;
-  let x = "xref\n0 11\n0000000000 65535 f \n";
-  for (let i = 1; i <= 10; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
-  push(x + `trailer\n<< /Size 11 /Root 1 0 R /Info 10 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  more.forEach((p, i) => {
+    const c = p.join("\n"), xs = p.ims ? [...p.ims].filter((n) => imNo.has(n)).map((n) => `/${n} ${imNo.get(n)} 0 R`).join(" ") : "";
+    obj(pageNo(i), `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >>${xs ? ` /XObject << ${xs} >>` : ""} >> /Contents ${pageNo(i) + 1} 0 R >>`);
+    obj(pageNo(i) + 1, `<< /Length ${c.length} >>\nstream\n${c}\nendstream`);
+  });
+  for (const im of ims) obj(im.obj, [`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /${im.comps === 1 ? "DeviceGray" : "DeviceRGB"} /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`, im.data, "\nendstream"]);
+  const count = 11 + 2 * more.length + ims.length, xref = pos;
+  let xr = `xref\n0 ${count}\n0000000000 65535 f \n`;
+  for (let i = 1; i < count; i++) xr += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  push(xr + `trailer\n<< /Size ${count} /Root 1 0 R /Info 10 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
   const out = new Uint8Array(pos); let o = 0;
   for (const b of parts) { out.set(b, o); o += b.length; }
   return out;
@@ -6708,7 +6765,127 @@ async function readStartPdf(buf) {
     if (!hull && o && o.kind === ESC_KIND) hull = escHull(o);
   }
   if (hull) return { kind: "escape", o: hull };
-  throw new Error(/\/FbEscape\s+1\b/.test(s) ? "escape-bad" : "nodraft");
+  if (/\/FbEscape\s+1\b/.test(s)) throw new Error("escape-bad");
+  // Rückfall: Hat eine App den Datenanhang entfernt (neu gespeichert, „Drucken als PDF“, Export aus einer Notiz-App), stehen die
+  // Sicherungszeilen noch als Text in der Datei (ohne Fotos)
+  let tx = null;
+  try { tx = await pdfTextDraft(doc); } catch (e) { tx = null; }
+  if (tx && tx.o) return { kind: "draft", o: tx.o, text: true };
+  throw new Error(/\/FbLive\s+1\b/.test(s) || (tx && tx.live) ? "live" : "nodraft");
+}
+/* Sicherungszeilen einer Zwischenstand-PDF (Wunsch der Lehrkraft vom 27.11.2026): der Datensatz (ohne Fotos) als deflate + Base64 in
+   sichtbaren Textzeilen „FBZS1:<i>:<n>:<Base64>:<Prüfsumme>#“ – so übersteht er Apps, die beim Neuspeichern oder Drucken den Datenanhang
+   entfernen, die Texte der Seiten aber behalten. Gelesen wird aus allen Inhalts-Streams: die Zeichenketten der Textbefehle in ihrer
+   Reihenfolge, einmal roh (unsere Schrift, WinAnsi) und einmal je ToUnicode-Tabelle der Datei (Programme, die die Schrift neu einbetten);
+   nur Zeilen mit passender Prüfsumme zählen, alle n müssen da sein. */
+const DT_TAG = "FBZS1", DT_CHUNK = 96, DT_MAX_LINES = 540;
+const DT_RE = /FBZS1:(\d{1,3}):(\d{1,3}):([A-Za-z0-9+/=]{1,200}):([0-9a-f]{8})#/g;
+function dtSum(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, "0"); }
+async function dtPipe(u8, stream, max) {
+  const reader = new Blob([u8]).stream().pipeThrough(stream).getReader(), parts = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) { try { await reader.cancel(); } catch (e) { /* egal */ } throw new Error("toolarge"); }
+    parts.push(value);
+  }
+  const out = new Uint8Array(n); let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+// Datensatz → Zeilen (null, wenn er zu groß ist – dann bleibt nur der Datenanhang)
+async function draftTextLines(rec) {
+  const z = await dtPipe(new TextEncoder().encode(JSON.stringify(rec)), new CompressionStream("deflate"), 8 * 1024 * 1024);
+  let b = ""; for (let i = 0; i < z.length; i += 0x8000) b += String.fromCharCode.apply(null, z.subarray(i, i + 0x8000));
+  b = btoa(b);
+  const n = Math.ceil(b.length / DT_CHUNK);
+  if (!n || n > DT_MAX_LINES) return null;
+  return Array.from({ length: n }, (_, k) => { const c = b.slice(k * DT_CHUNK, (k + 1) * DT_CHUNK), head = `${k + 1}:${n}:${c}`; return `${DT_TAG}:${head}:${dtSum(head)}#`; });
+}
+// Zeichenketten der Textbefehle eines Inhalts-Streams (Latin-1) in ihrer Reihenfolge – (…) mit Escapes und <hex>
+function pdfTextStrings(c) {
+  const out = [];
+  for (let i = 0; i < c.length && out.length < 200000; i++) {
+    const ch = c[i];
+    if (ch === "%") { const e = c.indexOf("\n", i); if (e < 0) break; i = e; }
+    else if (ch === "(") {
+      let depth = 1, str = "", j = i + 1;
+      for (; j < c.length && depth; j++) {
+        const k = c[j];
+        if (k === "\\") {
+          const n = c[++j];
+          if (n === "n") str += "\n"; else if (n === "r") str += "\r"; else if (n === "t") str += "\t"; else if (n === "b") str += "\b"; else if (n === "f") str += "\f";
+          else if (n >= "0" && n <= "7") { let o = n; while (o.length < 3 && c[j + 1] >= "0" && c[j + 1] <= "7") o += c[++j]; str += String.fromCharCode(parseInt(o, 8) & 255); }
+          else if (n === "\r" || n === "\n") { if (n === "\r" && c[j + 1] === "\n") j++; }
+          else if (n !== undefined) str += n;
+        } else if (k === "(") { depth++; str += k; } else if (k === ")") { if (--depth) str += k; } else str += k;
+      }
+      out.push(str); i = j - 1;
+    } else if (ch === "<") {
+      if (c[i + 1] === "<") { i++; continue; }
+      const e = c.indexOf(">", i); if (e < 0) break;
+      const hx = c.slice(i + 1, e).replace(/\s+/g, "");
+      if (/^[0-9a-fA-F]*$/.test(hx)) { let str = ""; for (let k = 0; k < hx.length; k += 2) str += String.fromCharCode(parseInt((hx.slice(k, k + 2) + "0").slice(0, 2), 16)); out.push(str); }
+      i = e;
+    }
+  }
+  return out;
+}
+// ToUnicode-Tabelle (bfchar/bfrange) → {bytes, map: Code → Text}
+function pdfCmap(c) {
+  const map = new Map(), cs = /begincodespacerange\s*<([0-9a-fA-F]+)>/.exec(c), bytes = cs ? Math.max(1, Math.min(4, cs[1].length >> 1)) : 2;
+  const uni = (hx) => { let t = ""; for (let k = 0; k + 4 <= hx.length; k += 4) t += String.fromCharCode(parseInt(hx.slice(k, k + 4), 16)); return t; };
+  for (const b of c.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) for (const m of b[1].matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]*)>/g)) if (map.size < 100000) map.set(parseInt(m[1], 16), uni(m[2]));
+  for (const b of c.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) for (const m of b[1].matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(<[0-9a-fA-F]*>|\[[^\]]*\])/g)) {
+    const lo = parseInt(m[1], 16), hi = Math.min(parseInt(m[2], 16), lo + 65535);
+    if (m[3][0] === "[") { const list = [...m[3].matchAll(/<([0-9a-fA-F]*)>/g)].map((x) => uni(x[1])); for (let k = lo; k <= hi && map.size < 100000; k++) map.set(k, list[k - lo] || ""); }
+    else { const base = uni(m[3].slice(1, -1)); if (!base) continue; const head = base.slice(0, -1), last = base.charCodeAt(base.length - 1); for (let k = lo; k <= hi && map.size < 100000; k++) map.set(k, head + String.fromCharCode(last + k - lo)); }
+  }
+  return { bytes, map };
+}
+const pdfCmapText = (cm, str) => { let t = ""; for (let i = 0; i + cm.bytes <= str.length; i += cm.bytes) { let code = 0; for (let k = 0; k < cm.bytes; k++) code = code * 256 + str.charCodeAt(i + k); t += cm.map.get(code) || ""; } return t; };
+// Zwischenstand aus den Sicherungszeilen → {o | null, live} (live: Text einer PDF der Live-Gruppenarbeit gefunden)
+async function pdfTextDraft(doc) {
+  const { s, u } = doc, contents = [], cmaps = [];
+  let total = 0, seen = 0;
+  for (const m of s.matchAll(/(?<![A-Za-z])stream(?=\r|\n)/g)) {
+    if (++seen > 600 || total > 40 * 1024 * 1024) break;
+    const x = pdfStreamAt(doc, m.index);
+    if (!x || x.end - x.start > 16 * 1024 * 1024) continue;
+    let b; try { b = await pdfStreamData(u, x, 8 * 1024 * 1024); } catch (e) { continue; }
+    total += b.length;
+    const c = pdfLatin1(b);
+    if (c.includes("begincmap")) { if (cmaps.length < 40) cmaps.push(pdfCmap(c)); }
+    else if (/T[Jj]/.test(c)) contents.push(c);
+  }
+  const got = new Map(); let live = false;
+  const take = (text) => {
+    for (const m of text.matchAll(DT_RE)) {
+      const head = `${m[1]}:${m[2]}:${m[3]}`, i = +m[1], n = +m[2];
+      if (dtSum(head) !== m[4] || !i || i > n || n > DT_MAX_LINES) continue;
+      if (!got.has(n)) got.set(n, new Map());
+      got.get(n).set(i, m[3]);
+    }
+  };
+  for (const c of contents) {
+    const strs = pdfTextStrings(c), raw = strs.join("");
+    if (raw.includes("Stand der Gruppenarbeit")) live = true;
+    take(raw);
+    for (const cm of cmaps) take(strs.map((x) => pdfCmapText(cm, x)).join(""));
+  }
+  for (const [n, lines] of got) {
+    if (lines.size !== n) continue;
+    let b = ""; for (let i = 1; i <= n; i++) b += lines.get(i);
+    try {
+      const bin = atob(b), z = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) z[i] = bin.charCodeAt(i);
+      const o = JSON.parse(td.decode(await dtPipe(z, new DecompressionStream("deflate"), 4 * 1024 * 1024)));
+      if (o && o.kind === "feibeitsblatt-draft") return { o, live };
+    } catch (e) { /* nächster Satz */ }
+  }
+  return { o: null, live };
 }
 /* PDFREAD:END */
 /* Zwischenstand aus einer Datei prüfen und normalisieren (wie die Eingabefelder) → Objekt oder null */
@@ -6809,7 +6986,12 @@ $("ed-pdf").addEventListener("click", async () => {
       if (same) { S.savedOnlineAt = online.at; S.savedOnlineUntil = online.until; saveDraft(); renderDraftCode(); }
     }
     const t = new Date(), stamp = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}_${pad2(t.getHours())}-${pad2(t.getMinutes())}`;
-    downloadBlob(new Blob([makeDraftPdf(d, withAi, escName, perTask, online ? { code: code8, at: online.at, until: online.until } : null)],
+    // Sicherungszeilen (Rückfall, falls eine App den Datenanhang entfernt): derselbe Datensatz ohne Fotos
+    const nPh = Array.isArray(d.photos) ? d.photos.filter(Boolean).length : 0;
+    let lines = null;
+    try { lines = await draftTextLines(Object.assign({}, d, { photos: null, photosOmitted: nPh })); } catch (e) { lines = null; }
+    const extra = { tasks: S.sheet.tasks.map(String), kinds: S.tas.map((x) => x._kind || "text"), lines };
+    downloadBlob(new Blob([makeDraftPdf(d, withAi, escName, perTask, online ? { code: code8, at: online.at, until: online.until } : null, extra)],
       { type: escName ? "application/octet-stream" : "application/pdf" }), `Feibeitsblatt-Zwischenstand-${fmtCode(sheetCode)}-${stamp}.pdf`);
     if (same) setSaveState(online ? dcSavedText(code8) : dcFailText(fail.code, fail.status), !online);
   } catch (e) { setSaveState("Die PDF-Datei konnte nicht erstellt werden", true); }
@@ -6910,7 +7092,7 @@ function pdfAssemble(pages, meta) {
   obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${total} >>`);
   obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
   obj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
-  obj(5, `<< /Title ${pdfUtf16(meta.title)}` + (meta.subject ? ` /Subject ${pdfUtf16(meta.subject)}` : "") + (meta.keywords ? ` /Keywords ${pdfUtf16(meta.keywords)}` : "") + ` /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
+  obj(5, `<< /Title ${pdfUtf16(meta.title)}` + (meta.subject ? ` /Subject ${pdfUtf16(meta.subject)}` : "") + (meta.keywords ? ` /Keywords ${pdfUtf16(meta.keywords)}` : "") + (meta.live ? " /FbLive 1" : "") + ` /Producer (Feibeitsblatt) /CreationDate (D:${stamp}) >>`);
   pages.forEach((ops, i) => {
     const content = ops.join("\n"), xs = ops.ims ? [...ops.ims].filter((n) => imNo.has(n)).map((n) => `/${n} ${imNo.get(n)} 0 R`).join(" ") : "";
     obj(6 + 2 * i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xs ? ` /XObject << ${xs} >>` : ""} >> /Contents ${7 + 2 * i} 0 R >>`);
@@ -9631,7 +9813,7 @@ function makeLivePdf(o) {
   });
   pg.footer(o.title || "", "Gruppe " + o.person.gruppe.join(", "), `Gruppe (${o.person.gruppe.length})`);
   const title = "Stand der Gruppenarbeit – " + (o.title || "Feibeitsblatt");
-  return pdfAssemble(pg.pages, hasAi ? { title, subject: AI_PDF_SUBJECT, keywords: AI_PDF_KEYWORDS, xmp: true, images: pg.images } : { title, images: pg.images });
+  return pdfAssemble(pg.pages, hasAi ? { title, subject: AI_PDF_SUBJECT, keywords: AI_PDF_KEYWORDS, xmp: true, images: pg.images, live: true } : { title, images: pg.images, live: true });
 }
 function livePdfClick() {
   const L = S.live, btn = $("ed-pdf");
