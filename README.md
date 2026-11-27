@@ -121,12 +121,19 @@ und auf der Seite „Impressum & Datenschutz“ (Link unten auf jeder Seite, sie
    Stand zu groß, zu viele Anfragen), entsteht die PDF-Datei trotzdem – dann ohne die rote Code-Zeile, und die
    Statuszeile sagt, dass nur die Datei gesichert wurde.
    Die PDF-Datei bleibt in jedem Fall wie bisher verwendbar: In einem PDF-Programm geöffnet zeigt sie
-   eine einzige Seite mit dem Hinweis, dass es sich um einen Zwischenstand für ein Feibeitsblatt handelt, und einen
+   auf der ersten Seite den Hinweis, dass es sich um einen Zwischenstand für ein Feibeitsblatt handelt, und einen
    orangen Kasten: Genau diese PDF-Datei (kein Screenshot davon) kann auf <https://feibeitsblatt.janrickmer.de/>
-   hochgeladen werden, um weiterzuarbeiten – der Link darin öffnet sich im Browser. Der eigentliche Zwischenstand
+   hochgeladen werden, um weiterzuarbeiten – der Link darin öffnet sich im Browser. Ab Seite 2 stehen die Antworten zum
+   Nachlesen (je Aufgabe Aufgabenstellung und Antwort, Fotos als Bild; hat eine Aufgabe schon KI-Feedback bekommen, auch die
+   erste Fassung, das Feedback und der Hinweis, dass es dazu nach dem Hochladen kein weiteres gibt), auf der letzten Seite
+   kleine graue **Sicherungszeilen**. Der eigentliche Zwischenstand
    (Antworten, Angaben, ggf. KI-Feedback, der Zwischenstand-Code – keine Tippzeiten) steckt unsichtbar als eingebettete Datei in der PDF. Auf der Startseite
-   stellt **„Zwischenstand-PDF hochladen“** aus genau dieser Datei alles wieder her (ein Screenshot oder Ausdruck
-   enthält die Daten nicht) – etwa, wenn der online gesicherte Stand schon gelöscht ist. Die Datei enthält die Antworten lesbar – sie gehört nicht in fremde Hände. Liegt auf
+   stellt **„Zwischenstand-PDF hochladen“** aus genau dieser Datei alles wieder her (ein Screenshot oder Ausdruck auf Papier
+   enthält die Daten nicht) – etwa, wenn der online gesicherte Stand schon gelöscht ist. Hat eine App beim Speichern oder
+   „Drucken als PDF“ die eingebettete Datei entfernt (daran scheiterte das Hochladen früher mit „kein Zwischenstand“), liest
+   die Seite den Stand aus den Sicherungszeilen – derselbe Datensatz ohne Fotos, je Zeile mit Prüfsumme; die Statuszeile sagt
+   es, Fotos müssen dann neu hinzugefügt werden. Wer die PDF einer Live-Gruppenarbeit hochlädt, bekommt den Hinweis, sich
+   mit Zugangswort und Zahlencode dazuzuschalten. Die Datei enthält die Antworten lesbar – sie gehört nicht in fremde Hände. Liegt auf
    dem Gerät schon ein neuerer Zwischenstand derselben Person, fragt die Seite (beim Code wie bei der Datei), welcher Stand gelten soll. Zeigt
    **Unterricks** (die Unterrichtsplattform derselben Lehrkraft) ein Feibeitsblatt aus einer früheren Sitzung erneut an,
    können die Schüler:innen ihre Zwischenstand-PDF auch dort auswählen: Unterricks öffnet das Feibeitsblatt in einem neuen

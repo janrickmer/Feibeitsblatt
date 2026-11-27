@@ -2677,6 +2677,13 @@ test("2c Live-Gruppenarbeit: Gruppensprecher:in bekommt Zugangswort und Zahlenco
   expect(ltext).toContain(A1); expect(ltext).toContain(CELLS[0] + " | " + CELLS[1]);
   expect(lpdf.includes("/DCTDecode")).toBe(true);
   expect(lpdf.includes("/FbDraft")).toBe(false); expect(lpdf.includes("/EmbeddedFile")).toBe(false);
+  expect(lpdf.includes("/FbLive 1")).toBe(true);
+  { // als Zwischenstand hochgeladen: eigener Hinweis, wie man sich dazuschaltet (statt „kein Zwischenstand“)
+    const up = await openPage(browser);
+    await up.page.setInputFiles("#start-pdf-file", { name: "gruppe.pdf", mimeType: "application/pdf", buffer: lpdf });
+    await expect(up.page.locator("#start-err")).toHaveText(/^Diese PDF-Datei ist ein Stand einer Live-Gruppenarbeit – sie enthält keinen Zwischenstand zum Hochladen\. .*„Ich schalte mich dazu“/);
+    await closePage(up);
+  }
   await expect(A.locator("#save-state")).toHaveText("Stand als PDF-Datei gesichert");
   expect((await a.calls((r) => r.path.startsWith("/api/draft"))).length).toBe(0);
   expect(await A.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("feibeitsblatt:draft:")).length)).toBe(0);   // kein Zwischenstand auf dem Gerät
@@ -9625,6 +9632,36 @@ test("7t KI-Feedback je Aufgabe: Buttons „KI-Feedback nur zu dieser Aufgabe“
   await fresh.page.waitForTimeout(500);
   expect(await fresh.calls((r) => r.path === "/api/submit")).toEqual([]);   // der Erstversuch mit diesem Stand ist schon gesendet
   await closePage(fresh);
+  // ab Seite 2 lesbar: je Aufgabe die Antwort, bei den Aufgaben 1 und 2 die erste Fassung samt KI-Feedback und „kein weiteres“; dann die Sicherungszeilen
+  for (const x of ["Deine Antworten (Stand beim Sichern)", "Aufgabe 1", ANS.a1, "Begriff | Erklärung", ANS.a5, "Deine erste Fassung (an die KI geschickt):", "KI-Feedback (von einer KI erzeugt):", "Sicherungsdaten", "Seite 1 von "])
+    expect(dtext).toContain(x);
+  expect(dtext.split("Zu dieser Aufgabe hast du das KI-Feedback zum Überarbeiten schon bekommen.").length - 1).toBe(2);
+  for (const c of drec.feedback[0].covered) expect(dtext).toContain(c.split(" ").slice(0, 3).join(" "));
+  const dlines = dtext.match(/FBZS1:\d+:\d+:[A-Za-z0-9+/=]+:[0-9a-f]{8}#/g);
+  expect(dlines.length).toBeGreaterThan(0);
+  // eine App hat den Datenanhang entfernt → der Stand kommt aus den Sicherungszeilen (gleiche Antworten, Feedback bleibt, kein zweites)
+  const strip = Buffer.from(dpdf); strip.fill(0x20, d0, d1); strip.write("/FbXxxx 1", i0, "latin1");
+  const restoreCheck = async (buf, name) => {
+    const g = await openPage(browser);
+    await g.page.setInputFiles("#start-pdf-file", { name, mimeType: "application/pdf", buffer: buf });
+    await expect(g.page.locator("#screen-editor")).toHaveClass(/active/, { timeout: 30_000 });
+    await expect(g.page.locator("#save-state")).toContainText("Zwischenstand aus der PDF-Datei übernommen – aus den Sicherungsdaten, weil der Datenanhang der Datei fehlte");
+    await expect(g.page.locator("#a-1")).toHaveValue(ANS.a1);
+    await expect(g.page.locator("#a-5")).toHaveValue(ANS.a5);
+    await expect(g.page.locator("#t-1 .fbbox")).toBeVisible();
+    await expect(g.page.locator("#t-2 .fbbox")).toBeVisible();
+    for (const n of [1, 2]) await expectBtn(g.page, n, true, false);
+    for (const n of [3, 4]) await expectBtn(g.page, n, false, true);
+    await closePage(g);
+  };
+  await restoreCheck(strip, "ohne-anhang.pdf");
+  // „als PDF gedruckt“: nur die Sicherungszeilen, von Chromium neu gesetzt (eigene Schrift, komprimiert, ToUnicode)
+  const printer = await browser.newPage();
+  await printer.setContent(`<pre style="font: 7px monospace">${dlines.join("\n")}</pre>`);
+  const printed = await printer.pdf({ format: "A4" });
+  await printer.close();
+  expect(printed.includes("FBZS1")).toBe(false);   // kein lesbarer Text im Rohformat – nur über die Schrift-Tabelle
+  await restoreCheck(printed, "gedruckt.pdf");
 
   // Button unten: nur noch die übrigen Aufgaben mit Auftrag (3 und 4) – erst ist Aufgabe 4 leer
   await page.click("#fb-btn");

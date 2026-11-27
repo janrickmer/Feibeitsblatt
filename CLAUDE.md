@@ -234,6 +234,18 @@ Schüler:innen werden geduzt, die Lehrkraft gesiezt; echte Umlaute und typografi
   `importDraftPdf` liefert `true`, wenn danach der Schreibbereich – bei einer Überblick-PDF die Angaben bzw. der Schreibbereich – offen ist; dieselbe
   Funktion nimmt die von Unterricks übergebene PDF, siehe Zwischenstand-PDF aus Unterricks). Dateiname nur
   Code + Zeitstempel, nie Personendaten. Die Datei enthält Antworten lesbar – Hinweistexte dazu nicht entfernen.
+  **Antwortseiten und Sicherungszeilen** (Wunsch der Lehrkraft vom 27.11.2026 – Hochladen scheiterte mit „kein Zwischenstand“, wenn eine App
+  den Anhang entfernt hatte): `makeDraftPdf(d, withAi, escName, perTask, online, x = {tasks, kinds, lines})` – Seite 1 unverändert (bleibt eine
+  Seite, Fußzeile „Seite 1 von N“, Objekte 1–10 und Datensatz 9 wie bisher), ab Seite 2 per `pdfPager` `DRAFT_PDF_ANSWERS`: je Aufgabe
+  Aufgabenstellung, „Deine Antwort:“ (Textform, Foto als `/DCTDecode`, „(noch leer)“), mit Feedback dazu die erste Fassung, „KI-Feedback (von
+  einer KI erzeugt):“ mit „• Das gelingt dir schon: …“/„• Tipp: …“ und `DRAFT_PDF_FB_ONCE`; zuletzt `DRAFT_PDF_DATA_HEAD` mit den
+  Sicherungszeilen (6,5 pt grau) aus `draftTextLines` (Block PDFREAD: Datensatz **ohne Fotos** (`photosOmitted` = Anzahl) als deflate+Base64 in
+  Zeilen `FBZS1:i:n:<≤ 96 Zeichen>:<dtSum FNV-1a über „i:n:Stück“>#`, höchstens `DT_MAX_LINES` 540, sonst keine). Objekte ab 11: je weitere Seite
+  Seite + Inhalt, dann die Fotos. `readStartPdf`: ohne Zwischenstand- und Escape-Kennzeichen `pdfTextDraft` (alle Streams, Text roh und über
+  jede ToUnicode-Tabelle – auch „als PDF gedruckt“, E2E 7t per `page.pdf`; nur vollständige Sätze mit passenden Prüfsummen) → `{kind:"draft",
+  text:true}` → `cleanDraft` wie immer → `openLoadedDraft(…, "pdf-text")` → Statuszeile `pdfTextLoaded(n)` (Fotos neu hinzufügen). PDF der
+  Live-Gruppenarbeit (`/FbLive 1` im Info-Wörterbuch von `makeLivePdf`, oder Text „Stand der Gruppenarbeit“) → `PDF_LIVE_NOT_DRAFT`. Tests:
+  draftcode (Seiten, Aufbau), escape (Zeilen, Druck mit eigener Schrift-Tabelle, fehlende/veränderte Zeile, Live), E2E 7t und 2c.
   **Bestätigung nach der Abgabe** (`#screen-done`, nur nach HTTP 200 von `/api/submit`): großer grüner Haken
   (`.done-check`, SVG mit `var(--green)`), „Abgabe erfolgreich“, Zeitpunkt, `#done-del` (nur mit Frist: Löschdatum =
   `receivedAt` + `retentionDays` aus der Antwort von `/api/submit`, „oder kurz danach“), bei Partner- und Gruppenarbeit
